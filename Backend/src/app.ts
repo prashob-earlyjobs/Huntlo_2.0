@@ -20,6 +20,12 @@ import {
   candidatesRouter,
 } from './modules/candidates/index.js';
 import { peopleScoutRouter } from './modules/people-scout/index.js';
+import {
+  adminPlansRouter,
+  plansRouter,
+  usageRouter,
+} from './modules/plans/index.js';
+import { integrationsRouter } from './modules/integrations/index.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
@@ -69,6 +75,10 @@ export function createApp(): Express {
   app.use('/api/v1/candidate-lists', candidateListsRouter);
   app.use('/api/v1/candidate-imports', candidateImportsRouter);
   app.use('/api/v1/people-scout', peopleScoutRouter);
+  app.use('/api/v1/plans', plansRouter);
+  app.use('/api/v1/usage', usageRouter);
+  app.use('/api/v1/admin/plans', adminPlansRouter);
+  app.use('/api/v1/integrations', integrationsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -9,6 +9,7 @@ import {
 import { AppError } from '../../shared/errors/app-error.js';
 import { normalizeEmail } from '../../shared/validation/email.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
+import { quotaService, type QuotaUsageView } from '../../shared/usage/index.js';
 import { UserModel } from '../auth/user.model.js';
 import { assertSameOrganization } from '../../middleware/auth.js';
 import { TeamInvitationModel } from './invitation.model.js';
@@ -68,13 +69,34 @@ async function countOccupiedSeats(organizationId: mongoose.Types.ObjectId) {
 }
 
 async function assertSeatAvailable(organizationId: mongoose.Types.ObjectId, plan: string) {
-  const limit = getSeatLimit(plan);
-  if (!Number.isFinite(limit)) return;
+  void plan;
+  const usage = (await quotaService.getUsage(
+    organizationId.toHexString(),
+    'team_seats'
+  )) as QuotaUsageView;
 
   const occupied = await countOccupiedSeats(organizationId);
-  if (occupied >= limit) {
-    throw new AppError(402, 'QUOTA_EXCEEDED', 'No seats remaining on the current plan', {
-      details: [{ message: `Plan limit is ${limit} seats` }],
+  // Sync seat counter used to occupied seats for accurate remaining.
+  if (usage.used !== occupied) {
+    const { QuotaCounterModel } = await import('../../shared/usage/index.js');
+    await QuotaCounterModel.updateOne(
+      {
+        organizationId,
+        periodKey: usage.periodKey,
+        metric: 'team_seats',
+      },
+      { $set: { used: occupied } }
+    );
+  }
+
+  if (!Number.isFinite(usage.limit)) return;
+  if (occupied >= usage.limit) {
+    throw AppError.quotaExceeded('No seats remaining on the current plan', {
+      metric: 'team_seats',
+      limit: usage.limit,
+      used: occupied,
+      remaining: Math.max(0, usage.limit - occupied),
+      resetAt: usage.resetAt,
     });
   }
 }

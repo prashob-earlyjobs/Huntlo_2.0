@@ -87,6 +87,8 @@ export interface IntegrationProvider {
   connectionDetails: { label: string; value: string }[];
   isDefault: boolean;
   configKind: "email" | "smtp" | "whatsapp" | "calendly" | "generic" | "voice" | "payments" | "data";
+  /** Backend UserIntegration id when connected (live API). */
+  integrationRecordId?: string;
 }
 
 export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
@@ -230,6 +232,24 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     initials: "Gu",
     accent: "neutral",
     permissions: ["Send messages", "Manage templates"],
+    usage: [],
+    connectionDetails: [],
+    isDefault: false,
+    configKind: "whatsapp",
+  },
+  {
+    id: "huntlo-whatsapp",
+    name: "Huntlo WhatsApp",
+    description:
+      "Platform-managed WhatsApp Business number operated by Huntlo.",
+    category: "WhatsApp",
+    status: "Not Connected",
+    connectedIdentity: null,
+    lastSynced: null,
+    docsLabel: "Huntlo WhatsApp docs",
+    initials: "HW",
+    accent: "brand",
+    permissions: ["Send template messages", "Send session messages"],
     usage: [],
     connectionDetails: [],
     isDefault: false,

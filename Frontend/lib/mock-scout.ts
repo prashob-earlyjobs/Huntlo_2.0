@@ -32,6 +32,7 @@ export interface ScoutExperience {
   role: string;
   duration: string;
   description: string;
+  location?: string;
   current: boolean;
 }
 
@@ -57,8 +58,10 @@ export interface ScoutProfile {
   phone: string;
   phoneVerified: boolean;
   skills: string[];
+  languages?: string[];
   experience: ScoutExperience[];
   education: ScoutEducation[];
+  connections?: number | null;
   enrichment: {
     status: "Enriched" | "Partially enriched";
     sources: number;
@@ -91,6 +94,8 @@ export const SCOUT_PROFILE: ScoutProfile = {
     "Hiring & Mentoring",
     "System Design",
   ],
+  languages: ["English (Native or bilingual proficiency)", "Hindi (Native or bilingual proficiency)"],
+  connections: 1842,
   experience: [
     {
       company: "Cloudmesh",

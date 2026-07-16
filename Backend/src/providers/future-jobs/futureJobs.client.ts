@@ -748,6 +748,53 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     })) as FutureJobsApiResponse;
   }
 
+  /**
+   * POST /wl/scout-people/lookup
+   * Body: { email } OR { linkedin_url } — exact EJHunterLanding contract.
+   */
+  async function scoutPeopleLookup(body: {
+    email?: string;
+    linkedin_url?: string;
+  }): Promise<FutureJobsApiResponse> {
+    const delegate = resolveDelegate();
+    if (delegate) return delegate.scoutPeopleLookup(body);
+
+    const { baseUrl, apiKey } = getFutureJobsConfig();
+    assertFutureJobsApiKey(apiKey);
+
+    const payload =
+      body && typeof body.email === 'string' && body.email.trim()
+        ? { email: body.email.trim() }
+        : body && typeof body.linkedin_url === 'string' && body.linkedin_url.trim()
+          ? { linkedin_url: body.linkedin_url.trim() }
+          : null;
+
+    if (!payload) {
+      const err = new Error('Provide email or linkedin_url');
+      (err as Error & { statusCode: number }).statusCode = 400;
+      throw err;
+    }
+
+    const url = `${baseUrl}/wl/scout-people/lookup`;
+
+    log().info(
+      {
+        fjOperation: 'POST /wl/scout-people/lookup',
+        keys: Object.keys(payload),
+      },
+      'future-jobs scout lookup request'
+    );
+
+    return (await futureJobsHttpRequest({
+      method: 'POST',
+      url,
+      body: payload,
+      apiKey,
+      fjOperation: 'POST /wl/scout-people/lookup',
+      defaultErrorPrefix: 'Future Jobs scout-people lookup',
+    })) as FutureJobsApiResponse;
+  }
+
   async function getSourcingSessionAnnotation(body: {
     userText: string;
     linkedin_profile_url?: string;
@@ -829,6 +876,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     getSourcingSessionCandidateDetails,
     revealSourcingSessionContact,
     scoutPeopleRevealContact,
+    scoutPeopleLookup,
     getSourcingSessionAnnotation,
     getFilterAutocomplete,
     isFjSessionPending,

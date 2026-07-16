@@ -321,22 +321,21 @@ describe('Candidate pool, lists, notes, import', () => {
         (c: { email: string | null }) => c.email === 'evil@example.com'
       );
       expect(evil).toBeTruthy();
+      expect(String(evil.currentTitle)).toBe("cmd|'/C calc'");
       expect(String(evil.currentTitle)).not.toMatch(/^=/);
-      expect(String(evil.currentTitle).startsWith("'") || !String(evil.currentTitle).startsWith('=')).toBe(
-        true
-      );
     } finally {
       if (fs.existsSync(csvPath)) fs.unlinkSync(csvPath);
     }
   });
 
   it('sanitizes spreadsheet formula injection', () => {
-    expect(sanitizeSpreadsheetValue('=cmd')).toBe("'=cmd");
-    expect(sanitizeSpreadsheetValue('+1234')).toBe("'+1234");
-    expect(sanitizeSpreadsheetValue('-2+3')).toBe("'-2+3");
-    expect(sanitizeSpreadsheetValue('@SUM(A1)')).toBe("'@SUM(A1)");
-    expect(sanitizeSpreadsheetValue('  =HYPERLINK')).toBe("'=HYPERLINK");
+    expect(sanitizeSpreadsheetValue('=cmd')).toBe('cmd');
+    expect(sanitizeSpreadsheetValue('+abc')).toBe('abc');
+    expect(sanitizeSpreadsheetValue('-2+3')).toBe('2+3');
+    expect(sanitizeSpreadsheetValue('@SUM(A1)')).toBe('SUM(A1)');
+    expect(sanitizeSpreadsheetValue('  =HYPERLINK')).toBe('HYPERLINK');
     expect(sanitizeSpreadsheetValue('Normal Name')).toBe('Normal Name');
+    expect(sanitizeSpreadsheetValue('+919876543210')).toBe('+919876543210');
   });
 
   it('detects duplicate rows in import file', async () => {

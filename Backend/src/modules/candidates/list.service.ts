@@ -207,7 +207,7 @@ export class ListService {
     ) {
       throw AppError.forbidden('Only the list owner or a manager can archive this list');
     }
-    list.archivedAt = new Date();
+    list.archivedAt = list.archivedAt ? null : new Date();
     await list.save();
     return toPublicList(list);
   }

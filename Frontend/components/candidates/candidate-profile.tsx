@@ -13,7 +13,7 @@ import {
   StickyNote,
   Timer,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { PipelineStatusBadge } from "@/components/candidates/pipeline-status-badge";
 import {
@@ -38,13 +38,19 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { getApiErrorMessage, candidatesApi, uiRevealKindToType } from "@/lib/api";
+import {
+  candidatePoolApi,
+  candidatesApi,
+  getApiErrorMessage,
+  uiRevealKindToType,
+} from "@/lib/api";
 import {
   CANDIDATE_STATUSES,
   LIST_NAMES,
   type CandidateNote,
   type CandidateStatus,
   type PoolCandidate,
+  type SavedList,
 } from "@/lib/mock-candidates";
 import { REVEAL_QUOTA } from "@/lib/mock-sessions";
 import { cn } from "@/lib/utils";
@@ -114,6 +120,41 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
   const [noteDraft, setNoteDraft] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
+  const [lists, setLists] = useState<SavedList[]>([]);
+  const [noteBusy, setNoteBusy] = useState(false);
+
+  useEffect(() => {
+    setProfile(candidate);
+    setStatus(candidate.pipelineStatus);
+    setNotes(candidate.notes);
+    setRevealed({
+      email: candidate.emailRevealed,
+      phone: candidate.phoneRevealed,
+    });
+  }, [candidate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [nextNotes, nextLists] = await Promise.all([
+          candidatePoolApi.listNotes(candidate.id),
+          candidatePoolApi.listLists(),
+        ]);
+        if (!cancelled) {
+          if (nextNotes.length > 0 || candidate.notes.length === 0) {
+            setNotes(nextNotes);
+          }
+          setLists(nextLists);
+        }
+      } catch {
+        // Keep local notes / mock list names when API is unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [candidate.id, candidate.notes.length]);
 
   function flash(message: string) {
     setFeedback(message);
@@ -144,18 +185,46 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
     }
   }
 
-  function addNote() {
-    if (!noteDraft.trim()) return;
-    setNotes((previous) => [
-      {
-        id: `n-${Date.now()}`,
-        author: "Ananya Sharma",
-        text: noteDraft.trim(),
-        time: "Just now",
-      },
-      ...previous,
-    ]);
-    setNoteDraft("");
+  async function handleStatusChange(option: CandidateStatus) {
+    const previous = status;
+    setStatus(option);
+    try {
+      await candidatePoolApi.update(profile.id, { pipelineStatus: option });
+      flash(`Status changed to “${option}”.`);
+    } catch (err) {
+      setStatus(previous);
+      flash(getApiErrorMessage(err));
+    }
+  }
+
+  async function addNote() {
+    if (!noteDraft.trim() || noteBusy) return;
+    const body = noteDraft.trim();
+    setNoteBusy(true);
+    try {
+      const note = await candidatePoolApi.addNote(profile.id, body);
+      setNotes((previous) => [note, ...previous]);
+      setNoteDraft("");
+      flash("Note added.");
+    } catch (err) {
+      flash(getApiErrorMessage(err));
+    } finally {
+      setNoteBusy(false);
+    }
+  }
+
+  async function addToList(list: SavedList) {
+    try {
+      await candidatePoolApi.bulkAddToList([profile.id], list.id);
+      setProfile((previous) =>
+        previous.lists.includes(list.name)
+          ? previous
+          : { ...previous, lists: [...previous.lists, list.name] }
+      );
+      flash(`Added ${candidate.name} to “${list.name}”.`);
+    } catch (err) {
+      flash(getApiErrorMessage(err));
+    }
   }
 
   const latestOutreach = profile.outreachHistory[0] ?? null;
@@ -236,14 +305,22 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuLabel>Add to list</DropdownMenuLabel>
-                {LIST_NAMES.map((list) => (
-                  <DropdownMenuItem
-                    key={list}
-                    onClick={() => flash(`Added ${candidate.name} to “${list}”.`)}
-                  >
-                    {list}
-                  </DropdownMenuItem>
-                ))}
+                {(lists.length > 0 ? lists.map((list) => list.name) : LIST_NAMES).map(
+                  (listName) => {
+                    const list = lists.find((entry) => entry.name === listName);
+                    return (
+                      <DropdownMenuItem
+                        key={listName}
+                        onClick={() => {
+                          if (list) void addToList(list);
+                          else flash(`Added ${candidate.name} to “${listName}”.`);
+                        }}
+                      >
+                        {listName}
+                      </DropdownMenuItem>
+                    );
+                  }
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
@@ -264,10 +341,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 {CANDIDATE_STATUSES.map((option) => (
                   <DropdownMenuItem
                     key={option}
-                    onClick={() => {
-                      setStatus(option);
-                      flash(`Status changed to “${option}”.`);
-                    }}
+                    onClick={() => void handleStatusChange(option)}
                   >
                     {option}
                   </DropdownMenuItem>
@@ -486,7 +560,11 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 className="min-h-16 text-sm"
               />
               <div className="flex justify-end">
-                <Button size="xs" onClick={addNote} disabled={!noteDraft.trim()}>
+                <Button
+                  size="xs"
+                  onClick={() => void addNote()}
+                  disabled={!noteDraft.trim() || noteBusy}
+                >
                   <StickyNote aria-hidden />
                   Add Note
                 </Button>

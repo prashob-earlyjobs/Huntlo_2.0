@@ -272,10 +272,21 @@ export class PoolService {
       filter.tags = { $all: query.tags };
     }
     if (query.search) {
-      filter.$text = { $search: query.search };
+      const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      filter.$or = [
+        { name: regex },
+        { email: regex },
+        { headline: regex },
+        { currentTitle: regex },
+        { currentCompany: regex },
+        { location: regex },
+        { skills: regex },
+        { tags: regex },
+      ];
     }
 
-    let sort: Record<string, 1 | -1 | { $meta: string }>;
+    let sort: Record<string, 1 | -1>;
     try {
       sort = parseSortParam(query.sort, SORT_FIELDS, '-lastActivityAt');
     } catch {
@@ -283,12 +294,7 @@ export class PoolService {
     }
 
     const total = await SavedCandidateModel.countDocuments(filter);
-    const findQuery = SavedCandidateModel.find(filter);
-    if (query.search) {
-      findQuery.select({ score: { $meta: 'textScore' } });
-      sort = { score: { $meta: 'textScore' }, ...sort };
-    }
-    const candidates = await findQuery
+    const candidates = await SavedCandidateModel.find(filter)
       .sort(sort)
       .skip(getSkip(query.page, query.limit))
       .limit(query.limit);

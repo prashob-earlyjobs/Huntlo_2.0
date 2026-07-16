@@ -1,6 +1,7 @@
 "use client";
 
 import { Plug, PlugZap } from "lucide-react";
+import { useEffect } from "react";
 
 import { ErrorList, StepCard } from "@/components/outreach/builder-ui";
 import type {
@@ -10,6 +11,7 @@ import type {
 import { stepErrors } from "@/components/outreach/builder-types";
 import { UsageProgress } from "@/components/shared/usage-progress";
 import { Button } from "@/components/ui/button";
+import { integrationsApi } from "@/lib/api";
 import {
   CHANNEL_CONFIGS,
   CHANNEL_ICONS,
@@ -24,6 +26,20 @@ const CONNECTION_CLASSES: Record<ChannelConnection, string> = {
   Disconnected: "bg-destructive/10 text-destructive",
 };
 
+const CHANNEL_PROVIDERS: Record<OutreachChannel, string[]> = {
+  Email: ["gmail", "outlook", "zoho-mail", "smtp"],
+  WhatsApp: ["meta-whatsapp", "gupshup", "huntlo-whatsapp"],
+  "AI Voice": ["hunar"],
+};
+
+function statusToConnection(status: string | undefined): ChannelConnection {
+  if (status === "Connected") return "Connected";
+  if (status === "Needs Attention" || status === "Expired") {
+    return "Needs attention";
+  }
+  return "Disconnected";
+}
+
 export function ChannelsStep({
   state,
   update,
@@ -35,6 +51,38 @@ export function ChannelsStep({
 }) {
   const errors = showErrors ? stepErrors(2, state) : [];
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const providers = await integrationsApi.listProviders();
+        if (cancelled) return;
+        const next = { ...state.connections };
+        (Object.keys(CHANNEL_PROVIDERS) as OutreachChannel[]).forEach(
+          (channel) => {
+            const ids = CHANNEL_PROVIDERS[channel];
+            const matches = providers.filter((p) => ids.includes(p.id));
+            const best =
+              matches.find((p) => p.status === "Connected") ||
+              matches.find(
+                (p) =>
+                  p.status === "Needs Attention" || p.status === "Expired"
+              ) ||
+              matches[0];
+            next[channel] = statusToConnection(best?.status);
+          }
+        );
+        update("connections", next);
+      } catch {
+        // Keep mock defaults when integrations API is unavailable
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
+  }, []);
+
   function toggleChannel(channel: OutreachChannel) {
     update(
       "enabledChannels",
@@ -42,10 +90,6 @@ export function ChannelsStep({
         ? state.enabledChannels.filter((entry) => entry !== channel)
         : [...state.enabledChannels, channel]
     );
-  }
-
-  function setConnection(channel: OutreachChannel, connection: ChannelConnection) {
-    update("connections", { ...state.connections, [channel]: connection });
   }
 
   return (
@@ -138,27 +182,22 @@ export function ChannelsStep({
                   >
                     {connection}
                   </span>
-                  {disconnected ? (
-                    <Button
-                      type="button"
-                      size="xs"
-                      onClick={() => setConnection(config.channel, "Connected")}
-                    >
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant={disconnected ? "default" : "ghost"}
+                    className={disconnected ? undefined : "text-muted-foreground"}
+                    onClick={() =>
+                      window.open("/dashboard/integrations", "_blank")
+                    }
+                  >
+                    {disconnected ? (
                       <PlugZap aria-hidden />
-                      Reconnect
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="ghost"
-                      className="text-muted-foreground"
-                      onClick={() => setConnection(config.channel, "Disconnected")}
-                    >
+                    ) : (
                       <Plug aria-hidden />
-                      Simulate disconnect
-                    </Button>
-                  )}
+                    )}
+                    {disconnected ? "Connect" : "Manage"}
+                  </Button>
                 </div>
                 <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                   {disconnected

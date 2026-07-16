@@ -52,6 +52,7 @@ function emptyTotals() {
 }
 
 function toPublicImportJob(job: CandidateImportJobDocument) {
+  const jobErrors = (job.get('errors') as ImportRowError[] | undefined) ?? [];
   return {
     id: job._id.toHexString(),
     organizationId: job.organizationId.toHexString(),
@@ -60,7 +61,12 @@ function toPublicImportJob(job: CandidateImportJobDocument) {
     originalFilename: job.originalFilename,
     mimeType: job.mimeType,
     status: job.status,
-    columnMapping: job.columnMapping ?? {},
+    columnMapping: (() => {
+      const mapping = { ...((job.columnMapping as Record<string, string>) ?? {}) };
+      delete mapping.__listId;
+      delete mapping.__skipDuplicates;
+      return mapping;
+    })(),
     headers: job.headers ?? [],
     previewRows: job.previewRows ?? [],
     totals: {
@@ -73,7 +79,7 @@ function toPublicImportJob(job: CandidateImportJobDocument) {
       skipped: job.totals?.skipped ?? 0,
       failed: job.totals?.failed ?? 0,
     },
-    errorCount: (job.errors ?? []).length,
+    errorCount: jobErrors.length,
     startedAt: job.startedAt?.toISOString?.() ?? null,
     completedAt: job.completedAt?.toISOString?.() ?? null,
     errorMessage: job.errorMessage ?? null,
@@ -256,6 +262,7 @@ export class ImportService {
 
     return {
       ...toPublicImportJob(job),
+      jobId: job._id.toHexString(),
       suggestedColumnMapping: suggestedMapping,
       sampleRows: previewRows,
     };
@@ -354,7 +361,7 @@ export class ImportService {
     assertSameOrganization(job.organizationId, actor.organizationId);
     return {
       jobId: job._id.toHexString(),
-      errors: job.errors ?? [],
+      errors: (job.get('errors') as ImportRowError[] | undefined) ?? [],
       totals: toPublicImportJob(job).totals,
     };
   }

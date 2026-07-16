@@ -438,25 +438,37 @@ export function ScheduleInterviewFlow({
                     </div>
 
                     {state.method === "Calendly Link" ? (
-                      <Field label="Calendly event type" htmlFor="flow-calendly">
-                        <Select
-                          value={state.calendlyEvent}
-                          onValueChange={(value) =>
-                            value && update("calendlyEvent", value)
-                          }
-                        >
-                          <SelectTrigger id="flow-calendly" className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CALENDLY_EVENT_TYPES.map((eventType) => (
-                              <SelectItem key={eventType} value={eventType}>
-                                {eventType}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </Field>
+                      <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">
+                          Uses your connected Calendly account from{" "}
+                          <a
+                            href="/dashboard/integrations"
+                            className="font-medium text-primary underline-offset-2 hover:underline"
+                          >
+                            Integrations
+                          </a>
+                          .
+                        </p>
+                        <Field label="Calendly event type" htmlFor="flow-calendly">
+                          <Select
+                            value={state.calendlyEvent}
+                            onValueChange={(value) =>
+                              value && update("calendlyEvent", value)
+                            }
+                          >
+                            <SelectTrigger id="flow-calendly" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CALENDLY_EVENT_TYPES.map((eventType) => (
+                                <SelectItem key={eventType} value={eventType}>
+                                  {eventType}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      </div>
                     ) : null}
 
                     {state.method === "Manual Time Selection" ? (

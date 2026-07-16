@@ -546,6 +546,140 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     return buildRevealResponse(type as 'EMAIL' | 'PHONE', profileUrl);
   }
 
+  async function scoutPeopleLookup(body: {
+    email?: string;
+    linkedin_url?: string;
+  }): Promise<FutureJobsApiResponse> {
+    maybeFail('POST /wl/scout-people/lookup');
+
+    const email = typeof body?.email === 'string' ? body.email.trim() : '';
+    const linkedinUrl =
+      typeof body?.linkedin_url === 'string' ? body.linkedin_url.trim() : '';
+
+    if (!email && !linkedinUrl) {
+      const err = new Error('Provide email or linkedin_url');
+      (err as Error & { statusCode: number }).statusCode = 400;
+      throw err;
+    }
+
+    const needle = (email || linkedinUrl).toLowerCase();
+    if (needle.includes('notfound') || needle.includes('not-found')) {
+      return {
+        status: 'SUCCESS',
+        statusCode: 200,
+        message: 'Candidate not found',
+        data: { scoutId: '', profile: null },
+      };
+    }
+
+    if (needle.includes('multi')) {
+      return {
+        status: 'SUCCESS',
+        statusCode: 200,
+        message: 'Multiple matches',
+        data: {
+          scoutId: 'mock-scout-multi',
+          profiles: [
+            {
+              name: 'Arjun Malhotra',
+              headline: 'Engineering Manager, Platform at Cloudmesh',
+              location: 'Bengaluru, India',
+              linkedin_profile_url: 'https://www.linkedin.com/in/arjun-malhotra-platform',
+              current_employers: [
+                { employer_name: 'Cloudmesh', employee_title: 'Engineering Manager' },
+              ],
+            },
+            {
+              name: 'Arjun Malhotra',
+              headline: 'Product Manager — Payments at Razorpay',
+              location: 'Bengaluru, India',
+              linkedin_profile_url: 'https://www.linkedin.com/in/arjunmalhotra-pm',
+              current_employers: [
+                { employer_name: 'Razorpay', employee_title: 'Product Manager' },
+              ],
+            },
+            {
+              name: 'Arjun S. Malhotra',
+              headline: 'Data Scientist at Fractal Analytics',
+              location: 'Mumbai, India',
+              linkedin_profile_url: 'https://www.linkedin.com/in/arjun-s-malhotra',
+              current_employers: [
+                { employer_name: 'Fractal Analytics', employee_title: 'Data Scientist' },
+              ],
+            },
+          ],
+        },
+      };
+    }
+
+    const slug =
+      linkedinUrl.match(/\/in\/([^/?#]+)/i)?.[1] ||
+      (email ? email.split('@')[0] : 'mock-candidate');
+    const profileUrl =
+      linkedinUrl || `https://www.linkedin.com/in/${encodeURIComponent(slug!)}`;
+
+    return {
+      status: 'SUCCESS',
+      statusCode: 200,
+      message: 'Profile found',
+      data: {
+        scoutId: `mock-scout-${slug}`,
+        profile: {
+          _id: `mock-fj-profile-${slug}`,
+          name: 'Aisha Rahman',
+          title: 'Senior Software Engineer',
+          headline: 'Senior Software Engineer · Platform · TypeScript',
+          location: 'Bengaluru, India',
+          summary: 'Builds reliable APIs and hiring systems.',
+          linkedin_flagship_url: profileUrl,
+          linkedin_profile_url: profileUrl,
+          profile_picture_url: '',
+          num_of_connections: 500,
+          skills: ['TypeScript', 'Node.js', 'React'],
+          languages: ['English (Native or bilingual proficiency)'],
+          all_titles: ['Senior Software Engineer', 'Software Engineer'],
+          all_employers: ['Nimbus Labs', 'Orbit Soft'],
+          all_schools: ['IISc Bangalore'],
+          all_degrees: ['B.Tech'],
+          query_linkedin_profile_urn_or_slug: [slug],
+          current_employers: [
+            {
+              employer_name: 'Nimbus Labs',
+              employee_title: 'Senior Software Engineer',
+              employee_description: 'Owns platform APIs and hiring tooling.',
+              employee_location: 'Bengaluru, India',
+              start_date: '2022-01-01T00:00:00+00:00',
+              end_date: null,
+            },
+          ],
+          past_employers: [
+            {
+              employer_name: 'Orbit Soft',
+              employee_title: 'Software Engineer',
+              employee_description: 'Built billing and metering services.',
+              employee_location: 'Bengaluru, India',
+              start_date: '2019-06-01T00:00:00+00:00',
+              end_date: '2021-12-01T00:00:00+00:00',
+            },
+          ],
+          education_background: [
+            {
+              degree_name: 'B.Tech',
+              institute_name: 'IISc Bangalore',
+              field_of_study: 'Computer Science',
+              start_date: '2015-01-01T00:00:00+00:00',
+              end_date: '2019-01-01T00:00:00+00:00',
+            },
+          ],
+        },
+        revealStatus: {
+          email: { revealed: false, values: [] },
+          phone: { revealed: false, values: [] },
+        },
+      },
+    };
+  }
+
   async function getSourcingSessionAnnotation(body: {
     userText: string;
     linkedin_profile_url?: string;
@@ -641,6 +775,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     getSourcingSessionCandidateDetails,
     revealSourcingSessionContact,
     scoutPeopleRevealContact,
+    scoutPeopleLookup,
     getSourcingSessionAnnotation,
     getFilterAutocomplete,
     isFjSessionPending,

@@ -20,6 +20,11 @@ import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate
 import { SourcingSessionModel } from '../src/modules/sourcing/sourcing-session.model.js';
 import { pollSourcingSessions } from '../src/modules/sourcing/sourcing.poller.js';
 import {
+  QuotaCounterModel,
+  periodResetAt,
+  currentPeriodKey,
+} from '../src/shared/usage/index.js';
+import {
   resetMockFutureJobsState,
   setMockFutureJobsMode,
 } from '../src/providers/future-jobs/index.js';
@@ -63,6 +68,7 @@ describe('Sourcing quota', () => {
       OrganizationMemberModel.deleteMany({}),
       OrganizationModel.deleteMany({}),
       SearchQuotaModel.deleteMany({}),
+      QuotaCounterModel.deleteMany({}),
       SourcingSessionModel.deleteMany({}),
       SourcedCandidateModel.deleteMany({}),
     ]);
@@ -105,19 +111,20 @@ describe('Sourcing quota', () => {
     });
     const orgId = org._id.toHexString();
 
-    await SearchQuotaModel.create({
+    await QuotaCounterModel.create({
       organizationId: org._id,
-      periodKey: `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}`,
-      plan: 'Starter',
-      limit: 1,
+      periodKey: currentPeriodKey(),
+      metric: 'candidate_search',
       used: 1,
       reserved: 0,
-      reservations: [],
+      limit: 1,
+      resetAt: periodResetAt(currentPeriodKey()),
+      allowOverage: false,
     });
 
     await expect(
       quotaService.reserve(orgId, 'cccccccccccccccccccccccc', 1)
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({ statusCode: 429, code: 'QUOTA_EXCEEDED' });
   });
 });
 
@@ -147,6 +154,7 @@ describe('Sourcing API + poller', () => {
       OrganizationMemberModel.deleteMany({}),
       OrganizationModel.deleteMany({}),
       SearchQuotaModel.deleteMany({}),
+      QuotaCounterModel.deleteMany({}),
       SourcingSessionModel.deleteMany({}),
       SourcedCandidateModel.deleteMany({}),
     ]);

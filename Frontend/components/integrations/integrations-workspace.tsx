@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
-  ExternalLink,
   Loader2,
   Plug,
   RefreshCw,
@@ -12,7 +11,7 @@ import {
   Unplug,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Field, ToggleRow } from "@/components/outreach/builder-ui";
 import { Button } from "@/components/ui/button";
@@ -31,17 +30,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
+import { getApiErrorMessage, integrationsApi } from "@/lib/api";
 import {
-  CALENDLY_CONFIG_DEFAULTS,
-  CALENDLY_EVENT_OPTIONS,
   CATEGORY_META,
-  EMAIL_CONFIG_DEFAULTS,
   INTEGRATION_CATEGORIES,
-  INTEGRATION_PROVIDERS,
+  INTEGRATION_PROVIDERS as MOCK_INTEGRATION_PROVIDERS,
   SMTP_CONFIG_DEFAULTS,
   SMTP_SECURITY_OPTIONS,
-  WHATSAPP_CONFIG_DEFAULTS,
   type IntegrationCategory,
   type IntegrationConnectionStatus,
   type IntegrationProvider,
@@ -189,103 +184,17 @@ function ProviderCard({
 /* Config panels                                                        */
 /* ------------------------------------------------------------------ */
 
-function EmailConfigPanel({
-  onSave,
-}: {
-  onSave: (message: string) => void;
-}) {
-  const [form, setForm] = useState(EMAIL_CONFIG_DEFAULTS);
-
-  return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-foreground">
-        Email configuration
-      </h3>
-      <Field label="Sender email" htmlFor="email-sender">
-        <Input
-          id="email-sender"
-          value={form.senderEmail}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              senderEmail: event.target.value,
-            }))
-          }
-        />
-      </Field>
-      <Field label="Display name" htmlFor="email-display">
-        <Input
-          id="email-display"
-          value={form.displayName}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              displayName: event.target.value,
-            }))
-          }
-        />
-      </Field>
-      <Field label="Daily send limit" htmlFor="email-limit">
-        <Input
-          id="email-limit"
-          type="number"
-          value={form.dailySendLimit}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              dailySendLimit: event.target.value,
-            }))
-          }
-        />
-      </Field>
-      <Field label="Signature" htmlFor="email-signature">
-        <Textarea
-          id="email-signature"
-          value={form.signature}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              signature: event.target.value,
-            }))
-          }
-          className="min-h-24 font-mono text-xs"
-        />
-      </Field>
-      <ToggleRow
-        id="email-reply"
-        label="Reply tracking"
-        description="Sync inbound replies into Conversations"
-        checked={form.replyTracking}
-        onChange={(checked) =>
-          setForm((previous) => ({ ...previous, replyTracking: checked }))
-        }
-      />
-      <ToggleRow
-        id="email-default"
-        label="Default sender"
-        description="Use this mailbox for new outreach campaigns"
-        checked={form.defaultSender}
-        onChange={(checked) =>
-          setForm((previous) => ({ ...previous, defaultSender: checked }))
-        }
-      />
-      <Button
-        size="sm"
-        className="w-full"
-        onClick={() => onSave("Email configuration saved. (UI preview)")}
-      >
-        Save email settings
-      </Button>
-    </div>
-  );
-}
-
 function SmtpConfigPanel({
+  providerId,
   onSave,
+  onConnected,
 }: {
+  providerId: string;
   onSave: (message: string) => void;
+  onConnected: () => void;
 }) {
   const [form, setForm] = useState(SMTP_CONFIG_DEFAULTS);
+  const [busy, setBusy] = useState(false);
 
   return (
     <div className="space-y-3">
@@ -420,75 +329,164 @@ function SmtpConfigPanel({
       <Button
         size="sm"
         className="w-full"
-        onClick={() => onSave("SMTP/IMAP settings saved. (UI preview)")}
+        disabled={busy}
+        onClick={() => {
+          void (async () => {
+            setBusy(true);
+            try {
+              const security =
+                form.security === "SSL/TLS"
+                  ? "ssl"
+                  : form.security === "None"
+                    ? "none"
+                    : "tls";
+              const result = await integrationsApi.connect(providerId, {
+                fromEmail: form.fromEmail,
+                displayName: form.displayName,
+                smtpHost: form.smtpHost,
+                smtpPort: Number(form.smtpPort) || 587,
+                security,
+                username: form.username,
+                password: form.password,
+              });
+              if (result.mode === "connected") {
+                onSave("SMTP connected.");
+                onConnected();
+              } else {
+                onSave(result.message || "Could not connect SMTP.");
+              }
+            } catch (error) {
+              onSave(getApiErrorMessage(error));
+            } finally {
+              setBusy(false);
+            }
+          })();
+        }}
       >
-        Save SMTP settings
+        {busy ? "Connecting…" : "Save & connect SMTP"}
       </Button>
     </div>
   );
 }
 
 function WhatsAppConfigPanel({
+  providerId,
   onSave,
+  onConnected,
 }: {
+  providerId: string;
   onSave: (message: string) => void;
+  onConnected: () => void;
 }) {
-  const [form, setForm] = useState(WHATSAPP_CONFIG_DEFAULTS);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({
+    phoneNumberId: "",
+    accessToken: "",
+    wabaId: "",
+    confirmWebhookSetup: true,
+  });
 
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-foreground">
         WhatsApp configuration
       </h3>
-      <Field label="Provider" htmlFor="wa-provider">
-        <Input id="wa-provider" value={form.provider} readOnly />
-      </Field>
-      <Field label="Business number" htmlFor="wa-number">
-        <Input
-          id="wa-number"
-          value={form.businessNumber}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              businessNumber: event.target.value,
-            }))
-          }
-        />
-      </Field>
-      <Field label="Phone number ID" htmlFor="wa-phone-id">
-        <Input
-          id="wa-phone-id"
-          value={form.phoneNumberId}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              phoneNumberId: event.target.value,
-            }))
-          }
-          className="font-mono text-xs"
-        />
-      </Field>
-      <Field label="Template status" htmlFor="wa-templates">
-        <Input id="wa-templates" value={form.templateStatus} readOnly />
-      </Field>
-      <Field label="Webhook status" htmlFor="wa-webhook">
-        <Input id="wa-webhook" value={form.webhookStatus} readOnly />
-      </Field>
-      <ToggleRow
-        id="wa-default"
-        label="Default sender"
-        description="Use this number for new WhatsApp outreach steps"
-        checked={form.defaultSender}
-        onChange={(checked) =>
-          setForm((previous) => ({ ...previous, defaultSender: checked }))
-        }
-      />
+      {providerId === "meta-whatsapp" ? (
+        <>
+          <Field label="Phone number ID" htmlFor="wa-phone-id">
+            <Input
+              id="wa-phone-id"
+              value={form.phoneNumberId}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  phoneNumberId: event.target.value,
+                }))
+              }
+              className="font-mono text-xs"
+            />
+          </Field>
+          <Field label="Access token" htmlFor="wa-token">
+            <Input
+              id="wa-token"
+              type="password"
+              autoComplete="new-password"
+              value={form.accessToken}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  accessToken: event.target.value,
+                }))
+              }
+            />
+          </Field>
+          <Field label="WABA ID (optional)" htmlFor="wa-waba">
+            <Input
+              id="wa-waba"
+              value={form.wabaId}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  wabaId: event.target.value,
+                }))
+              }
+              className="font-mono text-xs"
+            />
+          </Field>
+          <ToggleRow
+            id="wa-webhook-confirm"
+            label="Webhook configured"
+            description="Confirm Meta webhook uses Huntlo callback URL and verify token"
+            checked={form.confirmWebhookSetup}
+            onChange={(checked) =>
+              setForm((previous) => ({
+                ...previous,
+                confirmWebhookSetup: checked,
+              }))
+            }
+          />
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          This WhatsApp channel uses platform credentials. Connect to enable it
+          for your workspace.
+        </p>
+      )}
       <Button
         size="sm"
         className="w-full"
-        onClick={() => onSave("WhatsApp configuration saved. (UI preview)")}
+        disabled={busy}
+        onClick={() => {
+          void (async () => {
+            setBusy(true);
+            try {
+              const body =
+                providerId === "meta-whatsapp"
+                  ? {
+                      phoneNumberId: form.phoneNumberId,
+                      accessToken: form.accessToken,
+                      wabaId: form.wabaId,
+                      confirmWebhookSetup: form.confirmWebhookSetup,
+                    }
+                  : providerId === "huntlo-whatsapp"
+                    ? { whatsappMode: "huntlo" }
+                    : {};
+              const result = await integrationsApi.connect(providerId, body);
+              if (result.mode === "connected") {
+                onSave("WhatsApp connected.");
+                onConnected();
+              } else {
+                onSave(result.message || "Could not connect WhatsApp.");
+              }
+            } catch (error) {
+              onSave(getApiErrorMessage(error));
+            } finally {
+              setBusy(false);
+            }
+          })();
+        }}
       >
-        Save WhatsApp settings
+        {busy ? "Connecting…" : "Connect WhatsApp"}
       </Button>
     </div>
   );
@@ -496,94 +494,58 @@ function WhatsAppConfigPanel({
 
 function CalendlyConfigPanel({
   onSave,
+  onConnected,
 }: {
   onSave: (message: string) => void;
+  onConnected: () => void;
 }) {
-  const [form, setForm] = useState(CALENDLY_CONFIG_DEFAULTS);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
 
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-foreground">
         Calendly configuration
       </h3>
-      <Field label="Connected user" htmlFor="cal-user">
-        <Input id="cal-user" value={form.connectedUser} readOnly />
-      </Field>
-      <Field label="Default event type" htmlFor="cal-event">
-        <Select
-          value={form.defaultEventType}
-          onValueChange={(value) =>
-            value &&
-            setForm((previous) => ({ ...previous, defaultEventType: value }))
-          }
-        >
-          <SelectTrigger id="cal-event" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CALENDLY_EVENT_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-      <Field label="Scheduling URL" htmlFor="cal-url">
+      <Field label="Personal access token" htmlFor="cal-pat">
         <Input
-          id="cal-url"
-          value={form.schedulingUrl}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              schedulingUrl: event.target.value,
-            }))
-          }
-          className="font-mono text-xs"
+          id="cal-pat"
+          type="password"
+          autoComplete="new-password"
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
         />
-      </Field>
-      <Field label="Webhook status" htmlFor="cal-webhook">
-        <Input id="cal-webhook" value={form.webhookStatus} readOnly />
-      </Field>
-      <Field label="Reminder defaults" htmlFor="cal-reminders">
-        <Select
-          value={form.reminderDefaults}
-          onValueChange={(value) =>
-            value &&
-            setForm((previous) => ({ ...previous, reminderDefaults: value }))
-          }
-        >
-          <SelectTrigger id="cal-reminders" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[
-              "24h and 2h before",
-              "24h before only",
-              "2h before only",
-              "No reminders",
-            ].map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </Field>
       <Button
         size="sm"
         className="w-full"
-        onClick={() => onSave("Calendly configuration saved. (UI preview)")}
+        disabled={busy || !token.trim()}
+        onClick={() => {
+          void (async () => {
+            setBusy(true);
+            try {
+              const result = await integrationsApi.connect("calendly", {
+                personalAccessToken: token.trim(),
+              });
+              if (result.mode === "connected") {
+                onSave("Calendly connected.");
+                onConnected();
+              } else {
+                onSave(result.message || "Could not connect Calendly.");
+              }
+            } catch (error) {
+              onSave(getApiErrorMessage(error));
+            } finally {
+              setBusy(false);
+            }
+          })();
+        }}
       >
-        Save Calendly settings
+        {busy ? "Connecting…" : "Connect Calendly"}
       </Button>
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Connection drawer                                                    */
-/* ------------------------------------------------------------------ */
 
 type TestState = "idle" | "testing" | "success" | "error";
 
@@ -592,37 +554,75 @@ function ConnectionDrawer({
   open,
   onOpenChange,
   onFlash,
+  onRefresh,
 }: {
   provider: IntegrationProvider | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onFlash: (message: string) => void;
+  onRefresh: () => void;
 }) {
   const [testState, setTestState] = useState<TestState>("idle");
+  const [testMessage, setTestMessage] = useState("");
   const [showConfig, setShowConfig] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   if (!provider) return null;
 
   const canTest =
-    provider.status === "Connected" ||
-    provider.status === "Needs Attention" ||
-    provider.status === "Expired" ||
-    provider.status === "Disabled";
+    Boolean(provider.integrationRecordId) &&
+    (provider.status === "Connected" ||
+      provider.status === "Needs Attention" ||
+      provider.status === "Expired" ||
+      provider.status === "Disabled");
 
-  function runTest() {
+  async function runTest() {
+    if (!provider?.integrationRecordId) return;
     setTestState("testing");
-    window.setTimeout(() => {
-      if (
-        provider!.status === "Needs Attention" ||
-        provider!.status === "Expired"
-      ) {
-        setTestState("error");
-      } else if (provider!.status === "Disabled") {
-        setTestState("error");
-      } else {
-        setTestState("success");
+    try {
+      const result = await integrationsApi.test(provider.integrationRecordId);
+      setTestState(result.ok ? "success" : "error");
+      setTestMessage(result.message);
+      onRefresh();
+    } catch (error) {
+      setTestState("error");
+      setTestMessage(getApiErrorMessage(error));
+    }
+  }
+
+  async function handleConnect() {
+    setBusy(true);
+    try {
+      const result = await integrationsApi.connect(provider!.id, {});
+      if (result.mode === "oauth_redirect" && result.authorizeUrl) {
+        window.location.assign(result.authorizeUrl);
+        return;
       }
-    }, 1400);
+      if (result.mode === "connected") {
+        onFlash(`${provider!.name} connected.`);
+        onRefresh();
+      } else {
+        onFlash(
+          result.message ||
+            `Open configuration to finish connecting ${provider!.name}.`
+        );
+        setShowConfig(true);
+      }
+    } catch (error) {
+      onFlash(getApiErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!provider?.integrationRecordId) {
+      await integrationsApi.disconnectByProvider(provider!.id);
+    } else {
+      await integrationsApi.disconnect(provider.integrationRecordId);
+    }
+    onFlash(`Disconnected ${provider!.name}.`);
+    onRefresh();
   }
 
   return (
@@ -631,15 +631,13 @@ function ConnectionDrawer({
       onOpenChange={(next) => {
         if (!next) {
           setTestState("idle");
+          setTestMessage("");
           setShowConfig(true);
         }
         onOpenChange(next);
       }}
     >
-      <SheetContent
-        side="right"
-        className="w-full overflow-y-auto sm:max-w-md"
-      >
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader className="pr-8">
           <div className="flex items-start gap-3">
             <span
@@ -662,8 +660,7 @@ function ConnectionDrawer({
         </SheetHeader>
 
         <div className="space-y-5 px-4 pb-6">
-          {/* Status banners */}
-          {provider.status === "Needs Attention" ? (
+          {provider.status === "Needs Attention" || provider.status === "Expired" ? (
             <div
               role="alert"
               className="flex gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-foreground"
@@ -672,58 +669,15 @@ function ConnectionDrawer({
                 aria-hidden
                 className="mt-0.5 size-4 shrink-0 text-warning"
               />
-              <p>
-                This connection needs attention. Reconnect to restore outreach
-                sending.
-              </p>
-            </div>
-          ) : null}
-          {provider.status === "Expired" ? (
-            <div
-              role="alert"
-              className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-foreground"
-            >
-              <AlertTriangle
-                aria-hidden
-                className="mt-0.5 size-4 shrink-0 text-destructive"
-              />
-              <p>
-                Token or quota expired. Reconnect or top up before using this
-                provider again.
-              </p>
-            </div>
-          ) : null}
-          {provider.status === "Disabled" ? (
-            <div
-              role="status"
-              className="flex gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground"
-            >
-              <Unplug aria-hidden className="mt-0.5 size-4 shrink-0" />
-              <p>
-                This integration is disabled. An admin can re-enable it after
-                resolving the underlying issue.
-              </p>
+              <p>This connection needs attention. Reconnect to restore sending.</p>
             </div>
           ) : null}
 
-          {/* Connection summary */}
           <dl className="space-y-2.5 rounded-lg border border-border p-3">
             <div>
               <dt className="text-xs text-muted-foreground">Connected account</dt>
               <dd className="text-sm font-medium text-foreground">
                 {provider.connectedIdentity ?? "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Provider</dt>
-              <dd className="text-sm font-medium text-foreground">
-                {provider.name}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Status</dt>
-              <dd className="mt-0.5">
-                <ConnectionStatusBadge status={provider.status} />
               </dd>
             </div>
             <div>
@@ -740,79 +694,15 @@ function ConnectionDrawer({
             </div>
           </dl>
 
-          {provider.permissions.length > 0 ? (
-            <div>
-              <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Permissions
-              </h3>
-              <ul className="mt-2 space-y-1">
-                {provider.permissions.map((permission) => (
-                  <li
-                    key={permission}
-                    className="flex items-start gap-1.5 text-sm text-foreground"
-                  >
-                    <CheckCircle2
-                      aria-hidden
-                      className="mt-0.5 size-3.5 shrink-0 text-success"
-                    />
-                    {permission}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {provider.usage.length > 0 ? (
-            <div>
-              <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Usage
-              </h3>
-              <ul className="mt-2 grid grid-cols-2 gap-2">
-                {provider.usage.map((item) => (
-                  <li
-                    key={item.label}
-                    className="rounded-lg border border-border px-2.5 py-2"
-                  >
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                      {item.value}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {provider.connectionDetails.length > 0 ? (
-            <div>
-              <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Connection details
-              </h3>
-              <dl className="mt-2 space-y-2">
-                {provider.connectionDetails.map((detail) => (
-                  <div key={detail.label}>
-                    <dt className="text-xs text-muted-foreground">
-                      {detail.label}
-                    </dt>
-                    <dd className="text-sm text-foreground">{detail.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          ) : null}
-
-          {/* Test connection */}
           {canTest ? (
             <div className="rounded-lg border border-border p-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-foreground">
-                  Test connection
-                </p>
+                <p className="text-sm font-medium text-foreground">Test connection</p>
                 <Button
                   size="xs"
                   variant="outline"
                   disabled={testState === "testing"}
-                  onClick={runTest}
+                  onClick={() => void runTest()}
                 >
                   {testState === "testing" ? (
                     <Loader2 aria-hidden className="animate-spin" />
@@ -823,49 +713,30 @@ function ConnectionDrawer({
                 </Button>
               </div>
               {testState === "success" ? (
-                <p
-                  role="status"
-                  className="mt-2 flex items-center gap-1.5 text-xs text-success"
-                >
+                <p role="status" className="mt-2 flex items-center gap-1.5 text-xs text-success">
                   <CheckCircle2 aria-hidden className="size-3.5" />
-                  Connection healthy — auth and webhook responded.
+                  {testMessage || "Connection healthy."}
                 </p>
               ) : null}
               {testState === "error" ? (
-                <p
-                  role="alert"
-                  className="mt-2 flex items-center gap-1.5 text-xs text-destructive"
-                >
+                <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
                   <AlertTriangle aria-hidden className="size-3.5" />
-                  {provider.status === "Expired"
-                    ? "Test failed — token or quota expired."
-                    : provider.status === "Disabled"
-                      ? "Test failed — integration is disabled."
-                      : "Test failed — reconnect to renew credentials."}
-                </p>
-              ) : null}
-              {testState === "idle" ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Sends a dry-run handshake. No messages or payments are created.
+                  {testMessage || "Test failed — reconnect to renew credentials."}
                 </p>
               ) : null}
             </div>
           ) : null}
 
-          {/* Actions */}
           <div className="flex flex-wrap gap-2">
             {provider.status === "Not Connected" ? (
               <Button
                 size="sm"
                 className="flex-1"
-                onClick={() =>
-                  onFlash(
-                    `Connect ${provider.name} opened. (UI preview — no OAuth)`
-                  )
-                }
+                disabled={busy}
+                onClick={() => void handleConnect()}
               >
                 <Plug aria-hidden />
-                Connect
+                {busy ? "Connecting…" : "Connect"}
               </Button>
             ) : (
               <>
@@ -873,11 +744,8 @@ function ConnectionDrawer({
                   size="sm"
                   variant="outline"
                   className="flex-1"
-                  onClick={() =>
-                    onFlash(
-                      `Reconnect ${provider.name} opened. (UI preview — no OAuth)`
-                    )
-                  }
+                  disabled={busy}
+                  onClick={() => void handleConnect()}
                 >
                   <RefreshCw aria-hidden />
                   Reconnect
@@ -886,9 +754,12 @@ function ConnectionDrawer({
                   size="sm"
                   variant="outline"
                   className="flex-1 text-destructive hover:text-destructive"
-                  onClick={() =>
-                    onFlash(`Disconnected ${provider.name}. (UI preview)`)
-                  }
+                  disabled={busy}
+                  onClick={() => {
+                    void handleDisconnect().catch((error) =>
+                      onFlash(getApiErrorMessage(error))
+                    );
+                  }}
                 >
                   <Unplug aria-hidden />
                   Disconnect
@@ -897,24 +768,9 @@ function ConnectionDrawer({
             )}
           </div>
 
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-full text-muted-foreground"
-            onClick={() =>
-              onFlash(`Opened “${provider.docsLabel}”. (UI placeholder)`)
-            }
-          >
-            <ExternalLink aria-hidden />
-            {provider.docsLabel}
-          </Button>
-
-          {/* Provider-specific config */}
-          {(provider.configKind === "email" ||
-            provider.configKind === "smtp" ||
-            provider.configKind === "whatsapp" ||
-            provider.configKind === "calendly") &&
-          provider.status !== "Not Connected" ? (
+          {provider.configKind === "smtp" ||
+          provider.configKind === "whatsapp" ||
+          provider.configKind === "calendly" ? (
             <div className="border-t border-border pt-4">
               <button
                 type="button"
@@ -927,14 +783,20 @@ function ConnectionDrawer({
                 </span>
               </button>
               {showConfig ? (
-                provider.configKind === "email" ? (
-                  <EmailConfigPanel onSave={onFlash} />
-                ) : provider.configKind === "smtp" ? (
-                  <SmtpConfigPanel onSave={onFlash} />
+                provider.configKind === "smtp" ? (
+                  <SmtpConfigPanel
+                    providerId={provider.id}
+                    onSave={onFlash}
+                    onConnected={onRefresh}
+                  />
                 ) : provider.configKind === "whatsapp" ? (
-                  <WhatsAppConfigPanel onSave={onFlash} />
+                  <WhatsAppConfigPanel
+                    providerId={provider.id}
+                    onSave={onFlash}
+                    onConnected={onRefresh}
+                  />
                 ) : (
-                  <CalendlyConfigPanel onSave={onFlash} />
+                  <CalendlyConfigPanel onSave={onFlash} onConnected={onRefresh} />
                 )
               ) : null}
             </div>
@@ -945,22 +807,38 @@ function ConnectionDrawer({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Workspace                                                            */
-/* ------------------------------------------------------------------ */
-
 export function IntegrationsWorkspace() {
   const [category, setCategory] = useState<IntegrationCategory | "All">("All");
+  const [providers, setProviders] = useState<IntegrationProvider[]>(
+    MOCK_INTEGRATION_PROVIDERS
+  );
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<IntegrationProvider | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  async function refresh() {
+    try {
+      const next = await integrationsApi.listProviders();
+      setProviders(next);
+      setSelected((current) =>
+        current ? next.find((item) => item.id === current.id) || current : null
+      );
+    } catch (error) {
+      setMessage(getApiErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
   const filtered = useMemo(() => {
-    if (category === "All") return INTEGRATION_PROVIDERS;
-    return INTEGRATION_PROVIDERS.filter(
-      (provider) => provider.category === category
-    );
-  }, [category]);
+    if (category === "All") return providers;
+    return providers.filter((provider) => provider.category === category);
+  }, [category, providers]);
 
   const grouped = useMemo(() => {
     const categories =
@@ -974,17 +852,15 @@ export function IntegrationsWorkspace() {
   }, [category, filtered]);
 
   const counts = useMemo(() => {
-    const connected = INTEGRATION_PROVIDERS.filter(
-      (p) => p.status === "Connected"
-    ).length;
-    const attention = INTEGRATION_PROVIDERS.filter(
+    const connected = providers.filter((p) => p.status === "Connected").length;
+    const attention = providers.filter(
       (p) =>
         p.status === "Needs Attention" ||
         p.status === "Expired" ||
         p.status === "Disabled"
     ).length;
-    return { connected, attention, total: INTEGRATION_PROVIDERS.length };
-  }, []);
+    return { connected, attention, total: providers.length };
+  }, [providers]);
 
   function flash(text: string) {
     setMessage(text);
@@ -998,7 +874,6 @@ export function IntegrationsWorkspace() {
 
   return (
     <div className="space-y-4">
-      {/* Summary strip */}
       <div className="overflow-hidden rounded-lg border border-border">
         <div className="grid grid-cols-3 gap-px bg-border">
           <div className="bg-card px-3 py-2.5">
@@ -1022,50 +897,49 @@ export function IntegrationsWorkspace() {
         </div>
       </div>
 
-      {/* Category filters */}
       <div className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => setCategory("All")}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-              category === "All"
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted"
-            )}
-          >
-            All
-          </button>
-          {INTEGRATION_CATEGORIES.map((cat) => {
-            const Icon = CATEGORY_META[cat].icon;
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategory(cat)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                  category === cat
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <Icon aria-hidden className="size-3.5" />
-                {cat}
-              </button>
-            );
-          })}
-          {category !== "All" ? (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => setCategory("All")}
+        <button
+          type="button"
+          onClick={() => setCategory("All")}
+          className={cn(
+            "rounded-md px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+            category === "All"
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:bg-muted"
+          )}
+        >
+          All
+        </button>
+        {INTEGRATION_CATEGORIES.map((cat) => {
+          const Icon = CATEGORY_META[cat].icon;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategory(cat)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                category === cat
+                  ? "bg-muted font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
             >
-              <X aria-hidden />
-              Clear
-            </Button>
-          ) : null}
-        </div>
+              <Icon aria-hidden className="size-3.5" />
+              {cat}
+            </button>
+          );
+        })}
+        {category !== "All" ? (
+          <Button size="xs" variant="ghost" onClick={() => setCategory("All")}>
+            <X aria-hidden />
+            Clear
+          </Button>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading integrations…</p>
+      ) : null}
 
       {message ? (
         <p
@@ -1076,24 +950,18 @@ export function IntegrationsWorkspace() {
         </p>
       ) : null}
 
-      {/* Grouped cards */}
-      {grouped.map(({ category: cat, providers }) =>
-        providers.length > 0 ? (
+      {grouped.map(({ category: cat, providers: groupProviders }) =>
+        groupProviders.length > 0 ? (
           <section key={cat} className="space-y-3">
             <div className="flex items-center gap-2">
               {(() => {
                 const Icon = CATEGORY_META[cat].icon;
-                return (
-                  <Icon
-                    aria-hidden
-                    className="size-4 text-muted-foreground"
-                  />
-                );
+                return <Icon aria-hidden className="size-4 text-muted-foreground" />;
               })()}
               <h2 className="text-sm font-semibold text-foreground">{cat}</h2>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {providers.map((provider) => (
+              {groupProviders.map((provider) => (
                 <ProviderCard
                   key={provider.id}
                   provider={provider}
@@ -1110,6 +978,7 @@ export function IntegrationsWorkspace() {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onFlash={flash}
+        onRefresh={() => void refresh()}
       />
     </div>
   );

@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { JOBS } from "@/lib/mock-jobs";
 import type { ListVisibility } from "@/lib/mock-candidates";
+import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
 
 const VISIBILITY_OPTIONS: { value: ListVisibility; hint: string }[] = [
   { value: "Private", hint: "Only you can see this list" },
@@ -34,8 +35,10 @@ const VISIBILITY_OPTIONS: { value: ListVisibility; hint: string }[] = [
 
 export function CreateListDialog({
   trigger,
+  onCreated,
 }: {
   trigger?: React.ReactElement;
+  onCreated?: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -44,15 +47,34 @@ export function CreateListDialog({
   const [tags, setTags] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!name.trim()) {
       setError("List name is required.");
       return;
     }
     setError(null);
-    setCreated(true);
-    window.setTimeout(() => setCreated(false), 1600);
+    setBusy(true);
+    try {
+      await candidatePoolApi.createList({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        jobId,
+        visibility,
+        tags: tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      });
+      setCreated(true);
+      onCreated?.();
+      window.setTimeout(() => setCreated(false), 1600);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -158,8 +180,15 @@ export function CreateListDialog({
         </div>
 
         <DialogFooter showCloseButton>
-          <Button type="button" size="sm" onClick={handleCreate}>
-            {created ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void handleCreate()}
+            disabled={busy}
+          >
+            {busy ? (
+              "Creating…"
+            ) : created ? (
               <>
                 <Check aria-hidden />
                 List created

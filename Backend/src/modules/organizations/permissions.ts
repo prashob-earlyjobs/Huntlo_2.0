@@ -79,7 +79,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<OrganizationRole, PermissionKey[]>
     ...moduleActions('assessments', ['view', 'create', 'edit']),
     ...moduleActions('scheduling', ['view', 'create', 'edit']),
     ...moduleActions('analytics', ['view', 'export']),
-    ...moduleActions('integrations', ['view']),
+    ...moduleActions('integrations', ['view', 'edit', 'manage']),
     ...moduleActions('plans', ['view']),
     ...moduleActions('team', ['view']),
     ...moduleActions('settings', ['view']),

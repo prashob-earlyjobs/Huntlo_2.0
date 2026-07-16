@@ -70,7 +70,7 @@ const candidateImportJobSchema = new mongoose.Schema(
     errorMessage: { type: String, default: null },
     expiresAt: { type: Date, default: null, index: true },
   },
-  { timestamps: true }
+  { timestamps: true, suppressReservedKeysWarning: true }
 );
 
 candidateImportJobSchema.index({ organizationId: 1, status: 1, createdAt: -1 });

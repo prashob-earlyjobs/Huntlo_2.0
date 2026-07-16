@@ -36,6 +36,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
       message: err.message,
       requestId,
       details: err.details,
+      meta: err.meta,
     });
     return;
   }

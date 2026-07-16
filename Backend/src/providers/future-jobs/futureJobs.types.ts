@@ -247,6 +247,15 @@ export interface FutureJobsProvider {
     revealType: 'EMAIL' | 'PHONE'
   ): Promise<FutureJobsApiResponse>;
 
+  /**
+   * POST /wl/scout-people/lookup
+   * Body: { email: string } OR { linkedin_url: string }
+   */
+  scoutPeopleLookup(body: {
+    email?: string;
+    linkedin_url?: string;
+  }): Promise<FutureJobsApiResponse>;
+
   getSourcingSessionAnnotation(body: {
     userText: string;
     linkedin_profile_url?: string;

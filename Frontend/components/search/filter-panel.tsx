@@ -135,7 +135,7 @@ function SectionBlock({
                 </span>
               ) : null}
             </span>
-            <span className="block truncate text-xs text-muted-foreground">
+            <span className="block text-xs text-muted-foreground">
               {section.description}
             </span>
           </span>

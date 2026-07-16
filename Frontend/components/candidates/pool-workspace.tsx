@@ -13,7 +13,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
@@ -54,6 +54,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
 import {
   CANDIDATE_STATUSES,
   CONTACT_AVAILABILITY,
@@ -99,6 +100,10 @@ function contactMatches(candidate: PoolCandidate, availability: string) {
 }
 
 export function PoolWorkspace() {
+  const [candidates, setCandidates] = useState<PoolCandidate[]>(POOL_CANDIDATES);
+  const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [savedView, setSavedView] = useState<string>("all");
   const [jobFilter, setJobFilter] = useState<string[]>([]);
@@ -114,15 +119,41 @@ export function PoolWorkspace() {
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
 
+  async function refreshPool() {
+    setLoadError(null);
+    try {
+      const [items, nextLists] = await Promise.all([
+        candidatePoolApi.list({ limit: 200, sort: "-lastActivityAt" }),
+        candidatePoolApi.listLists(),
+      ]);
+      setCandidates(items.length > 0 ? items : POOL_CANDIDATES);
+      setLists(
+        nextLists.length > 0
+          ? nextLists.map((list) => ({ id: list.id, name: list.name }))
+          : LIST_NAMES.map((name, index) => ({ id: `mock-${index}`, name }))
+      );
+    } catch (err) {
+      setLoadError(getApiErrorMessage(err));
+      setCandidates(POOL_CANDIDATES);
+      setLists(LIST_NAMES.map((name, index) => ({ id: `mock-${index}`, name })));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshPool();
+  }, []);
+
   const jobTitles = useMemo(() => {
     const ids = new Set(
-      POOL_CANDIDATES.map((candidate) => candidate.relatedJobId).filter(Boolean)
+      candidates.map((candidate) => candidate.relatedJobId).filter(Boolean)
     );
     return JOBS.filter((job) => ids.has(job.id)).map((job) => ({
       id: job.id,
       label: job.title,
     }));
-  }, []);
+  }, [candidates]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
     return (id: string) =>
@@ -136,7 +167,7 @@ export function PoolWorkspace() {
   const filtered = useMemo(() => {
     const bucket = EXPERIENCE_BUCKETS.find((entry) => entry.id === experience)!;
     const normalized = query.trim().toLowerCase();
-    return POOL_CANDIDATES.filter((candidate) => {
+    return candidates.filter((candidate) => {
       if (removed.has(candidate.id)) return false;
       if (savedView === "my" && candidate.owner !== "Ananya Sharma") return false;
       if (
@@ -191,6 +222,7 @@ export function PoolWorkspace() {
       return true;
     });
   }, [
+    candidates,
     query,
     savedView,
     jobFilter,
@@ -251,13 +283,72 @@ export function PoolWorkspace() {
     window.setTimeout(() => setBulkMessage(null), 2400);
   }
 
-  function removeSelected() {
-    setRemoved((previous) => {
-      const next = new Set(previous);
-      selected.forEach((id) => next.add(id));
-      return next;
-    });
-    runBulkAction(`Removed ${selected.size} candidates from the pool.`);
+  async function applyBulkStatus(status: string) {
+    const ids = Array.from(selected);
+    try {
+      await candidatePoolApi.bulkStatus(ids, status);
+      setCandidates((previous) =>
+        previous.map((candidate) =>
+          selected.has(candidate.id)
+            ? { ...candidate, pipelineStatus: status as PoolCandidate["pipelineStatus"] }
+            : candidate
+        )
+      );
+      runBulkAction(`Updated status to ${status} for ${ids.length} candidates.`);
+    } catch (err) {
+      setBulkMessage(getApiErrorMessage(err));
+    }
+  }
+
+  async function applyBulkAddToList(listId: string, listName: string) {
+    const ids = Array.from(selected);
+    try {
+      await candidatePoolApi.bulkAddToList(ids, listId);
+      setCandidates((previous) =>
+        previous.map((candidate) =>
+          selected.has(candidate.id) && !candidate.lists.includes(listName)
+            ? { ...candidate, lists: [...candidate.lists, listName] }
+            : candidate
+        )
+      );
+      runBulkAction(`Added ${ids.length} candidates to “${listName}”.`);
+    } catch (err) {
+      setBulkMessage(getApiErrorMessage(err));
+    }
+  }
+
+  async function removeSelected() {
+    const ids = Array.from(selected);
+    try {
+      await candidatePoolApi.bulkArchive(ids);
+      setRemoved((previous) => {
+        const next = new Set(previous);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
+      runBulkAction(`Archived ${ids.length} candidates from the pool.`);
+    } catch (err) {
+      setBulkMessage(getApiErrorMessage(err));
+    }
+  }
+
+  async function exportSelected() {
+    const ids = Array.from(selected);
+    try {
+      const result = await candidatePoolApi.bulkExport(ids);
+      if ("csv" in result && result.csv) {
+        const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = "candidate-pool-export.csv";
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }
+      runBulkAction(`Exported ${ids.length} candidates.`);
+    } catch (err) {
+      setBulkMessage(getApiErrorMessage(err));
+    }
   }
 
   const primaryFilterControls = (
@@ -276,7 +367,7 @@ export function PoolWorkspace() {
       />
       <FilterPopover
         label="List"
-        options={toOptions(LIST_NAMES)}
+        options={toOptions(lists.map((list) => list.name))}
         selected={listFilter}
         onToggle={toggle(setListFilter)}
       />
@@ -389,8 +480,8 @@ export function PoolWorkspace() {
                 ))}
               </SelectContent>
             </Select>
-            <ImportCandidatesDialog />
-            <CreateListDialog />
+            <ImportCandidatesDialog onImported={() => void refreshPool()} />
+            <CreateListDialog onCreated={() => void refreshPool()} />
           </div>
         </div>
 
@@ -454,6 +545,15 @@ export function PoolWorkspace() {
         </div>
       </section>
 
+      {loadError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {loadError}
+        </p>
+      ) : null}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading candidate pool…</p>
+      ) : null}
+
       {bulkMessage ? (
         <p
           role="status"
@@ -472,14 +572,25 @@ export function PoolWorkspace() {
           <p className="mr-1 text-sm font-medium text-foreground">
             <span className="tabular-nums">{selected.size}</span> selected
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => runBulkAction(`Added ${selected.size} candidates to a list.`)}
-          >
-            <ListPlus aria-hidden />
-            Add to List
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button size="sm" variant="outline" />}
+            >
+              <ListPlus aria-hidden />
+              Add to List
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuLabel>Choose list</DropdownMenuLabel>
+              {lists.map((list) => (
+                <DropdownMenuItem
+                  key={list.id}
+                  onClick={() => void applyBulkAddToList(list.id, list.name)}
+                >
+                  {list.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             size="sm"
             variant="outline"
@@ -533,11 +644,7 @@ export function PoolWorkspace() {
               {CANDIDATE_STATUSES.map((status) => (
                 <DropdownMenuItem
                   key={status}
-                  onClick={() =>
-                    runBulkAction(
-                      `Moved ${selected.size} candidates to “${status}”.`
-                    )
-                  }
+                  onClick={() => void applyBulkStatus(status)}
                 >
                   {status}
                 </DropdownMenuItem>
@@ -548,7 +655,7 @@ export function PoolWorkspace() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => runBulkAction(`Exported ${selected.size} candidates.`)}
+            onClick={() => void exportSelected()}
           >
             <Download aria-hidden />
             Export
@@ -561,10 +668,10 @@ export function PoolWorkspace() {
               </Button>
             }
             title={`Remove ${selected.size} candidates?`}
-            description="They will be removed from your candidate pool but remain available through search. Lists referencing them will be updated."
+            description="They will be archived in your candidate pool. Lists referencing them will be updated."
             confirmLabel="Remove"
             destructive
-            onConfirm={removeSelected}
+            onConfirm={() => void removeSelected()}
           />
           <Button
             size="sm"

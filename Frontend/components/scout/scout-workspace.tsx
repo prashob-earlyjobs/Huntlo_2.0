@@ -13,7 +13,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ScoutLookupsTable } from "@/components/scout/scout-lookups-table";
 import { ScoutProfileCard } from "@/components/scout/scout-profile-card";
@@ -30,25 +30,32 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  getApiErrorMessage,
+  peopleScoutApi,
+  uiLookupTypeToApi,
+  type ScoutLookupResponse,
+  type ScoutQuota,
+} from "@/lib/api";
+import {
   LOOKUP_PLACEHOLDERS,
   LOOKUP_QUOTA,
   LOOKUP_TYPES,
-  RECENT_LOOKUPS,
-  SCOUT_MATCH_OPTIONS,
-  SCOUT_PROFILE,
   type LookupType,
   type RecentLookup,
+  type ScoutMatchOption,
+  type ScoutProfile,
 } from "@/lib/mock-scout";
 
 type ScoutState =
   | { kind: "idle" }
   | { kind: "invalid"; message: string }
   | { kind: "searching" }
-  | { kind: "found" }
-  | { kind: "multiple" }
+  | { kind: "found"; lookup: ScoutLookupResponse; profile: ScoutProfile }
+  | { kind: "multiple"; lookup: ScoutLookupResponse; matches: ScoutMatchOption[] }
   | { kind: "not-found" }
   | { kind: "quota" }
-  | { kind: "provider-down" };
+  | { kind: "provider-down" }
+  | { kind: "failed"; message: string };
 
 const DEMO_INPUTS: { label: string; type: LookupType; value: string }[] = [
   {
@@ -62,8 +69,6 @@ const DEMO_INPUTS: { label: string; type: LookupType; value: string }[] = [
     type: "Email Address",
     value: "notfound@stealth.xyz",
   },
-  { label: "Quota exhausted", type: "LinkedIn Username", value: "quota-check" },
-  { label: "Provider down", type: "LinkedIn Username", value: "offline-check" },
 ];
 
 function validate(type: LookupType, value: string): string | null {
@@ -84,21 +89,6 @@ function validate(type: LookupType, value: string): string | null {
         : "That doesn't look like a valid email address.";
   }
 }
-
-function resolveOutcome(
-  value: string
-): "found" | "multiple" | "not-found" | "quota" | "provider-down" {
-  const normalized = value.toLowerCase();
-  if (normalized.includes("quota")) return "quota";
-  if (normalized.includes("offline")) return "provider-down";
-  if (normalized.includes("notfound")) return "not-found";
-  if (normalized.includes("multi")) return "multiple";
-  return "found";
-}
-
-/* ------------------------------------------------------------------ */
-/* State panels                                                         */
-/* ------------------------------------------------------------------ */
 
 function StatePanel({
   icon: Icon,
@@ -144,31 +134,23 @@ function SearchingPanel() {
           <Skeleton className="h-3.5 w-64 max-w-full" />
         </div>
       </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
-        <div className="space-y-2 lg:col-span-2">
-          <Skeleton className="h-3.5 w-24" />
-          <Skeleton className="h-20 w-full" />
-        </div>
-        <div className="space-y-2">
-          <Skeleton className="h-3.5 w-20" />
-          <Skeleton className="h-20 w-full" />
-        </div>
-      </div>
     </div>
   );
 }
 
 function MultipleMatchesPanel({
+  matches,
   onSelect,
 }: {
-  onSelect: (id: string) => void;
+  matches: ScoutMatchOption[];
+  onSelect: (match: ScoutMatchOption) => void;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <UsersRound aria-hidden className="size-4 text-warning" />
-          {SCOUT_MATCH_OPTIONS.length} possible matches
+          {matches.length} possible matches
         </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
           The lookup wasn&rsquo;t specific enough to identify one person. Pick the
@@ -176,16 +158,14 @@ function MultipleMatchesPanel({
         </p>
       </div>
       <ul className="divide-y divide-border">
-        {SCOUT_MATCH_OPTIONS.map((option) => (
+        {matches.map((option) => (
           <li
             key={option.id}
             className="flex flex-wrap items-center gap-3 px-4 py-3"
           >
             <CandidateAvatar name={option.name} className="size-9" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">
-                {option.name}
-              </p>
+              <p className="text-sm font-medium text-foreground">{option.name}</p>
               <p className="truncate text-xs text-muted-foreground">
                 {option.headline} · {option.location}
               </p>
@@ -193,7 +173,7 @@ function MultipleMatchesPanel({
                 linkedin.com/in/{option.linkedinUsername}
               </p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => onSelect(option.id)}>
+            <Button size="sm" variant="outline" onClick={() => onSelect(option)}>
               View Profile
               <ArrowRight aria-hidden />
             </Button>
@@ -204,31 +184,99 @@ function MultipleMatchesPanel({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Workspace                                                            */
-/* ------------------------------------------------------------------ */
-
 export function ScoutWorkspace() {
   const [type, setType] = useState<LookupType>("LinkedIn URL");
   const [value, setValue] = useState("");
   const [state, setState] = useState<ScoutState>({ kind: "idle" });
-  const timerRef = useRef<number | null>(null);
+  const [recent, setRecent] = useState<RecentLookup[]>([]);
+  const [quota, setQuota] = useState<ScoutQuota>({
+    limit: LOOKUP_QUOTA.total,
+    used: LOOKUP_QUOTA.total - LOOKUP_QUOTA.remaining,
+    remaining: LOOKUP_QUOTA.remaining,
+    costPerLookup: LOOKUP_QUOTA.costPerLookup,
+  });
 
-  function runLookup(lookupType: LookupType, lookupValue: string) {
+  async function refreshSideData() {
+    try {
+      const [nextRecent, nextQuota] = await Promise.all([
+        peopleScoutApi.getRecentLookups(),
+        peopleScoutApi.getQuota(),
+      ]);
+      setRecent(nextRecent);
+      setQuota(nextQuota);
+    } catch {
+      // Keep prior quota / recent snapshot on soft failure.
+    }
+  }
+
+  useEffect(() => {
+    void refreshSideData();
+  }, []);
+
+  async function runLookup(lookupType: LookupType, lookupValue: string) {
     const error = validate(lookupType, lookupValue);
     if (error) {
       setState({ kind: "invalid", message: error });
       return;
     }
-    if (timerRef.current) window.clearTimeout(timerRef.current);
+
     setState({ kind: "searching" });
-    timerRef.current = window.setTimeout(() => {
-      setState({ kind: resolveOutcome(lookupValue) });
-    }, 1100);
+    try {
+      const result = await peopleScoutApi.lookup({
+        type: uiLookupTypeToApi(lookupType),
+        input: lookupValue.trim(),
+      });
+
+      switch (result.resultStatus) {
+        case "found":
+          if (result.profile) {
+            setState({ kind: "found", lookup: result, profile: result.profile });
+          } else {
+            setState({ kind: "not-found" });
+          }
+          break;
+        case "multiple_matches":
+          setState({
+            kind: "multiple",
+            lookup: result,
+            matches: result.matches,
+          });
+          break;
+        case "not_found":
+          setState({ kind: "not-found" });
+          break;
+        case "quota_exhausted":
+          setState({ kind: "quota" });
+          break;
+        case "provider_unavailable":
+          setState({ kind: "provider-down" });
+          break;
+        case "invalid_input":
+          setState({
+            kind: "invalid",
+            message: "That lookup input is not valid.",
+          });
+          break;
+        default:
+          setState({
+            kind: "failed",
+            message: "Lookup failed. Please try again.",
+          });
+      }
+      await refreshSideData();
+    } catch (err) {
+      const message = getApiErrorMessage(err);
+      if (/quota/i.test(message)) {
+        setState({ kind: "quota" });
+      } else if (/unavailable|provider|upstream/i.test(message)) {
+        setState({ kind: "provider-down" });
+      } else {
+        setState({ kind: "failed", message });
+      }
+    }
   }
 
   function clear() {
-    if (timerRef.current) window.clearTimeout(timerRef.current);
     setValue("");
     setState({ kind: "idle" });
   }
@@ -236,20 +284,25 @@ export function ScoutWorkspace() {
   function rerunFromHistory(lookup: RecentLookup) {
     setType(lookup.type);
     setValue(lookup.input);
-    runLookup(lookup.type, lookup.input);
+    void runLookup(lookup.type, lookup.input);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function selectMatch(match: ScoutMatchOption) {
+    setType("LinkedIn Username");
+    setValue(match.linkedinUsername);
+    await runLookup("LinkedIn Username", match.linkedinUsername);
   }
 
   const searching = state.kind === "searching";
 
   return (
     <div className="space-y-4">
-      {/* Search card */}
       <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            runLookup(type, value);
+            void runLookup(type, value);
           }}
           className="flex flex-col gap-2 sm:flex-row"
         >
@@ -257,10 +310,7 @@ export function ScoutWorkspace() {
             value={type}
             onValueChange={(next) => next && setType(next as LookupType)}
           >
-            <SelectTrigger
-              aria-label="Lookup type"
-              className="sm:w-44 sm:shrink-0"
-            >
+            <SelectTrigger aria-label="Lookup type" className="sm:w-44 sm:shrink-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -316,14 +366,13 @@ export function ScoutWorkspace() {
           </p>
         ) : null}
 
-        {/* Quota strip */}
         <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-3">
           <UsageProgress
             metric={{
               id: "lookups",
               label: "Lookup quota",
-              used: LOOKUP_QUOTA.total - LOOKUP_QUOTA.remaining,
-              total: LOOKUP_QUOTA.total,
+              used: quota.used,
+              total: quota.limit,
               unit: "lookups",
             }}
           />
@@ -331,7 +380,7 @@ export function ScoutWorkspace() {
             <Coins aria-hidden className="size-3.5 shrink-0" />
             <span>
               <span className="font-medium tabular-nums text-foreground">
-                {LOOKUP_QUOTA.costPerLookup} credits
+                {quota.costPerLookup} credits
               </span>{" "}
               per lookup — failed lookups are never charged
             </span>
@@ -340,14 +389,13 @@ export function ScoutWorkspace() {
             <History aria-hidden className="size-3.5 shrink-0" />
             <span>
               <span className="font-medium tabular-nums text-foreground">
-                {LOOKUP_QUOTA.recentCount} lookups
+                {recent.length} lookups
               </span>{" "}
-              by your team this month
+              in recent history
             </span>
           </div>
         </div>
 
-        {/* Demo state shortcuts */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Try:</span>
           {DEMO_INPUTS.map((demo) => (
@@ -357,7 +405,7 @@ export function ScoutWorkspace() {
               onClick={() => {
                 setType(demo.type);
                 setValue(demo.value);
-                runLookup(demo.type, demo.value);
+                void runLookup(demo.type, demo.value);
               }}
               className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
             >
@@ -367,7 +415,6 @@ export function ScoutWorkspace() {
         </div>
       </section>
 
-      {/* Result area */}
       {state.kind === "idle" ? (
         <StatePanel
           icon={Radar}
@@ -378,10 +425,20 @@ export function ScoutWorkspace() {
 
       {searching ? <SearchingPanel /> : null}
 
-      {state.kind === "found" ? <ScoutProfileCard profile={SCOUT_PROFILE} /> : null}
+      {state.kind === "found" ? (
+        <ScoutProfileCard
+          profile={state.profile}
+          lookupId={state.lookup.id}
+          initiallySaved={state.lookup.saved}
+          onSaved={() => void refreshSideData()}
+        />
+      ) : null}
 
       {state.kind === "multiple" ? (
-        <MultipleMatchesPanel onSelect={() => setState({ kind: "found" })} />
+        <MultipleMatchesPanel
+          matches={state.matches}
+          onSelect={(match) => void selectMatch(match)}
+        />
       ) : null}
 
       {state.kind === "not-found" ? (
@@ -401,10 +458,9 @@ export function ScoutWorkspace() {
           icon={Coins}
           iconClassName="size-5 text-warning"
           title="Lookup quota exhausted"
-          description="Your workspace has used all of its people lookups for this billing cycle. Upgrade your plan or wait for the quota to reset on Aug 1 to continue."
+          description="Your workspace has used all of its people lookups for this billing cycle. Upgrade your plan or wait for the quota to reset to continue."
         >
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <Button size="sm">Upgrade Plan</Button>
             <Button size="sm" variant="outline" onClick={clear}>
               Dismiss
             </Button>
@@ -423,15 +479,32 @@ export function ScoutWorkspace() {
             size="sm"
             variant="outline"
             className="mt-4"
-            onClick={() => runLookup(type, value)}
+            onClick={() => void runLookup(type, value)}
           >
             Retry Lookup
           </Button>
         </StatePanel>
       ) : null}
 
-      {/* Recent lookups */}
-      <ScoutLookupsTable lookups={RECENT_LOOKUPS} onRerun={rerunFromHistory} />
+      {state.kind === "failed" ? (
+        <StatePanel
+          icon={AlertTriangle}
+          iconClassName="size-5 text-destructive"
+          title="Lookup failed"
+          description={state.message}
+        >
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-4"
+            onClick={() => void runLookup(type, value)}
+          >
+            Retry Lookup
+          </Button>
+        </StatePanel>
+      ) : null}
+
+      <ScoutLookupsTable lookups={recent} onRerun={rerunFromHistory} />
     </div>
   );
 }

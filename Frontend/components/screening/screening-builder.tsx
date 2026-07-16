@@ -431,9 +431,19 @@ function AgentStep({
   return (
     <StepCard
       title="Agent Configuration"
-      description="Pick the voice persona and the scripts that open and close every call."
+      description="Pick the voice persona and the scripts that open and close every call. Requires a connected Hunar integration."
     >
       <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Voice calls run through{" "}
+          <a
+            href="/dashboard/integrations"
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Hunar
+          </a>{" "}
+          when connected.
+        </p>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Language" htmlFor="scr-language">
             <Select

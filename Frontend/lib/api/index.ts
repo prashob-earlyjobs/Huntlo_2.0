@@ -4,6 +4,7 @@ export * from "./team";
 export * from "./jobs";
 export * from "./sourcing";
 export * from "./candidates";
+export * from "./candidate-pool";
 export * from "./people-scout";
 export * from "./outreach";
 export * from "./conversations";

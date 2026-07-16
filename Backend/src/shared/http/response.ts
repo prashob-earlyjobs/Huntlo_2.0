@@ -25,6 +25,7 @@ export type ErrorResponse = {
     code: string;
     message: string;
     details?: Array<{ path?: string; message: string }>;
+    meta?: Record<string, unknown>;
   };
   requestId: string;
 };
@@ -53,6 +54,7 @@ export function errorResponse(
     message: string;
     requestId: string;
     details?: Array<{ path?: string; message: string }>;
+    meta?: Record<string, unknown>;
   }
 ): Response {
   const body: ErrorResponse = {
@@ -61,6 +63,7 @@ export function errorResponse(
       code: options.code,
       message: options.message,
       ...(options.details?.length ? { details: options.details } : {}),
+      ...(options.meta ? { meta: options.meta } : {}),
     },
     requestId: options.requestId,
   };

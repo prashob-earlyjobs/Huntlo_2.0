@@ -9,7 +9,7 @@ import {
   Headphones,
   Minus,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
 import {
@@ -41,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getApiErrorMessage, plansApi, type CurrentPlan } from "@/lib/api";
 import {
   CURRENT_PLAN,
   INVOICES,
@@ -675,7 +676,34 @@ function PlansDialogs({
 export function PlansWorkspace() {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<CurrentPlan>(CURRENT_PLAN);
+  const [quotas, setQuotas] = useState<UsageQuota[]>(USAGE_QUOTAS);
   const [planName, setPlanName] = useState(CURRENT_PLAN.name);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [plan, usage] = await Promise.all([
+          plansApi.getCurrentPlan(),
+          plansApi.getUsage(),
+        ]);
+        if (cancelled) return;
+        setCurrentPlan(plan);
+        setPlanName(plan.name);
+        const withIcons = usage.map((row) => {
+          const mock = USAGE_QUOTAS.find((item) => item.id === row.id);
+          return mock ? { ...row, icon: mock.icon, description: mock.description } : row;
+        });
+        setQuotas(withIcons.length > 0 ? withIcons : USAGE_QUOTAS);
+      } catch (err) {
+        if (!cancelled) setMessage(getApiErrorMessage(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function flash(text: string) {
     setMessage(text);
@@ -754,20 +782,20 @@ export function PlansWorkspace() {
                 {planName} plan
               </h2>
               <Badge
-                text={CURRENT_PLAN.status}
+                text={currentPlan.status}
                 className="bg-success/10 text-success"
               />
             </div>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {(
                 [
-                  ["Billing cycle", CURRENT_PLAN.billingCycle],
-                  ["Renewal date", CURRENT_PLAN.renewalDate],
+                  ["Billing cycle", currentPlan.billingCycle],
+                  ["Renewal date", currentPlan.renewalDate],
                   [
                     "Workspace owner",
-                    `${CURRENT_PLAN.owner} · ${CURRENT_PLAN.ownerEmail}`,
+                    `${currentPlan.owner} · ${currentPlan.ownerEmail}`,
                   ],
-                  ["Seats", CURRENT_PLAN.seats],
+                  ["Seats", currentPlan.seats],
                 ] as const
               ).map(([label, value]) => (
                 <div key={label}>
@@ -780,10 +808,10 @@ export function PlansWorkspace() {
             </dl>
             <p className="mt-3 text-sm text-muted-foreground">
               <span className="font-semibold tabular-nums text-foreground">
-                {CURRENT_PLAN.price}
+                {currentPlan.price}
               </span>
-              {CURRENT_PLAN.pricePeriod} · next invoice on{" "}
-              {CURRENT_PLAN.renewalDate}
+              {currentPlan.pricePeriod} · next invoice on{" "}
+              {currentPlan.renewalDate}
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -816,7 +844,7 @@ export function PlansWorkspace() {
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {USAGE_QUOTAS.map((quota) => (
+          {quotas.map((quota) => (
             <QuotaCard
               key={quota.id}
               quota={quota}

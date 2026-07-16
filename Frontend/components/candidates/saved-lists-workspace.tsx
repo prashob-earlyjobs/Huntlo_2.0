@@ -19,7 +19,7 @@ import {
   Users2,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { PoolTable } from "@/components/candidates/pool-table";
@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
 import {
   POOL_CANDIDATES,
   SAVED_LISTS,
@@ -85,18 +86,20 @@ const VISIBILITY_META: Record<
   Workspace: { icon: Globe, label: "Shared with the workspace" },
 };
 
-function smartCandidates(id: SmartListId): PoolCandidate[] {
+function countSmart(id: SmartListId, pool: PoolCandidate[]): number {
   switch (id) {
     case "recent":
-      return POOL_CANDIDATES.filter((candidate) =>
-        /m ago|h ago|^Today|^Yesterday|^[1-6]d ago/.test(candidate.lastActivity)
-      );
+      return pool.filter((candidate) =>
+        /m ago|h ago|^Today|^Yesterday|^[1-6]d ago|Just now/.test(
+          candidate.lastActivity
+        )
+      ).length;
     case "revealed":
-      return POOL_CANDIDATES.filter(
+      return pool.filter(
         (candidate) => candidate.emailRevealed || candidate.phoneRevealed
-      );
+      ).length;
     default:
-      return POOL_CANDIDATES;
+      return pool.length;
   }
 }
 
@@ -136,6 +139,8 @@ function NavButton({
 }
 
 export function SavedListsWorkspace() {
+  const [lists, setLists] = useState<SavedList[]>(SAVED_LISTS);
+  const [pool, setPool] = useState<PoolCandidate[]>(POOL_CANDIDATES);
   const [selection, setSelection] = useState<PanelSelection>({
     kind: "smart",
     id: "all",
@@ -143,6 +148,25 @@ export function SavedListsWorkspace() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [listQuery, setListQuery] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      const [nextLists, nextPool] = await Promise.all([
+        candidatePoolApi.listLists(),
+        candidatePoolApi.list({ limit: 200 }),
+      ]);
+      setLists(nextLists.length > 0 ? nextLists : SAVED_LISTS);
+      setPool(nextPool.length > 0 ? nextPool : POOL_CANDIDATES);
+    } catch (err) {
+      setFeedback(getApiErrorMessage(err));
+      setLists(SAVED_LISTS);
+      setPool(POOL_CANDIDATES);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   function flash(message: string) {
     setFeedback(message);
@@ -154,16 +178,16 @@ export function SavedListsWorkspace() {
     !normalizedQuery || label.toLowerCase().includes(normalizedQuery);
 
   const smartLists = SMART_LISTS.filter((entry) => matchesQuery(entry.label));
-  const activeLists = SAVED_LISTS.filter(
+  const activeLists = lists.filter(
     (list) => !list.archived && matchesQuery(list.name)
   );
-  const archivedLists = SAVED_LISTS.filter(
+  const archivedLists = lists.filter(
     (list) => list.archived && matchesQuery(list.name)
   );
 
   const currentList: SavedList | null =
     selection.kind === "list"
-      ? (SAVED_LISTS.find((list) => list.id === selection.id) ?? null)
+      ? (lists.find((list) => list.id === selection.id) ?? null)
       : null;
 
   const currentSmart =
@@ -173,12 +197,57 @@ export function SavedListsWorkspace() {
 
   const candidates = useMemo(() => {
     if (currentList) {
-      return POOL_CANDIDATES.filter((candidate) =>
-        currentList.candidateIds.includes(candidate.id)
-      );
+      if (currentList.candidateIds.length > 0) {
+        return pool.filter((candidate) =>
+          currentList.candidateIds.includes(candidate.id)
+        );
+      }
+      return pool.filter((candidate) => candidate.lists.includes(currentList.name));
     }
-    return smartCandidates(selection.id as SmartListId);
-  }, [currentList, selection.id]);
+    switch (selection.id as SmartListId) {
+      case "recent":
+        return pool.filter((candidate) =>
+          /m ago|h ago|^Today|^Yesterday|^[1-6]d ago|Just now/.test(
+            candidate.lastActivity
+          )
+        );
+      case "revealed":
+        return pool.filter(
+          (candidate) => candidate.emailRevealed || candidate.phoneRevealed
+        );
+      default:
+        return pool;
+    }
+  }, [currentList, selection.id, pool]);
+
+  useEffect(() => {
+    if (selection.kind !== "list") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const items = await candidatePoolApi.list({
+          listId: selection.id,
+          limit: 200,
+        });
+        if (!cancelled && items.length > 0) {
+          setPool((previous) => {
+            const byId = new Map(previous.map((item) => [item.id, item]));
+            for (const item of items) byId.set(item.id, item);
+            return Array.from(byId.values());
+          });
+        }
+      } catch {
+        // Keep existing pool snapshot on list-member fetch failure.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selection]);
+
+  function listCount(list: SavedList) {
+    return list.candidateCount ?? list.candidateIds.length;
+  }
 
   function select(next: PanelSelection) {
     setSelection(next);
@@ -233,7 +302,7 @@ export function SavedListsWorkspace() {
                     onClick={() => select({ kind: "smart", id: entry.id })}
                     icon={entry.icon}
                     label={entry.label}
-                    count={smartCandidates(entry.id).length}
+                    count={countSmart(entry.id, pool)}
                   />
                 </li>
               ))}
@@ -253,7 +322,7 @@ export function SavedListsWorkspace() {
                       onClick={() => select({ kind: "list", id: list.id })}
                       icon={FolderOpen}
                       label={list.name}
-                      count={list.candidateIds.length}
+                      count={listCount(list)}
                     />
                   </li>
                 ))}
@@ -274,7 +343,7 @@ export function SavedListsWorkspace() {
                       onClick={() => select({ kind: "list", id: list.id })}
                       icon={Archive}
                       label={list.name}
-                      count={list.candidateIds.length}
+                      count={listCount(list)}
                       muted
                     />
                   </li>
@@ -294,6 +363,7 @@ export function SavedListsWorkspace() {
 
         <div className="mt-2 border-t border-border p-1.5">
           <CreateListDialog
+            onCreated={() => void refresh()}
             trigger={
               <Button size="sm" variant="outline" className="w-full">
                 <ListPlus aria-hidden />
@@ -354,11 +424,19 @@ export function SavedListsWorkspace() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() =>
-                        flash(
-                          currentList.archived
-                            ? `Restored “${currentList.name}”.`
-                            : `Archived “${currentList.name}”.`
-                        )
+                        void (async () => {
+                          try {
+                            await candidatePoolApi.archiveList(currentList.id);
+                            flash(
+                              currentList.archived
+                                ? `Restored “${currentList.name}”.`
+                                : `Archived “${currentList.name}”.`
+                            );
+                            await refresh();
+                          } catch (err) {
+                            flash(getApiErrorMessage(err));
+                          }
+                        })()
                       }
                     >
                       {currentList.archived ? (
@@ -370,7 +448,18 @@ export function SavedListsWorkspace() {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       variant="destructive"
-                      onClick={() => flash(`Deleted “${currentList.name}”.`)}
+                      onClick={() =>
+                        void (async () => {
+                          try {
+                            await candidatePoolApi.deleteList(currentList.id);
+                            flash(`Deleted “${currentList.name}”.`);
+                            setSelection({ kind: "smart", id: "all" });
+                            await refresh();
+                          } catch (err) {
+                            flash(getApiErrorMessage(err));
+                          }
+                        })()
+                      }
                     >
                       <Trash2 aria-hidden />
                       Delete list

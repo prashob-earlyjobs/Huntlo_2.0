@@ -134,7 +134,11 @@ export class ApiClient {
     headers.set("Accept", "application/json");
 
     if (options.body !== undefined && !headers.has("Content-Type")) {
-      headers.set("Content-Type", "application/json");
+      const isFormData =
+        typeof FormData !== "undefined" && options.body instanceof FormData;
+      if (!isFormData) {
+        headers.set("Content-Type", "application/json");
+      }
     }
 
     const useAuth = options.auth !== false;
@@ -175,10 +179,17 @@ export class ApiClient {
 
     let response: Response;
     try {
+      const isFormData =
+        typeof FormData !== "undefined" && options.body instanceof FormData;
       response = await fetch(url, {
         method,
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        body:
+          options.body === undefined
+            ? undefined
+            : isFormData
+              ? (options.body as FormData)
+              : JSON.stringify(options.body),
         credentials: options.credentials ?? "include",
         signal: controller.signal,
       });

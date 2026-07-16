@@ -11,7 +11,6 @@ import { UserModel } from '../src/modules/auth/user.model.js';
 import {
   CandidateContactCacheModel,
   EMAIL_REVEAL_COST,
-  RevealQuotaModel,
   RevealedContactModel,
   revealQuotaService,
 } from '../src/modules/candidates/index.js';
@@ -26,6 +25,11 @@ import {
   setMockFutureJobsMode,
 } from '../src/providers/future-jobs/index.js';
 import { IdempotencyModel } from '../src/shared/idempotency/idempotency.model.js';
+import {
+  QuotaCounterModel,
+  currentPeriodKey,
+  periodResetAt,
+} from '../src/shared/usage/index.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
 
 async function registerAndAuth(
@@ -129,7 +133,7 @@ describe('Candidates reveal API', () => {
       SourcedCandidateModel.deleteMany({}),
       CandidateContactCacheModel.deleteMany({}),
       RevealedContactModel.deleteMany({}),
-      RevealQuotaModel.deleteMany({}),
+      QuotaCounterModel.deleteMany({}),
       IdempotencyModel.deleteMany({}),
     ]);
   });
@@ -251,32 +255,31 @@ describe('Candidates reveal API', () => {
     expect(cache!.encryptedEmails[0]!.ciphertext).toBeTruthy();
   });
 
-  it('returns 409 when reveal quota is exhausted', async () => {
+  it('returns 429 when reveal quota is exhausted', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent);
     const { candidate } = await seedCandidate(organizationId, userId);
 
-    const periodKey = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}`;
-    await RevealQuotaModel.create({
+    await QuotaCounterModel.create({
       organizationId,
-      periodKey,
-      plan: 'Starter',
-      emailLimit: EMAIL_REVEAL_COST,
-      mobileLimit: 200,
-      usedEmail: EMAIL_REVEAL_COST,
-      reservedEmail: 0,
-      usedMobile: 0,
-      reservedMobile: 0,
-      reservations: [],
+      periodKey: currentPeriodKey(),
+      metric: 'email_reveal',
+      used: EMAIL_REVEAL_COST,
+      reserved: 0,
+      limit: EMAIL_REVEAL_COST,
+      resetAt: periodResetAt(currentPeriodKey()),
+      allowOverage: false,
     });
 
     const response = await agent
       .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
       .set('Authorization', `Bearer ${token}`)
       .set('Idempotency-Key', 'reveal-quota-fail-01')
-      .expect(409);
+      .expect(429);
 
     expect(response.body.success).toBe(false);
-    expect(response.body.error.code).toBe('CONFLICT');
+    expect(response.body.error.code).toBe('QUOTA_EXCEEDED');
+    expect(response.body.error.meta.quota.metric).toBe('email_reveal');
+    expect(response.body.error.meta.quota.remaining).toBe(0);
   });
 
   it('provider failure refunds reserved quota', async () => {

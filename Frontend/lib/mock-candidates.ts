@@ -437,6 +437,8 @@ export interface SavedList {
   name: string;
   description: string;
   candidateIds: string[];
+  /** Present when loaded from the live API. */
+  candidateCount?: number;
   createdBy: string;
   updated: string;
   relatedJobId: string | null;

@@ -15,6 +15,7 @@ import {
   ShieldQuestion,
   UserRoundPlus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -36,6 +37,7 @@ import { LIST_NAMES } from "@/lib/mock-candidates";
 import type { ScoutProfile } from "@/lib/mock-scout";
 import { getApiErrorMessage, peopleScoutApi } from "@/lib/api";
 import { REVEAL_COSTS, REVEAL_QUOTA } from "@/lib/mock-sessions";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -102,11 +104,22 @@ function RevealedRow({
   );
 }
 
-export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
+export function ScoutProfileCard({
+  profile,
+  lookupId,
+  initiallySaved = false,
+  onSaved,
+}: {
+  profile: ScoutProfile;
+  lookupId?: string;
+  initiallySaved?: boolean;
+  onSaved?: () => void;
+}) {
+  const router = useRouter();
   const [revealed, setRevealed] = useState({ email: false, phone: false });
   const [emailValue, setEmailValue] = useState(profile.email);
   const [phoneValue, setPhoneValue] = useState(profile.phone);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(initiallySaved);
   const [linkCopied, setLinkCopied] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
@@ -120,6 +133,7 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
     setRevealError(null);
     try {
       const result = await peopleScoutApi.revealContact({
+        lookupId: lookupId ?? "",
         profileId: profile.id,
         linkedinUrl: profile.linkedinUrl,
         type,
@@ -142,16 +156,36 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
     }
   }
 
+  async function handleSave() {
+    if (!lookupId) {
+      setSaved(true);
+      flash(`${profile.name} saved to your Candidate Pool.`);
+      return;
+    }
+    try {
+      const result = await peopleScoutApi.saveToPool(lookupId);
+      setSaved(true);
+      flash(
+        result.created
+          ? `${profile.name} saved to your Candidate Pool.`
+          : `${profile.name} is already in your Candidate Pool.`
+      );
+      onSaved?.();
+    } catch (err) {
+      flash(getApiErrorMessage(err));
+    }
+  }
+
   const revealCount = Number(revealed.email) + Number(revealed.phone);
 
   return (
     <article className="overflow-hidden rounded-xl border border-border bg-card">
-      {/* Header band */}
+      {/* Header band — identity full width, actions below so buttons never squeeze text */}
       <div className="border-b border-border p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <CandidateAvatar name={profile.name} className="size-16 text-lg" />
-            <div className="min-w-0">
+        <div className="space-y-4">
+          <div className="flex w-full min-w-0 items-start gap-4">
+            <CandidateAvatar name={profile.name} className="size-16 shrink-0 text-lg" />
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
                   {profile.name}
@@ -160,31 +194,36 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
                   {profile.enrichment.status}
                 </span>
               </div>
-              <p className="mt-0.5 text-sm text-muted-foreground">
+              <p className="mt-0.5 break-words text-sm text-muted-foreground">
                 {profile.headline}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Building2 aria-hidden className="size-3" />
-                  {profile.currentTitle} · {profile.currentCompany}
+                <span className="inline-flex min-w-0 items-center gap-1">
+                  <Building2 aria-hidden className="size-3 shrink-0" />
+                  <span className="break-words">
+                    {profile.currentTitle} · {profile.currentCompany}
+                  </span>
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <MapPin aria-hidden className="size-3" />
-                  {profile.location}
+                <span className="inline-flex min-w-0 items-center gap-1">
+                  <MapPin aria-hidden className="size-3 shrink-0" />
+                  <span className="break-words">{profile.location}</span>
                 </span>
                 <a
                   href={profile.linkedinUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 font-medium text-info underline-offset-4 hover:underline"
+                  className="inline-flex min-w-0 items-center gap-1 font-medium break-all text-info underline-offset-4 hover:underline"
                 >
-                  <ExternalLink aria-hidden className="size-3" />
+                  <ExternalLink aria-hidden className="size-3 shrink-0" />
                   linkedin.com/in/{profile.linkedinUsername}
                 </a>
               </div>
               <p className="mt-1.5 text-[11px] text-muted-foreground">
                 {profile.enrichment.sources} data sources ·{" "}
                 {profile.enrichment.lastRefreshed} ·{" "}
+                {typeof profile.connections === "number"
+                  ? `${profile.connections.toLocaleString("en-IN")} connections · `
+                  : null}
                 {revealCount > 0
                   ? `${revealCount === 2 ? "Email & phone" : revealed.email ? "Email" : "Phone"} revealed`
                   : "Contact not yet revealed"}
@@ -192,19 +231,11 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
               variant={saved ? "secondary" : "default"}
-              onClick={() => {
-                setSaved((previous) => !previous);
-                flash(
-                  saved
-                    ? "Removed from Candidate Pool."
-                    : `${profile.name} saved to your Candidate Pool.`
-                );
-              }}
+              onClick={() => void handleSave()}
             >
               {saved ? <Check aria-hidden /> : <UserRoundPlus aria-hidden />}
               {saved ? "Saved to Pool" : "Save to Candidate Pool"}
@@ -229,7 +260,12 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => flash(`${profile.name} added to outreach.`)}
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (lookupId) params.set("lookupId", lookupId);
+                params.set("name", profile.name);
+                router.push(`${ROUTES.outreachNew}?${params.toString()}`);
+              }}
             >
               <Send aria-hidden />
               Start Outreach
@@ -237,7 +273,12 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => flash(`Screening started for ${profile.name}.`)}
+              onClick={() => {
+                const params = new URLSearchParams();
+                if (lookupId) params.set("lookupId", lookupId);
+                params.set("name", profile.name);
+                router.push(`${ROUTES.screeningNew}?${params.toString()}`);
+              }}
             >
               <AudioLines aria-hidden />
               Start Screening
@@ -277,71 +318,85 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
           <section className="space-y-2">
             <SectionTitle>About</SectionTitle>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {profile.about}
+              {profile.about?.trim()
+                ? profile.about
+                : "No summary available for this profile."}
             </p>
           </section>
 
           <section className="space-y-3">
             <SectionTitle>Experience</SectionTitle>
-            <ol className="space-y-0">
-              {profile.experience.map((entry, index) => (
-                <li
-                  key={`${entry.company}-${entry.role}`}
-                  className="relative flex gap-3 pb-5 last:pb-0"
-                >
-                  {index < profile.experience.length - 1 ? (
+            {profile.experience.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No experience listed.</p>
+            ) : (
+              <ol className="space-y-0">
+                {profile.experience.map((entry, index) => (
+                  <li
+                    key={`${entry.company}-${entry.role}-${entry.duration}-${index}`}
+                    className="relative flex gap-3 pb-5 last:pb-0"
+                  >
+                    {index < profile.experience.length - 1 ? (
+                      <span
+                        aria-hidden
+                        className="absolute top-4 left-[5px] h-full w-px bg-border"
+                      />
+                    ) : null}
                     <span
                       aria-hidden
-                      className="absolute top-4 left-[5px] h-full w-px bg-border"
+                      className={cn(
+                        "relative mt-1.5 size-[11px] shrink-0 rounded-full border-2",
+                        entry.current
+                          ? "border-primary bg-primary"
+                          : "border-primary bg-card"
+                      )}
                     />
-                  ) : null}
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "relative mt-1.5 size-[11px] shrink-0 rounded-full border-2",
-                      entry.current
-                        ? "border-primary bg-primary"
-                        : "border-primary bg-card"
-                    )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">
-                        {entry.role}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {entry.role}
+                        </p>
+                        {entry.current ? (
+                          <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            Current
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {entry.company} · {entry.duration}
+                        {entry.location ? ` · ${entry.location}` : ""}
                       </p>
-                      {entry.current ? (
-                        <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
-                          Current
-                        </span>
+                      {entry.description ? (
+                        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                          {entry.description}
+                        </p>
                       ) : null}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {entry.company} · {entry.duration}
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      {entry.description}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                  </li>
+                ))}
+              </ol>
+            )}
           </section>
 
           <section className="space-y-2">
             <SectionTitle>Education</SectionTitle>
-            {profile.education.map((entry) => (
-              <div
-                key={entry.school}
-                className="rounded-lg border border-border px-3 py-2.5"
-              >
-                <p className="text-sm font-medium text-foreground">
-                  {entry.school}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {entry.degree}, {entry.field} · {entry.years}
-                </p>
-              </div>
-            ))}
+            {profile.education.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No education listed.</p>
+            ) : (
+              profile.education.map((entry, index) => (
+                <div
+                  key={`${entry.school}-${entry.degree}-${index}`}
+                  className="rounded-lg border border-border px-3 py-2.5"
+                >
+                  <p className="text-sm font-medium text-foreground">
+                    {entry.school}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {[entry.degree, entry.field].filter(Boolean).join(", ")}
+                    {entry.years ? ` · ${entry.years}` : ""}
+                  </p>
+                </div>
+              ))
+            )}
           </section>
         </div>
 
@@ -420,17 +475,37 @@ export function ScoutProfileCard({ profile }: { profile: ScoutProfile }) {
 
           <section className="space-y-2">
             <SectionTitle>Skills</SectionTitle>
-            <div className="flex flex-wrap gap-1.5">
-              {profile.skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="rounded-md bg-brand-subtle px-2 py-0.5 text-xs font-medium text-primary"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
+            {profile.skills.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No skills listed.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {profile.skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="rounded-md bg-brand-subtle px-2 py-0.5 text-xs font-medium text-primary"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            )}
           </section>
+
+          {(profile.languages?.length ?? 0) > 0 ? (
+            <section className="space-y-2">
+              <SectionTitle>Languages</SectionTitle>
+              <div className="flex flex-wrap gap-1.5">
+                {profile.languages!.map((language) => (
+                  <span
+                    key={language}
+                    className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                  >
+                    {language}
+                  </span>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
     </article>
