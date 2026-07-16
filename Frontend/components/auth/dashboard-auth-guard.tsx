@@ -1,0 +1,86 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
+
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/providers/auth-provider";
+
+export function DashboardAuthGuard({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { sessionState, user, isMockMode } = useAuth();
+
+  useEffect(() => {
+    if (sessionState === "loading") return;
+
+    if (sessionState === "unauthenticated" || sessionState === "expired") {
+      const next = encodeURIComponent(pathname);
+      router.replace(`/login?next=${next}`);
+      return;
+    }
+
+    if (
+      sessionState === "authenticated" &&
+      !isMockMode &&
+      user?.onboardingStatus !== "completed" &&
+      !pathname.startsWith("/onboarding")
+    ) {
+      router.replace("/onboarding");
+    }
+  }, [sessionState, user, pathname, router, isMockMode]);
+
+  if (sessionState === "loading") {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background">
+        <div className="space-y-3 text-center">
+          <BrandLogo variant="compact" className="mx-auto" />
+          <p className="text-sm text-muted-foreground">Loading your workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionState === "blocked") {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background px-4">
+        <div className="max-w-md space-y-4 text-center">
+          <BrandLogo variant="compact" className="mx-auto" />
+          <h1 className="text-xl font-semibold">Account access restricted</h1>
+          <p className="text-sm text-muted-foreground">
+            Your account has been blocked or suspended. Contact your workspace administrator
+            for help.
+          </p>
+          <Button render={<Link href="/login" />} variant="outline">
+            Back to sign in
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionState === "expired") {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background px-4">
+        <div className="max-w-md space-y-4 text-center">
+          <BrandLogo variant="compact" className="mx-auto" />
+          <h1 className="text-xl font-semibold">Session expired</h1>
+          <p className="text-sm text-muted-foreground">
+            Sign in again to continue to your recruiting workspace.
+          </p>
+          <Button render={<Link href={`/login?next=${encodeURIComponent(pathname)}`} />}>
+            Sign in
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionState !== "authenticated") {
+    return null;
+  }
+
+  return children;
+}
