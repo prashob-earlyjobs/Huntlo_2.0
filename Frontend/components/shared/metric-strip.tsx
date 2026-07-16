@@ -20,14 +20,16 @@ export function MetricStrip({
   /** Column count at xl breakpoint: 3, 4, 5, or 6 (default). */
   columns?: "3" | "4" | "5" | "6";
 }) {
-  const xlCols =
-    columns === "3"
-      ? "xl:grid-cols-3"
-      : columns === "4"
-        ? "xl:grid-cols-4"
+  // Keep even row fills: avoid sm:grid-cols-3 when the target count is 4
+  // (otherwise 3+1 leaves a gap on the second row).
+  const gridCols =
+    columns === "4"
+      ? "grid-cols-2 sm:grid-cols-2 xl:grid-cols-4"
+      : columns === "3"
+        ? "grid-cols-2 sm:grid-cols-3 xl:grid-cols-3"
         : columns === "5"
-          ? "xl:grid-cols-5"
-          : "xl:grid-cols-6";
+          ? "grid-cols-2 sm:grid-cols-2 xl:grid-cols-5"
+          : "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6";
 
   return (
     <div
@@ -36,12 +38,7 @@ export function MetricStrip({
         className
       )}
     >
-      <div
-        className={cn(
-          "grid grid-cols-2 gap-px bg-border sm:grid-cols-3",
-          xlCols
-        )}
-      >
+      <div className={cn("grid gap-px bg-border", gridCols)}>
         {metrics.map((metric) => (
           <OverviewMetricCard key={metric.id} metric={metric as OverviewMetric} />
         ))}

@@ -379,6 +379,7 @@ function WhatsAppConfigPanel({
   onConnected: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"huntlo" | "own">("huntlo");
   const [form, setForm] = useState({
     phoneNumberId: "",
     accessToken: "",
@@ -386,12 +387,69 @@ function WhatsAppConfigPanel({
     confirmWebhookSetup: true,
   });
 
+  useEffect(() => {
+    setMode("huntlo");
+  }, [providerId]);
+
+  const connectTarget =
+    mode === "huntlo"
+      ? providerId === "gupshup"
+        ? "gupshup"
+        : "huntlo-whatsapp"
+      : "meta-whatsapp";
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-foreground">
         WhatsApp configuration
       </h3>
-      {providerId === "meta-whatsapp" ? (
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          How do you want to send WhatsApp?
+        </p>
+        <div className="grid gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("huntlo")}
+            className={cn(
+              "rounded-lg border px-3 py-2.5 text-left transition-colors",
+              mode === "huntlo"
+                ? "border-primary bg-brand-subtle"
+                : "border-border bg-card hover:bg-muted/40"
+            )}
+          >
+            <span className="block text-sm font-medium text-foreground">
+              Huntlo WhatsApp
+              <span className="ml-1.5 text-[10px] font-normal uppercase tracking-wide text-primary">
+                Default
+              </span>
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Use Huntlo’s managed Business number — no Meta credentials needed.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("own")}
+            className={cn(
+              "rounded-lg border px-3 py-2.5 text-left transition-colors",
+              mode === "own"
+                ? "border-primary bg-brand-subtle"
+                : "border-border bg-card hover:bg-muted/40"
+            )}
+          >
+            <span className="block text-sm font-medium text-foreground">
+              My own Meta WhatsApp
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Connect your WhatsApp Business account with Phone Number ID and token.
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {mode === "own" ? (
         <>
           <Field label="Phone number ID" htmlFor="wa-phone-id">
             <Input
@@ -404,6 +462,7 @@ function WhatsAppConfigPanel({
                 }))
               }
               className="font-mono text-xs"
+              placeholder="From Meta Business Manager"
             />
           </Field>
           <Field label="Access token" htmlFor="wa-token">
@@ -447,33 +506,39 @@ function WhatsAppConfigPanel({
           />
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          This WhatsApp channel uses platform credentials. Connect to enable it
-          for your workspace.
+        <p className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+          Huntlo WhatsApp is the default for this workspace. Connect once to enable
+          sending from Huntlo’s managed number.
         </p>
       )}
       <Button
         size="sm"
         className="w-full"
-        disabled={busy}
+        disabled={
+          busy ||
+          (mode === "own" &&
+            (!form.phoneNumberId.trim() || !form.accessToken.trim()))
+        }
         onClick={() => {
           void (async () => {
             setBusy(true);
             try {
               const body =
-                providerId === "meta-whatsapp"
+                mode === "own"
                   ? {
                       phoneNumberId: form.phoneNumberId,
                       accessToken: form.accessToken,
                       wabaId: form.wabaId,
                       confirmWebhookSetup: form.confirmWebhookSetup,
                     }
-                  : providerId === "huntlo-whatsapp"
-                    ? { whatsappMode: "huntlo" }
-                    : {};
-              const result = await integrationsApi.connect(providerId, body);
+                  : { whatsappMode: "huntlo" };
+              const result = await integrationsApi.connect(connectTarget, body);
               if (result.mode === "connected") {
-                onSave("WhatsApp connected.");
+                onSave(
+                  mode === "huntlo"
+                    ? "Huntlo WhatsApp connected (default)."
+                    : "WhatsApp connected."
+                );
                 onConnected();
               } else {
                 onSave(result.message || "Could not connect WhatsApp.");
@@ -486,7 +551,11 @@ function WhatsAppConfigPanel({
           })();
         }}
       >
-        {busy ? "Connecting…" : "Connect WhatsApp"}
+        {busy
+          ? "Connecting…"
+          : mode === "huntlo"
+            ? "Connect Huntlo WhatsApp"
+            : "Connect my Meta WhatsApp"}
       </Button>
     </div>
   );

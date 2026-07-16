@@ -37,6 +37,11 @@ export const listPool = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+export const getPoolOverview = asyncHandler(async (req: Request, res: Response) => {
+  const data = await poolService.overview(actorFrom(req));
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
 export const createPoolCandidate = asyncHandler(async (req: Request, res: Response) => {
   const input = createPoolCandidateSchema.parse(req.body);
   const candidate = await poolService.create(actorFrom(req), input);
@@ -101,12 +106,9 @@ export const bulkExport = asyncHandler(async (req: Request, res: Response) => {
   const result = await poolService.bulkExport(actorFrom(req), input);
 
   if (result.format === 'csv') {
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="candidate-pool-export-${Date.now()}.csv"`
-    );
-    res.status(200).send(result.csv);
+    // Return JSON so the frontend API client can parse the envelope.
+    // The UI builds a downloadable Blob from `csv`.
+    successResponse(res, { csv: result.csv }, { meta: { requestId: getRequestId(req) } });
     return;
   }
 

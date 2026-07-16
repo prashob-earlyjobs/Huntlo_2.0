@@ -37,6 +37,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  candidatePoolApi,
+  getApiErrorMessage,
+  screeningApi,
+  type ScreeningCreateInput,
+} from "@/lib/api";
 import { JOBS } from "@/lib/mock-jobs";
 import {
   ATTEMPT_OPTIONS,
@@ -61,7 +67,7 @@ import {
   reachableCount,
   type AudienceSource,
 } from "@/lib/mock-outreach";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, screeningDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -1099,15 +1105,59 @@ const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
   launched: {
     title: "Screening launched",
     description:
-      "Callable candidates will start receiving voice screening calls within the configured window. Nothing was really dialled — this is a UI preview.",
+      "Callable candidates will start receiving voice screening calls within the configured window.",
   },
 };
+
+async function resolveAudienceIds(state: BuilderState): Promise<string[]> {
+  if (state.source === "Candidate Pool" || state.source === "Saved List") {
+    const pool = await candidatePoolApi.list({ limit: 200 });
+    return pool.map((c) => c.id);
+  }
+  return [];
+}
+
+function toCreateInput(
+  state: BuilderState,
+  candidateIds: string[]
+): ScreeningCreateInput {
+  return {
+    name: state.name.trim(),
+    jobId: state.jobId || null,
+    objective: state.objective || state.description || null,
+    language: state.language,
+    voice: state.voice,
+    tone: state.tone,
+    introductionScript: state.introduction,
+    closingScript: state.closing,
+    consentText: state.consent,
+    questions: state.questions
+      .filter((q) => q.text.trim())
+      .map((q) => ({ id: q.id, prompt: q.text.trim() })),
+    evaluationCriteria: EVALUATION_CATEGORIES.map((category) => ({
+      id: category.id,
+      label: category.label,
+      weight: state.categoryWeights[category.id] ?? category.defaultWeight,
+    })),
+    callSettings: {
+      maxAttempts: Number.parseInt(state.attempts, 10) || 2,
+      attemptIntervalHours: Number.parseInt(state.delay, 10) || 24,
+      maxRetryCount: state.retryOnNoAnswer ? 2 : 0,
+      retryIntervalHours: 6,
+      consentRequired: Boolean(state.consent.trim()),
+    },
+    candidateIds,
+  };
+}
 
 export function ScreeningBuilder() {
   const [state, setState] = useState<BuilderState>(initialState);
   const [current, setCurrent] = useState(0);
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [screeningId, setScreeningId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
@@ -1129,6 +1179,30 @@ export function ScreeningBuilder() {
     goTo(Math.min(current + 1, STEPS.length - 1));
   }
 
+  async function submit(mode: Outcome) {
+    if (mode === "launched" && launchErrors.length > 0) {
+      setAttempted(new Set([0, 1, 2, 3, 4]));
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const candidateIds = await resolveAudienceIds(state);
+      const created = await screeningApi.createBatch(
+        toCreateInput(state, candidateIds)
+      );
+      if (mode === "launched") {
+        await screeningApi.launchBatch(created.id);
+      }
+      setScreeningId(created.id);
+      setOutcome(mode);
+    } catch (err) {
+      setSubmitError(getApiErrorMessage(err, "Unable to save screening."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (outcome) {
     const copy = OUTCOME_COPY[outcome];
     return (
@@ -1148,6 +1222,16 @@ export function ScreeningBuilder() {
           >
             Back to AI Screening
           </Button>
+          {screeningId ? (
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={screeningDetailPath(screeningId)} />}
+            >
+              View Screening
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="outline"
@@ -1156,6 +1240,8 @@ export function ScreeningBuilder() {
               setCurrent(0);
               setAttempted(new Set());
               setOutcome(null);
+              setScreeningId(null);
+              setSubmitError(null);
             }}
           >
             Create Another Screening
@@ -1200,6 +1286,11 @@ export function ScreeningBuilder() {
       </nav>
 
       {showErrors ? <ErrorList errors={currentErrors} /> : null}
+      {submitError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {submitError}
+        </p>
+      ) : null}
 
       {current === 0 ? (
         <DetailsStep state={state} update={update} showErrors={showErrors} />
@@ -1234,14 +1325,15 @@ export function ScreeningBuilder() {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setOutcome("draft")}
+            disabled={submitting || !state.name.trim()}
+            onClick={() => void submit("draft")}
           >
             <Save aria-hidden />
             Save Draft
           </Button>
 
           {current < STEPS.length - 1 ? (
-            <Button type="button" size="sm" onClick={next}>
+            <Button type="button" size="sm" onClick={next} disabled={submitting}>
               Continue
               <ArrowRight aria-hidden />
             </Button>
@@ -1249,8 +1341,8 @@ export function ScreeningBuilder() {
             <Button
               type="button"
               size="sm"
-              disabled={launchErrors.length > 0}
-              onClick={() => setOutcome("launched")}
+              disabled={submitting || launchErrors.length > 0}
+              onClick={() => void submit("launched")}
             >
               <Rocket aria-hidden />
               Launch Screening

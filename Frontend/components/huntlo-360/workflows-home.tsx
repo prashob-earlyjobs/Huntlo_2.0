@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -52,11 +52,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  completionRate,
-  WORKFLOWS_360,
-  type Workflow360,
-} from "@/lib/mock-360";
+import { getApiErrorMessage, huntlo360Api } from "@/lib/api";
+import { completionRate, type Workflow360 } from "@/lib/mock-360";
 import { CHANNEL_ICONS } from "@/lib/mock-outreach";
 import { jobDetailPath, ROUTES, workflowDetailPath } from "@/lib/routes";
 
@@ -69,11 +66,26 @@ const STATUS_OPTIONS: FilterOption[] = ["Running", "Paused", "Completed", "Draft
 function WorkflowRowActions({
   workflow,
   onAction,
+  onDeleted,
 }: {
   workflow: Workflow360;
   onAction: (message: string) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function runAction(message: string, fn: () => Promise<unknown>) {
+    setBusy(true);
+    try {
+      await fn();
+      onAction(message);
+    } catch (err) {
+      onAction(getApiErrorMessage(err, "Action failed."));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -84,6 +96,7 @@ function WorkflowRowActions({
               size="icon-sm"
               variant="ghost"
               aria-label={`Actions for ${workflow.name}`}
+              disabled={busy}
             />
           }
         >
@@ -95,12 +108,24 @@ function WorkflowRowActions({
             View workflow
           </DropdownMenuItem>
           {workflow.status === "Running" ? (
-            <DropdownMenuItem onClick={() => onAction(`Paused “${workflow.name}”.`)}>
+            <DropdownMenuItem
+              onClick={() =>
+                void runAction(`Paused “${workflow.name}”.`, () =>
+                  huntlo360Api.pauseWorkflow(workflow.id)
+                )
+              }
+            >
               <Pause aria-hidden />
               Pause
             </DropdownMenuItem>
           ) : workflow.status === "Paused" ? (
-            <DropdownMenuItem onClick={() => onAction(`Resumed “${workflow.name}”.`)}>
+            <DropdownMenuItem
+              onClick={() =>
+                void runAction(`Resumed “${workflow.name}”.`, () =>
+                  huntlo360Api.resumeWorkflow(workflow.id)
+                )
+              }
+            >
               <Play aria-hidden />
               Resume
             </DropdownMenuItem>
@@ -136,7 +161,10 @@ function WorkflowRowActions({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 setConfirmDelete(false);
-                onAction(`Deleted “${workflow.name}”.`);
+                void runAction(`Deleted “${workflow.name}”.`, async () => {
+                  await huntlo360Api.deleteWorkflow(workflow.id);
+                  onDeleted(workflow.id);
+                });
               }}
             >
               Delete workflow
@@ -149,13 +177,37 @@ function WorkflowRowActions({
 }
 
 export function WorkflowsHome() {
+  const [workflows, setWorkflows] = useState<Workflow360[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        const next = await huntlo360Api.listWorkflows({ limit: 100 });
+        if (cancelled) return;
+        setWorkflows(next);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, "Unable to load workflows."));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return WORKFLOWS_360.filter((workflow) => {
+    return workflows.filter((workflow) => {
       if (
         normalized &&
         !`${workflow.name} ${workflow.jobTitle ?? ""} ${workflow.owner}`
@@ -167,7 +219,7 @@ export function WorkflowsHome() {
         return false;
       return true;
     });
-  }, [query, statusFilter]);
+  }, [query, statusFilter, workflows]);
 
   const hasFilters = Boolean(query) || statusFilter.length > 0;
 
@@ -176,9 +228,18 @@ export function WorkflowsHome() {
     window.setTimeout(() => setMessage(null), 2400);
   }
 
+  async function refreshAfterAction(text: string) {
+    flash(text);
+    try {
+      const next = await huntlo360Api.listWorkflows({ limit: 100 });
+      setWorkflows(next);
+    } catch {
+      // keep current list
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
       <div className="flex flex-col gap-3 pb-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative min-w-0 flex-1">
@@ -224,6 +285,12 @@ export function WorkflowsHome() {
         </div>
       </div>
 
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+
       {message ? (
         <p
           role="status"
@@ -233,7 +300,6 @@ export function WorkflowsHome() {
         </p>
       ) : null}
 
-      {/* Table */}
       <section className="rounded-lg border border-border bg-card">
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
@@ -244,7 +310,11 @@ export function WorkflowsHome() {
           </p>
         </div>
 
-        {filtered.length > 0 ? (
+        {loading ? (
+          <p className="px-4 py-8 text-sm text-muted-foreground">
+            Loading workflows…
+          </p>
+        ) : filtered.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <caption className="sr-only">
@@ -302,15 +372,11 @@ export function WorkflowsHome() {
                             return (
                               <Tooltip key={channel}>
                                 <TooltipTrigger
-                                  aria-label={channel}
-                                  className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                  render={
+                                    <span className="inline-flex text-muted-foreground" />
+                                  }
                                 >
-                                  <span className="flex size-6 items-center justify-center rounded-md border border-border bg-muted/60">
-                                    <Icon
-                                      aria-hidden
-                                      className="size-3.5 text-muted-foreground"
-                                    />
-                                  </span>
+                                  <Icon aria-label={channel} className="size-3.5" />
                                 </TooltipTrigger>
                                 <TooltipContent>{channel}</TooltipContent>
                               </Tooltip>
@@ -318,39 +384,34 @@ export function WorkflowsHome() {
                           })}
                         </span>
                       </TableCell>
-                      <TableCell className="py-2.5 text-right text-sm font-medium tabular-nums text-primary">
-                        {workflow.qualified > 0 ? workflow.qualified : "—"}
+                      <TableCell className="py-2.5 text-right text-sm tabular-nums">
+                        {workflow.qualified.toLocaleString("en-IN")}
                       </TableCell>
                       <TableCell className="py-2.5 text-right text-sm tabular-nums">
-                        {workflow.screened > 0 ? workflow.screened : "—"}
+                        {workflow.screened.toLocaleString("en-IN")}
                       </TableCell>
-                      <TableCell className="py-2.5 text-right text-sm tabular-nums text-success">
-                        {workflow.scheduled > 0 ? workflow.scheduled : "—"}
+                      <TableCell className="py-2.5 text-right text-sm tabular-nums">
+                        {workflow.scheduled.toLocaleString("en-IN")}
                       </TableCell>
-                      <TableCell className="py-2.5">
-                        <span className="flex items-center gap-2">
-                          <span
-                            aria-hidden
-                            className="block h-1.5 w-16 overflow-hidden rounded-full bg-muted"
-                          >
-                            <span
-                              className="block h-full rounded-full bg-primary"
-                              style={{ width: `${Math.max(rate, 2)}%` }}
-                            />
-                          </span>
-                          <span className="text-xs tabular-nums text-muted-foreground">
-                            {rate}%
-                          </span>
-                        </span>
+                      <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
+                        {rate}%
                       </TableCell>
                       <TableCell className="py-2.5">
                         <CampaignStatusBadge status={workflow.status} />
                       </TableCell>
-                      <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                      <TableCell className="py-2.5 text-sm text-muted-foreground">
                         {workflow.owner}
                       </TableCell>
                       <TableCell className="py-2.5 text-right">
-                        <WorkflowRowActions workflow={workflow} onAction={flash} />
+                        <WorkflowRowActions
+                          workflow={workflow}
+                          onAction={(text) => void refreshAfterAction(text)}
+                          onDeleted={(id) =>
+                            setWorkflows((previous) =>
+                              previous.filter((row) => row.id !== id)
+                            )
+                          }
+                        />
                       </TableCell>
                     </TableRow>
                   );
@@ -361,11 +422,23 @@ export function WorkflowsHome() {
         ) : (
           <EmptyState
             icon={Workflow}
-            title="No workflows match these filters"
-            description="Adjust your filters, or create a 360 workflow to automate outreach through scheduling."
-            actionLabel="Create Workflow"
-            actionHref={ROUTES.huntlo360New}
-            className="m-4 border-0"
+            title={hasFilters ? "No matching workflows" : "No workflows yet"}
+            description={
+              hasFilters
+                ? "Try clearing filters or searching a different name."
+                : "Create an end-to-end workflow from outreach through scheduling."
+            }
+            action={
+              hasFilters ? undefined : (
+                <Button
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href={ROUTES.huntlo360New} />}
+                >
+                  Create Workflow
+                </Button>
+              )
+            }
           />
         )}
       </section>

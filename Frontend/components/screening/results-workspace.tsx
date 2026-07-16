@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -34,11 +34,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  SCREENING_RESULTS,
-  type AiRecommendation,
-  type RecruiterDecision,
-  type ScreeningResult,
+import { getApiErrorMessage, screeningApi } from "@/lib/api";
+import type {
+  AiRecommendation,
+  RecruiterDecision,
+  ScreeningResult,
 } from "@/lib/mock-screening";
 import {
   candidateDetailPath,
@@ -141,10 +141,34 @@ function ResultRowActions({
 }
 
 export function ResultsWorkspace() {
+  const [results, setResults] = useState<ScreeningResult[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [recommendationFilter, setRecommendationFilter] = useState<string[]>([]);
   const [decisionFilter, setDecisionFilter] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        const next = await screeningApi.listResults({ limit: 100 });
+        if (cancelled) return;
+        setResults(next);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, "Unable to load screening results."));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const recommendationOptions: FilterOption[] = [
     "Shortlist",
@@ -161,7 +185,7 @@ export function ResultsWorkspace() {
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return SCREENING_RESULTS.filter((result) => {
+    return results.filter((result) => {
       if (
         normalized &&
         !`${result.candidateName} ${result.jobTitle} ${result.screeningName}`
@@ -181,7 +205,7 @@ export function ResultsWorkspace() {
         return false;
       return true;
     });
-  }, [query, recommendationFilter, decisionFilter]);
+  }, [results, query, recommendationFilter, decisionFilter]);
 
   const hasFilters =
     Boolean(query) ||
@@ -252,6 +276,15 @@ export function ResultsWorkspace() {
           </div>
         </div>
       </section>
+
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading results…</p>
+      ) : null}
 
       {message ? (
         <p

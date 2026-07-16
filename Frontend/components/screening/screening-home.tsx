@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -47,11 +47,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  SCREENING_BATCHES,
-  SCREENING_OWNERS,
-  type ScreeningBatch,
-} from "@/lib/mock-screening";
+import { getApiErrorMessage, screeningApi } from "@/lib/api";
+import { type ScreeningBatch } from "@/lib/mock-screening";
 import { jobDetailPath, ROUTES, screeningDetailPath } from "@/lib/routes";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -93,12 +90,30 @@ function ScreeningRowActions({
             View screening
           </DropdownMenuItem>
           {batch.status === "Running" ? (
-            <DropdownMenuItem onClick={() => onAction(`Paused “${batch.name}”.`)}>
+            <DropdownMenuItem
+              onClick={() =>
+                void screeningApi
+                  .pauseBatch(batch.id)
+                  .then(() => onAction(`Paused “${batch.name}”.`))
+                  .catch((err) =>
+                    onAction(getApiErrorMessage(err, "Unable to pause screening."))
+                  )
+              }
+            >
               <Pause aria-hidden />
               Pause
             </DropdownMenuItem>
           ) : batch.status === "Paused" ? (
-            <DropdownMenuItem onClick={() => onAction(`Resumed “${batch.name}”.`)}>
+            <DropdownMenuItem
+              onClick={() =>
+                void screeningApi
+                  .resumeBatch(batch.id)
+                  .then(() => onAction(`Resumed “${batch.name}”.`))
+                  .catch((err) =>
+                    onAction(getApiErrorMessage(err, "Unable to resume screening."))
+                  )
+              }
+            >
               <Play aria-hidden />
               Resume
             </DropdownMenuItem>
@@ -147,14 +162,43 @@ function ScreeningRowActions({
 }
 
 export function ScreeningHome() {
+  const [batches, setBatches] = useState<ScreeningBatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        const next = await screeningApi.listBatches({ limit: 100 });
+        if (cancelled) return;
+        setBatches(next);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, "Unable to load screenings."));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const owners = useMemo(
+    () => [...new Set(batches.map((batch) => batch.owner))],
+    [batches]
+  );
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return SCREENING_BATCHES.filter((batch) => {
+    return batches.filter((batch) => {
       if (
         normalized &&
         !`${batch.name} ${batch.jobTitle ?? ""} ${batch.owner}`
@@ -168,7 +212,7 @@ export function ScreeningHome() {
         return false;
       return true;
     });
-  }, [query, statusFilter, ownerFilter]);
+  }, [batches, query, statusFilter, ownerFilter]);
 
   const hasFilters =
     Boolean(query) || statusFilter.length > 0 || ownerFilter.length > 0;
@@ -176,6 +220,15 @@ export function ScreeningHome() {
   function flash(text: string) {
     setMessage(text);
     window.setTimeout(() => setMessage(null), 2400);
+  }
+
+  async function refresh(messageText: string) {
+    flash(messageText);
+    try {
+      setBatches(await screeningApi.listBatches({ limit: 100 }));
+    } catch {
+      // keep list
+    }
   }
 
   return (
@@ -210,7 +263,7 @@ export function ScreeningHome() {
             />
             <FilterPopover
               label="Owner"
-              options={SCREENING_OWNERS.map((owner) => ({
+              options={owners.map((owner) => ({
                 id: owner,
                 label: owner,
               }))}
@@ -241,6 +294,12 @@ export function ScreeningHome() {
         </div>
       </div>
 
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+
       {message ? (
         <p
           role="status"
@@ -260,7 +319,11 @@ export function ScreeningHome() {
           </p>
         </div>
 
-        {filtered.length > 0 ? (
+        {loading ? (
+          <p className="px-4 py-8 text-sm text-muted-foreground">
+            Loading screenings…
+          </p>
+        ) : filtered.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <caption className="sr-only">
@@ -347,7 +410,7 @@ export function ScreeningHome() {
                       {batch.owner}
                     </TableCell>
                     <TableCell className="py-2.5 text-right">
-                      <ScreeningRowActions batch={batch} onAction={flash} />
+                      <ScreeningRowActions batch={batch} onAction={(text) => void refresh(text)} />
                     </TableCell>
                   </TableRow>
                 ))}

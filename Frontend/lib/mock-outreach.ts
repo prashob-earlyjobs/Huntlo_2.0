@@ -58,7 +58,7 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
   },
   {
     channel: "WhatsApp",
-    provider: "WhatsApp Business API",
+    provider: "Huntlo WhatsApp",
     sender: "+91 80471 22001 (Huntlo Recruiting)",
     quotaUsed: 1_180,
     quotaTotal: 2_000,
@@ -66,7 +66,7 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
     costPerMessage: 2,
     costUnit: "credits / message",
     connection: "Connected",
-    connectionNote: "Business profile verified",
+    connectionNote: "Huntlo managed Business number (default)",
   },
   {
     channel: "AI Voice",
@@ -170,6 +170,7 @@ export const CAMPAIGN_STATUSES = [
   "Running",
   "Paused",
   "Completed",
+  "Cancelled",
   "Failed",
 ] as const;
 
@@ -444,12 +445,13 @@ export const MESSAGE_TEMPLATES = [
 
 export const PERSONALIZATION_VARIABLES = [
   "{{first_name}}",
+  "{{last_name}}",
+  "{{job_title}}",
+  "{{company_name}}",
+  "{{location}}",
+  "{{recruiter_name}}",
   "{{current_company}}",
   "{{current_role}}",
-  "{{job_title}}",
-  "{{recruiter_name}}",
-  "{{company_name}}",
-  "{{calendly_link}}",
 ] as const;
 
 export interface SequenceStep {
@@ -522,7 +524,7 @@ export function makeStep(type: SequenceStepType): SequenceStep {
       return {
         ...defaults,
         template: MESSAGE_TEMPLATES[6],
-        body: "Great — here's my calendar, {{first_name}}: {{calendly_link}}. Pick any slot that works.",
+        body: "Great — {{recruiter_name}} will share a booking link for {{job_title}}, {{first_name}}.",
       };
   }
 }

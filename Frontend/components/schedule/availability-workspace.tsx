@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Field, ToggleRow } from "@/components/outreach/builder-ui";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getApiErrorMessage, schedulingApi } from "@/lib/api";
 import {
   AVAILABILITY_DEFAULTS,
   DATE_OVERRIDES,
@@ -38,6 +39,58 @@ export function AvailabilityWorkspace() {
   const [dailyLimit, setDailyLimit] = useState(AVAILABILITY_DEFAULTS.dailyLimit);
   const [timezone, setTimezone] = useState(AVAILABILITY_DEFAULTS.timezone);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rule = await schedulingApi.getAvailability();
+        if (cancelled) return;
+        setWeekly((rule.weeklyHours as WeeklyHourSlot[]) || DEFAULT_WEEKLY_HOURS);
+        setOverrides(
+          (rule.dateOverrides || []).map((row, index) => ({
+            id: `o-${row.date}-${index}`,
+            date: row.date,
+            label:
+              row.label ||
+              new Date(`${row.date}T12:00:00`).toLocaleDateString("en-IN", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              }),
+            available: row.enabled !== false,
+            hours:
+              row.start && row.end ? `${row.start} – ${row.end}` : undefined,
+          }))
+        );
+        setUnavailable(
+          (rule.unavailableDates || []).map((date, index) => ({
+            id: `u-${date}-${index}`,
+            date,
+            label: new Date(`${date}T12:00:00`).toLocaleDateString("en-IN", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            }),
+          }))
+        );        setBufferBefore(rule.bufferBefore);
+        setBufferAfter(rule.bufferAfter);
+        setMinNotice(rule.minimumNotice);
+        setMaxWindow(rule.maximumBookingWindow);
+        setDailyLimit(rule.dailyLimit);
+        const match = TIMEZONE_OPTIONS.find((option) =>
+          option.startsWith(rule.timezone)
+        );
+        setTimezone(match || rule.timezone);
+      } catch {
+        // Keep mock defaults when API unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateDay(day: string, patch: Partial<WeeklyHourSlot>) {
     setWeekly((previous) =>
@@ -52,6 +105,39 @@ export function AvailabilityWorkspace() {
     window.setTimeout(() => setSaved(false), 2400);
   }
 
+  async function handleSave() {
+    setError(null);
+    try {
+      const parseMinutes = (value: string | number, fallback: number) => {
+        if (typeof value === "number") return value;
+        const match = String(value).match(/\d+/);
+        return match ? Number(match[0]) : fallback;
+      };
+      await schedulingApi.putAvailability({
+        timezone: timezone.split(" ")[0] || timezone,
+        weeklyHours: weekly,
+        dateOverrides: overrides.map((row) => ({
+          date: row.date,
+          enabled: row.available !== false,
+          start: null,
+          end: null,
+          label: row.label ?? null,
+        })),
+        unavailableDates: unavailable.map((row) =>
+          typeof row === "string" ? row : row.date
+        ),
+        bufferBefore: parseMinutes(bufferBefore, 15),
+        bufferAfter: parseMinutes(bufferAfter, 15),
+        minimumNotice: parseMinutes(minNotice, 24),
+        maximumBookingWindow: parseMinutes(maxWindow, 14),
+        dailyLimit: parseMinutes(dailyLimit, 6),
+      });
+      flashSave();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    }
+  }
+
   return (
     <div className="space-y-4">
       {saved ? (
@@ -59,7 +145,15 @@ export function AvailabilityWorkspace() {
           role="status"
           className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
         >
-          Availability saved. (UI preview — not synced to a calendar provider.)
+          Availability saved.
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {error}
         </p>
       ) : null}
 
@@ -383,7 +477,7 @@ export function AvailabilityWorkspace() {
         </div>
 
         <div className="mt-4 flex justify-end">
-          <Button size="sm" onClick={flashSave}>
+          <Button size="sm" onClick={() => void handleSave()}>
             Save availability
           </Button>
         </div>

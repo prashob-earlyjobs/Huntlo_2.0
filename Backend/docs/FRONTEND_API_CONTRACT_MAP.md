@@ -370,20 +370,29 @@ Voice calls via `providers/hunar`. Optional campaign link: `sourceModule: "scree
 ## Scheduling
 
 **Routes:** `/dashboard/schedule`, `/dashboard/schedule/[id]`, `/dashboard/schedule/calendar`, `/dashboard/schedule/availability`  
-**Mocks:** `mock-schedule.ts`
+**Mocks:** `mock-schedule.ts`  
+**Client:** `lib/api/scheduling.ts`
+
+Canonical paths (aliases under `/scheduling/*` also work):
 
 | Method | Endpoint | Action | P |
 |--------|----------|--------|---|
-| GET | `/scheduling/metrics` | Schedule dashboard metrics | P0 |
-| GET | `/scheduling/interviews` | List `?status&dateFrom&dateTo&jobId` | P0 |
-| POST | `/scheduling/interviews` | Schedule interview flow | P0 |
-| GET | `/scheduling/interviews/:id` | `Interview` detail | P0 |
-| PATCH | `/scheduling/interviews/:id` | Reschedule, notes | P0 |
-| POST | `/scheduling/interviews/:id/cancel` | Cancel | P0 |
-| POST | `/scheduling/interviews/:id/remind` | Send reminder | P1 |
-| GET | `/scheduling/calendar` | Calendar view events | P0 |
-| GET | `/scheduling/availability` | Weekly hours + overrides | P0 |
-| PUT | `/scheduling/availability` | Save availability config | P0 |
+| GET | `/interviews` | List `?status&jobId&candidateId&campaignId&from&to&q&page&limit` | P0 |
+| POST | `/interviews` | Create (Calendly link / manual / availability request) | P0 |
+| GET | `/interviews/:id` | Interview detail | P0 |
+| PATCH | `/interviews/:id` | Update fields | P0 |
+| POST | `/interviews/:id/send-link` | Deliver Calendly link (email/WhatsApp) | P0 |
+| POST | `/interviews/:id/reschedule` | Manual reschedule `{ startAt, endAt?, timezone? }` | P0 |
+| POST | `/interviews/:id/cancel` | Cancel | P0 |
+| POST | `/interviews/:id/remind` | Send reminder now | P0 |
+| POST | `/interviews/:id/complete` | Mark completed | P0 |
+| POST | `/interviews/:id/no-show` | Mark no-show | P0 |
+| GET | `/interviews/calendar` | Calendar window `{ from, to, items }` | P0 |
+| GET | `/availability` | Current user availability rule | P0 |
+| PUT | `/availability` | Save weekly hours, overrides, buffers | P0 |
+| GET | `/scheduling/event-types` | Connected Calendly event types | P0 |
+| POST | `/scheduling/sync` | Pull Calendly bookings | P0 |
+| POST | `/webhooks/calendly` | Calendly invitee webhook (raw body + signature) | P0 |
 
 **`Interview`:**
 ```typescript
@@ -396,9 +405,9 @@ Voice calls via `providers/hunar`. Optional campaign link: `sourceModule: "scree
 }
 ```
 
-**`WeeklyHourSlot`**, **`DateOverride`**: availability workspace
+**`AvailabilityRule`:** timezone, weeklyHours[], dateOverrides[], unavailableDates[], bufferBefore/After, minimumNotice, maximumBookingWindow, dailyLimit
 
-Calendly webhooks update interview status via `providers/calendly`.
+Calendly payloads use validated fields only (`scheduled_event`, `invitee`, `location.join_url`, etc.). Signature header: `calendly-webhook-signature`.
 
 ---
 
@@ -499,16 +508,25 @@ Settings sections: `workspace`, `recruiting`, `outreach`, `screening`, `scheduli
 
 ---
 
-## Assessments (stub page)
+## Assessments
 
-**Route:** `/dashboard/assessments` (nav only)  
-**Reference:** `EarlyJobs_AI_Agent/backend` has assessment/interview patterns
+**Route:** `/dashboard/assessments`  
+**Module:** `Backend/src/modules/assessments`  
+**Provider:** `ASSESSMENT_PROVIDER=mock|external` (`providers/assessments`)
 
 | Method | Endpoint | P |
 |--------|----------|---|
-| GET | `/assessments` | P2 |
-| POST | `/assessments` | P2 |
-| GET | `/assessments/:id/results` | P2 |
+| GET | `/assessments` | P1 |
+| GET/POST | `/assessments/templates` | P1 |
+| GET/PATCH/DELETE | `/assessments/templates/:id` | P1 |
+| GET/POST | `/assessments/campaigns` | P1 |
+| GET | `/assessments/campaigns/:id` | P1 |
+| POST | `/assessments/campaigns/:id/launch` | P1 |
+| POST | `/assessments/campaigns/:id/remind` | P1 |
+| POST | `/assessments/campaigns/:id/cancel` | P1 |
+| GET | `/assessments/results` | P1 |
+| GET | `/assessments/results/:id` | P1 |
+| POST | `/webhooks/assessments` | P1 |
 
 ---
 

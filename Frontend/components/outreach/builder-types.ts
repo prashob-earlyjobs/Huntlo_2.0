@@ -11,6 +11,7 @@ import {
   TAKEOVER_CONDITIONS,
   TIMEZONE_OPTIONS,
   type AudienceSource,
+  type AudienceStats,
   type ChannelConnection,
   type OutreachChannel,
   type QualificationQuestion,
@@ -30,6 +31,10 @@ export interface BuilderState {
   /* Step 2 — audience */
   source: AudienceSource | null;
   sourceDetail: string;
+  /** Explicit picks (Manual / Pool subset / CSV after import). */
+  selectedCandidateIds: string[];
+  poolSearch: string;
+  audiencePreview: AudienceStats | null;
 
   /* Step 3 — channels */
   enabledChannels: OutreachChannel[];
@@ -58,6 +63,9 @@ export function initialBuilderState(): BuilderState {
     campaignType: CAMPAIGN_TYPES[1],
     source: null,
     sourceDetail: "",
+    selectedCandidateIds: [],
+    poolSearch: "",
+    audiencePreview: null,
     enabledChannels: ["Email"],
     connections: Object.fromEntries(
       CHANNEL_CONFIGS.map((config) => [config.channel, config.connection])
@@ -81,7 +89,8 @@ export type UpdateBuilder = <K extends keyof BuilderState>(
 /* Derived values                                                       */
 /* ------------------------------------------------------------------ */
 
-export function audienceStats(state: BuilderState) {
+export function audienceStats(state: BuilderState): AudienceStats | null {
+  if (state.audiencePreview) return state.audiencePreview;
   return state.source ? AUDIENCE_STATS[state.source] : null;
 }
 
@@ -117,8 +126,35 @@ export function stepErrors(step: number, state: BuilderState): string[] {
       break;
     }
     case 1: {
-      if (!state.source)
+      if (!state.source) {
         errors.push("Choose where the campaign audience comes from.");
+        break;
+      }
+      if (state.source === "Saved List" && !state.sourceDetail) {
+        errors.push("Select a saved list.");
+      }
+      if (state.source === "Sourcing Session" && !state.sourceDetail) {
+        errors.push("Select a sourcing session.");
+      }
+      if (
+        state.source === "Manual Add" &&
+        state.selectedCandidateIds.length === 0
+      ) {
+        errors.push("Pick at least one candidate to enroll.");
+      }
+      if (
+        state.source === "CSV/Excel Import" &&
+        state.selectedCandidateIds.length === 0
+      ) {
+        errors.push("Import a CSV/Excel file before continuing.");
+      }
+      if (
+        state.audiencePreview &&
+        state.audiencePreview.selected === 0 &&
+        state.source !== "CSV/Excel Import"
+      ) {
+        errors.push("This audience has no candidates yet.");
+      }
       break;
     }
     case 2: {
@@ -164,7 +200,7 @@ export function launchWarnings(state: BuilderState): LaunchWarning[] {
     );
   }
 
-  const stats = audienceStats(state);
+  const stats = state.audiencePreview;
   if (stats) {
     const missingEmail = stats.selected - stats.withEmail;
     const missingPhone = stats.selected - stats.withPhone;

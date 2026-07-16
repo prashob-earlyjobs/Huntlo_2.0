@@ -42,6 +42,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  getApiErrorMessage,
+  candidatePoolApi,
+  huntlo360Api,
+  type WorkflowCreateInput,
+} from "@/lib/api";
+import {
   AI_RESPONSE_MODES,
   AUTO_SHORTLIST_CONDITIONS,
   BOOKING_EXPIRY_OPTIONS,
@@ -62,7 +68,7 @@ import {
   reachableCount,
   type AudienceSource,
 } from "@/lib/mock-outreach";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, workflowDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -1074,7 +1080,7 @@ function SchedulingStep({
         <Field
           label="Message template"
           htmlFor="wf-schedule-message"
-          hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_link}}"
+          hint="Use placeholders from Integrations → Templates ({{first_name}}, {{job_title}}, {{recruiter_name}}, …)"
         >
           <Textarea
             id="wf-schedule-message"
@@ -1083,6 +1089,16 @@ function SchedulingStep({
             className="min-h-20 font-mono text-xs"
           />
         </Field>
+        <p className="text-xs text-muted-foreground">
+          Manage reusable copy in{" "}
+          <a
+            href="/dashboard/templates"
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Templates
+          </a>
+          . AI drafts never auto-launch.
+        </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Reminder settings" htmlFor="wf-reminders">
@@ -1308,15 +1324,103 @@ const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
   launched: {
     title: "Workflow launched",
     description:
-      "Candidates will start receiving outreach within the send window, then flow through qualification, screening and scheduling automatically. Nothing was really sent — this is a UI preview.",
+      "Candidates will start receiving outreach within the send window, then flow through qualification, screening and scheduling automatically.",
   },
 };
+
+function toCreateInput(
+  state: WorkflowBuilderState,
+  candidateIds: string[]
+): WorkflowCreateInput {
+  return {
+    name: state.name.trim(),
+    jobId: state.jobId || null,
+    candidateSource: {
+      type:
+        state.source === "Saved List"
+          ? "saved_list"
+          : state.source === "Candidate Pool"
+            ? "candidate_pool"
+            : "manual",
+      candidateIds,
+      label: state.source,
+    },
+    outreachConfig: {
+      emailEnabled: state.emailEnabled,
+      whatsappEnabled: state.whatsappEnabled,
+      channelOrder:
+        state.channelOrder === "WhatsApp first" ? "whatsapp_first" : "email_first",
+      openingMessage: state.openingMessage,
+      followUps: state.followUps.filter((item) => item.trim()),
+      stopOnReply: state.stopConditions.includes("Candidate replies"),
+      stopOnOptOut: state.stopConditions.includes("Candidate opts out"),
+    },
+    qualificationConfig: {
+      enabled: true,
+      interestClassification: state.interestClassification,
+      questions: state.questions
+        .filter((q) => q.text.trim())
+        .map((q) => ({
+          id: q.id,
+          prompt: q.text.trim(),
+          answerType: "Text",
+          knockout: Boolean(q.knockoutAnswer.trim()),
+        })),
+      aiReplyEnabled: state.aiResponseMode !== "Off",
+      handoffCondition: state.handoffCondition,
+      autoShortlist: state.autoShortlist,
+    },
+    screeningConfig: {
+      enabled: state.screeningEnabled,
+      language: state.language,
+      voiceTone: state.voiceTone,
+      questions: state.screeningQuestions.filter((q) => q.trim()),
+      evaluationFields: state.evaluationFields,
+      attempts: Number.parseInt(state.attempts, 10) || 2,
+      attemptIntervalHours: Number.parseInt(state.attemptInterval, 10) || 24,
+      minScore: Number.parseInt(state.minScore, 10) || 70,
+      autoReject: state.autoReject,
+      onPass: state.autoSendAfterScreening ? "scheduling" : "recruiter_review",
+      onFail: state.autoReject ? "stop" : "recruiter_review",
+    },
+    schedulingConfig: {
+      enabled: true,
+      provider: "calendly",
+      eventTypeUri: state.eventType || null,
+      channel: state.schedulingChannel.toLowerCase(),
+      reminders: state.reminders,
+      autoSendAfterQualification: state.autoSendAfterQualification,
+      autoSendAfterScreening: state.autoSendAfterScreening,
+      bookingExpiryHours:
+        state.bookingExpiry === "7 days"
+          ? 168
+          : state.bookingExpiry === "14 days"
+            ? 336
+            : 72,
+    },
+  };
+}
+
+async function resolveAudienceIds(state: WorkflowBuilderState): Promise<string[]> {
+  if (state.source === "Candidate Pool") {
+    const pool = await candidatePoolApi.list({ limit: 200 });
+    return pool.map((c) => c.id);
+  }
+  if (state.source === "Saved List") {
+    const pool = await candidatePoolApi.list({ limit: 200 });
+    return pool.map((c) => c.id);
+  }
+  return [];
+}
 
 export function WorkflowBuilder() {
   const [state, setState] = useState<WorkflowBuilderState>(initialState);
   const [current, setCurrent] = useState(0);
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
@@ -1338,6 +1442,30 @@ export function WorkflowBuilder() {
     goTo(Math.min(current + 1, STEPS.length - 1));
   }
 
+  async function submit(mode: Outcome) {
+    if (mode === "launched" && launchErrors.length > 0) {
+      setAttempted(new Set([0, 1, 2, 3, 4, 5]));
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const candidateIds = await resolveAudienceIds(state);
+      const created = await huntlo360Api.createWorkflow(
+        toCreateInput(state, candidateIds)
+      );
+      if (mode === "launched") {
+        await huntlo360Api.launchWorkflow(created.id);
+      }
+      setWorkflowId(created.id);
+      setOutcome(mode);
+    } catch (err) {
+      setSubmitError(getApiErrorMessage(err, "Unable to save workflow."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (outcome) {
     const copy = OUTCOME_COPY[outcome];
     return (
@@ -1357,6 +1485,16 @@ export function WorkflowBuilder() {
           >
             Back to Huntlo 360
           </Button>
+          {workflowId ? (
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={workflowDetailPath(workflowId)} />}
+            >
+              View Workflow
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="outline"
@@ -1365,6 +1503,8 @@ export function WorkflowBuilder() {
               setCurrent(0);
               setAttempted(new Set());
               setOutcome(null);
+              setWorkflowId(null);
+              setSubmitError(null);
             }}
           >
             Create Another Workflow
@@ -1410,6 +1550,11 @@ export function WorkflowBuilder() {
       </nav>
 
       {showErrors ? <ErrorList errors={currentErrors} /> : null}
+      {submitError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {submitError}
+        </p>
+      ) : null}
 
       {/* Step content */}
       {current === 0 ? (
@@ -1446,14 +1591,15 @@ export function WorkflowBuilder() {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setOutcome("draft")}
+            disabled={submitting || !state.name.trim()}
+            onClick={() => void submit("draft")}
           >
             <Save aria-hidden />
             Save Draft
           </Button>
 
           {current < STEPS.length - 1 ? (
-            <Button type="button" size="sm" onClick={next}>
+            <Button type="button" size="sm" onClick={next} disabled={submitting}>
               Continue
               <ArrowRight aria-hidden />
             </Button>
@@ -1461,8 +1607,8 @@ export function WorkflowBuilder() {
             <Button
               type="button"
               size="sm"
-              disabled={launchErrors.length > 0}
-              onClick={() => setOutcome("launched")}
+              disabled={submitting || launchErrors.length > 0}
+              onClick={() => void submit("launched")}
             >
               <Rocket aria-hidden />
               Launch Workflow

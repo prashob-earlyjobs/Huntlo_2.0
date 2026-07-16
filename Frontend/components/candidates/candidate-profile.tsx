@@ -4,6 +4,7 @@ import {
   AudioLines,
   CalendarClock,
   ChevronDown,
+  ClipboardList,
   Contact,
   Info,
   ListPlus,
@@ -13,8 +14,10 @@ import {
   StickyNote,
   Timer,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ConversationsPanel } from "@/components/conversations/conversations-panel";
 import { PipelineStatusBadge } from "@/components/candidates/pipeline-status-badge";
 import {
   ContactReveal,
@@ -39,10 +42,13 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  assessmentsApi,
   candidatePoolApi,
   candidatesApi,
   getApiErrorMessage,
+  schedulingApi,
   uiRevealKindToType,
+  type AssessmentResult,
 } from "@/lib/api";
 import {
   CANDIDATE_STATUSES,
@@ -53,6 +59,7 @@ import {
   type SavedList,
 } from "@/lib/mock-candidates";
 import { REVEAL_QUOTA } from "@/lib/mock-sessions";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 function Card({
@@ -122,6 +129,8 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
   const [revealError, setRevealError] = useState<string | null>(null);
   const [lists, setLists] = useState<SavedList[]>([]);
   const [noteBusy, setNoteBusy] = useState(false);
+  const [assessmentResults, setAssessmentResults] = useState<AssessmentResult[]>([]);
+  const [liveInterviews, setLiveInterviews] = useState(candidate.interviews);
 
   useEffect(() => {
     setProfile(candidate);
@@ -137,15 +146,39 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
     let cancelled = false;
     void (async () => {
       try {
-        const [nextNotes, nextLists] = await Promise.all([
+        const [nextNotes, nextLists, nextAssessments, nextInterviews] =
+          await Promise.all([
           candidatePoolApi.listNotes(candidate.id),
           candidatePoolApi.listLists(),
+          assessmentsApi.listResults({ candidateId: candidate.id }).catch(() => []),
+          schedulingApi
+            .listInterviews({ candidateId: candidate.id })
+            .catch(() => []),
         ]);
         if (!cancelled) {
           if (nextNotes.length > 0 || candidate.notes.length === 0) {
             setNotes(nextNotes);
           }
           setLists(nextLists);
+          setAssessmentResults(nextAssessments);
+          if (nextInterviews.length > 0) {
+            setLiveInterviews(
+              nextInterviews.map((row) => ({
+                id: row.id,
+                type: row.interviewType,
+                dateTime: `${row.dateLabel} · ${row.timeLabel}`,
+                interviewer: row.interviewers[0] || row.recruiter,
+                outcome:
+                  row.status === "Completed"
+                    ? "Completed"
+                    : row.status === "No Show"
+                      ? "No show"
+                      : row.status === "Cancelled"
+                        ? "Cancelled"
+                        : null,
+              }))
+            );
+          }
         }
       } catch {
         // Keep local notes / mock list names when API is unavailable.
@@ -229,9 +262,10 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
 
   const latestOutreach = profile.outreachHistory[0] ?? null;
   const latestScreening = profile.screeningResults[0] ?? null;
+  const latestAssessment = assessmentResults[0] ?? null;
   const nextInterview =
-    profile.interviews.find((entry) => entry.outcome === null) ??
-    profile.interviews[0] ??
+    liveInterviews.find((entry) => entry.outcome === null) ??
+    liveInterviews[0] ??
     null;
 
   return (
@@ -363,7 +397,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                   <AudioLines aria-hidden />
                   Start Screening
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => flash("Interview scheduling opened.")}>
+                <DropdownMenuItem render={<Link href={ROUTES.interviews} />}>
                   <CalendarClock aria-hidden />
                   Schedule Interview
                 </DropdownMenuItem>
@@ -534,6 +568,21 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 <span className="text-muted-foreground">No screening yet</span>
               )}
             </ActivityRow>
+            <ActivityRow icon={ClipboardList} label="Assessments">
+              {latestAssessment ? (
+                <>
+                  {latestAssessment.score != null
+                    ? `${latestAssessment.score}/100 — ${latestAssessment.result}`
+                    : latestAssessment.invitationStatus}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {latestAssessment.campaignName}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">No assessments yet</span>
+              )}
+            </ActivityRow>
             <ActivityRow icon={CalendarClock} label="Interviews">
               {nextInterview ? (
                 <>
@@ -588,6 +637,15 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 No notes yet — be the first to add context.
               </p>
             )}
+          </Card>
+
+          <Card>
+            <SectionHeader title="Conversations" />
+            <ConversationsPanel
+              candidateId={candidate.id}
+              emptyDescription="Email, WhatsApp, and voice replies for this candidate will show up here."
+              className="min-h-[320px] border-0"
+            />
           </Card>
 
           <Card>

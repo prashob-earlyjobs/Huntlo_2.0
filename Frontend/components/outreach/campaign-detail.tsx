@@ -17,13 +17,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
-import { ConversationInbox } from "@/components/conversations/conversation-inbox";
+import { ConversationsPanel } from "@/components/conversations/conversations-panel";
 import { ChannelComparisonChart } from "@/components/dashboard/channel-comparison-chart";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { ChartCard } from "@/components/shared/chart-card";
-import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -60,13 +60,13 @@ import {
   STEP_PERFORMANCE_CHART,
   type EnrolledCandidate,
 } from "@/lib/mock-campaign-detail";
-import { CONVERSATIONS } from "@/lib/mock-conversations";
+import { getApiErrorMessage, outreachApi } from "@/lib/api";
 import {
   CHANNEL_ICONS,
   type CampaignStatus,
   type OutreachCampaign,
 } from "@/lib/mock-outreach";
-import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
+import { candidateDetailPath, campaignDetailPath, jobDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -501,16 +501,30 @@ function SettingsTab() {
 /* ------------------------------------------------------------------ */
 
 export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
+  const router = useRouter();
   const [status, setStatus] = useState<CampaignStatus>(campaign.status);
   const [feedback, setFeedback] = useState<string | null>(null);
-
-  const campaignConversations = CONVERSATIONS.filter(
-    (conversation) => conversation.campaignId === campaign.id
-  );
+  const [busy, setBusy] = useState(false);
 
   function flash(text: string) {
     setFeedback(text);
     window.setTimeout(() => setFeedback(null), 2400);
+  }
+
+  async function runLifecycle(
+    action: () => Promise<OutreachCampaign>,
+    successMessage: string
+  ) {
+    setBusy(true);
+    try {
+      const next = await action();
+      setStatus(next.status);
+      flash(successMessage);
+    } catch (err) {
+      flash(getApiErrorMessage(err, "Action failed."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -567,10 +581,13 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  setStatus("Paused");
-                  flash("Campaign paused — messages stop immediately.");
-                }}
+                disabled={busy}
+                onClick={() =>
+                  void runLifecycle(
+                    () => outreachApi.pauseCampaign(campaign.id),
+                    "Campaign paused — messages stop immediately."
+                  )
+                }
               >
                 <Pause aria-hidden />
                 Pause
@@ -578,10 +595,13 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             ) : status === "Paused" ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  setStatus("Running");
-                  flash("Campaign resumed.");
-                }}
+                disabled={busy}
+                onClick={() =>
+                  void runLifecycle(
+                    () => outreachApi.resumeCampaign(campaign.id),
+                    "Campaign resumed."
+                  )
+                }
               >
                 <Play aria-hidden />
                 Resume
@@ -594,7 +614,14 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => flash("Campaign duplicated as a draft.")}
+              disabled={busy}
+              onClick={() =>
+                void runLifecycle(async () => {
+                  const copy = await outreachApi.duplicateCampaign(campaign.id);
+                  router.push(campaignDetailPath(copy.id));
+                  return copy;
+                }, "Campaign duplicated as a draft.")
+              }
             >
               <Copy aria-hidden />
               Duplicate
@@ -668,15 +695,10 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
           <CandidatesTab />
         </TabsContent>
         <TabsContent value="conversations" className="pt-3">
-          {campaignConversations.length > 0 ? (
-            <ConversationInbox conversations={campaignConversations} />
-          ) : (
-            <EmptyState
-              icon={Users}
-              title="No conversations yet"
-              description="Replies from candidates in this campaign will appear here."
-            />
-          )}
+          <ConversationsPanel
+            campaignId={campaign.id}
+            emptyDescription="Replies from candidates in this campaign will appear here."
+          />
         </TabsContent>
         <TabsContent value="sequence" className="pt-3">
           <SequenceTab />

@@ -631,6 +631,52 @@ export class PoolService {
 
     return { format: 'csv' as const, csv: lines.join('\n'), items };
   }
+
+  /** Org-wide pool KPIs for the Candidate Pool metric strip. */
+  async overview(actor: ActorContext) {
+    const orgOid = new mongoose.Types.ObjectId(actor.organizationId);
+    const match = {
+      organizationId: orgOid,
+      deletedAt: null,
+      archivedAt: null,
+    };
+
+    const [totalCandidates, statusRows] = await Promise.all([
+      SavedCandidateModel.countDocuments(match),
+      SavedCandidateModel.aggregate<{ _id: string; count: number }>([
+        { $match: match },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const byStatus: Record<string, number> = {};
+    for (const row of statusRows) byStatus[row._id] = row.count;
+
+    let inOutreach =
+      (byStatus.contacted || 0) + (byStatus.interested || 0);
+
+    try {
+      const { OutreachEnrollmentModel } = await import(
+        '../outreach/enrollment.model.js'
+      );
+      const enrollmentCount = await OutreachEnrollmentModel.countDocuments({
+        organizationId: orgOid,
+        status: { $in: ['pending', 'active', 'waiting', 'replied'] },
+      });
+      if (enrollmentCount > 0) inOutreach = enrollmentCount;
+    } catch {
+      // Outreach module unavailable — keep status-based count.
+    }
+
+    return {
+      totalCandidates,
+      inOutreach,
+      screening: byStatus.screening || 0,
+      shortlisted: byStatus.shortlisted || 0,
+      interviews: byStatus.interview_scheduled || 0,
+      byStatus,
+    };
+  }
 }
 
 export const poolService = new PoolService();

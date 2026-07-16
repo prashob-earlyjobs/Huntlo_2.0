@@ -9,7 +9,7 @@ import {
   Pencil,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   ErrorList,
@@ -36,12 +36,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { JOBS } from "@/lib/mock-jobs";
 import {
-  CALENDLY_EVENT_TYPES,
+  candidatePoolApi,
+  getApiErrorMessage,
+  jobsApi,
+  schedulingApi,
+  type CalendlyEventType,
+} from "@/lib/api";
+import {
   DURATION_OPTIONS,
   INTERVIEW_TYPES,
-  MANUAL_SLOTS,
   MEETING_PLATFORMS,
   REMINDER_CONFIGS,
   SCHEDULE_CANDIDATES,
@@ -52,6 +56,20 @@ import {
 } from "@/lib/mock-schedule";
 import { cn } from "@/lib/utils";
 
+type FlowCandidate = {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+};
+
+type FlowJob = {
+  id: string;
+  title: string;
+  department: string;
+  location: string;
+};
+
 interface FlowState {
   candidateId: string;
   jobId: string;
@@ -59,7 +77,7 @@ interface FlowState {
   interviewers: string[];
   method: SchedulingMethod | null;
   calendlyEvent: string;
-  manualSlot: string;
+  manualAt: string;
   duration: string;
   timezone: string;
   platform: string;
@@ -69,6 +87,14 @@ interface FlowState {
   message: string;
 }
 
+function defaultManualAt(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(10, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function initialState(): FlowState {
   return {
     candidateId: "",
@@ -76,8 +102,8 @@ function initialState(): FlowState {
     interviewType: INTERVIEW_TYPES[0],
     interviewers: [],
     method: null,
-    calendlyEvent: CALENDLY_EVENT_TYPES[0],
-    manualSlot: MANUAL_SLOTS[1],
+    calendlyEvent: "",
+    manualAt: defaultManualAt(),
     duration: "45 min",
     timezone: TIMEZONE_OPTIONS[0],
     platform: MEETING_PLATFORMS[0],
@@ -87,6 +113,19 @@ function initialState(): FlowState {
     message:
       "Hi {{first_name}}, we'd love to schedule the next round for {{job_title}}. {{scheduling_details}}",
   };
+}
+
+function methodToApi(
+  method: SchedulingMethod
+): "calendly_link" | "manual" | "candidate_availability" {
+  if (method === "Manual Time Selection") return "manual";
+  if (method === "Request Candidate Availability") return "candidate_availability";
+  return "calendly_link";
+}
+
+function durationMinutes(value: string): number {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : 45;
 }
 
 const STEPS = [
@@ -143,6 +182,69 @@ export function ScheduleInterviewFlow({
   const [current, setCurrent] = useState(0);
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<FlowCandidate[]>(
+    SCHEDULE_CANDIDATES.map((row) => ({
+      id: row.id,
+      name: row.name,
+      title: row.title,
+      company: row.company,
+    }))
+  );
+  const [jobs, setJobs] = useState<FlowJob[]>([]);
+  const [eventTypes, setEventTypes] = useState<CalendlyEventType[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [pool, jobRows, events] = await Promise.all([
+          candidatePoolApi.list({ limit: 40 }).catch(() => []),
+          jobsApi.list({ limit: 40 }).catch(() => []),
+          schedulingApi.listEventTypes().catch(() => []),
+        ]);
+        if (cancelled) return;
+        if (pool.length > 0) {
+          setCandidates(
+            pool.map((row) => ({
+              id: row.id,
+              name: row.name,
+              title: row.currentRole || row.headline || "",
+              company: row.currentCompany || "",
+            }))
+          );
+        }
+        if (jobRows.length > 0) {
+          setJobs(
+            jobRows.map((row) => ({
+              id: row.id,
+              title: row.title,
+              department: row.department || "",
+              location: row.location || "",
+            }))
+          );
+        }
+        setEventTypes(events);
+        if (events[0]?.uri || events[0]?.schedulingUrl) {
+          setState((previous) =>
+            previous.calendlyEvent
+              ? previous
+              : {
+                  ...previous,
+                  calendlyEvent: events[0]!.uri || events[0]!.schedulingUrl,
+                }
+          );
+        }
+      } catch {
+        // Keep mock candidate fallbacks when API is unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   function update<K extends keyof FlowState>(key: K, value: FlowState[K]) {
     setState((previous) => ({ ...previous, [key]: value }));
@@ -153,6 +255,8 @@ export function ScheduleInterviewFlow({
     setCurrent(0);
     setAttempted(new Set());
     setDone(false);
+    setSubmitting(false);
+    setSubmitError(null);
   }
 
   function goTo(step: number) {
@@ -168,10 +272,55 @@ export function ScheduleInterviewFlow({
     goTo(Math.min(current + 1, STEPS.length - 1));
   }
 
+  async function confirm() {
+    if (!state.method) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const minutes = durationMinutes(state.duration);
+      const timezone = state.timezone.split(" ")[0] || state.timezone;
+      const selectedEvent = eventTypes.find(
+        (event) =>
+          event.uri === state.calendlyEvent ||
+          event.schedulingUrl === state.calendlyEvent ||
+          event.name === state.calendlyEvent
+      );
+      const startAt =
+        state.method === "Manual Time Selection" && state.manualAt
+          ? new Date(state.manualAt).toISOString()
+          : null;
+      const endAt = startAt
+        ? new Date(new Date(startAt).getTime() + minutes * 60_000).toISOString()
+        : null;
+
+      await schedulingApi.scheduleInterview({
+        candidateId: state.candidateId || null,
+        jobId: state.jobId || null,
+        interviewType: state.interviewType,
+        interviewerIds: state.interviewers,
+        schedulingMethod: methodToApi(state.method),
+        providerEventTypeId: selectedEvent?.uri || state.calendlyEvent || null,
+        schedulingUrl: selectedEvent?.schedulingUrl || null,
+        startAt,
+        endAt,
+        timezone,
+        location: state.location || null,
+        instructions: state.instructions || null,
+        inviteChannel: "email",
+        sendLink: state.method !== "Manual Time Selection",
+      });
+      setDone(true);
+    } catch (err) {
+      setSubmitError(getApiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const showErrors = attempted.has(current);
   const errors = stepErrors(current, state);
-  const candidate = SCHEDULE_CANDIDATES.find((c) => c.id === state.candidateId);
-  const job = JOBS.find((j) => j.id === state.jobId);
+  const candidate = candidates.find((c) => c.id === state.candidateId);
+  const job = jobs.find((j) => j.id === state.jobId);
 
   return (
     <Dialog
@@ -185,7 +334,7 @@ export function ScheduleInterviewFlow({
         <DialogHeader className="border-b border-border px-5 py-4">
           <DialogTitle>Schedule Interview</DialogTitle>
           <DialogDescription>
-            Seven steps — no calendar provider is connected in this preview.
+            Create a Calendly link, book a manual slot, or request availability.
           </DialogDescription>
         </DialogHeader>
 
@@ -200,11 +349,10 @@ export function ScheduleInterviewFlow({
               </h3>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
                 {state.method === "Manual Time Selection"
-                  ? `${candidate?.name ?? "Candidate"} is booked for ${state.manualSlot}.`
+                  ? `${candidate?.name ?? "Candidate"} is booked for ${state.manualAt.replace("T", " ")}.`
                   : state.method === "Calendly Link"
                     ? `A Calendly link was prepared for ${candidate?.name ?? "the candidate"}.`
-                    : `Availability request prepared for ${candidate?.name ?? "the candidate"}.`}{" "}
-                Nothing was really sent — this is a UI preview.
+                    : `Availability request prepared for ${candidate?.name ?? "the candidate"}.`}
               </p>
               <Button
                 size="sm"
@@ -238,7 +386,7 @@ export function ScheduleInterviewFlow({
                     aria-label="Candidate"
                     className="grid gap-2 sm:grid-cols-2"
                   >
-                    {SCHEDULE_CANDIDATES.map((person) => {
+                    {candidates.map((person) => {
                       const active = state.candidateId === person.id;
                       return (
                         <button
@@ -271,6 +419,11 @@ export function ScheduleInterviewFlow({
                         </button>
                       );
                     })}
+                    {candidates.length === 0 ? (
+                      <p className="text-sm text-muted-foreground sm:col-span-2">
+                        No candidates in the pool yet.
+                      </p>
+                    ) : null}
                   </div>
                 </StepCard>
               ) : null}
@@ -285,9 +438,7 @@ export function ScheduleInterviewFlow({
                     aria-label="Job"
                     className="grid gap-2 sm:grid-cols-2"
                   >
-                    {JOBS.filter(
-                      (j) => j.status === "Active" || j.status === "Paused"
-                    ).map((jobOption) => {
+                    {jobs.map((jobOption) => {
                       const active = state.jobId === jobOption.id;
                       return (
                         <button
@@ -317,6 +468,11 @@ export function ScheduleInterviewFlow({
                         </button>
                       );
                     })}
+                    {jobs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground sm:col-span-2">
+                        No jobs available. Create a job first.
+                      </p>
+                    ) : null}
                   </div>
                 </StepCard>
               ) : null}
@@ -457,12 +613,26 @@ export function ScheduleInterviewFlow({
                             }
                           >
                             <SelectTrigger id="flow-calendly" className="w-full">
-                              <SelectValue />
+                              <SelectValue placeholder="Select event type" />
                             </SelectTrigger>
                             <SelectContent>
-                              {CALENDLY_EVENT_TYPES.map((eventType) => (
-                                <SelectItem key={eventType} value={eventType}>
-                                  {eventType}
+                              {(eventTypes.length > 0
+                                ? eventTypes.map((eventType) => ({
+                                    value: eventType.uri || eventType.schedulingUrl,
+                                    label: eventType.name,
+                                  }))
+                                : [
+                                    {
+                                      value: "intro",
+                                      label: "Intro call (connect Calendly)",
+                                    },
+                                  ]
+                              ).map((eventType) => (
+                                <SelectItem
+                                  key={eventType.value}
+                                  value={eventType.value}
+                                >
+                                  {eventType.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -473,23 +643,14 @@ export function ScheduleInterviewFlow({
 
                     {state.method === "Manual Time Selection" ? (
                       <Field label="Date and time" htmlFor="flow-slot">
-                        <Select
-                          value={state.manualSlot}
-                          onValueChange={(value) =>
-                            value && update("manualSlot", value)
+                        <Input
+                          id="flow-slot"
+                          type="datetime-local"
+                          value={state.manualAt}
+                          onChange={(event) =>
+                            update("manualAt", event.target.value)
                           }
-                        >
-                          <SelectTrigger id="flow-slot" className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {MANUAL_SLOTS.map((slot) => (
-                              <SelectItem key={slot} value={slot}>
-                                {slot}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        />
                       </Field>
                     ) : null}
 
@@ -642,9 +803,13 @@ export function ScheduleInterviewFlow({
                         [
                           "When",
                           state.method === "Manual Time Selection"
-                            ? state.manualSlot
+                            ? state.manualAt.replace("T", " ")
                             : state.method === "Calendly Link"
-                              ? state.calendlyEvent
+                              ? eventTypes.find(
+                                  (event) =>
+                                    event.uri === state.calendlyEvent ||
+                                    event.schedulingUrl === state.calendlyEvent
+                                )?.name || state.calendlyEvent || "Calendly link"
                               : "Awaiting candidate availability",
                         ],
                         ["Duration", state.duration],
@@ -710,18 +875,27 @@ export function ScheduleInterviewFlow({
                 <Button
                   size="sm"
                   disabled={
+                    submitting ||
                     [0, 1, 3, 4, 5].some(
                       (step) => stepErrors(step, state).length > 0
                     )
                   }
-                  onClick={() => setDone(true)}
+                  onClick={() => void confirm()}
                 >
                   <CalendarClock aria-hidden />
-                  Confirm
+                  {submitting ? "Scheduling…" : "Confirm"}
                 </Button>
               )}
             </div>
           </div>
+        ) : null}
+        {submitError ? (
+          <p
+            role="alert"
+            className="border-t border-destructive/20 bg-destructive/5 px-5 py-2 text-sm text-destructive"
+          >
+            {submitError}
+          </p>
         ) : null}
       </DialogContent>
     </Dialog>

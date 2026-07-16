@@ -839,6 +839,23 @@ export class RevealService {
     } catch (error) {
       await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
       if (error instanceof FutureJobsUpstreamError) {
+        // FJ returns 404 when the LinkedIn key isn't resolvable for reveal —
+        // treat as a soft miss, not an upstream outage.
+        if (error.fjHttpStatus === 404) {
+          const result = buildRevealResult({
+            found: false,
+            charged: false,
+            source: 'missing',
+            contactType,
+            values: [],
+            candidateId: candidateIdHex,
+            creditsCharged: 0,
+          });
+          if (input.idempotencyKey) {
+            await this.storeIdempotentResponse(actor, scope, input.idempotencyKey, 200, result);
+          }
+          return result;
+        }
         throw new AppError(error.statusCode, error.code, error.message, {
           cause: error,
         });

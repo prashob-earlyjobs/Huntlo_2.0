@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CopyX,
   FileSpreadsheet,
+  Loader2,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -29,7 +30,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getApiErrorMessage, candidatePoolApi, type ImportPreviewResult } from "@/lib/api";
+import {
+  getApiErrorMessage,
+  candidatePoolApi,
+  type ImportJob,
+  type ImportPreviewResult,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const TARGET_FIELDS = [
@@ -52,12 +58,20 @@ const STEPS = [
   { id: "summary", title: "Summary" },
 ];
 
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+
 export function ImportCandidatesDialog({
   trigger,
   onImported,
+  listId = null,
 }: {
   trigger?: React.ReactElement;
-  onImported?: () => void;
+  onImported?: (result: {
+    imported: number;
+    listId: string | null;
+  }) => void;
+  /** Optional saved list to attach imported candidates to. */
+  listId?: string | null;
 }) {
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
@@ -66,6 +80,7 @@ export function ImportCandidatesDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importedCount, setImportedCount] = useState<number | null>(null);
+  const [jobStatus, setJobStatus] = useState<string | null>(null);
 
   const canContinue =
     step === 0 ? file !== null : step === 1 ? preview !== null : true;
@@ -79,6 +94,7 @@ export function ImportCandidatesDialog({
     setBusy(false);
     setError(null);
     setImportedCount(null);
+    setJobStatus(null);
   }
 
   async function runPreview(nextFile: File) {
@@ -96,39 +112,62 @@ export function ImportCandidatesDialog({
     }
   }
 
+  async function waitForJob(jobId: string): Promise<ImportJob> {
+    let current = await candidatePoolApi.getImportJob(jobId);
+    setJobStatus(current.status);
+
+    for (let i = 0; i < 60; i += 1) {
+      if (TERMINAL_STATUSES.has(current.status)) {
+        return current;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+      current = await candidatePoolApi.getImportJob(jobId);
+      setJobStatus(current.status);
+    }
+
+    return current;
+  }
+
   async function runImport() {
     if (!preview && !file) return;
     setBusy(true);
     setError(null);
+    setJobStatus("queued");
     try {
       const job = await candidatePoolApi.importCommit({
         jobId: preview?.jobId,
         file: preview ? undefined : file ?? undefined,
         columnMapping: mapping,
+        listId: listId ?? undefined,
         skipDuplicates: true,
       });
 
-      let current = job;
-      for (let i = 0; i < 40; i += 1) {
-        if (
-          current.status === "completed" ||
-          current.status === "failed" ||
-          current.status === "cancelled"
-        ) {
-          break;
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 1000));
-        current = await candidatePoolApi.getImportJob(current.id);
-      }
+      setJobStatus(job.status);
+      const current = TERMINAL_STATUSES.has(job.status)
+        ? job
+        : await waitForJob(job.id);
 
-      if (current.status === "failed") {
-        setError(current.totals ? "Import failed" : "Import failed");
+      if (current.status === "failed" || current.status === "cancelled") {
+        setError(
+          current.errors?.[0]?.message ||
+            "Import failed. Check your file mapping and try again."
+        );
         return;
       }
 
-      const imported = Number(current.totals?.imported ?? preview?.totals.valid ?? 0);
+      if (!TERMINAL_STATUSES.has(current.status)) {
+        setError(
+          "Import is still processing. Close this dialog and refresh the candidate pool in a moment, or try again."
+        );
+        return;
+      }
+
+      const imported = Number(
+        current.totals?.imported ?? preview?.totals.valid ?? 0
+      );
       setImportedCount(imported);
-      onImported?.();
+      setJobStatus("completed");
+      onImported?.({ imported, listId: listId ?? null });
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -319,16 +358,26 @@ export function ImportCandidatesDialog({
           {step === 4 ? (
             <div className="space-y-3">
               <div className="flex items-start gap-2">
-                <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+                {busy ? (
+                  <Loader2
+                    aria-hidden
+                    className="mt-0.5 size-4 shrink-0 animate-spin text-primary"
+                  />
+                ) : (
+                  <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+                )}
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {importedCount != null
                       ? `Imported ${importedCount} candidates`
-                      : `Ready to import ${preview?.totals.valid ?? 0} candidates`}
+                      : busy
+                        ? `Importing… (${jobStatus ?? "starting"})`
+                        : `Ready to import ${preview?.totals.valid ?? 0} candidates`}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    Duplicates and invalid rows are skipped. Temporary upload files
-                    are deleted after processing.
+                    {busy
+                      ? "Validating rows and writing candidates to your pool."
+                      : "Duplicates and invalid rows are skipped. Temporary upload files are deleted after processing."}
                   </p>
                 </div>
               </div>

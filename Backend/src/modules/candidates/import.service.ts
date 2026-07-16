@@ -335,6 +335,13 @@ export class ImportService {
     job.status = 'queued';
     await job.save();
 
+    const jobId = job._id.toHexString();
+    // Process immediately in the API process so imports work without a separate worker.
+    // The worker poll remains as a backup for crashed/restarted jobs.
+    void this.processImportJob(jobId).catch((error) => {
+      log().error({ err: error, jobId }, 'Inline import processing failed');
+    });
+
     return toPublicImportJob(job);
   }
 
@@ -347,6 +354,14 @@ export class ImportService {
       throw AppError.notFound('Import job not found');
     }
     assertSameOrganization(job.organizationId, actor.organizationId);
+
+    // Recover jobs that were queued while no worker was running.
+    if (job.status === 'queued') {
+      void this.processImportJob(jobId).catch((error) => {
+        log().error({ err: error, jobId }, 'Recovered import processing failed');
+      });
+    }
+
     return toPublicImportJob(job);
   }
 

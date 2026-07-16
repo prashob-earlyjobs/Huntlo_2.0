@@ -347,15 +347,14 @@ export class QuotaService {
       metric: input.metric,
       idempotencyKey: input.idempotencyKey,
     });
-    if (existing) {
-      if (existing.status === 'reserved' || existing.status === 'committed') {
-        const usage = await ensureCounter(input.organizationId, input.metric);
-        return { reservationId: existing._id.toHexString(), usage: toUsageView(usage) };
-      }
+    if (existing?.status === 'reserved' || existing?.status === 'committed') {
+      const usage = await ensureCounter(input.organizationId, input.metric);
+      return { reservationId: existing._id.toHexString(), usage: toUsageView(usage) };
     }
 
     const counter = await ensureCounter(input.organizationId, input.metric);
     const periodKey = counter.periodKey;
+    const expiresAt = new Date(Date.now() + (input.expiresInMs ?? RESERVATION_TTL_MS));
 
     const filter: Record<string, unknown> = {
       _id: counter._id,
@@ -378,12 +377,70 @@ export class QuotaService {
     }
 
     try {
+      // Re-use a previously released/expired/refunded row for the same idempotency key
+      // instead of inserting a duplicate (unique index on org+metric+key).
+      if (existing) {
+        const revived = await UsageReservationModel.findOneAndUpdate(
+          {
+            _id: existing._id,
+            status: { $in: ['released', 'expired', 'refunded'] },
+          },
+          {
+            $set: {
+              status: 'reserved',
+              quantity,
+              expiresAt,
+              periodKey,
+              relatedEntityType: input.relatedEntityType ?? null,
+              relatedEntityId: input.relatedEntityId ?? null,
+              userId: input.userId ?? existing.userId ?? null,
+            },
+          },
+          { new: true }
+        );
+
+        if (revived) {
+          await writeLedger({
+            organizationId: input.organizationId,
+            userId: input.userId,
+            metric: input.metric,
+            quantity,
+            action: 'reserve',
+            status: 'pending',
+            idempotencyKey: input.idempotencyKey,
+            relatedEntityType: input.relatedEntityType,
+            relatedEntityId: input.relatedEntityId,
+            periodKey,
+          });
+          return {
+            reservationId: revived._id.toHexString(),
+            usage: toUsageView(updated),
+          };
+        }
+
+        // Lost the race — another request already reserved/committed this key.
+        await QuotaCounterModel.updateOne(
+          { _id: updated._id },
+          { $inc: { reserved: -quantity } }
+        );
+        const raced = await UsageReservationModel.findOne({
+          organizationId: input.organizationId,
+          metric: input.metric,
+          idempotencyKey: input.idempotencyKey,
+        });
+        if (raced && (raced.status === 'reserved' || raced.status === 'committed')) {
+          const usage = await ensureCounter(input.organizationId, input.metric);
+          return { reservationId: raced._id.toHexString(), usage: toUsageView(usage) };
+        }
+        throw AppError.conflict('Usage reservation is in an unexpected state; retry shortly');
+      }
+
       const reservation = await UsageReservationModel.create({
         organizationId: input.organizationId,
         metric: input.metric,
         quantity,
         status: 'reserved',
-        expiresAt: new Date(Date.now() + (input.expiresInMs ?? RESERVATION_TTL_MS)),
+        expiresAt,
         idempotencyKey: input.idempotencyKey,
         relatedEntityType: input.relatedEntityType ?? null,
         relatedEntityId: input.relatedEntityId ?? null,
@@ -406,12 +463,16 @@ export class QuotaService {
 
       return {
         reservationId: reservation._id.toHexString(),
-        usage: toUsageView(updated!),
+        usage: toUsageView(updated),
       };
     } catch (error) {
-      // Roll back reserved credits if reservation insert races/fails.
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      // Roll back reserved credits if reservation insert/update races/fails.
       await QuotaCounterModel.updateOne(
-        { _id: updated!._id },
+        { _id: updated._id },
         { $inc: { reserved: -quantity } }
       );
 

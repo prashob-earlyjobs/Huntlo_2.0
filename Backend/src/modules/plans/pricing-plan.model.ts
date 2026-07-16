@@ -17,6 +17,11 @@ export type PricingPlanDocument = Document & {
     monthly: number | null;
     yearly: number | null;
   };
+  /** Optional USD major-unit prices for Dodo / global checkout. */
+  usdPrices: {
+    monthly: number | null;
+    yearly: number | null;
+  };
   currency: string;
   featureAccess: Record<string, boolean>;
   limits: PlanLimits;
@@ -45,6 +50,10 @@ const pricingPlanSchema = new Schema<PricingPlanDocument>(
       default: ['monthly', 'yearly'],
     },
     prices: {
+      monthly: { type: Number, default: null },
+      yearly: { type: Number, default: null },
+    },
+    usdPrices: {
       monthly: { type: Number, default: null },
       yearly: { type: Number, default: null },
     },

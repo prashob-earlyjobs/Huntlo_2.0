@@ -18,6 +18,18 @@ export interface OutreachTemplate {
   updated: string;
   usedInCampaigns: number;
   archived: boolean;
+  /** Live API fields (optional for mocks). */
+  channel?: string;
+  category?: string;
+  status?: string;
+  variables?: string[];
+  generation?: {
+    isDraft: boolean;
+    action: string | null;
+    model: string | null;
+    generatedAt: string | null;
+    summary: string | null;
+  } | null;
 }
 
 export const TEMPLATES: OutreachTemplate[] = [
@@ -92,7 +104,7 @@ export const TEMPLATES: OutreachTemplate[] = [
     name: "Scheduling — Calendly invite",
     type: "Scheduling Message",
     subject: null,
-    body: "Great news {{first_name}} — you're through to the next step for {{job_title}}! Pick any slot on {{recruiter_name}}'s calendar: {{calendly_link}}",
+    body: "Great news {{first_name}} — you're through to the next step for {{job_title}}! {{recruiter_name}} will share a booking link shortly.",
     owner: "Rohan Desai",
     updated: "4d ago",
     usedInCampaigns: 6,

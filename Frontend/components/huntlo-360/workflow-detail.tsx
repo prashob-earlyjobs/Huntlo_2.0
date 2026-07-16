@@ -18,9 +18,9 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { ConversationInbox } from "@/components/conversations/conversation-inbox";
+import { ConversationsPanel } from "@/components/conversations/conversations-panel";
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { ChartCard } from "@/components/shared/chart-card";
@@ -47,10 +47,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getApiErrorMessage, huntlo360Api } from "@/lib/api";
 import {
   WORKFLOW_ACTIVITY,
-  WORKFLOW_CANDIDATES,
-  WORKFLOW_EXCEPTIONS,
   WORKFLOW_INTERVIEWS,
   WORKFLOW_SCREENINGS,
   WORKFLOW_SETTINGS,
@@ -59,9 +58,9 @@ import {
   workflowJourney,
   type Workflow360,
   type WorkflowCandidate,
+  type WorkflowException,
   type WorkflowStatus,
 } from "@/lib/mock-360";
-import { CONVERSATIONS } from "@/lib/mock-conversations";
 import { CHANNEL_ICONS } from "@/lib/mock-outreach";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -176,7 +175,13 @@ function Journey({ workflow }: { workflow: Workflow360 }) {
 /* Overview                                                             */
 /* ------------------------------------------------------------------ */
 
-function OverviewTab({ workflow }: { workflow: Workflow360 }) {
+function OverviewTab({
+  workflow,
+  exceptions,
+}: {
+  workflow: Workflow360;
+  exceptions: WorkflowException[];
+}) {
   return (
     <div className="space-y-4">
       <Journey workflow={workflow} />
@@ -192,35 +197,41 @@ function OverviewTab({ workflow }: { workflow: Workflow360 }) {
             workflow moving.
           </p>
         </div>
-        <ul className="divide-y divide-border">
-          {WORKFLOW_EXCEPTIONS.map((exception) => (
-            <li
-              key={exception.kind}
-              className="flex flex-wrap items-center gap-3 px-4 py-2.5"
-            >
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted">
-                <exception.icon
-                  aria-hidden
-                  className="size-3.5 text-muted-foreground"
-                />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  {exception.kind}
-                  <span className="ml-1.5 rounded-md bg-warning/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-warning">
-                    {exception.count}
-                  </span>
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {exception.description}
-                </p>
-              </div>
-              <Button size="xs" variant="outline">
-                {exception.action}
-              </Button>
-            </li>
-          ))}
-        </ul>
+        {exceptions.length > 0 ? (
+          <ul className="divide-y divide-border">
+            {exceptions.map((exception) => (
+              <li
+                key={exception.kind}
+                className="flex flex-wrap items-center gap-3 px-4 py-2.5"
+              >
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted">
+                  <exception.icon
+                    aria-hidden
+                    className="size-3.5 text-muted-foreground"
+                  />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {exception.kind}
+                    <span className="ml-1.5 rounded-md bg-warning/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-warning">
+                      {exception.count}
+                    </span>
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {exception.description}
+                  </p>
+                </div>
+                <Button size="xs" variant="outline">
+                  {exception.action}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            No exceptions right now.
+          </p>
+        )}
       </section>
     </div>
   );
@@ -230,7 +241,7 @@ function OverviewTab({ workflow }: { workflow: Workflow360 }) {
 /* Candidates                                                           */
 /* ------------------------------------------------------------------ */
 
-function CandidatesTab() {
+function CandidatesTab({ candidates }: { candidates: WorkflowCandidate[] }) {
   return (
     <section className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
@@ -253,7 +264,17 @@ function CandidatesTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {WORKFLOW_CANDIDATES.map((candidate) => (
+          {candidates.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={9}
+                className="py-8 text-center text-sm text-muted-foreground"
+              >
+                No candidates enrolled yet.
+              </TableCell>
+            </TableRow>
+          ) : (
+            candidates.map((candidate) => (
             <TableRow key={candidate.id}>
               <TableCell className="py-2.5">
                 <div className="flex items-center gap-2.5">
@@ -379,7 +400,8 @@ function CandidatesTab() {
                 </DropdownMenu>
               </TableCell>
             </TableRow>
-          ))}
+          ))
+          )}
         </TableBody>
       </Table>
     </section>
@@ -617,11 +639,57 @@ function SettingsTab() {
 export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
   const [status, setStatus] = useState<WorkflowStatus>(workflow.status);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [providerBanner, setProviderBanner] = useState(true);
+  const [providerBanner, setProviderBanner] = useState(false);
+  const [candidates, setCandidates] = useState<WorkflowCandidate[]>([]);
+  const [exceptions, setExceptions] = useState<WorkflowException[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [nextCandidates, nextExceptions] = await Promise.all([
+          huntlo360Api.listCandidates(workflow.id, { limit: 100 }),
+          huntlo360Api.listExceptions(workflow.id),
+        ]);
+        if (cancelled) return;
+        setCandidates(nextCandidates);
+        setExceptions(nextExceptions);
+        setProviderBanner(
+          nextExceptions.some((item) => item.kind === "Provider disconnected")
+        );
+      } catch {
+        if (!cancelled) {
+          setCandidates([]);
+          setExceptions([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workflow.id]);
 
   function flash(text: string) {
     setFeedback(text);
     window.setTimeout(() => setFeedback(null), 2400);
+  }
+
+  async function runLifecycle(
+    nextStatus: WorkflowStatus,
+    message: string,
+    fn: () => Promise<unknown>
+  ) {
+    setBusy(true);
+    try {
+      await fn();
+      setStatus(nextStatus);
+      flash(message);
+    } catch (err) {
+      flash(getApiErrorMessage(err, "Unable to update workflow."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -696,10 +764,14 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  setStatus("Paused");
-                  flash("Workflow paused — outreach, calls and links stop immediately.");
-                }}
+                disabled={busy}
+                onClick={() =>
+                  void runLifecycle(
+                    "Paused",
+                    "Workflow paused — outreach, calls and links stop immediately.",
+                    () => huntlo360Api.pauseWorkflow(workflow.id)
+                  )
+                }
               >
                 <Pause aria-hidden />
                 Pause
@@ -707,10 +779,12 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
             ) : status === "Paused" ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  setStatus("Running");
-                  flash("Workflow resumed.");
-                }}
+                disabled={busy}
+                onClick={() =>
+                  void runLifecycle("Running", "Workflow resumed.", () =>
+                    huntlo360Api.resumeWorkflow(workflow.id)
+                  )
+                }
               >
                 <Play aria-hidden />
                 Resume
@@ -719,7 +793,7 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => flash("Edit opens the workflow builder. (UI preview)")}
+              onClick={() => flash("Edit opens the workflow builder.")}
             >
               <Pencil aria-hidden />
               Edit
@@ -754,25 +828,30 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"
-                  onClick={() => flash("Workflow deleted. (UI preview)")}
+                  disabled={busy}
+                  onClick={() =>
+                    void runLifecycle("Completed", "Workflow cancelled.", () =>
+                      huntlo360Api.cancelWorkflow(workflow.id)
+                    )
+                  }
                 >
                   <Trash2 aria-hidden />
-                  Delete
+                  Cancel workflow
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
-
-        {feedback ? (
-          <p
-            role="status"
-            className="mt-3 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
-          >
-            {feedback}
-          </p>
-        ) : null}
       </header>
+
+      {feedback ? (
+        <p
+          role="status"
+          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+        >
+          {feedback}
+        </p>
+      ) : null}
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
@@ -790,21 +869,16 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
         </div>
 
         <TabsContent value="overview" className="pt-3">
-          <OverviewTab workflow={workflow} />
+          <OverviewTab workflow={workflow} exceptions={exceptions} />
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
-          <CandidatesTab />
+          <CandidatesTab candidates={candidates} />
         </TabsContent>
         <TabsContent value="conversations" className="pt-3">
-          {CONVERSATIONS.length > 0 ? (
-            <ConversationInbox conversations={CONVERSATIONS} />
-          ) : (
-            <EmptyState
-              icon={Users}
-              title="No conversations yet"
-              description="Replies from candidates in this workflow will appear here."
-            />
-          )}
+          <ConversationsPanel
+            jobId={workflow.jobId ?? undefined}
+            emptyDescription="Replies from candidates in this workflow will appear here."
+          />
         </TabsContent>
         <TabsContent value="screening" className="pt-3">
           <ScreeningTab />

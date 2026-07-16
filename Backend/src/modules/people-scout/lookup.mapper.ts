@@ -128,6 +128,22 @@ export function pickPreferredLinkedinUrl(options: {
   return flagship || profile;
 }
 
+/**
+ * Future Jobs reveal-contacts resolves by opaque member URL (`/in/ACoAA…`).
+ * Vanity/flagship URLs often 404 on that endpoint — prefer profile URL for reveals.
+ */
+export function pickRevealLinkedinUrl(options: {
+  flagshipUrl?: string;
+  profileUrl?: string;
+  username?: string;
+}): string {
+  const profile = asString(options.profileUrl);
+  const flagship = asString(options.flagshipUrl);
+  if (profile) return profile;
+  if (flagship) return flagship;
+  return pickPreferredLinkedinUrl(options);
+}
+
 /** Strip contact PII from a raw FJ profile before storing a safe snapshot. */
 export function extractSafeSnapshotFromFjProfile(
   profile: unknown,

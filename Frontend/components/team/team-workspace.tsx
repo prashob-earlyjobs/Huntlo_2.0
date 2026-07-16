@@ -7,14 +7,17 @@ import {
   KeyRound,
   MoreHorizontal,
   Search,
+  UserCheck,
   UserMinus,
   UserPlus,
+  Users,
   UserX,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MetricStrip } from "@/components/shared/metric-strip";
+import { TeamWorkspaceSkeleton } from "@/components/team/team-skeleton";
 import { Field } from "@/components/outreach/builder-ui";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -77,8 +80,6 @@ import {
   ORGANISATION,
   PERMISSION_ACTIONS,
   PERMISSION_MATRIX,
-  TEAM_MEMBERS,
-  TEAM_METRICS,
   TEAM_ROLES,
   type AccountStatus,
   type ModuleAccess,
@@ -978,8 +979,8 @@ export function TeamWorkspace() {
   const [selected, setSelected] = useState<TeamMember | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pageTab, setPageTab] = useState("members");
-  const [members, setMembers] = useState<TeamMember[]>(TEAM_MEMBERS);
-  const [metrics, setMetrics] = useState<TeamMetric[]>(TEAM_METRICS);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [metrics, setMetrics] = useState<TeamMetric[]>([]);
   const [organization, setOrganization] = useState<OrganizationProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -994,29 +995,52 @@ export function TeamWorkspace() {
       setOrganization(org);
       setMetrics([
         {
-          ...TEAM_METRICS[0]!,
+          id: "total",
+          label: "Total Members",
           value: String(overview.metrics.totalMembers),
+          change: "—",
+          trend: "flat",
+          comparison: "in this workspace",
+          tooltip: "All seats including invited and suspended members.",
+          icon: Users,
         },
         {
-          ...TEAM_METRICS[1]!,
+          id: "active",
+          label: "Active Members",
           value: String(overview.metrics.activeMembers),
+          change: "—",
+          trend: "flat",
+          comparison: "can sign in",
+          tooltip: "Members who can sign in and use the workspace.",
+          icon: UserCheck,
         },
         {
-          ...TEAM_METRICS[2]!,
+          id: "pending",
+          label: "Pending Invitations",
           value: String(overview.metrics.pendingInvitations),
+          change: "—",
+          trend: "flat",
+          comparison: "awaiting accept",
+          tooltip: "Invites sent but not yet accepted.",
+          icon: UserPlus,
         },
         {
-          ...TEAM_METRICS[3]!,
+          id: "seats",
+          label: "Seats Available",
           value: String(overview.metrics.seatsAvailable ?? "∞"),
+          change: "—",
+          trend: "flat",
           comparison: overview.metrics.seatLimit
             ? `of ${overview.metrics.seatLimit} on ${overview.metrics.plan}`
             : `on ${overview.metrics.plan}`,
+          tooltip: "Open seats remaining on the current plan.",
+          icon: Users,
         },
-        TEAM_METRICS[4]!,
-        TEAM_METRICS[5]!,
       ]);
     } catch (error) {
       setMessage(getApiErrorMessage(error, "Unable to load team."));
+      setMembers([]);
+      setMetrics([]);
     } finally {
       setLoading(false);
     }
@@ -1074,12 +1098,13 @@ export function TeamWorkspace() {
       }
     : ORGANISATION;
 
+  if (loading && members.length === 0 && metrics.length === 0) {
+    return <TeamWorkspaceSkeleton />;
+  }
+
   return (
     <div className="space-y-4">
-      <MetricStrip metrics={metrics} />
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading team…</p>
-      ) : null}
+      <MetricStrip metrics={metrics} columns="4" />
 
       <Tabs value={pageTab} onValueChange={setPageTab}>
         <div className="flex flex-wrap items-center justify-between gap-2">

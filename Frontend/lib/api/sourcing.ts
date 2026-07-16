@@ -204,6 +204,8 @@ export interface SourcingApi {
   listHistory(): Promise<SearchHistoryEntry[]>;
   getSession(id: string): Promise<SourcingSessionApi | null>;
   getSessionCandidates(id: string): Promise<SessionCandidate[]>;
+  /** Raw sourcing results (includes LinkedIn URL / external IDs for pool sync). */
+  getSessionResults(id: string): Promise<SourcedCandidateApi[]>;
   getProgress(id: string): Promise<SourcingProgress>;
   createSession(body: CreateSourcingSessionInput): Promise<SourcingSessionApi>;
   startSession(body: {
@@ -255,6 +257,26 @@ const mockSourcingApi: SourcingApi = {
     const session = getSession(id);
     if (!session) return [];
     return getSessionCandidates(session);
+  },
+  async getSessionResults(id) {
+    const candidates = await this.getSessionCandidates(id);
+    return candidates.map((candidate, index) => ({
+      id: candidate.id,
+      sourcingSessionId: id,
+      externalCandidateId: candidate.id,
+      name: candidate.name,
+      headline: candidate.headline || null,
+      linkedinUrl: null,
+      title: candidate.currentRole === "—" ? null : candidate.currentRole,
+      company: candidate.currentCompany === "—" ? null : candidate.currentCompany,
+      location: candidate.location,
+      experienceYears: candidate.experienceYears,
+      skills: candidate.skills,
+      educationPreview: [],
+      profileSignals: candidate.signals,
+      rank: index + 1,
+      matchScore: candidate.matchScore / 20,
+    }));
   },
   async getProgress(id) {
     await simulateMockLatency();
@@ -342,11 +364,14 @@ const liveSourcingApi: SourcingApi = {
     }
   },
   async getSessionCandidates(id) {
+    const items = await this.getSessionResults(id);
+    return items.map(mapApiCandidateToSessionCandidate);
+  },
+  async getSessionResults(id) {
     const result = await apiClient.get<{ items: SourcedCandidateApi[] }>(
       `/sourcing/sessions/${id}/results?limit=100`
     );
-    const items = result.data.items ?? [];
-    return items.map(mapApiCandidateToSessionCandidate);
+    return result.data.items ?? [];
   },
   async getProgress(id) {
     const result = await apiClient.get<SourcingProgress>(

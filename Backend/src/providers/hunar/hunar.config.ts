@@ -1,5 +1,6 @@
 /**
- * Hunar voice API key helpers — from EJHunterLanding hunarVoiceCallService.js
+ * Hunar voice API — fields and URLs from EJHunterLanding hunarVoiceCallService.js
+ * and Hunar Sheets integration docs (event_type, call_id, status, recording_url, result).
  */
 
 export const HUNAR_AGENTS_URL = 'https://api.voice.hunar.ai/external/v1/agents/';
@@ -15,6 +16,19 @@ export function getHunarVoicePersona(): string {
 
 export function getHunarVoiceLanguage(): string {
   return String(process.env.HUNAR_VOICE_LANGUAGE || 'ENGLISH').trim();
+}
+
+/** Shared secret for inbound Hunar callbacks (ARCHITECTURE webhook secret). */
+export function getHunarWebhookSecret(): string {
+  return String(process.env.HUNAR_WEBHOOK_SECRET || '').trim();
+}
+
+export function getPublicApiBaseUrl(): string {
+  return String(
+    process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_BASE_URL || ''
+  )
+    .trim()
+    .replace(/\/$/, '');
 }
 
 export function isHunarConfigured(): boolean {

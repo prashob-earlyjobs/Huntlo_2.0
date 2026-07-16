@@ -1,3 +1,5 @@
+import { Search } from "lucide-react";
+
 import { apiClient } from "./client";
 import type { Invoice, PlanTier, UsageQuota } from "./contracts";
 import { createDomainService, simulateMockLatency } from "./service";
@@ -67,7 +69,8 @@ function mapUsageRows(rows: UsageMetricRow[]): UsageQuota[] {
       month: "short",
       year: "numeric",
     }),
-    icon: undefined as never,
+    // Icon is attached in PlansWorkspace from the mock catalog (with fallback).
+    icon: Search,
   }));
 }
 
@@ -124,8 +127,15 @@ const livePlansApi: PlansApi = {
     return result.data;
   },
   async getUsage() {
-    const result = await apiClient.get<UsageMetricRow[]>("/usage");
-    return mapUsageRows(result.data);
+    const result = await apiClient.get<UsageMetricRow[] | { items?: UsageMetricRow[] }>(
+      "/usage"
+    );
+    const rows = Array.isArray(result.data)
+      ? result.data
+      : Array.isArray(result.data?.items)
+        ? result.data.items
+        : [];
+    return mapUsageRows(rows);
   },
   async getUsageSummary() {
     const result = await apiClient.get<UsageSummary>("/usage/summary");

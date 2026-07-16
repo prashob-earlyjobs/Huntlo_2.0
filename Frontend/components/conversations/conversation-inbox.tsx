@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import {
@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { conversationsApi, getApiErrorMessage, templatesApi } from "@/lib/api";
 import {
   AI_DRAFT_SHORT,
   AI_DRAFT_TONES,
@@ -191,17 +192,58 @@ function EventBubble({ event }: { event: ConversationEvent }) {
 /* ------------------------------------------------------------------ */
 
 function AiDraftPanel({
+  conversationId,
   onInsert,
   onDiscard,
 }: {
+  conversationId: string;
   onInsert: (text: string) => void;
   onDiscard: () => void;
 }) {
   const [tone, setTone] = useState<AiDraftTone>("Friendly");
   const [short, setShort] = useState(false);
   const [generation, setGeneration] = useState(1);
+  const [draft, setDraft] = useState(() => AI_DRAFTS.Friendly);
+  const [busy, setBusy] = useState(false);
 
-  const draft = short ? AI_DRAFT_SHORT[tone] : AI_DRAFTS[tone];
+  async function loadDraft(nextTone: AiDraftTone = tone) {
+    setBusy(true);
+    try {
+      const result = await conversationsApi.aiDraft(conversationId, {
+        tone: nextTone,
+        channel: "email",
+        instructions: short ? "Keep it under 3 sentences." : undefined,
+      });
+      setDraft(result.body || (short ? AI_DRAFT_SHORT[nextTone] : AI_DRAFTS[nextTone]));
+      setGeneration((previous) => previous + 1);
+    } catch {
+      try {
+        const seed = short ? AI_DRAFT_SHORT[nextTone] : AI_DRAFTS[nextTone];
+        const result = (await templatesApi.rewrite({
+          action: "change_tone",
+          body: draft || seed,
+          tone: nextTone,
+          channel: "email",
+        })) as { draft?: { body?: string } };
+        setDraft(result.draft?.body || seed);
+        setGeneration((previous) => previous + 1);
+      } catch {
+        setDraft(short ? AI_DRAFT_SHORT[nextTone] : AI_DRAFTS[nextTone]);
+        setGeneration((previous) => previous + 1);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function regenerate(action: "rewrite" | "change_tone" | "shorten") {
+    if (action === "shorten") {
+      setShort(true);
+      await loadDraft(tone);
+      return;
+    }
+    await loadDraft(tone);
+  }
 
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3">
@@ -223,7 +265,10 @@ function AiDraftPanel({
             key={option}
             type="button"
             aria-pressed={tone === option}
-            onClick={() => setTone(option)}
+            onClick={() => {
+              setTone(option);
+              void loadDraft(option);
+            }}
             className={cn(
               "rounded-md px-2 py-0.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
               tone === option
@@ -239,8 +284,12 @@ function AiDraftPanel({
           type="button"
           size="xs"
           variant="outline"
+          disabled={busy}
           aria-pressed={short}
-          onClick={() => setShort((previous) => !previous)}
+          onClick={() => {
+            setShort((previous) => !previous);
+            void regenerate(short ? "rewrite" : "shorten");
+          }}
         >
           {short ? "Expand" : "Shorten"}
         </Button>
@@ -248,9 +297,11 @@ function AiDraftPanel({
           type="button"
           size="xs"
           variant="outline"
+          disabled={busy}
           onClick={() => {
             setTone("Professional");
             setShort(false);
+            void regenerate("change_tone");
           }}
         >
           Make more professional
@@ -259,9 +310,10 @@ function AiDraftPanel({
           type="button"
           size="xs"
           variant="outline"
-          onClick={() => setGeneration((previous) => previous + 1)}
+          disabled={busy}
+          onClick={() => void regenerate("rewrite")}
         >
-          Regenerate
+          {busy ? "Drafting…" : "Regenerate"}
         </Button>
       </div>
 
@@ -449,6 +501,7 @@ export function ConversationInbox({
   conversations: Conversation[];
   className?: string;
 }) {
+  const [items, setItems] = useState(conversations);
   const [selectedId, setSelectedId] = useState<string | null>(
     conversations[0]?.id ?? null
   );
@@ -465,9 +518,16 @@ export function ConversationInbox({
   const [addedNotes, setAddedNotes] = useState<Record<string, Conversation["notes"]>>({});
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  useEffect(() => {
+    setItems(conversations);
+    if (!selectedId && conversations[0]?.id) {
+      setSelectedId(conversations[0].id);
+    }
+  }, [conversations, selectedId]);
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return conversations.filter((conversation) => {
+    return items.filter((conversation) => {
       if (
         normalized &&
         !`${conversation.candidateName} ${conversation.campaignName} ${conversation.lastMessage}`
@@ -488,10 +548,10 @@ export function ConversationInbox({
         return false;
       return true;
     });
-  }, [conversations, query, channelFilter, replyFilter, qualFilter, unreadOnly, readIds]);
+  }, [items, query, channelFilter, replyFilter, qualFilter, unreadOnly, readIds]);
 
   const selected =
-    conversations.find((conversation) => conversation.id === selectedId) ?? null;
+    items.find((conversation) => conversation.id === selectedId) ?? null;
 
   const events = selected
     ? [...selected.events, ...(sentMessages[selected.id] ?? [])]
@@ -515,6 +575,19 @@ export function ConversationInbox({
     setComposer("");
     setAiDraftOpen(false);
     setComposerChannel(conversation.channels[0] ?? "Email");
+    void conversationsApi.markRead(conversation.id).then((updated) => {
+      if (updated && typeof updated === "object" && "id" in updated) {
+        setItems((previous) =>
+          previous.map((row) => (row.id === updated.id ? { ...row, ...updated, unread: false } : row))
+        );
+      } else {
+        setItems((previous) =>
+          previous.map((row) =>
+            row.id === conversation.id ? { ...row, unread: false } : row
+          )
+        );
+      }
+    }).catch(() => undefined);
   }
 
   function flash(text: string) {
@@ -522,23 +595,44 @@ export function ConversationInbox({
     window.setTimeout(() => setFeedback(null), 2200);
   }
 
-  function sendReply() {
+  async function sendReply() {
     if (!selected || !composer.trim()) return;
-    const message: ConversationEvent = {
-      id: `sent-${Date.now()}`,
-      channel: composerChannel,
-      author: "recruiter",
-      authorName: "Ananya Sharma",
-      text: composer.trim(),
-      time: "Just now",
-      delivery: "Sent",
-    };
-    setSentMessages((previous) => ({
-      ...previous,
-      [selected.id]: [...(previous[selected.id] ?? []), message],
-    }));
-    setComposer("");
-    setAiDraftOpen(false);
+    const text = composer.trim();
+    const channel =
+      composerChannel === "WhatsApp"
+        ? "whatsapp"
+        : composerChannel === "AI Voice"
+          ? "ai_voice"
+          : "email";
+    try {
+      const updated = await conversationsApi.reply(selected.id, {
+        text,
+        channel,
+      });
+      setItems((previous) =>
+        previous.map((row) => (row.id === updated.id ? updated : row))
+      );
+      setComposer("");
+      setAiDraftOpen(false);
+      flash("Reply sent.");
+    } catch (err) {
+      const message: ConversationEvent = {
+        id: `sent-${Date.now()}`,
+        channel: composerChannel,
+        author: "recruiter",
+        authorName: "You",
+        text,
+        time: "Just now",
+        delivery: "Sent",
+      };
+      setSentMessages((previous) => ({
+        ...previous,
+        [selected.id]: [...(previous[selected.id] ?? []), message],
+      }));
+      setComposer("");
+      setAiDraftOpen(false);
+      flash(getApiErrorMessage(err, "Reply saved locally."));
+    }
   }
 
   return (
@@ -716,6 +810,7 @@ export function ConversationInbox({
               ) : null}
               {aiDraftOpen ? (
                 <AiDraftPanel
+                  conversationId={selected.id}
                   onInsert={(text) => {
                     setComposer(
                       text.replaceAll(
@@ -739,7 +834,7 @@ export function ConversationInbox({
                 <Button
                   type="button"
                   size="xs"
-                  onClick={sendReply}
+                  onClick={() => void sendReply()}
                   disabled={!composer.trim()}
                 >
                   <Send aria-hidden />
@@ -805,20 +900,34 @@ export function ConversationInbox({
                       flash("Type the note text in the composer first.");
                       return;
                     }
-                    setAddedNotes((previous) => ({
-                      ...previous,
-                      [selected.id]: [
-                        ...(previous[selected.id] ?? []),
-                        {
-                          id: `note-${Date.now()}`,
-                          author: "Ananya Sharma",
-                          text: composer.trim(),
-                          time: "Just now",
-                        },
-                      ],
-                    }));
-                    setComposer("");
-                    flash("Note added to the candidate profile.");
+                    const text = composer.trim();
+                    void conversationsApi
+                      .addNote(selected.id, { text })
+                      .then((updated) => {
+                        setItems((previous) =>
+                          previous.map((row) =>
+                            row.id === updated.id ? updated : row
+                          )
+                        );
+                        setComposer("");
+                        flash("Note added.");
+                      })
+                      .catch(() => {
+                        setAddedNotes((previous) => ({
+                          ...previous,
+                          [selected.id]: [
+                            ...(previous[selected.id] ?? []),
+                            {
+                              id: `note-${Date.now()}`,
+                              author: "You",
+                              text,
+                              time: "Just now",
+                            },
+                          ],
+                        }));
+                        setComposer("");
+                        flash("Note added locally.");
+                      });
                   }}
                 >
                   <StickyNote aria-hidden />

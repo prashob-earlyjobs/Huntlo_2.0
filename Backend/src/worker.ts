@@ -5,6 +5,9 @@ import {
   processQueuedImportJobs,
 } from './modules/candidates/index.js';
 import { pollSourcingSessions } from './modules/sourcing/index.js';
+import { processDueCampaignJobs } from './modules/outreach/index.js';
+import { processDueAssessmentJobs } from './modules/assessments/index.js';
+import { processDueSchedulingJobs } from './modules/scheduling/index.js';
 import { registerProcessHandlers, shutdownGracefully } from './shared/process/handlers.js';
 
 const POLL_INTERVAL_MS = 5_000;
@@ -16,6 +19,9 @@ async function pollJobs(): Promise<void> {
   await pollSourcingSessions();
   await processQueuedBulkRevealJobs();
   await processQueuedImportJobs();
+  await processDueCampaignJobs();
+  await processDueAssessmentJobs();
+  await processDueSchedulingJobs();
 }
 
 async function startWorker(): Promise<void> {

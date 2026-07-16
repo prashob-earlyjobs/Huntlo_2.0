@@ -8,7 +8,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ErrorList, Field, StepCard } from "@/components/outreach/builder-ui";
 import type {
@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { templatesApi } from "@/lib/api";
 import {
   makeStep,
   MESSAGE_TEMPLATES,
@@ -53,13 +54,16 @@ function delaySummary(step: SequenceStep): string {
 function StepEditor({
   step,
   onChange,
+  templateOptions,
 }: {
   step: SequenceStep;
   onChange: (next: SequenceStep) => void;
+  templateOptions: string[];
 }) {
   const channel = STEP_CHANNELS[step.type];
   const isMessage = channel !== undefined;
   const isEmail = step.type === "Send Email";
+  const options = templateOptions.length > 0 ? templateOptions : [...MESSAGE_TEMPLATES];
 
   return (
     <div className="space-y-4 border-t border-border px-4 py-4">
@@ -101,7 +105,7 @@ function StepEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MESSAGE_TEMPLATES.map((template) => (
+                  {options.map((template) => (
                     <SelectItem key={template} value={template}>
                       {template}
                     </SelectItem>
@@ -234,7 +238,31 @@ export function SequenceStepBuilder({
   const [expanded, setExpanded] = useState<string | null>(
     state.steps[0]?.id ?? null
   );
+  const [templateOptions, setTemplateOptions] = useState<string[]>([
+    ...MESSAGE_TEMPLATES,
+  ]);
   const errors = showErrors ? stepErrors(3, state) : [];
+
+  useEffect(() => {
+    let cancelled = false;
+    void templatesApi
+      .list({ archived: false })
+      .then((items) => {
+        if (cancelled) return;
+        const names = [
+          "Blank message",
+          ...items.map((item) => item.name),
+          ...MESSAGE_TEMPLATES.filter((name) => name !== "Blank message"),
+        ];
+        setTemplateOptions([...new Set(names)]);
+      })
+      .catch(() => {
+        /* keep MESSAGE_TEMPLATES fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function setSteps(steps: BuilderState["steps"]) {
     update("steps", steps);
@@ -389,7 +417,13 @@ export function SequenceStepBuilder({
                     </div>
                   </div>
 
-                  {isOpen ? <StepEditor step={step} onChange={updateStep} /> : null}
+                  {isOpen ? (
+                    <StepEditor
+                      step={step}
+                      onChange={updateStep}
+                      templateOptions={templateOptions}
+                    />
+                  ) : null}
                 </div>
               </li>
             );

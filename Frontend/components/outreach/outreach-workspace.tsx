@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -64,10 +64,10 @@ import {
   CAMPAIGN_OWNERS,
   CAMPAIGN_STATUSES,
   CHANNEL_ICONS,
-  OUTREACH_CAMPAIGNS,
   OUTREACH_CHANNELS,
   type OutreachCampaign,
 } from "@/lib/mock-outreach";
+import { getApiErrorMessage, outreachApi } from "@/lib/api";
 import { campaignDetailPath, jobDetailPath, ROUTES } from "@/lib/routes";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -115,11 +115,32 @@ function percent(part: number, whole: number): string {
 function CampaignRowActions({
   campaign,
   onAction,
+  onUpdated,
+  onDeleted,
 }: {
   campaign: OutreachCampaign;
   onAction: (message: string) => void;
+  onUpdated: (campaign: OutreachCampaign) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function run(
+    action: () => Promise<OutreachCampaign | void>,
+    successMessage: string
+  ) {
+    setBusy(true);
+    try {
+      const result = await action();
+      if (result) onUpdated(result);
+      onAction(successMessage);
+    } catch (err) {
+      onAction(getApiErrorMessage(err, "Action failed."));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -130,6 +151,7 @@ function CampaignRowActions({
               size="icon-sm"
               variant="ghost"
               aria-label={`Actions for ${campaign.name}`}
+              disabled={busy}
             />
           }
         >
@@ -144,21 +166,36 @@ function CampaignRowActions({
           </DropdownMenuItem>
           {campaign.status === "Running" ? (
             <DropdownMenuItem
-              onClick={() => onAction(`Paused “${campaign.name}”.`)}
+              onClick={() =>
+                void run(
+                  () => outreachApi.pauseCampaign(campaign.id),
+                  `Paused “${campaign.name}”.`
+                )
+              }
             >
               <Pause aria-hidden />
               Pause
             </DropdownMenuItem>
           ) : campaign.status === "Paused" ? (
             <DropdownMenuItem
-              onClick={() => onAction(`Resumed “${campaign.name}”.`)}
+              onClick={() =>
+                void run(
+                  () => outreachApi.resumeCampaign(campaign.id),
+                  `Resumed “${campaign.name}”.`
+                )
+              }
             >
               <Play aria-hidden />
               Resume
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem
-            onClick={() => onAction(`Duplicated “${campaign.name}” as a draft.`)}
+            onClick={() =>
+              void run(
+                () => outreachApi.duplicateCampaign(campaign.id),
+                `Duplicated “${campaign.name}” as a draft.`
+              )
+            }
           >
             <Copy aria-hidden />
             Duplicate
@@ -188,7 +225,10 @@ function CampaignRowActions({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 setConfirmDelete(false);
-                onAction(`Deleted “${campaign.name}”.`);
+                void run(async () => {
+                  await outreachApi.deleteCampaign(campaign.id);
+                  onDeleted(campaign.id);
+                }, `Deleted “${campaign.name}”.`);
               }}
             >
               Delete campaign
@@ -200,7 +240,14 @@ function CampaignRowActions({
   );
 }
 
-export function OutreachWorkspace() {
+export function OutreachWorkspace({
+  campaigns: initialCampaigns,
+  onCampaignsChange,
+}: {
+  campaigns: OutreachCampaign[];
+  onCampaignsChange?: (campaigns: OutreachCampaign[]) => void;
+}) {
+  const [campaigns, setCampaigns] = useState(initialCampaigns);
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -209,15 +256,29 @@ export function OutreachWorkspace() {
   const [dateRange, setDateRange] = useState("any");
   const [message, setMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    setCampaigns(initialCampaigns);
+  }, [initialCampaigns]);
+
+  function setAll(next: OutreachCampaign[]) {
+    setCampaigns(next);
+    onCampaignsChange?.(next);
+  }
+
   const jobOptions = useMemo(() => {
     const titles = new Map<string, string>();
-    OUTREACH_CAMPAIGNS.forEach((campaign) => {
+    campaigns.forEach((campaign) => {
       if (campaign.relatedJobId && campaign.relatedJobTitle) {
         titles.set(campaign.relatedJobId, campaign.relatedJobTitle);
       }
     });
     return Array.from(titles, ([id, label]) => ({ id, label }));
-  }, []);
+  }, [campaigns]);
+
+  const ownerOptions = useMemo(() => {
+    const owners = new Set(campaigns.map((c) => c.owner));
+    return Array.from(owners).map((owner) => ({ id: owner, label: owner }));
+  }, [campaigns]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
     return (id: string) =>
@@ -231,7 +292,7 @@ export function OutreachWorkspace() {
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const maxDays = DATE_RANGE_DAYS[dateRange] ?? Infinity;
-    return OUTREACH_CAMPAIGNS.filter((campaign) => {
+    return campaigns.filter((campaign) => {
       if (
         normalized &&
         !`${campaign.name} ${campaign.relatedJobTitle ?? ""}`
@@ -256,7 +317,15 @@ export function OutreachWorkspace() {
       if (campaign.createdDaysAgo > maxDays) return false;
       return true;
     });
-  }, [query, channelFilter, statusFilter, jobFilter, ownerFilter, dateRange]);
+  }, [
+    campaigns,
+    query,
+    channelFilter,
+    statusFilter,
+    jobFilter,
+    ownerFilter,
+    dateRange,
+  ]);
 
   const hasFilters =
     Boolean(query) ||
@@ -319,7 +388,7 @@ export function OutreachWorkspace() {
             />
             <FilterPopover
               label="Owner"
-              options={toOptions(CAMPAIGN_OWNERS)}
+              options={ownerOptions.length > 0 ? ownerOptions : toOptions(CAMPAIGN_OWNERS)}
               selected={ownerFilter}
               onToggle={toggle(setOwnerFilter)}
             />
@@ -449,7 +518,21 @@ export function OutreachWorkspace() {
                       {campaign.lastActivity}
                     </TableCell>
                     <TableCell className="py-2.5 text-right">
-                      <CampaignRowActions campaign={campaign} onAction={flash} />
+                      <CampaignRowActions
+                        campaign={campaign}
+                        onAction={flash}
+                        onUpdated={(next) => {
+                          const exists = campaigns.some((c) => c.id === next.id);
+                          setAll(
+                            exists
+                              ? campaigns.map((c) => (c.id === next.id ? next : c))
+                              : [next, ...campaigns]
+                          );
+                        }}
+                        onDeleted={(id) =>
+                          setAll(campaigns.filter((c) => c.id !== id))
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

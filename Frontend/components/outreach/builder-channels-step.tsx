@@ -28,7 +28,7 @@ const CONNECTION_CLASSES: Record<ChannelConnection, string> = {
 
 const CHANNEL_PROVIDERS: Record<OutreachChannel, string[]> = {
   Email: ["gmail", "outlook", "zoho-mail", "smtp"],
-  WhatsApp: ["meta-whatsapp", "gupshup", "huntlo-whatsapp"],
+  WhatsApp: ["huntlo-whatsapp", "meta-whatsapp", "gupshup"],
   "AI Voice": ["hunar"],
 };
 

@@ -269,6 +269,44 @@ describe('Shared quota concurrency', () => {
     expect(view.used).toBe(0);
   });
 
+  it('re-reserves the same idempotency key after a release without duplicate-key errors', async () => {
+    const org = await OrganizationModel.create({
+      name: 'Rereserve Quota',
+      slug: `rr-${Date.now()}`,
+      initials: 'RR',
+      plan: 'Starter',
+    });
+    const orgId = org._id.toHexString();
+    const key = 'reveal:org:user:candidate:email';
+
+    await quotaService.reserveUsage({
+      organizationId: orgId,
+      metric: 'email_reveal',
+      quantity: 2,
+      idempotencyKey: key,
+    });
+    await quotaService.releaseUsage({
+      organizationId: orgId,
+      metric: 'email_reveal',
+      idempotencyKey: key,
+    });
+
+    const again = await quotaService.reserveUsage({
+      organizationId: orgId,
+      metric: 'email_reveal',
+      quantity: 2,
+      idempotencyKey: key,
+    });
+    expect(again.reservationId).toBeTruthy();
+
+    const view = (await quotaService.getUsage(orgId, 'email_reveal')) as {
+      reserved: number;
+      used: number;
+    };
+    expect(view.reserved).toBe(2);
+    expect(view.used).toBe(0);
+  });
+
   it('returns structured quota meta on 429', async () => {
     const org = await OrganizationModel.create({
       name: 'Meta Quota',

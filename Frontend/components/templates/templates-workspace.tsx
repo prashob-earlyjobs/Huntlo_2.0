@@ -18,7 +18,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -60,10 +60,10 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { getApiErrorMessage, templatesApi } from "@/lib/api";
 import { PERSONALIZATION_VARIABLES } from "@/lib/mock-outreach";
 import {
   TEMPLATE_TYPES,
-  TEMPLATES,
   type OutreachTemplate,
   type TemplateType,
 } from "@/lib/mock-templates";
@@ -108,12 +108,17 @@ function TemplateBody({ body, className }: { body: string; className?: string })
   );
 }
 
-function CreateTemplateDialog() {
+function CreateTemplateDialog({
+  onCreated,
+}: {
+  onCreated: (template: OutreachTemplate) => void;
+}) {
   const [name, setName] = useState("");
   const [type, setType] = useState<TemplateType>("Email");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState(false);
 
   return (
@@ -217,14 +222,35 @@ function CreateTemplateDialog() {
           <Button
             type="button"
             size="sm"
+            disabled={busy}
             onClick={() => {
-              if (!name.trim()) {
-                setError("Template name is required.");
-                return;
-              }
-              setError(null);
-              setCreated(true);
-              window.setTimeout(() => setCreated(false), 1600);
+              void (async () => {
+                if (!name.trim()) {
+                  setError("Template name is required.");
+                  return;
+                }
+                if (!body.trim()) {
+                  setError("Template body is required.");
+                  return;
+                }
+                setBusy(true);
+                setError(null);
+                try {
+                  const template = await templatesApi.create({
+                    name: name.trim(),
+                    type,
+                    subject: type === "Email" ? subject : null,
+                    body: body.trim(),
+                  });
+                  setCreated(true);
+                  onCreated(template);
+                  window.setTimeout(() => setCreated(false), 1600);
+                } catch (err) {
+                  setError(getApiErrorMessage(err));
+                } finally {
+                  setBusy(false);
+                }
+              })();
             }}
           >
             {created ? (
@@ -232,6 +258,8 @@ function CreateTemplateDialog() {
                 <Check aria-hidden />
                 Template created
               </>
+            ) : busy ? (
+              "Creating…"
             ) : (
               "Create Template"
             )}
@@ -243,33 +271,45 @@ function CreateTemplateDialog() {
 }
 
 export function TemplatesWorkspace() {
+  const [templates, setTemplates] = useState<OutreachTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
-  const [archivedOverrides, setArchivedOverrides] = useState<Record<string, boolean>>({});
   const [preview, setPreview] = useState<OutreachTemplate | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  function isArchived(template: OutreachTemplate): boolean {
-    return archivedOverrides[template.id] ?? template.archived;
+  async function refresh() {
+    try {
+      const items = await templatesApi.list({ archived: showArchived });
+      setTemplates(items);
+    } catch (error) {
+      setFeedback(getApiErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
   }
+
+  useEffect(() => {
+    setLoading(true);
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showArchived]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return TEMPLATES.filter((template) => {
-      const archived = archivedOverrides[template.id] ?? template.archived;
-      if (archived !== showArchived) return false;
-      if (typeFilter.length > 0 && !typeFilter.includes(template.type))
-        return false;
+    return templates.filter((template) => {
+      if (typeFilter.length > 0 && !typeFilter.includes(template.type)) return false;
       if (
         normalized &&
         !`${template.name} ${template.body}`.toLowerCase().includes(normalized)
-      )
+      ) {
         return false;
+      }
       return true;
     });
-  }, [query, typeFilter, showArchived, archivedOverrides]);
+  }, [query, typeFilter, templates]);
 
   function flash(text: string) {
     setFeedback(text);
@@ -278,7 +318,6 @@ export function TemplatesWorkspace() {
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
@@ -329,10 +368,19 @@ export function TemplatesWorkspace() {
                 Reset
               </Button>
             ) : null}
-            <CreateTemplateDialog />
+            <CreateTemplateDialog
+              onCreated={(template) => {
+                setTemplates((previous) => [template, ...previous]);
+                flash(`Created “${template.name}”.`);
+              }}
+            />
           </div>
         </div>
       </section>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading templates…</p>
+      ) : null}
 
       {feedback ? (
         <p
@@ -343,7 +391,6 @@ export function TemplatesWorkspace() {
         </p>
       ) : null}
 
-      {/* Grid */}
       {filtered.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((template) => {
@@ -388,13 +435,15 @@ export function TemplatesWorkspace() {
                         Preview
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => flash(`Editing “${template.name}”. (UI preview)`)}
-                      >
-                        <Pencil aria-hidden />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => flash(`Duplicated “${template.name}”.`)}
+                        onClick={() => {
+                          void templatesApi
+                            .duplicate(template.id)
+                            .then((copy) => {
+                              setTemplates((previous) => [copy, ...previous]);
+                              flash(`Duplicated “${template.name}”.`);
+                            })
+                            .catch((error) => flash(getApiErrorMessage(error)));
+                        }}
                       >
                         <Copy aria-hidden />
                         Duplicate
@@ -402,19 +451,22 @@ export function TemplatesWorkspace() {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => {
-                          const archived = isArchived(template);
-                          setArchivedOverrides((previous) => ({
-                            ...previous,
-                            [template.id]: !archived,
-                          }));
-                          flash(
-                            archived
-                              ? `Restored “${template.name}”.`
-                              : `Archived “${template.name}”.`
-                          );
+                          void templatesApi
+                            .update(template.id, {
+                              status: template.archived ? "active" : "archived",
+                            })
+                            .then(() => {
+                              flash(
+                                template.archived
+                                  ? `Restored “${template.name}”.`
+                                  : `Archived “${template.name}”.`
+                              );
+                              void refresh();
+                            })
+                            .catch((error) => flash(getApiErrorMessage(error)));
                         }}
                       >
-                        {isArchived(template) ? (
+                        {template.archived ? (
                           <>
                             <ArchiveRestore aria-hidden />
                             Restore
@@ -442,71 +494,51 @@ export function TemplatesWorkspace() {
                 <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3 text-[11px] text-muted-foreground">
                   <span>
                     Used in{" "}
-                    <span className="font-medium tabular-nums text-foreground">
+                    <span className="font-medium text-foreground">
                       {template.usedInCampaigns}
                     </span>{" "}
                     campaigns
                   </span>
-                  <span>Updated {template.updated}</span>
+                  <span>{template.updated}</span>
                 </div>
               </article>
             );
           })}
         </div>
-      ) : (
+      ) : !loading ? (
         <EmptyState
           icon={FileText}
-          title={showArchived ? "No archived templates" : "No templates match"}
+          title={showArchived ? "No archived templates" : "No templates yet"}
           description={
             showArchived
-              ? "Archived templates will appear here."
-              : "Adjust your search or create a new template."
+              ? "Archived templates will show up here."
+              : "Create a reusable message template for outreach campaigns."
           }
         />
-      )}
+      ) : null}
 
-      {/* Preview drawer */}
       <Sheet open={previewOpen} onOpenChange={setPreviewOpen}>
-        <SheetContent
-          side="right"
-          className="w-full gap-0 bg-card p-0 max-sm:max-w-full sm:max-w-md"
-        >
+        <SheetContent side="right" className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{preview?.name ?? "Template"}</SheetTitle>
+            <SheetDescription>
+              {preview ? `${preview.type} · ${preview.owner}` : null}
+            </SheetDescription>
+          </SheetHeader>
           {preview ? (
-            <>
-              <SheetHeader className="border-b border-border pb-3">
-                <SheetTitle>{preview.name}</SheetTitle>
-                <SheetDescription>
-                  {preview.type} · by {preview.owner} · updated {preview.updated}
-                </SheetDescription>
-              </SheetHeader>
-              <ScrollArea className="min-h-0 flex-1">
-                <div className="space-y-4 p-4">
-                  {preview.subject ? (
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground">
-                        Subject
-                      </p>
-                      <TemplateBody body={preview.subject} className="mt-1" />
-                    </div>
-                  ) : null}
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground">
-                      Body
-                    </p>
-                    <div className="mt-1 rounded-lg border border-border bg-muted/30 p-3">
-                      <TemplateBody body={preview.body} />
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Placeholders resolve per candidate at send time — e.g.{" "}
-                    <span className="font-mono text-primary">
-                      {"{{first_name}}"}
-                    </span>{" "}
-                    becomes “Priya”.
-                  </p>
-                </div>
-              </ScrollArea>
-            </>
+            <ScrollArea className="h-[calc(100vh-8rem)] px-4 pb-6">
+              {preview.subject ? (
+                <p className="mb-3 text-sm font-medium text-foreground">
+                  Subject: {preview.subject}
+                </p>
+              ) : null}
+              <TemplateBody body={preview.body} />
+              {preview.variables?.length ? (
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Variables: {preview.variables.map((v) => `{{${v}}}`).join(", ")}
+                </p>
+              ) : null}
+            </ScrollArea>
           ) : null}
         </SheetContent>
       </Sheet>

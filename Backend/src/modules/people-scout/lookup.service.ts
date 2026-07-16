@@ -23,6 +23,7 @@ import {
   extractMatchOptionsFromFjData,
   extractSafeSnapshotFromFjProfile,
   pickPreferredLinkedinUrl,
+  pickRevealLinkedinUrl,
   snapshotHasValidProfile,
 } from './lookup.mapper.js';
 import {
@@ -579,7 +580,7 @@ export class PeopleScoutLookupService {
       throw AppError.badRequest('Contact reveal requires a found profile');
     }
 
-    const linkedinUrl = pickPreferredLinkedinUrl({
+    const linkedinUrl = pickRevealLinkedinUrl({
       flagshipUrl: lookup.candidateSnapshot?.linkedinFlagshipUrl,
       profileUrl: lookup.candidateSnapshot?.linkedinProfileUrl,
       username: lookup.candidateSnapshot?.linkedinUsername,

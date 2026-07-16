@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import {
@@ -10,13 +10,12 @@ import {
   type FilterOption,
 } from "@/components/shared/filter-popover";
 import { Button } from "@/components/ui/button";
+import { schedulingApi } from "@/lib/api";
 import {
   CALENDAR_TODAY,
   formatDateKey,
   INTERVIEW_STATUSES,
   INTERVIEW_TYPES,
-  INTERVIEWS,
-  interviewsOnDate,
   monthGrid,
   SCHEDULE_INTERVIEWERS,
   SCHEDULE_RECRUITERS,
@@ -106,14 +105,30 @@ export function CalendarWorkspace() {
   const [jobFilter, setJobFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await schedulingApi.listInterviews();
+        if (!cancelled) setInterviews(rows);
+      } catch {
+        // Keep empty calendar when API unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const jobOptions = useMemo(() => {
     const titles = new Map<string, string>();
-    INTERVIEWS.forEach((interview) => {
+    interviews.forEach((interview) => {
       if (interview.jobId) titles.set(interview.jobId, interview.jobTitle);
     });
     return Array.from(titles, ([id, label]) => ({ id, label }));
-  }, []);
+  }, [interviews]);
 
   function matches(interview: Interview): boolean {
     if (
@@ -138,7 +153,9 @@ export function CalendarWorkspace() {
   }
 
   function forDate(dateKey: string): Interview[] {
-    return interviewsOnDate(dateKey).filter(matches);
+    return interviews
+      .filter((interview) => interview.dateKey === dateKey)
+      .filter(matches);
   }
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
@@ -171,7 +188,7 @@ export function CalendarWorkspace() {
   const cells = monthGrid(year, month);
 
   const agenda = useMemo(() => {
-    return INTERVIEWS.filter((interview) => {
+    return interviews.filter((interview) => {
       if (
         recruiterFilter.length > 0 &&
         !recruiterFilter.includes(interview.recruiter)
@@ -201,6 +218,7 @@ export function CalendarWorkspace() {
       return true;
     }).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
   }, [
+    interviews,
     recruiterFilter,
     interviewerFilter,
     jobFilter,

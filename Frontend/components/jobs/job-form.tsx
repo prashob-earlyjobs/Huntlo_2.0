@@ -67,6 +67,7 @@ interface JobFormState {
   screeningObjective: string;
   knockoutQuestions: string;
   aiScreeningEnabled: boolean;
+  assessmentEnabled: boolean;
   evaluationFields: string[];
   priority: string;
   targetClosingDate: string;
@@ -102,6 +103,7 @@ const INITIAL_STATE: JobFormState = {
   screeningObjective: "",
   knockoutQuestions: "",
   aiScreeningEnabled: true,
+  assessmentEnabled: false,
   evaluationFields: ["Role fit", "Communication clarity", "Notice period"],
   priority: "Medium",
   targetClosingDate: "",
@@ -278,6 +280,7 @@ export function JobForm() {
         salaryVisibility: form.salaryVisibility,
         openings: Number(form.openings) || 1,
         aiScreeningEnabled: form.aiScreeningEnabled,
+        assessmentEnabled: form.assessmentEnabled,
         priority: form.priority.toLowerCase(),
         targetClosingDate: form.targetClosingDate || null,
         tags: form.tags
@@ -821,6 +824,37 @@ export function JobForm() {
                 )}
               />
               <span className="sr-only">Toggle AI screening</span>
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Skills assessments enabled
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Allow assessment campaigns and scorecards for candidates on this job.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.assessmentEnabled}
+              onClick={() =>
+                update("assessmentEnabled", !form.assessmentEnabled)
+              }
+              className={cn(
+                "relative h-7 w-12 rounded-full transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                form.assessmentEnabled ? "bg-primary" : "bg-muted"
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute top-0.5 left-0.5 size-6 rounded-full bg-background shadow transition-transform",
+                  form.assessmentEnabled && "translate-x-5"
+                )}
+              />
+              <span className="sr-only">Toggle skills assessments</span>
             </button>
           </div>
           <div className="space-y-2">

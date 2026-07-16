@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   AudioLines,
+  ClipboardList,
   Link2,
   Mail,
   MessageCircle,
@@ -111,6 +112,15 @@ export const USAGE_QUOTAS: UsageQuota[] = [
     unit: "min",
     resetDate: "1 Aug 2026",
     icon: AudioLines,
+  },
+  {
+    id: "assessments",
+    label: "Assessment invites",
+    description: "Invites sent for skills assessments",
+    used: 40,
+    limit: 200,
+    resetDate: "1 Aug 2026",
+    icon: ClipboardList,
   },
   {
     id: "team",

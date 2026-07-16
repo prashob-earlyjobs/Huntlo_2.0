@@ -49,3 +49,61 @@ export type BulkRevealProgressPayload = {
 export function emitBulkRevealProgress(payload: BulkRevealProgressPayload): void {
   emitRealtime('candidates.reveal.bulk', payload);
 }
+
+export type ConversationMessageCreatedPayload = {
+  organizationId: string;
+  threadId: string;
+  messageId: string;
+  campaignId: string | null;
+  candidateId: string;
+  direction: string;
+  channel: string;
+};
+
+export function emitConversationMessageCreated(
+  payload: ConversationMessageCreatedPayload
+): void {
+  emitRealtime('conversation.message.created', payload);
+}
+
+export type CampaignThreadUpdatedPayload = {
+  organizationId: string;
+  campaignId: string | null;
+  threadId: string;
+  status: string;
+  unreadCount: number;
+  qualificationStatus: string;
+};
+
+export function emitCampaignThreadUpdated(payload: CampaignThreadUpdatedPayload): void {
+  emitRealtime('campaign.thread.updated', payload);
+}
+
+export type ConversationQualificationUpdatedPayload = {
+  organizationId: string;
+  threadId: string;
+  qualificationStatus: string;
+  interest?: string | null;
+  source: 'ai' | 'recruiter';
+};
+
+export function emitConversationQualificationUpdated(
+  payload: ConversationQualificationUpdatedPayload
+): void {
+  emitRealtime('conversation.qualification.updated', payload);
+}
+
+export type ScreeningResultUpdatedPayload = {
+  organizationId: string;
+  screeningId: string;
+  resultId: string;
+  candidateId: string;
+  callStatus: string;
+  overallScore: number | null;
+  recommendation: string | null;
+  recruiterDecision: string;
+};
+
+export function emitScreeningResultUpdated(payload: ScreeningResultUpdatedPayload): void {
+  emitRealtime('screening.result.updated', payload);
+}

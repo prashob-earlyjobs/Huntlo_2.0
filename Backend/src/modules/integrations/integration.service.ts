@@ -28,6 +28,7 @@ import {
   maskIntegrationSecrets,
 } from './credentials.js';
 import { OAuthStateModel } from './oauth-state.model.js';
+import { huntloWhatsAppProvider } from './providers/huntlo-whatsapp.provider.js';
 import {
   INTEGRATION_PROVIDERS,
   PROVIDER_CATEGORY,
@@ -50,6 +51,12 @@ const EMAIL_PROVIDERS: IntegrationProviderId[] = [
   'outlook',
   'zoho-mail',
   'smtp',
+];
+
+const WHATSAPP_PROVIDERS: IntegrationProviderId[] = [
+  'huntlo-whatsapp',
+  'meta-whatsapp',
+  'gupshup',
 ];
 
 const OAUTH_REDIRECT_PROVIDERS: IntegrationProviderId[] = ['outlook', 'zoho-mail'];
@@ -198,17 +205,92 @@ async function clearDefaultForCategory(
 }
 
 async function ensureDefaultOnConnect(doc: UserIntegrationDocument) {
-  if (!EMAIL_PROVIDERS.includes(doc.provider)) return;
+  const isEmail = EMAIL_PROVIDERS.includes(doc.provider);
+  const isWhatsApp = WHATSAPP_PROVIDERS.includes(doc.provider);
+  if (!isEmail && !isWhatsApp) return;
+
+  // Huntlo WhatsApp is always the preferred default when connected.
+  if (doc.provider === 'huntlo-whatsapp') {
+    await clearDefaultForCategory(
+      String(doc.organizationId),
+      String(doc.userId),
+      'whatsapp',
+      String(doc._id)
+    );
+    doc.isDefault = true;
+    await doc.save();
+    return;
+  }
+
   const existingDefault = await UserIntegrationModel.findOne({
     organizationId: doc.organizationId,
     userId: doc.userId,
-    category: 'email',
+    category: doc.category,
     isDefault: true,
     status: { $in: ['connected', 'needs_attention', 'testing'] },
   }).lean();
   if (!existingDefault) {
     doc.isDefault = true;
     await doc.save();
+  }
+}
+
+/**
+ * When platform Huntlo WhatsApp credentials are configured, auto-connect them
+ * for users who have no WhatsApp connection yet, and keep Huntlo as default.
+ */
+async function ensureHuntloWhatsAppDefault(organizationId: string, userId: string) {
+  if (!isHuntloWhatsAppConfigured()) return;
+
+  const huntlo = await UserIntegrationModel.findOne({
+    organizationId,
+    userId,
+    provider: 'huntlo-whatsapp',
+  });
+
+  if (huntlo && huntlo.status === 'connected') {
+    const defaultWa = await UserIntegrationModel.findOne({
+      organizationId,
+      userId,
+      category: 'whatsapp',
+      isDefault: true,
+      status: { $in: ['connected', 'needs_attention', 'testing'] },
+    }).lean();
+    if (!defaultWa) {
+      await clearDefaultForCategory(organizationId, userId, 'whatsapp', String(huntlo._id));
+      huntlo.isDefault = true;
+      await huntlo.save();
+    }
+    return;
+  }
+
+  const anyConnected = await UserIntegrationModel.findOne({
+    organizationId,
+    userId,
+    category: 'whatsapp',
+    status: { $in: ['connected', 'needs_attention', 'testing'] },
+  }).lean();
+  if (anyConnected) return;
+
+  try {
+    if (typeof huntloWhatsAppProvider.connect !== 'function') return;
+    const result = await huntloWhatsAppProvider.connect(
+      { organizationId, userId },
+      {}
+    );
+    if (result.mode !== 'connected' || !result.tokens) return;
+
+    const doc = await findOrCreateIntegration({
+      organizationId,
+      userId,
+      provider: 'huntlo-whatsapp',
+    });
+    await persistTokens(doc, result.tokens);
+    await clearDefaultForCategory(organizationId, userId, 'whatsapp', String(doc._id));
+    doc.isDefault = true;
+    await doc.save();
+  } catch {
+    // Platform WhatsApp unavailable — leave catalog disconnected.
   }
 }
 
@@ -311,6 +393,8 @@ function wrapProviderError(error: unknown): never {
 
 export const integrationsService = {
   async list(organizationId: string, userId: string, query?: { category?: string }) {
+    await ensureHuntloWhatsAppDefault(organizationId, userId);
+
     const filter: Record<string, unknown> = { organizationId, userId };
     if (query?.category) filter.category = query.category;
 
@@ -681,13 +765,24 @@ export const integrationsService = {
     doc.errorMessage = null;
     await doc.save();
 
-    if (wasDefault && EMAIL_PROVIDERS.includes(provider)) {
-      const next = await UserIntegrationModel.findOne({
-        organizationId,
-        userId,
-        category,
-        status: 'connected',
-      }).sort({ updatedAt: -1 });
+    if (
+      wasDefault &&
+      (EMAIL_PROVIDERS.includes(provider) || WHATSAPP_PROVIDERS.includes(provider))
+    ) {
+      const next =
+        (await UserIntegrationModel.findOne({
+          organizationId,
+          userId,
+          category,
+          status: 'connected',
+          provider: 'huntlo-whatsapp',
+        })) ||
+        (await UserIntegrationModel.findOne({
+          organizationId,
+          userId,
+          category,
+          status: 'connected',
+        }).sort({ updatedAt: -1 }));
       if (next) {
         next.isDefault = true;
         await next.save();

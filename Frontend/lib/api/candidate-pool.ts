@@ -46,6 +46,8 @@ export type ApiPoolCandidate = {
   pipelineStatus: string;
   sourceType?: string;
   source?: string;
+  sourceId?: string | null;
+  externalCandidateId?: string | null;
   ownerUserId?: string | null;
   owner?: string | null;
   assignedUserId?: string | null;
@@ -223,6 +225,9 @@ function mapUiVisibilityToApi(visibility: string): string {
 
 export interface CandidatePoolApi {
   list(params?: PoolListParams): Promise<PoolCandidate[]>;
+  /** Unmapped pool rows (LinkedIn URL, external IDs, contact fields). */
+  listRaw(params?: PoolListParams): Promise<ApiPoolCandidate[]>;
+  getOverview(): Promise<PoolOverview>;
   getById(id: string): Promise<PoolCandidate | null>;
   create(input: Record<string, unknown>): Promise<PoolCandidate>;
   update(id: string, input: Record<string, unknown>): Promise<PoolCandidate>;
@@ -232,7 +237,10 @@ export interface CandidatePoolApi {
   bulkAddToList(candidateIds: string[], listId: string): Promise<{ updated: number }>;
   bulkRemoveFromList(candidateIds: string[], listId: string): Promise<{ updated: number }>;
   bulkArchive(candidateIds: string[]): Promise<{ updated: number }>;
-  bulkExport(candidateIds: string[]): Promise<{ csv: string } | { items: unknown[] }>;
+  bulkExport(
+    candidateIds?: string[],
+    options?: { listId?: string; format?: "csv" | "json" }
+  ): Promise<{ csv: string } | { items: unknown[] }>;
   listNotes(candidateId: string): Promise<CandidateNote[]>;
   addNote(candidateId: string, body: string): Promise<CandidateNote>;
   listLists(): Promise<SavedList[]>;
@@ -258,10 +266,59 @@ export interface CandidatePoolApi {
   getImportErrors(id: string): Promise<ImportJob["errors"]>;
 }
 
+export type PoolOverview = {
+  totalCandidates: number;
+  inOutreach: number;
+  screening: number;
+  shortlisted: number;
+  interviews: number;
+  byStatus: Record<string, number>;
+};
+
 const mockApi: CandidatePoolApi = {
   async list() {
     await simulateMockLatency();
     return POOL_CANDIDATES;
+  },
+  async listRaw() {
+    await simulateMockLatency();
+    return POOL_CANDIDATES.map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      email: candidate.email || null,
+      phone: candidate.phone || null,
+      linkedinUrl: null,
+      headline: candidate.headline || null,
+      currentTitle: candidate.currentRole,
+      currentCompany: candidate.currentCompany,
+      location: candidate.location,
+      experienceYears: candidate.experienceYears,
+      skills: candidate.skills,
+      tags: [],
+      status: "saved",
+      pipelineStatus: candidate.pipelineStatus,
+      sourceType: "manual",
+      emailRevealed: candidate.emailRevealed,
+      phoneRevealed: candidate.phoneRevealed,
+    }));
+  },
+  async getOverview() {
+    await simulateMockLatency();
+    return {
+      totalCandidates: POOL_CANDIDATES.length,
+      inOutreach: POOL_CANDIDATES.filter((c) =>
+        ["Contacted", "Interested"].includes(c.pipelineStatus)
+      ).length,
+      screening: POOL_CANDIDATES.filter((c) => c.pipelineStatus === "Screening")
+        .length,
+      shortlisted: POOL_CANDIDATES.filter(
+        (c) => c.pipelineStatus === "Shortlisted"
+      ).length,
+      interviews: POOL_CANDIDATES.filter(
+        (c) => c.pipelineStatus === "Interview Scheduled"
+      ).length,
+      byStatus: {},
+    };
   },
   async getById(id) {
     await simulateMockLatency();
@@ -310,9 +367,14 @@ const mockApi: CandidatePoolApi = {
     await simulateMockLatency();
     return { updated: 1 };
   },
-  async bulkExport() {
+  async bulkExport(candidateIds = [], options) {
     await simulateMockLatency();
-    return { csv: "name,email\n" };
+    const header = "name,email\n";
+    const rows =
+      candidateIds.length > 0
+        ? candidateIds.map((id) => `${id},`).join("\n")
+        : "exported,\n";
+    return { csv: header + rows };
   },
   async listNotes() {
     await simulateMockLatency();
@@ -420,11 +482,19 @@ const mockApi: CandidatePoolApi = {
 
 const liveApi: CandidatePoolApi = {
   async list(params) {
+    const rows = await this.listRaw(params);
+    return rows.map(mapApiPoolCandidateToUi);
+  },
+  async listRaw(params) {
     const qs = buildQueryString(params ?? {});
     const result = await apiClient.get<{ items: ApiPoolCandidate[] }>(
       `/candidate-pool${qs}`
     );
-    return (result.data.items ?? []).map(mapApiPoolCandidateToUi);
+    return result.data.items ?? [];
+  },
+  async getOverview() {
+    const result = await apiClient.get<PoolOverview>("/candidate-pool/overview");
+    return result.data;
   },
   async getById(id) {
     try {
@@ -494,10 +564,14 @@ const liveApi: CandidatePoolApi = {
     );
     return result.data;
   },
-  async bulkExport(candidateIds) {
+  async bulkExport(candidateIds = [], options) {
     const result = await apiClient.post<{ csv?: string; items?: unknown[] }>(
       "/candidate-pool/bulk/export",
-      { ids: candidateIds },
+      {
+        ids: candidateIds.length > 0 ? candidateIds : undefined,
+        listId: options?.listId,
+        format: options?.format ?? "csv",
+      },
       { sensitive: false }
     );
     return result.data as { csv: string } | { items: unknown[] };

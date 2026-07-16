@@ -4,6 +4,7 @@ import {
   CalendarCheck2,
   CalendarClock,
   ExternalLink,
+  Link2,
   MapPin,
   RefreshCw,
   Send,
@@ -13,34 +14,73 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { getApiErrorMessage, schedulingApi } from "@/lib/api";
 import {
   getActivity,
   getNotes,
   getReminders,
   type Interview,
-  type InterviewStatus,
 } from "@/lib/mock-schedule";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
 
-export function InterviewDetail({ interview }: { interview: Interview }) {
-  const [status, setStatus] = useState<InterviewStatus>(interview.status);
+export function InterviewDetail({
+  interview: initial,
+  onInterviewChange,
+}: {
+  interview: Interview;
+  onInterviewChange?: (next: Interview) => void;
+}) {
+  const [interview, setInterview] = useState(initial);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [notes, setNotes] = useState(getNotes(interview.id));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notes, setNotes] = useState(getNotes(initial.id));
   const [noteDraft, setNoteDraft] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleAt, setRescheduleAt] = useState("");
+
+  useEffect(() => {
+    setInterview(initial);
+    setNotes(getNotes(initial.id));
+  }, [initial]);
 
   const reminders = getReminders(interview.id);
   const activity = getActivity(interview.id);
 
   function flash(text: string) {
     setFeedback(text);
+    setError(null);
     window.setTimeout(() => setFeedback(null), 2400);
+  }
+
+  function apply(next: Interview, message: string) {
+    setInterview(next);
+    onInterviewChange?.(next);
+    flash(message);
+  }
+
+  async function runAction(
+    action: () => Promise<Interview>,
+    successMessage: string
+  ) {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await action();
+      apply(next, successMessage);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -66,7 +106,7 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
                     {interview.candidateName}
                   </h1>
                 )}
-                <InterviewStatusBadge status={status} />
+                <InterviewStatusBadge status={interview.status} />
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
                 {interview.candidateTitle} · {interview.candidateCompany}
@@ -93,9 +133,8 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() =>
-                flash(`Opened reschedule for ${interview.candidateName}.`)
-              }
+              disabled={busy}
+              onClick={() => setRescheduleOpen((previous) => !previous)}
             >
               <RefreshCw aria-hidden />
               Reschedule
@@ -103,10 +142,13 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                setStatus("Cancelled");
-                flash(`Cancelled interview with ${interview.candidateName}.`);
-              }}
+              disabled={busy}
+              onClick={() =>
+                void runAction(
+                  () => schedulingApi.cancel(interview.id),
+                  `Cancelled interview with ${interview.candidateName}.`
+                )
+              }
             >
               <XCircle aria-hidden />
               Cancel
@@ -114,10 +156,13 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                setStatus("Completed");
-                flash(`Marked completed.`);
-              }}
+              disabled={busy}
+              onClick={() =>
+                void runAction(
+                  () => schedulingApi.complete(interview.id),
+                  "Marked completed."
+                )
+              }
             >
               <CalendarCheck2 aria-hidden />
               Mark Completed
@@ -125,10 +170,13 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                setStatus("No Show");
-                flash(`Marked as no show.`);
-              }}
+              disabled={busy}
+              onClick={() =>
+                void runAction(
+                  () => schedulingApi.noShow(interview.id),
+                  "Marked as no show."
+                )
+              }
             >
               <UserX aria-hidden />
               Mark No Show
@@ -136,10 +184,30 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => flash(`Reminder sent to ${interview.candidateName}.`)}
+              disabled={busy}
+              onClick={() =>
+                void runAction(
+                  () => schedulingApi.remind(interview.id),
+                  `Reminder sent to ${interview.candidateName}.`
+                )
+              }
             >
               <Send aria-hidden />
               Send Reminder
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void runAction(
+                  () => schedulingApi.sendLink(interview.id, { channel: "email" }),
+                  `Scheduling link sent to ${interview.candidateName}.`
+                )
+              }
+            >
+              <Link2 aria-hidden />
+              Send Link
             </Button>
             {interview.candidateId ? (
               <Button
@@ -163,6 +231,53 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
             </Button>
           </div>
         </div>
+
+        {rescheduleOpen ? (
+          <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+            <label
+              htmlFor="reschedule-at"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              New date and time
+            </label>
+            <Input
+              id="reschedule-at"
+              type="datetime-local"
+              value={rescheduleAt}
+              onChange={(event) => setRescheduleAt(event.target.value)}
+              className="bg-card"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() => setRescheduleOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="xs"
+                disabled={busy || !rescheduleAt}
+                onClick={() => {
+                  const startAt = new Date(rescheduleAt).toISOString();
+                  void runAction(
+                    () =>
+                      schedulingApi.reschedule(interview.id, {
+                        startAt,
+                        timezone: interview.timezone.split(" ")[0] || interview.timezone,
+                      }),
+                    `Rescheduled interview with ${interview.candidateName}.`
+                  ).then(() => {
+                    setRescheduleOpen(false);
+                    setRescheduleAt("");
+                  });
+                }}
+              >
+                Confirm reschedule
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         {noteOpen ? (
           <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
@@ -209,10 +324,17 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
             {feedback}
           </p>
         ) : null}
+        {error ? (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          >
+            {error}
+          </p>
+        ) : null}
       </header>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Main column */}
         <div className="space-y-4 lg:col-span-2">
           <section className="rounded-xl border border-border bg-card p-4">
             <h2 className="text-sm font-semibold text-foreground">
@@ -251,9 +373,10 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
                 <Button
                   size="xs"
                   variant="outline"
-                  onClick={() =>
-                    flash("Meeting link copied. (UI preview — not opened)")
-                  }
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(interview.meetingLink);
+                    flash("Meeting link copied.");
+                  }}
                 >
                   <ExternalLink aria-hidden />
                   Copy link
@@ -299,6 +422,11 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
                   </div>
                 </li>
               ))}
+              {interview.interviewers.length === 0 ? (
+                <li className="text-sm text-muted-foreground">
+                  No interviewers assigned.
+                </li>
+              ) : null}
             </ul>
           </section>
 
@@ -339,7 +467,6 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
           </section>
         </div>
 
-        {/* Side column */}
         <div className="space-y-4">
           <section className="rounded-xl border border-border bg-card p-4">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
@@ -413,6 +540,11 @@ export function InterviewDetail({ interview }: { interview: Interview }) {
                   </p>
                 </li>
               ))}
+              {reminders.length === 0 ? (
+                <li className="py-2 text-sm text-muted-foreground">
+                  No reminders yet.
+                </li>
+              ) : null}
             </ul>
           </section>
 

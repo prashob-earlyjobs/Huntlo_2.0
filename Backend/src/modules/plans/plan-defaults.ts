@@ -5,6 +5,7 @@ type SeedPlan = {
   code: string;
   description: string;
   prices: { monthly: number | null; yearly: number | null };
+  usdPrices: { monthly: number | null; yearly: number | null };
   featureAccess: Record<string, boolean>;
   limits: PlanLimits;
   sortOrder: number;
@@ -17,6 +18,7 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     code: 'starter',
     description: 'For small recruiting teams getting started.',
     prices: { monthly: 9999, yearly: 99_999 },
+    usdPrices: { monthly: 99, yearly: 990 },
     sortOrder: 10,
     public: true,
     featureAccess: {
@@ -48,6 +50,7 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     code: 'growth',
     description: 'For growing talent teams with multi-channel outreach.',
     prices: { monthly: 24_999, yearly: 249_999 },
+    usdPrices: { monthly: 249, yearly: 2490 },
     sortOrder: 20,
     public: true,
     featureAccess: {
@@ -79,6 +82,7 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     code: 'scale',
     description: 'For high-volume hiring with advanced automation.',
     prices: { monthly: 49_999, yearly: 499_999 },
+    usdPrices: { monthly: 499, yearly: 4990 },
     sortOrder: 30,
     public: true,
     featureAccess: {
@@ -110,6 +114,7 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     code: 'enterprise',
     description: 'Custom limits, security, and dedicated support.',
     prices: { monthly: null, yearly: null },
+    usdPrices: { monthly: null, yearly: null },
     sortOrder: 40,
     public: true,
     featureAccess: {

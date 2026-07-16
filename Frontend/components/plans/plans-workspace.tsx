@@ -8,6 +8,7 @@ import {
   Download,
   Headphones,
   Minus,
+  Search,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
@@ -118,6 +119,7 @@ function QuotaCard({
   const percent = usagePercent(quota);
   const remaining = usageRemaining(quota);
   const unit = quota.unit ? ` ${quota.unit}` : "";
+  const Icon = quota.icon ?? Search;
   const barTone =
     state === "Limit exhausted" || state === "90% critical"
       ? "[&_[data-slot=progress-indicator]]:bg-destructive"
@@ -136,7 +138,7 @@ function QuotaCard({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="flex size-8 items-center justify-center rounded-lg bg-muted">
-          <quota.icon aria-hidden className="size-4 text-muted-foreground" />
+          <Icon aria-hidden className="size-4 text-muted-foreground" />
         </span>
         <Badge text={state} className={USAGE_STATE_CLASSES[state]} />
       </div>
@@ -693,7 +695,11 @@ export function PlansWorkspace() {
         setPlanName(plan.name);
         const withIcons = usage.map((row) => {
           const mock = USAGE_QUOTAS.find((item) => item.id === row.id);
-          return mock ? { ...row, icon: mock.icon, description: mock.description } : row;
+          return {
+            ...row,
+            icon: mock?.icon ?? row.icon ?? Search,
+            description: mock?.description ?? row.description ?? row.label,
+          };
         });
         setQuotas(withIcons.length > 0 ? withIcons : USAGE_QUOTAS);
       } catch (err) {

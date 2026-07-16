@@ -18,6 +18,7 @@ import {
   deleteNote,
   deletePoolCandidate,
   getPoolCandidate,
+  getPoolOverview,
   listNotes,
   listPool,
   updateNote,
@@ -29,6 +30,12 @@ const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware
 export const candidatePoolRouter = Router();
 
 candidatePoolRouter.get('/', ...orgAuth, requirePermission('candidates:view'), listPool);
+candidatePoolRouter.get(
+  '/overview',
+  ...orgAuth,
+  requirePermission('candidates:view'),
+  getPoolOverview
+);
 candidatePoolRouter.post('/', ...orgAuth, requirePermission('candidates:create'), createPoolCandidate);
 
 // Static /bulk/* BEFORE /:id

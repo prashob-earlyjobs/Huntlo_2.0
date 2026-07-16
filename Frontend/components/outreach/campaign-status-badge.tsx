@@ -13,6 +13,7 @@ const STATUS_TONES: Record<CampaignStatus, StatusTone> = {
   Running: "brand",
   Paused: "warning",
   Completed: "info",
+  Cancelled: "neutral",
   Failed: "danger",
 };
 

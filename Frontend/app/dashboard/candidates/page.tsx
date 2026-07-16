@@ -2,11 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Bookmark } from "lucide-react";
 
+import { PoolMetrics } from "@/components/candidates/pool-metrics";
 import { PoolWorkspace } from "@/components/candidates/pool-workspace";
-import { MetricStrip } from "@/components/shared/metric-strip";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { POOL_METRICS } from "@/lib/mock-candidates";
 import { ROUTES } from "@/lib/routes";
 
 export const metadata: Metadata = { title: "Candidate Pool" };
@@ -30,7 +29,7 @@ export default function CandidatesPage() {
         }
       />
 
-      <MetricStrip metrics={POOL_METRICS} columns="5" />
+      <PoolMetrics />
 
       <PoolWorkspace />
     </>

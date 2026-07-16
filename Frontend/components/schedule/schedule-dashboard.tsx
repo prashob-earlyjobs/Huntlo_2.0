@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import { ScheduleInterviewFlow } from "@/components/schedule/schedule-interview-flow";
@@ -49,11 +49,11 @@ import { DATE_RANGE_OPTIONS } from "@/lib/mock-jobs";
 import {
   INTERVIEW_STATUSES,
   INTERVIEW_TYPES,
-  INTERVIEWS,
   SCHEDULE_INTERVIEWERS,
   SCHEDULE_RECRUITERS,
   type Interview,
 } from "@/lib/mock-schedule";
+import { getApiErrorMessage, schedulingApi } from "@/lib/api";
 import {
   candidateDetailPath,
   interviewDetailPath,
@@ -143,14 +143,34 @@ export function ScheduleDashboard() {
   const [dateRange, setDateRange] = useState("any");
   const [message, setMessage] = useState<string | null>(null);
   const [flowOpen, setFlowOpen] = useState(false);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        const rows = await schedulingApi.listInterviews();
+        if (!cancelled) setInterviews(rows);
+      } catch (err) {
+        if (!cancelled) setMessage(getApiErrorMessage(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const jobOptions = useMemo(() => {
     const titles = new Map<string, string>();
-    INTERVIEWS.forEach((interview) => {
+    interviews.forEach((interview) => {
       if (interview.jobId) titles.set(interview.jobId, interview.jobTitle);
     });
     return Array.from(titles, ([id, label]) => ({ id, label }));
-  }, []);
+  }, [interviews]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
     return (id: string) =>
@@ -163,7 +183,7 @@ export function ScheduleDashboard() {
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return INTERVIEWS.filter((interview) => {
+    return interviews.filter((interview) => {
       if (
         normalized &&
         !`${interview.candidateName} ${interview.jobTitle} ${interview.interviewType}`
@@ -215,6 +235,7 @@ export function ScheduleDashboard() {
     statusFilter,
     typeFilter,
     dateRange,
+    interviews,
   ]);
 
   const hasFilters =
@@ -243,6 +264,11 @@ export function ScheduleDashboard() {
 
   return (
     <div className="space-y-4">
+      {loading ? (
+        <p className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
+          Loading interviews…
+        </p>
+      ) : null}
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
@@ -441,7 +467,10 @@ export function ScheduleDashboard() {
       <ScheduleInterviewFlow
         open={flowOpen}
         onOpenChange={setFlowOpen}
-        onComplete={flash}
+        onComplete={(message) => {
+          flash(message);
+          void schedulingApi.listInterviews().then(setInterviews).catch(() => undefined);
+        }}
       />
     </div>
   );

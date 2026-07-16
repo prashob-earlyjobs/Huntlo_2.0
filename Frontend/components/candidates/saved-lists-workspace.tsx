@@ -26,6 +26,24 @@ import { PoolTable } from "@/components/candidates/pool-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -33,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
 import {
   POOL_CANDIDATES,
@@ -148,6 +167,12 @@ export function SavedListsWorkspace() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [listQuery, setListQuery] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   async function refresh() {
     try {
@@ -219,6 +244,91 @@ export function SavedListsWorkspace() {
         return pool;
     }
   }, [currentList, selection.id, pool]);
+
+  function openRename() {
+    if (!currentList) return;
+    setRenameValue(currentList.name);
+    setRenameOpen(true);
+  }
+
+  async function saveRename() {
+    if (!currentList) return;
+    const nextName = renameValue.trim();
+    if (!nextName) {
+      flash("List name is required.");
+      return;
+    }
+    setRenameBusy(true);
+    try {
+      const updated = await candidatePoolApi.updateList(currentList.id, {
+        name: nextName,
+      });
+      setLists((previous) =>
+        previous.map((list) =>
+          list.id === updated.id ? { ...list, ...updated, name: nextName } : list
+        )
+      );
+      setRenameOpen(false);
+      flash(`Renamed to “${nextName}”.`);
+      await refresh();
+    } catch (err) {
+      flash(getApiErrorMessage(err));
+    } finally {
+      setRenameBusy(false);
+    }
+  }
+
+  async function exportListCandidates() {
+    if (!currentList) return;
+    setExportBusy(true);
+    try {
+      const ids = candidates.map((candidate) => candidate.id);
+      const result = await candidatePoolApi.bulkExport([], {
+        listId: currentList.id,
+      });
+      if ("csv" in result && result.csv) {
+        const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        const safeName = currentList.name
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+        anchor.download = `${safeName || "saved-list"}-export.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }
+      const exportedCount = Math.max(
+        ids.length,
+        currentList.candidateCount ?? 0
+      );
+      flash(`Exported ${exportedCount} candidates.`);
+    } catch (err) {
+      flash(getApiErrorMessage(err));
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function confirmDeleteList() {
+    if (!currentList) return;
+    const name = currentList.name;
+    const id = currentList.id;
+    setDeleteBusy(true);
+    try {
+      await candidatePoolApi.deleteList(id);
+      setDeleteOpen(false);
+      flash(`Deleted “${name}”.`);
+      setSelection({ kind: "smart", id: "all" });
+      await refresh();
+    } catch (err) {
+      flash(getApiErrorMessage(err));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (selection.kind !== "list") return;
@@ -407,19 +517,16 @@ export function SavedListsWorkspace() {
                     <MoreHorizontal aria-hidden />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem
-                      onClick={() => flash(`Renamed “${currentList.name}”.`)}
-                    >
+                    <DropdownMenuItem onClick={openRename}>
                       <Pencil aria-hidden />
                       Rename list
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() =>
-                        flash(`Exported ${candidates.length} candidates.`)
-                      }
+                      disabled={exportBusy}
+                      onClick={() => void exportListCandidates()}
                     >
                       <Download aria-hidden />
-                      Export candidates
+                      {exportBusy ? "Exporting…" : "Export candidates"}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -448,18 +555,7 @@ export function SavedListsWorkspace() {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       variant="destructive"
-                      onClick={() =>
-                        void (async () => {
-                          try {
-                            await candidatePoolApi.deleteList(currentList.id);
-                            flash(`Deleted “${currentList.name}”.`);
-                            setSelection({ kind: "smart", id: "all" });
-                            await refresh();
-                          } catch (err) {
-                            flash(getApiErrorMessage(err));
-                          }
-                        })()
-                      }
+                      onClick={() => setDeleteOpen(true)}
                     >
                       <Trash2 aria-hidden />
                       Delete list
@@ -567,6 +663,77 @@ export function SavedListsWorkspace() {
           )}
         </section>
       </div>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename list</DialogTitle>
+            <DialogDescription>
+              Update the display name for this saved list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="rename-list-name">List name</Label>
+            <Input
+              id="rename-list-name"
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void saveRename();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={renameBusy}
+              onClick={() => setRenameOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={renameBusy || !renameValue.trim()}
+              onClick={() => void saveRename()}
+            >
+              {renameBusy ? "Saving…" : "Save name"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this list?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {currentList
+                ? `“${currentList.name}” will be permanently deleted. Candidates in the pool are not removed — only this list grouping.`
+                : "This list will be permanently deleted. Candidates in the pool are not removed."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteBusy}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDeleteList();
+              }}
+            >
+              {deleteBusy ? "Deleting…" : "Delete list"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

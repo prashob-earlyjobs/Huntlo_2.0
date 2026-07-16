@@ -26,6 +26,7 @@ import { SectionHeader } from "@/components/shared/section-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { JobAssessmentsTab } from "@/components/jobs/job-assessments-tab";
 import {
   Table,
   TableBody,
@@ -359,6 +360,7 @@ function QuickActionsPanel() {
     { label: "Source candidates", icon: UserSearch, href: ROUTES.search },
     { label: "Create outreach", icon: Send, href: ROUTES.outreach },
     { label: "Start screening", icon: ListChecks, href: ROUTES.screening },
+    { label: "Send assessment", icon: ListChecks, href: ROUTES.assessments },
     { label: "Schedule interview", icon: CalendarClock, href: ROUTES.interviews },
   ];
 
@@ -605,6 +607,11 @@ export function JobDetailView({ job }: { job: JobDetail }) {
                 emptyHref={ROUTES.screening}
               />
             ),
+          },
+          {
+            value: "assessments",
+            label: "Assessments",
+            content: <JobAssessmentsTab jobId={job.id} />,
           },
           {
             value: "interviews",
