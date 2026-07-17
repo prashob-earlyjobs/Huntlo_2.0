@@ -103,6 +103,24 @@ async function upsertCandidatesFromDocsLegacy(
         : null;
 
     rankBase += 1;
+    const profilePictureUrl =
+      (typeof mapped.profile_picture_permalink === 'string' &&
+      mapped.profile_picture_permalink.trim()
+        ? mapped.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_permalink === 'string' &&
+      profile.profile_picture_permalink.trim()
+        ? profile.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_url === 'string' && profile.profile_picture_url.trim()
+        ? profile.profile_picture_url.trim()
+        : null);
+    const currentCompany =
+      (typeof job.company_name === 'string' && job.company_name.trim()
+        ? job.company_name.trim()
+        : null) ||
+      (typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null);
+
     const result = await SourcedCandidateModel.findOneAndUpdate(
       {
         sourcingSessionId: session._id,
@@ -123,22 +141,22 @@ async function upsertCandidatesFromDocsLegacy(
                   ? profile.headline
                   : null,
             linkedinUrl: mapped.linkedin_profile_url || null,
+            profilePictureUrl,
           },
           name: mapped.name || 'Unknown',
           currentRole:
             typeof job.job_title === 'string' && job.job_title.trim()
               ? job.job_title.trim()
               : null,
-          currentCompany:
-            typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null,
+          currentCompany,
           linkedinProfileUrl: mapped.linkedin_profile_url || null,
+          profilePictureUrl,
           currentEmployment: {
             title:
               typeof job.job_title === 'string' && job.job_title.trim()
                 ? job.job_title.trim()
                 : null,
-            company:
-              typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null,
+            company: currentCompany,
           },
           location: mapped.location === '—' ? '' : mapped.location,
           experienceYears: experienceYearsFromProfile(profile),

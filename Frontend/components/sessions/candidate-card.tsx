@@ -57,7 +57,7 @@ export function CandidateCard({
           aria-label={`Select ${candidate.name}`}
           className="mt-1 size-3.5 shrink-0 accent-primary"
         />
-        <CandidateAvatar name={candidate.name} className="size-10" />
+        <CandidateAvatar name={candidate.name} src={candidate.avatarUrl} className="size-10" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">

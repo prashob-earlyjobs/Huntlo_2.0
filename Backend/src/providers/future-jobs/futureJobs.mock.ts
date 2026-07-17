@@ -179,6 +179,7 @@ function buildFakeProfiles(sessionId: string, count: number): FutureJobsProfileD
       skills: p.skills,
       region: p.region,
       linkedin_profile_url: `https://www.linkedin.com/in/mock-${index + 1}-${sessionId.slice(-6)}`,
+      profile_picture_permalink: `https://i.pravatar.cc/150?u=${sessionId}-${index}`,
     },
   }));
 }
@@ -520,7 +521,8 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
   }
 
   async function getSourcingSessionCandidateDetails(
-    candidateId: string
+    candidateId: string,
+    opts: { sessionId?: string | null } = {}
   ): Promise<FutureJobsApiResponse> {
     maybeFail('GET /wl/sourcing-session/candidate/:id/details');
     const cid = String(candidateId || '').trim();
@@ -532,19 +534,99 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     return {
       status: true,
       statusCode: 200,
+      message: 'Candidate details fetched successfully',
       data: {
-        _id: cid,
-        profile: {
+        candidate: {
+          _id: cid,
           name: 'Mock Candidate',
-          current_employers_object: [{ job_title: 'Software Engineer', name: 'Mock Co' }],
+          first_name: 'Mock',
+          last_name: 'Candidate',
+          headline: 'Software Engineer',
+          summary:
+            'Experienced engineer focused on backend systems and reliable delivery.',
+          region: 'Pune, Maharashtra, India',
           years_of_experience_raw: 5,
-          skills: ['TypeScript', 'Node.js'],
-          region: 'India',
           linkedin_profile_url: 'https://www.linkedin.com/in/mock-candidate',
-          summary: 'Experienced engineer focused on backend systems.',
-          education: [{ school: 'Mock University', degree: 'B.Tech' }],
+          profile_picture_permalink: `https://i.pravatar.cc/150?u=${cid}`,
+          skills: ['TypeScript', 'Node.js', 'React'],
+          current_employers: [
+            {
+              name: 'Mock Co',
+              title: 'Software Engineer',
+              description: 'Built APIs and services.',
+              start_date: '2023-01-01T00:00:00',
+              employment_type: 'Full-time',
+            },
+          ],
+          past_employers: [
+            {
+              name: 'Earlier Labs',
+              title: 'Junior Developer',
+              description: 'Supported product features.',
+              start_date: '2021-01-01T00:00:00',
+              end_date: '2022-12-01T00:00:00',
+              employment_type: 'Full-time',
+            },
+          ],
+          all_employers: [
+            {
+              name: 'Mock Co',
+              title: 'Software Engineer',
+              description: 'Built APIs and services.',
+              start_date: '2023-01-01T00:00:00',
+              employment_type: 'Full-time',
+            },
+            {
+              name: 'Earlier Labs',
+              title: 'Junior Developer',
+              description: 'Supported product features.',
+              start_date: '2021-01-01T00:00:00',
+              end_date: '2022-12-01T00:00:00',
+              employment_type: 'Full-time',
+            },
+          ],
+          education_background: [
+            {
+              degree_name: 'B.Tech',
+              institute_name: 'Mock University',
+              field_of_study: 'Computer Science',
+              start_date: '2017-01-01T00:00:00',
+              end_date: '2021-01-01T00:00:00',
+            },
+          ],
         },
-        finalScore: 4,
+        profileAnalysis: {
+          analysis: {
+            finalScore: 90,
+            starRating: 5,
+            scoreBreakdown: [
+              { code: 'JT', label: 'Job Title Match', weight: 20, awarded: 18 },
+              { code: 'MAND', label: 'Mandatory Skills', weight: 30, awarded: 28 },
+              { code: 'Experience (Years)', label: 'Experience', weight: 15, awarded: 14 },
+              { code: 'Region Match', label: 'Region', weight: 10, awarded: 10 },
+              { code: 'IND', label: 'Industry', weight: 10, awarded: 8 },
+              { code: 'EDU', label: 'Education', weight: 10, awarded: 9 },
+            ],
+            keyStrengths: [
+              {
+                observation: 'Strong backend experience',
+                evidence: 'Worked across Mock Co and Earlier Labs.',
+              },
+            ],
+            keyWeaknesses: [],
+          },
+          highlights: [
+            {
+              Category: 'SKILLS',
+              Highlight: 'TypeScript',
+              ReasonForHighlight: 'Listed among core skills.',
+              Icon: 'BULB',
+            },
+          ],
+          recommendation: 'Strong fit for the role. 5/5',
+        },
+        finalScore: 4.5,
+        sessionId: opts.sessionId ?? null,
       },
     };
   }

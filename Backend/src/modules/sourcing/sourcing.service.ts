@@ -156,11 +156,14 @@ export function toPublicCandidate(candidate: SourcedCandidateDocument) {
     id: candidate._id.toHexString(),
     sourcingSessionId: candidate.sourcingSessionId.toHexString(),
     externalCandidateId: candidate.externalCandidateId,
-    name: candidate.basicProfile?.name ?? 'Unknown',
+    name: candidate.basicProfile?.name ?? candidate.name ?? 'Unknown',
     headline: candidate.basicProfile?.headline ?? null,
-    linkedinUrl: candidate.basicProfile?.linkedinUrl ?? null,
-    title: candidate.currentEmployment?.title ?? null,
-    company: candidate.currentEmployment?.company ?? null,
+    linkedinUrl:
+      candidate.linkedinProfileUrl ?? candidate.basicProfile?.linkedinUrl ?? null,
+    profilePictureUrl:
+      candidate.profilePictureUrl ?? candidate.basicProfile?.profilePictureUrl ?? null,
+    title: candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
+    company: candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
     location: candidate.location ?? '',
     experienceYears: candidate.experienceYears,
     skills: candidate.skills ?? [],

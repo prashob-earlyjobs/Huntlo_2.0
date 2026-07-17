@@ -52,10 +52,13 @@ export type AudienceStepState = {
   audiencePreview: AudienceStats | null;
 };
 
-export type AudienceStepUpdate = <K extends keyof AudienceStepState>(
-  key: K,
-  value: AudienceStepState[K]
-) => void;
+/** Bivariant so wider builder `update` fns (WorkflowBuilderState / BuilderState) assign cleanly. */
+export type AudienceStepUpdate = {
+  bivarianceHack<K extends keyof AudienceStepState>(
+    key: K,
+    value: AudienceStepState[K]
+  ): void;
+}["bivarianceHack"];
 
 const SOURCE_META: Record<
   AudienceSource,

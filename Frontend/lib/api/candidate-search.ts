@@ -67,6 +67,7 @@ export type CandidateSearchSummary = {
   matchScore?: number | null;
   linkedinProfileUrl?: string | null;
   linkedinUrl?: string | null;
+  profilePictureUrl?: string | null;
   profileSignals?: string[];
   rank?: number;
   contactStatus?: string;
@@ -199,7 +200,11 @@ export interface CandidateSearchApi {
   getCandidateDetails(
     candidateId: string,
     params?: { sessionId?: string }
-  ): Promise<{ success: true; fromStored: boolean; candidate: CandidateSearchSummary }>;
+  ): Promise<{
+    success: true;
+    fromStored: boolean;
+    candidate: import("./candidate-details").CandidateDetailsApi;
+  }>;
   getSourcingSessions(params?: { limit?: number }): Promise<{
     success: true;
     sessions: SourcingSessionSummary[];
@@ -342,11 +347,48 @@ const mockCandidateSearchApi: CandidateSearchApi = {
         sourcingSessionId: "",
         sessionId: null,
         name: "Mock Candidate",
-        currentRole: null,
-        currentCompany: null,
-        location: "",
-        experienceYears: null,
-        skills: [],
+        headline: "Software Engineer",
+        currentRole: "Software Engineer",
+        currentCompany: "Mock Co",
+        location: "Pune, Maharashtra, India",
+        experienceYears: 5,
+        skills: ["TypeScript", "Node.js", "React"],
+        profilePictureUrl: `https://i.pravatar.cc/150?u=${candidateId}`,
+        summary:
+          "Experienced engineer focused on backend systems and reliable delivery.",
+        recommendation: "Strong fit for backend roles. 4.5/5",
+        experience: [
+          {
+            company: "Mock Co",
+            role: "Software Engineer",
+            duration: "2023–Present",
+            description: "Built APIs and services.",
+            current: true,
+          },
+          {
+            company: "Earlier Labs",
+            role: "Junior Developer",
+            duration: "2021–2022",
+            description: "Supported product features.",
+            current: false,
+          },
+        ],
+        education: [
+          {
+            school: "Mock University",
+            degree: "B.Tech",
+            field: "Computer Science",
+            years: "2017–2021",
+          },
+        ],
+        matchBreakdown: {
+          skills: 90,
+          role: 88,
+          experience: 85,
+          location: 92,
+          industry: 80,
+          education: 78,
+        },
       },
     };
   },

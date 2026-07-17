@@ -35,6 +35,7 @@ import {
 import {
   buildPaginationDto,
   filterFormSummary,
+  hasFullFjCandidateDetails,
   toCandidateDetailsDto,
   toCandidateSummaryDto,
   toSourcingSessionDto,
@@ -1369,9 +1370,17 @@ export class CandidateSearchService {
     candidateId: string,
     query: { sessionId?: string }
   ) {
+    const idOr: Record<string, unknown>[] = [
+      { candidateId },
+      { externalCandidateId: candidateId },
+    ];
+    if (isValidObjectId(candidateId)) {
+      idOr.push({ _id: new mongoose.Types.ObjectId(candidateId) });
+    }
+
     const filter: Record<string, unknown> = {
       organizationId: new mongoose.Types.ObjectId(actor.organizationId),
-      $or: [{ candidateId }, { externalCandidateId: candidateId }],
+      $or: idOr,
     };
 
     if (query.sessionId) {
@@ -1392,41 +1401,54 @@ export class CandidateSearchService {
     });
     if (!session) throw sourcingSessionForbidden();
 
-    const hasCompleteDetail =
-      candidate.rawDoc != null ||
-      (candidate.mappedCandidate != null && candidate.candidateSummary);
+    const fjSessionId = session.futureJobsSessionId || session.externalSessionId || null;
+    const alreadyFull = hasFullFjCandidateDetails(candidate.rawDoc);
 
-    if (hasCompleteDetail) {
-      return {
-        success: true,
-        fromStored: true,
-        candidate: toCandidateDetailsDto(
-          candidate,
-          session.futureJobsSessionId || session.externalSessionId
-        ),
-      };
-    }
+    if (!alreadyFull) {
+      const provider = getFutureJobsProvider();
+      const detailIds = [
+        candidate.candidateId,
+        candidate.externalCandidateId,
+        // List docs nest the person profile under profile._id
+        (() => {
+          const raw = candidate.rawDoc as { profile?: { _id?: unknown } } | null;
+          const pid = raw?.profile?._id;
+          return pid ? String(pid) : null;
+        })(),
+      ].filter((id, index, arr): id is string => Boolean(id) && arr.indexOf(id) === index);
 
-    const provider = getFutureJobsProvider();
-    try {
-      const detailsRes = await provider.getSourcingSessionCandidateDetails(candidateId);
-      const data = detailsRes?.data ?? detailsRes;
-      candidate.rawDoc = data;
-      candidate.mappedCandidate =
-        mapDocIfPossible(data) ?? candidate.mappedCandidate;
-      candidate.lastSeenAt = new Date();
-      await candidate.save();
-    } catch {
-      // Prefer returning whatever we have stored
+      for (const detailId of detailIds) {
+        try {
+          const detailsRes = await provider.getSourcingSessionCandidateDetails(detailId, {
+            sessionId: fjSessionId,
+          });
+          const data = detailsRes?.data ?? detailsRes;
+          if (!data || !hasFullFjCandidateDetails(data)) continue;
+
+          applyFjDetailsToCandidateDocument(candidate, data);
+          candidate.mappedCandidate =
+            mapDocIfPossible({ profile: extractProfileForMap(data) }) ??
+            candidate.mappedCandidate;
+          candidate.lastSeenAt = new Date();
+          await candidate.save();
+          break;
+        } catch (error) {
+          log().warn(
+            {
+              err: error,
+              candidateId: detailId,
+              sourcingSessionId: session._id.toHexString(),
+            },
+            'future jobs candidate details fetch failed'
+          );
+        }
+      }
     }
 
     return {
       success: true,
-      fromStored: false,
-      candidate: toCandidateDetailsDto(
-        candidate,
-        session.futureJobsSessionId || session.externalSessionId
-      ),
+      fromStored: alreadyFull,
+      candidate: toCandidateDetailsDto(candidate, fjSessionId),
     };
   }
 
@@ -1550,6 +1572,99 @@ export class CandidateSearchService {
       success: true,
       session: toSourcingSessionDto(session),
     };
+  }
+}
+
+function extractProfileForMap(data: unknown): Record<string, unknown> | null {
+  if (!data || typeof data !== 'object') return null;
+  const root = data as Record<string, unknown>;
+  if (root.candidate && typeof root.candidate === 'object') {
+    return root.candidate as Record<string, unknown>;
+  }
+  if (root.profile && typeof root.profile === 'object') {
+    return root.profile as Record<string, unknown>;
+  }
+  return root;
+}
+
+function applyFjDetailsToCandidateDocument(
+  candidate: {
+    rawDoc?: unknown;
+    profilePictureUrl?: string | null;
+    basicProfile?: {
+      headline?: string | null;
+      profilePictureUrl?: string | null;
+      name?: string;
+    } | null;
+    candidateSummary?: string | null;
+    skills?: string[];
+    experienceYears?: number | null;
+    name?: string;
+    currentRole?: string | null;
+    currentCompany?: string | null;
+    location?: string;
+  },
+  data: unknown
+) {
+  candidate.rawDoc = data;
+  const root = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+  const fjCandidate =
+    root?.candidate && typeof root.candidate === 'object'
+      ? (root.candidate as Record<string, unknown>)
+      : root;
+  if (!fjCandidate) return;
+
+  const picture =
+    (typeof fjCandidate.profile_picture_permalink === 'string' &&
+    fjCandidate.profile_picture_permalink.trim()
+      ? fjCandidate.profile_picture_permalink.trim()
+      : null) ||
+    (typeof fjCandidate.profile_picture_url === 'string' &&
+    fjCandidate.profile_picture_url.trim()
+      ? fjCandidate.profile_picture_url.trim()
+      : null);
+  if (picture) {
+    candidate.profilePictureUrl = picture;
+    if (candidate.basicProfile) candidate.basicProfile.profilePictureUrl = picture;
+  }
+
+  if (typeof fjCandidate.headline === 'string' && fjCandidate.headline.trim()) {
+    if (candidate.basicProfile) candidate.basicProfile.headline = fjCandidate.headline.trim();
+  }
+  if (typeof fjCandidate.summary === 'string' && fjCandidate.summary.trim()) {
+    candidate.candidateSummary = fjCandidate.summary.trim();
+  }
+  if (typeof fjCandidate.name === 'string' && fjCandidate.name.trim()) {
+    candidate.name = fjCandidate.name.trim();
+    if (candidate.basicProfile) candidate.basicProfile.name = fjCandidate.name.trim();
+  }
+  if (typeof fjCandidate.region === 'string' && fjCandidate.region.trim()) {
+    candidate.location = fjCandidate.region.trim();
+  }
+  if (
+    typeof fjCandidate.years_of_experience_raw === 'number' &&
+    Number.isFinite(fjCandidate.years_of_experience_raw)
+  ) {
+    candidate.experienceYears = fjCandidate.years_of_experience_raw;
+  }
+  if (Array.isArray(fjCandidate.skills)) {
+    candidate.skills = fjCandidate.skills
+      .map((s) => String(s ?? '').trim())
+      .filter(Boolean)
+      .slice(0, 24);
+  }
+
+  const current = Array.isArray(fjCandidate.current_employers)
+    ? fjCandidate.current_employers[0]
+    : null;
+  if (current && typeof current === 'object') {
+    const job = current as Record<string, unknown>;
+    if (typeof job.title === 'string' && job.title.trim()) {
+      candidate.currentRole = job.title.trim();
+    }
+    if (typeof job.name === 'string' && job.name.trim()) {
+      candidate.currentCompany = job.name.trim();
+    }
   }
 }
 

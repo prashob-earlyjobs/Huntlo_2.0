@@ -85,6 +85,8 @@ export function CandidateDrawer({
   saved,
   onToggleSave,
   onAddToOutreach,
+  detailsLoading = false,
+  detailsError = null,
 }: {
   candidate: SessionCandidate | null;
   open: boolean;
@@ -94,6 +96,8 @@ export function CandidateDrawer({
   saved: boolean;
   onToggleSave: () => void;
   onAddToOutreach: () => void;
+  detailsLoading?: boolean;
+  detailsError?: string | null;
 }) {
   const revealQuota = useRevealQuota();
 
@@ -111,7 +115,7 @@ export function CandidateDrawer({
       >
         <SheetHeader className="border-b border-border pb-3">
           <div className="flex items-start gap-3 pr-8">
-            <CandidateAvatar name={candidate.name} className="size-11" />
+            <CandidateAvatar name={candidate.name} src={candidate.avatarUrl} className="size-11" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <SheetTitle className="truncate">{candidate.name}</SheetTitle>
@@ -149,6 +153,12 @@ export function CandidateDrawer({
             </div>
 
             <TabsContent value="summary" className="space-y-5 pt-2">
+              {detailsLoading ? (
+                <p className="text-xs text-muted-foreground">Loading full profile…</p>
+              ) : null}
+              {detailsError ? (
+                <p className="text-xs text-destructive">{detailsError}</p>
+              ) : null}
               <div className="space-y-2">
                 <SectionTitle>Contact</SectionTitle>
                 {hasRevealedContact ? (
@@ -205,6 +215,12 @@ export function CandidateDrawer({
             </TabsContent>
 
             <TabsContent value="experience" className="pt-2">
+              {detailsLoading && candidate.experience.length <= 1 ? (
+                <p className="mb-3 text-sm text-muted-foreground">Loading experience…</p>
+              ) : null}
+              {!detailsLoading && candidate.experience.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No experience listed.</p>
+              ) : null}
               <ol className="space-y-0">
                 {candidate.experience.map((entry, index) => (
                   <li
@@ -254,6 +270,12 @@ export function CandidateDrawer({
             </TabsContent>
 
             <TabsContent value="education" className="space-y-3 pt-2">
+              {detailsLoading && candidate.education.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Loading education…</p>
+              ) : null}
+              {!detailsLoading && candidate.education.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No education listed.</p>
+              ) : null}
               {candidate.education.map((entry) => (
                 <div
                   key={entry.school}

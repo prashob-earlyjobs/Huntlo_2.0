@@ -92,6 +92,8 @@ export interface SessionCandidate {
   contactStatus: ContactStatus;
   saved: boolean;
   linkedin: boolean;
+  /** Future Jobs profile_picture_permalink */
+  avatarUrl?: string | null;
   email: string;
   emailVerified: boolean;
   phone: string;
