@@ -5,6 +5,7 @@ import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { UserIntegrationModel } from '../integrations/user-integration.model.js';
 import { quotaService } from '../../shared/usage/index.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import { assertVariablesAllowed } from './variables.js';
 import {
   type OutreachCampaignDocument,
@@ -46,12 +47,133 @@ function messageSteps(steps: CampaignSequenceStep[]) {
   );
 }
 
+type ChannelKey = 'email' | 'whatsapp' | 'ai_voice';
+
+function enabledChannelKeys(channels: OutreachCampaignDocument['channelConfig']): ChannelKey[] {
+  const keys: ChannelKey[] = [];
+  if (channels.email?.enabled) keys.push('email');
+  if (channels.whatsapp?.enabled) keys.push('whatsapp');
+  if (channels.ai_voice?.enabled) keys.push('ai_voice');
+  return keys;
+}
+
+function stepChannel(type: CampaignSequenceStep['type']): ChannelKey | null {
+  if (type === 'email' || type === 'scheduling_link') return 'email';
+  if (type === 'whatsapp') return 'whatsapp';
+  if (type === 'ai_voice') return 'ai_voice';
+  return null;
+}
+
+/** Ensures campaignType matches enabled channels and sequence message steps. */
+export function validateCampaignTypeConsistency(input: {
+  campaignType?: string | null;
+  channelConfig: OutreachCampaignDocument['channelConfig'];
+  sequenceSteps: CampaignSequenceStep[];
+}): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const campaignType = input.campaignType || 'multi_channel';
+  const enabled = enabledChannelKeys(input.channelConfig);
+  const msgSteps = messageSteps(input.sequenceSteps || []);
+
+  if (enabled.length === 0 && msgSteps.length > 0) {
+    issues.push(
+      issue(
+        'channels',
+        'error',
+        'CHANNELS_DISABLED',
+        'Enable at least one channel that matches your sequence.'
+      )
+    );
+  }
+
+  if (campaignType === 'single_channel') {
+    if (enabled.length === 0) {
+      issues.push(
+        issue(
+          'channels',
+          'error',
+          'SINGLE_CHANNEL_REQUIRED',
+          'Single-channel campaigns must enable exactly one channel.'
+        )
+      );
+    } else if (enabled.length > 1) {
+      issues.push(
+        issue(
+          'channels',
+          'error',
+          'SINGLE_CHANNEL_MULTIPLE',
+          'Single-channel campaigns can only enable one channel (email, WhatsApp, or AI voice).'
+        )
+      );
+    } else {
+      const only = enabled[0];
+      for (const step of msgSteps) {
+        const channel = stepChannel(step.type);
+        if (channel && channel !== only) {
+          issues.push(
+            issue(
+              `step_channel_${step.id || step.order}`,
+              'error',
+              'SINGLE_CHANNEL_STEP_MISMATCH',
+              `Step ${step.order + 1} (${step.type}) is not allowed on a single-channel ${only} campaign.`
+            )
+          );
+        }
+      }
+    }
+  }
+
+  // Sequence steps must belong to an enabled channel (both modes).
+  for (const step of msgSteps) {
+    const channel = stepChannel(step.type);
+    if (!channel) continue;
+    if (!enabled.includes(channel)) {
+      issues.push(
+        issue(
+          `step_disabled_${step.id || step.order}`,
+          'error',
+          'STEP_CHANNEL_DISABLED',
+          `Step ${step.order + 1} (${step.type}) uses ${channel}, which is not enabled.`
+        )
+      );
+    }
+  }
+
+  return issues;
+}
+
+export function assertCampaignTypeConsistency(input: {
+  campaignType?: string | null;
+  channelConfig: OutreachCampaignDocument['channelConfig'];
+  sequenceSteps: CampaignSequenceStep[];
+}) {
+  const errors = validateCampaignTypeConsistency(input).filter(
+    (row) => row.severity === 'error'
+  );
+  if (errors.length === 0) return;
+  throw AppError.validation(
+    errors[0].message,
+    errors.map((row) => ({
+      path: row.code,
+      message: row.message,
+    }))
+  );
+}
+
 export async function validateCampaignLaunch(
   campaign: OutreachCampaignDocument,
   userId: string
 ): Promise<{ ok: boolean; issues: ValidationIssue[] }> {
   const issues: ValidationIssue[] = [];
   const organizationId = String(campaign.organizationId);
+
+  issues.push(
+    ...validateCampaignTypeConsistency({
+      campaignType: campaign.campaignType,
+      channelConfig: campaign.channelConfig,
+      sequenceSteps: campaign.sequenceSteps,
+    })
+  );
 
   // Feature access
   const hasFeature = await quotaService.checkFeatureAccess(organizationId, 'outreach');

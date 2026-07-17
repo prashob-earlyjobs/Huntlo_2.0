@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { StepCard } from "@/components/outreach/builder-ui";
 import type {
@@ -12,13 +13,16 @@ import {
   estimatedCredits,
   messageSteps,
 } from "@/components/outreach/builder-types";
-import { JOBS } from "@/lib/mock-jobs";
+import type { JobListItem } from "@/lib/api/contracts";
+import { integrationsApi } from "@/lib/api";
 import {
   CHANNEL_CONFIGS,
-  CREDITS_AVAILABLE,
+  delayAmountToMinutes,
+  formatStepDelay,
   reachableCount,
   STEP_CHANNELS,
   STEP_TYPE_ICONS,
+  type OutreachChannel,
 } from "@/lib/mock-outreach";
 import { cn } from "@/lib/utils";
 
@@ -37,28 +41,93 @@ function SummaryRow({
   );
 }
 
+const CHANNEL_PROVIDERS: Record<OutreachChannel, string[]> = {
+  Email: ["gmail", "outlook", "zoho-mail", "smtp"],
+  WhatsApp: ["huntlo-whatsapp", "meta-whatsapp", "gupshup"],
+  "AI Voice": ["hunar"],
+};
+
 export function ReviewStep({
   state,
   warnings,
+  jobs,
+  creditsAvailable = null,
 }: {
   state: BuilderState;
   warnings: LaunchWarning[];
+  jobs: JobListItem[];
+  creditsAvailable?: number | null;
 }) {
   const stats = audienceStats(state);
   const reachable = stats ? reachableCount(stats) : 0;
   const credits = estimatedCredits(state);
-  const job = JOBS.find((entry) => entry.id === state.jobId);
+  const job = jobs.find((entry) => entry.id === state.jobId);
   const sends = messageSteps(state).length;
-  const totalDelay = state.steps.reduce((sum, step) => sum + step.delayDays, 0);
+  const totalDelayMinutes = state.steps.reduce(
+    (sum, step) =>
+      sum + delayAmountToMinutes(step.delayDays, step.delayUnit ?? "days"),
+    0
+  );
+  const totalDelayLabel =
+    totalDelayMinutes === 0
+      ? "0"
+      : totalDelayMinutes < 60
+        ? `${totalDelayMinutes}m`
+        : totalDelayMinutes < 24 * 60
+          ? `${Math.round((totalDelayMinutes / 60) * 10) / 10}h`
+          : `${Math.round((totalDelayMinutes / (24 * 60)) * 10) / 10}d`;
   const errors = warnings.filter((warning) => warning.severity === "error");
   const softWarnings = warnings.filter(
     (warning) => warning.severity === "warning"
   );
 
+  const [senderByChannel, setSenderByChannel] = useState<
+    Partial<Record<OutreachChannel, string>>
+  >({});
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const providers = await integrationsApi.listProviders();
+        if (cancelled) return;
+        const next: Partial<Record<OutreachChannel, string>> = {};
+        (Object.keys(CHANNEL_PROVIDERS) as OutreachChannel[]).forEach(
+          (channel) => {
+            const ids = CHANNEL_PROVIDERS[channel];
+            const matches = providers.filter((p) => ids.includes(p.id));
+            const best =
+              matches.find((p) => p.status === "Connected") ||
+              matches.find(
+                (p) =>
+                  p.status === "Needs Attention" || p.status === "Expired"
+              ) ||
+              matches[0];
+            if (channel === "AI Voice") {
+              next[channel] =
+                best?.connectedIdentity?.trim() || "Huntlo · AI caller";
+            } else {
+              next[channel] =
+                best?.connectedIdentity?.trim() ||
+                CHANNEL_CONFIGS.find((c) => c.channel === channel)?.sender ||
+                "—";
+            }
+          }
+        );
+        setSenderByChannel(next);
+      } catch {
+        // Keep CHANNEL_CONFIGS fallbacks when integrations are unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <StepCard
       title="Review & Launch"
-      description="Check the campaign before launching. Nothing is sent in this UI preview."
+      description="Check the campaign before launching. Launch creates the campaign and starts the sequence for enrolled candidates."
     >
       <div className="space-y-4">
         {/* Warnings */}
@@ -117,7 +186,10 @@ export function ReviewStep({
             <SummaryRow label="Campaign" value={state.name.trim() || "Untitled campaign"} />
             <SummaryRow label="Related job" value={job ? job.title : "None"} />
             <SummaryRow label="Objective" value={state.objective} />
-            <SummaryRow label="Owner" value={state.owner} />
+            <SummaryRow
+              label="Owner"
+              value={state.owner.trim() || "Unassigned"}
+            />
             <SummaryRow label="Type" value={state.campaignType} />
             <SummaryRow label="Timezone handling" value={state.timezone} />
             <SummaryRow
@@ -143,19 +215,21 @@ export function ReviewStep({
                   <span
                     className={cn(
                       "font-semibold tabular-nums",
-                      credits > CREDITS_AVAILABLE
+                      creditsAvailable != null && credits > creditsAvailable
                         ? "text-destructive"
                         : "text-foreground"
                     )}
                   >
-                    {credits.toLocaleString("en-IN")} of{" "}
-                    {CREDITS_AVAILABLE.toLocaleString("en-IN")} available
+                    {credits.toLocaleString("en-IN")}
+                    {creditsAvailable != null
+                      ? ` of ${creditsAvailable.toLocaleString("en-IN")} available`
+                      : " estimated"}
                   </span>
                 }
               />
               <SummaryRow
                 label="Estimated duration"
-                value={`~${Math.max(totalDelay, 1)} days · ${sends} sends per candidate`}
+                value={`~${totalDelayLabel} · ${sends} sends per candidate`}
               />
               {stats ? (
                 <SummaryRow
@@ -172,24 +246,26 @@ export function ReviewStep({
               </p>
               <ul className="divide-y divide-border">
                 {state.enabledChannels.map((channel) => {
-                  const config = CHANNEL_CONFIGS.find(
-                    (entry) => entry.channel === channel
-                  )!;
                   const connection = state.connections[channel];
+                  const sender =
+                    senderByChannel[channel] ||
+                    CHANNEL_CONFIGS.find((entry) => entry.channel === channel)
+                      ?.sender ||
+                    "—";
                   return (
                     <li
                       key={channel}
                       className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                     >
-                      <span className="text-foreground">
+                      <span className="min-w-0 text-foreground">
                         {channel}
-                        <span className="ml-1.5 text-xs text-muted-foreground">
-                          {config.sender}
+                        <span className="ml-1.5 truncate text-xs text-muted-foreground">
+                          {sender}
                         </span>
                       </span>
                       <span
                         className={cn(
-                          "inline-flex h-5 items-center rounded-md px-2 text-xs font-medium",
+                          "inline-flex h-5 shrink-0 items-center rounded-md px-2 text-xs font-medium",
                           connection === "Connected"
                             ? "bg-success/10 text-success"
                             : connection === "Needs attention"
@@ -223,7 +299,7 @@ export function ReviewStep({
                     {step.type}
                     {channel ? null : step.delayDays > 0 ? (
                       <span className="text-muted-foreground">
-                        · {step.delayDays}d
+                        · {formatStepDelay(step.delayDays, step.delayUnit ?? "days").replace(/^After /, "")}
                       </span>
                     ) : null}
                   </span>

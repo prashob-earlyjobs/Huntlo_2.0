@@ -13,7 +13,6 @@ import {
   Mail,
   MessageCircle,
   MoreHorizontal,
-  Pencil,
   Plus,
   Search,
   X,

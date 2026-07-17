@@ -10,8 +10,11 @@ import { jobService } from './job.service.js';
 import {
   createJobSchema,
   listJobsQuerySchema,
+  parseJdSchema,
   updateJobSchema,
 } from './job.validation.js';
+import { parseJobDescription } from '../../providers/gemini/gemini.jobs.js';
+import { AppError } from '../../shared/errors/app-error.js';
 
 function actorFrom(req: Request) {
   return {
@@ -35,6 +38,26 @@ export const createJob = asyncHandler(async (req: Request, res: Response) => {
   const input = createJobSchema.parse(req.body);
   const job = await jobService.create(actorFrom(req), input);
   successResponse(res, job, { statusCode: 201, meta: { requestId: getRequestId(req) } });
+});
+
+export const parseJobJd = asyncHandler(async (req: Request, res: Response) => {
+  const input = parseJdSchema.parse(req.body);
+  try {
+    const parsed = await parseJobDescription(input.jdText);
+    successResponse(res, parsed, { meta: { requestId: getRequestId(req) } });
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    const message = error instanceof Error ? error.message : 'Unable to parse job description.';
+    const statusCode =
+      error && typeof error === 'object' && 'statusCode' in error
+        ? Number((error as { statusCode: number }).statusCode)
+        : 400;
+    throw new AppError(
+      Number.isFinite(statusCode) ? statusCode : 400,
+      'JD_PARSE_FAILED',
+      message
+    );
+  }
 });
 
 export const getJob = asyncHandler(async (req: Request, res: Response) => {

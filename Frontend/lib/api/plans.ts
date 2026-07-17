@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 
+import { billingApi, type CheckoutResult } from "./billing";
 import { apiClient } from "./client";
 import type { Invoice, PlanTier, UsageQuota } from "./contracts";
 import { createDomainService, simulateMockLatency } from "./service";
@@ -41,7 +42,12 @@ export interface PlansApi {
   getUsageSummary(): Promise<UsageSummary>;
   listTiers(): Promise<PlanTier[]>;
   listInvoices(): Promise<Invoice[]>;
-  upgrade(planId: string): Promise<{ checkoutUrl: string }>;
+  upgrade(input: {
+    planId: string;
+    billingCycle?: "monthly" | "yearly";
+    currency?: "INR" | "USD";
+    provider?: "razorpay" | "dodo";
+  }): Promise<CheckoutResult>;
 }
 
 const METRIC_TO_UI_ID: Record<string, string> = {
@@ -55,6 +61,10 @@ const METRIC_TO_UI_ID: Record<string, string> = {
   team_seats: "team",
   assessment_invites: "assessments",
 };
+
+const UI_ID_TO_METRIC: Record<string, string> = Object.fromEntries(
+  Object.entries(METRIC_TO_UI_ID).map(([metric, id]) => [id, metric])
+);
 
 function mapUsageRows(rows: UsageMetricRow[]): UsageQuota[] {
   return rows.map((row) => ({
@@ -91,7 +101,7 @@ const mockPlansApi: PlansApi = {
     return {
       periodKey: "2026-07",
       metrics: USAGE_QUOTAS.map((row) => ({
-        metric: row.id,
+        metric: UI_ID_TO_METRIC[row.id] ?? row.id,
         label: row.label,
         used: row.used,
         reserved: 0,
@@ -115,9 +125,24 @@ const mockPlansApi: PlansApi = {
     const { INVOICES } = await import("@/lib/mock-plans");
     return INVOICES;
   },
-  async upgrade(planId) {
+  async upgrade(input) {
     await simulateMockLatency();
-    return { checkoutUrl: `/dashboard/plans?upgrade=${planId}` };
+    // Mock mode: skip real Checkout.js — surface success path in UI.
+    return {
+      order: { id: "mock-order", status: "paid", provider: "razorpay" },
+      checkout: {
+        provider: "razorpay" as const,
+        keyId: "rzp_test_mock",
+        razorpayOrderId: "order_mock",
+        amount: 2499900,
+        currency: "INR",
+        planId: input.planId,
+        planName: "Growth",
+        orderId: "mock-order",
+      },
+      prefill: { name: "Demo User", email: "demo@huntlo.ai", contact: "" },
+      _mockPaid: true,
+    } as CheckoutResult & { _mockPaid?: boolean };
   },
 };
 
@@ -153,23 +178,58 @@ const livePlansApi: PlansApi = {
         limits?: Record<string, number | boolean>;
       }>
     >("/plans");
-    return result.data.map((plan) => ({
-      id: plan.id,
-      name: plan.name,
-      price: plan.priceLabel?.monthly ?? "Custom",
-      pricePeriod: "/ month",
-      description: plan.description ?? "",
-      highlighted: plan.code === "growth",
-      features: Object.entries(plan.featureAccess ?? {})
-        .filter(([, enabled]) => enabled)
-        .map(([key]) => key),
-    })) as PlanTier[];
+    return result.data.map((plan) => {
+      const limits = plan.limits ?? {};
+      const num = (key: string): number | null => {
+        const value = limits[key];
+        return typeof value === "number" ? value : null;
+      };
+      const perMonth = (key: string) => {
+        const n = num(key);
+        if (n == null) return "—";
+        if (n >= 999_999_999) return "Unlimited";
+        return `${n.toLocaleString("en-IN")} / mo`;
+      };
+      const unitValue = (key: string, unit: string) => {
+        const n = num(key);
+        if (n == null) return "—";
+        if (n >= 999_999_999) return "Unlimited";
+        return `${n.toLocaleString("en-IN")} ${unit}`;
+      };
+      const isEnterprise = plan.code === "enterprise";
+      return {
+        id: plan.id,
+        name: plan.name,
+        price: plan.priceLabel?.monthly ?? "Custom",
+        priceNote: isEnterprise ? " · talk to sales" : " / month",
+        description: plan.description ?? "",
+        highlighted: plan.code === "growth",
+        cta: isEnterprise ? "Contact Sales" : "Choose plan",
+        features: {
+          searches: perMonth("candidate_search"),
+          emailReveals: perMonth("email_reveal"),
+          mobileReveals: perMonth("mobile_reveal"),
+          peopleScout: perMonth("people_scout"),
+          emailOutreach: perMonth("email_outreach"),
+          whatsapp: perMonth("whatsapp_outreach"),
+          voice: unitValue("ai_voice_minutes", "min"),
+          team: unitValue("team_seats", "seats"),
+          analytics: Boolean(plan.featureAccess?.analytics),
+          integrations: Boolean(plan.featureAccess?.integrations),
+        },
+      };
+    }) as PlanTier[];
   },
   async listInvoices() {
-    return [];
+    return billingApi.listInvoices();
   },
-  async upgrade(planId) {
-    return { checkoutUrl: `/dashboard/plans?upgrade=${planId}` };
+  async upgrade(input) {
+    return billingApi.checkout({
+      planId: input.planId,
+      billingCycle: input.billingCycle ?? "monthly",
+      currency: input.currency,
+      provider: input.provider,
+    });
   },
 };
 

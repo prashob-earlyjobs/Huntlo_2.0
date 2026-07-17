@@ -44,37 +44,56 @@ Legend: **P0** = required for MVP of module · **P1** = soon after · **P2** = l
 
 | Method | Endpoint | Frontend | P |
 |--------|----------|----------|---|
-| GET | `/notifications` | `NOTIFICATIONS` | P1 |
-| PATCH | `/notifications/:id/read` | Mark read | P1 |
-| POST | `/notifications/read-all` | Mark all read | P1 |
+| GET | `/notifications` | `NOTIFICATIONS` | P0 |
+| GET | `/notifications/unread-count` | Unread badge count | P0 |
+| POST | `/notifications/:id/read` | Mark one read | P0 |
+| POST | `/notifications/read-all` | Mark all read | P0 |
+| DELETE | `/notifications/:id` | Dismiss notification | P1 |
+| POST | `/realtime/ticket` | Short-lived WS auth ticket | P0 |
 
 ### Realtime (WebSocket)
 
+Auth: `POST /realtime/ticket` → connect to `REALTIME_WS_PATH?ticket=<ticket>` (do not put access JWTs in the WS URL).
+
 | Event | Frontend consumer | P |
 |-------|-------------------|---|
-| `notification.created` | Header bell | P1 |
-| `session.progress` | `/dashboard/sessions/[id]` progress bar | P0 |
+| `realtime.connected` | Connection ack | P0 |
+| `notification.created` | Header bell | P0 |
+| `candidates.search.poll` | `/dashboard/sessions/[id]` progress | P0 |
+| `candidates.search.completed` | `/dashboard/sessions/[id]` | P0 |
 | `conversation.message.created` | Conversations inbox | P0 |
-| `campaign.stats.updated` | Campaign detail KPIs | P1 |
-| `usage.updated` | Usage indicator | P1 |
+| `campaign.thread.updated` | Conversations inbox | P0 |
+| `campaign.updated` | Campaign detail | P1 |
+| `screening.result.updated` | Screening results | P0 |
+| `interview.updated` | Schedule dashboard | P0 |
+| `usage.updated` | Usage indicator | P0 |
+| `integration.updated` | Integrations | P1 |
 
 ---
 
 ## Dashboard home
 
 **Route:** `/dashboard`  
-**Mocks:** `mock-dashboard.ts`, `mock-data.ts`
+**Mocks:** `mock-dashboard.ts`, `mock-data.ts`  
+**Client:** `lib/api/analytics.ts` + `DashboardHomeClient`
 
 | Method | Endpoint | Response `data` | P |
 |--------|----------|-----------------|---|
-| GET | `/analytics/dashboard` | Composite: metrics, pipeline, active jobs, priorities, interviews, campaign summary, channel comparison, usage groups | P1 |
+| GET | `/dashboard/summary` | Overview metrics + secondary stats + totals | P0 |
+| GET | `/dashboard/priorities` | Priority action items | P0 |
+| GET | `/dashboard/jobs` | Active jobs table rows | P0 |
+| GET | `/dashboard/pipeline` | Funnel stages | P0 |
+| GET | `/dashboard/campaign-performance` | Campaign summary + channel comparison | P0 |
+| GET | `/dashboard/interviews` | Upcoming interviews | P0 |
+| GET | `/dashboard/activity` | Recent activity feed | P0 |
+| GET | `/dashboard/usage` | Plan usage groups | P0 |
+| GET | `/analytics/dashboard` | Composite (compat) | P1 |
+
+Filters (all dashboard/analytics): `from`, `to`, `timezone`, `preset`, `jobId`, `campaignId`, `recruiterId`, `channel`, `location`, `candidateStatus`.
 
 **`OverviewMetric`:** `{ id, label, value, change, trend, comparison, tooltip }`  
 **`PipelineStage`:** `{ id, label, count, conversion? }`  
-**`ActiveJob`:** `{ id, title, department, candidates, qualified, status }`  
-**`PriorityItem`:** `{ id, title, description, dueLabel, href, kind }`  
-**`UpcomingInterview`:** subset of `Interview`  
-**`CampaignSummaryStat`:** channel performance aggregates
+**`ActiveJob`:** `{ id, title, location, hiringManager, sourced, interested, screened, interviews, status, lastActivity }`
 
 ---
 
@@ -452,22 +471,28 @@ OAuth callbacks: `GET /public/oauth/:provider/callback`
 ## Plans & billing
 
 **Route:** `/dashboard/plans`  
-**Mocks:** `mock-plans.ts`
+**Mocks:** `mock-plans.ts`  
+**Clients:** `lib/api/plans.ts`, `lib/api/billing.ts`
 
 | Method | Endpoint | Action | P |
 |--------|----------|--------|---|
+| GET | `/plans` | Public plan tiers | P0 |
 | GET | `/plans/current` | Current plan + renewal | P0 |
-| GET | `/plans/usage` | `UsageQuota[]` with `usageState()` | P0 |
-| GET | `/plans/tiers` | Available plan tiers + feature matrix | P0 |
-| POST | `/plans/upgrade` | Initiate checkout | P1 |
-| POST | `/plans/credits/purchase` | Buy credit top-up | P1 |
-| GET | `/billing/invoices` | Invoice history | P1 |
-| GET | `/billing/invoices/:id` | Invoice detail / PDF URL | P2 |
+| GET | `/usage` | Usage metrics | P0 |
+| POST | `/billing/checkout` | Create Razorpay (INR) or Dodo (USD) order | P0 |
+| GET | `/billing/orders/:id` | Payment order status | P0 |
+| GET | `/billing/history` | Payment order history | P0 |
+| GET | `/billing/invoices` | Invoice history | P0 |
+| POST | `/billing/razorpay/verify` | Server-side Razorpay signature + amount verify | P0 |
+| POST | `/webhooks/razorpay` | Razorpay events (raw body + `X-Razorpay-Signature`) | P0 |
+| POST | `/webhooks/dodo` | Dodo events (raw body + standardwebhooks headers) | P0 |
+
+**Checkout rules:** Razorpay = INR only; Dodo = USD/global. Subscription activates only after verified server-side confirmation (verify endpoint or signed webhook). Never trust client-only success. Secrets never returned to the client (only Razorpay `keyId`).
 
 **`UsageQuota`:** `{ id, label, description, used, limit, unit?, resetDate }`  
 **`Invoice`:** `{ id, invoiceNumber, plan, billingPeriod, amount, provider, status, paymentDate }`
 
-Webhooks: `POST /public/webhooks/razorpay`, `POST /public/webhooks/dodo`
+Webhooks: `POST /webhooks/razorpay`, `POST /webhooks/dodo` (also under `/public/webhooks/*`)
 
 ---
 
@@ -493,18 +518,27 @@ Settings sections: `workspace`, `recruiting`, `outreach`, `screening`, `scheduli
 
 ---
 
-## Analytics & reports (stub pages)
+## Analytics & reports
 
-**Routes:** `/dashboard/analytics`, `/dashboard/reports` (no page yet)  
-**Mocks:** `mock-modules.ts` placeholders
+**Routes:** `/dashboard/analytics`, `/dashboard/reports`  
+**Clients:** `analytics-workspace.tsx`, `reports-workspace.tsx`
 
 | Method | Endpoint | P |
 |--------|----------|---|
-| GET | `/analytics/overview` | P2 |
-| GET | `/analytics/pipeline` | P2 |
-| GET | `/analytics/channels` | P2 |
-| GET | `/reports` | P2 |
-| POST | `/reports/generate` | P2 |
+| GET | `/analytics/overview` | P0 |
+| GET | `/analytics/pipeline` | P0 |
+| GET | `/analytics/channels` | P0 |
+| GET | `/analytics/jobs` | P0 |
+| GET | `/analytics/recruiters` | P0 |
+| GET | `/analytics/screening` | P0 |
+| GET | `/analytics/scheduling` | P0 |
+| GET | `/analytics/usage` | P0 |
+| GET | `/reports` | P0 |
+| POST | `/reports/generate` | P0 |
+| GET | `/reports/:id` | P0 |
+| GET | `/reports/:id/export` | P0 (`analytics:export`) |
+
+Server-side Mongo aggregations only — frontend must not recalculate funnel metrics. Short-lived cache (~30s). CSV export streams via `analytics:export`.
 
 ---
 

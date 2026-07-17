@@ -32,6 +32,19 @@ import {
   promptForSourcingApi,
 } from './futureJobs.mapper.js';
 import {
+  GEO_EXPAND_STEPS,
+  applyGeoExpandStep,
+  canExpandGeoFurther,
+  hasRegionOrLocationFilter,
+  nextGeoExpandStep,
+  parseGeoDistanceKm,
+} from './futureJobs.filterMapping.js';
+import {
+  POST_SESSION_CREATE_PROFILES_WAIT_MS,
+  POST_SESSION_CREATE_PROFILES_WAIT_MS_DEFAULT,
+  getPostSessionCreateProfilesWaitMs,
+} from './futureJobs.payload.js';
+import {
   createMockFutureJobsProvider,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
@@ -74,12 +87,17 @@ export {
   FutureJobsUpstreamError,
   createFutureJobsUpstreamError,
   DEFAULT_FILTER_FORM,
+  GEO_EXPAND_STEPS,
+  POST_SESSION_CREATE_PROFILES_WAIT_MS,
+  POST_SESSION_CREATE_PROFILES_WAIT_MS_DEFAULT,
   SOURCING_PROMPT_MAX_LENGTH,
+  applyGeoExpandStep,
   baseSessionFromPrompt,
   buildFjAuthHeaders,
   buildSessionPayloadForApply,
   buildSessionPayloadFromPromptAndFilter,
   buildSourcingSessionPayloadFromPrompt,
+  canExpandGeoFurther,
   createLiveFutureJobsProvider,
   createMockFutureJobsProvider,
   enrichFilterFormSkillsFromPrompt,
@@ -89,22 +107,28 @@ export {
   filterFormFromCreateResponse,
   fjAuthStyleLabel,
   getFutureJobsConfig,
+  getPostSessionCreateProfilesWaitMs,
+  hasRegionOrLocationFilter,
   linkedinCacheLookupKeys,
   looksValidContact,
   lowercaseLinkedinProfileUrl,
   mapFjDocToCandidate,
   mergeFilterFormIntoSession,
+  nextGeoExpandStep,
   normalizeApiKey,
   normalizeFilterFormForUi,
   normalizeLinkedinProfileUrl,
   normalizePromptPlainText,
   normalizeRegionForFutureJobs,
+  parseGeoDistanceKm,
   promptForSourcingApi,
   resetFutureJobsCircuit,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
   shouldUseFutureJobsMock,
 };
+
+export type { GeoExpandStep } from './futureJobs.filterMapping.js';
 
 export type {
   FutureJobsFilterForm as FilterForm,

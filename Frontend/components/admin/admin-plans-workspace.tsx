@@ -32,20 +32,98 @@ import {
 } from "@/components/ui/table";
 import {
   ADMIN_MODULES,
-  ADMIN_PLANS,
   emptyPlanDraft,
   type AdminPlan,
 } from "@/lib/mock-admin";
+import { adminApi, type AdminPlan as ApiAdminPlan } from "@/lib/api/admin";
+import { getApiErrorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
+function limitValue(limits: Record<string, unknown> | undefined, key: string) {
+  const value = limits?.[key];
+  return value == null ? "—" : String(value);
+}
+
+function parsePrice(value: string): number | null {
+  const digits = value.replace(/[^\d.]/g, "");
+  if (!digits) return null;
+  return Number(digits);
+}
+
+function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
+  const limits = (plan.limits || {}) as Record<string, unknown>;
+  const features = plan.featureAccess || {};
+  const modules = Object.entries(features)
+    .filter(([, enabled]) => Boolean(enabled))
+    .map(([key]) => key);
+  return {
+    id: plan.id,
+    name: plan.name,
+    price:
+      plan.priceLabel?.monthly ||
+      (plan.prices?.monthly != null ? `₹${plan.prices.monthly.toLocaleString("en-IN")}` : "—"),
+    billingCycle: "Monthly",
+    searchLimit: limitValue(limits, "candidate_search"),
+    emailRevealLimit: limitValue(limits, "email_reveal"),
+    mobileRevealLimit: limitValue(limits, "mobile_reveal"),
+    peopleScoutLimit: limitValue(limits, "people_scout"),
+    emailOutreachLimit: limitValue(limits, "email_outreach"),
+    whatsappLimit: limitValue(limits, "whatsapp_outreach"),
+    aiVoiceLimit: limitValue(limits, "ai_voice_minutes"),
+    teamMemberLimit: limitValue(limits, "team_seats"),
+    modules,
+    active: plan.active,
+  };
+}
+
+function toPlanPayload(draft: AdminPlan) {
+  const monthly = parsePrice(draft.price);
+  return {
+    name: draft.name.trim(),
+    code: draft.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, ""),
+    prices: { monthly, yearly: monthly == null ? null : monthly * 10 },
+    billingCycles: draft.billingCycle === "Annual" ? ["yearly"] : ["monthly", "yearly"],
+    limits: {
+      candidate_search: Number(draft.searchLimit) || 0,
+      email_reveal: Number(draft.emailRevealLimit) || 0,
+      mobile_reveal: Number(draft.mobileRevealLimit) || 0,
+      people_scout: Number(draft.peopleScoutLimit) || 0,
+      email_outreach: Number(draft.emailOutreachLimit) || 0,
+      whatsapp_outreach: Number(draft.whatsappLimit) || 0,
+      ai_voice_minutes: Number(String(draft.aiVoiceLimit).replace(/[^\d]/g, "")) || 0,
+      team_seats: Number(draft.teamMemberLimit) || 0,
+    },
+    featureAccess: Object.fromEntries(
+      ADMIN_MODULES.map((module) => [module, draft.modules.includes(module)])
+    ),
+    active: draft.active,
+  };
+}
+
 export function AdminPlansWorkspace() {
-  const [plans, setPlans] = useState(ADMIN_PLANS);
+  const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<AdminPlan>(emptyPlanDraft());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    void adminApi
+      .listPlans()
+      .then((items) => {
+        setPlans(items.map(mapApiPlan));
+      })
+      .catch((error) => {
+        setPlans([]);
+        setToast(getApiErrorMessage(error, "Unable to load plans."));
+      });
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -79,19 +157,27 @@ export function AdminPlansWorkspace() {
       setToast("Plan name and price are required.");
       return;
     }
-    if (editingId) {
-      setPlans((previous) =>
-        previous.map((plan) =>
-          plan.id === editingId ? { ...draft, id: editingId } : plan
-        )
-      );
-      setToast(`Updated ${draft.name}. (UI preview)`);
-    } else {
-      const id = `p-${draft.name.toLowerCase().replace(/\s+/g, "-")}`;
-      setPlans((previous) => [...previous, { ...draft, id }]);
-      setToast(`Created ${draft.name}. (UI preview)`);
-    }
-    setOpen(false);
+    const payload = toPlanPayload(draft);
+    void (async () => {
+      try {
+        if (editingId) {
+          const updated = await adminApi.updatePlan(editingId, payload);
+          setPlans((previous) =>
+            previous.map((plan) =>
+              plan.id === editingId ? mapApiPlan(updated) : plan
+            )
+          );
+          setToast(`Updated ${draft.name}.`);
+        } else {
+          const created = await adminApi.createPlan(payload);
+          setPlans((previous) => [...previous, mapApiPlan(created)]);
+          setToast(`Created ${draft.name}.`);
+        }
+        setOpen(false);
+      } catch (error) {
+        setToast(getApiErrorMessage(error, "Unable to save plan."));
+      }
+    })();
   }
 
   return (
@@ -186,7 +272,7 @@ export function AdminPlansWorkspace() {
               {editingId ? "Edit plan" : "Create plan"}
             </DialogTitle>
             <DialogDescription>
-              Configure pricing, quotas and module access. UI only.
+              Configure pricing, quotas and module access.
             </DialogDescription>
           </DialogHeader>
 

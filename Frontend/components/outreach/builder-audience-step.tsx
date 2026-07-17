@@ -18,10 +18,6 @@ import {
   statsFromPoolRows,
 } from "@/components/outreach/audience-resolve";
 import { Field, StepCard } from "@/components/outreach/builder-ui";
-import type {
-  BuilderState,
-  UpdateBuilder,
-} from "@/components/outreach/builder-types";
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +40,22 @@ import {
   AUDIENCE_SOURCES,
   reachableCount,
   type AudienceSource,
+  type AudienceStats,
 } from "@/lib/mock-outreach";
 import { cn } from "@/lib/utils";
+
+export type AudienceStepState = {
+  source: AudienceSource | null;
+  sourceDetail: string;
+  selectedCandidateIds: string[];
+  poolSearch: string;
+  audiencePreview: AudienceStats | null;
+};
+
+export type AudienceStepUpdate = <K extends keyof AudienceStepState>(
+  key: K,
+  value: AudienceStepState[K]
+) => void;
 
 const SOURCE_META: Record<
   AudienceSource,
@@ -166,10 +176,16 @@ export function AudienceStep({
   state,
   update,
   showErrors,
+  title = "Audience",
+  description = "Choose where the campaign audience comes from. Duplicates and invalid contacts are excluded automatically.",
+  sourceErrorLabel = "Choose where the campaign audience comes from.",
 }: {
-  state: BuilderState;
-  update: UpdateBuilder;
+  state: AudienceStepState;
+  update: AudienceStepUpdate;
   showErrors: boolean;
+  title?: string;
+  description?: string;
+  sourceErrorLabel?: string;
 }) {
   const stats = state.audiencePreview;
   const [lists, setLists] = useState<SavedList[]>([]);
@@ -314,10 +330,7 @@ export function AudienceStep({
   }
 
   return (
-    <StepCard
-      title="Audience"
-      description="Choose where the campaign audience comes from. Duplicates and invalid contacts are excluded automatically."
-    >
+    <StepCard title={title} description={description}>
       <div className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {AUDIENCE_SOURCES.map((source) => {
@@ -358,7 +371,7 @@ export function AudienceStep({
 
         {showErrors && !state.source ? (
           <p role="alert" className="text-sm text-destructive">
-            Choose where the campaign audience comes from.
+            {sourceErrorLabel}
           </p>
         ) : null}
 
@@ -373,7 +386,7 @@ export function AudienceStep({
             <Select
               value={state.sourceDetail || undefined}
               onValueChange={(value) => {
-                update("sourceDetail", value);
+                update("sourceDetail", value ?? "");
                 update("selectedCandidateIds", []);
               }}
               disabled={loadingOptions}
@@ -409,7 +422,7 @@ export function AudienceStep({
             <Select
               value={state.sourceDetail || undefined}
               onValueChange={(value) => {
-                update("sourceDetail", value);
+                update("sourceDetail", value ?? "");
                 update("selectedCandidateIds", []);
               }}
               disabled={loadingOptions}

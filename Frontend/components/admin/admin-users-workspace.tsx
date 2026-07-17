@@ -54,10 +54,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ADMIN_USERS,
   type AdminAccountStatus,
   type AdminUser,
 } from "@/lib/mock-admin";
+import { adminApi } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -72,7 +73,7 @@ const STATUS_CLASS: Record<AdminAccountStatus, string> = {
 type DialogKind = "edit" | "plan" | "quota" | null;
 
 export function AdminUsersWorkspace() {
-  const [users, setUsers] = useState(ADMIN_USERS);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -84,6 +85,37 @@ export function AdminUsersWorkspace() {
     reveals: "",
     outreach: "",
   });
+
+  useEffect(() => {
+    void adminApi
+      .listUsers({ limit: 100 })
+      .then((result) => {
+        setUsers(
+          result.items.map((user) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            organisation: user.organisation,
+            plan: user.plan,
+            role: user.role,
+            searchesUsed: user.searchesUsed ?? 0,
+            revealsUsed: user.revealsUsed ?? 0,
+            outreachUsed: user.outreachUsed ?? 0,
+            status: (user.status as AdminAccountStatus) || "Active",
+            createdAt: user.createdAt
+              ? new Date(user.createdAt).toLocaleDateString("en-IN")
+              : "—",
+            lastActive: user.lastActive
+              ? new Date(user.lastActive).toLocaleString("en-IN")
+              : "—",
+          }))
+        );
+      })
+      .catch((error) => {
+        setUsers([]);
+        setToast(getApiErrorMessage(error, "Unable to load users."));
+      });
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -235,11 +267,22 @@ export function AdminUsersWorkspace() {
                         Adjust Quota
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() =>
-                          setToast(
-                            `Password reset placeholder sent to ${user.email}.`
-                          )
-                        }
+                        onClick={() => {
+                          void adminApi
+                            .resetPassword(user.id)
+                            .then((result) => {
+                              setToast(
+                                result.temporaryPassword
+                                  ? `Temporary password issued for ${user.name}.`
+                                  : `Password reset for ${user.name}.`
+                              );
+                            })
+                            .catch((error) =>
+                              setToast(
+                                getApiErrorMessage(error, "Unable to reset password.")
+                              )
+                            );
+                        }}
                       >
                         <KeyRound aria-hidden />
                         Reset Password
@@ -247,22 +290,62 @@ export function AdminUsersWorkspace() {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => {
-                          patchUser(user.id, { status: "Suspended" });
-                          setToast(`${user.name} suspended. (UI preview)`);
+                          void adminApi
+                            .suspendUser(user.id)
+                            .then((updated) => {
+                              patchUser(user.id, {
+                                status: (updated.status as AdminAccountStatus) || "Suspended",
+                              });
+                              setToast(`${user.name} suspended.`);
+                            })
+                            .catch((error) =>
+                              setToast(
+                                getApiErrorMessage(error, "Unable to suspend user.")
+                              )
+                            );
                         }}
                       >
                         <Ban aria-hidden />
                         Suspend
                       </DropdownMenuItem>
                       <DropdownMenuItem
+                        onClick={() => {
+                          void adminApi
+                            .activateUser(user.id)
+                            .then((updated) => {
+                              patchUser(user.id, {
+                                status: (updated.status as AdminAccountStatus) || "Active",
+                              });
+                              setToast(`${user.name} activated.`);
+                            })
+                            .catch((error) =>
+                              setToast(
+                                getApiErrorMessage(error, "Unable to activate user.")
+                              )
+                            );
+                        }}
+                      >
+                        <Eye aria-hidden />
+                        Activate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         variant="destructive"
                         onClick={() => {
-                          patchUser(user.id, { status: "Deleted" });
-                          setToast(`${user.name} marked deleted. (UI preview)`);
+                          void adminApi
+                            .suspendUser(user.id)
+                            .then(() => {
+                              patchUser(user.id, { status: "Suspended" });
+                              setToast(`${user.name} deactivated.`);
+                            })
+                            .catch((error) =>
+                              setToast(
+                                getApiErrorMessage(error, "Unable to deactivate user.")
+                              )
+                            );
                         }}
                       >
                         <Trash2 aria-hidden />
-                        Delete
+                        Deactivate
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -332,7 +415,7 @@ export function AdminUsersWorkspace() {
             <DialogDescription>
               {selected
                 ? `${selected.name} · ${selected.organisation}`
-                : "UI preview"}
+                : "Select a user"}
             </DialogDescription>
           </DialogHeader>
 
@@ -443,18 +526,63 @@ export function AdminUsersWorkspace() {
               onClick={() => {
                 if (!selected) return;
                 if (dialog === "edit") {
-                  patchUser(selected.id, editForm);
-                  setToast("User updated. (UI preview)");
+                  const [firstName, ...rest] = editForm.name.trim().split(/\s+/);
+                  const lastName = rest.join(" ") || firstName || "User";
+                  void adminApi
+                    .updateUser(selected.id, {
+                      firstName: firstName || "User",
+                      lastName,
+                      role: editForm.role.toLowerCase().replace(/\s+/g, "_"),
+                    })
+                    .then(() => {
+                      patchUser(selected.id, editForm);
+                      setToast("User updated.");
+                    })
+                    .catch((error) =>
+                      setToast(getApiErrorMessage(error, "Unable to update user."))
+                    );
                 } else if (dialog === "plan") {
-                  patchUser(selected.id, { plan: planForm });
-                  setToast(`Assigned ${planForm} plan. (UI preview)`);
+                  void adminApi
+                    .assignPlan(selected.id, planForm)
+                    .then(() => {
+                      patchUser(selected.id, { plan: planForm });
+                      setToast(`Assigned ${planForm} plan.`);
+                    })
+                    .catch((error) =>
+                      setToast(getApiErrorMessage(error, "Unable to assign plan."))
+                    );
                 } else if (dialog === "quota") {
-                  patchUser(selected.id, {
-                    searchesUsed: Number(quotaForm.searches) || 0,
-                    revealsUsed: Number(quotaForm.reveals) || 0,
-                    outreachUsed: Number(quotaForm.outreach) || 0,
-                  });
-                  setToast("Quota adjusted. (UI preview)");
+                  const searchDelta = Number(quotaForm.searches) || 0;
+                  const revealDelta = Number(quotaForm.reveals) || 0;
+                  const outreachDelta = Number(quotaForm.outreach) || 0;
+                  void Promise.all([
+                    adminApi.adjustQuota(selected.id, {
+                      metric: "candidate_search",
+                      delta: searchDelta,
+                      reason: "admin adjustment",
+                    }),
+                    adminApi.adjustQuota(selected.id, {
+                      metric: "email_reveal",
+                      delta: revealDelta,
+                      reason: "admin adjustment",
+                    }),
+                    adminApi.adjustQuota(selected.id, {
+                      metric: "email_outreach",
+                      delta: outreachDelta,
+                      reason: "admin adjustment",
+                    }),
+                  ])
+                    .then(() => {
+                      patchUser(selected.id, {
+                        searchesUsed: searchDelta,
+                        revealsUsed: revealDelta,
+                        outreachUsed: outreachDelta,
+                      });
+                      setToast("Quota adjusted.");
+                    })
+                    .catch((error) =>
+                      setToast(getApiErrorMessage(error, "Unable to adjust quota."))
+                    );
                 }
                 setDialog(null);
                 setSelected(null);

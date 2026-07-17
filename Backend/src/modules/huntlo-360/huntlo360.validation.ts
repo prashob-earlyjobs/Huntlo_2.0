@@ -20,6 +20,7 @@ export const workflowIdParamSchema = z.object({
 export const createWorkflowSchema = z.object({
   name: z.string().trim().min(1).max(200),
   jobId: objectId.nullable().optional(),
+  ownerUserId: objectId.nullable().optional(),
   candidateSource: z
     .object({
       type: z.string().optional(),

@@ -36,10 +36,10 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  REVEAL_QUOTA,
   type CandidateActivityEntry,
   type SessionCandidate,
 } from "@/lib/mock-sessions";
+import { useRevealQuota } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +95,8 @@ export function CandidateDrawer({
   onToggleSave: () => void;
   onAddToOutreach: () => void;
 }) {
+  const revealQuota = useRevealQuota();
+
   if (!candidate) return null;
 
   const emailVisible = revealed.email || candidate.emailRevealed;
@@ -382,8 +384,8 @@ export function CandidateDrawer({
                 />
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                {REVEAL_QUOTA.emailRemaining.toLocaleString("en-IN")} email ·{" "}
-                {REVEAL_QUOTA.mobileRemaining.toLocaleString("en-IN")} mobile reveals
+                {revealQuota.emailRemaining.toLocaleString("en-IN")} email ·{" "}
+                {revealQuota.mobileRemaining.toLocaleString("en-IN")} mobile reveals
                 remaining this cycle.
               </p>
             </PopoverContent>

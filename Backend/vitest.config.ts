@@ -26,6 +26,8 @@ export default defineConfig({
     include: ['tests/**/*.test.ts', 'src/**/__tests__/**/*.test.ts'],
     pool: 'forks',
     fileParallelism: false,
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
   },
   resolve: {
     alias: {

@@ -41,6 +41,7 @@ import {
   getApiErrorMessage,
   jobsApi,
   schedulingApi,
+  teamApi,
   type CalendlyEventType,
 } from "@/lib/api";
 import {
@@ -48,8 +49,6 @@ import {
   INTERVIEW_TYPES,
   MEETING_PLATFORMS,
   REMINDER_CONFIGS,
-  SCHEDULE_CANDIDATES,
-  SCHEDULE_INTERVIEWERS,
   SCHEDULING_METHODS,
   TIMEZONE_OPTIONS,
   type SchedulingMethod,
@@ -184,15 +183,11 @@ export function ScheduleInterviewFlow({
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [candidates, setCandidates] = useState<FlowCandidate[]>(
-    SCHEDULE_CANDIDATES.map((row) => ({
-      id: row.id,
-      name: row.name,
-      title: row.title,
-      company: row.company,
-    }))
-  );
+  const [candidates, setCandidates] = useState<FlowCandidate[]>([]);
   const [jobs, setJobs] = useState<FlowJob[]>([]);
+  const [interviewerOptions, setInterviewerOptions] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [eventTypes, setEventTypes] = useState<CalendlyEventType[]>([]);
 
   useEffect(() => {
@@ -200,32 +195,32 @@ export function ScheduleInterviewFlow({
     let cancelled = false;
     void (async () => {
       try {
-        const [pool, jobRows, events] = await Promise.all([
+        const [pool, jobRows, members, events] = await Promise.all([
           candidatePoolApi.list({ limit: 40 }).catch(() => []),
           jobsApi.list({ limit: 40 }).catch(() => []),
+          teamApi.listMembers().catch(() => []),
           schedulingApi.listEventTypes().catch(() => []),
         ]);
         if (cancelled) return;
-        if (pool.length > 0) {
-          setCandidates(
-            pool.map((row) => ({
-              id: row.id,
-              name: row.name,
-              title: row.currentRole || row.headline || "",
-              company: row.currentCompany || "",
-            }))
-          );
-        }
-        if (jobRows.length > 0) {
-          setJobs(
-            jobRows.map((row) => ({
-              id: row.id,
-              title: row.title,
-              department: row.department || "",
-              location: row.location || "",
-            }))
-          );
-        }
+        setCandidates(
+          pool.map((row) => ({
+            id: row.id,
+            name: row.name,
+            title: row.currentRole || row.headline || "",
+            company: row.currentCompany || "",
+          }))
+        );
+        setJobs(
+          jobRows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            department: row.department || "",
+            location: row.location || "",
+          }))
+        );
+        setInterviewerOptions(
+          members.map((member) => ({ id: member.id, name: member.name }))
+        );
         setEventTypes(events);
         if (events[0]?.uri || events[0]?.schedulingUrl) {
           setState((previous) =>
@@ -238,7 +233,7 @@ export function ScheduleInterviewFlow({
           );
         }
       } catch {
-        // Keep mock candidate fallbacks when API is unavailable.
+        // Leave pickers empty when the API is unavailable — no mock fallbacks.
       }
     })();
     return () => {
@@ -517,25 +512,33 @@ export function ScheduleInterviewFlow({
                   description="Panel members who need the calendar hold."
                 >
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {SCHEDULE_INTERVIEWERS.map((person) => {
-                      const active = state.interviewers.includes(person);
-                      return (
-                        <ToggleRow
-                          key={person}
-                          id={`iv-${person}`}
-                          label={person}
-                          checked={active}
-                          onChange={(checked) =>
-                            update(
-                              "interviewers",
-                              checked
-                                ? [...state.interviewers, person]
-                                : state.interviewers.filter((p) => p !== person)
-                            )
-                          }
-                        />
-                      );
-                    })}
+                    {interviewerOptions.length === 0 ? (
+                      <p className="col-span-full text-sm text-muted-foreground">
+                        No team members available to add as interviewers.
+                      </p>
+                    ) : (
+                      interviewerOptions.map((person) => {
+                        const active = state.interviewers.includes(person.id);
+                        return (
+                          <ToggleRow
+                            key={person.id}
+                            id={`iv-${person.id}`}
+                            label={person.name}
+                            checked={active}
+                            onChange={(checked) =>
+                              update(
+                                "interviewers",
+                                checked
+                                  ? [...state.interviewers, person.id]
+                                  : state.interviewers.filter(
+                                      (p) => p !== person.id
+                                    )
+                              )
+                            }
+                          />
+                        );
+                      })
+                    )}
                   </div>
                 </StepCard>
               ) : null}
@@ -797,7 +800,14 @@ export function ScheduleInterviewFlow({
                         ["Type", state.interviewType],
                         [
                           "Interviewers",
-                          state.interviewers.join(", ") || "—",
+                          state.interviewers
+                            .map(
+                              (id) =>
+                                interviewerOptions.find(
+                                  (person) => person.id === id
+                                )?.name ?? id
+                            )
+                            .join(", ") || "—",
                         ],
                         ["Method", state.method ?? "—"],
                         [

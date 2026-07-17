@@ -12,8 +12,12 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { OverviewMetricCardSkeleton } from "@/components/dashboard/overview-metric-card";
+import {
+  OutreachMetricsSkeleton,
+  OutreachWorkspaceSkeleton,
+} from "@/components/outreach/outreach-skeleton";
 import { OutreachWorkspace } from "@/components/outreach/outreach-workspace";
+import { ApiFeedback } from "@/components/shared/api-feedback";
 import { MetricStrip } from "@/components/shared/metric-strip";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -24,6 +28,7 @@ import {
 } from "@/lib/api";
 import type { OutreachCampaign, OutreachMetric } from "@/lib/mock-outreach";
 import { ROUTES } from "@/lib/routes";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 function formatCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -99,26 +104,12 @@ function toOutreachMetrics(overview: OutreachOverview): OutreachMetric[] {
   ];
 }
 
-function OutreachMetricsSkeleton() {
-  return (
-    <div
-      aria-busy
-      className="overflow-hidden rounded-lg border border-border"
-    >
-      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <OverviewMetricCardSkeleton key={index} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function OutreachPageClient() {
   const [campaigns, setCampaigns] = useState<OutreachCampaign[]>([]);
   const [metrics, setMetrics] = useState<OutreachMetric[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +128,7 @@ export function OutreachPageClient() {
         if (cancelled) return;
         setError(getApiErrorMessage(err, "Unable to load outreach campaigns."));
         setMetrics([]);
+        setCampaigns([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -144,7 +136,12 @@ export function OutreachPageClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
+
+  useRealtimeRefresh(
+    ["campaign.updated", "campaign.status.changed", "conversation.message.created"],
+    () => setReloadToken((value) => value + 1)
+  );
 
   return (
     <>
@@ -170,12 +167,14 @@ export function OutreachPageClient() {
       ) : null}
 
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
+        <ApiFeedback
+          state="error"
+          message={error}
+          onRetry={() => setReloadToken((value) => value + 1)}
+        />
       ) : null}
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading campaigns…</p>
+      {loading && campaigns.length === 0 ? (
+        <OutreachWorkspaceSkeleton />
       ) : (
         <OutreachWorkspace
           campaigns={campaigns}

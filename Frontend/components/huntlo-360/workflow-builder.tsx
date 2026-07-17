@@ -7,22 +7,18 @@ import {
   Briefcase,
   CalendarClock,
   CheckCircle2,
-  FileSpreadsheet,
-  ListChecks,
   Mail,
   MessageCircle,
   Pencil,
   Plus,
   Rocket,
   Save,
-  Search,
   Send,
   Trash2,
-  UserPlus,
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   ErrorList,
@@ -30,6 +26,11 @@ import {
   StepCard,
   ToggleRow,
 } from "@/components/outreach/builder-ui";
+import { AudienceStep } from "@/components/outreach/builder-audience-step";
+import {
+  candidateSourceType,
+  resolveAudienceCandidateIds,
+} from "@/components/outreach/audience-resolve";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,10 +44,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   getApiErrorMessage,
-  candidatePoolApi,
   huntlo360Api,
+  jobsApi,
+  teamApi,
+  type ApiTeamMember,
   type WorkflowCreateInput,
 } from "@/lib/api";
+import type { JobListItem } from "@/lib/api/contracts";
 import {
   AI_RESPONSE_MODES,
   AUTO_SHORTLIST_CONDITIONS,
@@ -60,16 +64,14 @@ import {
   STOP_CONDITIONS_360,
   VOICE_TONES,
 } from "@/lib/mock-360";
-import { JOBS } from "@/lib/mock-jobs";
 import {
-  AUDIENCE_SOURCES,
-  AUDIENCE_STATS,
-  CAMPAIGN_OWNERS,
   reachableCount,
   type AudienceSource,
+  type AudienceStats,
 } from "@/lib/mock-outreach";
 import { ROUTES, workflowDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers";
 
 /* ------------------------------------------------------------------ */
 /* State                                                                */
@@ -86,9 +88,14 @@ interface WorkflowBuilderState {
   // 1 — job
   name: string;
   jobId: string;
+  ownerUserId: string | null;
   owner: string;
   // 2 — candidates
   source: AudienceSource | null;
+  sourceDetail: string;
+  selectedCandidateIds: string[];
+  poolSearch: string;
+  audiencePreview: AudienceStats | null;
   // 3 — outreach
   emailEnabled: boolean;
   whatsappEnabled: boolean;
@@ -127,8 +134,13 @@ function initialState(): WorkflowBuilderState {
   return {
     name: "",
     jobId: "",
-    owner: CAMPAIGN_OWNERS[0],
+    ownerUserId: null,
+    owner: "",
     source: null,
+    sourceDetail: "",
+    selectedCandidateIds: [],
+    poolSearch: "",
+    audiencePreview: null,
     emailEnabled: true,
     whatsappEnabled: false,
     channelOrder: "Email first",
@@ -196,9 +208,32 @@ function stepErrors(step: number, state: WorkflowBuilderState): string[] {
   if (step === 0) {
     if (!state.name.trim()) errors.push("Workflow name is required.");
     if (!state.jobId) errors.push("Select the job this workflow hires for.");
+    if (!state.ownerUserId) errors.push("Assign a workflow owner.");
   }
-  if (step === 1 && !state.source) {
-    errors.push("Choose where enrolled candidates come from.");
+  if (step === 1) {
+    if (!state.source) {
+      errors.push("Choose where enrolled candidates come from.");
+    } else if (state.source === "Saved List" && !state.sourceDetail) {
+      errors.push("Select a saved list.");
+    } else if (state.source === "Sourcing Session" && !state.sourceDetail) {
+      errors.push("Select a sourcing session.");
+    } else if (
+      state.source === "Manual Add" &&
+      state.selectedCandidateIds.length === 0
+    ) {
+      errors.push("Pick at least one candidate to enroll.");
+    } else if (
+      state.source === "CSV/Excel Import" &&
+      state.selectedCandidateIds.length === 0
+    ) {
+      errors.push("Import a CSV/Excel file before continuing.");
+    } else if (
+      state.audiencePreview &&
+      state.audiencePreview.selected === 0 &&
+      state.source !== "CSV/Excel Import"
+    ) {
+      errors.push("This audience has no candidates yet.");
+    }
   }
   if (step === 2) {
     if (!state.emailEnabled && !state.whatsappEnabled)
@@ -230,12 +265,129 @@ function JobStep({
   state,
   update,
   showErrors,
+  jobs,
 }: {
   state: WorkflowBuilderState;
   update: Update;
   showErrors: boolean;
+  jobs: JobListItem[];
 }) {
-  const openJobs = JOBS.filter(
+  const { user } = useAuth();
+  const [owners, setOwners] = useState<ApiTeamMember[]>([]);
+  const [ownersLoading, setOwnersLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const members = await teamApi.listMembers();
+        if (cancelled) return;
+        const active = members.filter(
+          (member) =>
+            member.status === "active" ||
+            member.status === "Active" ||
+            member.status === "invited"
+        );
+        const list = active.length > 0 ? active : members;
+        setOwners(list);
+
+        if (!state.ownerUserId && user?.id) {
+          const self =
+            list.find((member) => member.userId === user.id) ||
+            list.find((member) => member.id === user.id);
+          update("ownerUserId", self?.userId || user.id);
+          update("owner", self?.name || user.name || "You");
+          return;
+        }
+
+        if (state.ownerUserId) {
+          const match =
+            list.find((member) => member.userId === state.ownerUserId) ||
+            list.find((member) => member.id === state.ownerUserId);
+          if (match?.name) {
+            update("owner", match.name);
+            if (match.userId && match.userId !== state.ownerUserId) {
+              update("ownerUserId", match.userId);
+            }
+          }
+        }
+      } catch {
+        if (!cancelled && user?.id && !state.ownerUserId) {
+          update("ownerUserId", user.id);
+          update("owner", user.name || "You");
+          setOwners([
+            {
+              id: user.id,
+              organizationId: user.organizationId || "",
+              userId: user.id,
+              name: user.name || "You",
+              firstName: user.firstName || "",
+              lastName: user.lastName || "",
+              email: user.email || "",
+              phone: null,
+              title: user.jobTitle || null,
+              role: "recruiter",
+              roleLabel: "Recruiter",
+              permissions: [],
+              assignedJobIds: [],
+              managerId: null,
+              status: "active",
+              joinedAt: null,
+              lastLoginAt: null,
+            },
+          ]);
+        }
+      } finally {
+        if (!cancelled) setOwnersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- default owner once on mount
+  }, []);
+
+  function selectOwner(userId: string) {
+    const member = owners.find((entry) => entry.userId === userId);
+    update("ownerUserId", userId);
+    update("owner", member?.name || state.owner || "Team member");
+  }
+
+  const ownerOptions = (() => {
+    const list = [...owners];
+    if (
+      state.ownerUserId &&
+      !list.some((member) => member.userId === state.ownerUserId)
+    ) {
+      list.unshift({
+        id: state.ownerUserId,
+        organizationId: user?.organizationId || "",
+        userId: state.ownerUserId,
+        name: state.owner.trim() || user?.name || "Owner",
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: null,
+        title: null,
+        role: "recruiter",
+        roleLabel: "Recruiter",
+        permissions: [],
+        assignedJobIds: [],
+        managerId: null,
+        status: "active",
+        joinedAt: null,
+        lastLoginAt: null,
+      });
+    }
+    return list;
+  })();
+
+  const ownerLabel =
+    ownerOptions.find((member) => member.userId === state.ownerUserId)?.name ||
+    state.owner.trim() ||
+    null;
+
+  const openJobs = jobs.filter(
     (job) => job.status === "Active" || job.status === "Paused"
   );
 
@@ -255,22 +407,36 @@ function JobStep({
               aria-invalid={showErrors && !state.name.trim()}
             />
           </Field>
-          <Field label="Workflow owner" htmlFor="wf-owner">
+          <Field label="Workflow owner" htmlFor="wf-owner" required>
             <Select
-              value={state.owner}
-              onValueChange={(value) => value && update("owner", value)}
+              value={state.ownerUserId || undefined}
+              onValueChange={(value) => value && selectOwner(value)}
+              disabled={ownersLoading && ownerOptions.length === 0}
             >
-              <SelectTrigger id="wf-owner" className="w-full">
-                <SelectValue />
+              <SelectTrigger
+                id="wf-owner"
+                className="w-full"
+                aria-invalid={showErrors && !state.ownerUserId}
+              >
+                <SelectValue
+                  placeholder={ownersLoading ? "Loading team…" : "Select owner"}
+                >
+                  {ownerLabel}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {CAMPAIGN_OWNERS.map((owner) => (
-                  <SelectItem key={owner} value={owner}>
-                    {owner}
+                {ownerOptions.map((member) => (
+                  <SelectItem key={member.userId} value={member.userId}>
+                    {member.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {showErrors && !state.ownerUserId ? (
+              <p role="alert" className="text-xs text-destructive">
+                Workflow owner is required.
+              </p>
+            ) : null}
           </Field>
         </div>
 
@@ -320,110 +486,6 @@ function JobStep({
             );
           })}
         </div>
-      </div>
-    </StepCard>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Step 2 — Select Candidates                                           */
-/* ------------------------------------------------------------------ */
-
-const SOURCE_META: Record<AudienceSource, { icon: typeof Users; description: string }> = {
-  "Candidate Pool": { icon: Users, description: "Filtered candidates from your pool" },
-  "Saved List": { icon: ListChecks, description: "Everyone in a saved list" },
-  "Sourcing Session": { icon: Search, description: "Results from an AI search" },
-  "CSV/Excel Import": { icon: FileSpreadsheet, description: "Upload a candidate file" },
-  "Manual Add": { icon: UserPlus, description: "Hand-pick a few candidates" },
-};
-
-function CandidatesStep({
-  state,
-  update,
-}: {
-  state: WorkflowBuilderState;
-  update: Update;
-}) {
-  const stats = state.source ? AUDIENCE_STATS[state.source] : null;
-
-  return (
-    <StepCard
-      title="Select Candidates"
-      description="Choose who enters the workflow. Duplicates and invalid contacts are excluded automatically."
-    >
-      <div className="space-y-4">
-        <div
-          role="radiogroup"
-          aria-label="Candidate source"
-          className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5"
-        >
-          {AUDIENCE_SOURCES.map((source) => {
-            const meta = SOURCE_META[source];
-            const active = state.source === source;
-            return (
-              <button
-                key={source}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => update("source", source)}
-                className={cn(
-                  "flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                  active
-                    ? "border-primary/50 bg-brand-subtle/40"
-                    : "border-border hover:bg-muted/40"
-                )}
-              >
-                <meta.icon
-                  aria-hidden
-                  className={cn(
-                    "size-4",
-                    active ? "text-primary" : "text-muted-foreground"
-                  )}
-                />
-                <span
-                  className={cn(
-                    "text-sm font-medium",
-                    active ? "text-primary" : "text-foreground"
-                  )}
-                >
-                  {source}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {meta.description}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {stats ? (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {(
-              [
-                ["Selected", stats.selected, "text-foreground"],
-                ["With email", stats.withEmail, "text-foreground"],
-                ["With phone", stats.withPhone, "text-foreground"],
-                ["Estimated reachable", reachableCount(stats), "text-success"],
-              ] as const
-            ).map(([label, value, tone]) => (
-              <div
-                key={label}
-                className="rounded-lg border border-border px-3 py-2.5"
-              >
-                <p className={cn("text-lg font-semibold tabular-nums", tone)}>
-                  {value.toLocaleString("en-IN")}
-                </p>
-                <p className="text-xs text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
-          Candidates without any contact details stay enrolled but are flagged
-          as “Contact unavailable” exceptions until contacts are revealed.
-        </p>
       </div>
     </StepCard>
   );
@@ -1171,13 +1233,15 @@ function ReviewStep({
   state,
   errors,
   goTo,
+  jobs,
 }: {
   state: WorkflowBuilderState;
   errors: string[];
   goTo: (step: number) => void;
+  jobs: JobListItem[];
 }) {
-  const job = JOBS.find((j) => j.id === state.jobId);
-  const stats = state.source ? AUDIENCE_STATS[state.source] : null;
+  const job = jobs.find((j) => j.id === state.jobId);
+  const stats = state.audiencePreview;
   const channels = [
     state.emailEnabled ? "Email" : null,
     state.whatsappEnabled ? "WhatsApp" : null,
@@ -1335,15 +1399,15 @@ function toCreateInput(
   return {
     name: state.name.trim(),
     jobId: state.jobId || null,
+    ownerUserId: state.ownerUserId || null,
     candidateSource: {
-      type:
-        state.source === "Saved List"
-          ? "saved_list"
-          : state.source === "Candidate Pool"
-            ? "candidate_pool"
-            : "manual",
+      type: candidateSourceType(state.source),
+      listId:
+        state.source === "Saved List" || state.source === "CSV/Excel Import"
+          ? state.sourceDetail || null
+          : null,
       candidateIds,
-      label: state.source,
+      label: state.sourceDetail || state.source || null,
     },
     outreachConfig: {
       emailEnabled: state.emailEnabled,
@@ -1402,15 +1466,12 @@ function toCreateInput(
 }
 
 async function resolveAudienceIds(state: WorkflowBuilderState): Promise<string[]> {
-  if (state.source === "Candidate Pool") {
-    const pool = await candidatePoolApi.list({ limit: 200 });
-    return pool.map((c) => c.id);
-  }
-  if (state.source === "Saved List") {
-    const pool = await candidatePoolApi.list({ limit: 200 });
-    return pool.map((c) => c.id);
-  }
-  return [];
+  return resolveAudienceCandidateIds({
+    source: state.source,
+    sourceDetail: state.sourceDetail,
+    selectedCandidateIds: state.selectedCandidateIds,
+    poolSearch: state.poolSearch,
+  });
 }
 
 export function WorkflowBuilder() {
@@ -1421,6 +1482,22 @@ export function WorkflowBuilder() {
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<JobListItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void jobsApi
+      .list({ limit: 100 })
+      .then((rows) => {
+        if (!cancelled) setJobs(rows);
+      })
+      .catch(() => {
+        // Leave the job picker empty when the jobs API is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
@@ -1558,9 +1635,16 @@ export function WorkflowBuilder() {
 
       {/* Step content */}
       {current === 0 ? (
-        <JobStep state={state} update={update} showErrors={showErrors} />
+        <JobStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
       ) : current === 1 ? (
-        <CandidatesStep state={state} update={update} />
+        <AudienceStep
+          state={state}
+          update={update}
+          showErrors={showErrors}
+          title="Select Candidates"
+          description="Choose who enters the workflow. Duplicates and invalid contacts are excluded automatically."
+          sourceErrorLabel="Choose where enrolled candidates come from."
+        />
       ) : current === 2 ? (
         <OutreachStep state={state} update={update} showErrors={showErrors} />
       ) : current === 3 ? (
@@ -1570,7 +1654,7 @@ export function WorkflowBuilder() {
       ) : current === 5 ? (
         <SchedulingStep state={state} update={update} />
       ) : (
-        <ReviewStep state={state} errors={launchErrors} goTo={goTo} />
+        <ReviewStep state={state} errors={launchErrors} goTo={goTo} jobs={jobs} />
       )}
 
       {/* Footer navigation */}

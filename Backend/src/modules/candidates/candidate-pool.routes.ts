@@ -72,7 +72,7 @@ candidatePoolRouter.post(
 candidatePoolRouter.post(
   '/bulk/export',
   ...orgAuth,
-  requirePermission('candidates:export', 'candidates:view'),
+  requirePermission('candidates:export'),
   bulkExport
 );
 

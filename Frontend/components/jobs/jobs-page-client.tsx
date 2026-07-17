@@ -5,6 +5,10 @@ import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { JobsMetrics } from "@/components/jobs/jobs-metrics";
+import {
+  JobsMetricsSkeleton,
+  JobsWorkspaceSkeleton,
+} from "@/components/jobs/jobs-skeleton";
 import { JobsWorkspace } from "@/components/jobs/jobs-workspace";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -65,13 +69,17 @@ export function JobsPageClient() {
           {error}
         </p>
       ) : null}
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading jobs…</p>
+
+      {loading && metrics.length === 0 ? (
+        <JobsMetricsSkeleton />
+      ) : metrics.length > 0 ? (
+        <JobsMetrics metrics={metrics} />
+      ) : null}
+
+      {loading && jobs.length === 0 ? (
+        <JobsWorkspaceSkeleton />
       ) : (
-        <>
-          <JobsMetrics metrics={metrics} />
-          <JobsWorkspace jobs={jobs} />
-        </>
+        <JobsWorkspace jobs={jobs} />
       )}
     </>
   );

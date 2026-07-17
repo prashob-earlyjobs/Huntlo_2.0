@@ -20,13 +20,42 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ADMIN_CANDIDATES } from "@/lib/mock-admin";
+import { adminApi } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api/errors";
+import { type AdminCandidate } from "@/lib/mock-admin";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
 export function AdminCandidatesWorkspace() {
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<AdminCandidate[]>([]);
+
+  useEffect(() => {
+    void adminApi
+      .listCandidates({ limit: 100 })
+      .then((result) => {
+        setCandidates(
+          result.items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            title: item.title,
+            workspace: item.workspace,
+            source: item.source,
+            status: item.status,
+            emailRevealed: Boolean(item.emailRevealed),
+            mobileRevealed: Boolean(item.phoneRevealed),
+            lastActivity: item.lastActivity
+              ? new Date(item.lastActivity).toLocaleString("en-IN")
+              : "—",
+          }))
+        );
+      })
+      .catch((error) => {
+        setCandidates([]);
+        setToast(getApiErrorMessage(error, "Unable to load candidates."));
+      });
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -36,14 +65,14 @@ export function AdminCandidatesWorkspace() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return ADMIN_CANDIDATES;
-    return ADMIN_CANDIDATES.filter(
+    if (!q) return candidates;
+    return candidates.filter(
       (candidate) =>
         candidate.name.toLowerCase().includes(q) ||
         candidate.workspace.toLowerCase().includes(q) ||
         candidate.title.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [candidates, query]);
 
   return (
     <div className="space-y-6">

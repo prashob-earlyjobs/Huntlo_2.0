@@ -2,7 +2,7 @@ import { getEnv } from '../../config/env.js';
 import type { OutreachChannel, TemplateCategory } from '../../modules/outreach/outreach-template.model.js';
 import { extractVariables } from '../../modules/outreach/variables.js';
 
-export const GEMINI_OUTREACH_MODEL = 'gemini-2.0-flash';
+export const GEMINI_OUTREACH_MODEL = 'gemini-2.5-flash';
 
 export type OutreachAiAction =
   | 'generate_sequence'

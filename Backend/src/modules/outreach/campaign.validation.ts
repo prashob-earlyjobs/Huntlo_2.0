@@ -22,7 +22,8 @@ const sequenceStepSchema = z.object({
   id: z.string().min(1).max(64).optional(),
   order: z.number().int().min(0).optional(),
   type: z.enum(SEQUENCE_STEP_TYPES),
-  delayDays: z.number().int().min(0).default(0),
+  delayDays: z.number().min(0).default(0),
+  delayUnit: z.enum(['days', 'hours', 'minutes']).default('days'),
   templateId: z.string().nullable().optional(),
   subject: z.string().max(300).nullable().optional(),
   body: z.string().max(20000).nullable().optional(),
@@ -81,6 +82,8 @@ const candidateSourceSchema = z.object({
 export const createCampaignSchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().trim().max(4000).nullable().optional(),
+  objective: z.string().trim().max(500).nullable().optional(),
+  ownerUserId: objectId.nullable().optional(),
   jobId: objectId.nullable().optional(),
   sourceModule: z.enum(CAMPAIGN_SOURCE_MODULES).optional(),
   campaignType: z.enum(CAMPAIGN_TYPES).optional(),

@@ -6,6 +6,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { UserModel } from '../auth/user.model.js';
+import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
   CampaignJobModel,
   type CampaignJobType,
@@ -24,7 +25,7 @@ import {
   type StopReason,
 } from './enrollment.model.js';
 import { recordCampaignActivity, CampaignActivityModel } from './campaign-activity.model.js';
-import { isOptedOut, validateCampaignLaunch } from './campaign-validate.js';
+import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } from './campaign-validate.js';
 import type {
   audienceBodySchema,
   createCampaignSchema,
@@ -63,6 +64,7 @@ function normalizeSteps(steps?: CreateInput['sequenceSteps']): CampaignSequenceS
     order: step.order ?? index,
     type: step.type,
     delayDays: step.delayDays ?? 0,
+    delayUnit: step.delayUnit ?? 'days',
     templateId: step.templateId ?? null,
     subject: step.subject ?? null,
     body: step.body ?? null,
@@ -105,6 +107,30 @@ async function ownerName(userId: string): Promise<string> {
   const user = await UserModel.findById(userId).select('firstName lastName').lean();
   if (!user) return 'Unknown';
   return `${user.firstName} ${user.lastName}`.trim();
+}
+
+async function resolveOwnerUserId(
+  organizationId: string,
+  actorUserId: string,
+  requestedOwnerUserId?: string | null
+): Promise<string> {
+  const ownerUserId = String(requestedOwnerUserId || actorUserId).trim();
+  if (!mongoose.Types.ObjectId.isValid(ownerUserId)) {
+    throw new AppError(400, 'INVALID_OWNER', 'Invalid campaign owner.');
+  }
+  const member = await OrganizationMemberModel.findOne({
+    organizationId,
+    userId: ownerUserId,
+    status: { $in: ['active', 'invited'] },
+  }).lean();
+  if (!member) {
+    throw new AppError(
+      400,
+      'OWNER_NOT_IN_ORG',
+      'Campaign owner must be an active member of this organization.'
+    );
+  }
+  return ownerUserId;
 }
 
 async function jobTitle(jobId: mongoose.Types.ObjectId | null): Promise<string | null> {
@@ -170,6 +196,7 @@ export function toSafeCampaign(
     relatedJobTitle: extras.relatedJobTitle,
     name: doc.name,
     description: doc.description,
+    objective: doc.objective ?? null,
     sourceModule: doc.sourceModule,
     campaignType: doc.campaignType,
     status: doc.status,
@@ -293,22 +320,43 @@ export const campaignsService = {
       if (!job) throw new AppError(400, 'JOB_NOT_FOUND', 'Linked job not found.');
     }
 
+    const campaignType = input.campaignType || 'multi_channel';
     const channelConfig = mergeChannelConfig(defaultChannelConfig(), input.channelConfig);
-    // Auto-enable channels from sequence
-    for (const step of input.sequenceSteps || []) {
-      if (step.type === 'email') channelConfig.email.enabled = true;
-      if (step.type === 'whatsapp') channelConfig.whatsapp.enabled = true;
-      if (step.type === 'ai_voice') channelConfig.ai_voice.enabled = true;
+    const sequenceSteps = normalizeSteps(input.sequenceSteps);
+
+    // Multi-channel: auto-enable channels referenced by the sequence.
+    // Single-channel: do not widen — validation enforces exactly one channel.
+    if (campaignType === 'multi_channel') {
+      for (const step of sequenceSteps) {
+        if (step.type === 'email' || step.type === 'scheduling_link') {
+          channelConfig.email.enabled = true;
+        }
+        if (step.type === 'whatsapp') channelConfig.whatsapp.enabled = true;
+        if (step.type === 'ai_voice') channelConfig.ai_voice.enabled = true;
+      }
     }
+
+    assertCampaignTypeConsistency({
+      campaignType,
+      channelConfig,
+      sequenceSteps,
+    });
+
+    const ownerUserId = await resolveOwnerUserId(
+      organizationId,
+      userId,
+      input.ownerUserId
+    );
 
     const doc = await OutreachCampaignModel.create({
       organizationId,
-      ownerUserId: userId,
+      ownerUserId,
       jobId: input.jobId || null,
       name: input.name,
       description: input.description ?? null,
+      objective: input.objective ?? null,
       sourceModule: input.sourceModule || 'outreach',
-      campaignType: input.campaignType || 'multi_channel',
+      campaignType,
       status: 'draft',
       candidateSource: {
         type: input.candidateSource?.type || 'manual',
@@ -318,7 +366,7 @@ export const campaignsService = {
         label: input.candidateSource?.label ?? null,
       },
       channelConfig,
-      sequenceSteps: normalizeSteps(input.sequenceSteps),
+      sequenceSteps,
       qualificationConfig: input.qualificationConfig || {
         enabled: false,
         questions: [],
@@ -344,7 +392,7 @@ export const campaignsService = {
     });
 
     return toSafeCampaign(doc, {
-      ownerName: await ownerName(userId),
+      ownerName: await ownerName(ownerUserId),
       relatedJobTitle: await jobTitle(doc.jobId),
     });
   },
@@ -359,6 +407,12 @@ export const campaignsService = {
 
     if (input.name !== undefined) doc.name = input.name;
     if (input.description !== undefined) doc.description = input.description;
+    if (input.objective !== undefined) doc.objective = input.objective;
+    if (input.ownerUserId !== undefined) {
+      doc.ownerUserId = new mongoose.Types.ObjectId(
+        await resolveOwnerUserId(organizationId, userId, input.ownerUserId)
+      );
+    }
     if (input.jobId !== undefined) doc.jobId = input.jobId ? new mongoose.Types.ObjectId(input.jobId) : null;
     if (input.campaignType !== undefined) doc.campaignType = input.campaignType;
     if (input.sourceModule !== undefined) doc.sourceModule = input.sourceModule;
@@ -392,6 +446,23 @@ export const campaignsService = {
         messageTemplateId: input.schedulingConfig.messageTemplateId ?? null,
       };
     }
+
+    if (doc.campaignType === 'multi_channel' && input.sequenceSteps !== undefined) {
+      const cfg = doc.channelConfig as ReturnType<typeof defaultChannelConfig>;
+      for (const step of doc.sequenceSteps) {
+        if (step.type === 'email' || step.type === 'scheduling_link') cfg.email.enabled = true;
+        if (step.type === 'whatsapp') cfg.whatsapp.enabled = true;
+        if (step.type === 'ai_voice') cfg.ai_voice.enabled = true;
+      }
+      doc.channelConfig = cfg;
+    }
+
+    assertCampaignTypeConsistency({
+      campaignType: doc.campaignType,
+      channelConfig: doc.channelConfig,
+      sequenceSteps: doc.sequenceSteps,
+    });
+
     doc.version += 1;
     await doc.save();
 

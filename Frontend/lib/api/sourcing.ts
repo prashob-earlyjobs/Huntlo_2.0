@@ -166,7 +166,7 @@ export function mapApiCandidateToSessionCandidate(
       : [],
     summary: (candidate.profileSignals ?? []).join(" · ") || "",
     signals: candidate.profileSignals ?? [],
-    status: "New",
+    status: "Active",
     updated: "Just now",
     activity: [
       {

@@ -16,6 +16,7 @@ export type SequenceStepDefinition = {
   type: string;
   channel: SequenceStepChannel | null;
   delayDays: number;
+  delayUnit: 'days' | 'hours' | 'minutes';
   templateId: string | null;
   subject: string | null;
   body: string | null;
@@ -64,6 +65,11 @@ const sequenceStepSchema = new Schema(
     type: { type: String, required: true, trim: true },
     channel: { type: String, default: null },
     delayDays: { type: Number, default: 0, min: 0 },
+    delayUnit: {
+      type: String,
+      enum: ['days', 'hours', 'minutes'],
+      default: 'days',
+    },
     templateId: { type: String, default: null },
     subject: { type: String, default: null, maxlength: 300 },
     body: { type: String, default: null, maxlength: 20000 },

@@ -45,7 +45,13 @@ const STATE_STATUS: Record<SearchHistoryEntry["state"], Status> = {
   empty: "Draft",
 };
 
-function HistoryRowActions({ entry }: { entry: SearchHistoryEntry }) {
+function HistoryRowActions({
+  entry,
+  onDelete,
+}: {
+  entry: SearchHistoryEntry;
+  onDelete?: (entry: SearchHistoryEntry) => void;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -98,6 +104,7 @@ function HistoryRowActions({ entry }: { entry: SearchHistoryEntry }) {
           description="This removes the search from your history. Saved candidates are not affected."
           confirmLabel="Delete search"
           destructive
+          onConfirm={() => onDelete?.(entry)}
         />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -107,9 +114,11 @@ function HistoryRowActions({ entry }: { entry: SearchHistoryEntry }) {
 export function SearchHistoryTable({
   entries,
   loading = false,
+  onDelete,
 }: {
   entries: SearchHistoryEntry[];
   loading?: boolean;
+  onDelete?: (entry: SearchHistoryEntry) => void;
 }) {
   if (loading) {
     return (
@@ -203,7 +212,7 @@ export function SearchHistoryTable({
                   </div>
                 </TableCell>
                 <TableCell className="py-2.5 text-right">
-                  <HistoryRowActions entry={entry} />
+                  <HistoryRowActions entry={entry} onDelete={onDelete} />
                 </TableCell>
               </TableRow>
             ))}

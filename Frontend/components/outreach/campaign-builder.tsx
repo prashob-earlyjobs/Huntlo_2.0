@@ -9,7 +9,7 @@ import {
   Save,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AudienceStep } from "@/components/outreach/builder-audience-step";
 import { ChannelsStep } from "@/components/outreach/builder-channels-step";
@@ -18,19 +18,26 @@ import { ReviewStep } from "@/components/outreach/builder-review-step";
 import { SequenceStepBuilder } from "@/components/outreach/builder-sequence-step";
 import { SetupStep } from "@/components/outreach/builder-setup-step";
 import {
+  applyCampaignType,
+  applyEnabledChannels,
   initialBuilderState,
   launchWarnings,
   stepErrors,
   type BuilderState,
 } from "@/components/outreach/builder-types";
+import { builderStateFromCampaign } from "@/components/outreach/campaign-builder-hydrate";
+import { CampaignDetailSkeleton } from "@/components/outreach/campaign-detail-skeleton";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
 import {
   getApiErrorMessage,
+  jobsApi,
   outreachApi,
+  plansApi,
   type ApiSequenceStepType,
   type CampaignCreateInput,
 } from "@/lib/api";
+import type { JobListItem } from "@/lib/api/contracts";
 import type { SequenceStepType } from "@/lib/mock-outreach";
 import { campaignDetailPath, ROUTES } from "@/lib/routes";
 import {
@@ -81,6 +88,8 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
   return {
     name: state.name.trim(),
     description: state.description.trim() || null,
+    objective: state.objective.trim() || null,
+    ownerUserId: state.ownerUserId,
     jobId: state.jobId,
     sourceModule: "outreach",
     campaignType:
@@ -106,6 +115,7 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       order: index,
       type: STEP_TYPE_MAP[step.type],
       delayDays: step.delayDays,
+      delayUnit: step.delayUnit ?? "days",
       subject: step.subject || null,
       body: step.body || null,
       stopOnReply: step.stopOnReply,
@@ -128,20 +138,114 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
   };
 }
 
-export function CampaignBuilder() {
+export function CampaignBuilder({
+  campaignId: editCampaignId,
+}: {
+  campaignId?: string;
+} = {}) {
   const [state, setState] = useState<BuilderState>(initialBuilderState);
   const [current, setCurrent] = useState(0);
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [campaignId, setCampaignId] = useState<string | null>(
+    editCampaignId ?? null
+  );
+  const [loadingCampaign, setLoadingCampaign] = useState(Boolean(editCampaignId));
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void jobsApi
+      .list({ limit: 100 })
+      .then((rows) => {
+        if (!cancelled) setJobs(rows);
+      })
+      .catch(() => {
+        // Leave the job picker empty when the jobs API is unavailable.
+      });
+    void plansApi
+      .getUsage()
+      .then((usage) => {
+        if (cancelled) return;
+        const outreachRow = usage.find(
+          (row) =>
+            row.id === "outreach-credits" ||
+            row.id === "outreach" ||
+            row.id === "credits" ||
+            row.label?.toLowerCase().includes("outreach")
+        );
+        if (outreachRow && outreachRow.limit != null) {
+          setCreditsAvailable(Math.max(0, outreachRow.limit - outreachRow.used));
+        }
+      })
+      .catch(() => {
+        // Leave credits unknown when usage is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editCampaignId) return;
+    let cancelled = false;
+    void (async () => {
+      setLoadingCampaign(true);
+      setLoadError(null);
+      try {
+        const [raw, enrollments] = await Promise.all([
+          outreachApi.getCampaignRaw(editCampaignId),
+          outreachApi.listEnrollments(editCampaignId, { limit: 100 }),
+        ]);
+        if (cancelled) return;
+        if (!raw) {
+          setLoadError("Campaign not found.");
+          return;
+        }
+        const enrolledIds = [
+          ...new Set([
+            ...enrollments.map((row) => row.candidateId),
+            ...(raw.candidateSource?.candidateIds || []),
+          ]),
+        ];
+        setState(builderStateFromCampaign(raw, enrolledIds));
+        setCampaignId(raw.id);
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(getApiErrorMessage(err, "Unable to load campaign."));
+        }
+      } finally {
+        if (!cancelled) setLoadingCampaign(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editCampaignId]);
 
   function update<K extends keyof BuilderState>(key: K, value: BuilderState[K]) {
-    setState((previous) => ({ ...previous, [key]: value }));
+    setState((previous) => {
+      if (key === "campaignType") {
+        return applyCampaignType(previous, value as string);
+      }
+      if (key === "enabledChannels") {
+        return applyEnabledChannels(
+          previous,
+          value as BuilderState["enabledChannels"]
+        );
+      }
+      return { ...previous, [key]: value };
+    });
   }
 
-  const warnings = useMemo(() => launchWarnings(state), [state]);
+  const warnings = useMemo(
+    () => launchWarnings(state, creditsAvailable),
+    [state, creditsAvailable]
+  );
   const blockingErrors = warnings.filter((w) => w.severity === "error");
 
   const currentErrors = stepErrors(current, state);
@@ -164,7 +268,15 @@ export function CampaignBuilder() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const created = await outreachApi.createCampaign(toCreateInput(state));
+      const input = toCreateInput(state);
+      let id = campaignId;
+      if (id) {
+        await outreachApi.updateCampaign(id, input);
+      } else {
+        const created = await outreachApi.createCampaign(input);
+        id = created.id;
+      }
+
       const audienceIds = await resolveAudienceCandidateIds({
         source: state.source,
         sourceDetail: state.sourceDetail,
@@ -172,7 +284,7 @@ export function CampaignBuilder() {
         poolSearch: state.poolSearch,
       });
       if (audienceIds.length > 0) {
-        await outreachApi.addAudience(created.id, {
+        await outreachApi.addAudience(id, {
           candidateIds: audienceIds,
           listId:
             state.source === "Saved List" || state.source === "CSV/Excel Import"
@@ -183,21 +295,44 @@ export function CampaignBuilder() {
       }
 
       if (mode === "launched") {
-        await outreachApi.launchCampaign(created.id);
+        await outreachApi.launchCampaign(id);
       } else if (mode === "scheduled") {
         const scheduledAt = new Date(
           Date.now() + 24 * 60 * 60 * 1000
         ).toISOString();
-        await outreachApi.scheduleCampaign(created.id, scheduledAt);
+        await outreachApi.scheduleCampaign(id, scheduledAt);
       }
 
-      setCampaignId(created.id);
+      setCampaignId(id);
       setOutcome(mode);
     } catch (err) {
       setSubmitError(getApiErrorMessage(err, "Unable to save campaign."));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (loadingCampaign) {
+    return <CampaignDetailSkeleton />;
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-6">
+        <p role="alert" className="text-sm text-destructive">
+          {loadError}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-3"
+          nativeButton={false}
+          render={<Link href={ROUTES.outreach} />}
+        >
+          Back to Outreach
+        </Button>
+      </div>
+    );
   }
 
   if (outcome) {
@@ -225,20 +360,22 @@ export function CampaignBuilder() {
               View Campaign
             </Button>
           ) : null}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setState(initialBuilderState());
-              setCurrent(0);
-              setAttempted(new Set());
-              setOutcome(null);
-              setCampaignId(null);
-              setSubmitError(null);
-            }}
-          >
-            Create Another Campaign
-          </Button>
+          {!editCampaignId ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setState(initialBuilderState());
+                setCurrent(0);
+                setAttempted(new Set());
+                setOutcome(null);
+                setCampaignId(null);
+                setSubmitError(null);
+              }}
+            >
+              Create Another Campaign
+            </Button>
+          ) : null}
         </div>
       </div>
     );
@@ -277,7 +414,7 @@ export function CampaignBuilder() {
       </nav>
 
       {current === 0 ? (
-        <SetupStep state={state} update={update} showErrors={showErrors} />
+        <SetupStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
       ) : current === 1 ? (
         <AudienceStep state={state} update={update} showErrors={showErrors} />
       ) : current === 2 ? (
@@ -287,7 +424,12 @@ export function CampaignBuilder() {
       ) : current === 4 ? (
         <QualificationStep state={state} update={update} showErrors={showErrors} />
       ) : (
-        <ReviewStep state={state} warnings={warnings} />
+        <ReviewStep
+          state={state}
+          warnings={warnings}
+          jobs={jobs}
+          creditsAvailable={creditsAvailable}
+        />
       )}
 
       {submitError ? (
@@ -317,7 +459,7 @@ export function CampaignBuilder() {
             onClick={() => void submit("draft")}
           >
             <Save aria-hidden />
-            Save Draft
+            {editCampaignId ? "Save Changes" : "Save Draft"}
           </Button>
 
           {current < BUILDER_STEPS.length - 1 ? (
@@ -344,7 +486,7 @@ export function CampaignBuilder() {
                 onClick={() => void submit("launched")}
               >
                 <Rocket aria-hidden />
-                Launch Campaign
+                {editCampaignId ? "Save & Launch" : "Launch Campaign"}
               </Button>
             </>
           )}

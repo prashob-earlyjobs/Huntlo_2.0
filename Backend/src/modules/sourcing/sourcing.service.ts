@@ -269,6 +269,49 @@ export class SourcingService {
       };
     }
 
+    // Confirmed filters + run → use the canonical candidate-search apply pipeline.
+    if (wantsRun && confirmed && query) {
+      const { candidateSearchService } = await import('../candidates/search/index.js');
+      const filterForm = normalizedFilters ?? mergeFiltersFromInput(input.filters ?? {}, query);
+      const applyResult = await candidateSearchService.apply(
+        {
+          userId: actor.userId,
+          organizationId: actor.organizationId,
+          role: actor.role,
+        },
+        {
+          prompt: query,
+          filterForm: filterForm as Record<string, unknown>,
+          sessionId: '',
+          page: 1,
+          limit: 20,
+          jobId: input.jobId ?? null,
+        }
+      );
+
+      if ('sessionPending' in applyResult && applyResult.sessionPending) {
+        const savedId = applyResult.savedSessionId;
+        if (savedId) {
+          const session = await loadSessionForOrg(savedId, actor.organizationId);
+          const { names, jobTitle } = await namesAndJobTitle(session);
+          return {
+            ...toPublicSession(session, names, jobTitle),
+            sessionPending: true,
+            message: applyResult.message,
+          };
+        }
+      }
+
+      if ('savedSessionId' in applyResult && applyResult.savedSessionId) {
+        const session = await loadSessionForOrg(
+          applyResult.savedSessionId,
+          actor.organizationId
+        );
+        const { names, jobTitle } = await namesAndJobTitle(session);
+        return toPublicSession(session, names, jobTitle);
+      }
+    }
+
     if (!normalizedFilters && interpretedCriteria.length === 0 && query) {
       const interpreted = await interpretService.interpret(query);
       interpretedCriteria = interpreted.interpretedCriteria;

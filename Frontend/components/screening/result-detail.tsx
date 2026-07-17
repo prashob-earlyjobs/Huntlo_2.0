@@ -22,12 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  getResultDetail,
-  type AiRecommendation,
-  type RecruiterDecision,
-  type ScreeningResult,
-  type ScreeningResultDetail,
+import { screeningApi, getApiErrorMessage } from "@/lib/api";
+import type {
+  AiRecommendation,
+  RecruiterDecision,
+  ScreeningResult,
+  ScreeningResultDetail,
 } from "@/lib/mock-screening";
 import {
   candidateDetailPath,
@@ -473,16 +473,43 @@ function ActivityTab({ detail }: { detail: ScreeningResultDetail }) {
   );
 }
 
-export function ResultDetail({ result }: { result: ScreeningResult }) {
-  const detail = getResultDetail(result.id)!;
+export function ResultDetail({
+  result,
+  detail,
+  onChanged,
+}: {
+  result: ScreeningResult;
+  detail: ScreeningResultDetail;
+  onChanged?: () => void;
+}) {
   const [decision, setDecision] = useState<RecruiterDecision>(result.decision);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   function flash(text: string) {
     setFeedback(text);
     window.setTimeout(() => setFeedback(null), 2400);
+  }
+
+  async function runMutation(
+    action: () => Promise<unknown>,
+    successMessage: string,
+    nextDecision?: RecruiterDecision
+  ) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action();
+      if (nextDecision) setDecision(nextDecision);
+      flash(successMessage);
+      onChanged?.();
+    } catch (error) {
+      flash(getApiErrorMessage(error, "Action failed."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -560,10 +587,14 @@ export function ResultDetail({ result }: { result: ScreeningResult }) {
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Button
               size="sm"
-              onClick={() => {
-                setDecision("Shortlisted");
-                flash(`Shortlisted ${result.candidateName}.`);
-              }}
+              disabled={busy}
+              onClick={() =>
+                void runMutation(
+                  () => screeningApi.shortlistResult(result.id),
+                  `Shortlisted ${result.candidateName}.`,
+                  "Shortlisted"
+                )
+              }
             >
               <Bookmark aria-hidden />
               Shortlist
@@ -571,10 +602,14 @@ export function ResultDetail({ result }: { result: ScreeningResult }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                setDecision("Rejected");
-                flash(`Rejected ${result.candidateName}.`);
-              }}
+              disabled={busy}
+              onClick={() =>
+                void runMutation(
+                  () => screeningApi.rejectResult(result.id),
+                  `Rejected ${result.candidateName}.`,
+                  "Rejected"
+                )
+              }
             >
               <XCircle aria-hidden />
               Reject
@@ -582,9 +617,10 @@ export function ResultDetail({ result }: { result: ScreeningResult }) {
             <Button
               size="sm"
               variant="outline"
+              disabled={busy}
               onClick={() => {
                 setDecision("Interview scheduled");
-                flash(`Opened scheduling for ${result.candidateName}.`);
+                flash(`Open scheduling for ${result.candidateName} from Schedule.`);
               }}
             >
               <CalendarClock aria-hidden />
@@ -593,7 +629,14 @@ export function ResultDetail({ result }: { result: ScreeningResult }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => flash(`Queued another call for ${result.candidateName}.`)}
+              disabled={busy}
+              onClick={() =>
+                void runMutation(
+                  () => screeningApi.callAgainResult(result.id),
+                  `Queued another call for ${result.candidateName}.`,
+                  "Pending"
+                )
+              }
             >
               <Phone aria-hidden />
               Call Again
@@ -609,7 +652,7 @@ export function ResultDetail({ result }: { result: ScreeningResult }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => flash("Downloaded screening report. (UI preview)")}
+              onClick={() => flash("Report download will be available from exports.")}
             >
               <Download aria-hidden />
               Download Report
@@ -632,12 +675,16 @@ export function ResultDetail({ result }: { result: ScreeningResult }) {
               </Button>
               <Button
                 size="xs"
+                disabled={busy || !note.trim()}
                 onClick={() => {
-                  setNoteOpen(false);
-                  setNote("");
-                  flash("Note added.");
+                  void runMutation(
+                    () => screeningApi.addResultNote(result.id, note.trim()),
+                    "Note added."
+                  ).then(() => {
+                    setNoteOpen(false);
+                    setNote("");
+                  });
                 }}
-                disabled={!note.trim()}
               >
                 Save note
               </Button>

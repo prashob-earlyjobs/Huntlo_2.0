@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/sheet";
 import { ADMIN_NAV_ITEMS, ADMIN_NAV_SECTIONS } from "@/lib/admin-navigation";
 import { ADMIN_ROUTE_LABELS, type AdminRoute } from "@/lib/admin-routes";
-import { ADMIN_OPERATOR } from "@/lib/mock-admin";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -60,12 +59,12 @@ export function AdminHeader() {
           </h1>
         </div>
         <p className="hidden text-xs text-muted-foreground sm:block">
-          Huntlo platform administration · UI preview
+          Huntlo platform administration
         </p>
       </div>
 
       <ThemeToggle />
-      <CandidateAvatar name={ADMIN_OPERATOR.name} />
+      <CandidateAvatar name="Admin" />
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-[280px] p-0">

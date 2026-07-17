@@ -24,3 +24,5 @@ export type {
   ConversationDraftInput,
   ConversationDraftResult,
 } from './gemini.conversations.js';
+export { parseJobDescription, GEMINI_JOBS_MODEL } from './gemini.jobs.js';
+export type { ParsedJobDescription } from './gemini.jobs.js';

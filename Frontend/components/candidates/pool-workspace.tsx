@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
+import { PoolWorkspaceSkeleton } from "@/components/candidates/pool-skeleton";
 import { PoolTable } from "@/components/candidates/pool-table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -54,19 +55,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
+import { getApiErrorMessage, candidatePoolApi, jobsApi } from "@/lib/api";
+import type { JobListItem } from "@/lib/api/contracts";
 import {
   CANDIDATE_STATUSES,
   CONTACT_AVAILABILITY,
-  LIST_NAMES,
-  POOL_CANDIDATES,
-  POOL_LOCATIONS,
-  POOL_OWNERS,
   POOL_SAVED_VIEWS,
   POOL_SOURCES,
   type PoolCandidate,
 } from "@/lib/mock-candidates";
-import { JOBS } from "@/lib/mock-jobs";
 
 const EXPERIENCE_BUCKETS = [
   { id: "any", label: "Any experience", min: 0, max: Infinity },
@@ -75,10 +72,6 @@ const EXPERIENCE_BUCKETS = [
   { id: "7-10", label: "7 – 10 yrs", min: 7, max: 10 },
   { id: "10+", label: "10+ yrs", min: 10, max: Infinity },
 ] as const;
-
-const SKILL_OPTIONS = Array.from(
-  new Set(POOL_CANDIDATES.flatMap((candidate) => candidate.skills))
-).sort();
 
 function toOptions(values: readonly string[]): FilterOption[] {
   return values.map((value) => ({ id: value, label: value }));
@@ -100,7 +93,8 @@ function contactMatches(candidate: PoolCandidate, availability: string) {
 }
 
 export function PoolWorkspace() {
-  const [candidates, setCandidates] = useState<PoolCandidate[]>(POOL_CANDIDATES);
+  const [candidates, setCandidates] = useState<PoolCandidate[]>([]);
+  const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -120,22 +114,22 @@ export function PoolWorkspace() {
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
 
   async function refreshPool() {
+    setLoading(true);
     setLoadError(null);
     try {
-      const [items, nextLists] = await Promise.all([
+      const [items, nextLists, nextJobs] = await Promise.all([
         candidatePoolApi.list({ limit: 200, sort: "-lastActivityAt" }),
         candidatePoolApi.listLists(),
+        jobsApi.list({ limit: 200 }).catch(() => [] as JobListItem[]),
       ]);
-      setCandidates(items.length > 0 ? items : POOL_CANDIDATES);
-      setLists(
-        nextLists.length > 0
-          ? nextLists.map((list) => ({ id: list.id, name: list.name }))
-          : LIST_NAMES.map((name, index) => ({ id: `mock-${index}`, name }))
-      );
+      setCandidates(items);
+      setLists(nextLists.map((list) => ({ id: list.id, name: list.name })));
+      setJobs(nextJobs);
     } catch (err) {
       setLoadError(getApiErrorMessage(err));
-      setCandidates(POOL_CANDIDATES);
-      setLists(LIST_NAMES.map((name, index) => ({ id: `mock-${index}`, name })));
+      setCandidates([]);
+      setLists([]);
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -149,11 +143,43 @@ export function PoolWorkspace() {
     const ids = new Set(
       candidates.map((candidate) => candidate.relatedJobId).filter(Boolean)
     );
-    return JOBS.filter((job) => ids.has(job.id)).map((job) => ({
+    return jobs.filter((job) => ids.has(job.id)).map((job) => ({
       id: job.id,
       label: job.title,
     }));
-  }, [candidates]);
+  }, [candidates, jobs]);
+
+  const skillOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(candidates.flatMap((candidate) => candidate.skills))
+      ).sort(),
+    [candidates]
+  );
+
+  const locationOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          candidates
+            .map((candidate) => candidate.location)
+            .filter((value): value is string => Boolean(value))
+        )
+      ).sort(),
+    [candidates]
+  );
+
+  const ownerOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          candidates
+            .map((candidate) => candidate.owner)
+            .filter((value): value is string => Boolean(value))
+        )
+      ).sort(),
+    [candidates]
+  );
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
     return (id: string) =>
@@ -373,7 +399,7 @@ export function PoolWorkspace() {
       />
       <FilterPopover
         label="Location"
-        options={toOptions(POOL_LOCATIONS)}
+        options={toOptions(locationOptions)}
         selected={locationFilter}
         onToggle={toggle(setLocationFilter)}
       />
@@ -399,7 +425,7 @@ export function PoolWorkspace() {
       </Select>
       <FilterPopover
         label="Skills"
-        options={toOptions(SKILL_OPTIONS)}
+        options={toOptions(skillOptions)}
         selected={skillFilter}
         onToggle={toggle(setSkillFilter)}
       />
@@ -426,7 +452,7 @@ export function PoolWorkspace() {
       </Select>
       <FilterPopover
         label="Owner"
-        options={toOptions(POOL_OWNERS)}
+        options={toOptions(ownerOptions)}
         selected={ownerFilter}
         onToggle={toggle(setOwnerFilter)}
       />
@@ -445,6 +471,10 @@ export function PoolWorkspace() {
       ) : null}
     </>
   );
+
+  if (loading && candidates.length === 0) {
+    return <PoolWorkspaceSkeleton />;
+  }
 
   return (
     <div className="space-y-4">
@@ -550,9 +580,6 @@ export function PoolWorkspace() {
           {loadError}
         </p>
       ) : null}
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading candidate pool…</p>
-      ) : null}
 
       {bulkMessage ? (
         <p
@@ -620,7 +647,7 @@ export function PoolWorkspace() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               <DropdownMenuLabel>Assign to</DropdownMenuLabel>
-              {POOL_OWNERS.map((owner) => (
+              {ownerOptions.map((owner) => (
                 <DropdownMenuItem
                   key={owner}
                   onClick={() =>
@@ -707,10 +734,18 @@ export function PoolWorkspace() {
         ) : (
           <EmptyState
             icon={Users}
-            title="No candidates match these filters"
-            description="Try removing a filter or two, or import candidates to grow your pool."
-            actionLabel="Reset filters"
-            onAction={resetFilters}
+            title={
+              candidates.length === 0
+                ? "Your candidate pool is empty"
+                : "No candidates match these filters"
+            }
+            description={
+              candidates.length === 0
+                ? "Import candidates or add them from sourcing to grow your pool."
+                : "Try removing a filter or two, or import candidates to grow your pool."
+            }
+            actionLabel={candidates.length === 0 ? undefined : "Reset filters"}
+            onAction={candidates.length === 0 ? undefined : resetFilters}
             className="m-4 border-0"
           />
         )}

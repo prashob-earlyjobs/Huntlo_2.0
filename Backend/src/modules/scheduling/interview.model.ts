@@ -165,6 +165,7 @@ const interviewSchema = new Schema<InterviewDocument>(
 );
 
 interviewSchema.index({ organizationId: 1, status: 1, startAt: 1 });
+interviewSchema.index({ organizationId: 1, deletedAt: 1, startAt: 1, status: 1 });
 interviewSchema.index({ organizationId: 1, providerInviteeUri: 1 });
 interviewSchema.index({ organizationId: 1, workflowId: 1 });
 

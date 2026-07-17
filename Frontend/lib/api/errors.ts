@@ -60,9 +60,18 @@ export class ApiError extends Error {
 }
 
 export function mapStatusToErrorCode(status: number, serverCode?: string): ApiErrorCode {
-  if (serverCode === "QUOTA_EXCEEDED") return "QUOTA_EXCEEDED";
-  if (serverCode === "PROVIDER_ERROR") return "PROVIDER_ERROR";
-  if (serverCode === "VALIDATION_ERROR") return "VALIDATION_ERROR";
+  if (
+    serverCode === "QUOTA_EXCEEDED" ||
+    serverCode === "SEARCH_QUOTA_EXHAUSTED"
+  ) {
+    return "QUOTA_EXCEEDED";
+  }
+  if (serverCode === "PROVIDER_ERROR" || serverCode === "FUTURE_JOBS_UNAVAILABLE") {
+    return "PROVIDER_ERROR";
+  }
+  if (serverCode === "VALIDATION_ERROR" || serverCode === "INVALID_SEARCH_PROMPT") {
+    return "VALIDATION_ERROR";
+  }
 
   switch (status) {
     case 401:
@@ -78,7 +87,7 @@ export function mapStatusToErrorCode(status: number, serverCode?: string): ApiEr
     case 402:
       return "QUOTA_EXCEEDED";
     case 429:
-      return "RATE_LIMITED";
+      return "QUOTA_EXCEEDED";
     case 500:
     case 502:
     case 503:

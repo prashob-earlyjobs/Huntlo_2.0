@@ -2,12 +2,13 @@ import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
 
 import { getLogger } from '../../config/logger.js';
-import { quotaService } from '../../shared/usage/index.js';
+import { campaignDeliveryMetrics } from '../../shared/observability/metrics.js';
 import { CampaignJobModel } from './campaign-job.model.js';
-import { OutreachCampaignModel } from './campaign.model.js';
+import { OutreachCampaignModel, sequenceDelayToMs } from './campaign.model.js';
 import { OutreachEnrollmentModel } from './enrollment.model.js';
 import { campaignsService } from './campaigns.service.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
+import { executeCampaignMessageStep } from './campaign-delivery.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import { conversationsService } from '../conversations/conversations.service.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
@@ -19,9 +20,27 @@ function workerId() {
   return `worker:${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
 }
 
+function jobTypeForStep(type: string) {
+  return type === 'email'
+    ? 'send_email'
+    : type === 'whatsapp'
+      ? 'send_whatsapp'
+      : type === 'ai_voice'
+        ? 'launch_voice'
+        : type === 'wait'
+          ? 'wait'
+          : type === 'conditional'
+            ? 'evaluate_conditional'
+            : type === 'recruiter_task'
+              ? 'create_recruiter_task'
+              : type === 'scheduling_link'
+                ? 'send_scheduling_link'
+                : 'advance_sequence';
+}
+
 /**
  * Process due CampaignJobs for the canonical outreach engine.
- * Message sends are stubbed (quota reserved/committed) until provider campaign send lands.
+ * Message steps send via connected providers; missing contacts skip that step.
  * Stop rules: reply / opt-out / recruiter stop / qualification reject / complete / fatal error.
  */
 export async function processDueCampaignJobs(limit = 25): Promise<number> {
@@ -50,6 +69,33 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       );
       campaign.status = 'failed';
       await campaign.save();
+      const { emitCampaignUpdated } = await import('../../realtime/events.js');
+      emitCampaignUpdated({
+        organizationId: String(campaign.organizationId),
+        campaignId: String(campaign._id),
+        status: 'failed',
+        userId: campaign.ownerUserId ? String(campaign.ownerUserId) : undefined,
+      });
+      if (campaign.ownerUserId) {
+        const { notificationsService } = await import(
+          '../notifications/notifications.service.js'
+        );
+        void notificationsService
+          .create({
+            organizationId: String(campaign.organizationId),
+            userId: String(campaign.ownerUserId),
+            type: 'campaign_failed',
+            severity: 'error',
+            title: 'Campaign failed to launch',
+            message: campaign.name
+              ? `"${campaign.name}" could not be launched.`
+              : 'A scheduled campaign failed to launch.',
+            relatedEntityType: 'campaign',
+            relatedEntityId: String(campaign._id),
+            actionUrl: `/dashboard/outreach/${String(campaign._id)}`,
+          })
+          .catch(() => undefined);
+      }
     }
   }
 
@@ -132,73 +178,40 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       leased.status = 'running';
       await leased.save();
 
-      // Execute step (provider send stubs)
-      if (step.type === 'email' || step.type === 'scheduling_link') {
-        const key = `campaign-job:${String(leased._id)}:email`;
-        await quotaService.reserveUsage({
-          organizationId: String(campaign.organizationId),
-          metric: 'email_outreach',
-          quantity: 1,
-          idempotencyKey: key,
-          relatedEntityType: 'campaign_job',
-          relatedEntityId: String(leased._id),
-        });
-        await quotaService.commitUsage({
-          organizationId: String(campaign.organizationId),
-          metric: 'email_outreach',
-          idempotencyKey: key,
-        });
-        campaign.stats.sent = (campaign.stats.sent || 0) + 1;
-        campaign.stats.delivered = (campaign.stats.delivered || 0) + 1;
-      } else if (step.type === 'whatsapp') {
-        const key = `campaign-job:${String(leased._id)}:whatsapp`;
-        await quotaService.reserveUsage({
-          organizationId: String(campaign.organizationId),
-          metric: 'whatsapp_outreach',
-          quantity: 1,
-          idempotencyKey: key,
-          relatedEntityType: 'campaign_job',
-          relatedEntityId: String(leased._id),
-        });
-        await quotaService.commitUsage({
-          organizationId: String(campaign.organizationId),
-          metric: 'whatsapp_outreach',
-          idempotencyKey: key,
-        });
-        campaign.stats.sent = (campaign.stats.sent || 0) + 1;
-        campaign.stats.delivered = (campaign.stats.delivered || 0) + 1;
-      } else if (step.type === 'ai_voice') {
-        // Voice minutes reserved later when Hunar launch is wired
-      }
+      const delivery = await executeCampaignMessageStep({
+        campaign,
+        enrollment,
+        step,
+        jobId: String(leased._id),
+      });
 
-      // Mirror outbound touch into unified conversation thread
-      if (['email', 'whatsapp', 'ai_voice', 'scheduling_link'].includes(step.type)) {
-        const channel =
-          step.type === 'whatsapp'
-            ? 'whatsapp'
-            : step.type === 'ai_voice'
-              ? 'ai_voice'
-              : 'email';
+      if (delivery.outcome === 'sent') {
+        campaign.stats.sent = (campaign.stats.sent || 0) + 1;
+        campaign.stats.delivered = (campaign.stats.delivered || 0) + 1;
+        campaignDeliveryMetrics.recordSent(delivery.channel);
+        campaignDeliveryMetrics.recordDelivered();
+
         const convThread = await conversationsService.ensureThreadForEnrollment({
           organizationId: String(campaign.organizationId),
           candidateId: String(enrollment.candidateId),
           campaignId: String(campaign._id),
           enrollmentId: String(enrollment._id),
           jobId: campaign.jobId ? String(campaign.jobId) : null,
-          channel,
+          channel: delivery.channel,
         });
         await ConversationMessageModel.create({
           organizationId: campaign.organizationId,
           threadId: convThread._id,
-          provider: 'system',
-          channel,
+          provider: delivery.provider || 'system',
+          channel: delivery.channel,
           direction: 'outbound',
           sender: null,
           recipient: null,
           subject: step.subject || null,
           bodyText: step.body || step.note || `[${step.type}]`,
           bodyHtml: null,
-          providerMessageId: `campaign-job:${String(leased._id)}`,
+          providerMessageId:
+            delivery.providerMessageId || `campaign-job:${String(leased._id)}`,
           providerThreadId: null,
           deliveryStatus: 'sent',
           messageType: 'message',
@@ -210,6 +223,22 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
         convThread.lastMessagePreview = (step.body || step.note || '').slice(0, 240);
         convThread.status = 'awaiting_reply';
         await convThread.save();
+      } else if (delivery.outcome === 'skipped' && delivery.reason !== 'non_message') {
+        await recordCampaignActivity({
+          organizationId: String(campaign.organizationId),
+          campaignId: String(campaign._id),
+          enrollmentId: String(enrollment._id),
+          type: 'enrollment.step_skipped',
+          title:
+            delivery.reason === 'missing_email'
+              ? 'Skipped email step — no email address'
+              : 'Skipped WhatsApp/voice step — no phone number',
+          metadata: {
+            stepId: step.id,
+            reason: delivery.reason,
+            channel: delivery.channel,
+          },
+        });
       }
 
       enrollment.sequenceState.lastStepId = step.id;
@@ -217,6 +246,8 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
         enrollment.sequenceState.completedStepIds.push(step.id);
       }
       enrollment.lastActionAt = new Date();
+      // Persist contactAvailability sync from delivery even when stop rules fire next.
+      await enrollment.save();
 
       const ordered = [...campaign.sequenceSteps].sort((a, b) => a.order - b.order);
       const idx = ordered.findIndex((s) => s.id === step.id);
@@ -238,7 +269,10 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           title: 'Sequence completed',
         });
       } else {
-        const delayMs = Math.max(0, (next.delayDays || 0) * 24 * 60 * 60 * 1000);
+        const delayMs = Math.max(
+          0,
+          sequenceDelayToMs(next.delayDays || 0, next.delayUnit)
+        );
         const when = new Date(Date.now() + delayMs);
         enrollment.currentStepIndex = idx + 1;
         enrollment.status = delayMs > 0 ? 'waiting' : 'active';
@@ -250,22 +284,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           campaignId: campaign._id,
           enrollmentId: enrollment._id,
           stepId: next.id,
-          jobType:
-            next.type === 'email'
-              ? 'send_email'
-              : next.type === 'whatsapp'
-                ? 'send_whatsapp'
-                : next.type === 'ai_voice'
-                  ? 'launch_voice'
-                  : next.type === 'wait'
-                    ? 'wait'
-                    : next.type === 'conditional'
-                      ? 'evaluate_conditional'
-                      : next.type === 'recruiter_task'
-                        ? 'create_recruiter_task'
-                        : next.type === 'scheduling_link'
-                          ? 'send_scheduling_link'
-                          : 'advance_sequence',
+          jobType: jobTypeForStep(next.type),
           scheduledAt: when,
           status: 'queued',
           attempts: 0,
@@ -274,7 +293,12 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
 
       await campaign.save();
       leased.status = 'succeeded';
-      leased.result = { stepId: step.id, type: step.type };
+      leased.result = {
+        stepId: step.id,
+        type: step.type,
+        delivery: delivery.outcome,
+        reason: delivery.outcome === 'skipped' ? delivery.reason : undefined,
+      };
       await leased.save();
       processed += 1;
     } catch (error) {

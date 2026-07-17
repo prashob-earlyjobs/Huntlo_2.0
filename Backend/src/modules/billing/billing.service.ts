@@ -114,10 +114,9 @@ export class BillingService {
   }
 
   private buildCheckoutPayload(
-    order: Awaited<ReturnType<typeof PaymentOrderModel.findById>> & object,
+    order: import('./payment-order.model.js').PaymentOrderDocument,
     planName: string
   ) {
-    if (!order) return null;
     const meta = (order.metadata || {}) as Record<string, unknown>;
     if (order.provider === 'razorpay') {
       const { keyId } = getRazorpayConfig();

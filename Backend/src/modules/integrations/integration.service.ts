@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { getEnv } from '../../config/env.js';
 import { recordAuditEvent } from '../../shared/audit/audit.service.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { emitIntegrationUpdated } from '../../realtime/events.js';
+import { notificationsService } from '../notifications/notifications.service.js';
 import { getGoogleOAuthConfig } from '../../providers/gmail/gmail.oauth.js';
 import { getOutlookOAuthConfig, getOutlookOAuthRedirectUri } from '../../providers/outlook/outlook.oauth.js';
 import {
@@ -29,6 +31,7 @@ import {
 } from './credentials.js';
 import { OAuthStateModel } from './oauth-state.model.js';
 import { huntloWhatsAppProvider } from './providers/huntlo-whatsapp.provider.js';
+import { hunarProvider } from './providers/hunar.provider.js';
 import {
   INTEGRATION_PROVIDERS,
   PROVIDER_CATEGORY,
@@ -294,6 +297,65 @@ async function ensureHuntloWhatsAppDefault(organizationId: string, userId: strin
   }
 }
 
+/**
+ * When platform Hunar voice credentials are configured, auto-connect Huntlo Voice
+ * for users who have no voice connection yet.
+ */
+async function ensureHunarVoiceDefault(organizationId: string, userId: string) {
+  if (!isHunarConfigured()) return;
+
+  const hunar = await UserIntegrationModel.findOne({
+    organizationId,
+    userId,
+    provider: 'hunar',
+  });
+
+  if (hunar && hunar.status === 'connected') {
+    const defaultVoice = await UserIntegrationModel.findOne({
+      organizationId,
+      userId,
+      category: 'voice',
+      isDefault: true,
+      status: { $in: ['connected', 'needs_attention', 'testing'] },
+    }).lean();
+    if (!defaultVoice) {
+      await clearDefaultForCategory(organizationId, userId, 'voice', String(hunar._id));
+      hunar.isDefault = true;
+      await hunar.save();
+    }
+    return;
+  }
+
+  const anyConnected = await UserIntegrationModel.findOne({
+    organizationId,
+    userId,
+    category: 'voice',
+    status: { $in: ['connected', 'needs_attention', 'testing'] },
+  }).lean();
+  if (anyConnected) return;
+
+  try {
+    if (typeof hunarProvider.connect !== 'function') return;
+    const result = await hunarProvider.connect(
+      { organizationId, userId },
+      {}
+    );
+    if (result.mode !== 'connected' || !result.tokens) return;
+
+    const doc = await findOrCreateIntegration({
+      organizationId,
+      userId,
+      provider: 'hunar',
+    });
+    await persistTokens(doc, result.tokens);
+    await clearDefaultForCategory(organizationId, userId, 'voice', String(doc._id));
+    doc.isDefault = true;
+    await doc.save();
+  } catch {
+    // Platform voice unavailable — leave catalog disconnected.
+  }
+}
+
 async function persistTokens(
   doc: UserIntegrationDocument,
   tokens: ProviderTokenBundle
@@ -394,6 +456,7 @@ function wrapProviderError(error: unknown): never {
 export const integrationsService = {
   async list(organizationId: string, userId: string, query?: { category?: string }) {
     await ensureHuntloWhatsAppDefault(organizationId, userId);
+    await ensureHunarVoiceDefault(organizationId, userId);
 
     const filter: Record<string, unknown> = { organizationId, userId };
     if (query?.category) filter.category = query.category;
@@ -410,9 +473,11 @@ export const integrationsService = {
             row.status === 'expired' ||
             row.status === 'testing')
       );
+      const google = item.id === 'gmail' ? getGoogleOAuthConfig() : null;
       return {
         ...item,
         configured: catalogConfigured(item.id),
+        oauthClientId: google?.clientId ?? null,
         connection: connected || null,
       };
     });
@@ -669,6 +734,28 @@ export const integrationsService = {
         doc.errorMessage = result.message;
       }
       await doc.save();
+      emitIntegrationUpdated({
+        organizationId,
+        integrationId: id,
+        provider: doc.provider,
+        status: doc.status,
+        userId,
+      });
+      if (!result.ok) {
+        void notificationsService
+          .create({
+            organizationId,
+            userId,
+            type: 'integration_error',
+            severity: 'error',
+            title: 'Integration needs attention',
+            message: result.message || `${doc.provider} failed a connection test.`,
+            relatedEntityType: 'integration',
+            relatedEntityId: id,
+            actionUrl: '/dashboard/integrations',
+          })
+          .catch(() => undefined);
+      }
       await audit('integration.test', organizationId, userId, {
         provider: doc.provider,
         integrationId: id,
@@ -681,6 +768,13 @@ export const integrationsService = {
       doc.errorMessage = error instanceof Error ? error.message : 'Test failed';
       doc.lastTestedAt = new Date();
       await doc.save();
+      emitIntegrationUpdated({
+        organizationId,
+        integrationId: id,
+        provider: doc.provider,
+        status: doc.status,
+        userId,
+      });
       wrapProviderError(error);
     }
   },
@@ -764,6 +858,13 @@ export const integrationsService = {
     doc.errorCode = null;
     doc.errorMessage = null;
     await doc.save();
+    emitIntegrationUpdated({
+      organizationId,
+      integrationId: id,
+      provider,
+      status: 'disconnected',
+      userId,
+    });
 
     if (
       wasDefault &&
@@ -814,6 +915,7 @@ export const integrationsService = {
       email: doc.email,
       displayName: doc.displayName,
       phone: doc.phone,
+      providerAccountId: doc.providerAccountId || null,
     };
   },
 

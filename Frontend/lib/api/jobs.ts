@@ -56,6 +56,33 @@ export type JobCreateInput = {
   status?: "draft" | "active";
 };
 
+export type ParsedJobDescription = {
+  title: string | null;
+  department: string | null;
+  employmentType: string | null;
+  workplaceType: string | null;
+  location: string | null;
+  openings: number | null;
+  experienceMin: number | null;
+  experienceMax: number | null;
+  requiredSkills: string[];
+  preferredSkills: string[];
+  seniority: string | null;
+  industryPreference: string | null;
+  education: string | null;
+  description: string | null;
+  responsibilities: string | null;
+  requirements: string | null;
+  benefits: string | null;
+  minSalary: number | null;
+  maxSalary: number | null;
+  currency: string | null;
+  priority: string | null;
+  tags: string[];
+  model: string;
+  summary: string;
+};
+
 export type JobSummary = {
   jobId: string;
   status: string;
@@ -202,7 +229,7 @@ function mapDetail(job: ApiJob): JobDetail {
     compensation: {
       minSalary: job.compensation?.minSalary ?? 0,
       maxSalary: job.compensation?.maxSalary ?? 0,
-      currency: job.compensation?.currency ?? "INR",
+      currency: (job.compensation?.currency ?? "INR") as "INR" | "USD" | "EUR",
       visibility: (job.compensation?.visibility ?? "Range shown") as JobDetail["compensation"]["visibility"],
     },
     interviewPanel: job.interviewPanel ?? [],
@@ -303,6 +330,7 @@ export interface JobsApi {
   getSummary(id: string): Promise<JobSummary>;
   getPipeline(id: string): Promise<{ stages: JobSummary["pipeline"] }>;
   getActivity(id: string): Promise<{ items: JobActivityItem[] }>;
+  parseJd(jdText: string): Promise<ParsedJobDescription>;
 }
 
 const mockJobsApi: JobsApi = {
@@ -409,6 +437,40 @@ const mockJobsApi: JobsApi = {
   },
   async getActivity() {
     return { items: [] };
+  },
+  async parseJd(jdText) {
+    await simulateMockLatency();
+    const lines = jdText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const title = lines[0]?.slice(0, 120) || "Parsed role";
+    return {
+      title,
+      department: "Engineering",
+      employmentType: "Full-time",
+      workplaceType: "Hybrid",
+      location: "Bengaluru",
+      openings: 1,
+      experienceMin: 3,
+      experienceMax: 7,
+      requiredSkills: ["TypeScript", "React", "Node.js"],
+      preferredSkills: ["AWS"],
+      seniority: "Senior",
+      industryPreference: null,
+      education: "Bachelor's degree preferred",
+      description: lines.slice(1).join("\n").slice(0, 2000) || jdText.slice(0, 2000),
+      responsibilities: "Own feature delivery end-to-end\nCollaborate with product and design",
+      requirements: "3+ years relevant experience\nStrong communication skills",
+      benefits: "Health insurance\nFlexible hours",
+      minSalary: null,
+      maxSalary: null,
+      currency: "INR",
+      priority: "Medium",
+      tags: ["engineering"],
+      model: "mock",
+      summary: "Mock JD parse — enable live API + GEMINI_API_KEY for real extraction.",
+    };
   },
 };
 
@@ -539,6 +601,14 @@ const liveJobsApi: JobsApi = {
   async getActivity(id) {
     const result = await apiClient.get<{ items: JobActivityItem[] }>(
       `/jobs/${id}/activity`
+    );
+    return result.data;
+  },
+  async parseJd(jdText) {
+    const result = await apiClient.post<ParsedJobDescription>(
+      "/jobs/parse-jd",
+      { jdText },
+      { sensitive: true }
     );
     return result.data;
   },

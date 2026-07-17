@@ -109,7 +109,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<OrganizationRole, PermissionKey[]>
     ...moduleActions('candidates', ['view', 'export']),
     ...moduleActions('outreach', ['view', 'export']),
     ...moduleActions('screening', ['view', 'export']),
-    ...moduleActions('analytics', ['view', 'export']),
+    ...moduleActions('analytics', ['view', 'export', 'manage']),
     ...moduleActions('plans', ['view']),
   ],
 };

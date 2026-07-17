@@ -1,3 +1,4 @@
+import * as React from "react"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -10,10 +11,13 @@ export function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol
 export function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
   return <li className={cn("inline-flex items-center gap-1", className)} {...props} />
 }
-export function BreadcrumbLink({ className, ...props }: any) {
-  const { render, ...rest } = props
-  if (render) return render
-  return <a className={cn(className)} {...rest} />
+export function BreadcrumbLink({
+  className,
+  render,
+  ...props
+}: React.ComponentProps<"a"> & { render?: React.ReactNode }) {
+  if (render) return <>{render}</>
+  return <a className={cn(className)} {...props} />
 }
 export function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   return <span aria-current="page" className={cn(className)} {...props} />

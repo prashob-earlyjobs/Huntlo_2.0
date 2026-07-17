@@ -1,11 +1,10 @@
 import {
-  AUDIENCE_STATS,
   CAMPAIGN_OBJECTIVES,
   CAMPAIGN_TYPES,
   CHANNEL_CONFIGS,
-  CREDITS_AVAILABLE,
   DEFAULT_QUESTIONS,
   DEFAULT_SEQUENCE,
+  makeStep,
   reachableCount,
   STEP_CHANNELS,
   TAKEOVER_CONDITIONS,
@@ -16,6 +15,7 @@ import {
   type OutreachChannel,
   type QualificationQuestion,
   type SequenceStep,
+  type SequenceStepType,
 } from "@/lib/mock-outreach";
 
 export interface BuilderState {
@@ -24,6 +24,7 @@ export interface BuilderState {
   jobId: string | null;
   objective: string;
   owner: string;
+  ownerUserId: string | null;
   description: string;
   timezone: string;
   campaignType: string;
@@ -52,12 +53,100 @@ export interface BuilderState {
   autoCalendly: boolean;
 }
 
+const CHANNEL_STEP_TYPE: Record<OutreachChannel, SequenceStepType> = {
+  Email: "Send Email",
+  WhatsApp: "Send WhatsApp",
+  "AI Voice": "Start AI Voice Call",
+};
+
+export function isSingleChannelCampaign(state: Pick<BuilderState, "campaignType">) {
+  return state.campaignType === "Single Channel";
+}
+
+function pruneStepsToChannels(
+  steps: SequenceStep[],
+  enabledChannels: OutreachChannel[]
+): SequenceStep[] {
+  const allowed = new Set(enabledChannels);
+  return steps.filter((step) => {
+    const channel = STEP_CHANNELS[step.type];
+    return !channel || allowed.has(channel);
+  });
+}
+
+function ensureMessageStep(
+  steps: SequenceStep[],
+  channel: OutreachChannel
+): SequenceStep[] {
+  if (steps.some((step) => STEP_CHANNELS[step.type] === channel)) {
+    return steps;
+  }
+  return [makeStep(CHANNEL_STEP_TYPE[channel]), ...steps];
+}
+
+/** Collapse to one channel and drop incompatible sequence steps. */
+export function applyCampaignType(
+  state: BuilderState,
+  campaignType: string
+): BuilderState {
+  if (campaignType !== "Single Channel") {
+    return { ...state, campaignType };
+  }
+
+  const channel = state.enabledChannels[0] ?? "Email";
+  const steps = ensureMessageStep(
+    pruneStepsToChannels(state.steps, [channel]),
+    channel
+  );
+  return {
+    ...state,
+    campaignType,
+    enabledChannels: [channel],
+    steps,
+  };
+}
+
+/** Keep single-channel campaigns on exactly one channel and sync the sequence. */
+export function applyEnabledChannels(
+  state: BuilderState,
+  enabledChannels: OutreachChannel[]
+): BuilderState {
+  let nextChannels = enabledChannels;
+
+  if (isSingleChannelCampaign(state)) {
+    if (enabledChannels.length === 0) {
+      nextChannels = state.enabledChannels[0]
+        ? [state.enabledChannels[0]]
+        : ["Email"];
+    } else if (enabledChannels.length === 1) {
+      nextChannels = enabledChannels;
+    } else {
+      const added = enabledChannels.find(
+        (channel) => !state.enabledChannels.includes(channel)
+      );
+      nextChannels = [added ?? enabledChannels[enabledChannels.length - 1]];
+    }
+  }
+
+  let steps = pruneStepsToChannels(state.steps, nextChannels);
+  if (isSingleChannelCampaign(state) && nextChannels[0]) {
+    steps = ensureMessageStep(steps, nextChannels[0]);
+  }
+
+  return {
+    ...state,
+    enabledChannels: nextChannels,
+    steps,
+  };
+}
+
 export function initialBuilderState(): BuilderState {
   return {
     name: "",
     jobId: null,
     objective: CAMPAIGN_OBJECTIVES[0],
-    owner: "Ananya Sharma",
+    owner: "",
+    ownerUserId: null,
     description: "",
     timezone: TIMEZONE_OPTIONS[0],
     campaignType: CAMPAIGN_TYPES[1],
@@ -68,7 +157,10 @@ export function initialBuilderState(): BuilderState {
     audiencePreview: null,
     enabledChannels: ["Email"],
     connections: Object.fromEntries(
-      CHANNEL_CONFIGS.map((config) => [config.channel, config.connection])
+      CHANNEL_CONFIGS.map((config) => [
+        config.channel,
+        "Disconnected" as ChannelConnection,
+      ])
     ) as Record<OutreachChannel, ChannelConnection>,
     steps: DEFAULT_SEQUENCE.map((step) => ({ ...step })),
     classificationEnabled: true,
@@ -91,7 +183,7 @@ export type UpdateBuilder = <K extends keyof BuilderState>(
 
 export function audienceStats(state: BuilderState): AudienceStats | null {
   if (state.audiencePreview) return state.audiencePreview;
-  return state.source ? AUDIENCE_STATS[state.source] : null;
+  return null;
 }
 
 export function messageSteps(state: BuilderState): SequenceStep[] {
@@ -121,8 +213,9 @@ export function stepErrors(step: number, state: BuilderState): string[] {
   switch (step) {
     case 0: {
       if (!state.name.trim()) errors.push("Campaign name is required.");
+      if (!state.jobId) errors.push("Select a related job.");
       if (!state.objective) errors.push("Pick a campaign objective.");
-      if (!state.owner) errors.push("Assign a campaign owner.");
+      if (!state.ownerUserId) errors.push("Assign a campaign owner.");
       break;
     }
     case 1: {
@@ -158,8 +251,14 @@ export function stepErrors(step: number, state: BuilderState): string[] {
       break;
     }
     case 2: {
-      if (state.enabledChannels.length === 0)
+      if (state.enabledChannels.length === 0) {
         errors.push("Enable at least one channel to send messages.");
+      } else if (
+        isSingleChannelCampaign(state) &&
+        state.enabledChannels.length !== 1
+      ) {
+        errors.push("Single-channel campaigns must use exactly one channel.");
+      }
       const disconnected = state.enabledChannels.filter(
         (channel) => state.connections[channel] === "Disconnected"
       );
@@ -179,6 +278,17 @@ export function stepErrors(step: number, state: BuilderState): string[] {
           `“${step.type}” uses a channel that isn't enabled in the Channels step.`
         )
       );
+      if (isSingleChannelCampaign(state) && state.enabledChannels[0]) {
+        const only = state.enabledChannels[0];
+        const mixed = messageSteps(state).filter(
+          (step) => STEP_CHANNELS[step.type] !== only
+        );
+        mixed.forEach((step) =>
+          errors.push(
+            `Single-channel campaigns can only use ${only}. Remove “${step.type}”.`
+          )
+        );
+      }
       break;
     }
     case 4: {
@@ -192,7 +302,10 @@ export function stepErrors(step: number, state: BuilderState): string[] {
   return errors;
 }
 
-export function launchWarnings(state: BuilderState): LaunchWarning[] {
+export function launchWarnings(
+  state: BuilderState,
+  creditsAvailable: number | null = null
+): LaunchWarning[] {
   const warnings: LaunchWarning[] = [];
   for (let step = 0; step <= 4; step += 1) {
     stepErrors(step, state).forEach((error, index) =>
@@ -236,17 +349,21 @@ export function launchWarnings(state: BuilderState): LaunchWarning[] {
   });
 
   const credits = estimatedCredits(state);
-  if (credits > CREDITS_AVAILABLE) {
+  if (creditsAvailable != null && credits > creditsAvailable) {
     warnings.push({
       id: "quota",
       severity: "error",
-      text: `Estimated usage of ${credits.toLocaleString("en-IN")} credits exceeds your available balance of ${CREDITS_AVAILABLE.toLocaleString("en-IN")}. Reduce the audience or remove steps.`,
+      text: `Estimated usage of ${credits.toLocaleString("en-IN")} credits exceeds your available balance of ${creditsAvailable.toLocaleString("en-IN")}. Reduce the audience or remove steps.`,
     });
-  } else if (credits > CREDITS_AVAILABLE * 0.8) {
+  } else if (
+    creditsAvailable != null &&
+    creditsAvailable > 0 &&
+    credits > creditsAvailable * 0.8
+  ) {
     warnings.push({
       id: "quota",
       severity: "warning",
-      text: `This campaign will use ${credits.toLocaleString("en-IN")} of your ${CREDITS_AVAILABLE.toLocaleString("en-IN")} available credits (over 80%).`,
+      text: `This campaign will use ${credits.toLocaleString("en-IN")} of your ${creditsAvailable.toLocaleString("en-IN")} available credits (over 80%).`,
     });
   }
 

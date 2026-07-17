@@ -71,6 +71,7 @@ export function compileCampaignPayload(workflow: Huntlo360WorkflowDocument) {
   return {
     name: workflow.name,
     jobId: workflow.jobId ? String(workflow.jobId) : null,
+    ownerUserId: String(workflow.ownerUserId),
     sourceModule: 'huntlo360' as const,
     campaignType: 'multi_channel' as const,
     candidateSource: {

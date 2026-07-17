@@ -17,11 +17,11 @@ export const hunarProvider: VoiceProvider = {
     }
     return {
       mode: 'connected',
-      message: 'Hunar voice connected',
+      message: 'Huntlo Voice connected',
       tokens: {
         accessToken: null,
         refreshToken: null,
-        displayName: 'Hunar AI Voice',
+        displayName: 'Huntlo Voice',
         providerAccountId: 'hunar',
         scopes: ['voice'],
         config: {

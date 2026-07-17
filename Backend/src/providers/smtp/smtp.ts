@@ -93,3 +93,28 @@ export async function verifySmtpCredentials(body: Record<string, unknown>): Prom
   }
   return config;
 }
+
+export async function sendSmtpMail(input: {
+  config: SmtpConfig;
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+}): Promise<{ messageId?: string }> {
+  assertSmtpConfig(input.config);
+  const transport = createSmtpTransport(input.config);
+  try {
+    const info = await transport.sendMail({
+      from: input.config.senderName
+        ? `"${input.config.senderName}" <${input.config.fromEmail}>`
+        : input.config.fromEmail,
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+    });
+    return { messageId: typeof info.messageId === 'string' ? info.messageId : undefined };
+  } finally {
+    transport.close();
+  }
+}

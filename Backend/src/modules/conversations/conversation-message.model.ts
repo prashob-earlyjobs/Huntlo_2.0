@@ -134,6 +134,7 @@ const conversationMessageSchema = new Schema<ConversationMessageDocument>(
 );
 
 conversationMessageSchema.index({ threadId: 1, createdAt: 1 });
+conversationMessageSchema.index({ threadId: 1, messageType: 1, createdAt: 1 });
 conversationMessageSchema.index(
   { organizationId: 1, provider: 1, providerMessageId: 1 },
   {

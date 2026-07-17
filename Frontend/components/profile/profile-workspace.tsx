@@ -11,7 +11,7 @@ import {
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-import { authApi } from "@/lib/api";
+import { authApi, getApiErrorMessage, profileApi } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 
 import { Field } from "@/components/outreach/builder-ui";
@@ -28,13 +28,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ACTIVE_SESSIONS,
   DEFAULT_APPEARANCE,
   DEFAULT_NOTIFICATIONS,
   DEFAULT_PERSONAL,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_EVENTS,
   PROFILE_TIMEZONES,
+  type ActiveSession,
   type AppearancePrefs,
   type DensityPreference,
   type NotificationChannel,
@@ -93,7 +93,7 @@ function useSimulatedSave() {
     if (options?.simulateDelay === false) {
       void run().catch((error) => {
         setStatus("error");
-        setErrorMessage(error instanceof Error ? error.message : "Save failed");
+        setErrorMessage(getApiErrorMessage(error, "Save failed"));
       });
       return;
     }
@@ -101,7 +101,7 @@ function useSimulatedSave() {
     window.setTimeout(() => {
       void run().catch((error) => {
         setStatus("error");
-        setErrorMessage(error instanceof Error ? error.message : "Save failed");
+        setErrorMessage(getApiErrorMessage(error, "Save failed"));
       });
     }, 700);
   }
@@ -276,8 +276,9 @@ export function ProfileWorkspace() {
   });
   const [appearance, setAppearance] = useState({ ...DEFAULT_APPEARANCE });
 
-  const [sessions, setSessions] = useState(ACTIVE_SESSIONS);
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [signOutPassword, setSignOutPassword] = useState("");
 
   const personalSave = useSimulatedSave();
   const passwordSave = useSimulatedSave();
@@ -309,6 +310,50 @@ export function ProfileWorkspace() {
     setSavedPersonal(clonePersonal(nextPersonal));
     setPersonal(clonePersonal(nextPersonal));
   }, [user]);
+
+  useEffect(() => {
+    if (isMockMode) {
+      setSessions([
+        {
+          id: "s1",
+          device: "Chrome on macOS · Bangalore",
+          location: "Bengaluru, IN",
+          lastActive: "Active now",
+          current: true,
+        },
+      ]);
+      return;
+    }
+    void Promise.all([
+      profileApi.getPreferences(),
+      profileApi.listSessions(),
+    ])
+      .then(([prefs, nextSessions]) => {
+        const appearanceNext = {
+          theme: prefs.appearance?.theme ?? prefs.theme,
+          density: prefs.appearance?.density ?? prefs.density,
+        };
+        setAppearance(appearanceNext);
+        setSavedAppearance(appearanceNext);
+        setTheme(appearanceNext.theme);
+        if (prefs.notificationPreferences) {
+          setNotifications(cloneNotifications(prefs.notificationPreferences));
+          setSavedNotifications(cloneNotifications(prefs.notificationPreferences));
+        }
+        setSessions(
+          nextSessions.map((session) => ({
+            id: session.id,
+            device: session.device,
+            location: session.location,
+            lastActive: session.lastActive,
+            current: session.current,
+          }))
+        );
+      })
+      .catch(() => {
+        // Keep defaults when preferences are unavailable.
+      });
+  }, [isMockMode, setTheme]);
 
   useEffect(() => {
     if (!toast) return;
@@ -381,7 +426,7 @@ export function ProfileWorkspace() {
       simulateDelay: isMockMode,
       onSuccess: async () => {
         if (!isMockMode) {
-          await authApi.changePassword({
+          await profileApi.changePassword({
             currentPassword: password.current,
             newPassword: password.next,
           });
@@ -393,14 +438,29 @@ export function ProfileWorkspace() {
 
   function saveNotifications() {
     notificationSave.runSave({
-      onSuccess: () =>
-        setSavedNotifications(cloneNotifications(notifications)),
+      simulateDelay: isMockMode,
+      onSuccess: async () => {
+        if (!isMockMode) {
+          await profileApi.updatePreferences({
+            notificationPreferences: notifications,
+          });
+        }
+        setSavedNotifications(cloneNotifications(notifications));
+      },
     });
   }
 
   function saveAppearance() {
     appearanceSave.runSave({
-      onSuccess: () => {
+      simulateDelay: isMockMode,
+      onSuccess: async () => {
+        if (!isMockMode) {
+          await profileApi.updatePreferences({
+            appearance,
+            theme: appearance.theme,
+            density: appearance.density,
+          });
+        }
         setSavedAppearance({ ...appearance });
         setTheme(appearance.theme);
       },
@@ -578,7 +638,7 @@ export function ProfileWorkspace() {
                 Active sessions
               </h4>
               <p className="text-xs text-muted-foreground">
-                Devices currently signed in to your Huntlo account · placeholder
+                Devices currently signed in to your Huntlo account
               </p>
             </div>
             <ConfirmDialog
@@ -588,18 +648,56 @@ export function ProfileWorkspace() {
                   Sign out all sessions
                 </Button>
               }
-              title="Sign out all sessions?"
-              description="This will end every active session except this browser. You will need to sign in again on other devices. UI preview only."
+              title="Sign out all other sessions?"
+              description="Enter your password to end every active session except this browser."
               confirmLabel="Sign out all"
               destructive
-              onConfirm={() => {
-                setSessions((previous) =>
-                  previous.filter((session) => session.current)
-                );
-                setToast("Signed out of other sessions. (UI preview)");
+              onConfirm={async () => {
+                if (isMockMode) {
+                  setSessions((previous) =>
+                    previous.filter((session) => session.current)
+                  );
+                  setToast("Signed out of other sessions.");
+                  return;
+                }
+                if (!signOutPassword.trim()) {
+                  setToast("Enter your current password to sign out other sessions.");
+                  return;
+                }
+                try {
+                  await profileApi.revokeOtherSessions(signOutPassword);
+                  const nextSessions = await profileApi.listSessions();
+                  setSessions(
+                    nextSessions.map((session) => ({
+                      id: session.id,
+                      device: session.device,
+                      location: session.location,
+                      lastActive: session.lastActive,
+                      current: session.current,
+                    }))
+                  );
+                  setSignOutPassword("");
+                  setToast("Signed out of other sessions.");
+                } catch (error) {
+                  setToast(
+                    getApiErrorMessage(error, "Unable to sign out other sessions.")
+                  );
+                }
               }}
             />
           </div>
+          {!isMockMode ? (
+            <Field label="Confirm password for sign-out all" htmlFor="signout-password">
+              <Input
+                id="signout-password"
+                type="password"
+                autoComplete="current-password"
+                value={signOutPassword}
+                onChange={(event) => setSignOutPassword(event.target.value)}
+                placeholder="Current password"
+              />
+            </Field>
+          ) : null}
           <ul className="divide-y divide-border rounded-lg border border-border">
             {sessions.map((session) => (
               <li
@@ -625,10 +723,26 @@ export function ProfileWorkspace() {
                     size="xs"
                     variant="ghost"
                     onClick={() => {
-                      setSessions((previous) =>
-                        previous.filter((item) => item.id !== session.id)
-                      );
-                      setToast("Session ended. (UI preview)");
+                      void (async () => {
+                        if (isMockMode) {
+                          setSessions((previous) =>
+                            previous.filter((item) => item.id !== session.id)
+                          );
+                          setToast("Session ended.");
+                          return;
+                        }
+                        try {
+                          await profileApi.revokeSession(session.id);
+                          setSessions((previous) =>
+                            previous.filter((item) => item.id !== session.id)
+                          );
+                          setToast("Session ended.");
+                        } catch (error) {
+                          setToast(
+                            getApiErrorMessage(error, "Unable to end session.")
+                          );
+                        }
+                      })();
                     }}
                   >
                     End

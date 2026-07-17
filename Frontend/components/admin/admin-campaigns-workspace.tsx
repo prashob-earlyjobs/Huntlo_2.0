@@ -26,10 +26,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ADMIN_CAMPAIGNS,
   type AdminCampaign,
   type AdminCampaignStatus,
 } from "@/lib/mock-admin";
+import { adminApi } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -42,23 +43,57 @@ const STATUS_CLASS: Record<AdminCampaignStatus, string> = {
   Failed: "bg-destructive/10 text-destructive",
 };
 
+function mapCampaignStatus(status: string): AdminCampaignStatus {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("pause")) return "Paused";
+  if (normalized.includes("queue") || normalized.includes("draft")) return "Queued";
+  if (normalized.includes("fail") || normalized.includes("error")) return "Failed";
+  if (
+    normalized.includes("complete") ||
+    normalized.includes("done") ||
+    normalized.includes("archiv")
+  ) {
+    return "Completed";
+  }
+  return "Running";
+}
+
 export function AdminCampaignsWorkspace() {
-  const [campaigns, setCampaigns] = useState(ADMIN_CAMPAIGNS);
+  const [campaigns, setCampaigns] = useState<AdminCampaign[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    void adminApi
+      .listCampaigns({ limit: 100 })
+      .then((result) => {
+        setCampaigns(
+          result.items.map((item) => ({
+            id: item.id,
+            name: item.name || "Untitled campaign",
+            workspace: item.workspace,
+            sourceModule: item.sourceModule,
+            channels: item.channels?.length ? item.channels : ["—"],
+            candidates: item.candidates,
+            status: mapCampaignStatus(item.status),
+            queueState: item.queueState || item.status,
+            lastTrigger: item.lastTrigger
+              ? new Date(item.lastTrigger).toLocaleString("en-IN")
+              : "—",
+            errors: item.errors || 0,
+          }))
+        );
+      })
+      .catch((error) => {
+        setCampaigns([]);
+        setToast(getApiErrorMessage(error, "Unable to load campaigns."));
+      });
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 2800);
     return () => window.clearTimeout(id);
   }, [toast]);
-
-  function patch(id: string, patch: Partial<AdminCampaign>) {
-    setCampaigns((previous) =>
-      previous.map((campaign) =>
-        campaign.id === id ? { ...campaign, ...patch } : campaign
-      )
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -160,39 +195,31 @@ export function AdminCampaignsWorkspace() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        onClick={() => {
-                          patch(campaign.id, {
-                            status: "Paused",
-                            queueState: "Paused by admin",
-                          });
-                          setToast(`Paused ${campaign.name}.`);
-                        }}
+                        onClick={() =>
+                          setToast(
+                            "Campaign control from admin console is read-only."
+                          )
+                        }
                       >
                         <Pause aria-hidden />
                         Pause
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => {
-                          patch(campaign.id, {
-                            status: "Running",
-                            queueState: "Resumed",
-                            lastTrigger: "Just now",
-                          });
-                          setToast(`Resumed ${campaign.name}.`);
-                        }}
+                        onClick={() =>
+                          setToast(
+                            "Campaign control from admin console is read-only."
+                          )
+                        }
                       >
                         <Play aria-hidden />
                         Resume
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => {
-                          patch(campaign.id, {
-                            errors: 0,
-                            queueState: "Retrying failed items",
-                            lastTrigger: "Just now",
-                          });
-                          setToast(`Retry queued for ${campaign.name}.`);
-                        }}
+                        onClick={() =>
+                          setToast(
+                            "Campaign control from admin console is read-only."
+                          )
+                        }
                       >
                         <RefreshCw aria-hidden />
                         Retry errors

@@ -15,6 +15,17 @@ hunarWebhookRouter.use(...webhookBodyMiddleware);
 
 async function handleKind(kind: HunarWebhookKind, req: Request, res: Response) {
   const screeningId = String(req.query?.screeningId || '').trim() || null;
+  const campaignId = String(req.query?.campaignId || '').trim() || null;
+
+  // Outreach campaign voice callbacks are acknowledged; enrollment updates land later.
+  if (campaignId && !screeningId) {
+    res.status(200).json({
+      success: true,
+      data: { ignored: true, reason: 'campaign_voice_callback', campaignId },
+    });
+    return;
+  }
+
   const result = await processHunarWebhook({
     kind,
     screeningId,

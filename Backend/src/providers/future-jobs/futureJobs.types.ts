@@ -277,4 +277,8 @@ export type MockFutureJobsMode = {
   alwaysFail?: boolean;
   /** Simulate request timeout / AbortError. */
   timeout?: boolean;
+  /** Return statusCode 207 (pending) on create/update. */
+  pending207?: boolean;
+  /** Keep profiles empty even after polls (for empty-fallback tests). */
+  emptyProfiles?: boolean;
 };

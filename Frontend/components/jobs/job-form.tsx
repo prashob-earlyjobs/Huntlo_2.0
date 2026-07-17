@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -33,7 +33,11 @@ import {
   SKILL_SUGGESTIONS,
   WORKPLACE_TYPES,
 } from "@/lib/mock-jobs";
-import { getApiErrorMessage, jobsApi } from "@/lib/api";
+import {
+  getApiErrorMessage,
+  jobsApi,
+  type ParsedJobDescription,
+} from "@/lib/api";
 import { ROUTES, jobDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -110,6 +114,106 @@ const INITIAL_STATE: JobFormState = {
   tags: "",
   internalNotes: "",
 };
+
+function pickOption<T extends string>(
+  value: string | null | undefined,
+  options: readonly T[],
+  fallback: T | "" = ""
+): T | "" {
+  if (!value) return fallback;
+  const exact = options.find(
+    (option) => option.toLowerCase() === value.toLowerCase()
+  );
+  if (exact) return exact;
+  const partial = options.find(
+    (option) =>
+      value.toLowerCase().includes(option.toLowerCase()) ||
+      option.toLowerCase().includes(value.toLowerCase())
+  );
+  return partial ?? fallback;
+}
+
+function applyParsedJd(
+  previous: JobFormState,
+  parsed: ParsedJobDescription
+): JobFormState {
+  return {
+    ...previous,
+    title: parsed.title?.trim() || previous.title,
+    department:
+      pickOption(parsed.department, JOB_DEPARTMENTS, previous.department as "" | (typeof JOB_DEPARTMENTS)[number]) ||
+      previous.department,
+    employmentType:
+      pickOption(
+        parsed.employmentType,
+        EMPLOYMENT_TYPES,
+        previous.employmentType as (typeof EMPLOYMENT_TYPES)[number]
+      ) || previous.employmentType,
+    workplaceType:
+      pickOption(
+        parsed.workplaceType,
+        WORKPLACE_TYPES,
+        previous.workplaceType as (typeof WORKPLACE_TYPES)[number]
+      ) || previous.workplaceType,
+    openings:
+      parsed.openings != null && parsed.openings > 0
+        ? String(parsed.openings)
+        : previous.openings,
+    location:
+      pickOption(
+        parsed.location,
+        JOB_LOCATIONS,
+        previous.location as "" | (typeof JOB_LOCATIONS)[number]
+      ) || previous.location,
+    experienceMin:
+      parsed.experienceMin != null
+        ? String(parsed.experienceMin)
+        : previous.experienceMin,
+    experienceMax:
+      parsed.experienceMax != null
+        ? String(parsed.experienceMax)
+        : previous.experienceMax,
+    requiredSkills:
+      parsed.requiredSkills.length > 0
+        ? parsed.requiredSkills
+        : previous.requiredSkills,
+    preferredSkills:
+      parsed.preferredSkills.length > 0
+        ? parsed.preferredSkills
+        : previous.preferredSkills,
+    seniority:
+      pickOption(
+        parsed.seniority,
+        SENIORITY_LEVELS,
+        previous.seniority as (typeof SENIORITY_LEVELS)[number]
+      ) || previous.seniority,
+    industryPreference:
+      parsed.industryPreference?.trim() || previous.industryPreference,
+    education: parsed.education?.trim() || previous.education,
+    description: parsed.description?.trim() || previous.description,
+    responsibilities:
+      parsed.responsibilities?.trim() || previous.responsibilities,
+    requirements: parsed.requirements?.trim() || previous.requirements,
+    benefits: parsed.benefits?.trim() || previous.benefits,
+    minSalary:
+      parsed.minSalary != null ? String(parsed.minSalary) : previous.minSalary,
+    maxSalary:
+      parsed.maxSalary != null ? String(parsed.maxSalary) : previous.maxSalary,
+    currency:
+      pickOption(
+        parsed.currency,
+        SALARY_CURRENCIES,
+        previous.currency as (typeof SALARY_CURRENCIES)[number]
+      ) || previous.currency,
+    priority:
+      pickOption(
+        parsed.priority,
+        JOB_PRIORITIES,
+        previous.priority as (typeof JOB_PRIORITIES)[number]
+      ) || previous.priority,
+    tags: parsed.tags.length > 0 ? parsed.tags.join(", ") : previous.tags,
+  };
+}
 
 function Field({
   id,
@@ -226,9 +330,37 @@ export function JobForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touchedPublish, setTouchedPublish] = useState(false);
   const [saving, setSaving] = useState<"draft" | "publish" | "source" | null>(null);
+  const [jdText, setJdText] = useState("");
+  const [parsingJd, setParsingJd] = useState(false);
+  const [jdError, setJdError] = useState<string | null>(null);
+  const [jdSummary, setJdSummary] = useState<string | null>(null);
 
   function update<K extends keyof JobFormState>(key: K, value: JobFormState[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
+  }
+
+  async function autofillFromJd() {
+    const text = jdText.trim();
+    if (text.length < 40) {
+      setJdError("Paste a fuller job description (at least 40 characters).");
+      return;
+    }
+    setParsingJd(true);
+    setJdError(null);
+    setJdSummary(null);
+    try {
+      const parsed = await jobsApi.parseJd(text);
+      setForm((previous) => applyParsedJd(previous, parsed));
+      setJdSummary(parsed.summary || "Fields filled from the pasted JD.");
+      setErrors({});
+      document
+        .getElementById("job-basic-details")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+      setJdError(getApiErrorMessage(error, "Unable to parse this job description."));
+    } finally {
+      setParsingJd(false);
+    }
   }
 
   function validate(): FieldErrors {
@@ -320,7 +452,6 @@ export function JobForm() {
               title="Discard this job?"
               description="Unsaved changes will be lost. You can always create the requirement again later."
               confirmLabel="Discard"
-              cancelLabel="Keep editing"
               destructive
               onConfirm={() => router.push(ROUTES.jobs)}
             />
@@ -355,6 +486,62 @@ export function JobForm() {
           persist("publish");
         }}
       >
+        <FormSection
+          title="Paste job description"
+          description="Paste a JD and let Gemini fill title, skills, experience, location, and description fields."
+        >
+          <div className="space-y-3">
+            <Textarea
+              id="job-jd-paste"
+              value={jdText}
+              onChange={(event) => setJdText(event.target.value)}
+              placeholder="Paste the full job description here…"
+              rows={8}
+              className="min-h-40 font-mono text-sm"
+              aria-label="Paste job description"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void autofillFromJd()}
+                disabled={parsingJd || jdText.trim().length < 40}
+              >
+                <Sparkles aria-hidden />
+                {parsingJd ? "Extracting…" : "Autofill with AI"}
+              </Button>
+              {jdText.trim() ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setJdText("");
+                    setJdError(null);
+                    setJdSummary(null);
+                  }}
+                  disabled={parsingJd}
+                >
+                  Clear
+                </Button>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Review every field after autofill — AI can miss or invent details.
+              </p>
+            </div>
+            {jdError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {jdError}
+              </p>
+            ) : null}
+            {jdSummary ? (
+              <p className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+                {jdSummary}
+              </p>
+            ) : null}
+          </div>
+        </FormSection>
+
         <FormSection
           title="Role details"
           description="Core identity of the hiring requirement."

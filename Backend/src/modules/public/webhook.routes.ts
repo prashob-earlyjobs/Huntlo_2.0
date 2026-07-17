@@ -42,34 +42,56 @@ webhookRouter.get(
 webhookRouter.post(
   '/meta-whatsapp',
   asyncHandler(async (req, res) => {
-    const organizationId =
-      (req.headers['x-organization-id'] as string | undefined) ||
-      (req.query.organizationId as string | undefined) ||
-      null;
-    const result = await handleProviderWebhook({
-      provider: 'meta-whatsapp',
-      organizationId,
-      payload: req.body,
-      req,
+    const { ingestWebhook } = await import('../webhooks/ingest.service.js');
+    const rawBody = req.rawBody;
+    if (!rawBody || rawBody.length === 0) {
+      res.status(400).json({ success: false, error: { code: 'EMPTY_BODY', message: 'Empty body' } });
+      return;
+    }
+    const body =
+      req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)
+        ? (req.body as Record<string, unknown>)
+        : (JSON.parse(rawBody.toString('utf8')) as Record<string, unknown>);
+    const result = await ingestWebhook({
+      provider: 'meta',
+      rawBody,
+      body,
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: req.query as Record<string, unknown>,
+      organizationId:
+        (req.headers['x-organization-id'] as string | undefined) ||
+        (req.query.organizationId as string | undefined) ||
+        null,
     });
-    res.status(200).json({ success: true, data: result });
+    res.status(result.statusCode).json(result.body);
   })
 );
 
 webhookRouter.post(
   '/gupshup',
   asyncHandler(async (req, res) => {
-    const organizationId =
-      (req.headers['x-organization-id'] as string | undefined) ||
-      (req.query.organizationId as string | undefined) ||
-      null;
-    const result = await handleProviderWebhook({
+    const { ingestWebhook } = await import('../webhooks/ingest.service.js');
+    const rawBody = req.rawBody;
+    if (!rawBody || rawBody.length === 0) {
+      res.status(400).json({ success: false, error: { code: 'EMPTY_BODY', message: 'Empty body' } });
+      return;
+    }
+    const body =
+      req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)
+        ? (req.body as Record<string, unknown>)
+        : (JSON.parse(rawBody.toString('utf8')) as Record<string, unknown>);
+    const result = await ingestWebhook({
       provider: 'gupshup',
-      organizationId,
-      payload: req.body,
-      req,
+      rawBody,
+      body,
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: req.query as Record<string, unknown>,
+      organizationId:
+        (req.headers['x-organization-id'] as string | undefined) ||
+        (req.query.organizationId as string | undefined) ||
+        null,
     });
-    res.status(200).json({ success: true, data: result });
+    res.status(result.statusCode).json(result.body);
   })
 );
 

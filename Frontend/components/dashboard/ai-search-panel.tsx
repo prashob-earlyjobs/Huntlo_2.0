@@ -13,11 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ACTIVE_JOBS } from "@/lib/mock-dashboard";
+import type { ActiveJob } from "@/lib/mock-dashboard";
 import { ROUTES } from "@/lib/routes";
 
 /** Primary home action: describe a role, scope it to a job, and open candidate search. */
-export function AISearchPanel() {
+export function AISearchPanel({ jobs = [] }: { jobs?: ActiveJob[] }) {
   const [query, setQuery] = useState("");
   const [jobId, setJobId] = useState("all");
 
@@ -55,7 +55,7 @@ export function AISearchPanel() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All jobs</SelectItem>
-                {ACTIVE_JOBS.map((job) => (
+                {jobs.map((job) => (
                   <SelectItem key={job.id} value={job.id}>
                     {job.title}
                   </SelectItem>

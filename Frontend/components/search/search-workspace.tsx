@@ -40,16 +40,18 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getApiErrorMessage, jobsApi, sourcingApi } from "@/lib/api";
+import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
+import {
+  annotateCandidateSearch,
+  applyCandidateSearch,
+  type CandidateFilterForm,
+} from "@/lib/api/candidate-search";
 import type { JobListItem } from "@/lib/api/contracts";
-import { JOBS } from "@/lib/mock-jobs";
 import {
   EXAMPLE_QUERY,
   FILTER_FIELD_INDEX,
   FILTER_SECTIONS,
   INTERPRETED_FILTER_STATE,
-  SAVED_SEARCHES,
-  SEARCH_QUOTA,
   estimateReach,
   isFieldActive,
   type FilterValue,
@@ -61,8 +63,9 @@ import { ROUTES, sessionDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /** Map UI filter state into Future Jobs filter-form keys the backend accepts. */
-function filtersToProviderPayload(filters: SearchFilterState): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
+function filtersToProviderPayload(filters: SearchFilterState): CandidateFilterForm {
+  const payload: CandidateFilterForm = { ...filters };
+
   const currentTitle = filters.currentTitle;
   if (Array.isArray(currentTitle) && currentTitle.length > 0) {
     payload.currentTitle = currentTitle.join(", ");
@@ -275,9 +278,11 @@ function InterpretationPanel({
 function GettingStarted({
   onUseExample,
   onUseSaved,
+  recentSearches,
 }: {
   onUseExample: () => void;
   onUseSaved: (search: SavedSearch) => void;
+  recentSearches: SavedSearch[];
 }) {
   return (
     <section
@@ -311,24 +316,30 @@ function GettingStarted({
               Browse search history
             </Button>
           </div>
-          <ul className="mt-1 space-y-0.5">
-            {SAVED_SEARCHES.slice(0, 3).map((saved) => (
-              <li key={saved.id}>
-                <button
-                  type="button"
-                  onClick={() => onUseSaved(saved)}
-                  className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                    {saved.name}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {saved.lastRun}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {recentSearches.length === 0 ? (
+            <p className="mt-2 px-2 text-sm text-muted-foreground">
+              No recent searches yet.
+            </p>
+          ) : (
+            <ul className="mt-1 space-y-0.5">
+              {recentSearches.slice(0, 3).map((saved) => (
+                <li key={saved.id}>
+                  <button
+                    type="button"
+                    onClick={() => onUseSaved(saved)}
+                    className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                      {saved.name}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {saved.lastRun}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </section>
@@ -356,15 +367,49 @@ export function SearchWorkspace() {
   const [interpreting, setInterpreting] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchRemaining, setSearchRemaining] = useState<number | null>(null);
+  const [recentSearches, setRecentSearches] = useState<SavedSearch[]>([]);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const items = await jobsApi.list({ limit: 50, status: "active" });
-        if (!cancelled && items.length > 0) setJobs(items);
+        if (!cancelled) setJobs(items);
       } catch {
-        // Keep mock JOBS fallback via jobOptions
+        // Leave jobs empty when the API is unavailable.
+      }
+    })();
+    void (async () => {
+      try {
+        const usage = await plansApi.getUsage();
+        const searchRow = usage.find((row) => row.id === "searches");
+        if (!cancelled && searchRow && searchRow.limit != null) {
+          setSearchRemaining(Math.max(0, searchRow.limit - searchRow.used));
+        }
+      } catch {
+        // Leave quota hidden when usage is unavailable.
+      }
+    })();
+    void (async () => {
+      try {
+        const { getRecentSearches } = await import("@/lib/api/candidate-search");
+        const result = await getRecentSearches({ limit: 5 });
+        if (cancelled) return;
+        setRecentSearches(
+          result.recentSearches.map((entry) => ({
+            id: entry.savedSessionId,
+            name: entry.title || entry.prompt || "Search",
+            query: entry.prompt || "",
+            filters: 0,
+            lastRun: entry.createdAt || "",
+            results: entry.resultCount ?? 0,
+          }))
+        );
+      } catch {
+        if (!cancelled) setRecentSearches([]);
       }
     })();
     return () => {
@@ -372,7 +417,7 @@ export function SearchWorkspace() {
     };
   }, []);
 
-  const jobOptions = jobs.length > 0 ? jobs : JOBS;
+  const jobOptions = jobs;
   const selectedJob = jobOptions.find((job) => job.id === selectedJobId);
 
   const activeEntries = useMemo(
@@ -455,13 +500,40 @@ export function SearchWorkspace() {
     setInterpreting(true);
     setError(null);
     try {
-      const result = await sourcingApi.interpret(query.trim());
-      setCriteria(result.interpretedCriteria);
-      setInterpretedFilters(
-        (result.normalizedFilters as SearchFilterState | null) ?? INTERPRETED_FILTER_STATE
-      );
-      setConfirmedIds(new Set());
-      setCriteriaApplied(false);
+      const result = await annotateCandidateSearch({ prompt: query.trim() });
+      const filterForm = result.filterForm as SearchFilterState;
+      setInterpretedFilters(filterForm);
+      setFilters({ ...filters, ...filterForm });
+      setCriteriaApplied(true);
+      setFilterDrawerOpen(true);
+      // Build lightweight criteria rows from filter form for the interpretation panel
+      const nextCriteria: InterpretedCriterion[] = [];
+      if (typeof filterForm.currentTitle === "string" && filterForm.currentTitle.trim()) {
+        nextCriteria.push({
+          id: "ic-titles",
+          fieldId: "currentTitle",
+          label: "Role",
+          value: filterForm.currentTitle.trim(),
+        });
+      }
+      if (typeof filterForm.keywordSkills === "string" && filterForm.keywordSkills.trim()) {
+        nextCriteria.push({
+          id: "ic-skills",
+          fieldId: "keywordSkills",
+          label: "Skills",
+          value: filterForm.keywordSkills.trim(),
+        });
+      }
+      if (Array.isArray(filterForm.location) && filterForm.location.length > 0) {
+        nextCriteria.push({
+          id: "ic-location",
+          fieldId: "location",
+          label: "Location",
+          value: filterForm.location.filter(Boolean).join(", "),
+        });
+      }
+      setCriteria(nextCriteria.length > 0 ? nextCriteria : null);
+      setConfirmedIds(new Set(nextCriteria.map((c) => c.id)));
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -528,36 +600,82 @@ export function SearchWorkspace() {
     if (!canSearch || searching) return;
     setSearching(true);
     setError(null);
+    setPendingMessage(null);
     try {
-      const providerFilters = filtersToProviderPayload(filters);
-      const session = await sourcingApi.createSession({
-        query: query.trim() || EXAMPLE_QUERY,
+      let nextFilters = filters;
+      const hasCriteria =
+        Object.keys(filters).some((key) => {
+          const value = filters[key];
+          if (value == null || value === "") return false;
+          if (Array.isArray(value)) return value.length > 0;
+          if (typeof value === "object") {
+            return Object.values(value as Record<string, unknown>).some(
+              (entry) => entry != null && entry !== ""
+            );
+          }
+          return true;
+        }) || Boolean(interpretedFilters);
+
+      // Mirror backend auto-annotate so the drawer reflects structured filters.
+      if (!hasCriteria && query.trim()) {
+        try {
+          const annotated = await annotateCandidateSearch({ prompt: query.trim() });
+          const filterForm = annotated.filterForm as SearchFilterState;
+          setInterpretedFilters(filterForm);
+          nextFilters = { ...filters, ...filterForm };
+          setFilters(nextFilters);
+          setCriteriaApplied(true);
+        } catch {
+          // Backend apply also auto-annotates; continue with empty filters.
+        }
+      }
+
+      const providerFilters = filtersToProviderPayload(nextFilters);
+      const result = await applyCandidateSearch({
+        prompt: query.trim() || EXAMPLE_QUERY,
+        filterForm: providerFilters,
         jobId: selectedJobId,
-        filters: Object.keys(providerFilters).length > 0 ? providerFilters : undefined,
-        interpretedCriteria: criteria ?? undefined,
-        confirmFilters: criteriaApplied || Object.keys(providerFilters).length > 0,
-        run: true,
+        page: 1,
+        limit: 20,
       });
 
-      if (session.requiresConfirmation && session.status === "draft") {
-        if (session.interpretedCriteria?.length) {
-          setCriteria(session.interpretedCriteria);
-        }
-        if (session.normalizedFilters) {
-          setInterpretedFilters(session.normalizedFilters as SearchFilterState);
-        }
-        setError(
-          session.message ??
-            "Confirm the interpreted filters, then run search again."
+      if ("sessionPending" in result && result.sessionPending) {
+        setPendingMessage(
+          result.message || "Candidate matching is still being processed."
         );
+        if (result.savedSessionId) {
+          setSearched(true);
+          router.push(sessionDetailPath(result.savedSessionId));
+          return;
+        }
         setSearching(false);
         return;
       }
 
-      setSearched(true);
-      router.push(sessionDetailPath(session.id));
+      if (result.success && result.savedSessionId) {
+        setSearched(true);
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            `huntlo:search:${result.savedSessionId}`,
+            JSON.stringify({
+              sessionId: result.sessionId,
+              savedSessionId: result.savedSessionId,
+            })
+          );
+        }
+        router.push(sessionDetailPath(result.savedSessionId));
+        return;
+      }
+
+      setError("Search completed without a session id.");
+      setSearching(false);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      if (isQuotaError(err)) {
+        setError("Candidate search quota exhausted. Upgrade your plan to continue.");
+      } else {
+        setError(getApiErrorMessage(err));
+      }
+      // Preserve prompt and filters on error
       setSearching(false);
     }
   }
@@ -586,15 +704,15 @@ export function SearchWorkspace() {
             <Label htmlFor="nl-query" className="text-sm font-medium text-foreground">
               Describe the candidate profile
             </Label>
-            <Tooltip>
-              <TooltipTrigger className="inline-flex items-center gap-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm">
-                <Coins aria-hidden className="size-3.5" />
-                {NUMBER_FORMAT.format(SEARCH_QUOTA.remaining)} credits left
-              </TooltipTrigger>
-              <TooltipContent>
-                {SEARCH_QUOTA.costPerSearch} credits per search · {SEARCH_QUOTA.planName}
-              </TooltipContent>
-            </Tooltip>
+            {searchRemaining !== null ? (
+              <Tooltip>
+                <TooltipTrigger className="inline-flex items-center gap-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm">
+                  <Coins aria-hidden className="size-3.5" />
+                  {NUMBER_FORMAT.format(searchRemaining)} searches left
+                </TooltipTrigger>
+                <TooltipContent>1 search per query</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
 
           <Textarea
@@ -642,7 +760,7 @@ export function SearchWorkspace() {
 
               {/* Advanced filters toggle — mobile / narrow screens only */}
               <div className="lg:hidden">
-                <Sheet>
+                <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
                   <SheetTrigger
                     render={<Button type="button" size="sm" variant="outline" />}
                   >
@@ -714,10 +832,19 @@ export function SearchWorkspace() {
               {error}
             </p>
           ) : null}
+          {pendingMessage ? (
+            <p role="status" className="mt-3 text-sm text-amber-700 dark:text-amber-400">
+              {pendingMessage}
+            </p>
+          ) : null}
         </section>
 
         {isFresh ? (
-          <GettingStarted onUseExample={() => setQuery(EXAMPLE_QUERY)} onUseSaved={useSavedSearch} />
+          <GettingStarted
+            onUseExample={() => setQuery(EXAMPLE_QUERY)}
+            onUseSaved={useSavedSearch}
+            recentSearches={recentSearches}
+          />
         ) : (
           <>
             {/* AI interpretation */}
@@ -870,9 +997,9 @@ export function SearchWorkspace() {
                     Quota cost
                   </dt>
                   <dd className="mt-0.5 font-medium tabular-nums text-foreground">
-                    {SEARCH_QUOTA.costPerSearch} credits ·{" "}
-                    {NUMBER_FORMAT.format(SEARCH_QUOTA.remaining - SEARCH_QUOTA.costPerSearch)}{" "}
-                    remaining after search
+                    {searchRemaining !== null
+                      ? `1 search · ${NUMBER_FORMAT.format(Math.max(0, searchRemaining - 1))} remaining after search`
+                      : "1 search"}
                   </dd>
                 </div>
                 <div>

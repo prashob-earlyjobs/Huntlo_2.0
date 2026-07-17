@@ -25,9 +25,27 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
 
   if (err instanceof AppError) {
     if (!err.isOperational || err.statusCode >= 500) {
-      logger.error({ err, requestId }, err.message);
+      logger.error(
+        {
+          err,
+          requestId,
+          userId: req.userId ?? req.auth?.sub ?? null,
+          organizationId: req.organizationId ?? req.auth?.orgId ?? null,
+          errorClass: err.code,
+        },
+        err.message
+      );
     } else {
-      logger.warn({ err: { code: err.code, statusCode: err.statusCode }, requestId }, err.message);
+      logger.warn(
+        {
+          err: { code: err.code, statusCode: err.statusCode },
+          requestId,
+          userId: req.userId ?? req.auth?.sub ?? null,
+          organizationId: req.organizationId ?? req.auth?.orgId ?? null,
+          errorClass: err.code,
+        },
+        err.message
+      );
     }
 
     errorResponse(res, {
@@ -62,7 +80,16 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
     return;
   }
 
-  logger.error({ err, requestId }, 'Unhandled error');
+  logger.error(
+    {
+      err,
+      requestId,
+      userId: req.userId ?? req.auth?.sub ?? null,
+      organizationId: req.organizationId ?? req.auth?.orgId ?? null,
+      errorClass: 'INTERNAL_ERROR',
+    },
+    'Unhandled error'
+  );
 
   const message =
     getEnv().APP_ENV === 'production' ? 'Internal server error' : err instanceof Error ? err.message : 'Internal server error';

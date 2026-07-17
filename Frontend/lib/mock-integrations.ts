@@ -89,6 +89,10 @@ export interface IntegrationProvider {
   configKind: "email" | "smtp" | "whatsapp" | "calendly" | "generic" | "voice" | "payments" | "data";
   /** Backend UserIntegration id when connected (live API). */
   integrationRecordId?: string;
+  /** True when server has provider credentials configured. */
+  serverConfigured?: boolean;
+  /** Public OAuth client id (e.g. Google) when needed for popup auth. */
+  oauthClientId?: string | null;
 }
 
 export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
@@ -254,31 +258,32 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
   /* Voice */
   {
     id: "hunar",
-    name: "Hunar",
+    name: "Huntlo Voice",
     description:
       "AI voice agent for screening calls, outreach dials and call summaries.",
     category: "AI Voice",
-    status: "Expired",
-    connectedIdentity: "Workspace · Growth Plan",
-    lastSynced: "Expired Jul 14 · minutes exhausted",
-    docsLabel: "Hunar voice docs",
-    initials: "Hu",
-    accent: "warning",
+    status: "Connected",
+    connectedIdentity: "Huntlo · AI caller",
+    lastSynced: "12m ago",
+    docsLabel: "Huntlo Voice docs",
+    initials: "HV",
+    accent: "brand",
     permissions: [
       "Place outbound screening calls",
       "Record and transcribe calls",
       "Access call analytics",
     ],
     usage: [
-      { label: "Minutes left", value: "0 / 500" },
+      { label: "Minutes left", value: "420 / 600" },
       { label: "Calls this month", value: "164" },
     ],
     connectionDetails: [
-      { label: "API key", value: "hnr_••••••••k9f2" },
-      { label: "Error", value: "Voice minutes exhausted — top up or renew plan" },
+      { label: "Mode", value: "Platform managed" },
+      { label: "Persona", value: "Neha" },
     ],
     isDefault: true,
     configKind: "voice",
+    serverConfigured: true,
   },
   /* Scheduling */
   {

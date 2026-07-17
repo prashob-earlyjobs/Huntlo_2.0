@@ -3,8 +3,9 @@ import {
   mapFjDocToCandidate,
   type FutureJobsProfileDoc,
 } from '../../providers/future-jobs/index.js';
-import { emitSourcingProgress } from '../../realtime/events.js';
+import { emitCandidateSearchPoll } from '../../realtime/events.js';
 import { createChildLogger } from '../../config/logger.js';
+import { upsertCandidatesFromDocs as upsertSearchCandidates } from '../candidates/search/search.persist.js';
 import { quotaService } from './quota.service.js';
 import { SourcedCandidateModel } from './sourced-candidate.model.js';
 import {
@@ -15,7 +16,9 @@ import {
 const MAX_POLL_ATTEMPTS = 120;
 const MAX_POLL_DURATION_MS = 10 * 60 * 1000;
 const POLL_BATCH_LIMIT = 25;
-const PROFILES_PAGE_LIMIT = 50;
+const PROFILES_PAGE_LIMIT = 200;
+
+const ACTIVE_STATUSES = ['creating', 'pending', 'queued', 'running', 'polling'] as const;
 
 const pollAttempts = new Map<string, number>();
 
@@ -61,7 +64,8 @@ function experienceYearsFromProfile(profile: Record<string, unknown>): number | 
   return null;
 }
 
-async function upsertCandidatesFromDocs(
+/** Legacy upsert fallback — prefer search.persist bulkWrite path. */
+async function upsertCandidatesFromDocsLegacy(
   session: SourcingSessionDocument,
   docs: FutureJobsProfileDoc[]
 ): Promise<number> {
@@ -107,6 +111,9 @@ async function upsertCandidatesFromDocs(
       {
         $set: {
           organizationId: session.organizationId,
+          userId: session.userId ?? session.ownerUserId,
+          futureJobsSessionId: session.futureJobsSessionId || session.externalSessionId,
+          candidateId: externalId,
           basicProfile: {
             name: mapped.name || 'Unknown',
             headline:
@@ -117,6 +124,14 @@ async function upsertCandidatesFromDocs(
                   : null,
             linkedinUrl: mapped.linkedin_profile_url || null,
           },
+          name: mapped.name || 'Unknown',
+          currentRole:
+            typeof job.job_title === 'string' && job.job_title.trim()
+              ? job.job_title.trim()
+              : null,
+          currentCompany:
+            typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null,
+          linkedinProfileUrl: mapped.linkedin_profile_url || null,
           currentEmployment: {
             title:
               typeof job.job_title === 'string' && job.job_title.trim()
@@ -136,10 +151,16 @@ async function upsertCandidatesFromDocs(
               ? String(doc.sourcingSessionId)
               : session.externalSessionId,
           },
+          rawDoc: doc,
+          mappedCandidate: mapped,
           matchScore,
+          finalScore: matchScore,
+          lastSeenAt: new Date(),
         },
         $setOnInsert: {
           rank: rankBase,
+          firstSeenAt: new Date(),
+          contactStatus: 'Not contacted',
         },
       },
       { upsert: true, new: true }
@@ -159,7 +180,6 @@ function computeProgress(
   if (estimatedResults > 0 && totalResults > 0) {
     return Math.min(99, Math.round((totalResults / estimatedResults) * 100));
   }
-  // Attempt-based fallback while waiting for profiles.
   return Math.min(90, 10 + attempt * 2);
 }
 
@@ -170,15 +190,21 @@ async function finalizeSession(
 ): Promise<void> {
   const orgId = session.organizationId.toHexString();
   const sessionId = session._id.toHexString();
+  const fjId = session.futureJobsSessionId || session.externalSessionId || sessionId;
 
   if (status === 'failed') {
-    await quotaService.refund(orgId, sessionId);
+    await quotaService.refund(orgId, session.quotaTransactionId || sessionId);
     session.quotaConsumed = 0;
-  } else {
-    await quotaService.commit(orgId, sessionId);
+  } else if (session.quotaTransactionId || session.quotaConsumed > 0) {
+    try {
+      await quotaService.commit(orgId, session.quotaTransactionId || sessionId);
+    } catch {
+      // May already be committed by apply
+    }
   }
 
   session.status = status;
+  session.polling = false;
   session.progress = status === 'failed' ? session.progress : 100;
   session.completedAt = new Date();
   session.errorCode = options?.errorCode ?? (status === 'failed' ? session.errorCode : null);
@@ -188,21 +214,53 @@ async function finalizeSession(
 
   pollAttempts.delete(sessionId);
 
-  emitSourcingProgress({
-    sessionId,
+  emitCandidateSearchPoll({
     organizationId: orgId,
+    userId: session.ownerUserId ? String(session.ownerUserId) : undefined,
+    sessionId: fjId,
+    savedSessionId: sessionId,
     status: session.status,
-    progress: session.progress,
-    totalResults: session.totalResults,
-    estimatedResults: session.estimatedResults,
+    polling: false,
+    newCandidateCount: 0,
+    totalDocs: session.totalDocs ?? session.totalResults ?? 0,
+    canFetchMore: Boolean(session.canFetchMore),
+    profilesPagination: session.profilesPagination,
+    regionExpandFallbackUsed: Boolean(session.regionExpandFallbackUsed),
+    error: session.errorMessage,
   });
+
+  if (session.ownerUserId && (status === 'completed' || status === 'partial')) {
+    const { notificationsService } = await import(
+      '../notifications/notifications.service.js'
+    );
+    void notificationsService
+      .create({
+        organizationId: orgId,
+        userId: String(session.ownerUserId),
+        type: 'candidate_search_progress',
+        severity: status === 'completed' ? 'success' : 'info',
+        title: 'Candidate search finished',
+        message: `Found ${session.totalResults} candidates.`,
+        relatedEntityType: 'sourcing_session',
+        relatedEntityId: sessionId,
+        actionUrl: `/dashboard/sessions/${sessionId}`,
+      })
+      .catch(() => undefined);
+  }
 }
 
 async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   const sessionId = session._id.toHexString();
   const orgId = session.organizationId.toHexString();
-  const externalId = session.externalSessionId;
+  const externalId = session.futureJobsSessionId || session.externalSessionId;
   if (!externalId) return;
+
+  if (!session.futureJobsSessionId && session.externalSessionId) {
+    session.futureJobsSessionId = session.externalSessionId;
+  }
+  if (!session.externalSessionId && session.futureJobsSessionId) {
+    session.externalSessionId = session.futureJobsSessionId;
+  }
 
   const attempt = (pollAttempts.get(sessionId) ?? 0) + 1;
   pollAttempts.set(sessionId, attempt);
@@ -222,7 +280,7 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
         ? String((error as { code?: string }).code ?? 'PROVIDER_ERROR')
         : 'PROVIDER_ERROR';
 
-    if ((session.totalResults ?? 0) > 0) {
+    if ((session.totalResults ?? 0) > 0 || (session.totalDocs ?? 0) > 0) {
       await finalizeSession(session, 'partial', {
         errorCode: code,
         errorMessage: message,
@@ -241,18 +299,28 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
 
   if (provider.isFjSessionPending(profilesRes)) {
     session.status = 'polling';
-    session.progress = computeProgress(session.totalResults, session.estimatedResults, attempt);
+    session.polling = true;
+    session.progress = computeProgress(
+      session.totalResults ?? session.totalDocs ?? 0,
+      session.estimatedResults,
+      attempt
+    );
     if (!session.errorMessage) {
       session.errorMessage = provider.fjSessionPendingMessage(profilesRes);
     }
     await session.save();
-    emitSourcingProgress({
-      sessionId,
+    emitCandidateSearchPoll({
       organizationId: orgId,
-      status: session.status,
-      progress: session.progress,
-      totalResults: session.totalResults,
-      estimatedResults: session.estimatedResults,
+      userId: session.ownerUserId ? String(session.ownerUserId) : undefined,
+      sessionId: externalId,
+      savedSessionId: sessionId,
+      status: 'polling',
+      polling: true,
+      newCandidateCount: 0,
+      totalDocs: session.totalDocs ?? session.totalResults ?? 0,
+      canFetchMore: Boolean(session.canFetchMore),
+      regionExpandFallbackUsed: Boolean(session.regionExpandFallbackUsed),
+      error: null,
     });
     return;
   }
@@ -264,8 +332,20 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
       : docs.length;
 
   let newCandidateCount = 0;
+  let newCandidates: unknown[] = [];
   if (docs.length > 0) {
-    newCandidateCount = await upsertCandidatesFromDocs(session, docs);
+    try {
+      const upsert = await upsertSearchCandidates({
+        session,
+        docs,
+        organizationId: orgId,
+        userId: String(session.userId ?? session.ownerUserId),
+      });
+      newCandidateCount = upsert.newCandidates.length;
+      newCandidates = upsert.newCandidates;
+    } catch {
+      newCandidateCount = await upsertCandidatesFromDocsLegacy(session, docs);
+    }
   }
 
   const storedCount = await SourcedCandidateModel.countDocuments({
@@ -273,23 +353,33 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   });
 
   session.totalResults = Math.max(storedCount, totalDocs);
+  session.totalDocs = session.totalResults;
+  session.canFetchMore = totalDocs > storedCount;
   if (session.estimatedResults <= 0 && totalDocs > 0) {
     session.estimatedResults = totalDocs;
   }
 
   session.status = 'polling';
+  session.polling = true;
   session.progress = computeProgress(session.totalResults, session.estimatedResults, attempt);
   session.errorMessage = null;
   await session.save();
 
-  emitSourcingProgress({
-    sessionId,
+  emitCandidateSearchPoll({
     organizationId: orgId,
-    status: session.status,
-    progress: session.progress,
-    totalResults: session.totalResults,
-    estimatedResults: session.estimatedResults,
+    userId: session.ownerUserId ? String(session.ownerUserId) : undefined,
+    sessionId: externalId,
+    savedSessionId: sessionId,
+    status: 'polling',
+    polling: true,
+    candidates: [],
+    newCandidates,
     newCandidateCount,
+    totalDocs: session.totalDocs,
+    canFetchMore: Boolean(session.canFetchMore),
+    profilesPagination: session.profilesPagination,
+    regionExpandFallbackUsed: Boolean(session.regionExpandFallbackUsed),
+    error: null,
   });
 
   const startedAt = session.startedAt ? session.startedAt.getTime() : Date.now();
@@ -297,16 +387,17 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     attempt >= MAX_POLL_ATTEMPTS || Date.now() - startedAt >= MAX_POLL_DURATION_MS;
 
   const pendingEmpty = docs.length === 0 && totalDocs === 0;
-  // Profiles ready when not pending and we have a non-empty page or explicit zero total.
   const ready = !pendingEmpty || (totalDocs === 0 && attempt >= 3);
 
   if (ready && !pendingEmpty) {
-    await finalizeSession(session, 'completed');
+    const hasNext = Boolean(profilesRes?.data?.hasNextPage);
+    if (!hasNext || storedCount >= totalDocs) {
+      await finalizeSession(session, 'completed');
+    }
     return;
   }
 
   if (ready && pendingEmpty && attempt >= 3 && session.estimatedResults === 0) {
-    // Expected empty result set.
     await finalizeSession(session, 'completed');
     return;
   }
@@ -323,52 +414,74 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   }
 }
 
-/**
- * Poll a single session by id (used by REST progress/results fallback when
- * the worker is not running, and by the worker batch loop).
- */
 export async function pollSourcingSessionById(sessionId: string): Promise<void> {
   const session = await SourcingSessionModel.findOne({
     _id: sessionId,
-    status: { $in: ['queued', 'running', 'polling'] },
-    externalSessionId: { $ne: null },
+    status: { $in: [...ACTIVE_STATUSES] },
     deletedAt: null,
+    $or: [
+      { externalSessionId: { $nin: [null, ''] } },
+      { futureJobsSessionId: { $nin: [null, ''] } },
+    ],
   });
   if (!session) return;
 
-  if (session.status === 'queued') {
-    session.status = 'running';
+  if (session.status === 'queued' || session.status === 'creating' || session.status === 'pending') {
+    session.status = 'polling';
+    session.polling = true;
     await session.save();
   }
 
   await pollOneSession(session);
 }
 
-/**
- * Worker tick — poll active sourcing sessions and upsert candidates.
- */
-export async function pollSourcingSessions(): Promise<void> {
-  const sessions = await SourcingSessionModel.find({
-    status: { $in: ['queued', 'running', 'polling'] },
-    externalSessionId: { $ne: null },
+export async function pollSourcingSessionByFutureJobsId(
+  futureJobsSessionId: string
+): Promise<void> {
+  const session = await SourcingSessionModel.findOne({
     deletedAt: null,
+    status: { $in: [...ACTIVE_STATUSES] },
+    $or: [
+      { futureJobsSessionId },
+      { externalSessionId: futureJobsSessionId },
+    ],
+  });
+  if (!session) return;
+  await pollSourcingSessionById(session._id.toHexString());
+}
+
+export async function pollSourcingSessions(): Promise<number> {
+  const sessions = await SourcingSessionModel.find({
+    status: { $in: [...ACTIVE_STATUSES] },
+    deletedAt: null,
+    $or: [
+      { externalSessionId: { $nin: [null, ''] } },
+      { futureJobsSessionId: { $nin: [null, ''] } },
+    ],
   })
     .sort({ lastPolledAt: 1, startedAt: 1 })
     .limit(POLL_BATCH_LIMIT);
 
-  if (sessions.length === 0) return;
+  if (sessions.length === 0) return 0;
 
-  // Mark queued → running on first touch.
   for (const session of sessions) {
-    if (session.status === 'queued') {
-      session.status = 'running';
+    if (
+      session.status === 'queued' ||
+      session.status === 'creating' ||
+      session.status === 'pending' ||
+      session.status === 'running'
+    ) {
+      session.status = 'polling';
+      session.polling = true;
       await session.save();
     }
   }
 
+  let processed = 0;
   for (const session of sessions) {
     try {
       await pollOneSession(session);
+      processed += 1;
     } catch (error) {
       log().error(
         {
@@ -379,4 +492,5 @@ export async function pollSourcingSessions(): Promise<void> {
       );
     }
   }
+  return processed;
 }

@@ -15,7 +15,10 @@ import type {
   BuilderState,
   UpdateBuilder,
 } from "@/components/outreach/builder-types";
-import { stepErrors } from "@/components/outreach/builder-types";
+import {
+  isSingleChannelCampaign,
+  stepErrors,
+} from "@/components/outreach/builder-types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,20 +38,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { templatesApi } from "@/lib/api";
 import {
   makeStep,
-  MESSAGE_TEMPLATES,
+  DELAY_UNIT_OPTIONS,
+  formatStepDelay,
   PERSONALIZATION_VARIABLES,
   RETRY_OPTIONS,
   SEND_WINDOWS,
   STEP_CHANNELS,
   STEP_TYPE_ICONS,
   STEP_TYPES,
+  type DelayUnit,
   type SequenceStep,
 } from "@/lib/mock-outreach";
 import { cn } from "@/lib/utils";
 
 function delaySummary(step: SequenceStep): string {
-  if (step.delayDays === 0) return "Immediately";
-  return `After ${step.delayDays} day${step.delayDays === 1 ? "" : "s"}`;
+  return formatStepDelay(step.delayDays, step.delayUnit ?? "days");
 }
 
 function StepEditor({
@@ -63,25 +67,67 @@ function StepEditor({
   const channel = STEP_CHANNELS[step.type];
   const isMessage = channel !== undefined;
   const isEmail = step.type === "Send Email";
-  const options = templateOptions.length > 0 ? templateOptions : [...MESSAGE_TEMPLATES];
+  const delayUnit = step.delayUnit ?? "days";
+  const delayMax =
+    DELAY_UNIT_OPTIONS.find((option) => option.value === delayUnit)?.max ?? 30;
+  // Always keep the step's own configured template selectable, plus a blank baseline.
+  const options = templateOptions.includes(step.template)
+    ? templateOptions
+    : [step.template, ...templateOptions];
 
   return (
     <div className="space-y-4 border-t border-border px-4 py-4">
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Delay (days)" htmlFor={`${step.id}-delay`}>
-          <Input
-            id={`${step.id}-delay`}
-            type="number"
-            min={0}
-            max={30}
-            value={step.delayDays}
-            onChange={(event) =>
-              onChange({
-                ...step,
-                delayDays: Math.max(0, Number(event.target.value) || 0),
-              })
-            }
-          />
+        <Field label="Delay" htmlFor={`${step.id}-delay`}>
+          <div className="flex gap-2">
+            <Input
+              id={`${step.id}-delay`}
+              type="number"
+              min={0}
+              max={delayMax}
+              value={step.delayDays}
+              onChange={(event) =>
+                onChange({
+                  ...step,
+                  delayDays: Math.min(
+                    delayMax,
+                    Math.max(0, Number(event.target.value) || 0)
+                  ),
+                })
+              }
+              className="min-w-0 flex-1"
+            />
+            <Select
+              value={delayUnit}
+              onValueChange={(value) => {
+                if (!value) return;
+                const nextUnit = value as DelayUnit;
+                const nextMax =
+                  DELAY_UNIT_OPTIONS.find((option) => option.value === nextUnit)
+                    ?.max ?? 30;
+                onChange({
+                  ...step,
+                  delayUnit: nextUnit,
+                  delayDays: Math.min(step.delayDays, nextMax),
+                });
+              }}
+            >
+              <SelectTrigger
+                id={`${step.id}-delay-unit`}
+                className="w-30 shrink-0"
+                aria-label="Delay unit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DELAY_UNIT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </Field>
         {isMessage ? (
           <>
@@ -239,7 +285,7 @@ export function SequenceStepBuilder({
     state.steps[0]?.id ?? null
   );
   const [templateOptions, setTemplateOptions] = useState<string[]>([
-    ...MESSAGE_TEMPLATES,
+    "Blank message",
   ]);
   const errors = showErrors ? stepErrors(3, state) : [];
 
@@ -249,15 +295,11 @@ export function SequenceStepBuilder({
       .list({ archived: false })
       .then((items) => {
         if (cancelled) return;
-        const names = [
-          "Blank message",
-          ...items.map((item) => item.name),
-          ...MESSAGE_TEMPLATES.filter((name) => name !== "Blank message"),
-        ];
+        const names = ["Blank message", ...items.map((item) => item.name)];
         setTemplateOptions([...new Set(names)]);
       })
       .catch(() => {
-        /* keep MESSAGE_TEMPLATES fallback */
+        // Keep only the blank baseline when the templates API is unavailable.
       });
     return () => {
       cancelled = true;
@@ -301,7 +343,11 @@ export function SequenceStepBuilder({
   return (
     <StepCard
       title="Sequence"
-      description="Design the touchpoints candidates receive. Steps run in order using each candidate's timezone rules."
+      description={
+        isSingleChannelCampaign(state)
+          ? `Steps run in order on ${state.enabledChannels[0] ?? "the selected channel"} only. Non-message steps (wait, tasks) are still available.`
+          : "Design the touchpoints candidates receive. Steps run in order using each candidate's timezone rules."
+      }
     >
       <div className="space-y-3">
         <ErrorList errors={errors} />
@@ -438,7 +484,10 @@ export function SequenceStepBuilder({
             Add Step
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            {STEP_TYPES.map((type) => {
+            {STEP_TYPES.filter((type) => {
+              const channel = STEP_CHANNELS[type];
+              return !channel || state.enabledChannels.includes(channel);
+            }).map((type) => {
               const Icon = STEP_TYPE_ICONS[type];
               return (
                 <DropdownMenuItem key={type} onClick={() => addStep(type)}>

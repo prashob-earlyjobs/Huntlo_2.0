@@ -46,7 +46,28 @@ import {
   dodoWebhookRouter,
   razorpayWebhookRouter,
 } from './modules/billing/index.js';
+import {
+  analyticsRouter,
+  dashboardRouter,
+  reportsRouter,
+} from './modules/analytics/index.js';
+import {
+  notificationsRouter,
+  realtimeRouter,
+} from './modules/notifications/index.js';
+import { adminJobsRouter, adminConsoleRouter } from './modules/admin/index.js';
+import {
+  adminWebhooksRouter,
+  webhooksRouter,
+} from './modules/webhooks/index.js';
+import {
+  auditLogsRouter,
+  preferencesRouter,
+  profileRouter,
+  settingsRouter,
+} from './modules/users/index.js';
 import { errorHandler } from './middleware/error-handler.js';
+
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { requestTimingMiddleware } from './middleware/request-timing.js';
@@ -74,6 +95,7 @@ export function createApp(): Express {
   app.use(cookieParser());
 
   // Webhook routes require raw body capture before JSON parsing.
+  app.use('/api/v1/webhooks', webhooksRouter);
   app.use('/api/v1/public/webhooks', webhookRouter);
   app.use('/api/v1/webhooks/hunar', hunarWebhookRouter);
   app.use('/api/v1/public/webhooks/hunar', hunarWebhookRouter);
@@ -109,6 +131,9 @@ export function createApp(): Express {
   app.use('/api/v1/plans', plansRouter);
   app.use('/api/v1/usage', usageRouter);
   app.use('/api/v1/admin/plans', adminPlansRouter);
+  app.use('/api/v1/admin/jobs', adminJobsRouter);
+  app.use('/api/v1/admin/webhooks', adminWebhooksRouter);
+  app.use('/api/v1/admin', adminConsoleRouter);
   app.use('/api/v1/integrations', integrationsRouter);
   app.use('/api/v1/outreach', outreachRouter);
   app.use('/api/v1/conversations', conversationsRouter);
@@ -119,6 +144,15 @@ export function createApp(): Express {
   app.use('/api/v1/availability', availabilityRouter);
   app.use('/api/v1/scheduling', schedulingRouter);
   app.use('/api/v1/billing', billingRouter);
+  app.use('/api/v1/dashboard', dashboardRouter);
+  app.use('/api/v1/analytics', analyticsRouter);
+  app.use('/api/v1/reports', reportsRouter);
+  app.use('/api/v1/notifications', notificationsRouter);
+  app.use('/api/v1/realtime', realtimeRouter);
+  app.use('/api/v1/profile', profileRouter);
+  app.use('/api/v1/preferences', preferencesRouter);
+  app.use('/api/v1/settings', settingsRouter);
+  app.use('/api/v1/audit-logs', auditLogsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

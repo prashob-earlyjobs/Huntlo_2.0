@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
-import { MetricStrip } from "@/components/shared/metric-strip";
 import { WorkflowsHome } from "@/components/huntlo-360/workflows-home";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { WORKFLOW_METRICS } from "@/lib/mock-360";
 import { ROUTES } from "@/lib/routes";
 
 export const metadata: Metadata = { title: "Huntlo 360" };
@@ -28,8 +26,6 @@ export default function Huntlo360Page() {
           </Button>
         }
       />
-
-      <MetricStrip metrics={WORKFLOW_METRICS} />
 
       <WorkflowsHome />
     </>

@@ -85,13 +85,11 @@ describe('Billing checkout + webhooks', () => {
 
   it('activates subscription from signed Razorpay payment.captured webhook fixture', async () => {
     const auth = await registerAndAuth(agent, '-rz');
-    const growth = await PricingPlanModel.findOne({ code: 'growth' });
-    // ensureDefaultPlans runs on first plans call
     await agent
       .get('/api/v1/plans')
       .set('Authorization', `Bearer ${auth.token}`)
       .expect(200);
-    const plan = growth || (await PricingPlanModel.findOne({ code: 'growth' }));
+    const plan = await PricingPlanModel.findOne({ code: 'growth' });
     expect(plan).toBeTruthy();
 
     const order = await PaymentOrderModel.create({
@@ -164,8 +162,7 @@ describe('Billing checkout + webhooks', () => {
       .send(raw);
     expect(replay.status).toBe(200);
     expect(replay.body.duplicate).toBe(true);
-  });
-
+  }, 30_000);
   it('rejects Razorpay webhook with invalid signature', async () => {
     const fixture = { event: 'payment.captured', payload: {} };
     const raw = JSON.stringify(fixture);

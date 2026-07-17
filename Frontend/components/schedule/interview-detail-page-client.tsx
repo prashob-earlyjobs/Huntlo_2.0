@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { InterviewDetail } from "@/components/schedule/interview-detail";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, schedulingApi } from "@/lib/api";
 import type { Interview } from "@/lib/mock-schedule";
 import { ROUTES } from "@/lib/routes";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 export function InterviewDetailPageClient({ id }: { id: string }) {
   const [interview, setInterview] = useState<Interview | null>(null);
@@ -16,23 +17,27 @@ export function InterviewDetailPageClient({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
 
+  const refresh = useCallback(async () => {
+    try {
+      const next = await schedulingApi.getInterview(id);
+      if (!next) {
+        setMissing(true);
+        return;
+      }
+      setInterview(next);
+      setError(null);
+      setMissing(false);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to load interview."));
+    }
+  }, [id]);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const next = await schedulingApi.getInterview(id);
-        if (cancelled) return;
-        if (!next) {
-          setMissing(true);
-          return;
-        }
-        setInterview(next);
-        setError(null);
-        setMissing(false);
-      } catch (err) {
-        if (cancelled) return;
-        setError(getApiErrorMessage(err, "Unable to load interview."));
+        await refresh();
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -40,7 +45,11 @@ export function InterviewDetailPageClient({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [refresh]);
+
+  useRealtimeRefresh("interview.updated", () => {
+    void refresh();
+  });
 
   return (
     <>

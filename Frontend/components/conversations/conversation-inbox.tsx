@@ -32,9 +32,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { conversationsApi, getApiErrorMessage, templatesApi } from "@/lib/api";
 import {
-  AI_DRAFT_SHORT,
   AI_DRAFT_TONES,
-  AI_DRAFTS,
   type AiDraftTone,
   type Conversation,
   type ConversationEvent,
@@ -202,39 +200,52 @@ function AiDraftPanel({
 }) {
   const [tone, setTone] = useState<AiDraftTone>("Friendly");
   const [short, setShort] = useState(false);
-  const [generation, setGeneration] = useState(1);
-  const [draft, setDraft] = useState(() => AI_DRAFTS.Friendly);
+  const [generation, setGeneration] = useState(0);
+  const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function loadDraft(nextTone: AiDraftTone = tone) {
     setBusy(true);
+    setError(null);
     try {
       const result = await conversationsApi.aiDraft(conversationId, {
         tone: nextTone,
         channel: "email",
         instructions: short ? "Keep it under 3 sentences." : undefined,
       });
-      setDraft(result.body || (short ? AI_DRAFT_SHORT[nextTone] : AI_DRAFTS[nextTone]));
-      setGeneration((previous) => previous + 1);
-    } catch {
+      if (result.body) {
+        setDraft(result.body);
+        setGeneration((previous) => previous + 1);
+        return;
+      }
+      throw new Error("Empty draft");
+    } catch (err) {
       try {
-        const seed = short ? AI_DRAFT_SHORT[nextTone] : AI_DRAFTS[nextTone];
         const result = (await templatesApi.rewrite({
           action: "change_tone",
-          body: draft || seed,
+          body: draft,
           tone: nextTone,
           channel: "email",
         })) as { draft?: { body?: string } };
-        setDraft(result.draft?.body || seed);
-        setGeneration((previous) => previous + 1);
+        if (result.draft?.body) {
+          setDraft(result.draft.body);
+          setGeneration((previous) => previous + 1);
+          return;
+        }
+        throw new Error("Empty draft");
       } catch {
-        setDraft(short ? AI_DRAFT_SHORT[nextTone] : AI_DRAFTS[nextTone]);
-        setGeneration((previous) => previous + 1);
+        setError(getApiErrorMessage(err, "Could not generate a draft."));
       }
     } finally {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    void loadDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
 
   async function regenerate(action: "rewrite" | "change_tone" | "shorten") {
     if (action === "shorten") {
@@ -255,7 +266,13 @@ function AiDraftPanel({
       </p>
 
       <p className="mt-2 rounded-md border border-border bg-card px-3 py-2 text-sm leading-relaxed whitespace-pre-line text-foreground">
-        {draft}
+        {error
+          ? error
+          : draft
+            ? draft
+            : busy
+              ? "Drafting…"
+              : "No draft yet."}
       </p>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -318,7 +335,12 @@ function AiDraftPanel({
       </div>
 
       <div className="mt-2.5 flex items-center gap-2">
-        <Button type="button" size="xs" onClick={() => onInsert(draft)}>
+        <Button
+          type="button"
+          size="xs"
+          disabled={!draft || busy}
+          onClick={() => onInsert(draft)}
+        >
           Insert
         </Button>
         <Button type="button" size="xs" variant="ghost" onClick={onDiscard}>

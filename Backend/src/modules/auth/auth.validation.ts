@@ -3,10 +3,11 @@ import { z } from 'zod';
 
 import { getEnv } from '../../config/env.js';
 import { normalizeEmail } from '../../shared/validation/email.js';
+import { passwordSchema } from '../../shared/validation/password.js';
 
 export const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8).max(128),
+  password: passwordSchema,
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
   organizationName: z.string().trim().min(1).max(120).optional(),
@@ -23,7 +24,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(10),
-  password: z.string().min(8).max(128),
+  password: passwordSchema,
 });
 
 export const verifyEmailSchema = z.object({
@@ -42,7 +43,7 @@ export const updateMeSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
-  newPassword: z.string().min(8).max(128),
+  newPassword: passwordSchema,
 });
 
 export const onboardingPatchSchema = z.object({

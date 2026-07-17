@@ -74,7 +74,15 @@ const campaignJobSchema = new Schema<CampaignJobDocument>(
 );
 
 campaignJobSchema.index({ status: 1, scheduledAt: 1 });
-campaignJobSchema.index({ campaignId: 1, enrollmentId: 1, stepId: 1 });
+campaignJobSchema.index(
+  { campaignId: 1, enrollmentId: 1, stepId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ['queued', 'leased', 'running'] },
+    },
+  }
+);
 
 export const CampaignJobModel: Model<CampaignJobDocument> =
   mongoose.models.CampaignJob ??

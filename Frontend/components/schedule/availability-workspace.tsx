@@ -26,8 +26,8 @@ import { cn } from "@/lib/utils";
 
 export function AvailabilityWorkspace() {
   const [weekly, setWeekly] = useState<WeeklyHourSlot[]>(DEFAULT_WEEKLY_HOURS);
-  const [overrides, setOverrides] = useState(DATE_OVERRIDES);
-  const [unavailable, setUnavailable] = useState(UNAVAILABLE_DATES);
+  const [overrides, setOverrides] = useState<typeof DATE_OVERRIDES>([]);
+  const [unavailable, setUnavailable] = useState<typeof UNAVAILABLE_DATES>([]);
   const [bufferBefore, setBufferBefore] = useState(
     AVAILABILITY_DEFAULTS.bufferBefore
   );
@@ -74,17 +74,19 @@ export function AvailabilityWorkspace() {
               day: "numeric",
             }),
           }))
-        );        setBufferBefore(rule.bufferBefore);
-        setBufferAfter(rule.bufferAfter);
-        setMinNotice(rule.minimumNotice);
-        setMaxWindow(rule.maximumBookingWindow);
-        setDailyLimit(rule.dailyLimit);
+        );
+        setBufferBefore(`${rule.bufferBefore} min`);
+        setBufferAfter(`${rule.bufferAfter} min`);
+        setMinNotice(`${rule.minimumNotice} hours`);
+        setMaxWindow(`${rule.maximumBookingWindow} days`);
+        setDailyLimit(String(rule.dailyLimit));
         const match = TIMEZONE_OPTIONS.find((option) =>
           option.startsWith(rule.timezone)
         );
         setTimezone(match || rule.timezone);
       } catch {
-        // Keep mock defaults when API unavailable.
+        // Leave the form at its blank defaults when the availability API is
+        // unavailable — no saved availability is fetched or implied.
       }
     })();
     return () => {

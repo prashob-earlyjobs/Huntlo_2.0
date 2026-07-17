@@ -67,17 +67,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getApiErrorMessage,
+  jobsApi,
   mapApiMemberToUi,
   organizationApi,
   teamApi,
   toRoleKey,
   type OrganizationProfile,
 } from "@/lib/api";
+import type { JobListItem } from "@/lib/api/contracts";
 import {
   ACCOUNT_STATUSES,
-  ASSIGNABLE_JOBS,
   MODULE_ACCESS_OPTIONS,
-  ORGANISATION,
   PERMISSION_ACTIONS,
   PERMISSION_MATRIX,
   TEAM_ROLES,
@@ -87,6 +87,18 @@ import {
   type TeamMetric,
   type TeamRole,
 } from "@/lib/mock-team";
+
+const EMPTY_ORG_FORM = {
+  name: "",
+  industry: "",
+  website: "",
+  companySize: "",
+  owner: "",
+  ownerEmail: "",
+  timezone: "",
+  country: "",
+  logoInitials: "",
+};
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -141,6 +153,7 @@ function InviteMemberDialog({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("Recruiter");
   const [jobs, setJobs] = useState<string[]>([]);
+  const [jobOptions, setJobOptions] = useState<JobListItem[]>([]);
   const [modules, setModules] = useState<ModuleAccess[]>([
     "Candidate Search",
     "Candidate Pool",
@@ -148,6 +161,22 @@ function InviteMemberDialog({
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void jobsApi
+      .list({ limit: 100 })
+      .then((rows) => {
+        if (!cancelled) setJobOptions(rows);
+      })
+      .catch(() => {
+        // Leave assignable jobs empty when the jobs API is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   function reset() {
     setName("");
@@ -231,7 +260,7 @@ function InviteMemberDialog({
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">Assigned jobs</p>
             <div className="flex flex-wrap gap-1.5">
-              {ASSIGNABLE_JOBS.map((job) => {
+              {jobOptions.map((job) => {
                 const active = jobs.includes(job.title);
                 return (
                   <button
@@ -694,12 +723,16 @@ function PermissionsMatrix() {
 
 function OrganisationSettings({
   organization,
+  ownerName,
+  ownerEmail,
   onSave,
 }: {
   organization: OrganizationProfile | null;
+  ownerName: string;
+  ownerEmail: string;
   onSave: (message: string) => void;
 }) {
-  const [form, setForm] = useState({ ...ORGANISATION });
+  const [form, setForm] = useState({ ...EMPTY_ORG_FORM });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -708,14 +741,14 @@ function OrganisationSettings({
       name: organization.name,
       industry: organization.industry ?? "",
       website: organization.website ?? "",
-      companySize: organization.companySize ?? ORGANISATION.companySize,
-      owner: ORGANISATION.owner,
-      ownerEmail: ORGANISATION.ownerEmail,
-      timezone: organization.timezone || ORGANISATION.timezone,
-      country: organization.country ?? ORGANISATION.country,
-      logoInitials: organization.initials || ORGANISATION.logoInitials,
+      companySize: organization.companySize ?? "",
+      owner: ownerName,
+      ownerEmail: ownerEmail,
+      timezone: organization.timezone || "",
+      country: organization.country ?? "",
+      logoInitials: organization.initials || "",
     });
-  }, [organization]);
+  }, [organization, ownerName, ownerEmail]);
 
   async function handleSave() {
     setSaving(true);
@@ -832,7 +865,11 @@ function OrganisationSettings({
           <Field label="Workspace owner" htmlFor="org-owner">
             <Input
               id="org-owner"
-              value={`${form.owner} · ${form.ownerEmail}`}
+              value={
+                form.owner || form.ownerEmail
+                  ? [form.owner, form.ownerEmail].filter(Boolean).join(" · ")
+                  : "—"
+              }
               readOnly
             />
           </Field>
@@ -1086,17 +1123,21 @@ export function TeamWorkspace() {
       );
   }
 
-  const orgDisplay = organization
-    ? {
-        name: organization.name,
-        industry: organization.industry ?? ORGANISATION.industry,
-        website: organization.website ?? ORGANISATION.website,
-        country: organization.country ?? ORGANISATION.country,
-        timezone: organization.timezone,
-        owner: ORGANISATION.owner,
-        companySize: organization.companySize ?? ORGANISATION.companySize,
-      }
-    : ORGANISATION;
+  const ownerMember = members.find(
+    (member) => member.role === "Workspace Owner"
+  );
+  const ownerName = ownerMember?.name ?? "";
+  const ownerEmail = ownerMember?.email ?? "";
+
+  const orgDisplay = {
+    name: organization?.name ?? "",
+    industry: organization?.industry ?? "",
+    website: organization?.website ?? "",
+    country: organization?.country ?? "",
+    timezone: organization?.timezone ?? "",
+    owner: ownerName,
+    companySize: organization?.companySize ?? "",
+  };
 
   if (loading && members.length === 0 && metrics.length === 0) {
     return <TeamWorkspaceSkeleton />;
@@ -1312,7 +1353,12 @@ export function TeamWorkspace() {
               {message}
             </p>
           ) : null}
-          <OrganisationSettings organization={organization} onSave={flash} />
+          <OrganisationSettings
+            organization={organization}
+            ownerName={ownerName}
+            ownerEmail={ownerEmail}
+            onSave={flash}
+          />
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border bg-card p-4">
               <Building2

@@ -299,8 +299,9 @@ describe('Candidate pool, lists, notes, import', () => {
           columnMapping: preview.body.data.suggestedColumnMapping,
         });
       expect(commit.status).toBe(201);
-      expect(commit.body.data.status).toBe('queued');
+      expect(['queued', 'processing', 'completed']).toContain(commit.body.data.status);
 
+      // processImportJob is a no-op when commit already claimed/finished the job.
       await processImportJob(jobId);
 
       const job = await CandidateImportJobModel.findById(jobId);
@@ -361,13 +362,14 @@ describe('Candidate pool, lists, notes, import', () => {
       expect(preview.body.data.totals.duplicatesInFile).toBeGreaterThanOrEqual(1);
 
       const jobId = preview.body.data.id as string;
-      await agent
+      const commit = await agent
         .post('/api/v1/candidate-imports')
         .set('Authorization', `Bearer ${auth.token}`)
         .send({
           jobId,
           columnMapping: preview.body.data.suggestedColumnMapping,
         });
+      expect(commit.status).toBe(201);
 
       await processImportJob(jobId);
 

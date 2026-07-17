@@ -161,6 +161,70 @@ describe('Outreach campaigns', () => {
     expect(after.body.data).toHaveLength(0);
   });
 
+  it('enforces single-channel vs multi-channel consistency', async () => {
+    const auth = await registerAndAuth(agent);
+
+    const rejected = await agent
+      .post('/api/v1/outreach/campaigns')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        name: 'Broken Single',
+        campaignType: 'single_channel',
+        sequenceSteps: [
+          {
+            type: 'email',
+            order: 0,
+            subject: 'Hi',
+            body: 'Hello',
+          },
+          {
+            type: 'whatsapp',
+            order: 1,
+            body: 'Nudge',
+          },
+        ],
+        channelConfig: {
+          email: { enabled: true },
+          whatsapp: { enabled: true },
+          timezone: 'Asia/Kolkata',
+        },
+      });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.error?.code).toBe('VALIDATION_ERROR');
+
+    const ok = await agent
+      .post('/api/v1/outreach/campaigns')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        name: 'Email Only',
+        campaignType: 'single_channel',
+        sequenceSteps: [
+          {
+            type: 'email',
+            order: 0,
+            subject: 'Hi',
+            body: 'Hello',
+          },
+          { type: 'wait', order: 1, delayDays: 2 },
+          {
+            type: 'email',
+            order: 2,
+            subject: 'Follow up',
+            body: 'Still interested?',
+          },
+        ],
+        channelConfig: {
+          email: { enabled: true },
+          whatsapp: { enabled: false },
+          ai_voice: { enabled: false },
+          timezone: 'Asia/Kolkata',
+        },
+      });
+    expect(ok.status).toBe(201);
+    expect(ok.body.data.campaignType).toBe('single_channel');
+    expect(ok.body.data.channels).toEqual(['email']);
+  });
+
   it('returns org-wide outreach overview metrics', async () => {
     const auth = await registerAndAuth(agent);
 

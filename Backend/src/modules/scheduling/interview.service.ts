@@ -453,6 +453,14 @@ export const interviewsService = {
       candidateId: doc.candidateId ? String(doc.candidateId) : null,
       channel,
     });
+    emitRealtime('interview.updated', {
+      organizationId,
+      interviewId: id,
+      status: doc.status,
+      candidateId: doc.candidateId ? String(doc.candidateId) : null,
+      jobId: doc.jobId ? String(doc.jobId) : null,
+      startAt: doc.startAt?.toISOString() ?? null,
+    });
 
     return display(doc);
   },
@@ -563,6 +571,11 @@ export const interviewsService = {
       ? new Date(query.to)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
+    const maxRangeMs = 120 * 24 * 60 * 60 * 1000;
+    if (to.getTime() - from.getTime() > maxRangeMs) {
+      throw new AppError(400, 'INVALID_RANGE', 'Calendar range cannot exceed 120 days.');
+    }
+
     const filter: Record<string, unknown> = {
       organizationId,
       deletedAt: null,
@@ -573,9 +586,14 @@ export const interviewsService = {
       filter.interviewerIds = query.interviewerId;
     }
 
-    const rows = await InterviewModel.find(filter).sort({ startAt: 1 });
+    const rows = await InterviewModel.find(filter).sort({ startAt: 1 }).limit(500);
     const items = await Promise.all(rows.map((doc) => display(doc)));
-    return { from: from.toISOString(), to: to.toISOString(), items };
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      items,
+      truncated: rows.length >= 500,
+    };
   },
 
   /** Apply Calendly scheduled_event + invitee fields (EJ upsertBookingFromInvitee). */
@@ -714,6 +732,33 @@ export const interviewsService = {
       status: doc.status,
       startAt: doc.startAt?.toISOString() ?? null,
     });
+    emitRealtime('interview.updated', {
+      organizationId: input.organizationId,
+      interviewId: String(doc._id),
+      status: doc.status,
+      candidateId: doc.candidateId ? String(doc.candidateId) : null,
+      jobId: doc.jobId ? String(doc.jobId) : null,
+      startAt: doc.startAt?.toISOString() ?? null,
+    });
+
+    if (doc.status === 'scheduled' && doc.createdBy) {
+      const { notificationsService } = await import(
+        '../notifications/notifications.service.js'
+      );
+      void notificationsService
+        .create({
+          organizationId: input.organizationId,
+          userId: String(doc.createdBy),
+          type: 'interview_booked',
+          severity: 'success',
+          title: 'Interview booked',
+          message: `${doc.inviteeName || 'A candidate'} booked an interview.`,
+          relatedEntityType: 'interview',
+          relatedEntityId: String(doc._id),
+          actionUrl: `/dashboard/schedule/${String(doc._id)}`,
+        })
+        .catch(() => undefined);
+    }
 
     return doc;
   },

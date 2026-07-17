@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  AUDIT_LOG,
   CANDIDATE_STATUSES,
   DEFAULT_OUTREACH,
   DEFAULT_PRIVACY,
@@ -38,6 +37,7 @@ import {
   RECRUITERS,
   SETTINGS_TIMEZONES,
   TALENT_LISTS,
+  type AuditLogEntry,
   type OutreachDefaults,
   type PrivacySettings,
   type RecruitingDefaults,
@@ -45,7 +45,8 @@ import {
   type ScreeningDefaults,
   type WorkspaceSettings,
 } from "@/lib/mock-settings";
-import { getApiErrorMessage, organizationApi } from "@/lib/api";
+import { getApiErrorMessage, settingsApi } from "@/lib/api";
+import { isMockApiEnabled } from "@/lib/api/config";
 
 interface SettingsForm {
   workspace: WorkspaceSettings;
@@ -127,7 +128,9 @@ function useSimulatedSave() {
 export function SettingsWorkspace() {
   const [saved, setSaved] = useState(() => cloneForm(INITIAL_FORM));
   const [form, setForm] = useState(() => cloneForm(INITIAL_FORM));
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [privacyPassword, setPrivacyPassword] = useState("");
   const save = useSimulatedSave();
 
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
@@ -139,30 +142,23 @@ export function SettingsWorkspace() {
   }, [toast]);
 
   useEffect(() => {
-    void organizationApi
-      .get()
-      .then((org) => {
-        setForm((previous) => {
-          const next = {
-            ...previous,
-            workspace: {
-              ...previous.workspace,
-              organisationName: org.name,
-              industry: org.industry ?? previous.workspace.industry,
-              website: org.website ?? previous.workspace.website,
-              companySize: org.companySize ?? previous.workspace.companySize,
-              defaultTimezone: org.timezone || previous.workspace.defaultTimezone,
-              defaultCurrency: org.currency
-                ? `${org.currency}`
-                : previous.workspace.defaultCurrency,
-            },
-          };
-          setSaved(cloneForm(next));
-          return next;
-        });
+    if (isMockApiEnabled()) return;
+    void Promise.all([settingsApi.get(), settingsApi.listAuditLogs({ limit: 50 })])
+      .then(([settings, logs]) => {
+        const next = {
+          workspace: { ...DEFAULT_WORKSPACE, ...settings.workspace },
+          recruiting: { ...DEFAULT_RECRUITING, ...settings.recruitingDefaults },
+          outreach: { ...DEFAULT_OUTREACH, ...settings.outreachDefaults },
+          screening: { ...DEFAULT_SCREENING, ...settings.screeningDefaults },
+          scheduling: { ...DEFAULT_SCHEDULING, ...settings.schedulingDefaults },
+          privacy: { ...DEFAULT_PRIVACY, ...settings.privacy },
+        };
+        setForm(cloneForm(next));
+        setSaved(cloneForm(next));
+        setAuditLog(logs.items);
       })
       .catch(() => {
-        // Keep mock defaults when org API is unavailable in mock mode edge cases.
+        // Keep defaults when settings API is unavailable.
       });
   }, []);
 
@@ -254,18 +250,37 @@ export function SettingsWorkspace() {
     save.runSave({
       simulateDelay: false,
       onSuccess: async () => {
-        await organizationApi.update({
-          name: form.workspace.organisationName,
-          industry: form.workspace.industry || null,
-          website: form.workspace.website || null,
-          companySize: form.workspace.companySize || null,
-          timezone: form.workspace.defaultTimezone,
-          currency: form.workspace.defaultCurrency.split(" ")[0] || "INR",
-          settings: {
-            dateFormat: form.workspace.dateFormat,
-          },
+        const privacyChanged =
+          JSON.stringify(form.privacy) !== JSON.stringify(saved.privacy);
+        if (privacyChanged && !isMockApiEnabled() && !privacyPassword.trim()) {
+          throw new Error(
+            "Enter your current password to save privacy or consent changes."
+          );
+        }
+        const updated = await settingsApi.update({
+          workspace: form.workspace,
+          recruitingDefaults: form.recruiting,
+          outreachDefaults: form.outreach,
+          screeningDefaults: form.screening,
+          schedulingDefaults: form.scheduling,
+          privacy: form.privacy,
+          ...(privacyChanged ? { currentPassword: privacyPassword } : {}),
         });
-        setSaved(cloneForm(form));
+        const next = {
+          workspace: { ...form.workspace, ...updated.workspace },
+          recruiting: { ...form.recruiting, ...updated.recruitingDefaults },
+          outreach: { ...form.outreach, ...updated.outreachDefaults },
+          screening: { ...form.screening, ...updated.screeningDefaults },
+          scheduling: { ...form.scheduling, ...updated.schedulingDefaults },
+          privacy: { ...form.privacy, ...updated.privacy },
+        };
+        setForm(cloneForm(next));
+        setSaved(cloneForm(next));
+        setPrivacyPassword("");
+        if (!isMockApiEnabled()) {
+          const logs = await settingsApi.listAuditLogs({ limit: 50 });
+          setAuditLog(logs.items);
+        }
       },
     });
   }
@@ -844,6 +859,21 @@ export function SettingsWorkspace() {
           <p className="text-xs font-medium text-muted-foreground">
             Consent settings
           </p>
+          {!isMockApiEnabled() ? (
+            <Field
+              label="Confirm password for privacy changes"
+              htmlFor="privacy-password"
+            >
+              <Input
+                id="privacy-password"
+                type="password"
+                autoComplete="current-password"
+                value={privacyPassword}
+                onChange={(event) => setPrivacyPassword(event.target.value)}
+                placeholder="Required only when consent or retention changes"
+              />
+            </Field>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-2">
             <ToggleRow
               id="consent-email"
@@ -923,7 +953,7 @@ export function SettingsWorkspace() {
       {/* Audit log */}
       <FormSection
         title="Audit Log"
-        description="Recent workspace actions — IP addresses are placeholders"
+        description="Recent workspace actions — IP values are privacy-preserving fingerprints"
       >
         <div className="overflow-x-auto rounded-lg border border-border">
           <Table>
@@ -938,7 +968,7 @@ export function SettingsWorkspace() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {AUDIT_LOG.map((entry) => (
+              {auditLog.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell className="whitespace-nowrap text-sm font-medium">
                     {entry.user}

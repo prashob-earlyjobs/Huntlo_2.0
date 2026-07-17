@@ -10,7 +10,12 @@ import {
 } from "./config";
 import type { ApiEnvelope, ErrorEnvelope } from "./contracts/envelopes";
 import { ApiError, mapStatusToErrorCode } from "./errors";
-import type { ApiRequestOptions, ApiSuccessResult, HttpMethod } from "./types";
+import type {
+  ApiBlobResult,
+  ApiRequestOptions,
+  ApiSuccessResult,
+  HttpMethod,
+} from "./types";
 
 type TokenProvider = {
   getAccessToken: () => string | null;
@@ -131,7 +136,11 @@ export class ApiClient {
 
     const headers = new Headers(options.headers);
     headers.set(API_HEADERS.requestId, requestId);
-    headers.set("Accept", "application/json");
+    if (options.blob) {
+      if (!headers.has("Accept")) headers.set("Accept", "*/*");
+    } else {
+      headers.set("Accept", "application/json");
+    }
 
     if (options.body !== undefined && !headers.has("Content-Type")) {
       const isFormData =
@@ -209,6 +218,35 @@ export class ApiClient {
       }
     }
 
+    if (options.blob) {
+      if (!response.ok) {
+        const errorBody = await parseErrorEnvelope(response);
+        throw new ApiError({
+          message:
+            errorBody?.error.message ??
+            `Request failed with status ${response.status}`,
+          statusCode: response.status,
+          code: mapStatusToErrorCode(response.status, errorBody?.error.code),
+          details: errorBody?.error.details,
+          requestId: errorBody?.requestId ?? requestId,
+        });
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition");
+      const filenameMatch = disposition?.match(/filename="?([^";]+)"?/i);
+      return {
+        data: {
+          blob,
+          filename: filenameMatch?.[1] ?? null,
+          contentType: response.headers.get("Content-Type"),
+          status: response.status,
+          requestId,
+        } as T,
+        status: response.status,
+        requestId,
+      };
+    }
+
     if (options.raw) {
       const data = (await response.json()) as T;
       if (!response.ok) {
@@ -279,8 +317,24 @@ export class ApiClient {
     return this.request<T>(path, { ...options, method: "PATCH", body });
   }
 
-  delete<T>(path: string, options?: Omit<ApiRequestOptions, "method" | "body">) {
+  delete<T>(
+    path: string,
+    options?: Omit<ApiRequestOptions, "method">
+  ) {
     return this.request<T>(path, { ...options, method: "DELETE" });
+  }
+
+  async download(
+    path: string,
+    options?: Omit<ApiRequestOptions, "method" | "body" | "blob" | "raw">
+  ): Promise<ApiBlobResult> {
+    const result = await this.request<ApiBlobResult>(path, {
+      ...options,
+      method: "GET",
+      blob: true,
+      timeoutMs: options?.timeoutMs ?? 120_000,
+    });
+    return result.data;
   }
 }
 

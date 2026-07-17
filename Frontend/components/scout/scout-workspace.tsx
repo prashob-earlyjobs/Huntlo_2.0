@@ -38,7 +38,6 @@ import {
 } from "@/lib/api";
 import {
   LOOKUP_PLACEHOLDERS,
-  LOOKUP_QUOTA,
   LOOKUP_TYPES,
   type LookupType,
   type RecentLookup,
@@ -190,10 +189,10 @@ export function ScoutWorkspace() {
   const [state, setState] = useState<ScoutState>({ kind: "idle" });
   const [recent, setRecent] = useState<RecentLookup[]>([]);
   const [quota, setQuota] = useState<ScoutQuota>({
-    limit: LOOKUP_QUOTA.total,
-    used: LOOKUP_QUOTA.total - LOOKUP_QUOTA.remaining,
-    remaining: LOOKUP_QUOTA.remaining,
-    costPerLookup: LOOKUP_QUOTA.costPerLookup,
+    limit: 0,
+    used: 0,
+    remaining: 0,
+    costPerLookup: 0,
   });
 
   async function refreshSideData() {

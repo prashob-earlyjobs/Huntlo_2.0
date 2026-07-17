@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { PoolTable } from "@/components/candidates/pool-table";
+import { SavedListsWorkspaceSkeleton } from "@/components/candidates/pool-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,8 +55,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
 import {
-  POOL_CANDIDATES,
-  SAVED_LISTS,
   type ListVisibility,
   type PoolCandidate,
   type SavedList,
@@ -158,8 +157,9 @@ function NavButton({
 }
 
 export function SavedListsWorkspace() {
-  const [lists, setLists] = useState<SavedList[]>(SAVED_LISTS);
-  const [pool, setPool] = useState<PoolCandidate[]>(POOL_CANDIDATES);
+  const [lists, setLists] = useState<SavedList[]>([]);
+  const [pool, setPool] = useState<PoolCandidate[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState<PanelSelection>({
     kind: "smart",
     id: "all",
@@ -180,12 +180,14 @@ export function SavedListsWorkspace() {
         candidatePoolApi.listLists(),
         candidatePoolApi.list({ limit: 200 }),
       ]);
-      setLists(nextLists.length > 0 ? nextLists : SAVED_LISTS);
-      setPool(nextPool.length > 0 ? nextPool : POOL_CANDIDATES);
+      setLists(nextLists);
+      setPool(nextPool);
     } catch (err) {
       setFeedback(getApiErrorMessage(err));
-      setLists(SAVED_LISTS);
-      setPool(POOL_CANDIDATES);
+      setLists([]);
+      setPool([]);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -384,6 +386,10 @@ export function SavedListsWorkspace() {
   const visibilityMeta = currentList
     ? VISIBILITY_META[currentList.visibility]
     : null;
+
+  if (loading) {
+    return <SavedListsWorkspaceSkeleton />;
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">

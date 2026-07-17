@@ -17,11 +17,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  REVEAL_COSTS,
-  REVEAL_QUOTA,
-  type SessionCandidate,
-} from "@/lib/mock-sessions";
+import type { SessionCandidate } from "@/lib/mock-sessions";
+import { REVEAL_COSTS, useRevealQuota, type RevealQuota } from "@/hooks/use-reveal-quota";
 import { cn } from "@/lib/utils";
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -126,9 +123,10 @@ export interface RevealState {
  * its quota is running low. Routine, cheap, well-stocked reveals go through
  * immediately so reviewing candidates stays fast.
  */
-function needsConfirmation(kind: "email" | "phone"): boolean {
+function needsConfirmation(kind: "email" | "phone", quota: RevealQuota): boolean {
   if (kind === "phone") return true;
-  return REVEAL_QUOTA.emailRemaining / REVEAL_QUOTA.emailTotal < 0.1;
+  if (quota.emailTotal <= 0) return false;
+  return quota.emailRemaining / quota.emailTotal < 0.1;
 }
 
 function RevealButton({
@@ -140,12 +138,13 @@ function RevealButton({
   candidate: SessionCandidate;
   onReveal: (kind: "email" | "phone") => void;
 }) {
+  const quota = useRevealQuota();
   const Icon = kind === "email" ? Mail : Phone;
   const label = kind === "email" ? "Reveal email" : "Reveal mobile";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const remaining =
-    kind === "email" ? REVEAL_QUOTA.emailRemaining : REVEAL_QUOTA.mobileRemaining;
-  const total = kind === "email" ? REVEAL_QUOTA.emailTotal : REVEAL_QUOTA.mobileTotal;
+    kind === "email" ? quota.emailRemaining : quota.mobileRemaining;
+  const total = kind === "email" ? quota.emailTotal : quota.mobileTotal;
 
   const trigger = (
     <Button type="button" size="xs" variant="outline">
@@ -155,7 +154,7 @@ function RevealButton({
     </Button>
   );
 
-  if (!needsConfirmation(kind)) {
+  if (!needsConfirmation(kind, quota)) {
     return (
       <Button type="button" size="xs" variant="outline" onClick={() => onReveal(kind)}>
         <Icon aria-hidden />

@@ -42,6 +42,8 @@ export type IntegrationCatalogItem = {
   description: string;
   authModes: string[];
   configured: boolean;
+  /** Public Google OAuth client id (Gmail only). */
+  oauthClientId?: string | null;
   connection: SafeIntegration | null;
 };
 
@@ -118,14 +120,20 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
       configKind: "generic" as const,
     } satisfies IntegrationProvider);
 
+  const displayName =
+    item.id === "hunar" ? "Huntlo Voice" : item.name || template.name;
+
   const connection = item.connection;
   if (!connection) {
     return {
       ...template,
+      name: displayName,
       status: "Not Connected",
       connectedIdentity: null,
       lastSynced: null,
       isDefault: false,
+      serverConfigured: item.configured,
+      oauthClientId: item.oauthClientId ?? null,
       connectionDetails: item.configured
         ? [{ label: "Server", value: "Ready to connect" }]
         : [{ label: "Server", value: "Provider not configured" }],
@@ -147,12 +155,15 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
 
   return {
     ...template,
+    name: displayName,
     status: STATUS_UI[connection.status] || "Not Connected",
     connectedIdentity: connection.connectedIdentity,
     lastSynced: formatRelative(connection.lastSyncAt || connection.updatedAt),
     isDefault: connection.isDefault,
     connectionDetails: details.slice(0, 6),
     integrationRecordId: connection.id,
+    serverConfigured: item.configured,
+    oauthClientId: item.oauthClientId ?? null,
   };
 }
 

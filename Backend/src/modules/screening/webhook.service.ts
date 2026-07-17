@@ -68,14 +68,18 @@ export async function processHunarWebhook(input: {
   body: unknown;
   headers: Record<string, string | string[] | undefined>;
   rawBody?: Buffer | string | null;
+  /** Set when the centralized webhook layer already verified the signature. */
+  alreadyVerified?: boolean;
 }) {
-  const auth = verifyHunarWebhookAuthenticity({
-    headers: input.headers,
-    rawBody: input.rawBody,
-    screeningId: input.screeningId,
-  });
-  if (!auth.ok) {
-    throw new AppError(401, 'WEBHOOK_UNAUTHORIZED', auth.reason || 'Unauthorized webhook');
+  if (!input.alreadyVerified) {
+    const auth = verifyHunarWebhookAuthenticity({
+      headers: input.headers,
+      rawBody: input.rawBody,
+      screeningId: input.screeningId,
+    });
+    if (!auth.ok) {
+      throw new AppError(401, 'WEBHOOK_UNAUTHORIZED', auth.reason || 'Unauthorized webhook');
+    }
   }
 
   if (!input.screeningId || !mongoose.Types.ObjectId.isValid(input.screeningId)) {
@@ -250,6 +254,27 @@ export async function processHunarWebhook(input: {
       recommendation: row.recommendation,
       recruiterDecision: row.recruiterDecision,
     });
+
+    if (terminal && row.callStatus === 'completed' && screening.ownerUserId) {
+      const { notificationsService } = await import(
+        '../notifications/notifications.service.js'
+      );
+      void notificationsService
+        .create({
+          organizationId: String(screening.organizationId),
+          userId: String(screening.ownerUserId),
+          type: 'screening_completed',
+          severity: 'success',
+          title: 'Screening completed',
+          message: `A candidate screening finished${
+            row.overallScore != null ? ` with score ${row.overallScore}` : ''
+          }.`,
+          relatedEntityType: 'screening',
+          relatedEntityId: String(screening._id),
+          actionUrl: `/dashboard/screening/results/${String(row._id)}`,
+        })
+        .catch(() => undefined);
+    }
 
     // Huntlo 360: auto-transition when sourceModule is huntlo360
     if (screening.sourceModule === 'huntlo360' && screening.workflowId && terminal) {

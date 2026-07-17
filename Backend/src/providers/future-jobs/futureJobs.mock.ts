@@ -17,12 +17,16 @@ type MockModeState = {
   failNext: number;
   alwaysFail: boolean;
   timeout: boolean;
+  pending207: boolean;
+  emptyProfiles: boolean;
 };
 
 const mockMode: MockModeState = {
   failNext: 0,
   alwaysFail: false,
   timeout: false,
+  pending207: false,
+  emptyProfiles: false,
 };
 
 /** Per-session poll counters for deterministic empty → ready behavior. */
@@ -54,12 +58,20 @@ export function setMockFutureJobsMode(mode: MockFutureJobsMode): void {
   if (typeof mode.timeout === 'boolean') {
     mockMode.timeout = mode.timeout;
   }
+  if (typeof mode.pending207 === 'boolean') {
+    mockMode.pending207 = mode.pending207;
+  }
+  if (typeof mode.emptyProfiles === 'boolean') {
+    mockMode.emptyProfiles = mode.emptyProfiles;
+  }
 }
 
 export function resetMockFutureJobsState(): void {
   mockMode.failNext = 0;
   mockMode.alwaysFail = false;
   mockMode.timeout = false;
+  mockMode.pending207 = false;
+  mockMode.emptyProfiles = false;
   sessionPollCounts.clear();
   sessionSeq = 0;
   candidateSeq = 0;
@@ -156,12 +168,13 @@ function buildFakeProfiles(sessionId: string, count: number): FutureJobsProfileD
     finalScore: p.score,
     profile: {
       name: p.name,
-      current_employers_object: [
-        {
-          job_title: p.title,
-          name: p.company,
-        },
-      ],
+          current_employers_object: [
+            {
+              job_title: p.title,
+              company_name: p.company,
+              name: p.company,
+            },
+          ],
       years_of_experience_raw: p.years,
       skills: p.skills,
       region: p.region,
@@ -221,10 +234,29 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
 
     const expectedProfileCount = 4;
 
+    if (mockMode.pending207) {
+      return {
+        status: false,
+        statusCode: 207,
+        message: 'Candidate matching is still being prepared.',
+        data: {
+          session: {
+            _id: sessionId,
+            sessionTitle,
+            jdDetail: { userText: '' },
+            queries: {},
+            nuances: [],
+            profileMatchingStatus: 'pending',
+            expectedProfileCount: 0,
+          },
+        },
+      };
+    }
+
     return {
       status: true,
-      statusCode: 200,
-      message: 'Sourcing session created',
+      statusCode: 201,
+      message: 'Session created successfully',
       data: {
         session: {
           _id: sessionId,
@@ -249,8 +281,24 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
               ? (body.queries as import('./futureJobs.types.js').FutureJobsQueries)
               : {},
           nuances: Array.isArray(body.nuances) ? (body.nuances as string[]) : [],
+          // Production often leaves session matching idle at create time.
+          profileMatchingStatus: 'idle',
+          expectedProfileCount: 0,
+          totalAvailableProfiles: 0,
+        },
+        sourcing: {
+          total_display_count: expectedProfileCount,
+          next_cursor: 'mock-cursor',
+          filterChangesCounter: 0,
+          searchMoreCounter: 0,
           profileMatchingStatus: 'processing',
-          expectedProfileCount,
+          newProfilesCount: expectedProfileCount,
+          creditInfo: {
+            charged: true,
+            amount: 5,
+            reason: 'Sourcing Session Created',
+            remainingCredits: 999,
+          },
         },
       },
     };
@@ -269,6 +317,20 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
       throw err;
     }
     sessionPollCounts.set(sid, 0);
+    if (mockMode.pending207) {
+      return {
+        status: false,
+        statusCode: 207,
+        message: 'Candidate matching is still being prepared.',
+        data: {
+          session: {
+            _id: sid,
+            ...body,
+            profileMatchingStatus: 'pending',
+          },
+        },
+      };
+    }
     return {
       status: true,
       statusCode: 200,
@@ -277,7 +339,12 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
         session: {
           _id: sid,
           ...body,
+          profileMatchingStatus: 'idle',
+        },
+        sourcing: {
+          total_display_count: 4,
           profileMatchingStatus: 'processing',
+          newProfilesCount: 4,
         },
       },
     };
@@ -301,7 +368,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     const safeLimit = Math.min(200, Math.max(1, Math.floor(Number(limit)) || 20));
 
     // First 1–2 polls return empty docs while matching is "processing".
-    if (attempt <= 2) {
+    if (attempt <= 2 || mockMode.emptyProfiles) {
       return {
         status: true,
         statusCode: 200,

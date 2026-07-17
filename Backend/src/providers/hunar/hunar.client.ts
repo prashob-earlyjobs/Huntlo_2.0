@@ -124,7 +124,10 @@ export function buildHunarRetryConfig(raw?: HunarRetryConfig | null) {
   };
 }
 
-export function buildHunarCallbackUrls(screeningId: string) {
+export function buildHunarCallbackUrls(
+  entityId: string,
+  entityParam: 'screeningId' | 'campaignId' = 'screeningId'
+) {
   const base = getPublicApiBaseUrl();
   if (!base) {
     const err = new Error(
@@ -133,8 +136,9 @@ export function buildHunarCallbackUrls(screeningId: string) {
     (err as Error & { code?: string }).code = 'HUNAR_CALLBACK_URL_MISSING';
     throw err;
   }
-  const q = encodeURIComponent(String(screeningId || '').trim());
-  const path = (suffix: string) => `${base}/api/v1/webhooks/hunar/${suffix}?screeningId=${q}`;
+  const q = encodeURIComponent(String(entityId || '').trim());
+  const path = (suffix: string) =>
+    `${base}/api/v1/webhooks/hunar/${suffix}?${entityParam}=${q}`;
   return {
     call_status_callback_url: path('call-status'),
     call_recording_callback_url: path('call-recording'),
@@ -222,7 +226,8 @@ export async function updateHunarVoiceAgent(
 
 export async function createHunarBulkCalls(input: {
   agentId: string;
-  screeningId: string;
+  screeningId?: string;
+  campaignId?: string;
   callees: HunarCalleeRow[];
   requestId?: string;
   retryConfig?: HunarRetryConfig | null;
@@ -241,15 +246,23 @@ export async function createHunarBulkCalls(input: {
     throw err;
   }
 
-  const requestId =
-    input.requestId || `${String(input.screeningId)}-${randomUUID()}`;
+  const entityId = String(input.screeningId || input.campaignId || '').trim();
+  if (!entityId) {
+    const err = new Error('screeningId or campaignId is required for Hunar callbacks.');
+    (err as Error & { code?: string; statusCode?: number }).code = 'HUNAR_ENTITY_ID_REQUIRED';
+    (err as Error & { statusCode?: number }).statusCode = 400;
+    throw err;
+  }
+
+  const requestId = input.requestId || `${entityId}-${randomUUID()}`;
+  const callbackParam = input.campaignId && !input.screeningId ? 'campaignId' : 'screeningId';
   const payload: HunarBulkCallsPayload = {
     agent_id: agentId,
     data: input.callees,
     request_id: requestId,
     retry_config: buildHunarRetryConfig(input.retryConfig),
     timezone: null,
-    callback_config: buildHunarCallbackUrls(input.screeningId),
+    callback_config: buildHunarCallbackUrls(entityId, callbackParam),
     remove_invalid_rows: true,
     remove_duplicate_phone_numbers: true,
     from_phone_number: null,

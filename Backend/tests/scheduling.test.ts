@@ -248,8 +248,7 @@ describe('Interview scheduling', () => {
       .set('calendly-webhook-signature', `t=${timestamp},v1=${digest}`)
       .send(body);
     expect(webhook.status).toBe(200);
-    expect(webhook.body.data.handled).toBe(true);
-    expect(webhook.body.data.synced).toBeGreaterThanOrEqual(1);
+    expect(webhook.body.received).toBe(true);
 
     const list = await agent
       .get('/api/v1/interviews')

@@ -32,6 +32,15 @@ const envSchema = z.object({
     .regex(/^[0-9a-fA-F]{64}$/, 'ENCRYPTION_KEY must be a 64-character hex string (32 bytes)'),
   REALTIME_ENABLED: booleanFromEnv.default(false),
   REALTIME_WS_PATH: z.string().min(1).default('/realtime/v1'),
+
+  // Worker process
+  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(4),
+  WORKER_POLL_INTERVAL_MS: z.coerce.number().int().min(250).default(2_000),
+  WORKER_LEASE_MS: z.coerce.number().int().min(5_000).default(60_000),
+  WORKER_HEARTBEAT_MS: z.coerce.number().int().min(1_000).default(15_000),
+  WORKER_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).default(20_000),
+  WORKER_SWEEP_INTERVAL_MS: z.coerce.number().int().min(5_000).default(30_000),
+
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
@@ -42,6 +51,17 @@ const envSchema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   AUTH_MAX_LOGIN_ATTEMPTS: z.coerce.number().int().min(3).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
+
+  // Platform admin console — comma-separated emails granted platformAdmin access
+  PLATFORM_ADMIN_EMAILS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean)
+    ),
 
   // Future Jobs (candidate sourcing)
   FUTURE_JOBS_API_URL: z

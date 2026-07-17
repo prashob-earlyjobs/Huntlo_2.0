@@ -18,6 +18,7 @@ import {
   getJobPipeline,
   getJobSummary,
   listJobs,
+  parseJobJd,
   pauseJob,
   publishJob,
   reopenJob,
@@ -31,6 +32,7 @@ export const jobsRouter = Router();
 jobsRouter.get('/metrics', ...orgAuth, requirePermission('jobs:view'), getJobMetrics);
 jobsRouter.get('/', ...orgAuth, requirePermission('jobs:view'), listJobs);
 jobsRouter.post('/', ...orgAuth, requirePermission('jobs:create'), createJob);
+jobsRouter.post('/parse-jd', ...orgAuth, requirePermission('jobs:create', 'jobs:edit'), parseJobJd);
 
 jobsRouter.get('/:id', ...orgAuth, requirePermission('jobs:view'), getJob);
 jobsRouter.patch('/:id', ...orgAuth, requirePermission('jobs:edit'), updateJob);

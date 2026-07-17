@@ -1,9 +1,18 @@
 const TRUE_VALUES = new Set(["true", "1", "yes"]);
+const FALSE_VALUES = new Set(["false", "0", "no"]);
 
+/**
+ * Mock API is allowed only when explicitly enabled.
+ * Production builds never fall back to mock when the flag is unset.
+ */
 export function isMockApiEnabled(): boolean {
   const flag = process.env.NEXT_PUBLIC_USE_MOCK_API;
-  if (flag === undefined || flag === "") return true;
-  return TRUE_VALUES.has(flag.trim().toLowerCase());
+  if (flag === undefined || flag === "") {
+    return process.env.NODE_ENV !== "production";
+  }
+  const normalized = flag.trim().toLowerCase();
+  if (FALSE_VALUES.has(normalized)) return false;
+  return TRUE_VALUES.has(normalized);
 }
 
 export function getApiBaseUrl(): string {

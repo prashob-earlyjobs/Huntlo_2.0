@@ -11,7 +11,9 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import { ScheduleInterviewFlow } from "@/components/schedule/schedule-interview-flow";
@@ -49,8 +51,6 @@ import { DATE_RANGE_OPTIONS } from "@/lib/mock-jobs";
 import {
   INTERVIEW_STATUSES,
   INTERVIEW_TYPES,
-  SCHEDULE_INTERVIEWERS,
-  SCHEDULE_RECRUITERS,
   type Interview,
 } from "@/lib/mock-schedule";
 import { getApiErrorMessage, schedulingApi } from "@/lib/api";
@@ -146,13 +146,17 @@ export function ScheduleDashboard() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const refresh = useCallback(async () => {
+    const rows = await schedulingApi.listInterviews();
+    setInterviews(rows);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const rows = await schedulingApi.listInterviews();
-        if (!cancelled) setInterviews(rows);
+        await refresh();
       } catch (err) {
         if (!cancelled) setMessage(getApiErrorMessage(err));
       } finally {
@@ -162,7 +166,11 @@ export function ScheduleDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refresh]);
+
+  useRealtimeRefresh("interview.updated", () => {
+    void refresh().catch(() => undefined);
+  });
 
   const jobOptions = useMemo(() => {
     const titles = new Map<string, string>();
@@ -170,6 +178,22 @@ export function ScheduleDashboard() {
       if (interview.jobId) titles.set(interview.jobId, interview.jobTitle);
     });
     return Array.from(titles, ([id, label]) => ({ id, label }));
+  }, [interviews]);
+
+  const recruiterOptions = useMemo(() => {
+    const names = new Set<string>();
+    interviews.forEach((interview) => {
+      if (interview.recruiter) names.add(interview.recruiter);
+    });
+    return toOptions(Array.from(names).sort());
+  }, [interviews]);
+
+  const interviewerOptions = useMemo(() => {
+    const names = new Set<string>();
+    interviews.forEach((interview) => {
+      interview.interviewers.forEach((person) => names.add(person));
+    });
+    return toOptions(Array.from(names).sort());
   }, [interviews]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
@@ -293,13 +317,13 @@ export function ScheduleDashboard() {
             />
             <FilterPopover
               label="Recruiter"
-              options={toOptions(SCHEDULE_RECRUITERS)}
+              options={recruiterOptions}
               selected={recruiterFilter}
               onToggle={toggle(setRecruiterFilter)}
             />
             <FilterPopover
               label="Interviewer"
-              options={toOptions(SCHEDULE_INTERVIEWERS)}
+              options={interviewerOptions}
               selected={interviewerFilter}
               onToggle={toggle(setInterviewerFilter)}
             />

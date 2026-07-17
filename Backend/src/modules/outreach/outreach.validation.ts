@@ -63,7 +63,8 @@ const sequenceStepSchema = z.object({
     .enum([...OUTREACH_CHANNELS, 'wait', 'branch', 'task'] as const)
     .nullable()
     .optional(),
-  delayDays: z.number().int().min(0).default(0),
+  delayDays: z.number().min(0).default(0),
+  delayUnit: z.enum(['days', 'hours', 'minutes']).default('days'),
   templateId: z.string().nullable().optional(),
   subject: z.string().max(300).nullable().optional(),
   body: z.string().max(20000).nullable().optional(),

@@ -290,7 +290,7 @@ export function buildSchedulingUrl(
  * Header: calendly-webhook-signature with parts t=<timestamp>,v1=<hex>
  * Signed string: `${timestamp}.${rawBody}`
  * HMAC-SHA256 hex digest, timing-safe compare.
- * When signing key / header / body missing → verification skipped (returns true).
+ * Missing key, header, or body fails closed (returns false).
  */
 export function verifyCalendlySignature(
   rawBody: string | Buffer,
@@ -301,7 +301,7 @@ export function verifyCalendlySignature(
   const header = String(
     Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader || ''
   ).trim();
-  if (!key || !header || !rawBody) return true;
+  if (!key || !header || !rawBody) return false;
 
   const parts = header.split(',').reduce<Record<string, string>>((acc, piece) => {
     const [k, v] = piece.split('=');

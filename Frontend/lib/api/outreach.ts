@@ -35,6 +35,7 @@ export type ApiCampaignSequenceStep = {
   order: number;
   type: ApiSequenceStepType;
   delayDays: number;
+  delayUnit?: "days" | "hours" | "minutes";
   templateId?: string | null;
   subject?: string | null;
   body?: string | null;
@@ -58,6 +59,7 @@ export type ApiOutreachCampaign = {
   relatedJobTitle: string | null;
   name: string;
   description: string | null;
+  objective: string | null;
   sourceModule: string;
   campaignType: string;
   status: ApiCampaignStatus;
@@ -123,6 +125,8 @@ export type ApiOutreachCampaign = {
 export type CampaignCreateInput = {
   name: string;
   description?: string | null;
+  objective?: string | null;
+  ownerUserId?: string | null;
   jobId?: string | null;
   sourceModule?: "outreach" | "screening" | "huntlo360";
   campaignType?: "single_channel" | "multi_channel";
@@ -145,6 +149,7 @@ export type CampaignCreateInput = {
     order?: number;
     type: ApiSequenceStepType;
     delayDays?: number;
+    delayUnit?: "days" | "hours" | "minutes";
     templateId?: string | null;
     subject?: string | null;
     body?: string | null;
@@ -187,6 +192,32 @@ export type CampaignAudiencePreview = {
     phone: string | null;
     status: string;
   }>;
+};
+
+export type ApiCampaignEnrollment = {
+  id: string;
+  candidateId: string;
+  name: string;
+  company: string | null;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  currentStepIndex: number;
+  contactAvailability: { email: boolean; phone: boolean; optedOut: boolean } | null;
+  replyState: { hasReply: boolean; disposition: string | null; repliedAt: string | null } | null;
+  qualificationState: { status: string; answers?: Record<string, unknown> } | null;
+  screeningState: { status: string; screeningId: string | null } | null;
+  schedulingState: { status: string; bookingUrl: string | null } | null;
+  nextActionAt: string | null;
+  lastActionAt: string | null;
+  stopReason: string | null;
+};
+
+export type ListEnrollmentsParams = ApiQueryParams & {
+  status?: string;
+  page?: number;
+  limit?: number;
 };
 
 /* ------------------------------------------------------------------ */
@@ -295,6 +326,10 @@ export interface OutreachApi {
   duplicateCampaign(id: string): Promise<OutreachCampaign>;
   getStats(id: string): Promise<ApiOutreachCampaign["stats"]>;
   getOverview(): Promise<OutreachOverview>;
+  listEnrollments(
+    id: string,
+    params?: ListEnrollmentsParams
+  ): Promise<ApiCampaignEnrollment[]>;
   getActivity(id: string): Promise<
     Array<{ id: string; type: string; title: string; detail: string | null; createdAt: string }>
   >;
@@ -331,6 +366,7 @@ const mockOutreachApi: OutreachApi = {
       relatedJobTitle: campaign.relatedJobTitle,
       name: campaign.name,
       description: null,
+      objective: null,
       sourceModule: "outreach",
       campaignType: "multi_channel",
       status: toApiStatus(campaign.status),
@@ -402,6 +438,7 @@ const mockOutreachApi: OutreachApi = {
       relatedJobTitle: null,
       name: input.name,
       description: input.description ?? null,
+      objective: input.objective ?? null,
       sourceModule: input.sourceModule ?? "outreach",
       campaignType: input.campaignType ?? "multi_channel",
       status: "draft",
@@ -454,7 +491,25 @@ const mockOutreachApi: OutreachApi = {
   async updateCampaign(id, input) {
     const existing = await this.getCampaignRaw(id);
     if (!existing) throw new Error("Campaign not found");
-    return { ...existing, ...input, name: input.name ?? existing.name };
+    return {
+      ...existing,
+      ...input,
+      name: input.name ?? existing.name,
+      candidateSource: input.candidateSource
+        ? {
+            type: input.candidateSource.type ?? existing.candidateSource.type,
+            listId:
+              input.candidateSource.listId ?? existing.candidateSource.listId,
+            jobId:
+              input.candidateSource.jobId ?? existing.candidateSource.jobId,
+            candidateIds:
+              input.candidateSource.candidateIds ??
+              existing.candidateSource.candidateIds,
+            label:
+              input.candidateSource.label ?? existing.candidateSource.label,
+          }
+        : existing.candidateSource,
+    } as ApiOutreachCampaign;
   },
   async deleteCampaign() {
     await simulateMockLatency();
@@ -561,6 +616,10 @@ const mockOutreachApi: OutreachApi = {
       positiveReplyRate: Math.round(positiveReplyRate * 10) / 10,
       byStatus,
     };
+  },
+  async listEnrollments() {
+    await simulateMockLatency();
+    return [];
   },
   async getActivity() {
     await simulateMockLatency();
@@ -706,6 +765,12 @@ const liveOutreachApi: OutreachApi = {
   async getOverview() {
     const result = await apiClient.get<OutreachOverview>(
       "/outreach/campaigns/overview"
+    );
+    return result.data;
+  },
+  async listEnrollments(id, params) {
+    const result = await apiClient.get<ApiCampaignEnrollment[]>(
+      `/outreach/campaigns/${id}/enrollments${buildQueryString(params)}`
     );
     return result.data;
   },

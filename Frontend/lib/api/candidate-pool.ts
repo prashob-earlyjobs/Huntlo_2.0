@@ -14,6 +14,7 @@ import {
   SAVED_LISTS,
   getPoolCandidate,
 } from "@/lib/mock-candidates";
+import type { Status } from "@/lib/types";
 
 export type PoolListParams = ApiQueryParams & {
   status?: string;
@@ -135,6 +136,25 @@ function asCandidateStatus(value: string | undefined): CandidateStatus {
   return "New";
 }
 
+function asLifecycleStatus(value: string | undefined): Status {
+  const pipeline = asCandidateStatus(value);
+  const lifecycle: Status[] = [
+    "Qualified",
+    "Interested",
+    "Shortlisted",
+    "Rejected",
+    "Contacted",
+    "Screening",
+    "Interview Scheduled",
+    "Active",
+    "Draft",
+  ];
+  if ((lifecycle as string[]).includes(pipeline)) return pipeline as Status;
+  if (pipeline === "Hired") return "Completed";
+  if (pipeline === "Saved" || pipeline === "New") return "Active";
+  return "Active";
+}
+
 export function mapApiPoolCandidateToUi(item: ApiPoolCandidate): PoolCandidate {
   return {
     id: item.id,
@@ -168,7 +188,7 @@ export function mapApiPoolCandidateToUi(item: ApiPoolCandidate): PoolCandidate {
     experience: [],
     summary: item.headline ?? "",
     signals: item.tags ?? [],
-    status: asCandidateStatus(item.pipelineStatus),
+    status: asLifecycleStatus(item.pipelineStatus),
     updated: formatRelative(item.lastActivityAt),
     activity: [],
     similar: [],
@@ -367,7 +387,8 @@ const mockApi: CandidatePoolApi = {
     await simulateMockLatency();
     return { updated: 1 };
   },
-  async bulkExport(candidateIds = [], options) {
+  async bulkExport(candidateIds = [], _options) {
+    void _options;
     await simulateMockLatency();
     const header = "name,email\n";
     const rows =
@@ -440,10 +461,10 @@ const mockApi: CandidatePoolApi = {
         linkedinUrl: "LinkedIn",
       },
       sampleRows: IMPORT_PREVIEW_ROWS.map((row) => ({
-        "Full Name": row.name,
-        Email: row.email,
-        Phone: row.phone,
-        LinkedIn: row.linkedin,
+        "Full Name": row.cells[0] ?? "",
+        Email: row.cells[1] ?? "",
+        Phone: row.cells[2] ?? "",
+        LinkedIn: row.cells[3] ?? "",
       })),
       totals: {
         rows: IMPORT_SUMMARY.total,

@@ -9,7 +9,9 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -149,15 +151,18 @@ export function ResultsWorkspace() {
   const [decisionFilter, setDecisionFilter] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
+  const refresh = useCallback(async () => {
+    const next = await screeningApi.listResults({ limit: 100 });
+    setResults(next);
+    setError(null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const next = await screeningApi.listResults({ limit: 100 });
-        if (cancelled) return;
-        setResults(next);
-        setError(null);
+        await refresh();
       } catch (err) {
         if (cancelled) return;
         setError(getApiErrorMessage(err, "Unable to load screening results."));
@@ -168,7 +173,11 @@ export function ResultsWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refresh]);
+
+  useRealtimeRefresh("screening.result.updated", () => {
+    void refresh().catch(() => undefined);
+  });
 
   const recommendationOptions: FilterOption[] = [
     "Shortlist",

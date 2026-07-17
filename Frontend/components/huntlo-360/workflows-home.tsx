@@ -428,17 +428,8 @@ export function WorkflowsHome() {
                 ? "Try clearing filters or searching a different name."
                 : "Create an end-to-end workflow from outreach through scheduling."
             }
-            action={
-              hasFilters ? undefined : (
-                <Button
-                  size="sm"
-                  nativeButton={false}
-                  render={<Link href={ROUTES.huntlo360New} />}
-                >
-                  Create Workflow
-                </Button>
-              )
-            }
+            actionLabel={hasFilters ? undefined : "Create Workflow"}
+            actionHref={hasFilters ? undefined : ROUTES.huntlo360New}
           />
         )}
       </section>

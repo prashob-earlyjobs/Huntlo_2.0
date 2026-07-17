@@ -338,11 +338,14 @@ export class ImportService {
     const jobId = job._id.toHexString();
     // Process immediately in the API process so imports work without a separate worker.
     // The worker poll remains as a backup for crashed/restarted jobs.
-    void this.processImportJob(jobId).catch((error) => {
+    try {
+      await this.processImportJob(jobId);
+    } catch (error) {
       log().error({ err: error, jobId }, 'Inline import processing failed');
-    });
+    }
 
-    return toPublicImportJob(job);
+    const refreshed = await CandidateImportJobModel.findById(jobId);
+    return toPublicImportJob(refreshed ?? job);
   }
 
   async getById(actor: ActorContext, jobId: string) {
@@ -382,14 +385,12 @@ export class ImportService {
   }
 
   async processImportJob(jobId: string): Promise<void> {
-    const job = await CandidateImportJobModel.findById(jobId);
+    const job = await CandidateImportJobModel.findOneAndUpdate(
+      { _id: jobId, status: 'queued' },
+      { $set: { status: 'processing', startedAt: new Date(), errorMessage: null } },
+      { new: true }
+    );
     if (!job) return;
-    if (job.status !== 'queued' && job.status !== 'processing') return;
-
-    job.status = 'processing';
-    job.startedAt = new Date();
-    job.errorMessage = null;
-    await job.save();
 
     const mappingRaw = { ...(job.columnMapping as Record<string, string>) };
     const listId = mappingRaw.__listId || null;

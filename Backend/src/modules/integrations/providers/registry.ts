@@ -100,7 +100,7 @@ export const PROVIDER_CATALOG: ProviderCatalogItem[] = [
   },
   {
     id: 'hunar',
-    name: 'Hunar AI Voice',
+    name: 'Huntlo Voice',
     category: 'voice',
     description: 'AI voice screening and outreach calls.',
     authModes: ['platform'],

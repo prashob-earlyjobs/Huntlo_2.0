@@ -25,7 +25,6 @@ export type { Interview } from "@/lib/mock-schedule";
 export type { IntegrationProvider } from "@/lib/mock-integrations";
 export type { TeamMember } from "@/lib/mock-team";
 export type { UsageQuota, PlanTier, Invoice } from "@/lib/mock-plans";
-export type { AdminCampaign, AdminUser } from "@/lib/mock-admin";
 export type { OverviewMetric } from "@/lib/mock-dashboard";
 
 export * from "./envelopes";

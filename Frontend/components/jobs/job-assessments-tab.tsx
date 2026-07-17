@@ -18,6 +18,25 @@ import {
   type AssessmentCampaign,
 } from "@/lib/api";
 import { ROUTES } from "@/lib/routes";
+import type { Status } from "@/lib/types";
+
+function toStatus(value: string): Status {
+  const allowed: Status[] = [
+    "Draft",
+    "Active",
+    "Paused",
+    "On Hold",
+    "Closed",
+    "Archived",
+    "Completed",
+    "Scheduled",
+    "Running",
+    "Failed",
+  ];
+  if (allowed.includes(value as Status)) return value as Status;
+  if (value === "Cancelled") return "Closed";
+  return "Draft";
+}
 
 export function JobAssessmentsTab({ jobId }: { jobId: string }) {
   const [rows, setRows] = useState<AssessmentCampaign[]>([]);
@@ -80,7 +99,7 @@ export function JobAssessmentsTab({ jobId }: { jobId: string }) {
               <TableCell className="text-right tabular-nums">{campaign.invited}</TableCell>
               <TableCell className="text-right tabular-nums">{campaign.completed}</TableCell>
               <TableCell>
-                <StatusBadge status={campaign.status} />
+                <StatusBadge status={toStatus(campaign.status)} />
               </TableCell>
             </TableRow>
           ))}

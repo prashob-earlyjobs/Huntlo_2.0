@@ -26,6 +26,16 @@ export type ApiRequestOptions = {
   timeoutMs?: number;
   /** Raw JSON response without envelope parsing (health probes, openapi). */
   raw?: boolean;
+  /** Return response body as a Blob (CSV/file downloads). */
+  blob?: boolean;
+};
+
+export type ApiBlobResult = {
+  blob: Blob;
+  filename: string | null;
+  contentType: string | null;
+  status: number;
+  requestId?: string;
 };
 
 export type ApiSuccessResult<T> = {

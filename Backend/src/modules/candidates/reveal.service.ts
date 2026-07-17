@@ -364,7 +364,47 @@ export class RevealService {
       return result;
     }
 
-    // 2. Shared contact cache (org-agnostic provider cache)
+    // 2. Same-org teammate already revealed this candidate+type (no additional quota).
+    const orgPrevious = await RevealedContactModel.findOne({
+      organizationId: actor.organizationId,
+      candidateId: candidateObjectId,
+      contactType,
+    });
+    if (orgPrevious) {
+      let values = await loadContactValuesFromCache(orgPrevious.contactCacheId, contactType);
+      if (values.length === 0) {
+        const sharedHit = await findSharedContactCache({
+          linkedinUrl,
+          externalCandidateId: candidate.externalCandidateId,
+        });
+        if (sharedHit) {
+          values = valuesFromSharedCache(sharedHit, contactType);
+        }
+      }
+      await createLedgerEntry({
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        candidateId: candidateObjectId,
+        externalCandidateId: candidate.externalCandidateId,
+        contactType,
+        contactCacheId: orgPrevious.contactCacheId ?? null,
+        quotaTransactionId: null,
+      });
+      const result = buildRevealResult({
+        found: values.length > 0,
+        charged: false,
+        source: 'shared_cache',
+        contactType,
+        values,
+        candidateId: candidateIdHex,
+      });
+      if (options.idempotencyKey) {
+        await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+      }
+      return result;
+    }
+
+    // 3. Provider ciphertext cache (may be cross-org) — reuse values but always charge this org.
     const shared = await findSharedContactCache({
       linkedinUrl,
       externalCandidateId: candidate.externalCandidateId,
@@ -372,47 +412,61 @@ export class RevealService {
     if (shared) {
       const values = valuesFromSharedCache(shared, contactType);
       if (values.length > 0) {
-        await createLedgerEntry({
-          organizationId: actor.organizationId,
-          userId: actor.userId,
-          candidateId: candidateObjectId,
-          externalCandidateId: candidate.externalCandidateId,
+        const cacheReservationId = [
+          actor.organizationId,
+          actor.userId,
+          candidateIdHex,
           contactType,
-          contactCacheId: shared._id,
-          quotaTransactionId: null,
-        });
-
-        await CandidateActivityModel.create({
-          organizationId: actor.organizationId,
-          candidateId: candidateObjectId,
-          userId: actor.userId,
-          action: contactType === 'email' ? 'email_revealed' : 'mobile_revealed',
-          metadata: { source: 'shared_cache', charged: false, valueCount: values.length },
-        });
-
-        log().info(
-          {
+        ].join(':');
+        await revealQuotaService.reserve(actor.organizationId, cacheReservationId, contactType);
+        try {
+          await createLedgerEntry({
             organizationId: actor.organizationId,
-            candidateId: candidateIdHex,
+            userId: actor.userId,
+            candidateId: candidateObjectId,
+            externalCandidateId: candidate.externalCandidateId,
             contactType,
-            source: 'shared_cache',
-            valueCount: values.length,
-          },
-          'contact reveal from shared cache'
-        );
+            contactCacheId: shared._id,
+            quotaTransactionId: cacheReservationId,
+          });
+          await revealQuotaService.commit(actor.organizationId, cacheReservationId);
 
-        const result = buildRevealResult({
-          found: true,
-          charged: false,
-          source: 'shared_cache',
-          contactType,
-          values,
-          candidateId: candidateIdHex,
-        });
-        if (options.idempotencyKey) {
-          await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+          await CandidateActivityModel.create({
+            organizationId: actor.organizationId,
+            candidateId: candidateObjectId,
+            userId: actor.userId,
+            action: contactType === 'email' ? 'email_revealed' : 'mobile_revealed',
+            metadata: { source: 'shared_cache', charged: true, valueCount: values.length },
+          });
+
+          log().info(
+            {
+              organizationId: actor.organizationId,
+              candidateId: candidateIdHex,
+              contactType,
+              source: 'shared_cache',
+              charged: true,
+              valueCount: values.length,
+            },
+            'contact reveal from shared cache'
+          );
+
+          const result = buildRevealResult({
+            found: true,
+            charged: true,
+            source: 'shared_cache',
+            contactType,
+            values,
+            candidateId: candidateIdHex,
+          });
+          if (options.idempotencyKey) {
+            await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+          }
+          return result;
+        } catch (error) {
+          await revealQuotaService.refund(actor.organizationId, cacheReservationId).catch(() => undefined);
+          throw error;
         }
-        return result;
       }
     }
 
@@ -716,6 +770,43 @@ export class RevealService {
       return result;
     }
 
+    const orgPrevious = await RevealedContactModel.findOne({
+      organizationId: actor.organizationId,
+      candidateId: candidateObjectId,
+      contactType,
+    });
+    if (orgPrevious) {
+      let values = await loadContactValuesFromCache(orgPrevious.contactCacheId, contactType);
+      if (values.length === 0) {
+        const sharedHit = await findSharedContactCache({
+          linkedinUrl: linkedinKey,
+          externalCandidateId,
+        });
+        if (sharedHit) values = valuesFromSharedCache(sharedHit, contactType);
+      }
+      await createLedgerEntry({
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        candidateId: candidateObjectId,
+        externalCandidateId,
+        contactType,
+        contactCacheId: orgPrevious.contactCacheId ?? null,
+        quotaTransactionId: null,
+      });
+      const result = buildRevealResult({
+        found: values.length > 0,
+        charged: false,
+        source: 'shared_cache',
+        contactType,
+        values,
+        candidateId: candidateIdHex,
+      });
+      if (input.idempotencyKey) {
+        await this.storeIdempotentResponse(actor, scope, input.idempotencyKey, 200, result);
+      }
+      return result;
+    }
+
     const shared = await findSharedContactCache({
       linkedinUrl: linkedinKey,
       externalCandidateId,
@@ -723,27 +814,40 @@ export class RevealService {
     if (shared) {
       const values = valuesFromSharedCache(shared, contactType);
       if (values.length > 0) {
-        await createLedgerEntry({
-          organizationId: actor.organizationId,
-          userId: actor.userId,
-          candidateId: candidateObjectId,
-          externalCandidateId,
+        const cacheReservationId = [
+          actor.organizationId,
+          actor.userId,
+          candidateIdHex,
           contactType,
-          contactCacheId: shared._id,
-          quotaTransactionId: null,
-        });
-        const result = buildRevealResult({
-          found: true,
-          charged: false,
-          source: 'shared_cache',
-          contactType,
-          values,
-          candidateId: candidateIdHex,
-        });
-        if (input.idempotencyKey) {
-          await this.storeIdempotentResponse(actor, scope, input.idempotencyKey, 200, result);
+        ].join(':');
+        await revealQuotaService.reserve(actor.organizationId, cacheReservationId, contactType);
+        try {
+          await createLedgerEntry({
+            organizationId: actor.organizationId,
+            userId: actor.userId,
+            candidateId: candidateObjectId,
+            externalCandidateId,
+            contactType,
+            contactCacheId: shared._id,
+            quotaTransactionId: cacheReservationId,
+          });
+          await revealQuotaService.commit(actor.organizationId, cacheReservationId);
+          const result = buildRevealResult({
+            found: true,
+            charged: true,
+            source: 'shared_cache',
+            contactType,
+            values,
+            candidateId: candidateIdHex,
+          });
+          if (input.idempotencyKey) {
+            await this.storeIdempotentResponse(actor, scope, input.idempotencyKey, 200, result);
+          }
+          return result;
+        } catch (error) {
+          await revealQuotaService.refund(actor.organizationId, cacheReservationId).catch(() => undefined);
+          throw error;
         }
-        return result;
       }
     }
 

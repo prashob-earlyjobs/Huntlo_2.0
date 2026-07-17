@@ -3,6 +3,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { verifyAccessToken } from '../shared/auth/jwt.js';
 import { AppError } from '../shared/errors/app-error.js';
 import { asyncHandler } from '../shared/http/async-handler.js';
+import { UserSessionModel } from '../modules/auth/session.model.js';
+import { UserModel } from '../modules/auth/user.model.js';
 import { OrganizationMemberModel } from '../modules/organizations/member.model.js';
 import { OrganizationModel } from '../modules/organizations/organization.model.js';
 import {
@@ -30,6 +32,19 @@ declare module 'express-serve-static-core' {
   }
 }
 
+async function assertActiveSession(sessionId: string): Promise<void> {
+  const session = await UserSessionModel.findById(sessionId).select('revokedAt expiresAt');
+  if (!session) {
+    throw AppError.unauthorized('Session not found');
+  }
+  if (session.revokedAt) {
+    throw AppError.unauthorized('Session has been revoked');
+  }
+  if (session.expiresAt.getTime() < Date.now()) {
+    throw AppError.unauthorized('Session expired');
+  }
+}
+
 export const requireAuth = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
@@ -38,6 +53,7 @@ export const requireAuth = asyncHandler(async (req: Request, _res: Response, nex
 
   const token = header.slice('Bearer '.length).trim();
   const payload = verifyAccessToken(token);
+  await assertActiveSession(payload.sessionId);
   req.auth = payload;
   req.userId = payload.sub;
   req.organizationId = payload.orgId;
@@ -54,6 +70,7 @@ export const optionalAuth = asyncHandler(async (req: Request, _res: Response, ne
   try {
     const token = header.slice('Bearer '.length).trim();
     const payload = verifyAccessToken(token);
+    await assertActiveSession(payload.sessionId);
     req.auth = payload;
     req.userId = payload.sub;
     req.organizationId = payload.orgId;
@@ -86,8 +103,18 @@ export const requireOrganization = asyncHandler(
       userId: req.auth.sub,
     });
 
-    // Backfill membership for legacy users created before OrganizationMember existed.
+    // Legacy backfill only for the user's home org / recorded owner — never auto-rejoin after removal.
     if (!member) {
+      const user = await UserModel.findById(req.auth.sub).select('organizationId');
+      const homeOrgId = user?.organizationId ? String(user.organizationId) : null;
+      const isHomeOrg = homeOrgId === organization._id.toHexString();
+      const isRecordedOwner =
+        organization.ownerUserId?.toHexString() === req.auth.sub && req.auth.role === 'owner';
+
+      if (!isHomeOrg && !isRecordedOwner) {
+        throw AppError.forbidden('You are not a member of this organization');
+      }
+
       member = await OrganizationMemberModel.create({
         organizationId: organization._id,
         userId: req.auth.sub,

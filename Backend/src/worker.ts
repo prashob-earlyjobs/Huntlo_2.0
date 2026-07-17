@@ -1,57 +1,54 @@
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { getLogger } from './config/logger.js';
-import {
-  processQueuedBulkRevealJobs,
-  processQueuedImportJobs,
-} from './modules/candidates/index.js';
-import { pollSourcingSessions } from './modules/sourcing/index.js';
-import { processDueCampaignJobs } from './modules/outreach/index.js';
-import { processDueAssessmentJobs } from './modules/assessments/index.js';
-import { processDueSchedulingJobs } from './modules/scheduling/index.js';
+import { getWorkerRuntimeConfig } from './workers/config.js';
+import { createWorkerRunner } from './workers/runner.js';
 import { registerProcessHandlers, shutdownGracefully } from './shared/process/handlers.js';
-
-const POLL_INTERVAL_MS = 5_000;
-let pollTimer: NodeJS.Timeout | null = null;
-let isPolling = false;
-
-async function pollJobs(): Promise<void> {
-  if (!isPolling) return;
-  await pollSourcingSessions();
-  await processQueuedBulkRevealJobs();
-  await processQueuedImportJobs();
-  await processDueCampaignJobs();
-  await processDueAssessmentJobs();
-  await processDueSchedulingJobs();
-}
 
 async function startWorker(): Promise<void> {
   registerProcessHandlers('huntlo-worker');
 
-  const logger = getLogger();
-  logger.info('Starting Huntlo worker process');
+  const logger = getLogger().child({ service: 'huntlo-worker' });
+  const config = getWorkerRuntimeConfig();
+
+  logger.info(
+    {
+      concurrency: config.concurrency,
+      pollIntervalMs: config.pollIntervalMs,
+      leaseMs: config.leaseMs,
+    },
+    'Starting Huntlo worker process'
+  );
 
   await connectDatabase();
 
-  isPolling = true;
-  pollTimer = setInterval(() => {
-    void pollJobs().catch((error) => {
-      logger.error({ err: error }, 'Worker poll failed');
-    });
-  }, POLL_INTERVAL_MS);
+  const runner = createWorkerRunner();
+  await runner.start();
 
-  logger.info({ pollIntervalMs: POLL_INTERVAL_MS }, 'Worker poll loop started');
+  logger.info(
+    { workerId: runner.workerId, metrics: runner.getMetrics() },
+    'Worker lease loop started'
+  );
 
+  const metricsTimer = setInterval(() => {
+    logger.info({ metrics: runner.getMetrics() }, 'Worker metrics');
+  }, 60_000);
+  metricsTimer.unref?.();
+
+  let shuttingDown = false;
   const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
   for (const signal of shutdownSignals) {
     process.on(signal, () => {
-      void shutdownGracefully('huntlo-worker', async () => {
-        isPolling = false;
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = null;
-        }
-        await disconnectDatabase();
-      });
+      if (shuttingDown) return;
+      shuttingDown = true;
+      void shutdownGracefully(
+        'huntlo-worker',
+        async () => {
+          clearInterval(metricsTimer);
+          await runner.stop();
+          await disconnectDatabase();
+        },
+        { timeoutMs: config.shutdownTimeoutMs }
+      );
     });
   }
 }

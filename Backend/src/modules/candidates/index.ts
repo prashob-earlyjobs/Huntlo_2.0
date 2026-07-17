@@ -4,6 +4,7 @@ export { candidateListsRouter } from './candidate-lists.routes.js';
 export { candidateImportsRouter } from './candidate-imports.routes.js';
 export { candidateService } from './candidate.service.js';
 export { revealService } from './reveal.service.js';
+export { candidateSearchService, candidateSearchRouter } from './search/index.js';
 export {
   bulkRevealService,
   processBulkRevealJob,

@@ -9,9 +9,10 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  PLATFORM_SETTINGS,
   type PlatformProviderSetting,
 } from "@/lib/mock-admin";
+import { adminApi } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 const STATUS_CLASS: Record<PlatformProviderSetting["status"], string> = {
@@ -21,9 +22,47 @@ const STATUS_CLASS: Record<PlatformProviderSetting["status"], string> = {
 };
 
 export function AdminSettingsWorkspace() {
-  const [providers, setProviders] = useState(PLATFORM_SETTINGS);
+  const [providers, setProviders] = useState<PlatformProviderSetting[]>([]);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    void adminApi
+      .getPlatformSettings()
+      .then((data) => {
+        setProviders(
+          data.providers.map((provider) => ({
+            id: provider.id,
+            name: provider.name,
+            description: provider.errorSummary || `${provider.name} integration`,
+            status:
+              provider.status === "connected"
+                ? ("Connected" as const)
+                : provider.status === "error" || provider.status === "degraded"
+                  ? ("Needs attention" as const)
+                  : ("Not configured" as const),
+            fields: [
+              {
+                label: "Identifier",
+                value: provider.maskedIdentifier || "—",
+                masked: true,
+              },
+              {
+                label: "Last tested",
+                value: provider.lastTested
+                  ? new Date(provider.lastTested).toLocaleString("en-IN")
+                  : "Never",
+                masked: false,
+              },
+            ],
+          }))
+        );
+      })
+      .catch((error) => {
+        setProviders([]);
+        setToast(getApiErrorMessage(error, "Unable to load platform settings."));
+      });
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -111,11 +150,28 @@ export function AdminSettingsWorkspace() {
                   <Button
                     type="button"
                     size="xs"
-                    onClick={() =>
-                      setToast(
-                        `Saved ${provider.name} settings. (UI preview — no credentials stored)`
-                      )
-                    }
+                    onClick={() => {
+                      const secretField = provider.fields.find((f) => f.masked);
+                      void adminApi
+                        .updatePlatformSettings({
+                          providers: [
+                            {
+                              provider: provider.id,
+                              ...(secretField &&
+                              secretField.value &&
+                              !secretField.value.includes("•")
+                                ? { secretValue: secretField.value }
+                                : { configured: provider.status === "Connected" }),
+                            },
+                          ],
+                        })
+                        .then(() => setToast(`Saved ${provider.name} settings.`))
+                        .catch((error) =>
+                          setToast(
+                            getApiErrorMessage(error, `Unable to save ${provider.name}.`)
+                          )
+                        );
+                    }}
                   >
                     <Save aria-hidden />
                     Save

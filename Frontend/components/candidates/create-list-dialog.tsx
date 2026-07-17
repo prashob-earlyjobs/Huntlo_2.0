@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ListPlus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,9 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { JOBS } from "@/lib/mock-jobs";
 import type { ListVisibility } from "@/lib/mock-candidates";
-import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
+import { getApiErrorMessage, candidatePoolApi, jobsApi } from "@/lib/api";
+import type { JobListItem } from "@/lib/api/contracts";
 
 const VISIBILITY_OPTIONS: { value: ListVisibility; hint: string }[] = [
   { value: "Private", hint: "Only you can see this list" },
@@ -48,6 +48,22 @@ export function CreateListDialog({
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [jobs, setJobs] = useState<JobListItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void jobsApi
+      .list({ limit: 100 })
+      .then((rows) => {
+        if (!cancelled) setJobs(rows);
+      })
+      .catch(() => {
+        // Leave the job picker empty when the jobs API is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleCreate() {
     if (!name.trim()) {
@@ -133,7 +149,7 @@ export function CreateListDialog({
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
-                  {JOBS.filter((job) => job.status !== "Archived").map((job) => (
+                  {jobs.filter((job) => job.status !== "Archived").map((job) => (
                     <SelectItem key={job.id} value={job.id}>
                       {job.title}
                     </SelectItem>

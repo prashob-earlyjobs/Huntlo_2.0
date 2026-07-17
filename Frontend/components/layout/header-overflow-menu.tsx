@@ -17,7 +17,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CREDIT_SUMMARY } from "@/lib/mock-data";
 import { ROUTES } from "@/lib/routes";
 
 export function HeaderOverflowMenu() {
@@ -41,9 +40,6 @@ export function HeaderOverflowMenu() {
         <DropdownMenuItem render={<Link href={ROUTES.plans} />}>
           <Gauge aria-hidden />
           <span className="flex-1">Usage</span>
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {CREDIT_SUMMARY.searchesRemaining.toLocaleString("en-IN")}
-          </span>
         </DropdownMenuItem>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

@@ -19,6 +19,8 @@ import {
 import { QuotaCounterModel, type QuotaCounterDocument } from './quota-counter.model.js';
 import { UsageLedgerModel } from './usage-ledger.model.js';
 import { UsageReservationModel } from './usage-reservation.model.js';
+import { emitUsageUpdated } from '../../realtime/events.js';
+import { notificationsService } from '../../modules/notifications/notifications.service.js';
 
 const RESERVATION_TTL_MS = 30 * 60 * 1000;
 
@@ -552,7 +554,54 @@ export class QuotaService {
       periodKey: reservation.periodKey,
     });
 
-    return toUsageView(updated ?? (await ensureCounter(input.organizationId, input.metric)));
+    const view = toUsageView(
+      updated ?? (await ensureCounter(input.organizationId, input.metric))
+    );
+    emitUsageUpdated({
+      organizationId: input.organizationId,
+      metric: view.metric,
+      used: view.used,
+      limit: view.limit,
+      remaining: view.remaining,
+      userId: input.userId ?? undefined,
+    });
+
+    const recipient =
+      input.userId ?? reservation.userId?.toHexString() ?? null;
+    if (recipient && view.limit > 0) {
+      const ratio = view.remaining / view.limit;
+      if (view.remaining <= 0) {
+        void notificationsService
+          .create({
+            organizationId: input.organizationId,
+            userId: recipient,
+            type: 'quota_exhausted',
+            severity: 'error',
+            title: `${view.label} exhausted`,
+            message: `Your ${view.label.toLowerCase()} quota is exhausted for this billing period.`,
+            relatedEntityType: 'usage_metric',
+            relatedEntityId: view.metric,
+            actionUrl: '/dashboard/plans',
+          })
+          .catch(() => undefined);
+      } else if (ratio <= 0.15) {
+        void notificationsService
+          .create({
+            organizationId: input.organizationId,
+            userId: recipient,
+            type: 'quota_warning',
+            severity: 'warning',
+            title: `${view.label} running low`,
+            message: `Only ${view.remaining} ${view.label.toLowerCase()} remaining this period.`,
+            relatedEntityType: 'usage_metric',
+            relatedEntityId: view.metric,
+            actionUrl: '/dashboard/plans',
+          })
+          .catch(() => undefined);
+      }
+    }
+
+    return view;
   }
 
   async releaseUsage(input: {

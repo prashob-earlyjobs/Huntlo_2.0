@@ -19,18 +19,11 @@ import { applyWorkflowTransition } from '../huntlo-360/transitions.js';
  * body.payload || body → scheduled_event / invitee / email / event
  */
 export async function processCalendlyWebhook(req: Request, res: Response): Promise<void> {
-  const signingKey = getCalendlyWebhookSigningKey();
-  const rawBody = req.rawBody
-    ? req.rawBody.toString('utf8')
-    : Buffer.isBuffer(req.body)
-      ? req.body.toString('utf8')
-      : JSON.stringify(req.body || {});
-
-  const signature = req.headers['calendly-webhook-signature'];
-  if (signingKey && !verifyCalendlySignature(rawBody, signature, signingKey)) {
-    res.status(401).json({
+  const rawBody = req.rawBody;
+  if (!rawBody || rawBody.length === 0) {
+    res.status(400).json({
       success: false,
-      error: { code: 'INVALID_SIGNATURE', message: 'Invalid Calendly webhook signature' },
+      error: { code: 'EMPTY_BODY', message: 'Empty webhook body' },
     });
     return;
   }
@@ -38,7 +31,7 @@ export async function processCalendlyWebhook(req: Request, res: Response): Promi
   let body: Record<string, unknown>;
   try {
     body = Buffer.isBuffer(req.body)
-      ? (JSON.parse(rawBody) as Record<string, unknown>)
+      ? (JSON.parse(rawBody.toString('utf8')) as Record<string, unknown>)
       : ((req.body || {}) as Record<string, unknown>);
   } catch {
     res.status(400).json({
@@ -48,20 +41,15 @@ export async function processCalendlyWebhook(req: Request, res: Response): Promi
     return;
   }
 
-  const payload = (body.payload && typeof body.payload === 'object'
-    ? body.payload
-    : body) as Record<string, unknown>;
-
-  try {
-    const result = await processCalendlyWebhookPayload(payload);
-    res.status(200).json({ success: true, data: result });
-  } catch (err) {
-    getLogger().error({ err }, 'Calendly webhook processing failed');
-    res.status(500).json({
-      success: false,
-      error: { code: 'WEBHOOK_PROCESSING_FAILED', message: 'Failed to process webhook.' },
-    });
-  }
+  const { ingestWebhook } = await import('../webhooks/ingest.service.js');
+  const result = await ingestWebhook({
+    provider: 'calendly',
+    rawBody,
+    body,
+    headers: req.headers as Record<string, string | string[] | undefined>,
+    query: req.query as Record<string, unknown>,
+  });
+  res.status(result.statusCode).json(result.body);
 }
 
 export async function processCalendlyWebhookPayload(payload: Record<string, unknown>) {

@@ -28,7 +28,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MOCK_USER } from "@/lib/mock-data";
 import { ROUTES } from "@/lib/routes";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -37,9 +36,9 @@ export function UserProfileMenu() {
   const { theme, setTheme } = useTheme();
   const { user, logout, isMockMode } = useAuth();
 
-  const displayName = user?.name ?? MOCK_USER.name;
-  const displayEmail = user?.email ?? MOCK_USER.email;
-  const displayInitials = user?.initials ?? MOCK_USER.initials;
+  const displayName = user?.name ?? "Account";
+  const displayEmail = user?.email ?? "";
+  const displayInitials = user?.initials ?? "?";
 
   async function handleLogout() {
     await logout();

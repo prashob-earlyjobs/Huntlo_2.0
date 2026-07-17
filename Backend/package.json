@@ -9,9 +9,12 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:api": "tsx watch src/server.ts",
+    "dev:worker": "tsx watch src/worker.ts",
     "worker": "tsx watch src/worker.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
+    "start:api": "node dist/server.js",
     "start:worker": "node dist/worker.js",
     "test": "vitest run",
     "test:watch": "vitest",

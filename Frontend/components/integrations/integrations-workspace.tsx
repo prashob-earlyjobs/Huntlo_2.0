@@ -30,6 +30,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { GmailConnectButton } from "@/components/integrations/gmail-connect-button";
 import { getApiErrorMessage, integrationsApi } from "@/lib/api";
 import {
   CATEGORY_META,
@@ -659,10 +660,10 @@ function ConnectionDrawer({
     }
   }
 
-  async function handleConnect() {
+  async function handleConnect(body: Record<string, unknown> = {}) {
     setBusy(true);
     try {
-      const result = await integrationsApi.connect(provider!.id, {});
+      const result = await integrationsApi.connect(provider!.id, body);
       if (result.mode === "oauth_redirect" && result.authorizeUrl) {
         window.location.assign(result.authorizeUrl);
         return;
@@ -670,6 +671,11 @@ function ConnectionDrawer({
       if (result.mode === "connected") {
         onFlash(`${provider!.name} connected.`);
         onRefresh();
+      } else if (provider!.id === "gmail") {
+        onFlash(
+          result.message ||
+            "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the backend."
+        );
       } else {
         onFlash(
           result.message ||
@@ -683,6 +689,13 @@ function ConnectionDrawer({
       setBusy(false);
     }
   }
+
+  async function handleGmailCode(code: string) {
+    await handleConnect({ code });
+  }
+
+  const gmailClientId = provider.oauthClientId?.trim() || "";
+  const useGmailPopup = provider.id === "gmail" && Boolean(gmailClientId);
 
   async function handleDisconnect() {
     if (!provider?.integrationRecordId) {
@@ -798,27 +811,46 @@ function ConnectionDrawer({
 
           <div className="flex flex-wrap gap-2">
             {provider.status === "Not Connected" ? (
-              <Button
-                size="sm"
-                className="flex-1"
-                disabled={busy}
-                onClick={() => void handleConnect()}
-              >
-                <Plug aria-hidden />
-                {busy ? "Connecting…" : "Connect"}
-              </Button>
-            ) : (
-              <>
+              useGmailPopup ? (
+                <GmailConnectButton
+                  clientId={gmailClientId}
+                  busy={busy}
+                  onCode={(code) => void handleGmailCode(code)}
+                  onError={(message) => onFlash(message)}
+                />
+              ) : (
                 <Button
                   size="sm"
-                  variant="outline"
                   className="flex-1"
                   disabled={busy}
                   onClick={() => void handleConnect()}
                 >
-                  <RefreshCw aria-hidden />
-                  Reconnect
+                  <Plug aria-hidden />
+                  {busy ? "Connecting…" : "Connect"}
                 </Button>
+              )
+            ) : (
+              <>
+                {useGmailPopup ? (
+                  <GmailConnectButton
+                    clientId={gmailClientId}
+                    busy={busy}
+                    reconnect
+                    onCode={(code) => void handleGmailCode(code)}
+                    onError={(message) => onFlash(message)}
+                  />
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    disabled={busy}
+                    onClick={() => void handleConnect()}
+                  >
+                    <RefreshCw aria-hidden />
+                    Reconnect
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -836,6 +868,14 @@ function ConnectionDrawer({
               </>
             )}
           </div>
+
+          {provider.id === "gmail" && !gmailClientId ? (
+            <p className="text-xs text-muted-foreground">
+              Set <code className="font-mono">GOOGLE_CLIENT_ID</code> and{" "}
+              <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in the
+              backend env, then refresh this page to enable Google sign-in.
+            </p>
+          ) : null}
 
           {provider.configKind === "smtp" ||
           provider.configKind === "whatsapp" ||

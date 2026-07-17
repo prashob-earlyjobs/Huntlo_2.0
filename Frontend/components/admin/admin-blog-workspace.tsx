@@ -38,12 +38,13 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  BLOG_ARTICLES,
   BLOG_CATEGORIES,
   type BlogArticle,
   type BlogStatus,
   type SeoStatus,
 } from "@/lib/mock-admin";
+import { adminApi } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -75,12 +76,48 @@ function emptyArticle(): BlogArticle {
 }
 
 export function AdminBlogWorkspace() {
-  const [articles, setArticles] = useState(BLOG_ARTICLES);
+  const [articles, setArticles] = useState<BlogArticle[]>([]);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<BlogArticle | null>(null);
   const [draft, setDraft] = useState<BlogArticle>(emptyArticle());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    void adminApi
+      .listBlog({ limit: 100 })
+      .then((result) => {
+        setArticles(
+          result.items.map((article) => ({
+            id: article.id,
+            title: article.title,
+            slug: article.slug,
+            category: article.category,
+            author: article.author,
+            status:
+              article.status === "published"
+                ? ("Published" as const)
+                : article.status === "archived"
+                  ? ("Scheduled" as const)
+                  : ("Draft" as const),
+            publishedAt: article.publishedAt
+              ? new Date(article.publishedAt).toLocaleDateString("en-IN")
+              : "—",
+            seoStatus:
+              article.seoStatus === "ok"
+                ? ("Optimised" as const)
+                : article.seoStatus === "missing"
+                  ? ("Missing" as const)
+                  : ("Needs work" as const),
+            excerpt: article.excerpt,
+          }))
+        );
+      })
+      .catch((error) => {
+        setArticles([]);
+        setToast(getApiErrorMessage(error, "Unable to load blog articles."));
+      });
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -112,22 +149,66 @@ export function AdminBlogWorkspace() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
 
-    if (editingId) {
-      setArticles((previous) =>
-        previous.map((article) =>
-          article.id === editingId ? { ...draft, slug, id: editingId } : article
-        )
-      );
-      setToast(`Updated “${draft.title}”.`);
-    } else {
-      const id = `b-${Date.now()}`;
-      setArticles((previous) => [
-        { ...draft, id, slug },
-        ...previous,
-      ]);
-      setToast(`Created “${draft.title}”.`);
-    }
-    setOpen(false);
+    const payload = {
+      title: draft.title,
+      slug,
+      category: draft.category,
+      author: draft.author,
+      excerpt: draft.excerpt,
+      status:
+        draft.status === "Published"
+          ? "published"
+          : draft.status === "Scheduled"
+            ? "archived"
+            : "draft",
+      seoStatus:
+        draft.seoStatus === "Optimised"
+          ? "ok"
+          : draft.seoStatus === "Missing"
+            ? "missing"
+            : "needs_work",
+    };
+
+    void (async () => {
+      try {
+        if (editingId && editingId !== "new") {
+          const updated = await adminApi.updateBlog(editingId, payload);
+          if (draft.status === "Published") {
+            await adminApi.publishBlog(editingId);
+          }
+          setArticles((previous) =>
+            previous.map((article) =>
+              article.id === editingId
+                ? {
+                    ...article,
+                    ...draft,
+                    id: updated.id,
+                    slug: updated.slug,
+                  }
+                : article
+            )
+          );
+          setToast(`Updated “${draft.title}”.`);
+        } else {
+          const created = await adminApi.createBlog(payload);
+          if (draft.status === "Published") {
+            await adminApi.publishBlog(created.id);
+          }
+          setArticles((previous) => [
+            {
+              ...draft,
+              id: created.id,
+              slug: created.slug,
+            },
+            ...previous,
+          ]);
+          setToast(`Created “${draft.title}”.`);
+        }
+        setOpen(false);
+      } catch (error) {
+        setToast(getApiErrorMessage(error, "Unable to save article."));
+      }
+    })();
   }
 
   return (

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { Field, StepCard } from "@/components/outreach/builder-ui";
 import type { BuilderState, UpdateBuilder } from "@/components/outreach/builder-types";
 import { Input } from "@/components/ui/input";
@@ -11,24 +13,149 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { JOBS } from "@/lib/mock-jobs";
+import type { JobListItem } from "@/lib/api/contracts";
+import { teamApi, type ApiTeamMember } from "@/lib/api/team";
 import {
   CAMPAIGN_OBJECTIVES,
-  CAMPAIGN_OWNERS,
   CAMPAIGN_TYPES,
   TIMEZONE_OPTIONS,
 } from "@/lib/mock-outreach";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers";
 
 export function SetupStep({
   state,
   update,
   showErrors,
+  jobs,
 }: {
   state: BuilderState;
   update: UpdateBuilder;
   showErrors: boolean;
+  jobs: JobListItem[];
 }) {
+  const { user } = useAuth();
+  const [owners, setOwners] = useState<ApiTeamMember[]>([]);
+  const [ownersLoading, setOwnersLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const members = await teamApi.listMembers();
+        if (cancelled) return;
+        const active = members.filter(
+          (member) =>
+            member.status === "active" ||
+            member.status === "Active" ||
+            member.status === "invited"
+        );
+        const list = active.length > 0 ? active : members;
+        setOwners(list);
+
+        // Default owner to the signed-in user when unset.
+        if (!state.ownerUserId && user?.id) {
+          const self =
+            list.find((member) => member.userId === user.id) ||
+            list.find((member) => member.id === user.id);
+          update("ownerUserId", self?.userId || user.id);
+          update("owner", self?.name || user.name || "You");
+          return;
+        }
+
+        // Resolve display name for an already-selected owner id.
+        if (state.ownerUserId) {
+          const match =
+            list.find((member) => member.userId === state.ownerUserId) ||
+            list.find((member) => member.id === state.ownerUserId);
+          if (match?.name) {
+            update("owner", match.name);
+            if (match.userId && match.userId !== state.ownerUserId) {
+              update("ownerUserId", match.userId);
+            }
+          }
+        }
+      } catch {
+        if (!cancelled && user?.id && !state.ownerUserId) {
+          update("ownerUserId", user.id);
+          update("owner", user.name || "You");
+          setOwners([
+            {
+              id: user.id,
+              organizationId: user.organizationId || "",
+              userId: user.id,
+              name: user.name || "You",
+              firstName: user.firstName || "",
+              lastName: user.lastName || "",
+              email: user.email || "",
+              phone: null,
+              title: user.jobTitle || null,
+              role: "recruiter",
+              roleLabel: "Recruiter",
+              permissions: [],
+              assignedJobIds: [],
+              managerId: null,
+              status: "active",
+              joinedAt: null,
+              lastLoginAt: null,
+            },
+          ]);
+        }
+      } finally {
+        if (!cancelled) setOwnersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- default owner once on mount
+  }, []);
+
+  function selectOwner(userId: string) {
+    const member = owners.find((entry) => entry.userId === userId);
+    update("ownerUserId", userId);
+    update("owner", member?.name || state.owner || "Team member");
+  }
+
+  const ownerOptions = (() => {
+    const list = [...owners];
+    if (
+      state.ownerUserId &&
+      !list.some((member) => member.userId === state.ownerUserId)
+    ) {
+      list.unshift({
+        id: state.ownerUserId,
+        organizationId: user?.organizationId || "",
+        userId: state.ownerUserId,
+        name: state.owner.trim() || user?.name || "Owner",
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: null,
+        title: null,
+        role: "recruiter",
+        roleLabel: "Recruiter",
+        permissions: [],
+        assignedJobIds: [],
+        managerId: null,
+        status: "active",
+        joinedAt: null,
+        lastLoginAt: null,
+      });
+    }
+    return list;
+  })();
+
+  const ownerLabel =
+    ownerOptions.find((member) => member.userId === state.ownerUserId)?.name ||
+    state.owner.trim() ||
+    null;
+
+  const activeJobs = jobs.filter((job) => job.status !== "Archived");
+  const jobLabel =
+    activeJobs.find((job) => job.id === state.jobId)?.title ||
+    jobs.find((job) => job.id === state.jobId)?.title ||
+    null;
+
   return (
     <StepCard
       title="Campaign Setup"
@@ -53,23 +180,33 @@ export function SetupStep({
         <Field
           label="Related job"
           htmlFor="campaign-job"
+          required
           hint="Personalisation variables like {{job_title}} resolve from this job."
         >
           <Select
-            value={state.jobId}
-            onValueChange={(value) => update("jobId", value)}
+            value={state.jobId || undefined}
+            onValueChange={(value) => value && update("jobId", value)}
           >
-            <SelectTrigger id="campaign-job" className="w-full">
-              <SelectValue placeholder="No related job" />
+            <SelectTrigger
+              id="campaign-job"
+              className="w-full"
+              aria-invalid={showErrors && !state.jobId}
+            >
+              <SelectValue placeholder="Select a job">{jobLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {JOBS.filter((job) => job.status !== "Archived").map((job) => (
+              {activeJobs.map((job) => (
                 <SelectItem key={job.id} value={job.id}>
                   {job.title}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {showErrors && !state.jobId ? (
+            <p role="alert" className="text-xs text-destructive">
+              Related job is required.
+            </p>
+          ) : null}
         </Field>
 
         <Field label="Campaign objective" htmlFor="campaign-objective" required>
@@ -92,20 +229,34 @@ export function SetupStep({
 
         <Field label="Campaign owner" htmlFor="campaign-owner" required>
           <Select
-            value={state.owner}
-            onValueChange={(value) => value && update("owner", value)}
+            value={state.ownerUserId || undefined}
+            onValueChange={(value) => value && selectOwner(value)}
+            disabled={ownersLoading && ownerOptions.length === 0}
           >
-            <SelectTrigger id="campaign-owner" className="w-full">
-              <SelectValue />
+            <SelectTrigger
+              id="campaign-owner"
+              className="w-full"
+              aria-invalid={showErrors && !state.ownerUserId}
+            >
+              <SelectValue
+                placeholder={ownersLoading ? "Loading team…" : "Select owner"}
+              >
+                {ownerLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {CAMPAIGN_OWNERS.map((owner) => (
-                <SelectItem key={owner} value={owner}>
-                  {owner}
+              {ownerOptions.map((member) => (
+                <SelectItem key={member.userId} value={member.userId}>
+                  {member.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {showErrors && !state.ownerUserId ? (
+            <p role="alert" className="text-xs text-destructive">
+              Campaign owner is required.
+            </p>
+          ) : null}
         </Field>
 
         <Field
@@ -117,16 +268,30 @@ export function SetupStep({
             id="campaign-description"
             value={state.description}
             onChange={(event) => update("description", event.target.value)}
-            placeholder="What is this campaign trying to achieve? Visible to your team only."
-            className="min-h-20"
+            placeholder="Optional notes for your team about this campaign."
+            rows={3}
           />
         </Field>
 
-        <Field
-          label="Candidate timezone handling"
-          htmlFor="campaign-timezone"
-          hint="Controls when sequence steps are allowed to send."
-        >
+        <Field label="Campaign type" htmlFor="campaign-type">
+          <Select
+            value={state.campaignType}
+            onValueChange={(value) => value && update("campaignType", value)}
+          >
+            <SelectTrigger id="campaign-type" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CAMPAIGN_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Timezone handling" htmlFor="campaign-timezone">
           <Select
             value={state.timezone}
             onValueChange={(value) => value && update("timezone", value)}
@@ -135,49 +300,14 @@ export function SetupStep({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TIMEZONE_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
+              {TIMEZONE_OPTIONS.map((timezone) => (
+                <SelectItem key={timezone} value={timezone}>
+                  {timezone}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
-
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium text-foreground">Campaign type</p>
-          <div
-            role="radiogroup"
-            aria-label="Campaign type"
-            className="grid grid-cols-2 gap-2"
-          >
-            {CAMPAIGN_TYPES.map((type) => {
-              const active = state.campaignType === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => update("campaignType", type)}
-                  className={cn(
-                    "rounded-lg border px-3 py-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                    active
-                      ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
-                      : "border-border text-foreground hover:bg-muted/40"
-                  )}
-                >
-                  {type}
-                  <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                    {type === "Single Channel"
-                      ? "One channel, simple sequence"
-                      : "Mix email, WhatsApp and voice"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </StepCard>
   );

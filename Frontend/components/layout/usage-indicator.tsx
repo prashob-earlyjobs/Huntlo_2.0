@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,10 +16,10 @@ import {
 } from "@/components/ui/tooltip";
 import { UsageProgress } from "@/components/shared/usage-progress";
 import { plansApi, type UsageMetricRow } from "@/lib/api/plans";
-import { CREDIT_METRICS, CREDIT_SUMMARY } from "@/lib/mock-data";
 import type { CreditMetric } from "@/lib/types";
 import { ROUTES } from "@/lib/routes";
 import { useAuth } from "@/providers";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 const METRIC_LABELS: Record<string, string> = {
   candidate_search: "Search credits",
@@ -71,35 +71,35 @@ function toCreditMetrics(rows: UsageMetricRow[]): CreditMetric[] {
 
 export function UsageIndicator() {
   const { organization, user } = useAuth();
-  const [metrics, setMetrics] = useState<CreditMetric[]>(CREDIT_METRICS);
+  const [metrics, setMetrics] = useState<CreditMetric[]>([]);
   const [planName, setPlanName] = useState(user?.plan || "Plan");
-  const [searchesRemaining, setSearchesRemaining] = useState(
-    CREDIT_SUMMARY.searchesRemaining
-  );
+  const [searchesRemaining, setSearchesRemaining] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [summary, current] = await Promise.all([
+        plansApi.getUsageSummary(),
+        plansApi.getCurrentPlan(),
+      ]);
+      setMetrics(toCreditMetrics(summary.metrics));
+      setPlanName(current.name);
+      const search = summary.metrics.find(
+        (row) => row.metric === "candidate_search"
+      );
+      if (search) setSearchesRemaining(search.remaining);
+    } catch {
+      setMetrics([]);
+      setSearchesRemaining(0);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const [summary, current] = await Promise.all([
-          plansApi.getUsageSummary(),
-          plansApi.getCurrentPlan(),
-        ]);
-        if (cancelled) return;
-        setMetrics(toCreditMetrics(summary.metrics));
-        setPlanName(current.name);
-        const search = summary.metrics.find(
-          (row) => row.metric === "candidate_search"
-        );
-        if (search) setSearchesRemaining(search.remaining);
-      } catch {
-        // Keep last known / mock snapshot when API is unavailable.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void refresh();
+  }, [refresh]);
+
+  useRealtimeRefresh("usage.updated", () => {
+    void refresh();
+  });
 
   const remaining = searchesRemaining.toLocaleString("en-IN");
   const organisationName = organization?.name ?? "Workspace";

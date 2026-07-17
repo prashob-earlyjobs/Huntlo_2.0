@@ -8,7 +8,9 @@ import { SearchHistoryTable } from "@/components/sessions/search-history-table";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, sourcingApi } from "@/lib/api";
+import { getSourcingSessions } from "@/lib/api/candidate-search";
 import type { SearchHistoryEntry } from "@/lib/mock-sessions";
+import { mapSessionState } from "@/lib/api/sourcing";
 import { ROUTES } from "@/lib/routes";
 
 export function SearchHistoryPageClient() {
@@ -22,10 +24,31 @@ export function SearchHistoryPageClient() {
       setLoading(true);
       setError(null);
       try {
-        const history = await sourcingApi.listHistory();
-        if (!cancelled) setEntries(history);
+        const result = await getSourcingSessions({ limit: 100 });
+        if (cancelled) return;
+        setEntries(
+          result.sessions.map((session) => ({
+            id: session.savedSessionId,
+            sessionId: session.savedSessionId,
+            name: session.title,
+            query: session.prompt,
+            relatedJob: session.jobTitle,
+            results: session.resultCount,
+            saved: session.savedCandidateCount,
+            owner: session.owner ?? "You",
+            date: session.createdAt ?? "",
+            usage: 0,
+            state: mapSessionState(session.status),
+          }))
+        );
       } catch (err) {
-        if (!cancelled) setError(getApiErrorMessage(err));
+        // Fallback to legacy sourcing list
+        try {
+          const history = await sourcingApi.listHistory();
+          if (!cancelled) setEntries(history);
+        } catch {
+          if (!cancelled) setError(getApiErrorMessage(err));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -79,7 +102,20 @@ export function SearchHistoryPageClient() {
         </p>
       ) : null}
 
-      <SearchHistoryTable entries={entries} loading={loading} />
+      <SearchHistoryTable
+        entries={entries}
+        loading={loading}
+        onDelete={async (entry) => {
+          const sessionId = entry.sessionId || entry.id;
+          if (!sessionId) return;
+          try {
+            await sourcingApi.deleteSession(sessionId);
+            setEntries((prev) => prev.filter((row) => row.id !== entry.id));
+          } catch (err) {
+            setError(getApiErrorMessage(err));
+          }
+        }}
+      />
     </>
   );
 }

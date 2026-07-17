@@ -14,6 +14,14 @@ export const requestTimingMiddleware: RequestHandler = (req, res, next) => {
       path: req.originalUrl,
       statusCode: res.statusCode,
       durationMs,
+      userId: req.userId ?? req.auth?.sub ?? null,
+      organizationId: req.organizationId ?? req.auth?.orgId ?? null,
+      errorClass:
+        res.statusCode >= 500
+          ? 'server_error'
+          : res.statusCode >= 400
+            ? 'client_error'
+            : 'ok',
     };
 
     if (res.statusCode >= 500) {

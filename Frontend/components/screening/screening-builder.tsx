@@ -18,7 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   ErrorList,
@@ -40,10 +40,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   candidatePoolApi,
   getApiErrorMessage,
+  jobsApi,
   screeningApi,
   type ScreeningCreateInput,
 } from "@/lib/api";
-import { JOBS } from "@/lib/mock-jobs";
+import type { JobListItem } from "@/lib/api/contracts";
 import {
   ATTEMPT_OPTIONS,
   CALL_WINDOWS,
@@ -63,12 +64,20 @@ import {
 } from "@/lib/mock-screening";
 import {
   AUDIENCE_SOURCES,
-  AUDIENCE_STATS,
   reachableCount,
   type AudienceSource,
+  type AudienceStats,
 } from "@/lib/mock-outreach";
 import { ROUTES, screeningDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+
+const EMPTY_AUDIENCE_STATS: AudienceStats = {
+  selected: 0,
+  withEmail: 0,
+  withPhone: 0,
+  duplicates: 0,
+  invalid: 0,
+};
 
 /* ------------------------------------------------------------------ */
 /* State                                                                */
@@ -209,10 +218,12 @@ function DetailsStep({
   state,
   update,
   showErrors,
+  jobs,
 }: {
   state: BuilderState;
   update: Update;
   showErrors: boolean;
+  jobs: JobListItem[];
 }) {
   return (
     <StepCard
@@ -261,7 +272,7 @@ function DetailsStep({
               <SelectValue placeholder="Select a job" />
             </SelectTrigger>
             <SelectContent>
-              {JOBS.filter(
+              {jobs.filter(
                 (job) => job.status === "Active" || job.status === "Paused"
               ).map((job) => (
                 <SelectItem key={job.id} value={job.id}>
@@ -341,7 +352,7 @@ function CandidatesStep({
   state: BuilderState;
   update: Update;
 }) {
-  const stats = state.source ? AUDIENCE_STATS[state.source] : null;
+  const stats = state.source ? EMPTY_AUDIENCE_STATS : null;
 
   return (
     <StepCard
@@ -968,13 +979,15 @@ function ReviewStep({
   state,
   errors,
   goTo,
+  jobs,
 }: {
   state: BuilderState;
   errors: string[];
   goTo: (step: number) => void;
+  jobs: JobListItem[];
 }) {
-  const job = JOBS.find((j) => j.id === state.jobId);
-  const stats = state.source ? AUDIENCE_STATS[state.source] : null;
+  const job = jobs.find((j) => j.id === state.jobId);
+  const stats = state.source ? EMPTY_AUDIENCE_STATS : null;
   const activeQuestions = state.questions.filter((q) => q.text.trim());
 
   const sections: {
@@ -1158,6 +1171,22 @@ export function ScreeningBuilder() {
   const [screeningId, setScreeningId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<JobListItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void jobsApi
+      .list({ limit: 100 })
+      .then((rows) => {
+        if (!cancelled) setJobs(rows);
+      })
+      .catch(() => {
+        // Leave the job picker empty when the jobs API is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
@@ -1293,7 +1322,7 @@ export function ScreeningBuilder() {
       ) : null}
 
       {current === 0 ? (
-        <DetailsStep state={state} update={update} showErrors={showErrors} />
+        <DetailsStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
       ) : current === 1 ? (
         <CandidatesStep state={state} update={update} />
       ) : current === 2 ? (
@@ -1305,7 +1334,7 @@ export function ScreeningBuilder() {
       ) : current === 5 ? (
         <CallSettingsStep state={state} update={update} />
       ) : (
-        <ReviewStep state={state} errors={launchErrors} goTo={goTo} />
+        <ReviewStep state={state} errors={launchErrors} goTo={goTo} jobs={jobs} />
       )}
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">

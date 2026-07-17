@@ -180,7 +180,7 @@ const screeningSchema = new Schema<ScreeningDocument>(
       type: {
         ok: { type: Boolean, default: false },
         checkedAt: { type: Date, default: null },
-        issues: { type: [Schema.Types.Mixed], default: [] },
+        issues: { type: [Schema.Types.Mixed] as any, default: [] },
       },
       default: null,
     },

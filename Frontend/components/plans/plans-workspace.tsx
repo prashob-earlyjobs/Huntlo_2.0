@@ -3,24 +3,26 @@
 import {
   AlertTriangle,
   ArrowUpRight,
+  AudioLines,
   Check,
+  ClipboardList,
   CreditCard,
   Download,
   Headphones,
+  Link2,
+  LineChart,
+  Mail,
+  MessageCircle,
   Minus,
   Search,
+  Smartphone,
+  Users,
+  type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,15 +44,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getApiErrorMessage, plansApi, type CurrentPlan } from "@/lib/api";
 import {
-  CURRENT_PLAN,
-  INVOICES,
-  PLAN_FEATURE_ROWS,
-  PLAN_TIERS,
-  USAGE_HISTORY,
-  USAGE_QUOTAS,
-  USAGE_TREND,
+  getApiErrorMessage,
+  plansApi,
+  type CurrentPlan,
+  type PlanTier,
+} from "@/lib/api";
+import type { Invoice } from "@/lib/mock-plans";
+import {
   usagePercent,
   usageRemaining,
   usageState,
@@ -59,9 +60,36 @@ import {
   type UsageQuota,
   type UsageState,
 } from "@/lib/mock-plans";
+import {
+  openRazorpayCheckout,
+  RazorpayCheckoutDismissedError,
+} from "@/lib/razorpay-checkout";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
+
+const QUOTA_ICONS: Record<string, LucideIcon> = {
+  searches: Search,
+  "email-reveals": Mail,
+  "mobile-reveals": Smartphone,
+  linkedin: Link2,
+  "email-outreach": Mail,
+  whatsapp: MessageCircle,
+  voice: AudioLines,
+  assessments: ClipboardList,
+  team: Users,
+};
+
+const FEATURE_ROWS = [
+  { key: "searches", label: "Candidate searches" },
+  { key: "emailReveals", label: "Email reveals" },
+  { key: "mobileReveals", label: "Mobile reveals" },
+  { key: "peopleScout", label: "People Scout" },
+  { key: "emailOutreach", label: "Email outreach" },
+  { key: "whatsapp", label: "WhatsApp outreach" },
+  { key: "voice", label: "AI voice calls" },
+  { key: "team", label: "Team members" },
+] as const;
 
 type DialogKind =
   | "upgrade"
@@ -202,13 +230,6 @@ function QuotaCard({
 /* Usage trend                                                          */
 /* ------------------------------------------------------------------ */
 
-const TREND_CONFIG: ChartConfig = {
-  searches: { label: "Searches", color: "var(--chart-1)" },
-  reveals: { label: "Reveals", color: "var(--chart-2)" },
-  outreach: { label: "Outreach", color: "var(--chart-3)" },
-  voice: { label: "Voice calls", color: "var(--chart-4)" },
-};
-
 function UsageTrendChart() {
   return (
     <section className="rounded-xl border border-border bg-card p-4">
@@ -216,51 +237,12 @@ function UsageTrendChart() {
       <p className="mt-0.5 text-xs text-muted-foreground">
         Daily searches, reveals, outreach sends and voice calls this week
       </p>
-      <ChartContainer config={TREND_CONFIG} className="mt-4 h-72 w-full">
-        <AreaChart data={USAGE_TREND} margin={{ left: 4, right: 4 }}>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis
-            dataKey="label"
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-          />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Area
-            dataKey="searches"
-            type="monotone"
-            fill="var(--color-searches)"
-            fillOpacity={0.1}
-            stroke="var(--color-searches)"
-            strokeWidth={2}
-          />
-          <Area
-            dataKey="reveals"
-            type="monotone"
-            fill="var(--color-reveals)"
-            fillOpacity={0.1}
-            stroke="var(--color-reveals)"
-            strokeWidth={2}
-          />
-          <Area
-            dataKey="outreach"
-            type="monotone"
-            fill="var(--color-outreach)"
-            fillOpacity={0.1}
-            stroke="var(--color-outreach)"
-            strokeWidth={2}
-          />
-          <Area
-            dataKey="voice"
-            type="monotone"
-            fill="var(--color-voice)"
-            fillOpacity={0.1}
-            stroke="var(--color-voice)"
-            strokeWidth={2}
-          />
-        </AreaChart>
-      </ChartContainer>
+      <EmptyState
+        className="mt-4"
+        icon={LineChart}
+        title="Usage trend unavailable"
+        description="Daily usage trend charts are not available for this workspace yet."
+      />
     </section>
   );
 }
@@ -288,12 +270,31 @@ function FeatureCell({ value }: { value: PlanFeatureValue }) {
 }
 
 function PlanComparison({
+  tiers,
   onUpgrade,
   onSales,
 }: {
+  tiers: PlanTier[];
   onUpgrade: () => void;
   onSales: () => void;
 }) {
+  if (tiers.length === 0) {
+    return (
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">
+            Plan comparison
+          </h2>
+        </div>
+        <EmptyState
+          icon={CreditCard}
+          title="Plans unavailable"
+          description="Plan tiers could not be loaded right now. Try again shortly."
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-4">
       <div>
@@ -301,12 +302,12 @@ function PlanComparison({
           Plan comparison
         </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Compare limits across Starter, Growth, Scale and Enterprise
+          Compare limits across available plans
         </p>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-4">
-        {PLAN_TIERS.map((tier) => (
+        {tiers.map((tier) => (
           <article
             key={tier.id}
             className={cn(
@@ -334,7 +335,7 @@ function PlanComparison({
               </span>
             </p>
             <ul className="mt-4 flex-1 space-y-2 border-t border-border pt-3">
-              {PLAN_FEATURE_ROWS.map((row) => (
+              {FEATURE_ROWS.map((row) => (
                 <li
                   key={row.key}
                   className="flex items-start justify-between gap-2 text-xs"
@@ -350,9 +351,8 @@ function PlanComparison({
               variant={tier.highlighted ? "outline" : "default"}
               disabled={tier.highlighted}
               onClick={() => {
-                if (tier.id === "enterprise") onSales();
-                else if (tier.id === "scale" || tier.id === "starter")
-                  onUpgrade();
+                if (tier.cta === "Contact Sales") onSales();
+                else onUpgrade();
               }}
             >
               {tier.cta}
@@ -369,6 +369,23 @@ function PlanComparison({
 /* ------------------------------------------------------------------ */
 
 function BillingHistory({ onFailed }: { onFailed: () => void }) {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await plansApi.listInvoices();
+        if (!cancelled) setInvoices(rows);
+      } catch {
+        // Keep empty when API unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-4 py-3">
@@ -376,8 +393,7 @@ function BillingHistory({ onFailed }: { onFailed: () => void }) {
           Billing history
         </h2>
         <p className="text-xs text-muted-foreground">
-          Invoices from Razorpay and Dodo Payments — download only, no live
-          charge
+          Invoices from Razorpay (INR) and Dodo Payments (USD)
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -398,7 +414,17 @@ function BillingHistory({ onFailed }: { onFailed: () => void }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {INVOICES.map((invoice) => (
+            {invoices.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={8}
+                  className="py-8 text-center text-sm text-muted-foreground"
+                >
+                  No invoices yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              invoices.map((invoice) => (
               <TableRow key={invoice.id}>
                 <TableCell className="py-2.5 font-mono text-xs text-foreground">
                   {invoice.invoiceNumber}
@@ -443,7 +469,8 @@ function BillingHistory({ onFailed }: { onFailed: () => void }) {
                   </Button>
                 </TableCell>
               </TableRow>
-            ))}
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
@@ -475,33 +502,14 @@ function UsageHistoryTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {USAGE_HISTORY.map((entry) => (
-              <TableRow key={entry.id}>
-                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                  {entry.datetime}
-                </TableCell>
-                <TableCell className="py-2.5 text-sm whitespace-nowrap text-foreground">
-                  {entry.user}
-                </TableCell>
-                <TableCell className="py-2.5 text-sm text-foreground">
-                  {entry.action}
-                </TableCell>
-                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                  {entry.module}
-                </TableCell>
-                <TableCell className="py-2.5 text-sm whitespace-nowrap tabular-nums text-muted-foreground">
-                  {entry.quantity}
-                </TableCell>
-                <TableCell className="py-2.5 text-sm text-muted-foreground">
-                  <span className="line-clamp-1 max-w-48">
-                    {entry.relatedEntity}
-                  </span>
-                </TableCell>
-                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                  {entry.remaining}
-                </TableCell>
-              </TableRow>
-            ))}
+            <TableRow>
+              <TableCell
+                colSpan={7}
+                className="py-8 text-center text-sm text-muted-foreground"
+              >
+                No usage history yet.
+              </TableCell>
+            </TableRow>
           </TableBody>
         </Table>
       </div>
@@ -517,10 +525,12 @@ function PlansDialogs({
   kind,
   onClose,
   onConfirmUpgrade,
+  upgrading,
 }: {
   kind: DialogKind;
   onClose: () => void;
   onConfirmUpgrade: () => void;
+  upgrading?: boolean;
 }) {
   return (
     <>
@@ -530,18 +540,18 @@ function PlansDialogs({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Upgrade to Scale?</AlertDialogTitle>
+            <AlertDialogTitle>Upgrade plan?</AlertDialogTitle>
             <AlertDialogDescription>
-              Scale includes 40,000 searches, 2,500 voice minutes, and 50 team
-              seats for ₹59,999 / month. No payment is charged in this preview —
-              confirming only simulates a successful upgrade.
+              Checkout opens Razorpay for INR or Dodo Payments for USD. Your
+              plan activates only after the server verifies payment — the
+              browser alone cannot mark you as paid.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep Growth</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmUpgrade}>
+            <AlertDialogCancel disabled={upgrading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={upgrading} onClick={onConfirmUpgrade}>
               <ArrowUpRight aria-hidden />
-              Confirm upgrade
+              {upgrading ? "Starting checkout…" : "Continue to payment"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -560,9 +570,8 @@ function PlansDialogs({
               Upgrade successful
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Your workspace is now on the Scale plan. New limits apply
-              immediately. This is a UI preview — Razorpay / Dodo were not
-              charged.
+              Payment verified on the server. New plan limits apply
+              immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -582,9 +591,9 @@ function PlansDialogs({
               Quota exhausted
             </AlertDialogTitle>
             <AlertDialogDescription>
-              AI voice minutes are exhausted on the Growth plan (600 / 600).
-              Screening calls are paused until you top up credits or upgrade.
-              Outreach and scheduling continue normally.
+              One or more usage limits are exhausted for the current cycle. Top
+              up credits or upgrade your plan to continue. Unaffected modules
+              continue normally.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -678,30 +687,35 @@ function PlansDialogs({
 export function PlansWorkspace() {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [currentPlan, setCurrentPlan] = useState<CurrentPlan>(CURRENT_PLAN);
-  const [quotas, setQuotas] = useState<UsageQuota[]>(USAGE_QUOTAS);
-  const [planName, setPlanName] = useState(CURRENT_PLAN.name);
+  const [currentPlan, setCurrentPlan] = useState<CurrentPlan | null>(null);
+  const [quotas, setQuotas] = useState<UsageQuota[]>([]);
+  const [tiers, setTiers] = useState<PlanTier[]>([]);
+  const [upgrading, setUpgrading] = useState(false);
+
+  const planName = currentPlan?.name ?? "";
+
+  async function refreshPlan() {
+    const [plan, usage, planTiers] = await Promise.all([
+      plansApi.getCurrentPlan(),
+      plansApi.getUsage(),
+      plansApi.listTiers(),
+    ]);
+    setCurrentPlan(plan);
+    setTiers(planTiers);
+    setQuotas(
+      usage.map((row) => ({
+        ...row,
+        icon: QUOTA_ICONS[row.id] ?? row.icon ?? Search,
+        description: row.description ?? row.label,
+      }))
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const [plan, usage] = await Promise.all([
-          plansApi.getCurrentPlan(),
-          plansApi.getUsage(),
-        ]);
-        if (cancelled) return;
-        setCurrentPlan(plan);
-        setPlanName(plan.name);
-        const withIcons = usage.map((row) => {
-          const mock = USAGE_QUOTAS.find((item) => item.id === row.id);
-          return {
-            ...row,
-            icon: mock?.icon ?? row.icon ?? Search,
-            description: mock?.description ?? row.description ?? row.label,
-          };
-        });
-        setQuotas(withIcons.length > 0 ? withIcons : USAGE_QUOTAS);
+        await refreshPlan();
       } catch (err) {
         if (!cancelled) setMessage(getApiErrorMessage(err));
       }
@@ -711,9 +725,107 @@ export function PlansWorkspace() {
     };
   }, []);
 
+  useRealtimeRefresh("usage.updated", () => {
+    void refreshPlan().catch(() => undefined);
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("billing_return") === "dodo") {
+      const orderId = params.get("order");
+      void (async () => {
+        try {
+          if (orderId) {
+            const order = await (
+              await import("@/lib/api")
+            ).billingApi.getOrder(orderId);
+            if (String(order.status) === "paid") {
+              await refreshPlan();
+              setDialog("upgrade-success");
+            }
+          }
+        } catch {
+          setDialog("payment-failed");
+        } finally {
+          window.history.replaceState({}, "", "/dashboard/plans");
+        }
+      })();
+    }
+    if (params.get("billing_cancel") === "dodo") {
+      setDialog("payment-failed");
+      window.history.replaceState({}, "", "/dashboard/plans");
+    }
+  }, []);
+
   function flash(text: string) {
     setMessage(text);
     window.setTimeout(() => setMessage(null), 2400);
+  }
+
+  const exhaustedQuota = quotas.find(
+    (quota) => usageState(quota) === "Limit exhausted"
+  );
+
+  async function handleUpgradeCheckout() {
+    setUpgrading(true);
+    try {
+      const tiers = await plansApi.listTiers();
+      const target =
+        tiers.find((tier) => tier.name.toLowerCase() === "scale") ||
+        tiers.find((tier) => tier.name.toLowerCase() === "growth") ||
+        tiers[0];
+      const planId = target?.id;
+      if (!planId) throw new Error("No upgrade plan available");
+
+      const result = await plansApi.upgrade({
+        planId,
+        billingCycle: "monthly",
+        currency: "INR",
+        provider: "razorpay",
+      });
+
+      if ("_mockPaid" in result && result._mockPaid) {
+        await refreshPlan();
+        setDialog("upgrade-success");
+        flash("Mock upgrade complete.");
+        return;
+      }
+
+      if (result.checkout.provider === "dodo") {
+        window.location.href = result.checkout.checkoutUrl;
+        return;
+      }
+
+      try {
+        const payment = await openRazorpayCheckout({
+          checkout: result.checkout,
+          prefill: result.prefill,
+        });
+        const { billingApi } = await import("@/lib/api");
+        await billingApi.verifyRazorpay({
+          razorpay_order_id: payment.razorpay_order_id,
+          razorpay_payment_id: payment.razorpay_payment_id,
+          razorpay_signature: payment.razorpay_signature,
+          orderId: result.order.id,
+        });
+        await refreshPlan();
+        setDialog("upgrade-success");
+        flash("Payment verified. Plan upgraded.");
+      } catch (err) {
+        if (err instanceof RazorpayCheckoutDismissedError) {
+          setDialog(null);
+          return;
+        }
+        setDialog("payment-failed");
+        setMessage(getApiErrorMessage(err));
+      }
+    } catch (err) {
+      setDialog("payment-failed");
+      setMessage(getApiErrorMessage(err));
+    } finally {
+      setUpgrading(false);
+    }
   }
 
   return (
@@ -762,82 +874,88 @@ export function PlansWorkspace() {
       ) : null}
 
       {/* Exhausted banner */}
-      <div
-        role="alert"
-        className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3"
-      >
-        <AlertTriangle
-          aria-hidden
-          className="size-4 shrink-0 text-destructive"
-        />
-        <p className="min-w-0 flex-1 text-sm text-foreground">
-          <span className="font-medium">AI voice minutes exhausted</span> —
-          screening calls are paused until you top up or upgrade.
-        </p>
-        <Button size="xs" onClick={() => setDialog("quota")}>
-          View details
-        </Button>
-      </div>
+      {exhaustedQuota ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3"
+        >
+          <AlertTriangle
+            aria-hidden
+            className="size-4 shrink-0 text-destructive"
+          />
+          <p className="min-w-0 flex-1 text-sm text-foreground">
+            <span className="font-medium">
+              {exhaustedQuota.label} exhausted
+            </span>{" "}
+            — top up credits or upgrade to continue.
+          </p>
+          <Button size="xs" onClick={() => setDialog("quota")}>
+            View details
+          </Button>
+        </div>
+      ) : null}
 
       {/* Current plan */}
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-[15px] font-semibold text-foreground">
-                {planName} plan
-              </h2>
-              <Badge
-                text={currentPlan.status}
-                className="bg-success/10 text-success"
-              />
-            </div>
-            <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {(
-                [
-                  ["Billing cycle", currentPlan.billingCycle],
-                  ["Renewal date", currentPlan.renewalDate],
+      {currentPlan ? (
+        <section className="rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[15px] font-semibold text-foreground">
+                  {planName} plan
+                </h2>
+                <Badge
+                  text={currentPlan.status}
+                  className="bg-success/10 text-success"
+                />
+              </div>
+              <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {(
                   [
-                    "Workspace owner",
-                    `${currentPlan.owner} · ${currentPlan.ownerEmail}`,
-                  ],
-                  ["Seats", currentPlan.seats],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-xs text-muted-foreground">{label}</dt>
-                  <dd className="mt-0.5 text-sm font-medium text-foreground">
-                    {value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <p className="mt-3 text-sm text-muted-foreground">
-              <span className="font-semibold tabular-nums text-foreground">
-                {currentPlan.price}
-              </span>
-              {currentPlan.pricePeriod} · next invoice on{" "}
-              {currentPlan.renewalDate}
-            </p>
+                    ["Billing cycle", currentPlan.billingCycle],
+                    ["Renewal date", currentPlan.renewalDate],
+                    [
+                      "Workspace owner",
+                      `${currentPlan.owner} · ${currentPlan.ownerEmail}`,
+                    ],
+                    ["Seats", currentPlan.seats],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="mt-0.5 text-sm font-medium text-foreground">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-3 text-sm text-muted-foreground">
+                <span className="font-semibold tabular-nums text-foreground">
+                  {currentPlan.price}
+                </span>
+                {currentPlan.pricePeriod} · next invoice on{" "}
+                {currentPlan.renewalDate}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button size="sm" onClick={() => setDialog("upgrade")}>
+                <ArrowUpRight aria-hidden />
+                Upgrade Plan
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  flash("Billing portal opened. (UI preview — no provider)")
+                }
+              >
+                <CreditCard aria-hidden />
+                Manage Billing
+              </Button>
+            </div>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Button size="sm" onClick={() => setDialog("upgrade")}>
-              <ArrowUpRight aria-hidden />
-              Upgrade Plan
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                flash("Billing portal opened. (UI preview — no provider)")
-              }
-            >
-              <CreditCard aria-hidden />
-              Manage Billing
-            </Button>
-          </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       {/* Usage overview */}
       <section className="space-y-3">
@@ -863,6 +981,7 @@ export function PlansWorkspace() {
       <UsageTrendChart />
 
       <PlanComparison
+        tiers={tiers}
         onUpgrade={() => setDialog("upgrade")}
         onSales={() => setDialog("sales")}
       />
@@ -882,11 +1001,10 @@ export function PlansWorkspace() {
 
       <PlansDialogs
         kind={dialog}
+        upgrading={upgrading}
         onClose={() => setDialog(null)}
         onConfirmUpgrade={() => {
-          setPlanName("Scale");
-          setDialog("upgrade-success");
-          flash("Upgraded to Scale. (UI preview)");
+          void handleUpgradeCheckout();
         }}
       />
     </div>

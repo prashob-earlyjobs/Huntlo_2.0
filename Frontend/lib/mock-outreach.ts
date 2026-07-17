@@ -418,6 +418,7 @@ export const STEP_CHANNELS: Partial<Record<SequenceStepType, OutreachChannel>> =
   "Send Email": "Email",
   "Send WhatsApp": "WhatsApp",
   "Start AI Voice Call": "AI Voice",
+  "Send Scheduling Link": "Email",
 };
 
 export const SEND_WINDOWS = [
@@ -454,11 +455,46 @@ export const PERSONALIZATION_VARIABLES = [
   "{{current_role}}",
 ] as const;
 
+export const DELAY_UNITS = ["days", "hours", "minutes"] as const;
+export type DelayUnit = (typeof DELAY_UNITS)[number];
+
+/** Minutes option is for QA/dev short waits; always available in the unit dropdown. */
+export const DELAY_UNIT_OPTIONS: {
+  value: DelayUnit;
+  label: string;
+  max: number;
+}[] = [
+  { value: "days", label: "Days", max: 30 },
+  { value: "hours", label: "Hours", max: 168 },
+  { value: "minutes", label: "Minutes", max: 120 },
+];
+
+export function formatStepDelay(amount: number, unit: DelayUnit = "days"): string {
+  if (!amount || amount <= 0) return "Immediately";
+  const singular =
+    unit === "days" ? "day" : unit === "hours" ? "hour" : "minute";
+  const plural =
+    unit === "days" ? "days" : unit === "hours" ? "hours" : "minutes";
+  return `After ${amount} ${amount === 1 ? singular : plural}`;
+}
+
+export function delayAmountToMinutes(
+  amount: number,
+  unit: DelayUnit = "days"
+): number {
+  const value = Math.max(0, amount || 0);
+  if (unit === "minutes") return value;
+  if (unit === "hours") return value * 60;
+  return value * 24 * 60;
+}
+
 export interface SequenceStep {
   id: string;
   type: SequenceStepType;
-  /** Delay in days before this step runs (0 = immediately). */
+  /** Delay amount before this step runs (0 = immediately). Interpreted with delayUnit. */
   delayDays: number;
+  /** Unit for delayDays — pick one of days, hours, or minutes. */
+  delayUnit: DelayUnit;
   template: string;
   subject: string;
   body: string;
@@ -477,6 +513,7 @@ export function makeStep(type: SequenceStepType): SequenceStep {
     id: `step-${Date.now()}-${stepCounter}`,
     type,
     delayDays: type === "Send Email" ? 0 : 1,
+    delayUnit: "days",
     template: "Blank message",
     subject: "",
     body: "",

@@ -5,7 +5,17 @@ import { Command as CommandPrimitive } from "cmdk"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
-export function CommandDialog({ title, description, children, className, ...props }: React.ComponentProps<typeof Dialog> & { title?: string; description?: string; className?: string }) {
+export function CommandDialog({
+  title,
+  description,
+  children,
+  className,
+  ...props
+}: React.ComponentProps<typeof Dialog> & {
+  title?: string
+  description?: string
+  className?: string
+}) {
   return (
     <Dialog {...props}>
       <DialogContent className={className}>
@@ -15,7 +25,7 @@ export function CommandDialog({ title, description, children, className, ...prop
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>
         ) : null}
-        {children}
+        {children as React.ReactNode}
       </DialogContent>
     </Dialog>
   )

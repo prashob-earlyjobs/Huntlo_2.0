@@ -442,15 +442,14 @@ describe('Conversations — threading, duplicates, stop-on-reply, override', () 
       .set('X-Organization-Id', auth.organizationId)
       .send(payload);
     expect(first.status).toBe(200);
-    expect(first.body.data.ingested).toBe(1);
+    expect(first.body.received).toBe(true);
 
     const second = await agent
       .post('/api/v1/public/webhooks/meta-whatsapp')
       .set('X-Organization-Id', auth.organizationId)
       .send(payload);
     expect(second.status).toBe(200);
-    expect(second.body.data.duplicates).toBe(1);
-    expect(second.body.data.ingested).toBe(0);
+    expect(second.body.duplicate).toBe(true);
 
     const enrollment = await OutreachEnrollmentModel.findOne({ candidateId: candidate._id });
     expect(enrollment!.stopReason).toBe('candidate_opted_out');

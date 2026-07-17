@@ -2,13 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import {
-  AudioLines,
-  Bookmark,
   Briefcase,
-  CalendarClock,
   History as HistoryIcon,
   Search,
-  Send,
   User,
   type LucideIcon,
 } from "lucide-react";
@@ -25,8 +21,8 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { candidatePoolApi, jobsApi, sourcingApi } from "@/lib/api";
 import { NAV_ITEMS } from "@/lib/navigation";
-import { CANDIDATES, RECENT_SEARCHES } from "@/lib/mock-data";
 import { ROUTES, type AppRoute } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -39,210 +35,182 @@ type SearchResult = {
   icon: LucideIcon;
 };
 
-const SEARCH_RESULTS: SearchResult[] = [
-  ...CANDIDATES.map((candidate) => ({
-    id: `candidate-${candidate.id}`,
-    group: "Candidates",
-    title: candidate.name,
-    meta: `${candidate.title} · ${candidate.company} · ${candidate.location}`,
-    href: ROUTES.candidates,
-    icon: User,
-  })),
-  {
-    id: "job-1",
-    group: "Jobs",
-    title: "Senior Backend Engineer",
-    meta: "Active · Priya Sharma",
-    href: ROUTES.jobs,
-    icon: Briefcase,
-  },
-  {
-    id: "job-2",
-    group: "Jobs",
-    title: "Product Designer",
-    meta: "Draft · Rohan Mehta",
-    href: ROUTES.jobs,
-    icon: Briefcase,
-  },
-  {
-    id: "campaign-1",
-    group: "Campaigns",
-    title: "Backend Engineer — Sequence A",
-    meta: "Email · Running",
-    href: ROUTES.outreach,
-    icon: Send,
-  },
-  {
-    id: "campaign-2",
-    group: "Campaigns",
-    title: "Data Engineer — WhatsApp follow-up",
-    meta: "WhatsApp · Paused",
-    href: ROUTES.outreach,
-    icon: Send,
-  },
-  {
-    id: "list-1",
-    group: "Lists",
-    title: "Backend bench — Bengaluru",
-    meta: "48 candidates",
-    href: ROUTES.saved,
-    icon: Bookmark,
-  },
-  {
-    id: "screening-1",
-    group: "Screening",
-    title: "Priya Nair",
-    meta: "Qualified · 92 score",
-    href: ROUTES.screeningResults,
-    icon: AudioLines,
-  },
-  {
-    id: "interview-1",
-    group: "Interviews",
-    title: "Priya Nair",
-    meta: "Tomorrow, 11:00 AM · Technical",
-    href: ROUTES.interviews,
-    icon: CalendarClock,
-  },
-];
-
-const RESULT_GROUPS = [
-  "Candidates",
-  "Jobs",
-  "Campaigns",
-  "Lists",
-  "Screening",
-  "Interviews",
-] as const;
-
-function SearchResultItem({
-  result,
-  onSelect,
-}: {
-  result: SearchResult;
-  onSelect: () => void;
-}) {
-  const Icon = result.icon;
-  return (
-    <CommandItem
-      value={`${result.title} ${result.meta}`}
-      onSelect={onSelect}
-      className="items-start gap-2.5 py-2"
-    >
-      <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm text-foreground">{result.title}</span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {result.meta}
-        </span>
-      </span>
-    </CommandItem>
-  );
-}
+const NAV_RESULTS: SearchResult[] = NAV_ITEMS.map((item) => ({
+  id: `nav-${item.href}`,
+  group: "Go to",
+  title: item.title,
+  meta: item.description || item.title,
+  href: item.href as AppRoute,
+  icon: item.icon,
+}));
 
 export function GlobalSearch() {
-  const [open, setOpen] = useState(false);
   const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>(NAV_RESULTS);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setOpen((previous) => !previous);
       }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  function go(href: AppRoute) {
-    setOpen(false);
-    router.push(href);
-  }
+  useEffect(() => {
+    if (!open) return;
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(NAV_RESULTS);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        try {
+          const [candidates, jobs, history] = await Promise.all([
+            candidatePoolApi.list({ q, limit: 8 }).catch(() => []),
+            jobsApi.list({ q, limit: 8 }).catch(() => []),
+            sourcingApi.listHistory().catch(() => []),
+          ]);
+          if (cancelled) return;
+          const next: SearchResult[] = [
+            ...NAV_RESULTS.filter((item) =>
+              item.title.toLowerCase().includes(q.toLowerCase())
+            ),
+            ...candidates.slice(0, 8).map((candidate) => ({
+              id: `candidate-${candidate.id}`,
+              group: "Candidates",
+              title: candidate.name || "Candidate",
+              meta: [
+                candidate.currentRole,
+                candidate.currentCompany,
+                candidate.location,
+              ]
+                .filter(Boolean)
+                .join(" · "),
+              href: `/dashboard/candidates/${candidate.id}` as AppRoute,
+              icon: User,
+            })),
+            ...jobs.slice(0, 8).map((job) => ({
+              id: `job-${job.id}`,
+              group: "Jobs",
+              title: job.title || "Job",
+              meta: String(job.status || ""),
+              href: `/dashboard/jobs/${job.id}` as AppRoute,
+              icon: Briefcase,
+            })),
+            ...history.slice(0, 5).map((session) => ({
+              id: `session-${session.id}`,
+              group: "Recent searches",
+              title: session.query || "Search session",
+              meta: "Sourcing history",
+              href: `/dashboard/sessions/${session.id}` as AppRoute,
+              icon: HistoryIcon,
+            })),
+          ];
+          setResults(next);
+        } catch {
+          if (!cancelled) setResults(NAV_RESULTS);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, query]);
+
+  const groups = Array.from(new Set(results.map((item) => item.group)));
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
+      <Button
+        variant="outline"
+        size="sm"
         className={cn(
-          "hidden h-8 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 text-left text-[13px] text-muted-foreground outline-none transition-colors transition-ui",
-          "hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 md:flex lg:max-w-md"
+          "hidden h-8 w-56 justify-start gap-2 text-muted-foreground md:inline-flex"
         )}
+        onClick={() => setOpen(true)}
       >
-        <Search aria-hidden className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Search…</span>
-        <kbd className="hidden rounded border border-border bg-background px-1 py-px font-mono text-[10px] text-muted-foreground lg:inline">
+        <Search aria-hidden className="size-3.5" />
+        <span className="flex-1 text-left">Search…</span>
+        <kbd className="rounded border border-border bg-muted px-1.5 text-[10px]">
           ⌘K
         </kbd>
-      </button>
+      </Button>
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
+        className="md:hidden"
         aria-label="Search"
-        className="text-muted-foreground md:hidden"
         onClick={() => setOpen(true)}
       >
         <Search aria-hidden />
       </Button>
 
-      <CommandDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="Search"
-        description="Search candidates, jobs, campaigns, and interviews."
-        className="sm:max-w-lg max-sm:top-0 max-sm:left-0 max-sm:h-svh max-sm:max-w-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none"
-      >
-        <Command className="max-sm:h-svh **:data-[slot=command-list]:max-sm:max-h-none">
-          <CommandInput placeholder="Search candidates, jobs, campaigns…" />
+      <CommandDialog open={open} onOpenChange={setOpen}>
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search candidates, jobs, pages…"
+            value={query}
+            onValueChange={setQuery}
+          />
           <CommandList>
-            <CommandEmpty>No matches. Try a name, role, or campaign.</CommandEmpty>
-
-            <CommandGroup heading="Recent">
-              {RECENT_SEARCHES.map((search) => (
-                <CommandItem
-                  key={search}
-                  value={search}
-                  onSelect={() => go(ROUTES.search)}
-                  className="gap-2"
-                >
-                  <HistoryIcon aria-hidden className="size-4 text-muted-foreground" />
-                  <span className="truncate text-sm">{search}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-
-            <CommandSeparator />
-
-            {RESULT_GROUPS.map((group) => (
-              <CommandGroup key={group} heading={group}>
-                {SEARCH_RESULTS.filter((result) => result.group === group).map(
-                  (result) => (
-                    <SearchResultItem
-                      key={result.id}
-                      result={result}
-                      onSelect={() => go(result.href)}
-                    />
-                  )
-                )}
-              </CommandGroup>
+            <CommandEmpty>
+              {loading ? "Searching…" : "No results found."}
+            </CommandEmpty>
+            {groups.map((group, index) => (
+              <div key={group}>
+                {index > 0 ? <CommandSeparator /> : null}
+                <CommandGroup heading={group}>
+                  {results
+                    .filter((item) => item.group === group)
+                    .map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.title} ${item.meta}`}
+                        onSelect={() => {
+                          setOpen(false);
+                          router.push(item.href);
+                        }}
+                      >
+                        <item.icon aria-hidden className="size-3.5" />
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {item.meta}
+                        </span>
+                      </CommandItem>
+                    ))}
+                </CommandGroup>
+              </div>
             ))}
-
-            <CommandSeparator />
-
-            <CommandGroup heading="Go to">
-              {NAV_ITEMS.map((item) => (
-                <CommandItem
-                  key={item.href}
-                  value={item.title}
-                  onSelect={() => go(item.href)}
-                  className="gap-2 text-muted-foreground"
-                >
-                  <item.icon aria-hidden className="size-4 opacity-70" />
-                  <span className="text-sm">{item.title}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {!loading && query.trim().length >= 2 ? (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Actions">
+                  <CommandItem
+                    onSelect={() => {
+                      setOpen(false);
+                      router.push(`${ROUTES.search}?q=${encodeURIComponent(query.trim())}`);
+                    }}
+                  >
+                    <Search aria-hidden className="size-3.5" />
+                    Search candidates for “{query.trim()}”
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            ) : null}
           </CommandList>
         </Command>
       </CommandDialog>

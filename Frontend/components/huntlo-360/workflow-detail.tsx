@@ -1,21 +1,28 @@
 "use client";
 
 import {
+  Activity,
   AlertTriangle,
+  AudioLines,
+  Bookmark,
   Briefcase,
   CalendarClock,
+  CheckCircle2,
   ChevronRight,
   Copy,
   Download,
   Eye,
   Link2Off,
+  MessagesSquare,
   MoreHorizontal,
   Pause,
   Pencil,
   Play,
+  Send,
   Trash2,
   UserPlus,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -23,7 +30,6 @@ import { useEffect, useState } from "react";
 import { ConversationsPanel } from "@/components/conversations/conversations-panel";
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
-import { ChartCard } from "@/components/shared/chart-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,13 +55,6 @@ import {
 } from "@/components/ui/tooltip";
 import { getApiErrorMessage, huntlo360Api } from "@/lib/api";
 import {
-  WORKFLOW_ACTIVITY,
-  WORKFLOW_INTERVIEWS,
-  WORKFLOW_SCREENINGS,
-  WORKFLOW_SETTINGS,
-  WORKFLOW_STAGE_CHART,
-  WORKFLOW_WEEKLY_CHART,
-  workflowJourney,
   type Workflow360,
   type WorkflowCandidate,
   type WorkflowException,
@@ -119,6 +118,29 @@ const SCHEDULING_CLASSES: Record<WorkflowCandidate["scheduling"], string> = {
 /* ------------------------------------------------------------------ */
 /* Journey                                                              */
 /* ------------------------------------------------------------------ */
+
+function workflowJourney(
+  workflow: Workflow360
+): { id: string; label: string; count: number; icon: LucideIcon }[] {
+  return [
+    { id: "outreach", label: "Outreach", count: workflow.candidates, icon: Send },
+    { id: "reply", label: "Reply", count: workflow.replied, icon: MessagesSquare },
+    {
+      id: "qualification",
+      label: "Qualification",
+      count: workflow.qualified,
+      icon: CheckCircle2,
+    },
+    { id: "screening", label: "Screening", count: workflow.screened, icon: AudioLines },
+    { id: "shortlist", label: "Shortlist", count: workflow.shortlisted, icon: Bookmark },
+    {
+      id: "scheduling",
+      label: "Scheduling",
+      count: workflow.scheduled,
+      icon: CalendarClock,
+    },
+  ];
+}
 
 function Journey({ workflow }: { workflow: Workflow360 }) {
   const stages = workflowJourney(workflow);
@@ -414,104 +436,21 @@ function CandidatesTab({ candidates }: { candidates: WorkflowCandidate[] }) {
 
 function ScreeningTab() {
   return (
-    <section className="overflow-x-auto rounded-xl border border-border bg-card">
-      <Table>
-        <caption className="sr-only">AI voice screening attempts</caption>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className={HEAD}>Candidate</TableHead>
-            <TableHead className={HEAD}>Attempt</TableHead>
-            <TableHead className={HEAD}>Duration</TableHead>
-            <TableHead className={`${HEAD} text-right`}>Score</TableHead>
-            <TableHead className={HEAD}>Outcome</TableHead>
-            <TableHead className={HEAD}>When</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {WORKFLOW_SCREENINGS.map((screening) => (
-            <TableRow key={screening.id}>
-              <TableCell className="py-2.5 text-sm font-medium whitespace-nowrap text-foreground">
-                {screening.candidate}
-              </TableCell>
-              <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                {screening.attempt}
-              </TableCell>
-              <TableCell className="py-2.5 text-sm whitespace-nowrap tabular-nums text-muted-foreground">
-                {screening.duration ?? "—"}
-              </TableCell>
-              <TableCell className="py-2.5 text-right text-sm font-medium tabular-nums">
-                {screening.score !== null ? (
-                  <span
-                    className={
-                      screening.score >= 75 ? "text-success" : "text-warning"
-                    }
-                  >
-                    {screening.score}/100
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                {screening.outcome}
-              </TableCell>
-              <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                {screening.time}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </section>
+    <EmptyState
+      icon={AudioLines}
+      title="No screening data"
+      description="AI voice screening attempts for this workflow will appear here."
+    />
   );
 }
 
-const INTERVIEW_CLASSES: Record<string, string> = {
-  Confirmed: "bg-success/10 text-success",
-  "Awaiting booking": "bg-info/10 text-info",
-  Expired: "bg-warning/10 text-warning",
-};
-
 function InterviewsTab() {
   return (
-    <section className="overflow-x-auto rounded-xl border border-border bg-card">
-      <Table>
-        <caption className="sr-only">Interviews scheduled by this workflow</caption>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className={HEAD}>Candidate</TableHead>
-            <TableHead className={HEAD}>Event type</TableHead>
-            <TableHead className={HEAD}>Slot</TableHead>
-            <TableHead className={HEAD}>Interviewer</TableHead>
-            <TableHead className={HEAD}>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {WORKFLOW_INTERVIEWS.map((interview) => (
-            <TableRow key={interview.id}>
-              <TableCell className="py-2.5 text-sm font-medium whitespace-nowrap text-foreground">
-                {interview.candidate}
-              </TableCell>
-              <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                {interview.eventType}
-              </TableCell>
-              <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                {interview.slot}
-              </TableCell>
-              <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                {interview.interviewer}
-              </TableCell>
-              <TableCell className="py-2.5">
-                <Badge
-                  text={interview.status}
-                  className={INTERVIEW_CLASSES[interview.status]}
-                />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </section>
+    <EmptyState
+      icon={CalendarClock}
+      title="No interviews yet"
+      description="Interviews scheduled by this workflow will appear here."
+    />
   );
 }
 
@@ -561,8 +500,28 @@ function AnalyticsTab({ workflow }: { workflow: Workflow360 }) {
         ))}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard chart={WORKFLOW_STAGE_CHART} />
-        <ChartCard chart={WORKFLOW_WEEKLY_CHART} />
+        <section className="rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">
+            Stage breakdown
+          </h3>
+          <EmptyState
+            className="mt-4"
+            icon={Activity}
+            title="Stage analytics unavailable"
+            description="Stage breakdown charts are not available for this workflow yet."
+          />
+        </section>
+        <section className="rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">
+            Weekly progress
+          </h3>
+          <EmptyState
+            className="mt-4"
+            icon={Activity}
+            title="Trend analytics unavailable"
+            description="Weekly progress charts are not available for this workflow yet."
+          />
+        </section>
       </div>
     </div>
   );
@@ -570,65 +529,21 @@ function AnalyticsTab({ workflow }: { workflow: Workflow360 }) {
 
 function ActivityTab() {
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
-      <ol className="space-y-0">
-        {WORKFLOW_ACTIVITY.map((entry, index) => (
-          <li key={entry.id} className="relative flex gap-3 pb-5 last:pb-0">
-            {index < WORKFLOW_ACTIVITY.length - 1 ? (
-              <span
-                aria-hidden
-                className="absolute top-6 left-[11px] h-full w-px bg-border"
-              />
-            ) : null}
-            <span className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
-              <entry.icon aria-hidden className="size-3 text-muted-foreground" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">{entry.title}</p>
-              <p className="text-xs text-muted-foreground">{entry.detail}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {entry.time}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
+    <EmptyState
+      icon={Activity}
+      title="No activity yet"
+      description="Workflow events will appear here as candidates progress."
+    />
   );
 }
 
 function SettingsTab() {
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <div className="border-b border-border px-4 py-3">
-        <h3 className="text-sm font-semibold text-foreground">
-          Workflow settings
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          Pause the workflow to edit outreach, qualification, screening or
-          scheduling behaviour.
-        </p>
-      </div>
-      <dl className="divide-y divide-border">
-        {WORKFLOW_SETTINGS.map((setting) => (
-          <div
-            key={setting.id}
-            className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
-          >
-            <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{setting.label}</dt>
-              <dd className="text-sm font-medium text-foreground">
-                {setting.value}
-              </dd>
-            </div>
-            <Button size="xs" variant="ghost">
-              <Pencil aria-hidden />
-              Edit
-            </Button>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <EmptyState
+      icon={Pencil}
+      title="No settings available"
+      description="Workflow configuration will appear here once available."
+    />
   );
 }
 

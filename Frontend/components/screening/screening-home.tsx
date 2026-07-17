@@ -12,9 +12,10 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
   FilterPopover,
@@ -170,15 +171,18 @@ export function ScreeningHome() {
   const [ownerFilter, setOwnerFilter] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
+  const refresh = useCallback(async () => {
+    const next = await screeningApi.listBatches({ limit: 100 });
+    setBatches(next);
+    setError(null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const next = await screeningApi.listBatches({ limit: 100 });
-        if (cancelled) return;
-        setBatches(next);
-        setError(null);
+        await refresh();
       } catch (err) {
         if (cancelled) return;
         setError(getApiErrorMessage(err, "Unable to load screenings."));
@@ -189,7 +193,11 @@ export function ScreeningHome() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refresh]);
+
+  useRealtimeRefresh("screening.result.updated", () => {
+    void refresh().catch(() => undefined);
+  });
 
   const owners = useMemo(
     () => [...new Set(batches.map((batch) => batch.owner))],
@@ -222,10 +230,10 @@ export function ScreeningHome() {
     window.setTimeout(() => setMessage(null), 2400);
   }
 
-  async function refresh(messageText: string) {
+  async function reloadWithMessage(messageText: string) {
     flash(messageText);
     try {
-      setBatches(await screeningApi.listBatches({ limit: 100 }));
+      await refresh();
     } catch {
       // keep list
     }
@@ -410,7 +418,7 @@ export function ScreeningHome() {
                       {batch.owner}
                     </TableCell>
                     <TableCell className="py-2.5 text-right">
-                      <ScreeningRowActions batch={batch} onAction={(text) => void refresh(text)} />
+                      <ScreeningRowActions batch={batch} onAction={(text) => void reloadWithMessage(text)} />
                     </TableCell>
                   </TableRow>
                 ))}

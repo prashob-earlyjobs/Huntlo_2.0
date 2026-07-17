@@ -55,6 +55,11 @@ export function createImportUpload() {
         cb(AppError.badRequest('Only .csv, .xlsx, and .xls files are allowed'));
         return;
       }
+      const mime = String(file.mimetype || '').toLowerCase();
+      if (mime && !ALLOWED_MIME_TYPES.has(mime)) {
+        cb(AppError.badRequest('Unsupported file content type'));
+        return;
+      }
       cb(null, true);
     },
   });

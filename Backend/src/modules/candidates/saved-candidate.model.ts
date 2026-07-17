@@ -95,6 +95,7 @@ savedCandidateSchema.index({ organizationId: 1, status: 1, lastActivityAt: -1 })
 savedCandidateSchema.index({ organizationId: 1, ownerUserId: 1 });
 savedCandidateSchema.index({ organizationId: 1, assignedUserId: 1 });
 savedCandidateSchema.index({ organizationId: 1, listIds: 1 });
+savedCandidateSchema.index({ organizationId: 1, name: 1 });
 savedCandidateSchema.index(
   { organizationId: 1, email: 1 },
   { sparse: true, partialFilterExpression: { email: { $type: 'string' } } }

@@ -149,6 +149,8 @@ export const sequenceTemplatesService = {
       steps: input.steps.map((step) => ({
         ...step,
         channel: step.channel ?? null,
+        delayDays: step.delayDays ?? 0,
+        delayUnit: step.delayUnit ?? 'days',
         templateId: step.templateId ?? null,
         subject: step.subject ?? null,
         body: step.body ?? null,
@@ -193,6 +195,7 @@ export const sequenceTemplatesService = {
         type: step.type,
         channel: step.channel ?? null,
         delayDays: step.delayDays ?? 0,
+        delayUnit: step.delayUnit ?? 'days',
         templateId: step.templateId ?? null,
         subject: step.subject ?? null,
         body: step.body ?? null,

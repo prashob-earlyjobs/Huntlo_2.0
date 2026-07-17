@@ -4,7 +4,7 @@ export const openApiSpec = {
     title: 'Huntlo API',
     version: '0.1.0',
     description:
-      'Huntlo agentic AI recruiting platform API. Foundation endpoints only — feature modules coming in later phases.',
+      'Huntlo agentic AI recruiting platform API. Candidate search uses annotate → apply → poll → persist → WebSocket.',
   },
   servers: [
     {
@@ -15,6 +15,11 @@ export const openApiSpec = {
   tags: [
     { name: 'Health', description: 'Liveness and readiness probes' },
     { name: 'Meta', description: 'API metadata' },
+    {
+      name: 'Candidate Search',
+      description:
+        'Annotate → filter drawer → apply → poll → persist → WebSocket candidate search flow',
+    },
   ],
   paths: {
     '/health': {
@@ -65,6 +70,94 @@ export const openApiSpec = {
         },
       },
     },
+    '/candidates/search/annotate': {
+      post: {
+        tags: ['Candidate Search'],
+        summary: 'Annotate a natural-language requirement into filterForm',
+        description: 'Does not consume candidate_search quota.',
+        responses: {
+          '200': { description: 'filterForm for the advanced-filter drawer' },
+        },
+      },
+    },
+    '/candidates/search/apply': {
+      post: {
+        tags: ['Candidate Search'],
+        summary: 'Apply filters and create/update a Future Jobs sourcing session',
+        description:
+          'Primary search endpoint. Consumes one candidate_search quota. sessionId = Future Jobs id; savedSessionId = Mongo id.',
+        responses: {
+          '200': {
+            description:
+              'Candidates on success, or sessionPending when Future Jobs statusCode is 207',
+          },
+          '429': { description: 'SEARCH_QUOTA_EXHAUSTED' },
+          '422': { description: 'INVALID_SEARCH_PROMPT / INVALID_FILTER_FORM' },
+        },
+      },
+    },
+    '/candidates/search': {
+      post: {
+        tags: ['Candidate Search'],
+        summary: 'Legacy one-shot search',
+        description: 'LEGACY — prefer POST /candidates/search/apply. Same implementation.',
+        responses: {
+          '200': { description: 'Same as apply' },
+        },
+      },
+    },
+    '/candidates/filters/autocomplete': {
+      get: {
+        tags: ['Candidate Search'],
+        summary: 'Filter autocomplete suggestions',
+        responses: {
+          '200': { description: 'Suggestions list' },
+          '400': { description: 'AUTOCOMPLETE_QUERY_TOO_SHORT' },
+        },
+      },
+    },
+    '/candidates/session/{sessionId}/profiles': {
+      get: {
+        tags: ['Candidate Search'],
+        summary: 'Reload session profiles (MongoDB first)',
+        responses: {
+          '200': { description: 'fromStored true when Mongo has candidates' },
+        },
+      },
+    },
+    '/candidates/session/{sessionId}/fetch-more': {
+      post: {
+        tags: ['Candidate Search'],
+        summary: 'Request more candidates (consumes one search quota)',
+        responses: {
+          '200': { description: 'Merged candidates; never drops stored rows' },
+          '429': { description: 'SEARCH_QUOTA_EXHAUSTED' },
+        },
+      },
+    },
+    '/candidates/session/{sessionId}/stored-candidates': {
+      get: {
+        tags: ['Candidate Search'],
+        summary: 'MongoDB-only stored candidates (primary reopen path)',
+        responses: {
+          '200': { description: 'metaOnly / all / paginated modes' },
+        },
+      },
+    },
+    '/candidates/sessions': {
+      get: {
+        tags: ['Candidate Search'],
+        summary: 'Search history',
+        responses: { '200': { description: 'Session summaries' } },
+      },
+    },
+    '/candidates/recent-searches': {
+      get: {
+        tags: ['Candidate Search'],
+        summary: 'Compact recent searches',
+        responses: { '200': { description: 'Recent search shortcuts' } },
+      },
+    },
   },
   components: {
     schemas: {
@@ -103,6 +196,38 @@ export const openApiSpec = {
             },
           },
           requestId: { type: 'string' },
+        },
+      },
+      CandidateSearchPollEvent: {
+        type: 'object',
+        description: 'WebSocket event candidates.search.poll',
+        properties: {
+          type: { type: 'string', example: 'candidates.search.poll' },
+          sessionId: { type: 'string', description: 'Future Jobs session id' },
+          savedSessionId: { type: 'string', description: 'Mongo SourcingSession id' },
+          status: {
+            type: 'string',
+            enum: ['polling', 'partial', 'completed', 'failed', 'cancelled'],
+          },
+          polling: { type: 'boolean' },
+          newCandidateCount: { type: 'integer' },
+          totalDocs: { type: 'integer' },
+          canFetchMore: { type: 'boolean' },
+          regionExpandFallbackUsed: { type: 'boolean' },
+          error: { type: 'string', nullable: true },
+          timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+      SearchPendingResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: false },
+          sessionPending: { type: 'boolean', example: true },
+          fjStatusCode: { type: 'integer', example: 207 },
+          sessionId: { type: 'string' },
+          savedSessionId: { type: 'string' },
+          message: { type: 'string' },
+          filterForm: { type: 'object' },
         },
       },
     },

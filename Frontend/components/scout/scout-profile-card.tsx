@@ -16,7 +16,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
@@ -33,10 +33,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { LIST_NAMES } from "@/lib/mock-candidates";
 import type { ScoutProfile } from "@/lib/mock-scout";
-import { getApiErrorMessage, peopleScoutApi } from "@/lib/api";
-import { REVEAL_COSTS, REVEAL_QUOTA } from "@/lib/mock-sessions";
+import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api";
+import { REVEAL_COSTS, useRevealQuota } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -123,6 +122,23 @@ export function ScoutProfileCard({
   const [linkCopied, setLinkCopied] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
+  const [listNames, setListNames] = useState<string[]>([]);
+  const revealQuota = useRevealQuota();
+
+  useEffect(() => {
+    let cancelled = false;
+    void candidatePoolApi
+      .listLists()
+      .then((lists) => {
+        if (!cancelled) setListNames(lists.map((list) => list.name));
+      })
+      .catch(() => {
+        // Leave the list picker empty when the lists API is unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function flash(message: string) {
     setFeedback(message);
@@ -247,14 +263,18 @@ export function ScoutProfileCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuLabel>Add to list</DropdownMenuLabel>
-                {LIST_NAMES.map((list) => (
-                  <DropdownMenuItem
-                    key={list}
-                    onClick={() => flash(`Added ${profile.name} to “${list}”.`)}
-                  >
-                    {list}
-                  </DropdownMenuItem>
-                ))}
+                {listNames.length === 0 ? (
+                  <DropdownMenuItem disabled>No lists yet</DropdownMenuItem>
+                ) : (
+                  listNames.map((list) => (
+                    <DropdownMenuItem
+                      key={list}
+                      onClick={() => flash(`Added ${profile.name} to “${list}”.`)}
+                    >
+                      {list}
+                    </DropdownMenuItem>
+                  ))
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
@@ -428,7 +448,7 @@ export function ScoutProfileCard({
                     </Button>
                   }
                   title={`Reveal ${profile.name.split(" ")[0]}’s email?`}
-                  description={`This uses ${REVEAL_COSTS.email} email credits. You have ${REVEAL_QUOTA.emailRemaining.toLocaleString("en-IN")} of ${REVEAL_QUOTA.emailTotal.toLocaleString("en-IN")} email reveals remaining this cycle.`}
+                  description={`This uses ${REVEAL_COSTS.email} email credits. You have ${revealQuota.emailRemaining.toLocaleString("en-IN")} of ${revealQuota.emailTotal.toLocaleString("en-IN")} email reveals remaining this cycle.`}
                   confirmLabel={`Reveal for ${REVEAL_COSTS.email} credits`}
                   onConfirm={() => void handleReveal("email")}
                 />
@@ -457,7 +477,7 @@ export function ScoutProfileCard({
                     </Button>
                   }
                   title={`Reveal ${profile.name.split(" ")[0]}’s phone?`}
-                  description={`This uses ${REVEAL_COSTS.mobile} mobile credits. You have ${REVEAL_QUOTA.mobileRemaining.toLocaleString("en-IN")} of ${REVEAL_QUOTA.mobileTotal.toLocaleString("en-IN")} mobile reveals remaining this cycle.`}
+                  description={`This uses ${REVEAL_COSTS.mobile} mobile credits. You have ${revealQuota.mobileRemaining.toLocaleString("en-IN")} of ${revealQuota.mobileTotal.toLocaleString("en-IN")} mobile reveals remaining this cycle.`}
                   confirmLabel={`Reveal for ${REVEAL_COSTS.mobile} credits`}
                   onConfirm={() => void handleReveal("mobile")}
                 />

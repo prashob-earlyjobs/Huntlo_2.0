@@ -83,6 +83,7 @@ export type ApiHuntlo360Exception = {
 export type WorkflowCreateInput = {
   name: string;
   jobId?: string | null;
+  ownerUserId?: string | null;
   candidateSource?: {
     type?: string;
     listId?: string | null;
@@ -392,7 +393,7 @@ const mockHuntlo360Api: Huntlo360Api = {
       name: input.name,
       jobId: input.jobId ?? null,
       jobTitle: null,
-      ownerUserId: "mock",
+      ownerUserId: input.ownerUserId ?? "mock",
       owner: "You",
       status: "Draft",
       statusRaw: "draft",

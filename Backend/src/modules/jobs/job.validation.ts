@@ -101,3 +101,8 @@ export const listJobsQuerySchema = z.object({
 export type CreateJobInput = z.infer<typeof createJobSchema>;
 export type UpdateJobInput = z.infer<typeof updateJobSchema>;
 export type ListJobsQuery = z.infer<typeof listJobsQuerySchema>;
+
+export const parseJdSchema = z.object({
+  jdText: z.string().trim().min(40, 'Paste a fuller job description (at least 40 characters).').max(50_000),
+});
+export type ParseJdInput = z.infer<typeof parseJdSchema>;

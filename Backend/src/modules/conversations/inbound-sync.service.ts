@@ -440,7 +440,7 @@ export async function classifyAndAttach(input: {
     existing.intent = result.intent;
     existing.extractedVariables = result.extractedVariables;
     existing.confidence = result.confidence;
-    existing.model = result.model;
+    (existing as unknown as { model: string }).model = result.model;
     existing.suggestedQualificationStatus = result.suggestedQualificationStatus;
     existing.audit.push({
       action: 'ai.reclassified',

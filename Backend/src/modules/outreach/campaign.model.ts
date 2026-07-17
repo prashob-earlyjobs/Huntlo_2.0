@@ -28,11 +28,33 @@ export const SEQUENCE_STEP_TYPES = [
 ] as const;
 export type SequenceStepType = (typeof SEQUENCE_STEP_TYPES)[number];
 
+export const DELAY_UNITS = ['days', 'hours', 'minutes'] as const;
+export type DelayUnit = (typeof DELAY_UNITS)[number];
+
+export function sequenceDelayToMs(
+  amount: number,
+  unit: DelayUnit | string | null | undefined
+): number {
+  const value = Math.max(0, Number(amount) || 0);
+  switch (unit) {
+    case 'minutes':
+      return value * 60 * 1000;
+    case 'hours':
+      return value * 60 * 60 * 1000;
+    case 'days':
+    default:
+      return value * 24 * 60 * 60 * 1000;
+  }
+}
+
 export type CampaignSequenceStep = {
   id: string;
   order: number;
   type: SequenceStepType;
+  /** Numeric delay amount; interpreted with delayUnit. */
   delayDays: number;
+  /** Unit for delayDays. Defaults to days for backward compatibility. */
+  delayUnit: 'days' | 'hours' | 'minutes';
   templateId: string | null;
   subject: string | null;
   body: string | null;
@@ -97,6 +119,7 @@ export type OutreachCampaignDocument = Document & {
   jobId: mongoose.Types.ObjectId | null;
   name: string;
   description: string | null;
+  objective: string | null;
   sourceModule: CampaignSourceModule;
   campaignType: CampaignType;
   status: CampaignStatus;
@@ -142,6 +165,11 @@ const sequenceStepSchema = new Schema(
     order: { type: Number, required: true, min: 0 },
     type: { type: String, enum: SEQUENCE_STEP_TYPES, required: true },
     delayDays: { type: Number, default: 0, min: 0 },
+    delayUnit: {
+      type: String,
+      enum: ['days', 'hours', 'minutes'],
+      default: 'days',
+    },
     templateId: { type: String, default: null },
     subject: { type: String, default: null, maxlength: 300 },
     body: { type: String, default: null, maxlength: 20000 },
@@ -203,6 +231,7 @@ const outreachCampaignSchema = new Schema<OutreachCampaignDocument>(
     jobId: { type: Schema.Types.ObjectId, ref: 'Job', default: null, index: true },
     name: { type: String, required: true, trim: true, maxlength: 200 },
     description: { type: String, default: null, maxlength: 4000 },
+    objective: { type: String, default: null, maxlength: 500 },
     sourceModule: {
       type: String,
       enum: CAMPAIGN_SOURCE_MODULES,

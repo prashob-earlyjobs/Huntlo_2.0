@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
-import { useState } from "react";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import {
   DropdownMenu,
@@ -16,16 +16,50 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { WORKSPACES } from "@/lib/mock-data";
+import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "WS";
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
+}
 
 export function WorkspaceSwitcher({
   collapsed = false,
 }: {
   collapsed?: boolean;
 }) {
-  const [activeId, setActiveId] = useState(WORKSPACES[0].id);
-  const active = WORKSPACES.find((workspace) => workspace.id === activeId)!;
+  const { organization, setWorkspace } = useAuth();
+  const workspaces = useMemo(() => {
+    if (!organization) return [];
+    return [
+      {
+        id: organization.id,
+        name: organization.name,
+        plan: organization.plan || "Plan",
+        initials: initialsFromName(organization.name),
+      },
+    ];
+  }, [organization]);
+
+  const [activeId, setActiveId] = useState(workspaces[0]?.id ?? "");
+  const active =
+    workspaces.find((workspace) => workspace.id === activeId) ?? workspaces[0];
+
+  if (!active) {
+    return (
+      <div
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-muted-foreground",
+          collapsed && "size-9 justify-center p-0"
+        )}
+      >
+        {collapsed ? "…" : "No workspace"}
+      </div>
+    );
+  }
 
   const trigger = (
     <DropdownMenuTrigger
@@ -69,30 +103,24 @@ export function WorkspaceSwitcher({
       )}
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-        {WORKSPACES.map((workspace) => (
+        <DropdownMenuSeparator />
+        {workspaces.map((workspace) => (
           <DropdownMenuItem
             key={workspace.id}
-            onClick={() => setActiveId(workspace.id)}
+            onClick={() => {
+              setActiveId(workspace.id);
+              setWorkspace(workspace.id);
+            }}
           >
-            <span className="flex size-5 items-center justify-center rounded bg-muted text-[9px] font-medium text-muted-foreground">
+            <span className="flex size-6 items-center justify-center rounded bg-muted text-[10px] font-medium">
               {workspace.initials}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px]">{workspace.name}</span>
-              <span className="block truncate text-[11px] text-muted-foreground">
-                {workspace.plan}
-              </span>
-            </span>
-            {workspace.id === activeId ? (
+            <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
+            {workspace.id === active.id ? (
               <Check aria-hidden className="size-3.5 text-primary" />
             ) : null}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <Plus aria-hidden />
-          Create workspace
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

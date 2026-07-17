@@ -19,7 +19,7 @@ export const INTENT_LABELS = [
 ] as const;
 export type IntentLabel = (typeof INTENT_LABELS)[number];
 
-export type ReplyClassificationDocument = Document & {
+export type ReplyClassificationDocument = Omit<Document, 'model'> & {
   organizationId: mongoose.Types.ObjectId;
   threadId: mongoose.Types.ObjectId;
   messageId: mongoose.Types.ObjectId;

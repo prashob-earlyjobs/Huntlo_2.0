@@ -17,10 +17,14 @@ import {
   revealEmail,
   revealMobile,
 } from './candidate.controller.js';
+import { candidateSearchRouter } from './search/index.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
 
 export const candidatesRouter = Router();
+
+// Candidate search flow (annotate → apply → profiles) — static paths first
+candidatesRouter.use(candidateSearchRouter);
 
 // Static paths BEFORE /:candidateId
 candidatesRouter.post(

@@ -153,6 +153,10 @@ const mockSchedulingApi: SchedulingApi = {
     const { AVAILABILITY_DEFAULTS, DEFAULT_WEEKLY_HOURS } = await import(
       "@/lib/mock-schedule"
     );
+    const parseNum = (value: string, fallback: number) => {
+      const match = String(value).match(/\d+/);
+      return match ? Number(match[0]) : fallback;
+    };
     return {
       userId: "me",
       organizationId: "org",
@@ -160,11 +164,11 @@ const mockSchedulingApi: SchedulingApi = {
       weeklyHours: DEFAULT_WEEKLY_HOURS,
       dateOverrides: [],
       unavailableDates: [],
-      bufferBefore: AVAILABILITY_DEFAULTS.bufferBefore,
-      bufferAfter: AVAILABILITY_DEFAULTS.bufferAfter,
-      minimumNotice: AVAILABILITY_DEFAULTS.minNotice,
-      maximumBookingWindow: AVAILABILITY_DEFAULTS.maxWindow,
-      dailyLimit: AVAILABILITY_DEFAULTS.dailyLimit,
+      bufferBefore: parseNum(AVAILABILITY_DEFAULTS.bufferBefore, 15),
+      bufferAfter: parseNum(AVAILABILITY_DEFAULTS.bufferAfter, 15),
+      minimumNotice: parseNum(AVAILABILITY_DEFAULTS.minNotice, 24),
+      maximumBookingWindow: parseNum(AVAILABILITY_DEFAULTS.maxWindow, 14),
+      dailyLimit: parseNum(AVAILABILITY_DEFAULTS.dailyLimit, 6),
     };
   },
   async putAvailability(body) {

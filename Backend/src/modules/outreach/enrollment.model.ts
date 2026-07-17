@@ -192,6 +192,7 @@ outreachEnrollmentSchema.index(
   { unique: true }
 );
 outreachEnrollmentSchema.index({ campaignId: 1, status: 1, nextActionAt: 1 });
+outreachEnrollmentSchema.index({ organizationId: 1, status: 1, nextActionAt: 1 });
 
 export const OutreachEnrollmentModel: Model<OutreachEnrollmentDocument> =
   mongoose.models.OutreachEnrollment ??

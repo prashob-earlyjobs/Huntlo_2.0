@@ -56,6 +56,11 @@ export function campaignDetailPath(id: string): string {
   return `${ROUTES.outreach}/${id}`;
 }
 
+/** Build the edit/builder path for an outreach campaign. */
+export function campaignEditPath(id: string): string {
+  return `${ROUTES.outreach}/${id}/edit`;
+}
+
 /** Build the detail path for a Huntlo 360 workflow. */
 export function workflowDetailPath(id: string): string {
   return `${ROUTES.huntlo360}/${id}`;

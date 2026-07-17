@@ -11,8 +11,11 @@ import {
   type ReactNode,
 } from "react";
 
-import { getRealtimeUrl, isMockApiEnabled } from "@/lib/api";
-import { tokenStorage } from "@/lib/api/client";
+import {
+  fetchRealtimeTicket,
+  getRealtimeUrl,
+  isMockApiEnabled,
+} from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 
 export type RealtimeConnectionState =
@@ -37,6 +40,9 @@ type RealtimeContextValue = {
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
 
+const MAX_BACKOFF_MS = 15_000;
+const BASE_BACKOFF_MS = 800;
+
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
   const [state, setState] = useState<RealtimeConnectionState>(
@@ -45,6 +51,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [lastEvent, setLastEvent] = useState<RealtimeEvent | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const handlersRef = useRef<Map<string, Set<(event: RealtimeEvent) => void>>>(new Map());
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const intentionalCloseRef = useRef(false);
 
   const emit = useCallback((event: RealtimeEvent) => {
     setLastEvent(event);
@@ -54,12 +63,34 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     wildcardHandlers?.forEach((handler) => handler(event));
   }, []);
 
-  const disconnect = useCallback(() => {
-    socketRef.current?.close();
-    socketRef.current = null;
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current != null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
   }, []);
 
-  const connect = useCallback(() => {
+  const disconnect = useCallback(() => {
+    intentionalCloseRef.current = true;
+    clearReconnectTimer();
+    socketRef.current?.close();
+    socketRef.current = null;
+  }, [clearReconnectTimer]);
+
+  const scheduleReconnect = useCallback(() => {
+    if (isMockApiEnabled() || !isAuthenticated) return;
+    clearReconnectTimer();
+    const attempt = reconnectAttemptRef.current;
+    const delay = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** attempt);
+    reconnectAttemptRef.current = attempt + 1;
+    reconnectTimerRef.current = window.setTimeout(() => {
+      void connectRef.current();
+    }, delay);
+  }, [clearReconnectTimer, isAuthenticated]);
+
+  const connectRef = useRef<() => Promise<void>>(async () => undefined);
+
+  const connect = useCallback(async () => {
     if (isMockApiEnabled()) {
       setState("mock");
       return;
@@ -70,33 +101,65 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    disconnect();
+    intentionalCloseRef.current = false;
+    clearReconnectTimer();
+    socketRef.current?.close();
+    socketRef.current = null;
     setState("connecting");
 
-    const accessToken = tokenStorage.getAccessToken();
-    const url = new URL(getRealtimeUrl());
-    if (accessToken) {
-      url.searchParams.set("token", accessToken);
-    }
-
-    const socket = new WebSocket(url.toString());
-    socketRef.current = socket;
-
-    socket.addEventListener("open", () => setState("connected"));
-    socket.addEventListener("close", () => setState("disconnected"));
-    socket.addEventListener("error", () => setState("disconnected"));
-    socket.addEventListener("message", (message) => {
-      try {
-        const event = JSON.parse(String(message.data)) as RealtimeEvent;
-        emit(event);
-      } catch {
-        // ignore malformed events
+    try {
+      const ticket = await fetchRealtimeTicket();
+      if (!ticket.realtimeEnabled) {
+        setState("disconnected");
+        return;
       }
-    });
-  }, [disconnect, emit, isAuthenticated]);
+
+      const url = new URL(getRealtimeUrl());
+      url.searchParams.set(ticket.ticketParam || "ticket", ticket.ticket);
+
+      const socket = new WebSocket(url.toString());
+      socketRef.current = socket;
+
+      socket.addEventListener("open", () => {
+        reconnectAttemptRef.current = 0;
+        setState("connected");
+      });
+
+      socket.addEventListener("close", () => {
+        setState("disconnected");
+        socketRef.current = null;
+        if (!intentionalCloseRef.current) {
+          scheduleReconnect();
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        setState("disconnected");
+      });
+
+      socket.addEventListener("message", (message) => {
+        try {
+          const event = JSON.parse(String(message.data)) as RealtimeEvent;
+          if (event.type === "realtime.ping") {
+            socket.send(JSON.stringify({ type: "realtime.pong", data: { ts: Date.now() } }));
+          }
+          emit(event);
+        } catch {
+          // ignore malformed events
+        }
+      });
+    } catch {
+      setState("disconnected");
+      scheduleReconnect();
+    }
+  }, [clearReconnectTimer, emit, isAuthenticated, scheduleReconnect]);
 
   useEffect(() => {
-    connect();
+    connectRef.current = connect;
+  }, [connect]);
+
+  useEffect(() => {
+    void connect();
     return () => disconnect();
   }, [connect, disconnect]);
 
@@ -119,7 +182,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       state,
       lastEvent,
       subscribe,
-      reconnect: connect,
+      reconnect: () => {
+        reconnectAttemptRef.current = 0;
+        void connect();
+      },
     }),
     [state, lastEvent, subscribe, connect]
   );

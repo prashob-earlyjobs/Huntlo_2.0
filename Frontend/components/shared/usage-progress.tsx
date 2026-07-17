@@ -3,8 +3,9 @@ import { Progress } from "@/components/ui/progress"
 
 export function UsageProgress({ metric }: { metric: CreditMetric }) {
   const unit = metric.unit ? ` ${metric.unit}` : ""
-  const remaining = metric.total - metric.used
-  const value = Math.round((metric.used / metric.total) * 100)
+  const remaining = Math.max(0, metric.total - metric.used)
+  const value =
+    metric.total > 0 ? Math.round((metric.used / metric.total) * 100) : 0
 
   return (
     <div className="space-y-1.5">

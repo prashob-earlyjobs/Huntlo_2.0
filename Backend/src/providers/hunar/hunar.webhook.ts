@@ -155,8 +155,12 @@ export function verifyHunarWebhookAuthenticity(input: {
 
   const secret = getHunarWebhookSecret();
   if (!secret) {
-    // Platform secret optional in local/dev; screeningId binding still required.
-    return { ok: true };
+    // Fail closed in production; optional only in local/dev/test.
+    const env = String(process.env.APP_ENV || process.env.NODE_ENV || '').toLowerCase();
+    if (env === 'production' || env === 'staging') {
+      return { ok: false, reason: 'HUNAR_WEBHOOK_SECRET not configured' };
+    }
+    return { ok: true, reason: 'hunar_secret_optional' };
   }
 
   const header = (name: string) => {

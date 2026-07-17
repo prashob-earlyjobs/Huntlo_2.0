@@ -2,8 +2,9 @@
 
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import {
   FilterPopover,
@@ -17,8 +18,6 @@ import {
   INTERVIEW_STATUSES,
   INTERVIEW_TYPES,
   monthGrid,
-  SCHEDULE_INTERVIEWERS,
-  SCHEDULE_RECRUITERS,
   weekDates,
   type Interview,
 } from "@/lib/mock-schedule";
@@ -107,20 +106,22 @@ export function CalendarWorkspace() {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const rows = await schedulingApi.listInterviews();
-        if (!cancelled) setInterviews(rows);
-      } catch {
-        // Keep empty calendar when API unavailable.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const refresh = useCallback(async () => {
+    try {
+      const rows = await schedulingApi.listInterviews();
+      setInterviews(rows);
+    } catch {
+      // Keep empty calendar when API unavailable.
+    }
   }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useRealtimeRefresh("interview.updated", () => {
+    void refresh();
+  });
 
   const jobOptions = useMemo(() => {
     const titles = new Map<string, string>();
@@ -128,6 +129,22 @@ export function CalendarWorkspace() {
       if (interview.jobId) titles.set(interview.jobId, interview.jobTitle);
     });
     return Array.from(titles, ([id, label]) => ({ id, label }));
+  }, [interviews]);
+
+  const recruiterOptions = useMemo(() => {
+    const names = new Set<string>();
+    interviews.forEach((interview) => {
+      if (interview.recruiter) names.add(interview.recruiter);
+    });
+    return toOptions(Array.from(names).sort());
+  }, [interviews]);
+
+  const interviewerOptions = useMemo(() => {
+    const names = new Set<string>();
+    interviews.forEach((interview) => {
+      interview.interviewers.forEach((person) => names.add(person));
+    });
+    return toOptions(Array.from(names).sort());
   }, [interviews]);
 
   function matches(interview: Interview): boolean {
@@ -306,13 +323,13 @@ export function CalendarWorkspace() {
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
           <FilterPopover
             label="Recruiter"
-            options={toOptions(SCHEDULE_RECRUITERS)}
+            options={recruiterOptions}
             selected={recruiterFilter}
             onToggle={toggle(setRecruiterFilter)}
           />
           <FilterPopover
             label="Interviewer"
-            options={toOptions(SCHEDULE_INTERVIEWERS)}
+            options={interviewerOptions}
             selected={interviewerFilter}
             onToggle={toggle(setInterviewerFilter)}
           />

@@ -13,7 +13,6 @@ import {
   getApiErrorMessage,
 } from "@/lib/api";
 import type { PoolCandidate } from "@/lib/mock-candidates";
-import { getPoolCandidate } from "@/lib/mock-candidates";
 import { ROUTES } from "@/lib/routes";
 
 function mergeRevealOntoPool(
@@ -91,7 +90,7 @@ function sourcedToPool(candidateId: string, detail: unknown): PoolCandidate {
     signals: Array.isArray((detail as { profileSignals?: string[] }).profileSignals)
       ? (detail as { profileSignals: string[] }).profileSignals
       : [],
-    status: "New",
+    status: "Active",
     updated: "Just now",
     activity: [],
     similar: [],
@@ -120,7 +119,6 @@ export function CandidateDetailPageClient({ candidateId }: { candidateId: string
       setLoading(true);
       setError(null);
       try {
-        const fallback = getPoolCandidate(candidateId) ?? null;
         const pool = await candidatePoolApi.getById(candidateId);
 
         if (pool) {
@@ -142,29 +140,14 @@ export function CandidateDetailPageClient({ candidateId }: { candidateId: string
         }
 
         const detail = await candidatesApi.getById(candidateId);
-        if (!detail && !fallback) {
-          if (!cancelled) setMissing(true);
-          return;
-        }
-
         if (!detail) {
-          if (!cancelled) setCandidate(fallback);
-          return;
-        }
-
-        if (fallback) {
-          if (!cancelled) setCandidate(mergeRevealOntoPool(fallback, detail));
+          if (!cancelled) setMissing(true);
           return;
         }
 
         if (!cancelled) setCandidate(sourcedToPool(candidateId, detail));
       } catch (err) {
-        const fallback = getPoolCandidate(candidateId);
-        if (fallback) {
-          if (!cancelled) setCandidate(fallback);
-        } else if (!cancelled) {
-          setError(getApiErrorMessage(err));
-        }
+        if (!cancelled) setError(getApiErrorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }

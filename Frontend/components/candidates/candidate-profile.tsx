@@ -46,19 +46,18 @@ import {
   candidatePoolApi,
   candidatesApi,
   getApiErrorMessage,
+  plansApi,
   schedulingApi,
   uiRevealKindToType,
   type AssessmentResult,
 } from "@/lib/api";
 import {
   CANDIDATE_STATUSES,
-  LIST_NAMES,
   type CandidateNote,
   type CandidateStatus,
   type PoolCandidate,
   type SavedList,
 } from "@/lib/mock-candidates";
-import { REVEAL_QUOTA } from "@/lib/mock-sessions";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -131,6 +130,10 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
   const [noteBusy, setNoteBusy] = useState(false);
   const [assessmentResults, setAssessmentResults] = useState<AssessmentResult[]>([]);
   const [liveInterviews, setLiveInterviews] = useState(candidate.interviews);
+  const [revealQuota, setRevealQuota] = useState<{
+    emailRemaining: number;
+    mobileRemaining: number;
+  } | null>(null);
 
   useEffect(() => {
     setProfile(candidate);
@@ -146,7 +149,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
     let cancelled = false;
     void (async () => {
       try {
-        const [nextNotes, nextLists, nextAssessments, nextInterviews] =
+        const [nextNotes, nextLists, nextAssessments, nextInterviews, usage] =
           await Promise.all([
           candidatePoolApi.listNotes(candidate.id),
           candidatePoolApi.listLists(),
@@ -154,7 +157,24 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           schedulingApi
             .listInterviews({ candidateId: candidate.id })
             .catch(() => []),
+          plansApi.getUsage().catch(() => []),
         ]);
+        if (!cancelled) {
+          const emailRow = usage.find((row) => row.id === "email-reveals");
+          const mobileRow = usage.find((row) => row.id === "mobile-reveals");
+          if (emailRow || mobileRow) {
+            setRevealQuota({
+              emailRemaining:
+                emailRow?.limit != null
+                  ? Math.max(0, emailRow.limit - emailRow.used)
+                  : 0,
+              mobileRemaining:
+                mobileRow?.limit != null
+                  ? Math.max(0, mobileRow.limit - mobileRow.used)
+                  : 0,
+            });
+          }
+        }
         if (!cancelled) {
           if (nextNotes.length > 0 || candidate.notes.length === 0) {
             setNotes(nextNotes);
@@ -339,21 +359,17 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuLabel>Add to list</DropdownMenuLabel>
-                {(lists.length > 0 ? lists.map((list) => list.name) : LIST_NAMES).map(
-                  (listName) => {
-                    const list = lists.find((entry) => entry.name === listName);
-                    return (
-                      <DropdownMenuItem
-                        key={listName}
-                        onClick={() => {
-                          if (list) void addToList(list);
-                          else flash(`Added ${candidate.name} to “${listName}”.`);
-                        }}
-                      >
-                        {listName}
-                      </DropdownMenuItem>
-                    );
-                  }
+                {lists.length === 0 ? (
+                  <DropdownMenuItem disabled>No lists yet</DropdownMenuItem>
+                ) : (
+                  lists.map((list) => (
+                    <DropdownMenuItem
+                      key={list.id}
+                      onClick={() => void addToList(list)}
+                    >
+                      {list.name}
+                    </DropdownMenuItem>
+                  ))
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -529,11 +545,13 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 {revealError}
               </p>
             ) : null}
-            <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-              {REVEAL_QUOTA.emailRemaining.toLocaleString("en-IN")} email and{" "}
-              {REVEAL_QUOTA.mobileRemaining.toLocaleString("en-IN")} mobile reveals
-              remaining this cycle.
-            </p>
+            {revealQuota ? (
+              <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+                {revealQuota.emailRemaining.toLocaleString("en-IN")} email and{" "}
+                {revealQuota.mobileRemaining.toLocaleString("en-IN")} mobile reveals
+                remaining this cycle.
+              </p>
+            ) : null}
           </Card>
 
           <Card className="space-y-0 divide-y divide-border">

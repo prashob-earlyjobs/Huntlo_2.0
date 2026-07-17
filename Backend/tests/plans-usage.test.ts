@@ -114,10 +114,17 @@ describe('Plans + usage API', () => {
 
   it('admin can create and deactivate a plan', async () => {
     const auth = await registerAndAuth(agent, '-admin');
+    await UserModel.updateOne({ _id: auth.userId }, { $set: { platformAdmin: true } });
+    const login = await agent.post('/api/v1/auth/login').send({
+      email: (await UserModel.findById(auth.userId))!.email,
+      password: 'Password123!',
+    });
+    expect(login.status).toBe(200);
+    const token = login.body.data.accessToken as string;
 
     const created = await agent
       .post('/api/v1/admin/plans')
-      .set('Authorization', `Bearer ${auth.token}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({
         name: 'Pilot',
         code: 'pilot',
@@ -130,7 +137,7 @@ describe('Plans + usage API', () => {
 
     const deactivated = await agent
       .patch(`/api/v1/admin/plans/${created.body.data.id}/status`)
-      .set('Authorization', `Bearer ${auth.token}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({ active: false });
     expect(deactivated.status).toBe(200);
     expect(deactivated.body.data.active).toBe(false);

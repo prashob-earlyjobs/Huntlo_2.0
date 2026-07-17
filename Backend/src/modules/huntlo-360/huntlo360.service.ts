@@ -4,6 +4,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { UserModel } from '../auth/user.model.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { quotaService } from '../../shared/usage/index.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
@@ -37,6 +38,30 @@ async function ownerName(userId: string) {
   const user = await UserModel.findById(userId).select('firstName lastName').lean();
   if (!user) return 'Unknown';
   return `${user.firstName} ${user.lastName}`.trim();
+}
+
+async function resolveOwnerUserId(
+  organizationId: string,
+  actorUserId: string,
+  requestedOwnerUserId?: string | null
+): Promise<string> {
+  const ownerUserId = String(requestedOwnerUserId || actorUserId).trim();
+  if (!mongoose.Types.ObjectId.isValid(ownerUserId)) {
+    throw new AppError(400, 'INVALID_OWNER', 'Invalid workflow owner.');
+  }
+  const member = await OrganizationMemberModel.findOne({
+    organizationId,
+    userId: ownerUserId,
+    status: { $in: ['active', 'invited'] },
+  }).lean();
+  if (!member) {
+    throw new AppError(
+      400,
+      'OWNER_NOT_IN_ORG',
+      'Workflow owner must be an active member of this organization.'
+    );
+  }
+  return ownerUserId;
 }
 
 async function jobTitle(jobId: mongoose.Types.ObjectId | null) {
@@ -231,9 +256,11 @@ export const huntlo360Service = {
       if (!job) throw new AppError(400, 'JOB_NOT_FOUND', 'Linked job not found.');
     }
 
+    const ownerUserId = await resolveOwnerUserId(organizationId, userId, input.ownerUserId);
+
     const doc = await Huntlo360WorkflowModel.create({
       organizationId,
-      ownerUserId: userId,
+      ownerUserId,
       jobId: input.jobId || null,
       name: input.name,
       status: 'draft',
@@ -247,7 +274,7 @@ export const huntlo360Service = {
     await syncCampaignFromWorkflow(organizationId, userId, doc);
 
     return toDisplay(doc, {
-      ownerName: await ownerName(userId),
+      ownerName: await ownerName(ownerUserId),
       jobTitle: await jobTitle(doc.jobId),
     });
   },
@@ -263,6 +290,11 @@ export const huntlo360Service = {
     if (input.name !== undefined) doc.name = input.name;
     if (input.jobId !== undefined) {
       doc.jobId = input.jobId ? new mongoose.Types.ObjectId(input.jobId) : null;
+    }
+    if (input.ownerUserId !== undefined) {
+      doc.ownerUserId = new mongoose.Types.ObjectId(
+        await resolveOwnerUserId(organizationId, userId, input.ownerUserId)
+      );
     }
     mergeConfigs(doc, input);
     doc.version += 1;

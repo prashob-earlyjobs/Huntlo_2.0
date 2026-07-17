@@ -4,6 +4,7 @@ import { Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ConversationInbox } from "@/components/conversations/conversation-inbox";
+import { ConversationInboxSkeleton } from "@/components/conversations/conversation-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { conversationsApi, getApiErrorMessage } from "@/lib/api";
 import type { Conversation } from "@/lib/mock-conversations";
@@ -52,7 +53,7 @@ export function ConversationsPanel({
   }, [campaignId, candidateId, jobId]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading conversations…</p>;
+    return <ConversationInboxSkeleton className={className} />;
   }
 
   if (error) {

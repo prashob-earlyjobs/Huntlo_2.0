@@ -59,9 +59,13 @@ export interface AppNotification {
   id: string;
   title: string;
   description: string;
+  message?: string;
   time: string;
   read: boolean;
   kind: "campaign" | "screening" | "interview" | "usage" | "system";
+  type?: string;
+  severity?: string;
+  actionUrl?: string | null;
 }
 
 export interface Candidate {

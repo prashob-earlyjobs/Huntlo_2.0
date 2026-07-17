@@ -46,6 +46,9 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: { type: Date, default: null },
     failedLoginCount: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
+    /** Huntlo platform operator — cross-tenant admin console. Never grant to normal org users. */
+    platformAdmin: { type: Boolean, default: false, index: true },
+    adminPermissions: { type: [String], default: [] },
     deletedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }

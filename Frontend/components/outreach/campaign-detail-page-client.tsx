@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CampaignDetail } from "@/components/outreach/campaign-detail";
+import { CampaignDetailSkeleton } from "@/components/outreach/campaign-detail-skeleton";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, outreachApi } from "@/lib/api";
 import type { OutreachCampaign } from "@/lib/mock-outreach";
 import { ROUTES } from "@/lib/routes";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 export function CampaignDetailPageClient({ id }: { id: string }) {
   const [campaign, setCampaign] = useState<OutreachCampaign | null>(null);
@@ -16,22 +18,28 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
 
+  const refresh = useCallback(async () => {
+    try {
+      const next = await outreachApi.getCampaign(id);
+      if (!next) {
+        setMissing(true);
+        setCampaign(null);
+        return;
+      }
+      setCampaign(next);
+      setMissing(false);
+      setError(null);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to load campaign."));
+    }
+  }, [id]);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const next = await outreachApi.getCampaign(id);
-        if (cancelled) return;
-        if (!next) {
-          setMissing(true);
-          return;
-        }
-        setCampaign(next);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(getApiErrorMessage(err, "Unable to load campaign."));
+        await refresh();
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -39,7 +47,15 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [refresh]);
+
+  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated"], () => {
+    void refresh();
+  });
+
+  if (loading && !campaign) {
+    return <CampaignDetailSkeleton />;
+  }
 
   return (
     <>
@@ -54,16 +70,14 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
         Outreach
       </Button>
 
-      {loading ? (
-        <p className="mt-4 text-sm text-muted-foreground">Loading campaign…</p>
-      ) : missing ? (
+      {missing ? (
         <div className="mt-4 space-y-3">
           <h1 className="text-lg font-semibold">Campaign not found</h1>
           <p className="text-sm text-muted-foreground">
             This campaign may have been deleted or belongs to another workspace.
           </p>
         </div>
-      ) : error ? (
+      ) : error && !campaign ? (
         <p role="alert" className="mt-4 text-sm text-destructive">
           {error}
         </p>

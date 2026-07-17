@@ -12,6 +12,7 @@ import {
   UserX,
   Video,
   XCircle,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -22,13 +23,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getApiErrorMessage, schedulingApi } from "@/lib/api";
-import {
-  getActivity,
-  getNotes,
-  getReminders,
-  type Interview,
-} from "@/lib/mock-schedule";
+import { type Interview } from "@/lib/mock-schedule";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
+
+type InterviewNote = { id: string; author: string; text: string; time: string };
+type InterviewReminder = {
+  id: string;
+  label: string;
+  status: string;
+  channel: string;
+  time: string;
+};
+type InterviewActivityEntry = {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  detail: string;
+  time: string;
+};
 
 export function InterviewDetail({
   interview: initial,
@@ -41,7 +53,7 @@ export function InterviewDetail({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notes, setNotes] = useState(getNotes(initial.id));
+  const [notes, setNotes] = useState<InterviewNote[]>([]);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -49,11 +61,11 @@ export function InterviewDetail({
 
   useEffect(() => {
     setInterview(initial);
-    setNotes(getNotes(initial.id));
+    setNotes([]);
   }, [initial]);
 
-  const reminders = getReminders(interview.id);
-  const activity = getActivity(interview.id);
+  const reminders: InterviewReminder[] = [];
+  const activity: InterviewActivityEntry[] = [];
 
   function flash(text: string) {
     setFeedback(text);
@@ -374,7 +386,9 @@ export function InterviewDetail({
                   size="xs"
                   variant="outline"
                   onClick={() => {
-                    void navigator.clipboard?.writeText(interview.meetingLink);
+                    void navigator.clipboard?.writeText(
+                      interview.meetingLink ?? ""
+                    );
                     flash("Meeting link copied.");
                   }}
                 >

@@ -4,7 +4,7 @@ import type {
   IntentLabel,
 } from '../../modules/conversations/reply-classification.model.js';
 
-export const GEMINI_CONVERSATIONS_MODEL = 'gemini-2.0-flash';
+export const GEMINI_CONVERSATIONS_MODEL = 'gemini-2.5-flash';
 
 /** AI never makes irreversible hiring decisions. */
 export type ConversationAiGuardrails = {
