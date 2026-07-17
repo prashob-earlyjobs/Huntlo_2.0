@@ -86,8 +86,11 @@ export type ApiOutreachCampaign = {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled: boolean;
+    takeoverCondition?: string | null;
+    autoScreening?: boolean;
   };
   schedulingConfig: {
     enabled: boolean;
@@ -163,8 +166,11 @@ export type CampaignCreateInput = {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled?: boolean;
+    takeoverCondition?: string | null;
+    autoScreening?: boolean;
   };
   schedulingConfig?: {
     enabled: boolean;
@@ -406,6 +412,20 @@ export interface OutreachApi {
   getActivity(id: string): Promise<
     Array<{ id: string; type: string; title: string; detail: string | null; createdAt: string }>
   >;
+  generateQualificationQuestions(input: {
+    jobId?: string | null;
+    jobTitle?: string;
+    jobDescription?: string;
+    instructions?: string;
+  }): Promise<{
+    questions: Array<{
+      id: string;
+      prompt: string;
+      answerType: string;
+      knockout: boolean;
+      knockoutCondition?: string | null;
+    }>;
+  }>;
 }
 
 export type OutreachOverview = {
@@ -785,6 +805,42 @@ const mockOutreachApi: OutreachApi = {
     await simulateMockLatency();
     return [];
   },
+  async generateQualificationQuestions(input) {
+    await simulateMockLatency();
+    const role = input.jobTitle || "this role";
+    return {
+      questions: [
+        {
+          id: "q-1",
+          prompt: `How many years of experience do you have for ${role}?`,
+          answerType: "Number",
+          knockout: true,
+          knockoutCondition: "Reject if less than 2",
+        },
+        {
+          id: "q-2",
+          prompt: "What is your notice period in days?",
+          answerType: "Number",
+          knockout: true,
+          knockoutCondition: "Reject if more than 90",
+        },
+        {
+          id: "q-3",
+          prompt: `Are you aligned with the location / workplace type for ${role}?`,
+          answerType: "Yes / No",
+          knockout: true,
+          knockoutCondition: "Reject if No",
+        },
+        {
+          id: "q-4",
+          prompt: "What is your expected annual compensation?",
+          answerType: "Short text",
+          knockout: false,
+          knockoutCondition: null,
+        },
+      ],
+    };
+  },
 };
 
 const liveOutreachApi: OutreachApi = {
@@ -1019,6 +1075,32 @@ const liveOutreachApi: OutreachApi = {
       { sensitive: true }
     );
     return result.data;
+  },
+  async generateQualificationQuestions(input) {
+    const result = await apiClient.post<{
+      kind: string;
+      draft: {
+        questions: Array<{
+          id: string;
+          prompt: string;
+          answerType: string;
+          knockout: boolean;
+          knockoutCondition?: string | null;
+        }>;
+      };
+    }>(
+      "/outreach/generate",
+      {
+        mode: "qualification_questions",
+        jobId: input.jobId || undefined,
+        jobTitle: input.jobTitle,
+        jobDescription: input.jobDescription,
+        instructions: input.instructions,
+        saveAsDraft: false,
+      },
+      { sensitive: true }
+    );
+    return { questions: result.data.draft?.questions || [] };
   },
 };
 

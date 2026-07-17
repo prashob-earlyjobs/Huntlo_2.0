@@ -96,6 +96,38 @@ export type BlogArticle = {
   publishedAt: string | null;
 };
 
+export type AdminPendingTask = {
+  id: string;
+  queue: "background" | "campaign";
+  type: string;
+  status: string;
+  dueAt: string;
+  organizationId: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  entityLabel: string | null;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  canCancel: boolean;
+  canRetry: boolean;
+};
+
+export type AdminPendingTasksResult = {
+  summary: {
+    backgroundDue: number;
+    backgroundScheduled: number;
+    campaignDue: number;
+    campaignScheduled: number;
+    inFlight: number;
+    failed24h: number;
+  };
+  items: AdminPendingTask[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type Paginated<T> = {
   items: T[];
   total: number;
@@ -126,6 +158,14 @@ export interface AdminApi {
   listInterviews(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
   listSourcingSessions(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
   listBackgroundJobs(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
+  listPendingWorkerTasks(params?: {
+    queue?: "all" | "background" | "campaign";
+    includeScheduled?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<AdminPendingTasksResult>;
+  cancelWorkerTask(id: string): Promise<unknown>;
+  retryWorkerTask(id: string): Promise<unknown>;
   listWebhooks(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
   getProviderHealth(): Promise<{ providers: ProviderHealth[] }>;
   getPlatformSettings(): Promise<{
@@ -258,6 +298,20 @@ const liveAdminApi: AdminApi = {
     const result = await apiClient.get<Paginated<Record<string, unknown>>>(
       `/admin/background-jobs${buildQueryString(params)}`
     );
+    return result.data;
+  },
+  async listPendingWorkerTasks(params) {
+    const result = await apiClient.get<AdminPendingTasksResult>(
+      `/admin/jobs/pending${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async cancelWorkerTask(id) {
+    const result = await apiClient.post(`/admin/jobs/${id}/cancel`);
+    return result.data;
+  },
+  async retryWorkerTask(id) {
+    const result = await apiClient.post(`/admin/jobs/${id}/retry`);
     return result.data;
   },
   async listWebhooks(params) {
@@ -437,6 +491,31 @@ const mockAdminApi: AdminApi = {
   },
   async listBackgroundJobs() {
     return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };
+  },
+  async listPendingWorkerTasks() {
+    await simulateMockLatency();
+    return {
+      summary: {
+        backgroundDue: 0,
+        backgroundScheduled: 0,
+        campaignDue: 0,
+        campaignScheduled: 0,
+        inFlight: 0,
+        failed24h: 0,
+      },
+      items: [],
+      total: 0,
+      limit: 100,
+      offset: 0,
+    };
+  },
+  async cancelWorkerTask() {
+    await simulateMockLatency();
+    return { cancelled: true };
+  },
+  async retryWorkerTask() {
+    await simulateMockLatency();
+    return { retried: true };
   },
   async listWebhooks() {
     return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };

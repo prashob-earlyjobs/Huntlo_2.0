@@ -12,6 +12,7 @@ import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { quotaService, type QuotaUsageView } from '../../shared/usage/index.js';
 import { UserModel } from '../auth/user.model.js';
 import { assertSameOrganization } from '../../middleware/auth.js';
+import { integrationsService } from '../integrations/integration.service.js';
 import { TeamInvitationModel } from './invitation.model.js';
 import { OrganizationMemberModel } from './member.model.js';
 import {
@@ -424,6 +425,11 @@ export class OrganizationService {
 
     invitation.acceptedAt = new Date();
     await invitation.save();
+
+    await integrationsService.provisionDefaultsForUser(
+      organization._id.toHexString(),
+      user._id.toHexString()
+    );
 
     await recordAuditEvent({
       action: 'team.invitation.accepted',

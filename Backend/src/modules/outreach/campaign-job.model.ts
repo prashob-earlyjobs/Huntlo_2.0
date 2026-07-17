@@ -14,6 +14,8 @@ export type CampaignJobType = (typeof CAMPAIGN_JOB_TYPES)[number];
 
 export const CAMPAIGN_JOB_STATUSES = [
   'queued',
+  /** Isolated queue: legacy workers only poll `queued`, so they cannot steal these jobs. */
+  'queued_v2',
   'leased',
   'running',
   'succeeded',
@@ -22,6 +24,9 @@ export const CAMPAIGN_JOB_STATUSES = [
   'dead',
 ] as const;
 export type CampaignJobStatus = (typeof CAMPAIGN_JOB_STATUSES)[number];
+
+/** Status used for new/retryable campaign jobs (ignored by pre-v2 workers). */
+export const OUTREACH_QUEUE_STATUS = 'queued_v2' as const;
 
 export type CampaignJobDocument = Document & {
   organizationId: mongoose.Types.ObjectId;
@@ -79,7 +84,7 @@ campaignJobSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      status: { $in: ['queued', 'leased', 'running'] },
+      status: { $in: ['queued', 'queued_v2', 'leased', 'running'] },
     },
   }
 );

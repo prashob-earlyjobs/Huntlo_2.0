@@ -121,7 +121,7 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
     } satisfies IntegrationProvider);
 
   const displayName =
-    item.id === "hunar" ? "Huntlo Voice" : item.name || template.name;
+    item.id === "hunar" ? "Huntlo Voice AI" : item.name || template.name;
 
   const connection = item.connection;
   if (!connection) {

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { hostname } from 'node:os';
 
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
@@ -12,6 +13,7 @@ import {
   type CampaignSequenceStep,
 } from './campaign.model.js';
 import { OutreachEnrollmentModel } from './enrollment.model.js';
+import { CampaignJobModel } from './campaign-job.model.js';
 
 export type ValidationIssue = {
   id: string;
@@ -365,15 +367,30 @@ export async function validateCampaignLaunch(
     }
   }
 
-  // Qualification
+  // Qualification — empty questions means interested replies auto-qualify.
   if (campaign.qualificationConfig?.enabled) {
     if (!campaign.qualificationConfig.questions?.length) {
       issues.push(
         issue(
           'qualification',
-          'error',
+          'warning',
           'QUALIFICATION_EMPTY',
-          'Qualification is enabled but no questions are configured.'
+          'Qualification is enabled with no questions — interested replies will be auto-qualified.'
+        )
+      );
+    }
+    if (
+      campaign.qualificationConfig.aiReplyEnabled &&
+      (campaign.qualificationConfig.questions?.length || 0) > 0 &&
+      !campaign.channelConfig?.email?.enabled &&
+      !campaign.channelConfig?.whatsapp?.enabled
+    ) {
+      issues.push(
+        issue(
+          'qualification',
+          'warning',
+          'QUALIFICATION_NO_CHANNEL',
+          'AI qualification questions need email or WhatsApp enabled to send follow-ups.'
         )
       );
     }
@@ -421,6 +438,37 @@ export async function validateCampaignLaunch(
   if (sw && (!sw.daysOfWeek || sw.daysOfWeek.length === 0)) {
     issues.push(
       issue('send_window', 'error', 'SEND_DAYS_MISSING', 'Select at least one send day.')
+    );
+  }
+
+  // Advisory only: foreign/old workers still connected to shared QA Mongo.
+  // New jobs use `queued_v2`, which those workers do not poll, so launch is safe.
+  const recentLeased = await CampaignJobModel.find({
+    updatedAt: { $gte: new Date(Date.now() - 10 * 60_000) },
+    leaseOwner: { $type: 'string', $regex: /^worker:/ },
+  })
+    .select('leaseOwner updatedAt jobType')
+    .sort({ updatedAt: -1 })
+    .limit(30)
+    .lean();
+  const localHost = hostname();
+  const foreignOwners = [
+    ...new Set(
+      recentLeased
+        .map((j) => String(j.leaseOwner || ''))
+        .filter((owner) => owner && !owner.includes(localHost))
+    ),
+  ];
+  if (foreignOwners.length) {
+    issues.push(
+      issue(
+        'foreign_worker',
+        'warning',
+        'FOREIGN_OUTREACH_WORKER',
+        `Another outreach worker recently touched this database ` +
+          `(${foreignOwners.slice(0, 3).join(', ')}). New jobs use an isolated queue, ` +
+          `so launch can proceed — still ask them to stop their worker when possible.`
+      )
     );
   }
 

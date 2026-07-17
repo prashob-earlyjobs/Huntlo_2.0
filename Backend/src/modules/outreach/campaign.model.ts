@@ -167,8 +167,11 @@ export type OutreachCampaignDocument = Document & {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled: boolean;
+    takeoverCondition?: string | null;
+    autoScreening?: boolean;
   };
   schedulingConfig: {
     enabled: boolean;
@@ -191,6 +194,8 @@ export type OutreachCampaignDocument = Document & {
   };
   /** Ordered touchpoints for a single-email multi-touch sequence built outside sequenceSteps. */
   emailTouchpoints: Array<Record<string, unknown>>;
+  /** Persisted Hunar agent config for AI voice outreach (agent id is per campaign). */
+  voiceAgentConfig: Record<string, unknown> | null;
   scheduledAt: Date | null;
   launchedAt: Date | null;
   pausedAt: Date | null;
@@ -220,7 +225,7 @@ const sequenceStepSchema = new Schema(
     },
     templateId: { type: String, default: null },
     subject: { type: String, default: null, maxlength: 300 },
-    body: { type: String, default: null, maxlength: 20000 },
+    body: { type: String, default: null, maxlength: 60000 },
     stopOnReply: { type: Boolean, default: true },
     note: { type: String, default: null, maxlength: 2000 },
     sendWindow: {
@@ -319,7 +324,13 @@ const outreachCampaignSchema = new Schema<OutreachCampaignDocument>(
     sequenceSteps: { type: [sequenceStepSchema], default: [] },
     qualificationConfig: {
       type: Schema.Types.Mixed,
-      default: () => ({ enabled: false, questions: [], aiReplyEnabled: false }),
+      default: () => ({
+        enabled: false,
+        questions: [],
+        aiReplyEnabled: false,
+        takeoverCondition: null,
+        autoScreening: false,
+      }),
     },
     schedulingConfig: {
       type: Schema.Types.Mixed,
@@ -344,6 +355,7 @@ const outreachCampaignSchema = new Schema<OutreachCampaignDocument>(
       default: () => ({ lastSavedStep: null, mode: null, singleChannel: null }),
     },
     emailTouchpoints: { type: Schema.Types.Mixed, default: [] },
+    voiceAgentConfig: { type: Schema.Types.Mixed, default: null },
     scheduledAt: { type: Date, default: null },
     launchedAt: { type: Date, default: null },
     pausedAt: { type: Date, default: null },

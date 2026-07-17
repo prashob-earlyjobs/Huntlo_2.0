@@ -57,6 +57,7 @@ export function ConversationsPageClient() {
   return (
     <>
       <PageHeader
+        className="shrink-0"
         title="Conversations"
         description="Every candidate reply across email, WhatsApp and AI voice — in one inbox."
         actions={
@@ -72,16 +73,16 @@ export function ConversationsPageClient() {
         }
       />
       {error ? (
-        <p role="alert" className="mb-3 text-sm text-destructive">
+        <p role="alert" className="shrink-0 text-sm text-destructive">
           {error}
         </p>
       ) : null}
       {loading ? (
-        <ConversationInboxSkeleton className="lg:h-[calc(100vh-14rem)]" />
+        <ConversationInboxSkeleton className="min-h-[28rem] flex-1" />
       ) : (
         <ConversationInbox
           conversations={conversations}
-          className="lg:h-[calc(100vh-14rem)]"
+          className="min-h-[28rem] flex-1"
         />
       )}
     </>

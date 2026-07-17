@@ -30,7 +30,7 @@ import { outreachRouter, campaignRoutes } from './modules/outreach/index.js';
 import { conversationsRouter } from './modules/conversations/index.js';
 import { huntlo360Router } from './modules/huntlo-360/index.js';
 import { screeningRouter } from './modules/screening/index.js';
-import { hunarWebhookRouter } from './modules/screening/hunar-webhook.routes.js';
+import { hunarVoiceWebhookRouter } from './modules/voice/index.js';
 import {
   assessmentsRouter,
   assessmentWebhookRouter,
@@ -97,8 +97,10 @@ export function createApp(): Express {
   // Webhook routes require raw body capture before JSON parsing.
   app.use('/api/v1/webhooks', webhooksRouter);
   app.use('/api/v1/public/webhooks', webhookRouter);
-  app.use('/api/v1/webhooks/hunar', hunarWebhookRouter);
-  app.use('/api/v1/public/webhooks/hunar', hunarWebhookRouter);
+  // Spec-primary Hunar voice callbacks + legacy aliases.
+  app.use('/api/integrations/voice/hunar', hunarVoiceWebhookRouter);
+  app.use('/api/v1/webhooks/hunar', hunarVoiceWebhookRouter);
+  app.use('/api/v1/public/webhooks/hunar', hunarVoiceWebhookRouter);
   app.use('/api/v1/webhooks/calendly', calendlyWebhookRouter);
   app.use('/api/v1/public/webhooks/calendly', calendlyWebhookRouter);
   app.use('/api/v1/webhooks/dodo', dodoWebhookRouter);

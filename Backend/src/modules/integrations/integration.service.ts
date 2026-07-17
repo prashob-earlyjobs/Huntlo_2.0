@@ -298,10 +298,10 @@ async function ensureHuntloWhatsAppDefault(organizationId: string, userId: strin
 }
 
 /**
- * When platform Hunar voice credentials are configured, auto-connect Huntlo Voice
+ * When platform Hunar voice credentials are configured, auto-connect Huntlo Voice AI
  * for users who have no voice connection yet.
  */
-async function ensureHunarVoiceDefault(organizationId: string, userId: string) {
+export async function ensureHunarVoiceDefault(organizationId: string, userId: string) {
   if (!isHunarConfigured()) return;
 
   const hunar = await UserIntegrationModel.findOne({
@@ -321,6 +321,10 @@ async function ensureHunarVoiceDefault(organizationId: string, userId: string) {
     if (!defaultVoice) {
       await clearDefaultForCategory(organizationId, userId, 'voice', String(hunar._id));
       hunar.isDefault = true;
+      await hunar.save();
+    }
+    if (hunar.displayName !== 'Huntlo Voice AI') {
+      hunar.displayName = 'Huntlo Voice AI';
       await hunar.save();
     }
     return;
@@ -348,6 +352,7 @@ async function ensureHunarVoiceDefault(organizationId: string, userId: string) {
       provider: 'hunar',
     });
     await persistTokens(doc, result.tokens);
+    doc.displayName = 'Huntlo Voice AI';
     await clearDefaultForCategory(organizationId, userId, 'voice', String(doc._id));
     doc.isDefault = true;
     await doc.save();
@@ -454,9 +459,17 @@ function wrapProviderError(error: unknown): never {
 }
 
 export const integrationsService = {
-  async list(organizationId: string, userId: string, query?: { category?: string }) {
+  /**
+   * Provision platform-managed defaults (Huntlo WhatsApp + Huntlo Voice AI)
+   * for a newly created user. Safe to call repeatedly.
+   */
+  async provisionDefaultsForUser(organizationId: string, userId: string) {
     await ensureHuntloWhatsAppDefault(organizationId, userId);
     await ensureHunarVoiceDefault(organizationId, userId);
+  },
+
+  async list(organizationId: string, userId: string, query?: { category?: string }) {
+    await this.provisionDefaultsForUser(organizationId, userId);
 
     const filter: Record<string, unknown> = { organizationId, userId };
     if (query?.category) filter.category = query.category;
@@ -916,7 +929,58 @@ export const integrationsService = {
       displayName: doc.displayName,
       phone: doc.phone,
       providerAccountId: doc.providerAccountId || null,
+      tokenExpiresAt: doc.tokenExpiresAt ?? null,
+      integrationId: String(doc._id),
     };
+  },
+
+  /**
+   * Return a usable OAuth access token, refreshing + persisting when expired.
+   * Campaign send / reply sync must use this — raw access tokens expire in ~1h.
+   */
+  async ensureFreshAccessToken(
+    organizationId: string,
+    integrationId: string
+  ): Promise<string | null> {
+    const doc = await UserIntegrationModel.findOne({
+      _id: integrationId,
+      organizationId,
+      status: { $in: ['connected', 'needs_attention', 'testing'] },
+    });
+    if (!doc) return null;
+
+    const current = decryptSecret(doc.encryptedAccessToken);
+    const expiresAt = doc.tokenExpiresAt?.getTime() ?? 0;
+    const skewMs = 60_000;
+    if (current && expiresAt > Date.now() + skewMs) {
+      return current;
+    }
+
+    const adapter = getProviderAdapter(doc.provider);
+    const refresh =
+      adapter && 'refresh' in adapter && typeof adapter.refresh === 'function'
+        ? adapter.refresh.bind(adapter)
+        : null;
+    if (!refresh) {
+      return current;
+    }
+
+    const ctx = await buildProviderContext(doc);
+    if (!ctx.refreshToken && !current) return null;
+    if (!ctx.refreshToken) return current;
+
+    try {
+      const tokens = await refresh(ctx);
+      await persistTokens(doc, tokens);
+      return tokens.accessToken || decryptSecret(doc.encryptedAccessToken);
+    } catch (error) {
+      doc.status = 'needs_attention';
+      doc.errorCode = 'TOKEN_REFRESH_FAILED';
+      doc.errorMessage =
+        error instanceof Error ? error.message : 'Failed to refresh access token';
+      await doc.save();
+      return null;
+    }
   },
 
   async getDefaultForCategory(

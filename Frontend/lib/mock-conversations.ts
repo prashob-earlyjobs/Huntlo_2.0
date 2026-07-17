@@ -40,6 +40,8 @@ export interface ConversationEvent {
   text: string;
   time: string;
   delivery?: DeliveryState;
+  /** Provider / send failure detail when delivery is Failed. */
+  error?: string;
   attachments?: ConversationAttachment[];
   voiceSummary?: VoiceSummary;
 }
@@ -228,7 +230,7 @@ export const CONVERSATIONS: Conversation[] = [
         id: "ev-4",
         channel: "AI Voice",
         author: "ai",
-        authorName: "Huntlo Voice",
+        authorName: "Huntlo Voice AI",
         text: "Outbound AI screening call.",
         time: "Today, 9:55 AM",
         voiceSummary: {

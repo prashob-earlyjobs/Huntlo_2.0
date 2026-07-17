@@ -90,7 +90,7 @@ function resolveConnection(
 ): ChannelConnection {
   if (!provider) return "Disconnected";
   const status = statusToConnection(provider.status);
-  // Platform-managed Huntlo Voice: server-ready counts as Connected.
+  // Platform-managed Huntlo Voice AI: server-ready counts as Connected.
   if (
     channel === "AI Voice" &&
     provider.serverConfigured &&
@@ -106,7 +106,7 @@ function channelProviderLabel(
   providerName: string | undefined,
   fallback: string
 ): string {
-  if (channel === "AI Voice") return "Huntlo Voice";
+  if (channel === "AI Voice") return "Huntlo Voice AI";
   return providerName?.trim() || fallback;
 }
 
@@ -270,7 +270,7 @@ export function ChannelsStep({
             } else if (channel === "AI Voice") {
               nextDisplays[channel] = {
                 ...nextDisplays[channel],
-                provider: "Huntlo Voice",
+                provider: "Huntlo Voice AI",
               };
             }
           }

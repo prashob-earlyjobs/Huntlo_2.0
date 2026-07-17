@@ -1,3 +1,8 @@
+export {
+  processQualificationAfterReply,
+  evaluateKnockout,
+  sendQualificationQuestion,
+} from './qualification-qa.service.js';
 export { outreachRouter } from './outreach.routes.js';
 export { campaignRoutes } from './campaign.routes.js';
 export { outreachTemplatesService } from './templates.service.js';
@@ -46,7 +51,14 @@ export {
 export { WhatsAppOutreachPlanModel, WHATSAPP_WAIT_UNITS } from './whatsapp-plan.model.js';
 export {
   APPROVED_WHATSAPP_TEMPLATES,
+  WHATSAPP_TEMPLATE_SLOTS,
+  WHATSAPP_TEMPLATE_ALIASES,
+  WHATSAPP_FREE_TEXT_TEMPLATE_ID,
   getApprovedTemplate,
+  getDefaultTemplateForSlot,
   listApprovedTemplates,
+  listTemplatesForSlot,
+  isColdOutboundWhatsAppTemplate,
+  resolveCanonicalTemplateId,
   validateTemplateVariables as validateWhatsAppCatalogueVariables,
 } from './whatsapp-template-catalogue.js';

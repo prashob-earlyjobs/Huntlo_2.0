@@ -1,11 +1,12 @@
 "use client";
 
 import { Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ConversationInbox } from "@/components/conversations/conversation-inbox";
 import { ConversationInboxSkeleton } from "@/components/conversations/conversation-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { conversationsApi, getApiErrorMessage } from "@/lib/api";
 import type { Conversation } from "@/lib/mock-conversations";
 
@@ -13,7 +14,7 @@ export function ConversationsPanel({
   campaignId,
   candidateId,
   jobId,
-  emptyDescription = "Replies from candidates will appear here.",
+  emptyDescription = "Outbound messages (sent or failed) and candidate replies will appear here.",
   className,
 }: {
   campaignId?: string;
@@ -26,23 +27,27 @@ export function ConversationsPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const refresh = useCallback(async () => {
+    try {
+      const rows = await conversationsApi.list({
+        campaignId,
+        candidateId,
+        jobId,
+        limit: 100,
+      });
+      setConversations(rows);
+      setError(null);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to load conversations."));
+    }
+  }, [campaignId, candidateId, jobId]);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
       try {
-        const rows = await conversationsApi.list({
-          campaignId,
-          candidateId,
-          jobId,
-          limit: 100,
-        });
-        if (cancelled) return;
-        setConversations(rows);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(getApiErrorMessage(err, "Unable to load conversations."));
+        await refresh();
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -50,7 +55,18 @@ export function ConversationsPanel({
     return () => {
       cancelled = true;
     };
-  }, [campaignId, candidateId, jobId]);
+  }, [refresh]);
+
+  useRealtimeRefresh(
+    [
+      "conversation.message.created",
+      "campaign.thread.updated",
+      "conversation.qualification.updated",
+    ],
+    () => {
+      void refresh();
+    }
+  );
 
   if (loading) {
     return <ConversationInboxSkeleton className={className} />;

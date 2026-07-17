@@ -39,15 +39,15 @@ import {
 import { cn } from "@/lib/utils";
 
 const TARGET_FIELDS = [
-  { id: "name", label: "Full name" },
-  { id: "email", label: "Email" },
-  { id: "phone", label: "Phone" },
-  { id: "currentTitle", label: "Current role" },
-  { id: "currentCompany", label: "Current company" },
-  { id: "location", label: "Location" },
-  { id: "experienceYears", label: "Experience (years)" },
-  { id: "skills", label: "Skills" },
-  { id: "linkedinUrl", label: "LinkedIn URL" },
+  { id: "name", label: "Full name", required: true },
+  { id: "email", label: "Email", required: false },
+  { id: "phone", label: "Phone", required: false },
+  { id: "currentTitle", label: "Current role", required: false },
+  { id: "currentCompany", label: "Current company", required: false },
+  { id: "location", label: "Location", required: false },
+  { id: "experienceYears", label: "Experience (years)", required: false },
+  { id: "skills", label: "Skills", required: false },
+  { id: "linkedinUrl", label: "LinkedIn URL", required: false },
 ] as const;
 
 const STEPS = [
@@ -68,6 +68,7 @@ export function ImportCandidatesDialog({
   trigger?: React.ReactElement;
   onImported?: (result: {
     imported: number;
+    linkedExisting?: number;
     listId: string | null;
   }) => void;
   /** Optional saved list to attach imported candidates to. */
@@ -81,9 +82,31 @@ export function ImportCandidatesDialog({
   const [error, setError] = useState<string | null>(null);
   const [importedCount, setImportedCount] = useState<number | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<{
+    imported: number;
+    linkedExisting: number;
+    skipped: number;
+    failed: number;
+    duplicatesExisting: number;
+    duplicatesInFile: number;
+    errors: Array<{ row: number; code: string; message: string }>;
+  } | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const forList = Boolean(listId);
+  const previewReadyCount = preview
+    ? preview.totals.valid +
+      (forList ? preview.totals.duplicatesExisting : 0)
+    : 0;
 
   const canContinue =
-    step === 0 ? file !== null : step === 1 ? preview !== null : true;
+    step === 0
+      ? file !== null
+      : step === 1
+        ? preview !== null
+        : step === 2
+          ? Boolean(mapping.name)
+          : true;
   const isLast = step === STEPS.length - 1;
 
   function reset() {
@@ -95,6 +118,12 @@ export function ImportCandidatesDialog({
     setError(null);
     setImportedCount(null);
     setJobStatus(null);
+    setImportSummary(null);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) reset();
   }
 
   async function runPreview(nextFile: File) {
@@ -162,12 +191,50 @@ export function ImportCandidatesDialog({
         return;
       }
 
-      const imported = Number(
-        current.totals?.imported ?? preview?.totals.valid ?? 0
-      );
-      setImportedCount(imported);
+      const imported = Number(current.totals?.imported ?? 0);
+      const linkedExisting = Number(current.totals?.linkedExisting ?? 0);
+      const skipped = Number(current.totals?.skipped ?? 0);
+      const failed = Number(current.totals?.failed ?? 0);
+      const duplicatesExisting = Number(current.totals?.duplicatesExisting ?? 0);
+      const duplicatesInFile = Number(current.totals?.duplicatesInFile ?? 0);
+      const errors = current.errors ?? [];
+      const added = imported + linkedExisting;
+
+      setImportedCount(added);
+      setImportSummary({
+        imported,
+        linkedExisting,
+        skipped,
+        failed,
+        duplicatesExisting,
+        duplicatesInFile,
+        errors,
+      });
       setJobStatus("completed");
-      onImported?.({ imported, listId: listId ?? null });
+
+      if (added === 0 && (skipped > 0 || failed > 0 || errors.length > 0)) {
+        const reason =
+          errors[0]?.message ||
+          (duplicatesExisting > 0 && !forList
+            ? "All rows matched existing candidates (email, phone, or LinkedIn)."
+            : duplicatesInFile > 0
+              ? "All rows were duplicates within the file."
+              : failed > 0
+                ? "Rows failed validation or could not be created."
+                : "No candidates were imported.");
+        setError(reason);
+        return;
+      }
+
+      onImported?.({
+        imported: added,
+        linkedExisting,
+        listId: listId ?? null,
+      });
+      // Brief success flash, then auto-close.
+      window.setTimeout(() => {
+        handleOpenChange(false);
+      }, 700);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -176,7 +243,7 @@ export function ImportCandidatesDialog({
   }
 
   return (
-    <Dialog onOpenChange={(open) => !open && reset()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
           trigger ?? (
@@ -191,8 +258,9 @@ export function ImportCandidatesDialog({
         <DialogHeader>
           <DialogTitle>Import candidates</DialogTitle>
           <DialogDescription>
-            Upload a CSV or Excel file (max 10 MB). Rows are validated, deduped,
-            and imported into your candidate pool.
+            {forList
+              ? "Upload a CSV or Excel file (max 10 MB). New rows are added to your pool; people already in the pool are attached to this campaign list without creating duplicates."
+              : "Upload a CSV or Excel file (max 10 MB). Rows are validated, deduped, and imported into your candidate pool."}
           </DialogDescription>
         </DialogHeader>
 
@@ -278,7 +346,9 @@ export function ImportCandidatesDialog({
           {step === 2 && preview ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Map spreadsheet columns to Huntlo fields.
+                Map spreadsheet columns to Huntlo fields. Only{" "}
+                <span className="font-medium text-foreground">Full name</span> is
+                required — other fields can be skipped.
               </p>
               <div className="space-y-2">
                 {TARGET_FIELDS.map((field) => (
@@ -286,7 +356,12 @@ export function ImportCandidatesDialog({
                     key={field.id}
                     className="grid grid-cols-[140px_1fr] items-center gap-2"
                   >
-                    <Label className="text-xs">{field.label}</Label>
+                    <Label className="text-xs">
+                      {field.label}
+                      {field.required ? (
+                        <span className="text-destructive"> *</span>
+                      ) : null}
+                    </Label>
                     <Select
                       value={mapping[field.id] ?? "__skip__"}
                       onValueChange={(value) => {
@@ -324,7 +399,12 @@ export function ImportCandidatesDialog({
               <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                 {(
                   [
-                    ["Valid", preview.totals.valid, CheckCircle2, "text-success"],
+                    [
+                      forList ? "Will add to list" : "Ready to import",
+                      previewReadyCount,
+                      CheckCircle2,
+                      "text-success",
+                    ],
                     ["Invalid", preview.totals.invalid, XCircle, "text-destructive"],
                     [
                       "Dupes in file",
@@ -333,7 +413,7 @@ export function ImportCandidatesDialog({
                       "text-warning",
                     ],
                     [
-                      "Already in pool",
+                      forList ? "Already in pool*" : "Already in pool",
                       preview.totals.duplicatesExisting,
                       AlertTriangle,
                       "text-info",
@@ -352,6 +432,12 @@ export function ImportCandidatesDialog({
                   </div>
                 ))}
               </div>
+              {forList && preview.totals.duplicatesExisting > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  * Already in pool will be linked to this campaign list — not
+                  created again.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -369,16 +455,51 @@ export function ImportCandidatesDialog({
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {importedCount != null
-                      ? `Imported ${importedCount} candidates`
+                      ? forList && importSummary
+                        ? `Added ${importedCount} to list (${importSummary.imported} new · ${importSummary.linkedExisting} from pool)`
+                        : `Imported ${importedCount} candidates`
                       : busy
                         ? `Importing… (${jobStatus ?? "starting"})`
-                        : `Ready to import ${preview?.totals.valid ?? 0} candidates`}
+                        : `Ready to import ${previewReadyCount} candidates`}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
                     {busy
-                      ? "Validating rows and writing candidates to your pool."
-                      : "Duplicates and invalid rows are skipped. Temporary upload files are deleted after processing."}
+                      ? forList
+                        ? "Validating rows, creating new pool candidates, and linking existing ones to this list."
+                        : "Validating rows and writing candidates to your pool."
+                      : importSummary
+                        ? [
+                            importSummary.linkedExisting
+                              ? `${importSummary.linkedExisting} linked from pool`
+                              : null,
+                            importSummary.skipped
+                              ? `${importSummary.skipped} skipped`
+                              : null,
+                            importSummary.failed
+                              ? `${importSummary.failed} failed`
+                              : null,
+                            !forList && importSummary.duplicatesExisting
+                              ? `${importSummary.duplicatesExisting} already in pool`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") ||
+                          (forList
+                            ? "New candidates are created; existing ones are linked to this list."
+                            : "Duplicates and invalid rows are skipped.")
+                        : forList
+                          ? "Existing pool matches are linked to this campaign list; only new people are created."
+                          : "Ready-to-import count already excludes duplicates and invalid rows."}
                   </p>
+                  {importSummary?.errors?.length ? (
+                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      {importSummary.errors.slice(0, 5).map((err) => (
+                        <li key={`${err.row}-${err.code}`}>
+                          Row {err.row}: {err.message}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -400,13 +521,13 @@ export function ImportCandidatesDialog({
               type="button"
               size="sm"
               onClick={() => void runImport()}
-              disabled={busy || importedCount != null}
+              disabled={busy || importedCount != null || previewReadyCount === 0}
             >
               {importedCount != null
                 ? `Imported ${importedCount}`
                 : busy
                   ? "Importing…"
-                  : `Import ${preview?.totals.valid ?? 0} candidates`}
+                  : `Import ${previewReadyCount} candidates`}
             </Button>
           ) : (
             <Button

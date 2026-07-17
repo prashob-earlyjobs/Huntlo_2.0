@@ -9,6 +9,14 @@ import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { JobModel } from '../jobs/job.model.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
 import {
+  buildCandidateMergeContext,
+  mergeMessageTemplate,
+} from '../outreach/variables.js';
+import {
+  isColdOutboundWhatsAppTemplate,
+  renderWhatsAppTemplatePreview,
+} from '../outreach/whatsapp-template-catalogue.js';
+import {
   emitCampaignThreadUpdated,
   emitConversationMessageCreated,
   emitConversationQualificationUpdated,
@@ -96,7 +104,12 @@ async function loadThread(organizationId: string, id: string) {
   return thread;
 }
 
-function messageToEvent(msg: ConversationMessageDocument, authorName: string) {
+function messageToEvent(
+  msg: ConversationMessageDocument,
+  authorName: string,
+  mergeContext?: Record<string, string> | null,
+  templateId?: string | null
+) {
   const author =
     msg.messageType === 'note'
       ? 'recruiter'
@@ -123,9 +136,10 @@ function messageToEvent(msg: ConversationMessageDocument, authorName: string) {
     author,
     authorName,
     subject: msg.subject || undefined,
-    text: msg.bodyText,
+    text: resolveDisplayBody(msg.bodyText, mergeContext, templateId),
     time: relativeTime(msg.receivedAt || msg.sentAt || msg.createdAt),
     delivery: deliveryMap[msg.deliveryStatus] || undefined,
+    error: msg.error?.message || undefined,
     attachments: (msg.attachments || []).map((a) => ({
       name: a.name,
       size: a.size || '',
@@ -137,6 +151,22 @@ function messageToEvent(msg: ConversationMessageDocument, authorName: string) {
     deliveryStatus: msg.deliveryStatus,
     aiGenerated: msg.aiGenerated,
   };
+}
+
+/** Fill leftover WhatsApp {{1}}/{{2}} tokens for inbox display. */
+function resolveDisplayBody(
+  bodyText: string,
+  mergeContext?: Record<string, string> | null,
+  templateId?: string | null
+): string {
+  const raw = String(bodyText || '');
+  if (!/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(raw)) return raw;
+  const ctx = mergeContext || {};
+  if (templateId && isColdOutboundWhatsAppTemplate(templateId)) {
+    const preview = renderWhatsAppTemplatePreview(templateId, ctx);
+    if (preview && !/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(preview)) return preview;
+  }
+  return mergeMessageTemplate(raw, ctx);
 }
 
 async function toDisplayConversation(thread: ConversationThreadDocument) {
@@ -189,6 +219,14 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     ? `${assignee.firstName} ${assignee.lastName}`.trim()
     : 'Unassigned';
 
+  const mergeContext = buildCandidateMergeContext(candidate, {
+    jobTitle: job?.title || null,
+  });
+  const openingTemplateId =
+    campaign?.sequenceSteps?.find((s) => s.type === 'whatsapp' && s.templateId)?.templateId ||
+    campaign?.sequenceSteps?.find((s) => s.templateId)?.templateId ||
+    null;
+
   const events = await Promise.all(
     messages.map(async (msg) => {
       let authorName = candidate?.name || 'Candidate';
@@ -202,7 +240,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
         } else authorName = 'Recruiter';
       }
       if (msg.messageType === 'system') authorName = 'System';
-      return messageToEvent(msg, authorName);
+      return messageToEvent(msg, authorName, mergeContext, openingTemplateId);
     })
   );
 
@@ -585,7 +623,11 @@ export const conversationsService = {
       .select('name')
       .lean();
     const job = thread.jobId
-      ? await JobModel.findById(thread.jobId).select('title').lean()
+      ? await JobModel.findById(thread.jobId)
+          .select(
+            'title descriptionHtml locations workplaceType requirements requiredSkills salaryMin salaryMax salaryCurrency salaryVisibility'
+          )
+          .lean()
       : null;
     const lastInbound = await ConversationMessageModel.findOne({
       threadId: thread._id,
@@ -594,11 +636,17 @@ export const conversationsService = {
       .sort({ createdAt: -1 })
       .lean();
 
+    const description = String(job?.descriptionHtml || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
     const draft = await draftConversationReply({
       tone: input.tone,
       channel: input.channel,
       candidateName: candidate?.name,
       jobTitle: job?.title || null,
+      jobDescription: description || null,
       lastCandidateMessage: lastInbound?.bodyText || null,
       instructions: input.instructions,
     });
@@ -782,22 +830,60 @@ export const conversationsService = {
       await thread.save();
     }
 
-    // Recruiter-sourced answers may finalize when campaign questions are complete —
-    // but AI-sourced never auto-finalizes.
-    if (input.source === 'recruiter' && thread.campaignId) {
-      const campaign = await OutreachCampaignModel.findById(thread.campaignId)
-        .select('qualificationConfig')
-        .lean();
+    if (thread.campaignId) {
+      const campaign = await OutreachCampaignModel.findById(thread.campaignId);
       const required = campaign?.qualificationConfig?.questions || [];
-      if (required.length > 0) {
-        const answered = required.every(
-          (q) => enrollment.qualificationState.answers[q.id] !== undefined
+      const current = required.find((q) => q.id === input.questionId);
+      if (current) {
+        const { evaluateKnockout } = await import(
+          '../outreach/qualification-qa.service.js'
         );
-        if (answered && campaign?.qualificationConfig?.enabled) {
-          // Still require explicit classify override for qualified/rejected.
-          thread.qualificationStatus = 'handed_off';
-          thread.status = 'handed_off';
+        const knockout = evaluateKnockout(
+          {
+            id: current.id,
+            prompt: current.prompt,
+            answerType: current.answerType,
+            knockout: current.knockout,
+            knockoutCondition: current.knockoutCondition,
+          },
+          input.answer
+        );
+        if (knockout === 'fail') {
+          enrollment.qualificationState = {
+            status: 'rejected',
+            answers: enrollment.qualificationState.answers,
+          };
+          await enrollment.save();
+          thread.qualificationStatus = 'rejected';
+          thread.status = 'closed';
           await thread.save();
+        } else if (
+          input.source === 'recruiter' &&
+          required.length > 0 &&
+          campaign?.qualificationConfig?.enabled
+        ) {
+          const answered = required.every(
+            (q) => enrollment.qualificationState.answers[q.id] !== undefined
+          );
+          if (answered) {
+            const handoff = String(
+              campaign.qualificationConfig.takeoverCondition || ''
+            ).includes('After qualification');
+            enrollment.qualificationState = {
+              status: handoff ? 'in_progress' : 'qualified',
+              answers: enrollment.qualificationState.answers,
+            };
+            if (campaign.qualificationConfig.autoScreening && !handoff) {
+              enrollment.screeningState = {
+                ...enrollment.screeningState,
+                status: 'scheduled',
+              };
+            }
+            await enrollment.save();
+            thread.qualificationStatus = handoff ? 'handed_off' : 'qualified';
+            thread.status = 'handed_off';
+            await thread.save();
+          }
         }
       }
     }

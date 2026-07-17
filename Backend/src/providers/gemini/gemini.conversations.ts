@@ -47,6 +47,7 @@ export type ConversationDraftInput = {
   channel?: 'email' | 'whatsapp';
   candidateName?: string;
   jobTitle?: string | null;
+  jobDescription?: string | null;
   lastCandidateMessage?: string | null;
   instructions?: string;
 };
@@ -60,6 +61,26 @@ export type ConversationDraftResult = {
   /** Always false — drafts never send themselves. */
   autoSend: false;
   guardrails: ConversationAiGuardrails;
+};
+
+export type AnswerFromJdInput = {
+  candidateName?: string | null;
+  jobTitle?: string | null;
+  jobDescription?: string | null;
+  locations?: string[];
+  workplaceType?: string | null;
+  requirements?: string[];
+  requiredSkills?: string[];
+  salaryRange?: string | null;
+  candidateQuestion: string;
+  channel?: 'email' | 'whatsapp';
+};
+
+export type AnswerFromJdResult = {
+  body: string;
+  canAnswer: boolean;
+  compensationRelated: boolean;
+  model: string;
 };
 
 function normalizeTone(tone?: string): string {
@@ -203,6 +224,7 @@ export async function draftConversationReply(
   const channel = input.channel || 'email';
   const name = input.candidateName || 'there';
   const role = input.jobTitle || 'the role';
+  const jd = (input.jobDescription || '').slice(0, 5000);
 
   const offlineBody =
     tone === 'Friendly'
@@ -223,10 +245,12 @@ export async function draftConversationReply(
 
   const prompt = `Draft a short recruiter ${channel} reply. Tone: ${tone}.
 Candidate: ${name}. Role: ${role}.
+Job description (use only this for factual answers; if missing say you'll confirm with the team):
+${jd || '(none)'}
 Last candidate message: ${input.lastCandidateMessage || '(none)'}
 Extra instructions: ${input.instructions || '(none)'}
 Return JSON: { "subject": string|null, "body": string }.
-Do not claim offers were made. Do not auto-qualify or reject.`;
+Do not invent salary, visa, or benefits not in the JD. Do not claim offers were made. Do not auto-qualify or reject.`;
 
   try {
     const parsed = await callGeminiJson(prompt);
@@ -239,6 +263,79 @@ Do not claim offers were made. Do not auto-qualify or reject.`;
       isDraft: true,
       autoSend: false,
       guardrails: CONVERSATION_AI_GUARDRAILS,
+    };
+  } catch {
+    return offline;
+  }
+}
+
+/**
+ * Auto-reply to a candidate question using only the job description.
+ * Used by outreach qualification when AI reply is enabled.
+ */
+export async function answerCandidateQuestionFromJd(
+  input: AnswerFromJdInput
+): Promise<AnswerFromJdResult> {
+  const name = (input.candidateName || 'there').trim().split(/\s+/)[0] || 'there';
+  const role = input.jobTitle || 'this role';
+  const jdParts = [
+    input.jobDescription ? input.jobDescription.slice(0, 6000) : '',
+    input.locations?.length ? `Locations: ${input.locations.join(', ')}` : '',
+    input.workplaceType ? `Workplace: ${input.workplaceType}` : '',
+    input.requirements?.length
+      ? `Requirements: ${input.requirements.slice(0, 15).join('; ')}`
+      : '',
+    input.requiredSkills?.length
+      ? `Skills: ${input.requiredSkills.slice(0, 20).join(', ')}`
+      : '',
+    input.salaryRange ? `Compensation: ${input.salaryRange}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const compensationRelated =
+    /\b(salary|ctc|compen|pay|package|lpa|rs\.?|₹|cost to company)\b/i.test(
+      input.candidateQuestion
+    );
+
+  const offline: AnswerFromJdResult = {
+    body: jdParts
+      ? `Hi ${name} — thanks for asking. Based on the ${role} brief: ${jdParts.slice(0, 400)}${jdParts.length > 400 ? '…' : ''}\n\nHappy to clarify anything else.`
+      : `Hi ${name} — thanks for the question about ${role}. I'll confirm the details with the hiring team and get back to you shortly.`,
+    canAnswer: Boolean(jdParts),
+    compensationRelated,
+    model: `${GEMINI_CONVERSATIONS_MODEL}-offline`,
+  };
+
+  const prompt = `You are a recruiting assistant. Answer the candidate's question using ONLY the job description context below.
+Return JSON: { "body": string, "canAnswer": boolean, "compensationRelated": boolean }.
+Rules:
+- If the JD does not contain the answer, set canAnswer=false and write a short honest reply that you will confirm with the hiring team (do not invent facts).
+- Keep the reply concise (WhatsApp-friendly, under 600 characters when possible).
+- Do not ask qualification screening questions here.
+- Do not promise offers, visas, or salaries unless present in the JD.
+- compensationRelated=true if the question is about pay/CTC/salary/benefits money.
+
+Candidate first name: ${name}
+Role: ${role}
+Channel: ${input.channel || 'email'}
+Candidate question: ${input.candidateQuestion.slice(0, 1500)}
+
+Job context:
+${jdParts || '(no JD available)'}
+`;
+
+  try {
+    const parsed = await callGeminiJson(prompt);
+    if (!parsed?.body) return offline;
+    return {
+      body: String(parsed.body).slice(0, 4000),
+      canAnswer: parsed.canAnswer === undefined ? Boolean(jdParts) : Boolean(parsed.canAnswer),
+      compensationRelated:
+        parsed.compensationRelated === undefined
+          ? compensationRelated
+          : Boolean(parsed.compensationRelated),
+      model: GEMINI_CONVERSATIONS_MODEL,
     };
   } catch {
     return offline;

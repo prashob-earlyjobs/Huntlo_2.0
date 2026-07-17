@@ -276,6 +276,10 @@ export function compileBuilderToCampaign(campaign: OutreachCampaignDocument): Co
           enabled: Boolean(asRecord(builderState.qualification).enabled),
           questions: asArray(asRecord(builderState.qualification).questions),
           aiReplyEnabled: Boolean(asRecord(builderState.qualification).aiReplyEnabled),
+          takeoverCondition: pickString(
+            asRecord(builderState.qualification).takeoverCondition
+          ),
+          autoScreening: Boolean(asRecord(builderState.qualification).autoScreening),
         }
       : campaign.qualificationConfig;
 

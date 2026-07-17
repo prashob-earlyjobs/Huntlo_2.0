@@ -1,18 +1,49 @@
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { appendFileSync } from 'node:fs';
 
 import { getLogger } from '../../config/logger.js';
 import { campaignDeliveryMetrics } from '../../shared/observability/metrics.js';
-import { CampaignJobModel } from './campaign-job.model.js';
-import { OutreachCampaignModel, sequenceDelayToMs } from './campaign.model.js';
-import { OutreachEnrollmentModel } from './enrollment.model.js';
+import { CampaignJobModel, OUTREACH_QUEUE_STATUS } from './campaign-job.model.js';
+import {
+  OutreachCampaignModel,
+  sequenceDelayToMs,
+  type OutreachCampaignDocument,
+} from './campaign.model.js';
+import {
+  OutreachEnrollmentModel,
+  type OutreachEnrollmentDocument,
+} from './enrollment.model.js';
 import { campaignsService } from './campaigns.service.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
 import { executeCampaignMessageStep } from './campaign-delivery.js';
 import { nextSendAtWithinWindow } from './send-window.util.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
-import { conversationsService } from '../conversations/conversations.service.js';
+import {
+  conversationsService,
+} from '../conversations/conversations.service.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
+import type { ConversationChannel } from '../conversations/conversation-thread.model.js';
+import {
+  getApprovedTemplate,
+  renderWhatsAppTemplatePreview,
+} from './whatsapp-template-catalogue.js';
+import type { CampaignSequenceStep } from './campaign.model.js';
+
+function waDebug(line: string): void {
+  try {
+    appendFileSync(
+      new URL('../../../.huntlo-wa-debug.log', import.meta.url),
+      `${new Date().toISOString()} ${line}\n`
+    );
+  } catch {
+    try {
+      appendFileSync('.huntlo-wa-debug.log', `${new Date().toISOString()} ${line}\n`);
+    } catch {
+      // ignore
+    }
+  }
+}
 
 const LEASE_MS = 60_000;
 const MAX_ATTEMPTS = 5;
@@ -39,15 +70,170 @@ function jobTypeForStep(type: string) {
                 : 'advance_sequence';
 }
 
+function channelForStep(type: string): ConversationChannel | null {
+  if (type === 'email' || type === 'scheduling_link') return 'email';
+  if (type === 'whatsapp') return 'whatsapp';
+  if (type === 'ai_voice') return 'ai_voice';
+  return null;
+}
+
+function previewBodyForStep(step: {
+  type: string;
+  body?: string | null;
+  note?: string | null;
+  subject?: string | null;
+  templateId?: string | null;
+}): string {
+  if (step.templateId) {
+    const catalogue = getApprovedTemplate(step.templateId);
+    if (catalogue?.body) {
+      // Prefer human preview without leaving {{1}} visible in the inbox.
+      return renderWhatsAppTemplatePreview(step.templateId, {});
+    }
+    return `[template:${step.templateId}]`;
+  }
+  const raw = String(step.body || step.note || '').trim();
+  if (raw) return raw;
+  return `[${step.type}]`;
+}
+
+/** Persist outbound attempt on the conversation thread (success or failure). */
+async function recordOutboundConversationMessage(input: {
+  organizationId: string;
+  candidateId: string;
+  campaignId: string;
+  enrollmentId: string;
+  jobId: string | null;
+  campaignJobId: string;
+  channel: ConversationChannel;
+  provider?: string | null;
+  providerMessageId?: string | null;
+  subject?: string | null;
+  bodyText: string;
+  deliveryStatus: 'sent' | 'failed';
+  errorMessage?: string | null;
+}) {
+  const convThread = await conversationsService.ensureThreadForEnrollment({
+    organizationId: input.organizationId,
+    candidateId: input.candidateId,
+    campaignId: input.campaignId,
+    enrollmentId: input.enrollmentId,
+    jobId: input.jobId,
+    channel: input.channel,
+  });
+
+  const providerMessageId =
+    input.providerMessageId ||
+    (input.deliveryStatus === 'failed'
+      ? `campaign-job:${input.campaignJobId}:failed`
+      : `campaign-job:${input.campaignJobId}`);
+
+  if (input.deliveryStatus === 'failed') {
+    await ConversationMessageModel.findOneAndUpdate(
+      {
+        organizationId: convThread.organizationId,
+        providerMessageId,
+      },
+      {
+        $set: {
+          organizationId: convThread.organizationId,
+          threadId: convThread._id,
+          provider: input.provider || 'system',
+          channel: input.channel,
+          direction: 'outbound',
+          sender: null,
+          recipient: null,
+          subject: input.subject ?? null,
+          bodyText: input.bodyText.slice(0, 50000),
+          bodyHtml: null,
+          providerMessageId,
+          providerThreadId: null,
+          deliveryStatus: 'failed',
+          messageType: 'message',
+          aiGenerated: true,
+          sentAt: new Date(),
+          error: {
+            code: 'SEND_FAILED',
+            message: (input.errorMessage || 'Send failed').slice(0, 2000),
+          },
+        },
+      },
+      { upsert: true, new: true }
+    );
+  } else {
+    await ConversationMessageModel.create({
+      organizationId: convThread.organizationId,
+      threadId: convThread._id,
+      provider: input.provider || 'system',
+      channel: input.channel,
+      direction: 'outbound',
+      sender: null,
+      recipient: null,
+      subject: input.subject ?? null,
+      bodyText: input.bodyText.slice(0, 50000),
+      bodyHtml: null,
+      providerMessageId,
+      providerThreadId: null,
+      deliveryStatus: 'sent',
+      messageType: 'message',
+      aiGenerated: true,
+      sentAt: new Date(),
+      error: null,
+    });
+  }
+
+  const preview =
+    input.deliveryStatus === 'failed'
+      ? `Failed: ${(input.errorMessage || 'Send failed').slice(0, 200)}`
+      : input.bodyText.slice(0, 240);
+
+  convThread.lastMessageAt = new Date();
+  convThread.lastRecruiterMessageAt = new Date();
+  convThread.lastMessagePreview = preview;
+  if (input.deliveryStatus === 'sent') {
+    convThread.status = 'awaiting_reply';
+  }
+  if (!convThread.channels.includes(input.channel)) {
+    convThread.channels.push(input.channel);
+  }
+  await convThread.save();
+  return convThread;
+}
+
 /**
  * Process due CampaignJobs for the canonical outreach engine.
  * Message steps send via connected providers; missing contacts skip that step.
  * Stop rules: reply / opt-out / recruiter stop / qualification reject / complete / fatal error.
  */
+function assertWorkerHostnameAllowed(): void {
+  const raw = String(process.env.OUTREACH_ALLOWED_WORKER_HOSTNAMES || '').trim();
+  if (!raw) return;
+  const allowed = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!allowed.length) return;
+  const host = hostname();
+  if (!allowed.some((a) => a === host || host.includes(a) || a.includes(host))) {
+    throw new Error(
+      `OUTREACH_ALLOWED_WORKER_HOSTNAMES excludes this host ("${host}"). ` +
+        `Allowed: ${allowed.join(', ')}. Refusing to process campaign jobs.`
+    );
+  }
+}
+
 export async function processDueCampaignJobs(limit = 25): Promise<number> {
   const logger = getLogger();
+  assertWorkerHostnameAllowed();
   const owner = workerId();
   const now = new Date();
+
+  // Move legacy `queued` jobs into the isolated queue so foreign/old workers
+  // (which only poll `queued`) cannot deliver broken WhatsApp free-text.
+  await CampaignJobModel.updateMany(
+    { status: 'queued' },
+    { $set: { status: OUTREACH_QUEUE_STATUS } }
+  );
 
   // Activate scheduled campaigns whose time has come
   const dueCampaigns = await OutreachCampaignModel.find({
@@ -101,7 +287,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
   }
 
   const jobs = await CampaignJobModel.find({
-    status: 'queued',
+    status: OUTREACH_QUEUE_STATUS,
     scheduledAt: { $lte: now },
   })
     .sort({ scheduledAt: 1 })
@@ -112,7 +298,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
     const leased = await CampaignJobModel.findOneAndUpdate(
       {
         _id: job._id,
-        status: 'queued',
+        status: OUTREACH_QUEUE_STATUS,
       },
       {
         $set: {
@@ -126,9 +312,13 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
     );
     if (!leased) continue;
 
+    let campaign: OutreachCampaignDocument | null = null;
+    let enrollment: OutreachEnrollmentDocument | null = null;
+    let step: CampaignSequenceStep | null = null;
+
     try {
-      const campaign = await OutreachCampaignModel.findById(leased.campaignId);
-      const enrollment = await OutreachEnrollmentModel.findById(leased.enrollmentId);
+      campaign = await OutreachCampaignModel.findById(leased.campaignId);
+      enrollment = await OutreachEnrollmentModel.findById(leased.enrollmentId);
       if (!campaign || campaign.status !== 'running' || campaign.deletedAt) {
         leased.status = 'cancelled';
         await leased.save();
@@ -168,7 +358,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
         continue;
       }
 
-      const step = campaign.sequenceSteps.find((s) => s.id === leased.stepId);
+      step = campaign.sequenceSteps.find((s) => s.id === leased.stepId) || null;
       if (!step) {
         leased.status = 'failed';
         leased.error = 'Step not found';
@@ -179,6 +369,10 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       leased.status = 'running';
       await leased.save();
 
+      waDebug(
+        `EXECUTE job=${String(leased._id)} step=${step.id} type=${step.type} templateId=${step.templateId} bodyHasPh=${/\{\{/.test(String(step.body || ''))}`
+      );
+
       const delivery = await executeCampaignMessageStep({
         campaign,
         enrollment,
@@ -186,49 +380,91 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
         jobId: String(leased._id),
       });
 
+      waDebug(
+        `RESULT job=${String(leased._id)} outcome=${delivery.outcome} rendered=${
+          delivery.outcome === 'sent'
+            ? String(delivery.renderedBody || '')
+                .slice(0, 80)
+                .replace(/\n/g, ' ')
+            : delivery.outcome === 'skipped'
+              ? delivery.reason
+              : ''
+        }`
+      );
+
       if (delivery.outcome === 'sent') {
+        await OutreachCampaignModel.updateOne(
+          { _id: campaign._id },
+          { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }
+        );
+        // Keep in-memory copy roughly in sync for any later save in this loop.
         campaign.stats.sent = (campaign.stats.sent || 0) + 1;
         campaign.stats.delivered = (campaign.stats.delivered || 0) + 1;
+        campaign.markModified('stats');
         campaignDeliveryMetrics.recordSent(delivery.channel);
         campaignDeliveryMetrics.recordDelivered();
 
-        const convThread = await conversationsService.ensureThreadForEnrollment({
+        const sentSubject = delivery.renderedSubject ?? step.subject ?? null;
+        let sentBody = String(
+          delivery.renderedBody || step.body || step.note || `[${step.type}]`
+        );
+        // Last-resort personalization for WhatsApp cold templates if delivery forgot renderedBody.
+        if (/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(sentBody) && step.templateId) {
+          sentBody = renderWhatsAppTemplatePreview(String(step.templateId), {
+            first_name: 'there',
+            job_title: 'this role',
+            '1': 'there',
+            '2': 'this role',
+          });
+        }
+        if (/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(sentBody)) {
+          waDebug(`BLOCK_STORE job=${String(leased._id)} body=${sentBody.slice(0, 60)}`);
+          throw Object.assign(
+            new Error(
+              'Refusing to store WhatsApp message with unfilled {{variables}}. ' +
+                'Delivery layer must return a personalized renderedBody.'
+            ),
+            { statusCode: 500, code: 'UNFILLED_WHATSAPP_VARIABLES' }
+          );
+        }
+        waDebug(`STORE job=${String(leased._id)} body=${sentBody.slice(0, 80).replace(/\n/g, ' ')}`);
+        await recordOutboundConversationMessage({
           organizationId: String(campaign.organizationId),
           candidateId: String(enrollment.candidateId),
           campaignId: String(campaign._id),
           enrollmentId: String(enrollment._id),
           jobId: campaign.jobId ? String(campaign.jobId) : null,
+          campaignJobId: String(leased._id),
           channel: delivery.channel,
-        });
-        // Store the personalized text actually sent (falls back to the raw template
-        // only if delivery didn't report rendered content, e.g. non-message steps).
-        const sentSubject = delivery.renderedSubject ?? step.subject ?? null;
-        const sentBody = delivery.renderedBody || step.body || step.note || `[${step.type}]`;
-        await ConversationMessageModel.create({
-          organizationId: campaign.organizationId,
-          threadId: convThread._id,
-          provider: delivery.provider || 'system',
-          channel: delivery.channel,
-          direction: 'outbound',
-          sender: null,
-          recipient: null,
+          provider: delivery.provider,
+          providerMessageId: delivery.providerMessageId || `campaign-job:${String(leased._id)}`,
           subject: sentSubject,
           bodyText: sentBody,
-          bodyHtml: null,
-          providerMessageId:
-            delivery.providerMessageId || `campaign-job:${String(leased._id)}`,
-          providerThreadId: null,
           deliveryStatus: 'sent',
-          messageType: 'message',
-          aiGenerated: true,
-          sentAt: new Date(),
         });
-        convThread.lastMessageAt = new Date();
-        convThread.lastRecruiterMessageAt = new Date();
-        convThread.lastMessagePreview = sentBody.slice(0, 240);
-        convThread.status = 'awaiting_reply';
-        await convThread.save();
       } else if (delivery.outcome === 'skipped' && delivery.reason !== 'non_message') {
+        const skipChannel =
+          delivery.channel || channelForStep(step.type) || 'email';
+        const skipMessage =
+          delivery.reason === 'missing_email'
+            ? 'Skipped — candidate has no email address'
+            : delivery.reason === 'missing_phone'
+              ? 'Skipped — candidate has no phone number'
+              : `Skipped — ${delivery.reason}`;
+        await recordOutboundConversationMessage({
+          organizationId: String(campaign.organizationId),
+          candidateId: String(enrollment.candidateId),
+          campaignId: String(campaign._id),
+          enrollmentId: String(enrollment._id),
+          jobId: campaign.jobId ? String(campaign.jobId) : null,
+          campaignJobId: String(leased._id),
+          channel: skipChannel,
+          provider: 'system',
+          subject: step.subject ?? null,
+          bodyText: previewBodyForStep(step),
+          deliveryStatus: 'failed',
+          errorMessage: skipMessage,
+        }).catch(() => undefined);
         await recordCampaignActivity({
           organizationId: String(campaign.organizationId),
           campaignId: String(campaign._id),
@@ -255,10 +491,10 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       await enrollment.save();
 
       const ordered = [...campaign.sequenceSteps].sort((a, b) => a.order - b.order);
-      const idx = ordered.findIndex((s) => s.id === step.id);
+      const idx = ordered.findIndex((s) => s.id === step!.id);
       const next = idx >= 0 ? ordered[idx + 1] : null;
 
-      if (step.stopOnReply && enrollment.replyState.hasReply) {
+      if (step!.stopOnReply && enrollment.replyState.hasReply) {
         await campaignsService.stopEnrollment(String(enrollment._id), 'candidate_replied');
       } else if (!next) {
         enrollment.status = 'completed';
@@ -296,7 +532,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           stepId: next.id,
           jobType: jobTypeForStep(next.type),
           scheduledAt: when,
-          status: 'queued',
+          status: OUTREACH_QUEUE_STATUS,
           attempts: 0,
         });
       }
@@ -315,6 +551,33 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       const message = error instanceof Error ? error.message : 'Campaign job failed';
       logger.warn({ err: error, jobId: String(leased._id) }, 'Campaign job failed');
       leased.error = message;
+
+      // Surface the failed send in Conversations (even while retries continue).
+      if (campaign && enrollment && step) {
+        const failChannel = channelForStep(step.type);
+        if (failChannel) {
+          await recordOutboundConversationMessage({
+            organizationId: String(campaign.organizationId),
+            candidateId: String(enrollment.candidateId),
+            campaignId: String(campaign._id),
+            enrollmentId: String(enrollment._id),
+            jobId: campaign.jobId ? String(campaign.jobId) : null,
+            campaignJobId: String(leased._id),
+            channel: failChannel,
+            provider: 'system',
+            subject: step.subject ?? null,
+            bodyText: previewBodyForStep(step),
+            deliveryStatus: 'failed',
+            errorMessage: message,
+          }).catch((recordErr) => {
+            logger.warn(
+              { err: recordErr, jobId: String(leased._id) },
+              'Failed to record conversation for failed send'
+            );
+          });
+        }
+      }
+
       if (leased.attempts >= MAX_ATTEMPTS) {
         leased.status = 'dead';
         await campaignsService.stopEnrollment(String(leased.enrollmentId), 'fatal_provider_error', {
@@ -322,7 +585,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           message,
         });
       } else {
-        leased.status = 'queued';
+        leased.status = OUTREACH_QUEUE_STATUS;
         leased.scheduledAt = new Date(Date.now() + leased.attempts * 30_000);
         leased.leaseOwner = null;
         leased.leaseExpiresAt = null;

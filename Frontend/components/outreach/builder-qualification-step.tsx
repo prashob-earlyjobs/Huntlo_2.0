@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { ErrorList, Field, StepCard, ToggleRow } from "@/components/outreach/builder-ui";
 import type {
@@ -17,12 +18,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getApiErrorMessage, outreachApi } from "@/lib/api";
 import {
   ANSWER_TYPES,
   TAKEOVER_CONDITIONS,
   type AnswerType,
   type QualificationQuestion,
 } from "@/lib/mock-outreach";
+
+function mapAnswerType(raw: string): AnswerType {
+  const value = raw.toLowerCase();
+  if (value.includes("yes") || value.includes("no") || value.includes("boolean")) {
+    return "Yes / No";
+  }
+  if (value.includes("number") || value.includes("day")) return "Number";
+  if (value.includes("choice") || value.includes("select")) return "Single choice";
+  return "Short text";
+}
 
 export function QualificationStep({
   state,
@@ -34,6 +46,8 @@ export function QualificationStep({
   showErrors: boolean;
 }) {
   const errors = showErrors ? stepErrors(4, state) : [];
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   function setQuestions(questions: QualificationQuestion[]) {
     update("questions", questions);
@@ -47,13 +61,52 @@ export function QualificationStep({
     );
   }
 
+  async function generateFromJd() {
+    if (!state.jobId) {
+      setGenerateError("Select a related job in Campaign Setup first.");
+      return;
+    }
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const result = await outreachApi.generateQualificationQuestions({
+        jobId: state.jobId,
+        instructions:
+          "Generate knockout screening questions from the job description for outreach.",
+      });
+      const mapped: QualificationQuestion[] = result.questions.map((question, index) => ({
+        id: question.id || `q-${index + 1}`,
+        text: question.prompt,
+        answerType: mapAnswerType(question.answerType),
+        knockout: Boolean(question.knockout),
+        knockoutCondition: question.knockoutCondition || "",
+      }));
+      if (!mapped.length) {
+        setGenerateError("AI returned no questions. Try again.");
+        return;
+      }
+      setQuestions(mapped);
+    } catch (error) {
+      setGenerateError(
+        getApiErrorMessage(error, "Unable to generate questions from the job description.")
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   return (
     <StepCard
       title="Qualification"
-      description="Configure how the AI assistant classifies replies and qualifies interested candidates."
+      description="AI can generate screening questions from the linked job description, answer candidate questions from the JD, and ask your qualification questions after a reply."
     >
       <div className="space-y-5">
         <ErrorList errors={errors} />
+        {generateError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {generateError}
+          </p>
+        ) : null}
 
         <section className="space-y-2">
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -70,7 +123,7 @@ export function QualificationStep({
             <ToggleRow
               id="qual-ai-reply"
               label="AI reply enabled"
-              description="Let the AI answer candidate questions and ask qualification questions."
+              description="Answer candidate questions from the JD, then ask qualification questions."
               checked={state.aiReplyEnabled}
               onChange={(checked) => update("aiReplyEnabled", checked)}
             />
@@ -103,49 +156,68 @@ export function QualificationStep({
         </section>
 
         <section className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Qualification questions
             </h3>
-            <Button
-              type="button"
-              size="xs"
-              variant="outline"
-              onClick={() =>
-                setQuestions([
-                  ...state.questions,
-                  {
-                    id: `q-${Date.now()}`,
-                    text: "",
-                    answerType: "Yes / No",
-                    knockout: false,
-                    knockoutCondition: "",
-                  },
-                ])
-              }
-            >
-              <Plus aria-hidden />
-              Add Question
-            </Button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={generating || !state.jobId}
+                onClick={() => void generateFromJd()}
+              >
+                {generating ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Sparkles aria-hidden />
+                )}
+                {generating ? "Generating…" : "Generate from JD"}
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() =>
+                  setQuestions([
+                    ...state.questions,
+                    {
+                      id: `q-${Date.now()}`,
+                      text: "",
+                      answerType: "Yes / No",
+                      knockout: false,
+                      knockoutCondition: "",
+                    },
+                  ])
+                }
+              >
+                <Plus aria-hidden />
+                Add question
+              </Button>
+            </div>
           </div>
-
+          {!state.jobId ? (
+            <p className="text-xs text-muted-foreground">
+              Link a job in Setup to generate questions from the job description.
+            </p>
+          ) : null}
           {state.questions.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
               No qualification questions — every interested reply is treated as
-              qualified.
+              qualified (or generate from the linked JD).
             </p>
           ) : (
-            <ol className="space-y-2">
+            <ul className="space-y-3">
               {state.questions.map((question, index) => (
                 <li
                   key={question.id}
-                  className="rounded-lg border border-border p-3"
+                  className="rounded-lg border border-border px-3 py-3"
                 >
-                  <div className="grid gap-3 lg:grid-cols-[1fr_170px_auto]">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
                     <Field
                       label={`Question ${index + 1}`}
                       htmlFor={`${question.id}-text`}
-                      required
                     >
                       <Input
                         id={`${question.id}-text`}
@@ -155,8 +227,7 @@ export function QualificationStep({
                             text: event.target.value,
                           })
                         }
-                        placeholder="e.g. What is your notice period?"
-                        aria-invalid={showErrors && !question.text.trim()}
+                        placeholder="Ask a screening question…"
                       />
                     </Field>
                     <Field label="Answer type" htmlFor={`${question.id}-type`}>
@@ -169,10 +240,7 @@ export function QualificationStep({
                           })
                         }
                       >
-                        <SelectTrigger
-                          id={`${question.id}-type`}
-                          className="w-full"
-                        >
+                        <SelectTrigger id={`${question.id}-type`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -227,15 +295,15 @@ export function QualificationStep({
                             knockoutCondition: event.target.value,
                           })
                         }
-                        placeholder="Knockout condition, e.g. Reject if more than 60"
+                        placeholder="Reject if…"
+                        className="h-8 text-xs"
                         aria-label={`Knockout condition for question ${index + 1}`}
-                        className="h-7 text-xs"
                       />
                     ) : null}
                   </div>
                 </li>
               ))}
-            </ol>
+            </ul>
           )}
         </section>
 
@@ -245,16 +313,16 @@ export function QualificationStep({
           </h3>
           <div className="grid gap-2 lg:grid-cols-2">
             <ToggleRow
-              id="qual-screening"
+              id="qual-auto-screening"
               label="Auto-start AI screening"
-              description="Qualified candidates are automatically enrolled in an AI voice screening."
+              description="When a candidate qualifies, schedule them for AI voice screening."
               checked={state.autoScreening}
               onChange={(checked) => update("autoScreening", checked)}
             />
             <ToggleRow
-              id="qual-calendly"
-              label="Auto-send Calendly link"
-              description="Send the campaign owner's scheduling link once a candidate qualifies."
+              id="qual-auto-calendly"
+              label="Auto-send Calendly"
+              description="Send a scheduling link after qualification completes."
               checked={state.autoCalendly}
               onChange={(checked) => update("autoCalendly", checked)}
             />

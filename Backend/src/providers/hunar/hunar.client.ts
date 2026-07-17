@@ -137,8 +137,9 @@ export function buildHunarCallbackUrls(
     throw err;
   }
   const q = encodeURIComponent(String(entityId || '').trim());
+  // Spec path + legacy alias both served by the same router.
   const path = (suffix: string) =>
-    `${base}/api/v1/webhooks/hunar/${suffix}?${entityParam}=${q}`;
+    `${base}/api/integrations/voice/hunar/${suffix}?${entityParam}=${q}`;
   return {
     call_status_callback_url: path('call-status'),
     call_recording_callback_url: path('call-recording'),

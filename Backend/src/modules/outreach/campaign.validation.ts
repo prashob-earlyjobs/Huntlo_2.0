@@ -34,7 +34,7 @@ const sequenceStepSchema = z.object({
   delayUnit: z.enum(['days', 'hours', 'minutes']).default('days'),
   templateId: z.string().nullable().optional(),
   subject: z.string().max(300).nullable().optional(),
-  body: z.string().max(20000).nullable().optional(),
+  body: z.string().max(60000).nullable().optional(),
   stopOnReply: z.boolean().optional(),
   note: z.string().max(2000).nullable().optional(),
   sendWindow: z
@@ -107,9 +107,12 @@ export const createCampaignSchema = z.object({
           prompt: z.string().min(1).max(1000),
           answerType: z.string().min(1).max(40),
           knockout: z.boolean().optional(),
+          knockoutCondition: z.string().max(500).nullable().optional(),
         })
       ),
       aiReplyEnabled: z.boolean().optional(),
+      takeoverCondition: z.string().max(200).nullable().optional(),
+      autoScreening: z.boolean().optional(),
     })
     .optional(),
   schedulingConfig: z
@@ -181,7 +184,7 @@ export const builderChannelStepSchema = z
 export const builderMessageStepSchema = z
   .object({
     subject: z.string().max(300).nullable().optional(),
-    body: z.string().max(20000).nullable().optional(),
+    body: z.string().max(60000).nullable().optional(),
     templateId: z.string().nullable().optional(),
     touchpoints: z.array(z.record(z.string(), z.unknown())).optional(),
   })
