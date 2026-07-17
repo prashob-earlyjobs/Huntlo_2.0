@@ -1,4 +1,4 @@
-# Huntlo Backend
+# Huntlo Backend.
 
 Production backend for the Huntlo agentic AI recruiting platform.
 
