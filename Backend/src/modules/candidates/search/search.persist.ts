@@ -123,6 +123,19 @@ export async function upsertCandidatesFromDocs(options: {
       ? normalizeLinkedinProfileUrl(linkedinUrl) || linkedinUrl.toLowerCase()
       : null;
 
+    const profilePictureUrl =
+      (typeof mapped.profile_picture_permalink === 'string' &&
+      mapped.profile_picture_permalink.trim()
+        ? mapped.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_permalink === 'string' &&
+      profile.profile_picture_permalink.trim()
+        ? profile.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_url === 'string' && profile.profile_picture_url.trim()
+        ? profile.profile_picture_url.trim()
+        : null);
+
     const name = mapped.name || 'Unknown';
     const { firstName, lastName } = splitName(name);
     const currentRole =
@@ -166,6 +179,7 @@ export async function upsertCandidatesFromDocs(options: {
             externalCandidateId: candidateId,
             linkedinProfileUrl: linkedinUrl,
             linkedinUrlNormalized,
+            profilePictureUrl,
             name,
             firstName,
             lastName,
@@ -176,6 +190,7 @@ export async function upsertCandidatesFromDocs(options: {
               headline:
                 typeof profile.headline === 'string' ? profile.headline : currentRole,
               linkedinUrl,
+              profilePictureUrl,
             },
             currentEmployment: {
               title: currentRole,

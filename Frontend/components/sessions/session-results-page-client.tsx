@@ -48,6 +48,7 @@ function mapSearchSummaryToSessionCandidate(
     name: candidate.name,
     headline: candidate.headline ?? null,
     linkedinUrl: candidate.linkedinProfileUrl ?? candidate.linkedinUrl ?? null,
+    profilePictureUrl: candidate.profilePictureUrl ?? null,
     title: candidate.currentRole,
     company: candidate.currentCompany,
     location: candidate.location,

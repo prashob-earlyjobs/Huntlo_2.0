@@ -1407,6 +1407,13 @@ function mapFjDocToCandidate(doc: unknown): FutureJobsMappedCandidate | null {
       : undefined,
     linkedin_profile_url:
       typeof p.linkedin_profile_url === "string" ? p.linkedin_profile_url : "",
+    profile_picture_permalink:
+      typeof p.profile_picture_permalink === "string" &&
+      p.profile_picture_permalink.trim()
+        ? p.profile_picture_permalink.trim()
+        : typeof p.profile_picture_url === "string" && p.profile_picture_url.trim()
+          ? p.profile_picture_url.trim()
+          : "",
     name: typeof p.name === "string" && p.name.trim() ? p.name.trim() : "Unknown",
     role:
       typeof job.job_title === "string" && job.job_title.trim()

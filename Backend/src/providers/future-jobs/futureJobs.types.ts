@@ -142,6 +142,7 @@ export type FutureJobsMappedCandidate = {
   id?: string;
   sourcingSessionId?: string;
   linkedin_profile_url: string;
+  profile_picture_permalink?: string;
   name: string;
   role: string;
   experience: string;
@@ -225,7 +226,8 @@ export interface FutureJobsProvider {
   ): Promise<FutureJobsApiResponse>;
 
   getSourcingSessionCandidateDetails(
-    candidateId: string
+    candidateId: string,
+    opts?: { sessionId?: string | null }
   ): Promise<FutureJobsApiResponse>;
 
   /**

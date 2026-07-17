@@ -630,10 +630,11 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
   }
 
   async function getSourcingSessionCandidateDetails(
-    candidateId: string
+    candidateId: string,
+    opts: { sessionId?: string | null } = {}
   ): Promise<FutureJobsApiResponse> {
     const delegate = resolveDelegate();
-    if (delegate) return delegate.getSourcingSessionCandidateDetails(candidateId);
+    if (delegate) return delegate.getSourcingSessionCandidateDetails(candidateId, opts);
 
     const { baseUrl, apiKey } = getFutureJobsConfig();
     assertFutureJobsApiKey(apiKey);
@@ -645,7 +646,13 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       throw err;
     }
 
-    const url = `${baseUrl}/wl/sourcing-session/candidate/${encodeURIComponent(cid)}/details`;
+    const params = new URLSearchParams();
+    const sid = String(opts.sessionId || '').trim();
+    if (sid) params.set('sessionId', sid);
+    const qs = params.toString();
+    const url = `${baseUrl}/wl/sourcing-session/candidate/${encodeURIComponent(cid)}/details${
+      qs ? `?${qs}` : ''
+    }`;
     return (await futureJobsHttpRequest({
       method: 'GET',
       url,

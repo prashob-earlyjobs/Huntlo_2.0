@@ -130,6 +130,7 @@ export function CandidateTable({
                   <div className="flex items-center gap-2.5">
                     <CandidateAvatar
                       name={candidate.name}
+                      src={candidate.avatarUrl}
                       className={density === "compact" ? "size-7" : "size-9"}
                     />
                     <div className="min-w-0">

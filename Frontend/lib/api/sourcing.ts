@@ -51,6 +51,7 @@ export type SourcedCandidateApi = {
   name: string;
   headline: string | null;
   linkedinUrl: string | null;
+  profilePictureUrl?: string | null;
   title: string | null;
   company: string | null;
   location: string;
@@ -146,6 +147,7 @@ export function mapApiCandidateToSessionCandidate(
     contactStatus: "Not contacted",
     saved: false,
     linkedin: Boolean(candidate.linkedinUrl),
+    avatarUrl: candidate.profilePictureUrl ?? null,
     email: "",
     emailVerified: false,
     phone: "",

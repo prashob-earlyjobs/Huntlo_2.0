@@ -16,7 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CandidateCard } from "@/components/sessions/candidate-card";
 import { CandidateDrawer } from "@/components/sessions/candidate-drawer";
@@ -39,6 +39,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage, candidatesApi, uiRevealKindToType } from "@/lib/api";
+import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-details";
+import { getCandidateDetails } from "@/lib/api/candidate-search";
 import {
   SORT_OPTIONS,
   sortCandidates,
@@ -187,9 +189,30 @@ export function SessionResults({
   const [localCandidates, setLocalCandidates] = useState(candidates);
   const [revealError, setRevealError] = useState<string | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [drawerDetailsLoading, setDrawerDetailsLoading] = useState(false);
+  const [drawerDetailsError, setDrawerDetailsError] = useState<string | null>(null);
+  const detailsFetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    setLocalCandidates(candidates);
+    setLocalCandidates((prev) => {
+      const prevMap = new Map(prev.map((c) => [c.id, c]));
+      return candidates.map((incoming) => {
+        const existing = prevMap.get(incoming.id);
+        if (!existing || !detailsFetchedRef.current.has(incoming.id)) {
+          return incoming;
+        }
+        return {
+          ...incoming,
+          experience: existing.experience.length ? existing.experience : incoming.experience,
+          education: existing.education.length ? existing.education : incoming.education,
+          summary: existing.summary || incoming.summary,
+          matchBreakdown: existing.matchBreakdown,
+          avatarUrl: existing.avatarUrl || incoming.avatarUrl,
+          signals: existing.signals.length ? existing.signals : incoming.signals,
+          headline: existing.headline || incoming.headline,
+        };
+      });
+    });
   }, [candidates]);
   const [progressCount, setProgressCount] = useState(
     session.state === "running" ? 0 : candidates.length
@@ -197,6 +220,45 @@ export function SessionResults({
   const [initialLoading, setInitialLoading] = useState(
     session.state === "running"
   );
+
+  useEffect(() => {
+    if (!drawerId) {
+      setDrawerDetailsLoading(false);
+      setDrawerDetailsError(null);
+      return;
+    }
+    if (detailsFetchedRef.current.has(drawerId)) return;
+
+    let cancelled = false;
+    setDrawerDetailsLoading(true);
+    setDrawerDetailsError(null);
+
+    void getCandidateDetails(drawerId, { sessionId: session.id })
+      .then((res) => {
+        if (cancelled) return;
+        detailsFetchedRef.current.add(drawerId);
+        setLocalCandidates((prev) =>
+          prev.map((c) =>
+            c.id === drawerId
+              ? mapCandidateDetailsToSessionCandidate(c, res.candidate)
+              : c
+          )
+        );
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDrawerDetailsError(
+          getApiErrorMessage(error) || "Could not load full profile details"
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setDrawerDetailsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [drawerId, session.id]);
 
   useEffect(() => {
     if (session.state !== "running") return;
@@ -675,6 +737,8 @@ export function SessionResults({
         }
         onToggleSave={() => drawerId && toggleSave(drawerId)}
         onAddToOutreach={() => undefined}
+        detailsLoading={drawerDetailsLoading}
+        detailsError={drawerDetailsError}
       />
     </div>
   );

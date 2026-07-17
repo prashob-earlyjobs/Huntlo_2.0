@@ -5,6 +5,7 @@ const basicProfileSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     headline: { type: String, default: null, trim: true },
     linkedinUrl: { type: String, default: null, trim: true },
+    profilePictureUrl: { type: String, default: null, trim: true },
   },
   { _id: false }
 );
@@ -48,6 +49,7 @@ const sourcedCandidateSchema = new mongoose.Schema(
     externalCandidateId: { type: String, required: true, trim: true },
     linkedinProfileUrl: { type: String, default: null, trim: true },
     linkedinUrlNormalized: { type: String, default: null, trim: true },
+    profilePictureUrl: { type: String, default: null, trim: true },
     name: { type: String, default: '', trim: true },
     firstName: { type: String, default: null, trim: true },
     lastName: { type: String, default: null, trim: true },

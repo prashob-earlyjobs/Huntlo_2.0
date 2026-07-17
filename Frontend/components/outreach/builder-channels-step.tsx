@@ -125,9 +125,7 @@ function defaultDisplays(): Record<OutreachChannel, ChannelDisplay> {
 
 function quotaFromUsage(row: UsageQuota | undefined): ChannelQuota | null {
   if (!row) return null;
-  const unlimited =
-    row.limit == null || row.limit >= UNLIMITED_LIMIT;
-  if (unlimited) {
+  if (row.limit == null || row.limit >= UNLIMITED_LIMIT) {
     return {
       used: Math.max(0, row.used),
       total: row.limit ?? UNLIMITED_LIMIT,
