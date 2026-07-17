@@ -84,7 +84,7 @@ export const outreachAiService = {
     for (const step of draft.steps) {
       if (step.body) {
         try {
-          assertVariablesAllowed(step.subject, step.body);
+          assertVariablesAllowed(step.subject, step.body, { channel: step.channel ?? undefined });
         } catch (error) {
           throw new AppError(400, 'INVALID_VARIABLES', (error as Error).message);
         }
@@ -101,6 +101,7 @@ export const outreachAiService = {
           channels: draft.channels,
           steps: draft.steps.map((step) => ({
             ...step,
+            delayUnit: 'days' as const,
             templateId: null,
             config: {},
           })),
@@ -134,7 +135,7 @@ export const outreachAiService = {
     });
 
     try {
-      assertVariablesAllowed(draft.subject, draft.body);
+      assertVariablesAllowed(draft.subject, draft.body, { channel: draft.channel });
     } catch (error) {
       throw new AppError(400, 'INVALID_VARIABLES', (error as Error).message, {
         meta: { draft },

@@ -271,9 +271,43 @@ export type CampaignUpdatedPayload = {
 };
 
 export function emitCampaignUpdated(payload: CampaignUpdatedPayload): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime('campaign.updated', event, orgTarget(payload.organizationId, payload.userId));
   emitRealtime(
-    'campaign.updated',
-    payload,
+    'outreach.campaign.updated',
+    event,
+    orgTarget(payload.organizationId, payload.userId)
+  );
+}
+
+/** Canonical outreach alias — also emits legacy `campaign.updated`. */
+export function emitOutreachCampaignUpdated(payload: CampaignUpdatedPayload): void {
+  emitCampaignUpdated(payload);
+}
+
+export type OutreachEnrollmentUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  candidateId: string;
+  enrollmentId: string;
+  status: string;
+  currentStepIndex?: number;
+  nextSendAt?: string | null;
+  userId?: string;
+};
+
+export function emitOutreachEnrollmentUpdated(
+  payload: OutreachEnrollmentUpdatedPayload
+): void {
+  emitRealtime(
+    'outreach.enrollment.updated',
+    {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    },
     orgTarget(payload.organizationId, payload.userId)
   );
 }
@@ -294,6 +328,38 @@ export function emitInterviewUpdated(payload: InterviewUpdatedPayload): void {
     payload,
     orgTarget(payload.organizationId, payload.userId)
   );
+}
+
+export type OutreachInterviewUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  candidateId: string;
+  interviewId: string | null;
+  status: string;
+  userId?: string;
+};
+
+export function emitOutreachInterviewUpdated(
+  payload: OutreachInterviewUpdatedPayload
+): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime(
+    'outreach.interview.updated',
+    event,
+    orgTarget(payload.organizationId, payload.userId)
+  );
+  if (payload.interviewId) {
+    emitInterviewUpdated({
+      organizationId: payload.organizationId,
+      interviewId: payload.interviewId,
+      status: payload.status,
+      candidateId: payload.candidateId,
+      userId: payload.userId,
+    });
+  }
 }
 
 export type UsageUpdatedPayload = {

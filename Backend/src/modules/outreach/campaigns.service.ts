@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import mongoose from 'mongoose';
 
+import { emitOutreachCampaignUpdated } from '../../realtime/events.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
@@ -26,6 +27,7 @@ import {
 } from './enrollment.model.js';
 import { recordCampaignActivity, CampaignActivityModel } from './campaign-activity.model.js';
 import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } from './campaign-validate.js';
+import { compileBuilderToCampaign } from './compile-builder.js';
 import type {
   audienceBodySchema,
   createCampaignSchema,
@@ -647,6 +649,26 @@ export const campaignsService = {
 
   async validate(organizationId: string, userId: string, id: string) {
     const doc = await loadCampaign(organizationId, id);
+    if (doc.builderState && Object.keys(doc.builderState).length > 0) {
+      const compiled = compileBuilderToCampaign(doc);
+      if (compiled.blockers.length) {
+        return {
+          ok: false,
+          issues: compiled.blockers.map((message, index) => ({
+            id: `compile-${index}`,
+            severity: 'error' as const,
+            code: 'OUTREACH_INVALID_BUILDER_STATE',
+            message,
+          })),
+          warnings: compiled.warnings,
+        };
+      }
+      doc.sequenceSteps = compiled.executable.sequenceSteps;
+      doc.channelConfig = compiled.executable.channelConfig;
+      doc.qualificationConfig = compiled.executable.qualificationConfig;
+      doc.schedulingConfig = compiled.executable.schedulingConfig;
+      doc.campaignType = compiled.executable.campaignType;
+    }
     const result = await validateCampaignLaunch(doc, userId);
     doc.lastValidation = {
       ok: result.ok,
@@ -658,19 +680,46 @@ export const campaignsService = {
   },
 
   async launch(organizationId: string, userId: string, id: string) {
-    const doc = await loadCampaign(organizationId, id);
-    if (!['draft', 'scheduled', 'paused'].includes(doc.status)) {
-      throw new AppError(400, 'INVALID_STATUS', `Cannot launch from status ${doc.status}.`);
+    const existing = await loadCampaign(organizationId, id);
+    if (existing.status === 'running') {
+      throw new AppError(
+        409,
+        'OUTREACH_CAMPAIGN_ALREADY_RUNNING',
+        'Campaign is already running.'
+      );
+    }
+    if (!['draft', 'scheduled', 'paused'].includes(existing.status)) {
+      throw new AppError(400, 'INVALID_STATUS', `Cannot launch from status ${existing.status}.`);
+    }
+
+    // Compile builder state into executable fields before launch validation.
+    if (existing.builderState && Object.keys(existing.builderState).length > 0) {
+      const compiled = compileBuilderToCampaign(existing);
+      if (compiled.blockers.length) {
+        throw new AppError(
+          422,
+          'OUTREACH_INVALID_BUILDER_STATE',
+          'Campaign builder state is incomplete.',
+          { meta: { blockers: compiled.blockers, warnings: compiled.warnings } }
+        );
+      }
+      existing.sequenceSteps = compiled.executable.sequenceSteps;
+      existing.channelConfig = compiled.executable.channelConfig;
+      existing.qualificationConfig = compiled.executable.qualificationConfig;
+      existing.schedulingConfig = compiled.executable.schedulingConfig;
+      existing.campaignType = compiled.executable.campaignType;
+      await existing.save();
     }
 
     // Ensure enrollments exist from candidateSource
-    if ((await OutreachEnrollmentModel.countDocuments({ campaignId: doc._id })) === 0) {
-      const ids = doc.candidateSource.candidateIds || [];
+    if ((await OutreachEnrollmentModel.countDocuments({ campaignId: existing._id })) === 0) {
+      const ids = existing.candidateSource.candidateIds || [];
       if (ids.length) {
         await this.addAudience(organizationId, userId, id, { candidateIds: ids });
       }
     }
 
+    const doc = await loadCampaign(organizationId, id);
     const validation = await validateCampaignLaunch(doc, userId);
     doc.lastValidation = {
       ok: validation.ok,
@@ -679,37 +728,90 @@ export const campaignsService = {
     };
     if (!validation.ok) {
       await doc.save();
-      throw new AppError(400, 'LAUNCH_VALIDATION_FAILED', 'Campaign failed launch validation.', {
+      throw new AppError(422, 'LAUNCH_VALIDATION_FAILED', 'Campaign failed launch validation.', {
         meta: { issues: validation.issues },
       });
     }
 
-    const enrollments = await OutreachEnrollmentModel.find({
-      campaignId: doc._id,
-      status: { $in: ['pending', 'waiting'] },
-      'contactAvailability.optedOut': false,
-    });
+    // Atomic launch lock — reject concurrent launches.
+    const locked = await OutreachCampaignModel.findOneAndUpdate(
+      {
+        _id: doc._id,
+        organizationId,
+        status: { $in: ['draft', 'scheduled', 'paused'] },
+        deletedAt: null,
+      },
+      {
+        $set: {
+          status: 'running',
+          launchedAt: new Date(),
+          pausedAt: null,
+          scheduledAt: doc.scheduledAt || new Date(),
+        },
+        $inc: { version: 1 },
+      },
+      { new: true }
+    );
+    if (!locked) {
+      throw new AppError(
+        409,
+        'OUTREACH_CAMPAIGN_ALREADY_LAUNCHED',
+        'Campaign launch is already in progress or completed.'
+      );
+    }
+
+    const allEnrollments = await OutreachEnrollmentModel.find({ campaignId: locked._id });
+    const excluded = {
+      missingContact: 0,
+      duplicate: 0,
+      optedOut: 0,
+      other: 0,
+    };
+    const eligible: typeof allEnrollments = [];
+    for (const enrollment of allEnrollments) {
+      if (enrollment.status === 'opted_out' || enrollment.contactAvailability.optedOut) {
+        excluded.optedOut += 1;
+        continue;
+      }
+      if (['replied', 'completed', 'failed', 'stopped'].includes(enrollment.status)) {
+        excluded.other += 1;
+        continue;
+      }
+      const needsEmail = locked.channelConfig.email?.enabled;
+      const needsPhone =
+        locked.channelConfig.whatsapp?.enabled || locked.channelConfig.ai_voice?.enabled;
+      if (needsEmail && !enrollment.contactAvailability.email && !needsPhone) {
+        excluded.missingContact += 1;
+        enrollment.status = 'skipped';
+        enrollment.stopReason = 'missing_contact';
+        await enrollment.save();
+        continue;
+      }
+      if (needsPhone && !enrollment.contactAvailability.phone && !needsEmail) {
+        excluded.missingContact += 1;
+        enrollment.status = 'skipped';
+        enrollment.stopReason = 'missing_contact';
+        await enrollment.save();
+        continue;
+      }
+      eligible.push(enrollment);
+    }
 
     const now = new Date();
-    for (const enrollment of enrollments) {
+    for (const enrollment of eligible) {
       enrollment.status = 'active';
+      enrollment.candidateKey = enrollment.candidateKey || String(enrollment.candidateId);
       enrollment.nextActionAt = now;
+      enrollment.nextSendAt = now;
       enrollment.lastActionAt = now;
       await enrollment.save();
     }
 
-    doc.status = 'running';
-    doc.launchedAt = now;
-    doc.pausedAt = null;
-    doc.scheduledAt = doc.scheduledAt || now;
-    doc.version += 1;
-    await doc.save();
-
     await enqueueFirstJobs(
-      doc,
-      enrollments.map((e) => String(e._id))
+      locked,
+      eligible.map((e) => String(e._id))
     );
-    await refreshCampaignStats(id);
+    const stats = await refreshCampaignStats(id);
 
     await recordCampaignActivity({
       organizationId,
@@ -717,13 +819,33 @@ export const campaignsService = {
       actorUserId: userId,
       type: 'campaign.launched',
       title: 'Campaign launched',
-      detail: `${enrollments.length} enrollment(s) activated`,
+      detail: `${eligible.length} enrollment(s) activated`,
     });
 
-    return toSafeCampaign(doc, {
-      ownerName: await ownerName(String(doc.ownerUserId)),
-      relatedJobTitle: await jobTitle(doc.jobId),
+    emitOutreachCampaignUpdated({
+      organizationId,
+      campaignId: id,
+      status: 'running',
+      stats: stats as unknown as Record<string, unknown>,
+      userId,
     });
+
+    return {
+      ...toSafeCampaign(locked, {
+        ownerName: await ownerName(String(locked.ownerUserId)),
+        relatedJobTitle: await jobTitle(locked.jobId),
+      }),
+      totalCandidates: allEnrollments.length,
+      enrolled: eligible.length,
+      excluded: excluded.missingContact + excluded.duplicate + excluded.optedOut + excluded.other,
+      missingContact: excluded.missingContact,
+      duplicate: excluded.duplicate,
+      optedOut: excluded.optedOut,
+      quotaReserved: null,
+      scheduledStart: now.toISOString(),
+      warnings: validation.issues.filter((i) => i.severity === 'warning'),
+      blockers: [],
+    };
   },
 
   async schedule(organizationId: string, userId: string, id: string, scheduledAt: Date) {
@@ -734,6 +856,22 @@ export const campaignsService = {
     if (scheduledAt.getTime() <= Date.now() - 60_000) {
       throw new AppError(400, 'INVALID_SCHEDULE', 'scheduledAt must be in the future.');
     }
+    if (doc.builderState && Object.keys(doc.builderState).length > 0) {
+      const compiled = compileBuilderToCampaign(doc);
+      if (compiled.blockers.length) {
+        throw new AppError(
+          422,
+          'OUTREACH_INVALID_BUILDER_STATE',
+          'Campaign builder state is incomplete.',
+          { meta: { blockers: compiled.blockers } }
+        );
+      }
+      doc.sequenceSteps = compiled.executable.sequenceSteps;
+      doc.channelConfig = compiled.executable.channelConfig;
+      doc.qualificationConfig = compiled.executable.qualificationConfig;
+      doc.schedulingConfig = compiled.executable.schedulingConfig;
+      doc.campaignType = compiled.executable.campaignType;
+    }
     const validation = await validateCampaignLaunch(doc, userId);
     doc.lastValidation = {
       ok: validation.ok,
@@ -742,7 +880,7 @@ export const campaignsService = {
     };
     if (!validation.ok) {
       await doc.save();
-      throw new AppError(400, 'LAUNCH_VALIDATION_FAILED', 'Campaign failed schedule validation.', {
+      throw new AppError(422, 'LAUNCH_VALIDATION_FAILED', 'Campaign failed schedule validation.', {
         meta: { issues: validation.issues },
       });
     }
@@ -756,6 +894,12 @@ export const campaignsService = {
       type: 'campaign.scheduled',
       title: 'Campaign scheduled',
       detail: scheduledAt.toISOString(),
+    });
+    emitOutreachCampaignUpdated({
+      organizationId,
+      campaignId: id,
+      status: 'scheduled',
+      userId,
     });
     return toSafeCampaign(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
@@ -776,8 +920,8 @@ export const campaignsService = {
       { $set: { status: 'cancelled' } }
     );
     await OutreachEnrollmentModel.updateMany(
-      { campaignId: doc._id, status: { $in: ['active', 'waiting'] } },
-      { $set: { status: 'waiting' } }
+      { campaignId: doc._id, status: { $in: ['active', 'waiting', 'pending'] } },
+      { $set: { status: 'paused', pausedReason: 'campaign_paused' } }
     );
     await recordCampaignActivity({
       organizationId,
@@ -785,6 +929,12 @@ export const campaignsService = {
       actorUserId: userId,
       type: 'campaign.paused',
       title: 'Campaign paused',
+    });
+    emitOutreachCampaignUpdated({
+      organizationId,
+      campaignId: id,
+      status: 'paused',
+      userId,
     });
     return toSafeCampaign(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
@@ -797,7 +947,58 @@ export const campaignsService = {
     if (doc.status !== 'paused') {
       throw new AppError(400, 'INVALID_STATUS', 'Only paused campaigns can be resumed.');
     }
-    return this.launch(organizationId, userId, id);
+
+    // Resume only eligible enrollments — skip replied / opted-out / terminal.
+    const now = new Date();
+    const enrollments = await OutreachEnrollmentModel.find({
+      campaignId: doc._id,
+      status: { $in: ['paused', 'waiting', 'pending'] },
+      'contactAvailability.optedOut': false,
+      'replyState.hasReply': { $ne: true },
+    });
+
+    for (const enrollment of enrollments) {
+      if (['replied', 'opted_out', 'completed', 'failed', 'stopped', 'skipped'].includes(enrollment.status)) {
+        continue;
+      }
+      const next = enrollment.nextActionAt && enrollment.nextActionAt > now
+        ? enrollment.nextActionAt
+        : now;
+      enrollment.status = 'active';
+      enrollment.pausedReason = null;
+      enrollment.nextActionAt = next;
+      enrollment.nextSendAt = next;
+      await enrollment.save();
+    }
+
+    doc.status = 'running';
+    doc.pausedAt = null;
+    doc.version += 1;
+    await doc.save();
+
+    await enqueueFirstJobs(
+      doc,
+      enrollments.map((e) => String(e._id))
+    );
+    await refreshCampaignStats(id);
+    await recordCampaignActivity({
+      organizationId,
+      campaignId: id,
+      actorUserId: userId,
+      type: 'campaign.resumed',
+      title: 'Campaign resumed',
+      detail: `${enrollments.length} enrollment(s) resumed`,
+    });
+    emitOutreachCampaignUpdated({
+      organizationId,
+      campaignId: id,
+      status: 'running',
+      userId,
+    });
+    return toSafeCampaign(doc, {
+      ownerName: await ownerName(String(doc.ownerUserId)),
+      relatedJobTitle: await jobTitle(doc.jobId),
+    });
   },
 
   async cancel(organizationId: string, userId: string, id: string) {
@@ -816,7 +1017,7 @@ export const campaignsService = {
     await OutreachEnrollmentModel.updateMany(
       {
         campaignId: doc._id,
-        status: { $in: ['pending', 'active', 'waiting'] },
+        status: { $in: ['pending', 'active', 'waiting', 'paused'] },
       },
       { $set: { status: 'stopped', stopReason: 'campaign_cancelled' } }
     );
@@ -827,6 +1028,12 @@ export const campaignsService = {
       actorUserId: userId,
       type: 'campaign.cancelled',
       title: 'Campaign cancelled',
+    });
+    emitOutreachCampaignUpdated({
+      organizationId,
+      campaignId: id,
+      status: 'cancelled',
+      userId,
     });
     return toSafeCampaign(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),

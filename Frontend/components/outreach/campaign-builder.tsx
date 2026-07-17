@@ -295,6 +295,17 @@ export function CampaignBuilder({
       }
 
       if (mode === "launched") {
+        const validation = await outreachApi.validateCampaign(id);
+        if (!validation.ok) {
+          const blockers = (validation.issues || [])
+            .filter((issue) => issue.severity === "error")
+            .map((issue) => issue.message);
+          throw new Error(
+            blockers.length
+              ? `Cannot launch: ${blockers.join(" · ")}`
+              : "Campaign failed server validation."
+          );
+        }
         await outreachApi.launchCampaign(id);
       } else if (mode === "scheduled") {
         const scheduledAt = new Date(

@@ -121,9 +121,10 @@ const HANDLERS: Record<BackgroundJobType, JobHandler> = {
   },
 
   async 'outreach.sync_email_replies'(ctx) {
-    void ctx;
+    const { syncEmailReplies } = await import('../modules/outreach/email-reply-sync.service.js');
+    const synced = await syncEmailReplies(Number(ctx.payload.limit ?? 15));
     return {
-      result: { synced: 0 },
+      result: { synced },
       rescheduleInMs: Number(ctx.payload.intervalMs ?? 30_000),
     };
   },

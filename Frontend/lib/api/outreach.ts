@@ -297,12 +297,57 @@ export function toApiStatus(status: CampaignStatus): ApiCampaignStatus {
 /* API surface                                                          */
 /* ------------------------------------------------------------------ */
 
+export type CampaignTrackingResult = {
+  campaignId: string;
+  status: string;
+  totalCandidates: number;
+  enrolled: number;
+  pending: number;
+  contacted: number;
+  delivered: number;
+  failed: number;
+  replied: number;
+  interested: number;
+  notInterested: number;
+  qualified: number;
+  screened: number;
+  shortlisted: number;
+  schedulingLinkSent: number;
+  interviewScheduled: number;
+  completed: number;
+  optedOut: number;
+  channels: Record<string, Record<string, number>>;
+  steps: Array<Record<string, unknown>>;
+  updatedAt: string;
+};
+
+export type CampaignBuilderState = {
+  campaignId: string;
+  mode: string;
+  campaignType: string;
+  status: string;
+  version: number;
+  steps: string[];
+  currentStep: string;
+  completedSteps: string[];
+  remainingSteps: string[];
+  builderState: Record<string, unknown>;
+  builderMeta: Record<string, unknown>;
+  warnings: string[];
+  blockers: string[];
+};
+
 export interface OutreachApi {
   listCampaigns(params?: ApiQueryParams): Promise<OutreachCampaign[]>;
   listCampaignsRaw(params?: ApiQueryParams): Promise<ApiOutreachCampaign[]>;
   getCampaign(id: string): Promise<OutreachCampaign | null>;
   getCampaignRaw(id: string): Promise<ApiOutreachCampaign | null>;
   createCampaign(input: CampaignCreateInput): Promise<ApiOutreachCampaign>;
+  createOutreachDraft(input?: {
+    name?: string;
+    mode?: "single" | "multi";
+    jobId?: string | null;
+  }): Promise<{ id: string; name: string; status: string; mode: string }>;
   updateCampaign(
     id: string,
     input: Partial<CampaignCreateInput>
@@ -326,6 +371,34 @@ export interface OutreachApi {
   duplicateCampaign(id: string): Promise<OutreachCampaign>;
   getStats(id: string): Promise<ApiOutreachCampaign["stats"]>;
   getOverview(): Promise<OutreachOverview>;
+  getOutreachStats(): Promise<OutreachOverview>;
+  getCampaignBuilder(id: string): Promise<CampaignBuilderState>;
+  saveCampaignBuilderStep(
+    id: string,
+    stepKey: string,
+    payload: Record<string, unknown>
+  ): Promise<CampaignBuilderState>;
+  getCampaignTracking(id: string): Promise<CampaignTrackingResult>;
+  getCandidateInteractions(
+    campaignId: string,
+    candidateId: string
+  ): Promise<{ items: Array<Record<string, unknown>> }>;
+  getCandidateConversation(
+    campaignId: string,
+    candidateId: string
+  ): Promise<Record<string, unknown>>;
+  recordCandidateAction(
+    campaignId: string,
+    candidateId: string,
+    input: { action: string; note?: string; reason?: string; channel?: "email" | "whatsapp" }
+  ): Promise<Record<string, unknown>>;
+  sendCandidateSchedulingLink(
+    campaignId: string,
+    candidateId: string,
+    input?: { channel?: "email" | "whatsapp"; eventTypeUri?: string | null; message?: string | null }
+  ): Promise<Record<string, unknown>>;
+  getScheduledInterviews(campaignId: string): Promise<{ items: Array<Record<string, unknown>> }>;
+  syncScheduledInterviews(campaignId: string): Promise<{ synced: number }>;
   listEnrollments(
     id: string,
     params?: ListEnrollmentsParams
@@ -488,6 +561,93 @@ const mockOutreachApi: OutreachApi = {
       updatedAt: new Date().toISOString(),
     };
   },
+  async createOutreachDraft(input) {
+    const created = await this.createCampaign({
+      name: input?.name || "Untitled campaign",
+      campaignType: input?.mode === "single" ? "single_channel" : "multi_channel",
+      jobId: input?.jobId ?? null,
+    });
+    return {
+      id: created.id,
+      name: created.name,
+      status: created.status,
+      mode: input?.mode || "multi",
+    };
+  },
+  async getOutreachStats() {
+    return this.getOverview();
+  },
+  async getCampaignBuilder(id) {
+    await simulateMockLatency();
+    return {
+      campaignId: id,
+      mode: "multi",
+      campaignType: "multi_channel",
+      status: "draft",
+      version: 1,
+      steps: ["details", "sequence", "personalize", "candidates", "qualification", "review"],
+      currentStep: "details",
+      completedSteps: [],
+      remainingSteps: ["details", "sequence", "personalize", "candidates", "qualification", "review"],
+      builderState: {},
+      builderMeta: {},
+      warnings: [],
+      blockers: [],
+    };
+  },
+  async saveCampaignBuilderStep(id, stepKey, payload) {
+    const current = await this.getCampaignBuilder(id);
+    return {
+      ...current,
+      currentStep: stepKey,
+      completedSteps: [...new Set([...current.completedSteps, stepKey])],
+      builderState: { ...current.builderState, [stepKey]: payload },
+    };
+  },
+  async getCampaignTracking() {
+    await simulateMockLatency();
+    return {
+      campaignId: "",
+      status: "draft",
+      totalCandidates: 0,
+      enrolled: 0,
+      pending: 0,
+      contacted: 0,
+      delivered: 0,
+      failed: 0,
+      replied: 0,
+      interested: 0,
+      notInterested: 0,
+      qualified: 0,
+      screened: 0,
+      shortlisted: 0,
+      schedulingLinkSent: 0,
+      interviewScheduled: 0,
+      completed: 0,
+      optedOut: 0,
+      channels: {},
+      steps: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async getCandidateInteractions() {
+    return { items: [] };
+  },
+  async getCandidateConversation() {
+    return { thread: null, messages: [] };
+  },
+  async recordCandidateAction() {
+    return { ok: true };
+  },
+  async sendCandidateSchedulingLink() {
+    return { ok: true, bookingUrl: null };
+  },
+  async getScheduledInterviews() {
+    return { items: [] };
+  },
+  async syncScheduledInterviews() {
+    return { synced: 0 };
+  },
   async updateCampaign(id, input) {
     const existing = await this.getCampaignRaw(id);
     if (!existing) throw new Error("Campaign not found");
@@ -630,20 +790,20 @@ const mockOutreachApi: OutreachApi = {
 const liveOutreachApi: OutreachApi = {
   async listCampaigns(params) {
     const result = await apiClient.get<ApiOutreachCampaign[]>(
-      `/outreach/campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
+      `/outreach-campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
     );
     return result.data.map(toDisplayCampaign);
   },
   async listCampaignsRaw(params) {
     const result = await apiClient.get<ApiOutreachCampaign[]>(
-      `/outreach/campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
+      `/outreach-campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
     );
     return result.data;
   },
   async getCampaign(id) {
     try {
       const result = await apiClient.get<ApiOutreachCampaign>(
-        `/outreach/campaigns/${id}`
+        `/outreach-campaigns/${id}`
       );
       return toDisplayCampaign(result.data);
     } catch {
@@ -653,7 +813,7 @@ const liveOutreachApi: OutreachApi = {
   async getCampaignRaw(id) {
     try {
       const result = await apiClient.get<ApiOutreachCampaign>(
-        `/outreach/campaigns/${id}`
+        `/outreach-campaigns/${id}`
       );
       return result.data;
     } catch {
@@ -670,39 +830,39 @@ const liveOutreachApi: OutreachApi = {
   },
   async updateCampaign(id, input) {
     const result = await apiClient.patch<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}`,
+      `/outreach-campaigns/${id}`,
       input,
       { sensitive: true }
     );
     return result.data;
   },
   async deleteCampaign(id) {
-    await apiClient.delete(`/outreach/campaigns/${id}`, { sensitive: true });
+    await apiClient.delete(`/outreach-campaigns/${id}`, { sensitive: true });
   },
   async addAudience(id, input) {
     const result = await apiClient.post<{
       added: number;
       skippedDuplicates: number;
       enrolled: number;
-    }>(`/outreach/campaigns/${id}/audience`, input, { sensitive: true });
+    }>(`/outreach-campaigns/${id}/audience`, input, { sensitive: true });
     return result.data;
   },
   async removeAudience(id, input) {
     const result = await apiClient.request<{ removed: number }>(
-      `/outreach/campaigns/${id}/audience`,
+      `/outreach-campaigns/${id}/audience`,
       { method: "DELETE", body: input, sensitive: true }
     );
     return result.data;
   },
   async audiencePreview(id) {
     const result = await apiClient.get<CampaignAudiencePreview>(
-      `/outreach/campaigns/${id}/audience-preview`
+      `/outreach-campaigns/${id}/audience-preview`
     );
     return result.data;
   },
   async validateCampaign(id) {
     const result = await apiClient.post<CampaignValidationResult>(
-      `/outreach/campaigns/${id}/validate`,
+      `/outreach-campaigns/${id}/validate`,
       undefined,
       { sensitive: true }
     );
@@ -710,7 +870,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async launchCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/launch`,
+      `/outreach-campaigns/${id}/launch`,
       undefined,
       { sensitive: true }
     );
@@ -718,7 +878,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async scheduleCampaign(id, scheduledAt) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/schedule`,
+      `/outreach-campaigns/${id}/schedule`,
       { scheduledAt },
       { sensitive: true }
     );
@@ -726,7 +886,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async pauseCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/pause`,
+      `/outreach-campaigns/${id}/pause`,
       undefined,
       { sensitive: true }
     );
@@ -734,7 +894,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async resumeCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/resume`,
+      `/outreach-campaigns/${id}/resume`,
       undefined,
       { sensitive: true }
     );
@@ -742,7 +902,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async cancelCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/cancel`,
+      `/outreach-campaigns/${id}/cancel`,
       undefined,
       { sensitive: true }
     );
@@ -750,7 +910,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async duplicateCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/duplicate`,
+      `/outreach-campaigns/${id}/duplicate`,
       undefined,
       { sensitive: true }
     );
@@ -758,19 +918,19 @@ const liveOutreachApi: OutreachApi = {
   },
   async getStats(id) {
     const result = await apiClient.get<ApiOutreachCampaign["stats"]>(
-      `/outreach/campaigns/${id}/stats`
+      `/outreach-campaigns/${id}/stats`
     );
     return result.data;
   },
   async getOverview() {
     const result = await apiClient.get<OutreachOverview>(
-      "/outreach/campaigns/overview"
+      "/outreach-campaigns/overview"
     );
     return result.data;
   },
   async listEnrollments(id, params) {
     const result = await apiClient.get<ApiCampaignEnrollment[]>(
-      `/outreach/campaigns/${id}/enrollments${buildQueryString(params)}`
+      `/outreach-campaigns/${id}/enrollments${buildQueryString(params)}`
     );
     return result.data;
   },
@@ -783,7 +943,81 @@ const liveOutreachApi: OutreachApi = {
         detail: string | null;
         createdAt: string;
       }>
-    >(`/outreach/campaigns/${id}/activity`);
+    >(`/outreach-campaigns/${id}/activity`);
+    return result.data;
+  },
+  async createOutreachDraft(input) {
+    const result = await apiClient.post<{
+      id: string;
+      name: string;
+      status: string;
+      mode: string;
+    }>("/outreach-campaigns/drafts", input || {}, { sensitive: true });
+    return result.data;
+  },
+  async getOutreachStats() {
+    return this.getOverview();
+  },
+  async getCampaignBuilder(id) {
+    const result = await apiClient.get<CampaignBuilderState>(
+      `/outreach-campaigns/${id}/builder`
+    );
+    return result.data;
+  },
+  async saveCampaignBuilderStep(id, stepKey, payload) {
+    const result = await apiClient.patch<CampaignBuilderState>(
+      `/outreach-campaigns/${id}/steps/${stepKey}`,
+      payload,
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async getCampaignTracking(id) {
+    const result = await apiClient.get<CampaignTrackingResult>(
+      `/outreach-campaigns/${id}/tracking`
+    );
+    return result.data;
+  },
+  async getCandidateInteractions(campaignId, candidateId) {
+    const result = await apiClient.get<{ items: Array<Record<string, unknown>> }>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/interactions`
+    );
+    return result.data;
+  },
+  async getCandidateConversation(campaignId, candidateId) {
+    const result = await apiClient.get<Record<string, unknown>>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/conversation`
+    );
+    return result.data;
+  },
+  async recordCandidateAction(campaignId, candidateId, input) {
+    const result = await apiClient.post<Record<string, unknown>>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/actions`,
+      input,
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async sendCandidateSchedulingLink(campaignId, candidateId, input) {
+    const result = await apiClient.post<Record<string, unknown>>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/send-scheduling-link`,
+      input || {},
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async getScheduledInterviews(campaignId) {
+    const result = await apiClient.get<{ items: Array<Record<string, unknown>> }>(
+      `/outreach-campaigns/${campaignId}/scheduled-interviews`
+    );
+    return result.data;
+  },
+  async syncScheduledInterviews(campaignId) {
+    const result = await apiClient.post<{ synced: number }>(
+      `/outreach-campaigns/${campaignId}/scheduled-interviews/sync`,
+      undefined,
+      { sensitive: true }
+    );
     return result.data;
   },
 };
@@ -792,3 +1026,53 @@ export const outreachApi = createDomainService({
   mock: mockOutreachApi,
   live: liveOutreachApi,
 });
+
+/* Named aliases matching the validated outreach API contract. */
+export const getOutreachStats = () => outreachApi.getOutreachStats();
+export const getOutreachCampaigns = (params?: ApiQueryParams) =>
+  outreachApi.listCampaigns(params);
+export const getOutreachCampaign = (id: string) => outreachApi.getCampaign(id);
+export const createOutreachDraft = (
+  input?: Parameters<OutreachApi["createOutreachDraft"]>[0]
+) => outreachApi.createOutreachDraft(input);
+export const updateOutreachCampaign = (
+  id: string,
+  input: Partial<CampaignCreateInput>
+) => outreachApi.updateCampaign(id, input);
+export const getCampaignBuilder = (id: string) => outreachApi.getCampaignBuilder(id);
+export const saveCampaignBuilderStep = (
+  id: string,
+  stepKey: string,
+  payload: Record<string, unknown>
+) => outreachApi.saveCampaignBuilderStep(id, stepKey, payload);
+export const validateOutreachCampaign = (id: string) =>
+  outreachApi.validateCampaign(id);
+export const launchOutreachCampaign = (id: string) => outreachApi.launchCampaign(id);
+export const pauseOutreachCampaign = (id: string) => outreachApi.pauseCampaign(id);
+export const resumeOutreachCampaign = (id: string) => outreachApi.resumeCampaign(id);
+export const cancelOutreachCampaign = (id: string) => outreachApi.cancelCampaign(id);
+export const duplicateOutreachCampaign = (id: string) =>
+  outreachApi.duplicateCampaign(id);
+export const getCampaignTracking = (id: string) => outreachApi.getCampaignTracking(id);
+export const getCampaignCandidates = (
+  id: string,
+  params?: ListEnrollmentsParams
+) => outreachApi.listEnrollments(id, params);
+export const getCandidateInteractions = (campaignId: string, candidateId: string) =>
+  outreachApi.getCandidateInteractions(campaignId, candidateId);
+export const getCandidateConversation = (campaignId: string, candidateId: string) =>
+  outreachApi.getCandidateConversation(campaignId, candidateId);
+export const recordCandidateAction = (
+  campaignId: string,
+  candidateId: string,
+  input: { action: string; note?: string; reason?: string; channel?: "email" | "whatsapp" }
+) => outreachApi.recordCandidateAction(campaignId, candidateId, input);
+export const sendCandidateSchedulingLink = (
+  campaignId: string,
+  candidateId: string,
+  input?: { channel?: "email" | "whatsapp"; eventTypeUri?: string | null; message?: string | null }
+) => outreachApi.sendCandidateSchedulingLink(campaignId, candidateId, input);
+export const getScheduledInterviews = (campaignId: string) =>
+  outreachApi.getScheduledInterviews(campaignId);
+export const syncScheduledInterviews = (campaignId: string) =>
+  outreachApi.syncScheduledInterviews(campaignId);

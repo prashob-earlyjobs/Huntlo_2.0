@@ -9,6 +9,7 @@ import { OutreachEnrollmentModel } from './enrollment.model.js';
 import { campaignsService } from './campaigns.service.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
 import { executeCampaignMessageStep } from './campaign-delivery.js';
+import { nextSendAtWithinWindow } from './send-window.util.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import { conversationsService } from '../conversations/conversations.service.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
@@ -199,6 +200,10 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           jobId: campaign.jobId ? String(campaign.jobId) : null,
           channel: delivery.channel,
         });
+        // Store the personalized text actually sent (falls back to the raw template
+        // only if delivery didn't report rendered content, e.g. non-message steps).
+        const sentSubject = delivery.renderedSubject ?? step.subject ?? null;
+        const sentBody = delivery.renderedBody || step.body || step.note || `[${step.type}]`;
         await ConversationMessageModel.create({
           organizationId: campaign.organizationId,
           threadId: convThread._id,
@@ -207,8 +212,8 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           direction: 'outbound',
           sender: null,
           recipient: null,
-          subject: step.subject || null,
-          bodyText: step.body || step.note || `[${step.type}]`,
+          subject: sentSubject,
+          bodyText: sentBody,
           bodyHtml: null,
           providerMessageId:
             delivery.providerMessageId || `campaign-job:${String(leased._id)}`,
@@ -220,7 +225,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
         });
         convThread.lastMessageAt = new Date();
         convThread.lastRecruiterMessageAt = new Date();
-        convThread.lastMessagePreview = (step.body || step.note || '').slice(0, 240);
+        convThread.lastMessagePreview = sentBody.slice(0, 240);
         convThread.status = 'awaiting_reply';
         await convThread.save();
       } else if (delivery.outcome === 'skipped' && delivery.reason !== 'non_message') {
@@ -273,7 +278,12 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           0,
           sequenceDelayToMs(next.delayDays || 0, next.delayUnit)
         );
-        const when = new Date(Date.now() + delayMs);
+        const sendWindow = next.sendWindow || campaign.channelConfig.sendWindow || null;
+        const when = nextSendAtWithinWindow(
+          new Date(Date.now() + delayMs),
+          sendWindow,
+          campaign.channelConfig.timezone
+        );
         enrollment.currentStepIndex = idx + 1;
         enrollment.status = delayMs > 0 ? 'waiting' : 'active';
         enrollment.nextActionAt = when;

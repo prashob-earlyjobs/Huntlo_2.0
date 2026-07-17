@@ -151,8 +151,9 @@ export function assertCampaignTypeConsistency(input: {
     (row) => row.severity === 'error'
   );
   if (errors.length === 0) return;
+  const first = errors[0]!;
   throw AppError.validation(
-    errors[0].message,
+    first.message,
     errors.map((row) => ({
       path: row.code,
       message: row.message,
@@ -349,7 +350,7 @@ export async function validateCampaignLaunch(
       }
       if (step.body) {
         try {
-          assertVariablesAllowed(step.subject, step.body);
+          assertVariablesAllowed(step.subject, step.body, { channel: step.type });
         } catch (error) {
           issues.push(
             issue(

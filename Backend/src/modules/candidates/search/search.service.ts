@@ -542,7 +542,10 @@ export class CandidateSearchService {
     // auto-annotate so Future Jobs gets structured queries like the production sample.
     if (prompt && !filterFormHasSearchCriteria(originalFilterForm)) {
       try {
-        const annotated = await this.annotate(actor, { prompt });
+        const annotated = await this.annotate(actor, {
+          prompt,
+          linkedin_profile_url: '',
+        });
         originalFilterForm = asFilterForm(annotated.filterForm);
         log().info(
           {

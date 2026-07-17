@@ -26,7 +26,7 @@ import {
   usageRouter,
 } from './modules/plans/index.js';
 import { integrationsRouter } from './modules/integrations/index.js';
-import { outreachRouter } from './modules/outreach/index.js';
+import { outreachRouter, campaignRoutes } from './modules/outreach/index.js';
 import { conversationsRouter } from './modules/conversations/index.js';
 import { huntlo360Router } from './modules/huntlo-360/index.js';
 import { screeningRouter } from './modules/screening/index.js';
@@ -136,6 +136,8 @@ export function createApp(): Express {
   app.use('/api/v1/admin', adminConsoleRouter);
   app.use('/api/v1/integrations', integrationsRouter);
   app.use('/api/v1/outreach', outreachRouter);
+  // Canonical campaign execution surface — same handlers as /api/v1/outreach/campaigns
+  app.use('/api/v1/outreach-campaigns', campaignRoutes);
   app.use('/api/v1/conversations', conversationsRouter);
   app.use('/api/v1/huntlo-360', huntlo360Router);
   app.use('/api/v1/screenings', screeningRouter);

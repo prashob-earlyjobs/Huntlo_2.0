@@ -22,8 +22,12 @@ import {
 } from '../../providers/smtp/smtp.js';
 import { quotaService } from '../../shared/usage/index.js';
 import { normalizePhone } from '../../shared/validation/phone.js';
+import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { integrationsService } from '../integrations/integration.service.js';
+import { JobModel } from '../jobs/job.model.js';
+import { OrganizationModel } from '../organizations/organization.model.js';
+import { buildCandidateMergeContext, mergeMessageTemplate } from './variables.js';
 import type {
   CampaignSequenceStep,
   OutreachCampaignDocument,
@@ -38,6 +42,9 @@ export type DeliveryResult =
       channel: 'email' | 'whatsapp' | 'ai_voice';
       providerMessageId?: string;
       provider?: string;
+      /** Personalized text actually sent — used to store accurate conversation history. */
+      renderedSubject?: string | null;
+      renderedBody?: string;
     }
   | {
       outcome: 'skipped';
@@ -45,7 +52,7 @@ export type DeliveryResult =
       channel?: 'email' | 'whatsapp' | 'ai_voice';
     };
 
-type IntegrationSecrets = NonNullable<
+export type IntegrationSecrets = NonNullable<
   Awaited<ReturnType<typeof integrationsService.getDecryptedSecrets>>
 >;
 
@@ -54,8 +61,31 @@ async function loadCandidate(organizationId: string, candidateId: mongoose.Types
     _id: candidateId,
     organizationId,
   })
-    .select('name email phone')
+    .select('name email phone currentTitle currentCompany location')
     .lean();
+}
+
+/**
+ * Build the personalization merge context for a campaign + candidate pair.
+ * `job_title` reflects the role being pitched (campaign.jobId); `current_role` /
+ * `current_company` reflect the candidate's own profile.
+ */
+async function buildMergeContext(
+  campaign: OutreachCampaignDocument,
+  candidate: Awaited<ReturnType<typeof loadCandidate>>
+): Promise<Record<string, string>> {
+  const [job, organization, owner] = await Promise.all([
+    campaign.jobId ? JobModel.findById(campaign.jobId).select('title').lean() : null,
+    OrganizationModel.findById(campaign.organizationId).select('name').lean(),
+    UserModel.findById(campaign.ownerUserId).select('firstName').lean(),
+  ]);
+
+  return buildCandidateMergeContext(candidate, {
+    jobTitle: job?.title || null,
+    companyName: organization?.name || null,
+    recruiterName: owner?.firstName || null,
+    location: candidate?.location || null,
+  });
 }
 
 async function resolveIntegration(
@@ -84,7 +114,8 @@ async function resolveIntegration(
   return secrets ? { id: fallback.id, secrets } : null;
 }
 
-async function withFreshEmailToken(
+/** Exported for reuse by email-reply-sync — refreshes gmail/outlook access tokens on demand. */
+export async function withFreshEmailToken(
   secrets: IntegrationSecrets
 ): Promise<string | null> {
   if (secrets.accessToken) return secrets.accessToken;
@@ -256,8 +287,12 @@ async function launchVoiceCall(input: {
   candidateName: string;
   phone: string;
   step: CampaignSequenceStep;
-}): Promise<{ messageId?: string; provider: string }> {
-  const script = String(input.step.body || input.step.note || '').trim();
+  mergeContext: Record<string, string>;
+}): Promise<{ messageId?: string; provider: string; script: string }> {
+  const script = mergeMessageTemplate(
+    String(input.step.body || input.step.note || '').trim(),
+    input.mergeContext
+  );
   const agent = await createHunarVoiceAgent({
     name: `${input.campaign.name} · voice`.slice(0, 80),
     agentPrompt: script || `Call the candidate about ${input.campaign.name}.`,
@@ -293,7 +328,56 @@ async function launchVoiceCall(input: {
     ],
   });
 
-  return { messageId: bulk.requestId, provider: 'hunar' };
+  return { messageId: bulk.requestId, provider: 'hunar', script };
+}
+
+/**
+ * Send a one-off message (outside the sequence job pipeline) through the
+ * organization's connected email/WhatsApp integration — used by candidate
+ * actions like "send scheduling link". Reuses the same provider adapters as
+ * the sequence worker but does not reserve/commit outreach quota, since
+ * these are manual recruiter-triggered sends rather than automated steps.
+ */
+export async function sendAdHocMessage(input: {
+  organizationId: string;
+  userId: string;
+  channel: 'email' | 'whatsapp';
+  to: string;
+  subject?: string | null;
+  body: string;
+  senderEmail?: string | null;
+  integrationId?: string | null;
+}): Promise<{ providerMessageId?: string; provider: string }> {
+  const integration = await resolveIntegration(
+    input.organizationId,
+    input.userId,
+    input.channel === 'email' ? 'email' : 'whatsapp',
+    input.integrationId
+  );
+  if (!integration) {
+    throw Object.assign(
+      new Error(`No connected ${input.channel} integration to send this message.`),
+      { statusCode: 400 }
+    );
+  }
+
+  if (input.channel === 'email') {
+    const sent = await sendEmailViaIntegration({
+      secrets: integration.secrets,
+      to: input.to,
+      subject: input.subject || '',
+      body: input.body,
+      fromOverride: input.senderEmail,
+    });
+    return { providerMessageId: sent.messageId, provider: sent.provider };
+  }
+
+  const sent = await sendWhatsAppViaIntegration({
+    secrets: integration.secrets,
+    to: input.to,
+    body: input.body,
+  });
+  return { providerMessageId: sent.messageId, provider: sent.provider };
 }
 
 /**
@@ -339,6 +423,8 @@ export async function executeCampaignMessageStep(input: {
     return { outcome: 'skipped', reason: 'missing_phone', channel: messageType };
   }
 
+  const mergeContext = await buildMergeContext(campaign, candidate);
+
   if (messageType === 'email') {
     const integration = await resolveIntegration(
       organizationId,
@@ -362,12 +448,15 @@ export async function executeCampaignMessageStep(input: {
       relatedEntityId: jobId,
     });
 
+    const renderedSubject = mergeMessageTemplate(step.subject || campaign.name, mergeContext);
+    const renderedBody = mergeMessageTemplate(step.body || step.note || '', mergeContext);
+
     try {
       const sent = await sendEmailViaIntegration({
         secrets: integration.secrets,
         to: email,
-        subject: step.subject || campaign.name,
-        body: step.body || step.note || '',
+        subject: renderedSubject,
+        body: renderedBody,
         fromOverride: campaign.channelConfig.email?.senderEmail,
       });
       await quotaService.commitUsage({
@@ -380,6 +469,8 @@ export async function executeCampaignMessageStep(input: {
         channel: 'email',
         providerMessageId: sent.messageId,
         provider: sent.provider,
+        renderedSubject,
+        renderedBody,
       };
     } catch (error) {
       await quotaService
@@ -416,11 +507,13 @@ export async function executeCampaignMessageStep(input: {
       relatedEntityId: jobId,
     });
 
+    const renderedBody = mergeMessageTemplate(step.body || step.note || '', mergeContext);
+
     try {
       const sent = await sendWhatsAppViaIntegration({
         secrets: integration.secrets,
         to: phone,
-        body: step.body || step.note || '',
+        body: renderedBody,
       });
       await quotaService.commitUsage({
         organizationId,
@@ -432,6 +525,7 @@ export async function executeCampaignMessageStep(input: {
         channel: 'whatsapp',
         providerMessageId: sent.messageId,
         provider: sent.provider,
+        renderedBody,
       };
     } catch (error) {
       await quotaService
@@ -462,6 +556,7 @@ export async function executeCampaignMessageStep(input: {
       candidateName: candidate?.name || 'Candidate',
       phone,
       step,
+      mergeContext,
     });
     await quotaService.commitUsage({
       organizationId,
@@ -473,6 +568,7 @@ export async function executeCampaignMessageStep(input: {
       channel: 'ai_voice',
       providerMessageId: sent.messageId,
       provider: sent.provider,
+      renderedBody: sent.script,
     };
   } catch (error) {
     logger.warn(
