@@ -169,7 +169,9 @@ export const outreachTemplatesService = {
   ) {
     let variables: string[];
     try {
-      variables = assertVariablesAllowed(input.subject ?? null, input.body);
+      variables = assertVariablesAllowed(input.subject ?? null, input.body, {
+        channel: input.channel,
+      });
     } catch (error) {
       wrapVarError(error);
     }
@@ -214,7 +216,7 @@ export const outreachTemplatesService = {
     const subject = doc.subject;
     const body = doc.body;
     try {
-      doc.variables = assertVariablesAllowed(subject, body);
+      doc.variables = assertVariablesAllowed(subject, body, { channel: doc.channel });
     } catch (error) {
       wrapVarError(error);
     }

@@ -47,10 +47,11 @@ async function ownerName(userId: string): Promise<string> {
 
 function validateSteps(steps: CreateInput['steps']) {
   for (const step of steps) {
+    const options = { channel: step.channel ?? undefined };
     if (step.body) {
-      assertVariablesAllowed(step.subject ?? null, step.body);
+      assertVariablesAllowed(step.subject ?? null, step.body, options);
     } else if (step.subject) {
-      assertVariablesAllowed(step.subject, '');
+      assertVariablesAllowed(step.subject, '', options);
     }
   }
 }

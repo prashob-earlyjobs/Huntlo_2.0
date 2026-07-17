@@ -10,9 +10,12 @@ import { getRequestId } from '../../middleware/request-id.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { successResponse } from '../../shared/http/response.js';
 import { outreachAiService } from './ai.service.js';
+import { emailPlansService } from './plans.service.js';
 import { sequenceTemplatesService } from './sequences.service.js';
 import { outreachTemplatesService } from './templates.service.js';
 import { listAllowedVariables } from './variables.js';
+import { listApprovedTemplates } from './whatsapp-template-catalogue.js';
+import { whatsappPlansService } from './whatsapp-plans.service.js';
 import {
   createSequenceTemplateSchema,
   createTemplateSchema,
@@ -26,6 +29,15 @@ import {
   updateTemplateSchema,
   validateVariablesSchema,
 } from './outreach.validation.js';
+import {
+  createOutreachPlanSchema,
+  createWhatsAppPlanSchema,
+  listOutreachPlansQuerySchema,
+  listWhatsAppPlansQuerySchema,
+  planIdParamSchema,
+  updateOutreachPlanSchema,
+  updateWhatsAppPlanSchema,
+} from './plan.validation.js';
 import { campaignRoutes } from './campaign.routes.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
@@ -224,23 +236,160 @@ outreachRouter.delete(
 );
 
 /* ------------------------------------------------------------------ */
-/* AI + validation                                                      */
+/* Email outreach plans                                                 */
 /* ------------------------------------------------------------------ */
 
+outreachRouter.get(
+  '/plans',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const query = listOutreachPlansQuerySchema.parse(req.query);
+    const data = await emailPlansService.list(req.organizationId!, query);
+    successResponse(res, data.items, {
+      meta: { requestId: getRequestId(req), pagination: data.pagination },
+    });
+  })
+);
+
 outreachRouter.post(
-  '/generate',
+  '/plans',
   ...orgAuth,
   writePerm,
   asyncHandler(async (req, res) => {
-    const body = generateOutreachSchema.parse(req.body ?? {});
-    const data = await outreachAiService.generate(
-      req.organizationId!,
-      req.userId!,
-      body
-    );
+    const body = createOutreachPlanSchema.parse(req.body ?? {});
+    const data = await emailPlansService.create(req.organizationId!, req.userId!, body);
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+
+outreachRouter.get(
+  '/plans/:id',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await emailPlansService.get(req.organizationId!, id);
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );
+
+const updateOutreachPlanHandler = asyncHandler(async (req, res) => {
+  const { id } = planIdParamSchema.parse(req.params);
+  const body = updateOutreachPlanSchema.parse(req.body ?? {});
+  const data = await emailPlansService.update(req.organizationId!, id, body);
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
+outreachRouter.put('/plans/:id', ...orgAuth, writePerm, updateOutreachPlanHandler);
+outreachRouter.patch('/plans/:id', ...orgAuth, writePerm, updateOutreachPlanHandler);
+
+outreachRouter.delete(
+  '/plans/:id',
+  ...orgAuth,
+  requirePermission('outreach:edit', 'outreach:delete', 'outreach:manage'),
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await emailPlansService.remove(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/* ------------------------------------------------------------------ */
+/* WhatsApp outreach plans                                              */
+/* ------------------------------------------------------------------ */
+
+outreachRouter.get(
+  '/whatsapp/templates',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    successResponse(
+      res,
+      { templates: listApprovedTemplates() },
+      { meta: { requestId: getRequestId(req) } }
+    );
+  })
+);
+
+outreachRouter.get(
+  '/whatsapp/plans',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const query = listWhatsAppPlansQuerySchema.parse(req.query);
+    const data = await whatsappPlansService.list(req.organizationId!, query);
+    successResponse(res, data.items, {
+      meta: { requestId: getRequestId(req), pagination: data.pagination },
+    });
+  })
+);
+
+outreachRouter.post(
+  '/whatsapp/plans',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const body = createWhatsAppPlanSchema.parse(req.body ?? {});
+    const data = await whatsappPlansService.create(req.organizationId!, req.userId!, body);
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+
+outreachRouter.get(
+  '/whatsapp/plans/:id',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await whatsappPlansService.get(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+const updateWhatsAppPlanHandler = asyncHandler(async (req, res) => {
+  const { id } = planIdParamSchema.parse(req.params);
+  const body = updateWhatsAppPlanSchema.parse(req.body ?? {});
+  const data = await whatsappPlansService.update(req.organizationId!, id, body);
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
+outreachRouter.put('/whatsapp/plans/:id', ...orgAuth, writePerm, updateWhatsAppPlanHandler);
+outreachRouter.patch('/whatsapp/plans/:id', ...orgAuth, writePerm, updateWhatsAppPlanHandler);
+
+outreachRouter.delete(
+  '/whatsapp/plans/:id',
+  ...orgAuth,
+  requirePermission('outreach:edit', 'outreach:delete', 'outreach:manage'),
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await whatsappPlansService.remove(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/* ------------------------------------------------------------------ */
+/* AI + validation                                                      */
+/* ------------------------------------------------------------------ */
+
+const generateSequenceHandler = asyncHandler(async (req, res) => {
+  const body = generateOutreachSchema.parse(req.body ?? {});
+  const data = await outreachAiService.generate(
+    req.organizationId!,
+    req.userId!,
+    body
+  );
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
+outreachRouter.post('/generate', ...orgAuth, writePerm, generateSequenceHandler);
+outreachRouter.post('/ai/generate-sequence', ...orgAuth, writePerm, generateSequenceHandler);
 
 outreachRouter.post(
   '/rewrite',
