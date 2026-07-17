@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
 
+import { getLogger } from '../../config/logger.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
-import { campaignsService } from '../outreach/campaigns.service.js';
+import { campaignsService, refreshCampaignStats } from '../outreach/campaigns.service.js';
 import {
   emitCampaignThreadUpdated,
   emitConversationMessageCreated,
@@ -25,6 +26,7 @@ import {
   type ConversationThreadDocument,
 } from './conversation-thread.model.js';
 import { ReplyClassificationModel } from './reply-classification.model.js';
+import { processQualificationAfterReply } from '../outreach/qualification-qa.service.js';
 
 export type NormalizedInboundMessage = {
   organizationId: string;
@@ -45,6 +47,17 @@ export type NormalizedInboundMessage = {
   /** When true, skip AI classify (tests / bulk). */
   skipClassify?: boolean;
 };
+
+/** Pull bare email from headers like `Jane Doe <jane@acme.com>`. */
+function extractEmailAddress(raw: string | null | undefined): string {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  const angle = value.match(/<([^>]+)>/);
+  const candidate = (angle?.[1] || value).trim().toLowerCase();
+  // Keep only a plausible email token if the header is noisy.
+  const emailMatch = candidate.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+  return (emailMatch?.[0] || candidate).toLowerCase();
+}
 
 function normalizeContact(value: string | null | undefined): string {
   return String(value || '')
@@ -67,16 +80,19 @@ async function findCandidate(input: NormalizedInboundMessage) {
     if (byId) return byId;
   }
 
-  const from = normalizeContact(input.from);
-  if (!from) return null;
-
-  if (input.channel === 'email' || from.includes('@')) {
+  const emailFrom = extractEmailAddress(input.from);
+  if (input.channel === 'email' || emailFrom.includes('@')) {
+    if (!emailFrom.includes('@')) return null;
+    // Case-insensitive exact match — avoid mangling `Name <email>` into a non-email key.
     return SavedCandidateModel.findOne({
       organizationId: input.organizationId,
-      email: from,
       deletedAt: null,
+      email: { $regex: new RegExp(`^${emailFrom.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
     }).lean();
   }
+
+  const from = normalizeContact(input.from);
+  if (!from) return null;
 
   const phoneDigits = from.replace(/\D/g, '');
   if (phoneDigits.length >= 8) {
@@ -120,10 +136,12 @@ async function resolveEnrollment(
       status: { $nin: ['completed', 'cancelled'] },
     }).sort({ updatedAt: -1 });
   }
+  // Include stopped — first reply often stops the enrollment (stopOnReply),
+  // and follow-up emails must still attach to the same campaign thread.
   return OutreachEnrollmentModel.findOne({
     organizationId,
     candidateId,
-    status: { $in: ['active', 'waiting', 'pending', 'replied'] },
+    status: { $in: ['active', 'waiting', 'pending', 'replied', 'stopped'] },
   }).sort({ updatedAt: -1 });
 }
 
@@ -365,6 +383,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       subject: input.subject,
       campaignId,
       enrollmentId: enrollment ? String(enrollment._id) : null,
+      channel: input.channel === 'email' || input.channel === 'whatsapp' ? input.channel : null,
     });
   }
 
@@ -384,6 +403,7 @@ export async function classifyAndAttach(input: {
   campaignId?: string | null;
   enrollmentId?: string | null;
   userId?: string | null;
+  channel?: 'email' | 'whatsapp' | null;
 }) {
   const prior = await ConversationMessageModel.find({ threadId: input.threadId })
     .sort({ createdAt: -1 })
@@ -481,25 +501,52 @@ export async function classifyAndAttach(input: {
     }
   }
 
-  if (input.enrollmentId && Object.keys(result.extractedVariables).length) {
+  if (input.enrollmentId) {
     const enrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
     if (enrollment) {
-      enrollment.qualificationState = {
-        status:
-          enrollment.qualificationState.status === 'pending'
-            ? 'in_progress'
-            : enrollment.qualificationState.status,
-        answers: {
-          ...enrollment.qualificationState.answers,
-          ...result.extractedVariables,
-        },
-      };
+      if (Object.keys(result.extractedVariables).length) {
+        enrollment.qualificationState = {
+          status:
+            enrollment.qualificationState.status === 'pending'
+              ? 'in_progress'
+              : enrollment.qualificationState.status,
+          answers: {
+            ...enrollment.qualificationState.answers,
+            ...result.extractedVariables,
+          },
+        };
+      }
       enrollment.replyState = {
         hasReply: true,
         disposition: result.interest,
         repliedAt: enrollment.replyState.repliedAt || new Date(),
       };
       await enrollment.save();
+      await refreshCampaignStats(String(enrollment.campaignId)).catch(() => undefined);
+    }
+  }
+
+  // Drive qualification Q&A (ask next question / knockout / qualify).
+  if (input.enrollmentId && input.campaignId) {
+    try {
+      const campaign = await OutreachCampaignModel.findById(input.campaignId);
+      if (campaign) {
+        await processQualificationAfterReply({
+          organizationId: input.organizationId,
+          campaign,
+          enrollmentId: input.enrollmentId,
+          threadId: input.threadId,
+          bodyText: input.bodyText,
+          interest: result.interest,
+          intent: result.intent,
+          extractedVariables: result.extractedVariables as Record<string, unknown>,
+          preferredChannel: input.channel || null,
+        });
+      }
+    } catch (error) {
+      getLogger()
+        .child({ component: 'inbound-sync' })
+        .warn({ err: error, enrollmentId: input.enrollmentId }, 'Qualification Q&A failed');
     }
   }
 

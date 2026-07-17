@@ -34,21 +34,46 @@ async function processMetaOrGupshup(
 
 async function processHunar(event: WebhookEventDocument) {
   const kind = (event.eventType || 'call-status') as HunarWebhookKind;
-  const meta = (event.payload._ingestMeta || {}) as { screeningId?: string };
-  const sid =
-    event.relatedEntityId ||
+  const meta = (event.payload._ingestMeta || {}) as {
+    screeningId?: string;
+    campaignId?: string;
+  };
+  const screeningId =
     meta.screeningId ||
     String((event.payload as { screeningId?: string }).screeningId || '') ||
     null;
+  const campaignId =
+    meta.campaignId ||
+    (event.relatedEntityType === 'campaign' ? event.relatedEntityId : null) ||
+    String((event.payload as { campaignId?: string }).campaignId || '') ||
+    null;
 
-  if (!sid) {
-    throw AppError.badRequest('Hunar webhook missing screeningId');
-  }
-
-  // Drop ingest-only metadata before domain processing.
   const { _ingestMeta: _drop, ...body } = event.payload as Record<string, unknown> & {
     _ingestMeta?: unknown;
   };
+
+  if (campaignId && !screeningId) {
+    const { processCampaignVoiceWebhook } = await import('../voice/voice-webhook.service.js');
+    const result = await processCampaignVoiceWebhook({
+      kind: ['call-status', 'call-recording', 'call-result', 'call-summary'].includes(kind)
+        ? kind
+        : 'call-status',
+      campaignId,
+      body,
+      headers: event.headers,
+      alreadyVerified: event.signatureValid,
+    });
+    return {
+      result,
+      relatedEntityType: 'campaign',
+      relatedEntityId: campaignId,
+    };
+  }
+
+  const sid = event.relatedEntityId || screeningId;
+  if (!sid) {
+    throw AppError.badRequest('Hunar webhook missing screeningId or campaignId');
+  }
 
   const result = await processHunarWebhook({
     kind: ['call-status', 'call-recording', 'call-result', 'call-summary'].includes(

@@ -24,6 +24,7 @@ import {
 import { UserModel, toPublicUser, type UserDocument } from '../auth/user.model.js';
 import { UserSessionModel } from '../auth/session.model.js';
 import { authService } from '../auth/auth.service.js';
+import { integrationsService } from '../integrations/integration.service.js';
 import {
   OrganizationModel,
   toPublicOrganization,
@@ -386,6 +387,11 @@ export const adminConsoleService = {
         { $set: { ownerUserId: user._id } }
       );
     }
+
+    await integrationsService.provisionDefaultsForUser(
+      String(organizationId),
+      user._id.toHexString()
+    );
 
     return this.getUser(user._id.toHexString());
   },

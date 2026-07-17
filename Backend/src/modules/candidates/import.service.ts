@@ -45,6 +45,7 @@ function emptyTotals() {
     invalid: 0,
     duplicatesInFile: 0,
     duplicatesExisting: 0,
+    linkedExisting: 0,
     imported: 0,
     skipped: 0,
     failed: 0,
@@ -75,10 +76,12 @@ function toPublicImportJob(job: CandidateImportJobDocument) {
       invalid: job.totals?.invalid ?? 0,
       duplicatesInFile: job.totals?.duplicatesInFile ?? 0,
       duplicatesExisting: job.totals?.duplicatesExisting ?? 0,
+      linkedExisting: job.totals?.linkedExisting ?? 0,
       imported: job.totals?.imported ?? 0,
       skipped: job.totals?.skipped ?? 0,
       failed: job.totals?.failed ?? 0,
     },
+    errors: jobErrors.slice(0, 25),
     errorCount: jobErrors.length,
     startedAt: job.startedAt?.toISOString?.() ?? null,
     completedAt: job.completedAt?.toISOString?.() ?? null,
@@ -125,61 +128,223 @@ function tryNormalizePhone(value: string): string | null {
   return normalizePhone(cleaned);
 }
 
-async function countExistingMatches(
-  organizationId: string,
-  rows: Record<string, string>[],
-  mapping: Record<string, string>
-): Promise<number> {
-  const emails = new Set<string>();
-  const phones = new Set<string>();
-  const linkedins = new Set<string>();
+type ExistingPoolMatch = {
+  _id: mongoose.Types.ObjectId;
+  email: string | null;
+  phone: string | null;
+  linkedinUrl: string | null;
+};
 
-  for (const row of rows) {
-    const mapped = mapRowToFields(row, mapping);
-    const email = mapped.email ? tryNormalizeEmail(mapped.email) : null;
-    const phone = mapped.phone ? tryNormalizePhone(mapped.phone) : null;
-    const linkedin = mapped.linkedinUrl ? normalizeLinkedin(mapped.linkedinUrl) : null;
-    if (email) emails.add(email);
-    if (phone) phones.add(phone);
-    if (linkedin) linkedins.add(linkedin);
-  }
-
-  if (!emails.size && !phones.size && !linkedins.size) return 0;
-
-  const or: Record<string, unknown>[] = [];
-  if (emails.size) or.push({ email: { $in: [...emails] } });
-  if (phones.size) or.push({ phone: { $in: [...phones] } });
-  if (linkedins.size) or.push({ linkedinUrl: { $in: [...linkedins] } });
-
-  return SavedCandidateModel.countDocuments({
-    organizationId: new mongoose.Types.ObjectId(organizationId),
+/**
+ * Resolve an existing pool candidate for dedupe.
+ * Priority: email → LinkedIn → phone.
+ * Same phone with a *different* email is NOT treated as a duplicate (creates a new row).
+ */
+async function findExistingPoolMatch(input: {
+  organizationId: mongoose.Types.ObjectId | string;
+  email: string | null;
+  phone: string | null;
+  linkedinUrl: string | null;
+}): Promise<ExistingPoolMatch | null> {
+  const orgFilter = {
+    organizationId: input.organizationId,
     deletedAt: null,
-    $or: or,
-  });
-}
+  };
 
-function countDuplicatesInFile(
-  rows: Record<string, string>[],
-  mapping: Record<string, string>
-): number {
-  const seen = new Set<string>();
-  let duplicates = 0;
-
-  for (const row of rows) {
-    const mapped = mapRowToFields(row, mapping);
-    const email = mapped.email ? tryNormalizeEmail(mapped.email) : null;
-    const phone = mapped.phone ? tryNormalizePhone(mapped.phone) : null;
-    const linkedin = mapped.linkedinUrl ? normalizeLinkedin(mapped.linkedinUrl) : null;
-    const key = email ?? phone ?? linkedin;
-    if (!key) continue;
-    if (seen.has(key)) {
-      duplicates += 1;
-    } else {
-      seen.add(key);
+  if (input.email) {
+    const byEmail = await SavedCandidateModel.findOne({
+      ...orgFilter,
+      email: input.email,
+    })
+      .select('_id email phone linkedinUrl')
+      .lean();
+    if (byEmail) {
+      return {
+        _id: byEmail._id as mongoose.Types.ObjectId,
+        email: byEmail.email ? String(byEmail.email) : null,
+        phone: byEmail.phone ? String(byEmail.phone) : null,
+        linkedinUrl: byEmail.linkedinUrl ? String(byEmail.linkedinUrl) : null,
+      };
     }
   }
 
-  return duplicates;
+  if (input.linkedinUrl) {
+    const bare = input.linkedinUrl.replace(/^https?:\/\//, '');
+    const byLi = await SavedCandidateModel.findOne({
+      ...orgFilter,
+      linkedinUrl: {
+        $in: [input.linkedinUrl, bare, `https://${bare}`],
+      },
+    })
+      .select('_id email phone linkedinUrl')
+      .lean();
+    if (byLi) {
+      return {
+        _id: byLi._id as mongoose.Types.ObjectId,
+        email: byLi.email ? String(byLi.email) : null,
+        phone: byLi.phone ? String(byLi.phone) : null,
+        linkedinUrl: byLi.linkedinUrl ? String(byLi.linkedinUrl) : null,
+      };
+    }
+  }
+
+  if (input.phone) {
+    const byPhone = await SavedCandidateModel.findOne({
+      ...orgFilter,
+      phone: input.phone,
+    })
+      .select('_id email phone linkedinUrl')
+      .lean();
+    if (byPhone) {
+      const existingEmail = byPhone.email ? String(byPhone.email) : null;
+      if (input.email && existingEmail && existingEmail !== input.email) {
+        return null;
+      }
+      return {
+        _id: byPhone._id as mongoose.Types.ObjectId,
+        email: existingEmail,
+        phone: byPhone.phone ? String(byPhone.phone) : null,
+        linkedinUrl: byPhone.linkedinUrl ? String(byPhone.linkedinUrl) : null,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Preview row classification — mirrors processImportJob skip rules so
+ * "Ready to import N" matches the eventual imported count when mapping is unchanged.
+ */
+async function classifyPreviewRows(
+  organizationId: string,
+  rows: Record<string, string>[],
+  mapping: Record<string, string>
+): Promise<{
+  valid: number;
+  invalid: number;
+  duplicatesInFile: number;
+  duplicatesExisting: number;
+  importable: number;
+}> {
+  let valid = 0;
+  let invalid = 0;
+  let duplicatesInFile = 0;
+  let duplicatesExisting = 0;
+  const seenInFile = new Set<string>();
+
+  const candidateKeys: Array<{
+    email: string | null;
+    phone: string | null;
+    linkedin: string | null;
+  }> = [];
+
+  for (const row of rows) {
+    const mapped = mapRowToFields(row, mapping);
+    const name = displayValue(mapped.name ?? '');
+    const emailRaw = mapped.email ?? '';
+    const phoneRaw = mapped.phone ?? '';
+    const email = emailRaw ? tryNormalizeEmail(emailRaw) : null;
+    const phone = phoneRaw ? tryNormalizePhone(phoneRaw) : null;
+    const linkedin = mapped.linkedinUrl ? normalizeLinkedin(mapped.linkedinUrl) : null;
+
+    if (!name) {
+      invalid += 1;
+      continue;
+    }
+    if (emailRaw && !email) {
+      invalid += 1;
+      continue;
+    }
+    if (phoneRaw && !phone) {
+      invalid += 1;
+      continue;
+    }
+
+    const dupKey = email ?? phone ?? linkedin;
+    if (dupKey && seenInFile.has(dupKey)) {
+      duplicatesInFile += 1;
+      continue;
+    }
+    if (dupKey) seenInFile.add(dupKey);
+
+    valid += 1;
+    candidateKeys.push({ email, phone, linkedin });
+  }
+
+  // Batch-check existing pool matches for importable rows only.
+  const emails = new Set(
+    candidateKeys.map((k) => k.email).filter((v): v is string => Boolean(v))
+  );
+  const phones = new Set(
+    candidateKeys.map((k) => k.phone).filter((v): v is string => Boolean(v))
+  );
+  const linkedins = new Set(
+    candidateKeys.map((k) => k.linkedin).filter((v): v is string => Boolean(v))
+  );
+
+  const existingByEmail = new Map<string, { email: string | null; phone: string | null }>();
+  const existingByPhone = new Map<string, { email: string | null; phone: string | null }>();
+  const existingByLinkedin = new Set<string>();
+
+  if (emails.size || phones.size || linkedins.size) {
+    const or: Record<string, unknown>[] = [];
+    if (emails.size) or.push({ email: { $in: [...emails] } });
+    if (phones.size) or.push({ phone: { $in: [...phones] } });
+    if (linkedins.size) {
+      const linkedinVariants = new Set<string>();
+      for (const value of linkedins) {
+        linkedinVariants.add(value);
+        linkedinVariants.add(value.replace(/^https?:\/\//, ''));
+        linkedinVariants.add(`https://${value.replace(/^https?:\/\//, '')}`);
+      }
+      or.push({ linkedinUrl: { $in: [...linkedinVariants] } });
+    }
+
+    const existing = await SavedCandidateModel.find({
+      organizationId: new mongoose.Types.ObjectId(organizationId),
+      deletedAt: null,
+      $or: or,
+    })
+      .select('email phone linkedinUrl')
+      .lean();
+
+    for (const doc of existing) {
+      const emailKey = doc.email ? String(doc.email).toLowerCase() : null;
+      const phoneKey = doc.phone ? String(doc.phone) : null;
+      const row = {
+        email: emailKey,
+        phone: phoneKey,
+      };
+      if (emailKey) existingByEmail.set(emailKey, row);
+      if (phoneKey) existingByPhone.set(phoneKey, row);
+      const li = normalizeLinkedin(doc.linkedinUrl ? String(doc.linkedinUrl) : null);
+      if (li) existingByLinkedin.add(li);
+    }
+  }
+
+  let importable = 0;
+  for (const key of candidateKeys) {
+    let hits = false;
+    if (key.email && existingByEmail.has(key.email)) {
+      hits = true;
+    } else if (key.linkedin && existingByLinkedin.has(key.linkedin)) {
+      hits = true;
+    } else if (key.phone && existingByPhone.has(key.phone)) {
+      const matched = existingByPhone.get(key.phone)!;
+      // Same phone + different email → not a duplicate (mirrors processImportJob).
+      if (!(key.email && matched.email && matched.email !== key.email)) {
+        hits = true;
+      }
+    }
+    if (hits) {
+      duplicatesExisting += 1;
+    } else {
+      importable += 1;
+    }
+  }
+
+  return { valid, invalid, duplicatesInFile, duplicatesExisting, importable };
 }
 
 export class ImportService {
@@ -208,35 +373,11 @@ export class ImportService {
 
     const suggestedMapping = suggestColumnMapping(parsed.headers);
     const previewRows = parsed.rows.slice(0, IMPORT_PREVIEW_ROW_CAP);
-    const duplicatesInFile = countDuplicatesInFile(parsed.rows, suggestedMapping);
-    const duplicatesExisting = await countExistingMatches(
+    const classification = await classifyPreviewRows(
       actor.organizationId,
       parsed.rows,
       suggestedMapping
     );
-
-    // Validate preview rows for summary
-    let valid = 0;
-    let invalid = 0;
-    for (const row of parsed.rows) {
-      const mapped = mapRowToFields(row, suggestedMapping);
-      const name = displayValue(mapped.name ?? '');
-      const email = mapped.email ? tryNormalizeEmail(mapped.email) : null;
-      const phone = mapped.phone ? tryNormalizePhone(mapped.phone) : null;
-      if (!name) {
-        invalid += 1;
-        continue;
-      }
-      if (mapped.email && !email) {
-        invalid += 1;
-        continue;
-      }
-      if (mapped.phone && !phone) {
-        invalid += 1;
-        continue;
-      }
-      valid += 1;
-    }
 
     const job = await CandidateImportJobModel.create({
       organizationId: new mongoose.Types.ObjectId(actor.organizationId),
@@ -252,10 +393,10 @@ export class ImportService {
       totals: {
         ...emptyTotals(),
         rows: parsed.rows.length,
-        valid,
-        invalid,
-        duplicatesInFile,
-        duplicatesExisting,
+        valid: classification.importable,
+        invalid: classification.invalid,
+        duplicatesInFile: classification.duplicatesInFile,
+        duplicatesExisting: classification.duplicatesExisting,
       },
       expiresAt: new Date(Date.now() + IMPORT_EXPIRES_MS),
     });
@@ -484,29 +625,73 @@ export class ImportService {
         if (dupKey) seenInFile.add(dupKey);
 
         if (skipDuplicates && dupKey) {
-          const or: Record<string, unknown>[] = [];
-          if (email) or.push({ email });
-          if (phone) or.push({ phone });
-          if (linkedinUrl) or.push({ linkedinUrl });
-          if (or.length) {
-            const existing = await SavedCandidateModel.findOne({
-              organizationId: job.organizationId,
-              deletedAt: null,
-              $or: or,
-            }).select('_id');
-            if (existing) {
+          const existing = await findExistingPoolMatch({
+            organizationId: job.organizationId,
+            email,
+            phone,
+            linkedinUrl,
+          });
+          if (existing) {
               totals.duplicatesExisting += 1;
+
+              // Refresh contact fields from this row when provided (e.g. new email
+              // on an existing phone match), then attach to the campaign list.
+              const contactPatch: Record<string, unknown> = {
+                lastActivityAt: new Date(),
+              };
+              if (email && (!existing.email || existing.email === email)) {
+                contactPatch.email = email;
+              }
+              if (phone) contactPatch.phone = phone;
+              if (linkedinUrl) contactPatch.linkedinUrl = linkedinUrl;
+              if (name) contactPatch.name = name;
+
+              if (listId && isValidObjectId(listId)) {
+                const listOid = new mongoose.Types.ObjectId(listId);
+                const alreadyOnList = await SavedCandidateModel.exists({
+                  _id: existing._id,
+                  listIds: listOid,
+                });
+                await SavedCandidateModel.updateOne(
+                  { _id: existing._id },
+                  {
+                    $addToSet: { listIds: listOid },
+                    $set: contactPatch,
+                  }
+                );
+                if (!alreadyOnList) {
+                  await listService.incrementCount(listId, 1);
+                  totals.linkedExisting += 1;
+                } else {
+                  totals.skipped += 1;
+                  if (errors.length < IMPORT_ERROR_CAP) {
+                    errors.push({
+                      row: rowNumber,
+                      code: 'ALREADY_ON_LIST',
+                      message:
+                        'Candidate already in pool and already on this list — contact details refreshed',
+                    });
+                  }
+                }
+                continue;
+              }
+
+              await SavedCandidateModel.updateOne(
+                { _id: existing._id },
+                { $set: contactPatch }
+              );
+
               totals.skipped += 1;
               if (errors.length < IMPORT_ERROR_CAP) {
                 errors.push({
                   row: rowNumber,
                   code: 'DUPLICATE_EXISTING',
-                  message: 'Candidate already exists in workspace',
+                  message:
+                    'Candidate already exists in workspace (matched email, phone, or LinkedIn) — contact details refreshed',
                 });
               }
               continue;
             }
-          }
         }
 
         totals.valid += 1;
@@ -538,9 +723,7 @@ export class ImportService {
             name,
             email,
             phone,
-            linkedinUrl: mapped.linkedinUrl
-              ? displayValue(mapped.linkedinUrl) || null
-              : null,
+            linkedinUrl,
             headline: displayValue(mapped.headline ?? '') || null,
             currentTitle: displayValue(mapped.currentTitle ?? '') || null,
             currentCompany: displayValue(mapped.currentCompany ?? '') || null,

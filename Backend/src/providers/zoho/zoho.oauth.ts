@@ -156,3 +156,30 @@ export async function exchangeZohoAuthCode(input: {
     dataCenter: normalizeZohoDataCenter(input.dataCenter),
   } as Record<string, unknown> & { dataCenter: ZohoDataCenter };
 }
+
+export async function refreshZohoAccessToken(
+  refreshToken: string,
+  dataCenter?: unknown
+) {
+  const config = getZohoOAuthConfig();
+  if (!config) {
+    throw Object.assign(new Error('Zoho OAuth is not configured.'), { statusCode: 503 });
+  }
+  const dc = getZohoDcConfig(dataCenter);
+  const body = new URLSearchParams({
+    refresh_token: String(refreshToken),
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    grant_type: 'refresh_token',
+  });
+  const res = await fetch(`https://${dc.accountsHost}/oauth/v2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  const data = (await res.json()) as Record<string, unknown>;
+  if (!res.ok || !data.access_token) {
+    throw Object.assign(new Error('Zoho refresh failed'), { statusCode: 400 });
+  }
+  return data;
+}

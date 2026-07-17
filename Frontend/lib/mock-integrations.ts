@@ -258,14 +258,14 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
   /* Voice */
   {
     id: "hunar",
-    name: "Huntlo Voice",
+    name: "Huntlo Voice AI",
     description:
       "AI voice agent for screening calls, outreach dials and call summaries.",
     category: "AI Voice",
     status: "Connected",
     connectedIdentity: "Huntlo · AI caller",
     lastSynced: "12m ago",
-    docsLabel: "Huntlo Voice docs",
+    docsLabel: "Huntlo Voice AI docs",
     initials: "HV",
     accent: "brand",
     permissions: [

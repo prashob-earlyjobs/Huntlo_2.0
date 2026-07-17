@@ -349,6 +349,8 @@ function SmtpConfigPanel({
                 security,
                 username: form.username,
                 password: form.password,
+                imapHost: form.imapHost || undefined,
+                imapPort: form.imapPort ? Number(form.imapPort) || 993 : undefined,
               });
               if (result.mode === "connected") {
                 onSave("SMTP connected.");

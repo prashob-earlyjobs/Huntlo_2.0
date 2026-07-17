@@ -14,6 +14,7 @@ export type {
 export {
   classifyConversationReply,
   draftConversationReply,
+  answerCandidateQuestionFromJd,
   GEMINI_CONVERSATIONS_MODEL,
   CONVERSATION_AI_GUARDRAILS,
   DEFAULT_CLASSIFY_CONFIDENCE_THRESHOLD,
@@ -23,6 +24,8 @@ export type {
   ClassifyReplyResult,
   ConversationDraftInput,
   ConversationDraftResult,
+  AnswerFromJdInput,
+  AnswerFromJdResult,
 } from './gemini.conversations.js';
 export { parseJobDescription, GEMINI_JOBS_MODEL } from './gemini.jobs.js';
 export type { ParsedJobDescription } from './gemini.jobs.js';

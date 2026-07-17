@@ -2,6 +2,7 @@ import {
   candidatePoolApi,
   sourcingApi,
   type ApiPoolCandidate,
+  type PoolListParams,
 } from "@/lib/api";
 import type { AudienceStats } from "@/lib/mock-outreach";
 import type { AudienceSource } from "@/lib/mock-outreach";
@@ -42,50 +43,69 @@ function normalizeLinkedin(url: string | null | undefined): string | null {
   return url.trim().toLowerCase().replace(/\/+$/, "");
 }
 
+/** Paginate pool list until exhausted (backend max page size is 200). */
+export async function listAllPoolPages(
+  params: PoolListParams,
+  pageSize = 200
+): Promise<ApiPoolCandidate[]> {
+  const all: ApiPoolCandidate[] = [];
+  for (let page = 1; page <= 50; page += 1) {
+    const rows = await candidatePoolApi.listRaw({
+      ...params,
+      page,
+      limit: pageSize,
+    });
+    all.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return all;
+}
+
 /** Load pool rows for the current audience selection (no side effects). */
 export async function loadAudiencePoolRows(
   state: AudienceBuilderSlice
 ): Promise<ApiPoolCandidate[]> {
   if (!state.source) return [];
 
+  // CSV / Excel import is always backed by a dedicated saved list. Never filter
+  // from the global pool page — that drops anyone outside the latest 200.
+  if (state.source === "CSV/Excel Import" && state.sourceDetail) {
+    const listRows = await listAllPoolPages({ listId: state.sourceDetail });
+    if (state.selectedCandidateIds.length === 0) return listRows;
+    const wanted = new Set(state.selectedCandidateIds);
+    const selected = listRows.filter((row) => wanted.has(row.id));
+    // If selection ids are stale, still show everyone on the import list.
+    return selected.length > 0 ? selected : listRows;
+  }
+
+  if (state.source === "Saved List" && state.sourceDetail) {
+    const listRows = await listAllPoolPages({ listId: state.sourceDetail });
+    if (state.selectedCandidateIds.length === 0) return listRows;
+    const wanted = new Set(state.selectedCandidateIds);
+    return listRows.filter((row) => wanted.has(row.id));
+  }
+
   if (
     state.selectedCandidateIds.length > 0 &&
-    (state.source === "Manual Add" ||
-      state.source === "Candidate Pool" ||
-      state.source === "CSV/Excel Import")
+    (state.source === "Manual Add" || state.source === "Candidate Pool")
   ) {
-    const all = await candidatePoolApi.listRaw({ limit: 200 });
+    // Prefer fetching pages until we cover selected ids (best-effort).
+    const all = await listAllPoolPages({
+      search: state.poolSearch.trim() || undefined,
+    });
     const wanted = new Set(state.selectedCandidateIds);
     return all.filter((row) => wanted.has(row.id));
   }
 
   if (state.source === "Candidate Pool") {
-    return candidatePoolApi.listRaw({
-      limit: 200,
+    return listAllPoolPages({
       search: state.poolSearch.trim() || undefined,
-    });
-  }
-
-  if (state.source === "Saved List" && state.sourceDetail) {
-    return candidatePoolApi.listRaw({
-      listId: state.sourceDetail,
-      limit: 200,
-    });
-  }
-
-  if (state.source === "CSV/Excel Import" && state.sourceDetail) {
-    return candidatePoolApi.listRaw({
-      listId: state.sourceDetail,
-      limit: 200,
     });
   }
 
   if (state.source === "Sourcing Session" && state.sourceDetail) {
     // Prefer already-synced pool rows for this session.
-    const existing = await candidatePoolApi.listRaw({
-      sourceType: "sourcing",
-      limit: 200,
-    });
+    const existing = await listAllPoolPages({ sourceType: "sourcing" });
     const fromSession = existing.filter(
       (row) => row.sourceId === state.sourceDetail
     );
@@ -132,26 +152,19 @@ export async function resolveAudienceCandidateIds(
   }
 
   if (state.source === "Candidate Pool") {
-    const rows = await candidatePoolApi.listRaw({
-      limit: 200,
+    const rows = await listAllPoolPages({
       search: state.poolSearch.trim() || undefined,
     });
     return rows.map((row) => row.id);
   }
 
   if (state.source === "Saved List" && state.sourceDetail) {
-    const rows = await candidatePoolApi.listRaw({
-      listId: state.sourceDetail,
-      limit: 200,
-    });
+    const rows = await listAllPoolPages({ listId: state.sourceDetail });
     return rows.map((row) => row.id);
   }
 
   if (state.source === "CSV/Excel Import" && state.sourceDetail) {
-    const rows = await candidatePoolApi.listRaw({
-      listId: state.sourceDetail,
-      limit: 200,
-    });
+    const rows = await listAllPoolPages({ listId: state.sourceDetail });
     return rows.map((row) => row.id);
   }
 
@@ -167,7 +180,7 @@ export async function ensureSourcingSessionInPool(
 ): Promise<string[]> {
   const [results, existing] = await Promise.all([
     sourcingApi.getSessionResults(sessionId),
-    candidatePoolApi.listRaw({ sourceType: "sourcing", limit: 200 }),
+    listAllPoolPages({ sourceType: "sourcing" }),
   ]);
 
   const byExternal = new Map<string, string>();

@@ -128,7 +128,6 @@ export const NAV_SECTIONS: NavSection[] = [
         href: ROUTES.conversations,
         icon: MessageSquare,
         description: "Candidate replies across channels",
-        badge: 12,
       },
       {
         title: "Templates",

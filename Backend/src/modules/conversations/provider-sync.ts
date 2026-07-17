@@ -161,13 +161,20 @@ export type EmailReplyItem = {
 };
 
 export function normalizeEmailReply(item: EmailReplyItem): NormalizedInboundMessage {
+  const fromEmail = (() => {
+    const raw = String(item.from || '').trim();
+    const angle = raw.match(/<([^>]+)>/);
+    const candidate = (angle?.[1] || raw).trim();
+    const match = candidate.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+    return match?.[0] || candidate;
+  })();
   return {
     organizationId: item.organizationId,
     provider: item.provider,
     channel: 'email',
     providerMessageId: webhookIdempotencyKey(item.provider, item.providerMessageId),
     providerThreadId: item.providerThreadId || null,
-    from: item.from,
+    from: fromEmail || item.from,
     to: item.to || null,
     subject: item.subject || null,
     bodyText: item.bodyText,

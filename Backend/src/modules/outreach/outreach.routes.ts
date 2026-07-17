@@ -14,7 +14,12 @@ import { emailPlansService } from './plans.service.js';
 import { sequenceTemplatesService } from './sequences.service.js';
 import { outreachTemplatesService } from './templates.service.js';
 import { listAllowedVariables } from './variables.js';
-import { listApprovedTemplates } from './whatsapp-template-catalogue.js';
+import {
+  getDefaultTemplateForSlot,
+  listApprovedTemplates,
+  listTemplatesForSlot,
+  WHATSAPP_TEMPLATE_SLOTS,
+} from './whatsapp-template-catalogue.js';
 import { whatsappPlansService } from './whatsapp-plans.service.js';
 import {
   createSequenceTemplateSchema,
@@ -39,10 +44,12 @@ import {
   updateWhatsAppPlanSchema,
 } from './plan.validation.js';
 import { campaignRoutes } from './campaign.routes.js';
+import { voiceRoutes } from '../voice/voice.routes.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
 const readPerm = requirePermission('outreach:view', 'outreach:manage');
 const writePerm = requirePermission(
+
   'outreach:create',
   'outreach:edit',
   'outreach:manage'
@@ -50,6 +57,7 @@ const writePerm = requirePermission(
 
 export const outreachRouter = Router();
 
+outreachRouter.use('/campaigns', voiceRoutes);
 outreachRouter.use('/campaigns', campaignRoutes);
 
 /* ------------------------------------------------------------------ */
@@ -309,7 +317,39 @@ outreachRouter.get(
   asyncHandler(async (req, res) => {
     successResponse(
       res,
-      { templates: listApprovedTemplates() },
+      {
+        templates: listApprovedTemplates(),
+        slots: WHATSAPP_TEMPLATE_SLOTS.map((slot) => ({
+          slot,
+          templates: listTemplatesForSlot(slot),
+          defaultTemplateId: getDefaultTemplateForSlot(slot)?.id ?? null,
+        })),
+        flow: {
+          steps: [
+            { step: 1, slot: 'opening', description: 'Opening Meta template (pick 1 of 2)' },
+            {
+              step: 2,
+              slot: 'no_reply_1',
+              description: 'No-reply follow-up 1 Meta template (pick 1 of 2)',
+            },
+            {
+              step: 3,
+              slot: 'no_reply_2',
+              description: 'No-reply follow-up 2 Meta template (pick 1 of 2)',
+            },
+            {
+              step: '4+',
+              slot: null,
+              description:
+                'Reply follow-ups are free-text / AI questions (not Meta templates)',
+            },
+          ],
+          placeholders: [
+            { key: '{{1}}', meaning: 'Candidate first name (FirstName)' },
+            { key: '{{2}}', meaning: 'Open role / job title (JobTitle)' },
+          ],
+        },
+      },
       { meta: { requestId: getRequestId(req) } }
     );
   })

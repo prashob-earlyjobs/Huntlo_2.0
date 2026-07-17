@@ -139,7 +139,7 @@ function safeEqual(a: string, b: string): boolean {
 
 /**
  * Authenticity per Huntlo Hunar integration:
- * - Callback URLs embed screeningId (validated flow from EJHunterLanding).
+ * - Callback URLs embed screeningId or campaignId.
  * - When HUNAR_WEBHOOK_SECRET is set, require a matching shared secret
  *   (ARCHITECTURE "Webhook secret") via Authorization Bearer or x-webhook-secret.
  *   HMAC of the raw body is also accepted on x-hunar-signature / x-webhook-signature.
@@ -147,10 +147,18 @@ function safeEqual(a: string, b: string): boolean {
 export function verifyHunarWebhookAuthenticity(input: {
   headers: Record<string, string | string[] | undefined>;
   rawBody?: Buffer | string | null;
-  screeningId: string | null;
+  screeningId?: string | null;
+  /** Alias for screeningId or campaignId — either entity id satisfies the check. */
+  entityId?: string | null;
+  campaignId?: string | null;
 }): { ok: boolean; reason?: string } {
-  if (!input.screeningId?.trim()) {
-    return { ok: false, reason: 'screeningId query parameter is required' };
+  const entity =
+    String(input.entityId || input.screeningId || input.campaignId || '').trim() || null;
+  if (!entity) {
+    return {
+      ok: false,
+      reason: 'screeningId or campaignId query parameter is required',
+    };
   }
 
   const secret = getHunarWebhookSecret();

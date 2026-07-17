@@ -159,6 +159,22 @@ describe('Conversations — threading, duplicates, stop-on-reply, override', () 
     expect(first.duplicate).toBe(false);
     expect(first.threadId).toBeTruthy();
 
+    // From headers like `Name <email>` must still match the candidate.
+    const angled = await ingestInboundMessage({
+      organizationId: auth.organizationId,
+      provider: 'gmail',
+      channel: 'email',
+      providerMessageId: 'gmail-msg-angled',
+      providerThreadId: 'gmail-thread-1',
+      from: 'Priya Sharma <priya@example.com>',
+      subject: 'Re: Hello',
+      bodyText: 'What is the notice period expected?',
+      skipClassify: true,
+    });
+    expect(angled.duplicate).toBe(false);
+    expect(angled.threadId).toBe(first.threadId);
+    expect(angled.messageId).toBeTruthy();
+
     const dup = await ingestInboundMessage({
       organizationId: auth.organizationId,
       provider: 'gmail',
@@ -176,7 +192,7 @@ describe('Conversations — threading, duplicates, stop-on-reply, override', () 
     const messageCount = await ConversationMessageModel.countDocuments({
       threadId: first.threadId,
     });
-    expect(messageCount).toBe(1);
+    expect(messageCount).toBe(2);
 
     const refreshedEnrollment = await OutreachEnrollmentModel.findById(enrollment._id);
     expect(refreshedEnrollment!.replyState.hasReply).toBe(true);

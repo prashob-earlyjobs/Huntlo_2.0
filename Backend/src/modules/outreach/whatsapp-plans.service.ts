@@ -1,5 +1,11 @@
 import { AppError } from '../../shared/errors/app-error.js';
-import { getApprovedTemplate, validateTemplateVariables } from './whatsapp-template-catalogue.js';
+import {
+  assertTemplateAllowedInSlot,
+  getApprovedTemplate,
+  validateTemplateVariables,
+  WHATSAPP_FREE_TEXT_TEMPLATE_ID,
+  type WhatsAppTemplateSlot,
+} from './whatsapp-template-catalogue.js';
 import {
   WhatsAppOutreachPlanModel,
   type WhatsAppOutreachCalendlyAutomation,
@@ -53,8 +59,20 @@ function validateTouchpointOrders(touchpoints: Array<{ order: number }>) {
 
 function resolveOpeningTouchpoint(touchpoints: TouchpointInput[]): TouchpointInput | null {
   const sorted = [...touchpoints].sort((a, b) => a.order - b.order);
-  // The opening step is order 0 if active, otherwise the first active step in order.
   return sorted.find((touchpoint) => touchpoint.active !== false) ?? null;
+}
+
+function resolveColdOutboundSlot(
+  touchpoint: TouchpointInput,
+  openingOrder: number,
+  noReplyIndex: number
+): WhatsAppTemplateSlot | null {
+  if (touchpoint.isReplyFollowUp) return null;
+  if (touchpoint.order === openingOrder) return 'opening';
+  if (touchpoint.order > openingOrder) {
+    return noReplyIndex === 0 ? 'no_reply_1' : 'no_reply_2';
+  }
+  return 'opening';
 }
 
 function validateWhatsAppTouchpoints(touchpoints: TouchpointInput[]) {
@@ -69,16 +87,27 @@ function validateWhatsAppTouchpoints(touchpoints: TouchpointInput[]) {
     );
   }
 
-  const openingTemplate = getApprovedTemplate(opening.templateId);
-  if (!openingTemplate) {
+  if (opening.isReplyFollowUp) {
     throw new AppError(
       400,
-      'OPENING_TEMPLATE_NOT_FOUND',
-      `The opening touchpoint's template "${opening.templateId}" was not found in the approved WhatsApp template catalogue.`
+      'OPENING_CANNOT_BE_REPLY_FOLLOW_UP',
+      'The opening touchpoint must be a Meta cold-outbound template, not a reply follow-up.'
     );
   }
 
-  for (const touchpoint of touchpoints) {
+  if (!assertTemplateAllowedInSlot(opening.templateId, 'opening')) {
+    throw new AppError(
+      400,
+      'OPENING_TEMPLATE_INVALID',
+      `Opening template "${opening.templateId}" must be one of the approved opening templates ` +
+        '(profile_review_reminder_v1 or role_alignment_review).'
+    );
+  }
+
+  let noReplyIndex = 0;
+  const sorted = [...touchpoints].sort((a, b) => a.order - b.order);
+
+  for (const touchpoint of sorted) {
     if (touchpoint.isNoReplyFallback && touchpoint.order <= opening.order) {
       throw new AppError(
         400,
@@ -94,23 +123,42 @@ function validateWhatsAppTouchpoints(touchpoints: TouchpointInput[]) {
       );
     }
 
-    const template = getApprovedTemplate(touchpoint.templateId);
-    if (!template) {
+    if (touchpoint.isReplyFollowUp) {
+      // Free-text / AI after reply — not Meta cold templates.
+      continue;
+    }
+
+    const slot = resolveColdOutboundSlot(touchpoint, opening.order, noReplyIndex);
+    if (!slot) continue;
+
+    if (
+      touchpoint.templateId === WHATSAPP_FREE_TEXT_TEMPLATE_ID ||
+      !assertTemplateAllowedInSlot(touchpoint.templateId, slot)
+    ) {
       throw new AppError(
         400,
-        'TEMPLATE_NOT_FOUND',
-        `Template "${touchpoint.templateId}" for touchpoint "${touchpoint.label}" was not found in the approved WhatsApp template catalogue.`
+        'TEMPLATE_SLOT_MISMATCH',
+        `Template "${touchpoint.templateId}" is not allowed for the ${slot} step ` +
+          `(touchpoint "${touchpoint.label}").`
       );
     }
 
-    const variableCheck = validateTemplateVariables(touchpoint.templateId, touchpoint.templateVariables);
-    if (!variableCheck.valid) {
+    const template = getApprovedTemplate(touchpoint.templateId);
+    const variableCheck = validateTemplateVariables(
+      touchpoint.templateId,
+      touchpoint.templateVariables
+    );
+    if (!variableCheck.valid && variableCheck.missing.length) {
       throw new AppError(
         400,
         'TEMPLATE_VARIABLES_MISMATCH',
-        `Template variables for touchpoint "${touchpoint.label}" do not match template "${template.name}".`,
+        `Template variables for touchpoint "${touchpoint.label}" do not match template "${template?.name || touchpoint.templateId}".`,
         { meta: { missing: variableCheck.missing, unknown: variableCheck.unknown } }
       );
+    }
+
+    if (touchpoint.order > opening.order) {
+      noReplyIndex += 1;
     }
   }
 }

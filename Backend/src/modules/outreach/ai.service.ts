@@ -7,6 +7,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { assertVariablesAllowed, validateMessageVariables } from './variables.js';
 import { outreachTemplatesService } from './templates.service.js';
 import { sequenceTemplatesService } from './sequences.service.js';
+import { loadOutreachJobContext } from './job-context.js';
 import type {
   generateOutreachSchema,
   rewriteOutreachSchema,
@@ -38,21 +39,43 @@ function toGenerationMeta(meta: {
 export const outreachAiService = {
   async generate(organizationId: string, userId: string, input: GenerateInput) {
     if (input.mode === 'qualification_questions') {
+      const job = input.jobId ? await loadOutreachJobContext(input.jobId) : null;
+      if (input.jobId && job && !job.title && !job.description) {
+        throw new AppError(
+          404,
+          'JOB_NOT_FOUND',
+          'Linked job not found for qualification generation.'
+        );
+      }
+
       const draft = await generateQualificationQuestions({
-        jobTitle: input.jobTitle,
+        jobTitle: job?.title || input.jobTitle,
+        jobDescription: job?.description || input.jobDescription,
+        locations: job?.locations,
+        workplaceType: job?.workplaceType,
+        requirements: job?.requirements,
+        requiredSkills: job?.requiredSkills,
+        experienceRange: job?.experienceRange,
+        salaryRange: job?.salaryRange,
         instructions: input.instructions,
       });
       // Never auto-launch — return draft only (optional save as template body)
       let saved = null;
       if (input.saveAsDraft) {
         const body = draft.questions
-          .map((q, i) => `${i + 1}. ${q.prompt} (${q.answerType}${q.knockout ? ' · knockout' : ''})`)
+          .map(
+            (q, i) =>
+              `${i + 1}. ${q.prompt} (${q.answerType}${q.knockout ? ' · knockout' : ''})`
+          )
           .join('\n');
         saved = await outreachTemplatesService.create(
           organizationId,
           userId,
           {
-            name: `Qualification draft — ${input.jobTitle || 'role'}`.slice(0, 160),
+            name: `Qualification draft — ${job?.title || input.jobTitle || 'role'}`.slice(
+              0,
+              160
+            ),
             channel: 'email',
             category: 'qualification',
             subject: null,
@@ -84,7 +107,9 @@ export const outreachAiService = {
     for (const step of draft.steps) {
       if (step.body) {
         try {
-          assertVariablesAllowed(step.subject, step.body, { channel: step.channel ?? undefined });
+          assertVariablesAllowed(step.subject, step.body, {
+            channel: step.channel ?? undefined,
+          });
         } catch (error) {
           throw new AppError(400, 'INVALID_VARIABLES', (error as Error).message);
         }

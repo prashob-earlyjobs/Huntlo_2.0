@@ -180,7 +180,7 @@ export const ADMIN_CHARTS: PlaceholderChart[] = [
     data: [
       { label: "Future Jobs", primary: 4200 },
       { label: "Gemini", primary: 1800 },
-      { label: "Hunar", primary: 960 },
+      { label: "Huntlo Voice AI", primary: 960 },
       { label: "Gupshup", primary: 3600 },
       { label: "Meta WA", primary: 2100 },
       { label: "Calendly", primary: 420 },
@@ -523,7 +523,7 @@ export const USAGE_BY_PROVIDER: UsageByProvider[] = [
     latency: "420 ms",
   },
   { provider: "Gemini", requests: "1,800", errors: "4", latency: "890 ms" },
-  { provider: "Hunar", requests: "960", errors: "2", latency: "1.1 s" },
+  { provider: "Huntlo Voice AI", requests: "960", errors: "2", latency: "1.1 s" },
   { provider: "Gupshup", requests: "3,600", errors: "28", latency: "310 ms" },
   {
     provider: "Meta WhatsApp",
@@ -656,7 +656,7 @@ export const FAILED_OPERATIONS: FailedOperation[] = [
   {
     id: "f4",
     operation: "AI screening call",
-    provider: "Hunar",
+    provider: "Huntlo Voice AI",
     workspace: "GulfHire",
     error: "Callee unreachable after 3 attempts",
     timestamp: "15 Jul 2026, 4:02 PM",
@@ -887,7 +887,7 @@ export const PLATFORM_SETTINGS: PlatformProviderSetting[] = [
   },
   {
     id: "hunar",
-    name: "Hunar",
+    name: "Huntlo Voice AI",
     description: "AI voice screening and call orchestration",
     status: "Connected",
     fields: [

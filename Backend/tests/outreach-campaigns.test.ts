@@ -244,23 +244,100 @@ describe('Outreach campaigns', () => {
         channelConfig: { email: { enabled: true } },
       });
     expect(created.status).toBe(201);
+    const campaignId = created.body.data.id as string;
 
-    await OutreachCampaignModel.findByIdAndUpdate(created.body.data.id, {
+    await OutreachCampaignModel.findByIdAndUpdate(campaignId, {
       status: 'running',
-      stats: {
-        enrolled: 10,
-        pending: 2,
-        active: 3,
-        sent: 40,
-        delivered: 36,
-        replies: 12,
-        interested: 4,
-        qualified: 2,
-        stopped: 0,
-        failed: 0,
-        completed: 1,
-      },
     });
+
+    const candidate = await SavedCandidateModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Metrics Cand',
+      email: 'metrics@example.com',
+      source: 'manual',
+      status: 'saved',
+    });
+
+    await OutreachEnrollmentModel.create({
+      organizationId: auth.organizationId,
+      campaignId,
+      candidateId: candidate._id,
+      status: 'stopped',
+      replyState: {
+        hasReply: true,
+        disposition: 'interested',
+        repliedAt: new Date(),
+      },
+      qualificationState: { status: 'qualified', answers: {} },
+      contactAvailability: { email: true, phone: false, optedOut: false },
+    });
+
+    // 40 succeeded sends → messagesSent / replyRate denominator
+    await CampaignJobModel.insertMany(
+      Array.from({ length: 40 }, (_, i) => ({
+        organizationId: auth.organizationId,
+        campaignId,
+        enrollmentId: candidate._id,
+        stepId: 'step-0',
+        jobType: 'send_email',
+        scheduledAt: new Date(),
+        status: 'succeeded',
+        attempts: 1,
+        result: { delivery: 'sent', stepId: `s-${i}` },
+      }))
+    );
+
+    // Second enrollment: replied but not interested
+    const candidate2 = await SavedCandidateModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Metrics Cand 2',
+      email: 'metrics2@example.com',
+      source: 'manual',
+      status: 'saved',
+    });
+    await OutreachEnrollmentModel.create({
+      organizationId: auth.organizationId,
+      campaignId,
+      candidateId: candidate2._id,
+      status: 'stopped',
+      replyState: {
+        hasReply: true,
+        disposition: 'maybe',
+        repliedAt: new Date(),
+      },
+      qualificationState: { status: 'pending', answers: {} },
+      contactAvailability: { email: true, phone: false, optedOut: false },
+    });
+
+    // Pad to 12 replies / 4 interested / 2 qualified for rate checks
+    for (let i = 0; i < 10; i += 1) {
+      const c = await SavedCandidateModel.create({
+        organizationId: auth.organizationId,
+        ownerUserId: auth.userId,
+        name: `Pad ${i}`,
+        email: `pad${i}@example.com`,
+        source: 'manual',
+        status: 'saved',
+      });
+      await OutreachEnrollmentModel.create({
+        organizationId: auth.organizationId,
+        campaignId,
+        candidateId: c._id,
+        status: 'stopped',
+        replyState: {
+          hasReply: true,
+          disposition: i < 3 ? 'interested' : 'not_interested',
+          repliedAt: new Date(),
+        },
+        qualificationState: {
+          status: i === 0 ? 'qualified' : 'pending',
+          answers: {},
+        },
+        contactAvailability: { email: true, phone: false, optedOut: false },
+      });
+    }
 
     const overview = await agent
       .get('/api/v1/outreach/campaigns/overview')
@@ -366,7 +443,10 @@ describe('Outreach campaigns', () => {
     expect(launch.status).toBe(200);
     expect(launch.body.data.status).toBe('running');
 
-    const jobs = await CampaignJobModel.countDocuments({ campaignId: id, status: 'queued' });
+    const jobs = await CampaignJobModel.countDocuments({
+      campaignId: id,
+      status: { $in: ['queued', 'queued_v2'] },
+    });
     expect(jobs).toBeGreaterThan(0);
 
     const enrollments = await agent

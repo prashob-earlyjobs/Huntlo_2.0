@@ -448,7 +448,7 @@ function AgentStep({
   return (
     <StepCard
       title="Agent Configuration"
-      description="Pick the voice persona and the scripts that open and close every call. Requires a connected Hunar integration."
+      description="Pick the voice persona and the scripts that open and close every call. Requires a connected Huntlo Voice AI integration."
     >
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
@@ -457,7 +457,7 @@ function AgentStep({
             href="/dashboard/integrations"
             className="font-medium text-primary underline-offset-2 hover:underline"
           >
-            Hunar
+            Huntlo Voice AI
           </a>{" "}
           when connected.
         </p>

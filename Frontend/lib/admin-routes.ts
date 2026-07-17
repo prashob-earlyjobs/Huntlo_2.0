@@ -8,6 +8,7 @@ export const ADMIN_ROUTES = {
   usage: "/admin/usage",
   candidates: "/admin/candidates",
   campaigns: "/admin/campaigns",
+  workerTasks: "/admin/worker-tasks",
   settings: "/admin/settings",
   blog: "/admin/blog",
 } as const;
@@ -22,6 +23,7 @@ export const ADMIN_ROUTE_LABELS: Record<AdminRoute, string> = {
   [ADMIN_ROUTES.usage]: "Usage",
   [ADMIN_ROUTES.candidates]: "Candidates",
   [ADMIN_ROUTES.campaigns]: "Campaigns",
+  [ADMIN_ROUTES.workerTasks]: "Worker tasks",
   [ADMIN_ROUTES.settings]: "Platform settings",
   [ADMIN_ROUTES.blog]: "Blog",
 };

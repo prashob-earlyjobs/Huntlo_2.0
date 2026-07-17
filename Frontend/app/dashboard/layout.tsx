@@ -13,8 +13,10 @@ export default function DashboardLayout({
           <AppSidebar />
           <div className="flex min-w-0 flex-1 flex-col">
             <TopHeader />
-            <main className="flex-1 px-3 py-4 sm:px-5 sm:py-4">
-              <div className="mx-auto w-full max-w-7xl space-y-4">{children}</div>
+            <main className="flex min-h-0 flex-1 flex-col px-3 py-4 sm:px-5 sm:py-4">
+              <div className="mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col gap-4">
+                {children}
+              </div>
             </main>
           </div>
         </div>

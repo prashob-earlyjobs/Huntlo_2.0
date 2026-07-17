@@ -1,5 +1,8 @@
 export { integrationsRouter } from './integration.routes.js';
-export { integrationsService } from './integration.service.js';
+export {
+  integrationsService,
+  ensureHunarVoiceDefault,
+} from './integration.service.js';
 export {
   UserIntegrationModel,
   INTEGRATION_PROVIDERS,
