@@ -17,15 +17,18 @@ export const screeningIdParamSchema = z.object({ id: objectId });
 
 export const createScreeningSchema = z.object({
   name: z.string().trim().min(1).max(200),
+  ownerUserId: objectId.optional(),
   jobId: objectId.nullable().optional(),
   campaignId: objectId.nullable().optional(),
   workflowId: objectId.nullable().optional(),
   sourceModule: z.string().max(40).optional(),
+  description: z.string().trim().max(5000).nullable().optional(),
   objective: z.string().max(5000).nullable().optional(),
   language: z.string().max(40).nullable().optional(),
   voice: z.string().max(80).nullable().optional(),
   tone: z.string().max(80).nullable().optional(),
   introductionScript: z.string().max(20000).nullable().optional(),
+  agentPrompt: z.string().max(60000).nullable().optional(),
   closingScript: z.string().max(20000).nullable().optional(),
   consentText: z.string().max(5000).nullable().optional(),
   questions: z

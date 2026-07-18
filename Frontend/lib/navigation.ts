@@ -7,12 +7,10 @@ import {
   ChartColumn,
   CircleUser,
   ClipboardCheck,
-  Clock,
   CreditCard,
   FileChartColumn,
   House,
   LayoutTemplate,
-  ListChecks,
   MessageSquare,
   Orbit,
   Plug,
@@ -134,6 +132,7 @@ export const NAV_SECTIONS: NavSection[] = [
         href: ROUTES.templates,
         icon: LayoutTemplate,
         description: "Reusable outreach and screening templates",
+        disabled: true,
       },
     ],
   },
@@ -152,12 +151,13 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: ClipboardCheck,
         description: "Qualification outcomes and transcripts",
       },
-      {
-        title: "Assessments",
-        href: ROUTES.assessments,
-        icon: ListChecks,
-        description: "Skill assessments and scorecards",
-      },
+      // Hidden until Assessments is ready for production use.
+      // {
+      //   title: "Assessments",
+      //   href: ROUTES.assessments,
+      //   icon: ListChecks,
+      //   description: "Skill assessments and scorecards",
+      // },
     ],
   },
   {
@@ -168,7 +168,6 @@ export const NAV_SECTIONS: NavSection[] = [
         href: ROUTES.interviews,
         icon: CalendarClock,
         description: "Upcoming and past interviews",
-        badge: 3,
       },
       {
         title: "Calendar",
@@ -176,12 +175,13 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Calendar,
         description: "Team interview calendar",
       },
-      {
-        title: "Availability",
-        href: ROUTES.availability,
-        icon: Clock,
-        description: "Scheduling links and working hours",
-      },
+      // Hidden until Availability is ready for production use.
+      // {
+      //   title: "Availability",
+      //   href: ROUTES.availability,
+      //   icon: Clock,
+      //   description: "Scheduling links and working hours",
+      // },
     ],
   },
   {
@@ -192,12 +192,14 @@ export const NAV_SECTIONS: NavSection[] = [
         href: ROUTES.analytics,
         icon: ChartColumn,
         description: "Campaign and pipeline performance",
+        disabled: true,
       },
       {
         title: "Reports",
         href: ROUTES.reports,
         icon: FileChartColumn,
         description: "Exportable hiring reports",
+        disabled: true,
       },
     ],
   },

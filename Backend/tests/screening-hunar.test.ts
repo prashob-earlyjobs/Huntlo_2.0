@@ -122,6 +122,8 @@ describe('AI voice screening (Hunar)', () => {
       .set('Authorization', `Bearer ${auth.token}`)
       .send({
         name: 'Backend voice screen',
+        ownerUserId: auth.userId,
+        description: 'Internal screening notes',
         objective: 'Assess backend fit',
         language: 'ENGLISH',
         voice: 'NEHA',
@@ -134,6 +136,9 @@ describe('AI voice screening (Hunar)', () => {
         callSettings: { maxAttempts: 2, maxRetryCount: 2, retryIntervalHours: 6 },
       });
     expect(created.status).toBe(201);
+    expect(created.body.data.ownerUserId).toBe(auth.userId);
+    expect(created.body.data.owner).toBe('Screen Tester');
+    expect(created.body.data.description).toBe('Internal screening notes');
     const screeningId = created.body.data.id as string;
 
     const validated = await agent

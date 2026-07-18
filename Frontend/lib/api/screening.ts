@@ -15,12 +15,15 @@ import type {
 
 export type ScreeningCreateInput = {
   name: string;
+  ownerUserId?: string;
   jobId?: string | null;
+  description?: string | null;
   objective?: string | null;
   language?: string | null;
   voice?: string | null;
   tone?: string | null;
   introductionScript?: string | null;
+  agentPrompt?: string | null;
   closingScript?: string | null;
   consentText?: string | null;
   questions?: Array<{ id: string; prompt: string; knockout?: boolean }>;

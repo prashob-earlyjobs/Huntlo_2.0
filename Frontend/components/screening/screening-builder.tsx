@@ -6,20 +6,20 @@ import {
   AudioLines,
   Briefcase,
   CheckCircle2,
-  FileSpreadsheet,
   ListChecks,
   Pencil,
   Plus,
   Rocket,
   Save,
-  Search,
   Trash2,
-  UserPlus,
   Users,
+  Video,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { resolveAudienceCandidateIds } from "@/components/outreach/audience-resolve";
+import { AudienceStep } from "@/components/outreach/builder-audience-step";
 import {
   ErrorList,
   Field,
@@ -38,10 +38,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  candidatePoolApi,
   getApiErrorMessage,
   jobsApi,
   screeningApi,
+  teamApi,
+  type ApiTeamMember,
   type ScreeningCreateInput,
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
@@ -53,31 +54,27 @@ import {
   EVALUATION_CATEGORIES,
   KNOCKOUT_CRITERIA,
   QUESTION_TYPES,
-  SCREENING_LANGUAGES,
+  SCREENING_LANGUAGE_OPTIONS,
   SCREENING_OBJECTIVES,
-  SCREENING_OWNERS,
-  SCREENING_TONES,
-  SCREENING_VOICES,
+  SCREENING_TONE_OPTIONS,
+  SCREENING_VOICE_OPTIONS,
   TIMEZONE_OPTIONS_SCREENING,
   VOICEMAIL_BEHAVIOURS,
   type QuestionType,
 } from "@/lib/mock-screening";
 import {
-  AUDIENCE_SOURCES,
   reachableCount,
   type AudienceSource,
   type AudienceStats,
 } from "@/lib/mock-outreach";
+import {
+  defaultAiVoiceStepBody,
+  isRoshniAgentPrompt,
+  ROSHNI_INTRODUCTION,
+} from "@/lib/roshni-agent-prompt";
 import { ROUTES, screeningDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-
-const EMPTY_AUDIENCE_STATS: AudienceStats = {
-  selected: 0,
-  withEmail: 0,
-  withPhone: 0,
-  duplicates: 0,
-  invalid: 0,
-};
+import { useAuth } from "@/providers";
 
 /* ------------------------------------------------------------------ */
 /* State                                                                */
@@ -95,18 +92,22 @@ interface BuilderQuestion {
 
 interface BuilderState {
   name: string;
+  screeningMode: "voice" | "video";
   jobId: string;
   objective: string;
   description: string;
+  ownerUserId: string;
   owner: string;
   source: AudienceSource | null;
+  sourceDetail: string;
+  selectedCandidateIds: string[];
+  poolSearch: string;
+  audiencePreview: AudienceStats | null;
   language: string;
   voice: string;
   tone: string;
   introduction: string;
-  closing: string;
-  disclosure: string;
-  consent: string;
+  agentPrompt: string;
   questions: BuilderQuestion[];
   categoryWeights: Record<string, number>;
   knockouts: string[];
@@ -122,22 +123,22 @@ interface BuilderState {
 function initialState(): BuilderState {
   return {
     name: "",
+    screeningMode: "voice",
     jobId: "",
     objective: SCREENING_OBJECTIVES[0],
     description: "",
-    owner: SCREENING_OWNERS[0],
+    ownerUserId: "",
+    owner: "",
     source: null,
-    language: SCREENING_LANGUAGES[0],
-    voice: SCREENING_VOICES[0],
-    tone: SCREENING_TONES[0],
-    introduction:
-      "Hi {{first_name}}, this is {{agent_name}} calling from Huntlo about the {{job_title}} role. Do you have a few minutes?",
-    closing:
-      "Thanks for your time, {{first_name}}. The recruiting team will review this conversation and share next steps shortly. Have a great day.",
-    disclosure:
-      "Just so you know — I'm an AI assistant helping the recruiting team with this screening call.",
-    consent:
-      "This call is recorded for evaluation purposes. Is it okay if we continue?",
+    sourceDetail: "",
+    selectedCandidateIds: [],
+    poolSearch: "",
+    audiencePreview: null,
+    language: SCREENING_LANGUAGE_OPTIONS[0].value,
+    voice: SCREENING_VOICE_OPTIONS[0].value,
+    tone: SCREENING_TONE_OPTIONS[0].value,
+    introduction: ROSHNI_INTRODUCTION,
+    agentPrompt: defaultAiVoiceStepBody(),
     questions: DEFAULT_QUESTIONS.map((question, index) => ({
       id: `q-${index + 1}`,
       type: question.type,
@@ -183,14 +184,37 @@ function stepErrors(step: number, state: BuilderState): string[] {
   const errors: string[] = [];
   if (step === 0) {
     if (!state.name.trim()) errors.push("Screening name is required.");
+    if (!state.ownerUserId) errors.push("Select the campaign owner.");
     if (!state.jobId) errors.push("Select the related job.");
   }
-  if (step === 1 && !state.source) {
-    errors.push("Choose where screening candidates come from.");
+  if (step === 1) {
+    if (!state.source) {
+      errors.push("Choose where screening candidates come from.");
+    } else if (state.source === "Saved List" && !state.sourceDetail) {
+      errors.push("Select a saved list.");
+    } else if (state.source === "Sourcing Session" && !state.sourceDetail) {
+      errors.push("Select a sourcing session.");
+    } else if (
+      state.source === "Manual Add" &&
+      state.selectedCandidateIds.length === 0
+    ) {
+      errors.push("Pick at least one candidate to screen.");
+    } else if (
+      state.source === "CSV/Excel Import" &&
+      state.selectedCandidateIds.length === 0
+    ) {
+      errors.push("Import a CSV/Excel file before continuing.");
+    } else if (
+      state.audiencePreview &&
+      state.audiencePreview.selected === 0 &&
+      state.source !== "CSV/Excel Import"
+    ) {
+      errors.push("This audience has no candidates yet.");
+    }
   }
   if (step === 2) {
     if (!state.introduction.trim()) errors.push("Introduction script is required.");
-    if (!state.consent.trim()) errors.push("Recording consent text is required.");
+    if (!state.agentPrompt.trim()) errors.push("Agent prompt is required.");
   }
   if (step === 3) {
     if (state.questions.every((question) => !question.text.trim())) {
@@ -210,6 +234,14 @@ function allErrors(state: BuilderState): string[] {
   return [0, 1, 2, 3, 4, 5].flatMap((step) => stepErrors(step, state));
 }
 
+/** Highest step index reachable: all prior steps must be valid. */
+function maxReachableStep(state: BuilderState): number {
+  for (let index = 0; index < STEPS.length; index += 1) {
+    if (stepErrors(index, state).length > 0) return index;
+  }
+  return STEPS.length - 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* Steps                                                                */
 /* ------------------------------------------------------------------ */
@@ -219,17 +251,130 @@ function DetailsStep({
   update,
   showErrors,
   jobs,
+  jobsLoading,
+  jobsError,
+  owners,
+  ownersLoading,
+  ownersError,
+  retryLoading,
 }: {
   state: BuilderState;
   update: Update;
   showErrors: boolean;
   jobs: JobListItem[];
+  jobsLoading: boolean;
+  jobsError: string | null;
+  owners: Array<Pick<ApiTeamMember, "userId" | "name">>;
+  ownersLoading: boolean;
+  ownersError: string | null;
+  retryLoading: () => void;
 }) {
+  const activeJobs = jobs.filter(
+    (job) => job.status === "Active" || job.status === "Paused"
+  );
+  const ownerLabel =
+    owners.find((owner) => owner.userId === state.ownerUserId)?.name ||
+    state.owner.trim() ||
+    null;
+  const jobLabel =
+    activeJobs.find((job) => job.id === state.jobId)?.title ||
+    jobs.find((job) => job.id === state.jobId)?.title ||
+    null;
+
   return (
     <StepCard
       title="Screening Details"
       description="Name the batch, connect it to a job, and decide who owns the calls."
     >
+      <Field label="Screening type" required className="pt-2 pb-3">
+        <div
+          role="radiogroup"
+          aria-label="Screening type"
+          className="grid gap-3 pt-1 sm:grid-cols-2"
+        >
+          {(
+            [
+              {
+                value: "voice" as const,
+                title: "Voice screening",
+                description:
+                  "AI phone calls via Huntlo Voice AI. Available now.",
+                icon: AudioLines,
+                disabled: false,
+              },
+              {
+                value: "video" as const,
+                title: "Video screening",
+                description: "Async video interviews. Coming soon.",
+                icon: Video,
+                disabled: true,
+              },
+            ] as const
+          ).map((option) => {
+            const Icon = option.icon;
+            const selected = state.screeningMode === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                disabled={option.disabled}
+                onClick={() => {
+                  if (!option.disabled) update("screeningMode", option.value);
+                }}
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  option.disabled
+                    ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
+                    : selected
+                      ? "border-primary/50 bg-brand-subtle/20"
+                      : "border-border hover:bg-muted/40"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-lg border",
+                    option.disabled
+                      ? "border-border bg-muted text-muted-foreground"
+                      : selected
+                        ? "border-primary/30 bg-brand-subtle text-primary"
+                        : "border-border bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Icon aria-hidden className="size-4.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground">
+                      {option.title}
+                    </span>
+                    {option.disabled ? (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Soon
+                      </span>
+                    ) : (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "size-3.5 shrink-0 rounded-full border",
+                          selected
+                            ? "border-primary bg-primary shadow-[inset_0_0_0_2px_var(--card)]"
+                            : "border-border bg-card"
+                        )}
+                      />
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {option.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Field label="Screening name" htmlFor="scr-name" required>
           <Input
@@ -241,22 +386,43 @@ function DetailsStep({
           />
         </Field>
 
-        <Field label="Campaign owner" htmlFor="scr-owner">
+        <Field label="Campaign owner" htmlFor="scr-owner" required>
           <Select
-            value={state.owner}
-            onValueChange={(value) => value && update("owner", value)}
+            value={state.ownerUserId || null}
+            onValueChange={(value) => {
+              if (!value) return;
+              update("ownerUserId", value);
+              update(
+                "owner",
+                owners.find((owner) => owner.userId === value)?.name || "Team member"
+              );
+            }}
           >
-            <SelectTrigger id="scr-owner" className="w-full">
-              <SelectValue />
+            <SelectTrigger
+              id="scr-owner"
+              className="w-full"
+              disabled={ownersLoading || owners.length === 0}
+              aria-invalid={showErrors && !state.ownerUserId}
+            >
+              <SelectValue
+                placeholder={ownersLoading ? "Loading team members…" : "Select an owner"}
+              >
+                {ownerLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {SCREENING_OWNERS.map((owner) => (
-                <SelectItem key={owner} value={owner}>
-                  {owner}
+              {owners.map((owner) => (
+                <SelectItem key={owner.userId} value={owner.userId}>
+                  {owner.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {ownersError ? (
+            <p role="alert" className="text-xs text-destructive">
+              {ownersError}
+            </p>
+          ) : null}
         </Field>
 
         <Field label="Related job" htmlFor="scr-job" required>
@@ -267,20 +433,39 @@ function DetailsStep({
             <SelectTrigger
               id="scr-job"
               className="w-full"
+              disabled={jobsLoading || activeJobs.length === 0}
               aria-invalid={showErrors && !state.jobId}
             >
-              <SelectValue placeholder="Select a job" />
+              <SelectValue
+                placeholder={jobsLoading ? "Loading jobs…" : "Select a job"}
+              >
+                {jobLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {jobs.filter(
-                (job) => job.status === "Active" || job.status === "Paused"
-              ).map((job) => (
+              {activeJobs.map((job) => (
                 <SelectItem key={job.id} value={job.id}>
                   {job.title}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {jobsError ? (
+            <p role="alert" className="text-xs text-destructive">
+              {jobsError}{" "}
+              <button
+                type="button"
+                className="font-medium underline underline-offset-2"
+                onClick={retryLoading}
+              >
+                Retry
+              </button>
+            </p>
+          ) : !jobsLoading && activeJobs.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No active or paused jobs are available.
+            </p>
+          ) : null}
         </Field>
 
         <Field label="Objective" htmlFor="scr-objective">
@@ -319,123 +504,6 @@ function DetailsStep({
   );
 }
 
-const SOURCE_META: Record<
-  AudienceSource,
-  { icon: typeof Users; description: string }
-> = {
-  "Candidate Pool": {
-    icon: Users,
-    description: "Filtered candidates from your pool",
-  },
-  "Saved List": {
-    icon: ListChecks,
-    description: "Everyone in a saved list",
-  },
-  "Sourcing Session": {
-    icon: Search,
-    description: "Results from an AI search",
-  },
-  "CSV/Excel Import": {
-    icon: FileSpreadsheet,
-    description: "Upload a candidate file",
-  },
-  "Manual Add": {
-    icon: UserPlus,
-    description: "Hand-pick a few candidates",
-  },
-};
-
-function CandidatesStep({
-  state,
-  update,
-}: {
-  state: BuilderState;
-  update: Update;
-}) {
-  const stats = state.source ? EMPTY_AUDIENCE_STATS : null;
-
-  return (
-    <StepCard
-      title="Candidate Selection"
-      description="Choose who receives the voice screening call. Candidates without a phone number are skipped."
-    >
-      <div className="space-y-4">
-        <div
-          role="radiogroup"
-          aria-label="Candidate source"
-          className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5"
-        >
-          {AUDIENCE_SOURCES.map((source) => {
-            const meta = SOURCE_META[source];
-            const active = state.source === source;
-            return (
-              <button
-                key={source}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => update("source", source)}
-                className={cn(
-                  "flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                  active
-                    ? "border-primary/50 bg-brand-subtle/40"
-                    : "border-border hover:bg-muted/40"
-                )}
-              >
-                <meta.icon
-                  aria-hidden
-                  className={cn(
-                    "size-4",
-                    active ? "text-primary" : "text-muted-foreground"
-                  )}
-                />
-                <span
-                  className={cn(
-                    "text-sm font-medium",
-                    active ? "text-primary" : "text-foreground"
-                  )}
-                >
-                  {source}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {meta.description}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {stats ? (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {(
-              [
-                ["Selected", stats.selected, "text-foreground"],
-                ["With phone", stats.withPhone, "text-foreground"],
-                ["With email", stats.withEmail, "text-muted-foreground"],
-                [
-                  "Callable",
-                  Math.min(stats.withPhone, reachableCount(stats)),
-                  "text-success",
-                ],
-              ] as const
-            ).map(([label, value, tone]) => (
-              <div
-                key={label}
-                className="rounded-lg border border-border px-3 py-2.5"
-              >
-                <p className={cn("text-lg font-semibold tabular-nums", tone)}>
-                  {value.toLocaleString("en-IN")}
-                </p>
-                <p className="text-xs text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </StepCard>
-  );
-}
-
 function AgentStep({
   state,
   update,
@@ -445,10 +513,20 @@ function AgentStep({
   update: Update;
   showErrors: boolean;
 }) {
+  const languageLabel =
+    SCREENING_LANGUAGE_OPTIONS.find((option) => option.value === state.language)
+      ?.label || state.language;
+  const voiceLabel =
+    SCREENING_VOICE_OPTIONS.find((option) => option.value === state.voice)
+      ?.label || state.voice;
+  const toneLabel =
+    SCREENING_TONE_OPTIONS.find((option) => option.value === state.tone)
+      ?.label || state.tone;
+
   return (
     <StepCard
       title="Agent Configuration"
-      description="Pick the voice persona and the scripts that open and close every call. Requires a connected Huntlo Voice AI integration."
+      description="Same Roshni voice prompt used by Outreach AI Voice. Requires a connected Huntlo Voice AI integration."
     >
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
@@ -468,12 +546,12 @@ function AgentStep({
               onValueChange={(value) => value && update("language", value)}
             >
               <SelectTrigger id="scr-language" className="w-full">
-                <SelectValue />
+                <SelectValue>{languageLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {SCREENING_LANGUAGES.map((language) => (
-                  <SelectItem key={language} value={language}>
-                    {language}
+                {SCREENING_LANGUAGE_OPTIONS.map((language) => (
+                  <SelectItem key={language.value} value={language.value}>
+                    {language.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -486,12 +564,12 @@ function AgentStep({
               onValueChange={(value) => value && update("voice", value)}
             >
               <SelectTrigger id="scr-voice" className="w-full">
-                <SelectValue />
+                <SelectValue>{voiceLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {SCREENING_VOICES.map((voice) => (
-                  <SelectItem key={voice} value={voice}>
-                    {voice}
+                {SCREENING_VOICE_OPTIONS.map((voice) => (
+                  <SelectItem key={voice.value} value={voice.value}>
+                    {voice.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -504,12 +582,12 @@ function AgentStep({
               onValueChange={(value) => value && update("tone", value)}
             >
               <SelectTrigger id="scr-tone" className="w-full">
-                <SelectValue />
+                <SelectValue>{toneLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {SCREENING_TONES.map((tone) => (
-                  <SelectItem key={tone} value={tone}>
-                    {tone}
+                {SCREENING_TONE_OPTIONS.map((tone) => (
+                  <SelectItem key={tone.value} value={tone.value}>
+                    {tone.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -521,7 +599,7 @@ function AgentStep({
           label="Introduction script"
           htmlFor="scr-intro"
           required
-          hint="Placeholders: {{first_name}}, {{job_title}}, {{agent_name}}"
+          hint={`Leave {callee_name} for the dialer — same opening line as Outreach.`}
         >
           <Textarea
             id="scr-intro"
@@ -532,41 +610,39 @@ function AgentStep({
           />
         </Field>
 
-        <Field label="Closing script" htmlFor="scr-closing">
+        <Field label="Agent prompt" htmlFor="scr-agent-prompt" required>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Roshni screening prompt from Outreach AI Voice. Screening questions
+              fill into {"{jd_screening_questions_list}"} at launch. Edit freely,
+              or reset to the default.
+            </p>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              onClick={() => update("agentPrompt", defaultAiVoiceStepBody())}
+            >
+              Reset to Roshni default
+            </Button>
+          </div>
           <Textarea
-            id="scr-closing"
-            value={state.closing}
-            onChange={(event) => update("closing", event.target.value)}
-            className="min-h-16 font-mono text-xs"
+            id="scr-agent-prompt"
+            value={state.agentPrompt}
+            onChange={(event) => update("agentPrompt", event.target.value)}
+            className="h-64 max-h-80 min-h-48 resize-y overflow-y-auto font-mono text-xs leading-relaxed field-sizing-fixed"
+            style={{ fieldSizing: "fixed" }}
+            aria-invalid={showErrors && !state.agentPrompt.trim()}
           />
-        </Field>
-
-        <Field
-          label="AI disclosure message"
-          htmlFor="scr-disclosure"
-          hint="Required in most regions — spoken early in the call."
-        >
-          <Textarea
-            id="scr-disclosure"
-            value={state.disclosure}
-            onChange={(event) => update("disclosure", event.target.value)}
-            className="min-h-16 font-mono text-xs"
-          />
-        </Field>
-
-        <Field
-          label="Recording consent text"
-          htmlFor="scr-consent"
-          required
-          hint="The call continues only after the candidate agrees."
-        >
-          <Textarea
-            id="scr-consent"
-            value={state.consent}
-            onChange={(event) => update("consent", event.target.value)}
-            className="min-h-16 font-mono text-xs"
-            aria-invalid={showErrors && !state.consent.trim()}
-          />
+          <p className="pt-1 text-xs text-muted-foreground">
+            Opening line stays{" "}
+            <span className="font-mono">{ROSHNI_INTRODUCTION}</span> unless
+            you change the introduction above. Leave{" "}
+            <span className="font-mono">{"{callee_name}"}</span> for the dialer.
+            {isRoshniAgentPrompt(state.agentPrompt)
+              ? " Using Roshni agent prompt."
+              : " Custom agent prompt."}
+          </p>
         </Field>
       </div>
     </StepCard>
@@ -987,7 +1063,7 @@ function ReviewStep({
   jobs: JobListItem[];
 }) {
   const job = jobs.find((j) => j.id === state.jobId);
-  const stats = state.source ? EMPTY_AUDIENCE_STATS : null;
+  const stats = state.audiencePreview;
   const activeQuestions = state.questions.filter((q) => q.text.trim());
 
   const sections: {
@@ -1001,6 +1077,7 @@ function ReviewStep({
       icon: Briefcase,
       title: "Details",
       lines: [
+        state.screeningMode === "voice" ? "Voice screening" : "Video screening",
         state.name.trim() || "Unnamed screening",
         job ? job.title : "No job selected",
         `Owner: ${state.owner} · ${state.objective}`,
@@ -1013,17 +1090,21 @@ function ReviewStep({
       lines: stats
         ? [
             `Source: ${state.source}`,
-            `${Math.min(stats.withPhone, reachableCount(stats)).toLocaleString("en-IN")} callable`,
+            `${stats.withPhone.toLocaleString("en-IN")} with phone · ${reachableCount(stats).toLocaleString("en-IN")} reachable`,
           ]
-        : ["No source selected"],
+        : state.source
+          ? [`Source: ${state.source}`, "Audience still loading"]
+          : ["No source selected"],
     },
     {
       step: 2,
       icon: AudioLines,
       title: "Agent",
       lines: [
-        `${state.language} · ${state.voice} · ${state.tone}`,
-        "Introduction, disclosure and consent configured",
+        `${SCREENING_LANGUAGE_OPTIONS.find((o) => o.value === state.language)?.label || state.language} · ${SCREENING_VOICE_OPTIONS.find((o) => o.value === state.voice)?.label || state.voice} · ${SCREENING_TONE_OPTIONS.find((o) => o.value === state.tone)?.label || state.tone}`,
+        isRoshniAgentPrompt(state.agentPrompt)
+          ? "Roshni agent prompt configured"
+          : "Custom agent prompt configured",
       ],
     },
     {
@@ -1123,11 +1204,12 @@ const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
 };
 
 async function resolveAudienceIds(state: BuilderState): Promise<string[]> {
-  if (state.source === "Candidate Pool" || state.source === "Saved List") {
-    const pool = await candidatePoolApi.list({ limit: 200 });
-    return pool.map((c) => c.id);
-  }
-  return [];
+  return resolveAudienceCandidateIds({
+    source: state.source,
+    sourceDetail: state.sourceDetail,
+    selectedCandidateIds: state.selectedCandidateIds,
+    poolSearch: state.poolSearch,
+  });
 }
 
 function toCreateInput(
@@ -1136,14 +1218,15 @@ function toCreateInput(
 ): ScreeningCreateInput {
   return {
     name: state.name.trim(),
+    ownerUserId: state.ownerUserId || undefined,
     jobId: state.jobId || null,
-    objective: state.objective || state.description || null,
+    description: state.description.trim() || null,
+    objective: state.objective || null,
     language: state.language,
     voice: state.voice,
     tone: state.tone,
     introductionScript: state.introduction,
-    closingScript: state.closing,
-    consentText: state.consent,
+    agentPrompt: state.agentPrompt,
     questions: state.questions
       .filter((q) => q.text.trim())
       .map((q) => ({ id: q.id, prompt: q.text.trim() })),
@@ -1157,13 +1240,14 @@ function toCreateInput(
       attemptIntervalHours: Number.parseInt(state.delay, 10) || 24,
       maxRetryCount: state.retryOnNoAnswer ? 2 : 0,
       retryIntervalHours: 6,
-      consentRequired: Boolean(state.consent.trim()),
+      consentRequired: true,
     },
     candidateIds,
   };
 }
 
 export function ScreeningBuilder() {
+  const { user } = useAuth();
   const [state, setState] = useState<BuilderState>(initialState);
   const [current, setCurrent] = useState(0);
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
@@ -1172,21 +1256,89 @@ export function ScreeningBuilder() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [owners, setOwners] = useState<
+    Array<Pick<ApiTeamMember, "userId" | "name">>
+  >([]);
+  const [ownersLoading, setOwnersLoading] = useState(true);
+  const [ownersError, setOwnersError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void jobsApi
-      .list({ limit: 100 })
-      .then((rows) => {
+    setJobsLoading(true);
+    setJobsError(null);
+    setOwnersLoading(true);
+    setOwnersError(null);
+
+    void jobsApi.list({ limit: 100 }).then(
+      (rows) => {
         if (!cancelled) setJobs(rows);
-      })
-      .catch(() => {
-        // Leave the job picker empty when the jobs API is unavailable.
-      });
+      },
+      (error: unknown) => {
+        if (!cancelled) {
+          setJobsError(getApiErrorMessage(error, "Unable to load jobs."));
+        }
+      }
+    ).finally(() => {
+      if (!cancelled) setJobsLoading(false);
+    });
+
+    void teamApi.listMembers().then(
+      (members) => {
+        if (cancelled) return;
+        const active = members.filter(
+          (member) =>
+            member.status.toLowerCase() === "active" ||
+            member.status.toLowerCase() === "invited"
+        );
+        const options = (active.length > 0 ? active : members).map((member) => ({
+          userId: member.userId,
+          name: member.name,
+        }));
+        setOwners(options);
+        setState((previous) => {
+          if (previous.ownerUserId) return previous;
+          const selected =
+            options.find((owner) => owner.userId === user?.id) || options[0];
+          return selected
+            ? {
+                ...previous,
+                ownerUserId: selected.userId,
+                owner: selected.name,
+              }
+            : previous;
+        });
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        if (user?.id) {
+          const fallback = { userId: user.id, name: user.name || "You" };
+          setOwners([fallback]);
+          setState((previous) =>
+            previous.ownerUserId
+              ? previous
+              : {
+                  ...previous,
+                  ownerUserId: fallback.userId,
+                  owner: fallback.name,
+                }
+          );
+        } else {
+          setOwnersError(
+            getApiErrorMessage(error, "Unable to load team members.")
+          );
+        }
+      }
+    ).finally(() => {
+      if (!cancelled) setOwnersLoading(false);
+    });
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadVersion, user?.id, user?.name]);
 
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
@@ -1194,8 +1346,15 @@ export function ScreeningBuilder() {
   const currentErrors = stepErrors(current, state);
   const showErrors = attempted.has(current);
   const launchErrors = allErrors(state);
+  const reachable = maxReachableStep(state);
 
   function goTo(step: number) {
+    if (step > reachable) {
+      setAttempted((previous) => new Set(previous).add(reachable));
+      setCurrent(reachable);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setCurrent(step);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1265,7 +1424,18 @@ export function ScreeningBuilder() {
             size="sm"
             variant="outline"
             onClick={() => {
-              setState(initialState());
+              const fresh = initialState();
+              const defaultOwner =
+                owners.find((owner) => owner.userId === user?.id) || owners[0];
+              setState(
+                defaultOwner
+                  ? {
+                      ...fresh,
+                      ownerUserId: defaultOwner.userId,
+                      owner: defaultOwner.name,
+                    }
+                  : fresh
+              );
               setCurrent(0);
               setAttempted(new Set());
               setOutcome(null);
@@ -1286,32 +1456,20 @@ export function ScreeningBuilder() {
         aria-label="Screening builder steps"
         className="rounded-xl border border-border bg-card p-4"
       >
-        <Stepper steps={STEPS} currentStep={current} />
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
-          {STEPS.map((step, index) => {
-            const hasError =
-              attempted.has(index) && stepErrors(index, state).length > 0;
-            return (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => goTo(index)}
-                aria-current={index === current ? "step" : undefined}
-                className={cn(
-                  "rounded-md px-2 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                  index === current
-                    ? "bg-brand-subtle font-medium text-primary"
-                    : hasError
-                      ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-                      : "text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {index + 1}. {step.title}
-                {hasError ? " ⚠" : ""}
-              </button>
-            );
-          })}
-        </div>
+        <Stepper
+          steps={STEPS}
+          currentStep={current}
+          onStepSelect={goTo}
+          maxEnabledStep={reachable}
+          errorSteps={
+            new Set(
+              STEPS.map((_, index) => index).filter(
+                (index) =>
+                  attempted.has(index) && stepErrors(index, state).length > 0
+              )
+            )
+          }
+        />
       </nav>
 
       {showErrors ? <ErrorList errors={currentErrors} /> : null}
@@ -1322,9 +1480,30 @@ export function ScreeningBuilder() {
       ) : null}
 
       {current === 0 ? (
-        <DetailsStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
+        <DetailsStep
+          state={state}
+          update={update}
+          showErrors={showErrors}
+          jobs={jobs}
+          jobsLoading={jobsLoading}
+          jobsError={jobsError}
+          owners={owners}
+          ownersLoading={ownersLoading}
+          ownersError={ownersError}
+          retryLoading={() => setLoadVersion((version) => version + 1)}
+        />
       ) : current === 1 ? (
-        <CandidatesStep state={state} update={update} />
+        <AudienceStep
+          state={state}
+          update={update}
+          showErrors={showErrors}
+          title="Candidate Selection"
+          description="Choose who receives the voice screening call. Candidates without a phone number are skipped."
+          sourceErrorLabel="Choose where screening candidates come from."
+          importListNamePrefix="Screening import"
+          importListDescription="Candidates imported for an AI screening batch"
+          importListTags={["screening-import"]}
+        />
       ) : current === 2 ? (
         <AgentStep state={state} update={update} showErrors={showErrors} />
       ) : current === 3 ? (
@@ -1354,7 +1533,7 @@ export function ScreeningBuilder() {
             type="button"
             size="sm"
             variant="outline"
-            disabled={submitting || !state.name.trim()}
+            disabled={submitting || !state.name.trim() || !state.ownerUserId}
             onClick={() => void submit("draft")}
           >
             <Save aria-hidden />

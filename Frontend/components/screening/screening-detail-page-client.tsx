@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { ScreeningDetail } from "@/components/screening/screening-detail";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage, screeningApi } from "@/lib/api";
 import type { ScreeningBatch } from "@/lib/mock-screening";
 import { ROUTES } from "@/lib/routes";
@@ -55,7 +56,7 @@ export function ScreeningDetailPageClient({ id }: { id: string }) {
       </Button>
 
       {loading ? (
-        <p className="mt-4 text-sm text-muted-foreground">Loading screening…</p>
+        <ScreeningDetailSkeleton />
       ) : missing ? (
         <div className="mt-4 space-y-3">
           <h1 className="text-lg font-semibold">Screening not found</h1>
@@ -73,5 +74,58 @@ export function ScreeningDetailPageClient({ id }: { id: string }) {
         </div>
       ) : null}
     </>
+  );
+}
+
+function ScreeningDetailSkeleton() {
+  return (
+    <div aria-busy className="mt-4 space-y-4">
+      {/* Header card: title, status, meta line, action buttons */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-6 w-56 max-w-full" />
+              <Skeleton className="h-5 w-16 rounded-md" />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <Skeleton className="h-3.5 w-40" />
+              <Skeleton className="h-3.5 w-28" />
+              <Skeleton className="h-3.5 w-16" />
+              <Skeleton className="h-3.5 w-24" />
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-8 w-28" />
+            ))}
+            <Skeleton className="size-8 rounded-md" />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <Skeleton className="h-9 w-full max-w-xs" />
+
+      {/* KPI cards */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div
+            key={index}
+            className="rounded-xl border border-border bg-card p-4"
+          >
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="mt-3 h-7 w-14" />
+          </div>
+        ))}
+      </div>
+
+      {/* Objective card */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="mt-3 h-4 w-3/4" />
+        <Skeleton className="mt-2 h-3.5 w-56" />
+      </div>
+    </div>
   );
 }

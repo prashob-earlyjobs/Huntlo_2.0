@@ -6,6 +6,7 @@ export {
   resolveIntroduction,
   buildJdVoiceTokens,
   resolveVoiceTokens,
+  sanitizeHunarPromptText,
   toHunarMobile,
   defaultResultPrompt,
   defaultResultSchema,

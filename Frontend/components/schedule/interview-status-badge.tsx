@@ -8,6 +8,7 @@ import {
 
 /** Scheduled / Completed aligned with shared StatusBadge (info). */
 const STATUS_TONES: Record<InterviewStatus, StatusTone> = {
+  Draft: "neutral",
   "Link Sent": "neutral",
   "Awaiting Booking": "warning",
   Scheduled: "info",
@@ -15,6 +16,7 @@ const STATUS_TONES: Record<InterviewStatus, StatusTone> = {
   Completed: "info",
   Cancelled: "neutral",
   "No Show": "danger",
+  Expired: "danger",
 };
 
 export function InterviewStatusBadge({

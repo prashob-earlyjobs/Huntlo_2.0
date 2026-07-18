@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { schedulingApi } from "@/lib/api";
 import { NAV_ITEMS, NAV_SECTIONS, type NavItem } from "@/lib/navigation";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /** Longest nav href that prefixes the current pathname wins active state. */
@@ -108,6 +112,32 @@ export function NavList({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const [interviewCount, setInterviewCount] = useState<number | undefined>();
+
+  const refreshInterviewCount = useCallback(async () => {
+    try {
+      const rows = await schedulingApi.listInterviews({ limit: 100 });
+      setInterviewCount(
+        rows.filter(
+          (row) =>
+            row.status !== "Completed" &&
+            row.status !== "Cancelled" &&
+            row.status !== "No Show"
+        ).length
+      );
+    } catch {
+      setInterviewCount(undefined);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshInterviewCount();
+  }, [refreshInterviewCount]);
+
+  useRealtimeRefresh("interview.updated", () => {
+    void refreshInterviewCount();
+  });
+
   return (
     <nav aria-label="Main navigation" className="flex flex-col gap-1 px-2 py-2">
       {NAV_SECTIONS.map((section, index) => (
@@ -121,11 +151,21 @@ export function NavList({
             </p>
           ) : null}
           <ul className="space-y-0.5">
-            {section.items.map((item) => (
-              <li key={item.href}>
-                <NavLink item={item} collapsed={collapsed} onNavigate={onNavigate} />
-              </li>
-            ))}
+            {section.items.map((item) => {
+              const displayItem =
+                item.href === ROUTES.interviews
+                  ? { ...item, badge: interviewCount }
+                  : item;
+              return (
+                <li key={item.href}>
+                  <NavLink
+                    item={displayItem}
+                    collapsed={collapsed}
+                    onNavigate={onNavigate}
+                  />
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}

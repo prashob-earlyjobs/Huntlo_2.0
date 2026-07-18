@@ -66,11 +66,13 @@ export type ScreeningDocument = Document & {
   workflowId: mongoose.Types.ObjectId | null;
   sourceModule: string;
   name: string;
+  description: string | null;
   objective: string | null;
   language: string | null;
   voice: string | null;
   tone: string | null;
   introductionScript: string | null;
+  agentPrompt: string | null;
   closingScript: string | null;
   consentText: string | null;
   questions: ScreeningQuestion[];
@@ -109,11 +111,13 @@ const screeningSchema = new Schema<ScreeningDocument>(
     workflowId: { type: Schema.Types.ObjectId, ref: 'Huntlo360Workflow', default: null },
     sourceModule: { type: String, default: 'screening', index: true },
     name: { type: String, required: true, trim: true, maxlength: 200 },
+    description: { type: String, default: null },
     objective: { type: String, default: null },
     language: { type: String, default: null },
     voice: { type: String, default: null },
     tone: { type: String, default: null },
     introductionScript: { type: String, default: null },
+    agentPrompt: { type: String, default: null },
     closingScript: { type: String, default: null },
     consentText: { type: String, default: null },
     questions: {

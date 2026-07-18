@@ -5,6 +5,7 @@ import {
   CopyX,
   FileSpreadsheet,
   ListChecks,
+  Plug,
   Search,
   Upload,
   UserPlus,
@@ -86,6 +87,14 @@ const SOURCE_META: Record<
     description: "Hand-pick a few candidates",
   },
 };
+
+const DISABLED_AUDIENCE_SOURCES = [
+  {
+    id: "Import from ATS",
+    icon: Plug,
+    description: "Pull candidates from a connected ATS",
+  },
+] as const;
 
 function CandidatePicker({
   rows,
@@ -195,6 +204,9 @@ export function AudienceStep({
   title = "Audience",
   description = "Choose where the campaign audience comes from. CSV imports include new rows and existing pool matches linked to this campaign list.",
   sourceErrorLabel = "Choose where the campaign audience comes from.",
+  importListNamePrefix = "Outreach import",
+  importListDescription = "Candidates imported for an outreach campaign",
+  importListTags = ["outreach-import"],
 }: {
   state: AudienceStepState;
   update: AudienceStepUpdate;
@@ -202,6 +214,9 @@ export function AudienceStep({
   title?: string;
   description?: string;
   sourceErrorLabel?: string;
+  importListNamePrefix?: string;
+  importListDescription?: string;
+  importListTags?: string[];
 }) {
   const stats = state.audiencePreview;
   const [lists, setLists] = useState<SavedList[]>([]);
@@ -329,10 +344,10 @@ export function AudienceStep({
       void (async () => {
         try {
           const list = await candidatePoolApi.createList({
-            name: `Outreach import ${new Date().toLocaleString("en-IN")}`,
-            description: "Candidates imported for an outreach campaign",
+            name: `${importListNamePrefix} ${new Date().toLocaleString("en-IN")}`,
+            description: importListDescription,
             visibility: "Team",
-            tags: ["outreach-import"],
+            tags: importListTags,
           });
           setImportListId(list.id);
           update("sourceDetail", list.id);
@@ -383,6 +398,36 @@ export function AudienceStep({
               </button>
             );
           })}
+          {DISABLED_AUDIENCE_SOURCES.map((source) => {
+            const Icon = source.icon;
+            return (
+              <button
+                key={source.id}
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="flex cursor-not-allowed items-start gap-3 rounded-lg border border-border bg-muted/30 px-3 py-3 text-left opacity-60"
+              >
+                <Icon
+                  aria-hidden
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="block text-sm font-medium text-foreground">
+                      {source.id}
+                    </span>
+                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Soon
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {source.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {showErrors && !state.source ? (
@@ -412,7 +457,17 @@ export function AudienceStep({
                   placeholder={
                     loadingOptions ? "Loading lists…" : "Select a list"
                   }
-                />
+                >
+                  {(() => {
+                    const list = lists.find(
+                      (entry) => entry.id === state.sourceDetail
+                    );
+                    if (!list) return null;
+                    return typeof list.candidateCount === "number"
+                      ? `${list.name} (${list.candidateCount})`
+                      : list.name;
+                  })()}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {lists.map((list) => (
@@ -448,7 +503,21 @@ export function AudienceStep({
                   placeholder={
                     loadingOptions ? "Loading sessions…" : "Select a search session"
                   }
-                />
+                >
+                  {(() => {
+                    const session = sessions.find(
+                      (entry) => entry.id === state.sourceDetail
+                    );
+                    if (!session) return null;
+                    const count =
+                      typeof session.resultCount === "number"
+                        ? ` (${session.resultCount})`
+                        : typeof session.estimatedResults === "number"
+                          ? ` (~${session.estimatedResults})`
+                          : "";
+                    return `${session.name}${count}`;
+                  })()}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {sessions.map((session) => (
@@ -523,7 +592,7 @@ export function AudienceStep({
             ) : (
               <p className="text-xs text-muted-foreground">
                 Imported candidates (and existing pool matches) are attached to a
-                saved list for this campaign.
+                saved list for this audience.
               </p>
             )}
             {showErrors && state.selectedCandidateIds.length === 0 ? (

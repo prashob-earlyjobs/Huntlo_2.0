@@ -51,8 +51,10 @@ export type ScheduleInterviewInput = {
   location?: string | null;
   meetingUrl?: string | null;
   instructions?: string | null;
+  reminderHours?: number[];
   inviteChannel?: "email" | "whatsapp" | null;
   inviteeEmail?: string | null;
+  message?: string | null;
   sendLink?: boolean;
   linkExpiryHours?: number;
 };

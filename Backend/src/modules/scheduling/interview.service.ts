@@ -11,6 +11,7 @@ import { UserModel } from '../auth/user.model.js';
 import { CandidateActivityModel } from '../candidates/candidate-activity.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { JobModel } from '../jobs/job.model.js';
+import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { getOrgCalendlyCredentials } from './calendly-credentials.js';
 import {
   InterviewModel,
@@ -98,10 +99,90 @@ async function userName(userId: string) {
   return `${user.firstName} ${user.lastName}`.trim();
 }
 
+async function interviewerNames(
+  organizationId: string,
+  interviewerIds: string[]
+): Promise<string[]> {
+  const validIds = interviewerIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (validIds.length === 0) return interviewerIds;
+
+  const [users, members] = await Promise.all([
+    UserModel.find({ _id: { $in: validIds } })
+      .select('firstName lastName')
+      .lean(),
+    OrganizationMemberModel.find({
+      organizationId,
+      $or: [{ _id: { $in: validIds } }, { userId: { $in: validIds } }],
+    })
+      .select('_id userId')
+      .lean(),
+  ]);
+
+  const names = new Map(
+    users.map((user) => [
+      String(user._id),
+      `${user.firstName} ${user.lastName}`.trim(),
+    ])
+  );
+
+  // Existing interviews may store organization-member ids instead of user ids.
+  const unresolvedMemberUserIds = members
+    .map((member) => String(member.userId))
+    .filter((userId) => !names.has(userId));
+  if (unresolvedMemberUserIds.length > 0) {
+    const memberUsers = await UserModel.find({ _id: { $in: unresolvedMemberUserIds } })
+      .select('firstName lastName')
+      .lean();
+    for (const user of memberUsers) {
+      names.set(String(user._id), `${user.firstName} ${user.lastName}`.trim());
+    }
+  }
+
+  for (const member of members) {
+    const memberId = String(member._id);
+    const userId = String(member.userId);
+    const name = names.get(userId);
+    if (name) {
+      names.set(memberId, name);
+      names.set(userId, name);
+    }
+  }
+
+  return interviewerIds.map((id) => names.get(id) || id);
+}
+
 function durationMinutes(startAt: Date | null, endAt: Date | null): string {
   if (!startAt || !endAt) return '—';
   const mins = Math.max(0, Math.round((endAt.getTime() - startAt.getTime()) / 60_000));
   return `${mins} min`;
+}
+
+function renderInterviewMessage(
+  template: string | null | undefined,
+  values: {
+    firstName: string;
+    jobTitle: string;
+    schedulingDetails: string;
+  }
+): string {
+  const source =
+    template ||
+    'Hi {{first_name}}, we would like to schedule your next interview for {{job_title}}. {{scheduling_details}}';
+  return source
+    .replace(/\{\{\s*first_name\s*\}\}/gi, values.firstName)
+    .replace(/\{\{\s*job_title\s*\}\}/gi, values.jobTitle)
+    .replace(/\{\{\s*scheduling_details\s*\}\}/gi, values.schedulingDetails);
+}
+
+function emitInterviewUpdated(doc: InterviewDocument) {
+  emitRealtime('interview.updated', {
+    organizationId: String(doc.organizationId),
+    interviewId: String(doc._id),
+    status: doc.status,
+    candidateId: doc.candidateId ? String(doc.candidateId) : null,
+    jobId: doc.jobId ? String(doc.jobId) : null,
+    startAt: doc.startAt?.toISOString() ?? null,
+  });
 }
 
 export function toInterviewDisplay(
@@ -112,6 +193,7 @@ export function toInterviewDisplay(
     candidateCompany: string;
     jobTitle: string | null;
     recruiter: string;
+    interviewerNames: string[];
   }
 ) {
   const tz = normalizeTimezone(doc.timezone);
@@ -125,7 +207,7 @@ export function toInterviewDisplay(
     jobId: doc.jobId ? String(doc.jobId) : null,
     jobTitle: extras.jobTitle,
     interviewType: doc.interviewType,
-    interviewers: doc.interviewerIds,
+    interviewers: extras.interviewerNames,
     interviewerIds: doc.interviewerIds,
     recruiter: extras.recruiter,
     createdBy: String(doc.createdBy),
@@ -167,6 +249,7 @@ export function toInterviewDisplay(
               : doc.reminderStatus === 'failed'
                 ? 'Failed'
                 : 'Not sent',
+    reminderHours: doc.reminderHours,
     reminderStatusRaw: doc.reminderStatus,
     bookingSource:
       doc.sourceModule === 'huntlo360'
@@ -192,10 +275,11 @@ export function toInterviewDisplay(
 }
 
 async function display(doc: InterviewDocument) {
-  const [cand, title, recruiter] = await Promise.all([
+  const [cand, title, recruiter, names] = await Promise.all([
     candidateExtras(doc.candidateId),
     jobTitle(doc.jobId),
     userName(String(doc.createdBy)),
+    interviewerNames(String(doc.organizationId), doc.interviewerIds),
   ]);
   return toInterviewDisplay(doc, {
     candidateName: doc.inviteeName || cand.name,
@@ -203,6 +287,7 @@ async function display(doc: InterviewDocument) {
     candidateCompany: cand.company,
     jobTitle: title,
     recruiter,
+    interviewerNames: names,
   });
 }
 
@@ -334,6 +419,7 @@ export const interviewsService = {
       location: input.location ?? null,
       meetingUrl: input.meetingUrl ?? null,
       instructions: input.instructions ?? null,
+      reminderHours: input.reminderHours ?? [24, 2],
       status: isManualBooked ? 'scheduled' : schedulingUrl ? 'link_sent' : 'draft',
       bookingStatus: isManualBooked ? 'booked' : schedulingUrl ? 'link_sent' : 'pending',
       sourceModule: input.sourceModule || 'scheduling',
@@ -349,9 +435,10 @@ export const interviewsService = {
       inviteeName: input.inviteeName || candidate?.name || null,
     });
 
-    if (input.sendLink && doc.schedulingUrl) {
+    if (input.sendLink) {
       await this.sendLink(organizationId, userId, String(doc._id), {
         channel: input.inviteChannel || 'email',
+        message: input.message,
       });
     }
 
@@ -364,6 +451,7 @@ export const interviewsService = {
       method,
     });
 
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -389,6 +477,7 @@ export const interviewsService = {
     if (input.location !== undefined) doc.location = input.location;
     if (input.meetingUrl !== undefined) doc.meetingUrl = input.meetingUrl;
     if (input.instructions !== undefined) doc.instructions = input.instructions;
+    if (input.reminderHours !== undefined) doc.reminderHours = input.reminderHours;
     if (input.status !== undefined) doc.status = input.status;
     if (input.bookingStatus !== undefined) doc.bookingStatus = input.bookingStatus;
     if (input.inviteChannel !== undefined) doc.inviteChannel = input.inviteChannel;
@@ -396,6 +485,7 @@ export const interviewsService = {
     if (input.inviteeName !== undefined) doc.inviteeName = input.inviteeName;
     doc.version += 1;
     await doc.save();
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -406,7 +496,7 @@ export const interviewsService = {
     input: SendLinkInput = {}
   ) {
     const doc = await loadInterview(organizationId, id);
-    if (!doc.schedulingUrl) {
+    if (doc.schedulingMethod === 'calendly_link' && !doc.schedulingUrl) {
       throw new AppError(400, 'NO_SCHEDULING_URL', 'Interview has no scheduling URL.');
     }
 
@@ -422,7 +512,27 @@ export const interviewsService = {
       throw new AppError(400, 'NO_PHONE', 'Candidate has no phone for WhatsApp delivery.');
     }
 
-    // Delivery mirrored as activity (provider send stubs match outreach pattern).
+    const title = await jobTitle(doc.jobId);
+    const firstName = String(doc.inviteeName || candidate?.name || 'Candidate')
+      .trim()
+      .split(/\s+/)[0]!;
+    const schedulingDetails =
+      doc.schedulingMethod === 'manual' && doc.startAt
+        ? `${formatInTimezone(doc.startAt, doc.timezone, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })}${doc.location ? ` · ${doc.location}` : ''}`
+        : doc.schedulingUrl ||
+          'Please reply to this message with your preferred interview slots.';
+    const renderedMessage = renderInterviewMessage(input.message, {
+      firstName,
+      jobTitle: title || 'the role',
+      schedulingDetails,
+    });
+
+    // Provider delivery is represented by the same persisted activity contract
+    // used by scheduling messages. Connected channel delivery can consume this
+    // payload without losing the recruiter's customized text.
     doc.inviteChannel = channel;
     doc.status = doc.startAt ? doc.status : 'awaiting_booking';
     if (!doc.startAt) {
@@ -443,7 +553,7 @@ export const interviewsService = {
         interviewId: id,
         channel,
         schedulingUrl: doc.schedulingUrl,
-        message: input.message,
+        message: renderedMessage,
       }
     );
 
@@ -453,14 +563,7 @@ export const interviewsService = {
       candidateId: doc.candidateId ? String(doc.candidateId) : null,
       channel,
     });
-    emitRealtime('interview.updated', {
-      organizationId,
-      interviewId: id,
-      status: doc.status,
-      candidateId: doc.candidateId ? String(doc.candidateId) : null,
-      jobId: doc.jobId ? String(doc.jobId) : null,
-      startAt: doc.startAt?.toISOString() ?? null,
-    });
+    emitInterviewUpdated(doc);
 
     return display(doc);
   },
@@ -494,6 +597,7 @@ export const interviewsService = {
       { interviewId: id, reason: input.reason, startAt: doc.startAt.toISOString() }
     );
 
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -513,6 +617,7 @@ export const interviewsService = {
       'interview_cancelled',
       { interviewId: id }
     );
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -529,7 +634,8 @@ export const interviewsService = {
       { interviewId: id }
     );
     const { sendInterviewReminderNow } = await import('./reminder.service.js');
-    await sendInterviewReminderNow(doc, 'email');
+    await sendInterviewReminderNow(doc, doc.inviteChannel || 'email');
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -545,6 +651,7 @@ export const interviewsService = {
       'interview_completed',
       { interviewId: id }
     );
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -560,6 +667,7 @@ export const interviewsService = {
       'interview_no_show',
       { interviewId: id }
     );
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -650,12 +758,14 @@ export const interviewsService = {
       });
     }
 
+    let matchedCandidateId: mongoose.Types.ObjectId | null = null;
     if (!doc && inviteeEmail) {
       const candidate = await SavedCandidateModel.findOne({
         organizationId: input.organizationId,
         email: inviteeEmail,
       }).lean();
       if (candidate) {
+        matchedCandidateId = candidate._id;
         doc = await InterviewModel.findOne({
           organizationId: input.organizationId,
           candidateId: candidate._id,
@@ -690,10 +800,17 @@ export const interviewsService = {
 
     if (!doc) {
       // Create orphan booking record for unmatched invitees (org-level)
-      const orgOwner = await UserModel.findOne().select('_id').lean();
+      const orgMember = await OrganizationMemberModel.findOne({
+        organizationId: input.organizationId,
+        status: 'active',
+      })
+        .sort({ role: 1, createdAt: 1 })
+        .select('userId')
+        .lean();
       doc = await InterviewModel.create({
         organizationId: input.organizationId,
-        createdBy: orgOwner?._id || new mongoose.Types.ObjectId(),
+        createdBy: orgMember?.userId || new mongoose.Types.ObjectId(),
+        candidateId: matchedCandidateId,
         interviewType: String(input.event.name || 'Interview'),
         schedulingMethod: 'calendly_link',
         ...patch,

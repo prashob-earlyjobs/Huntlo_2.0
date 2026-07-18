@@ -60,6 +60,8 @@ type FlowCandidate = {
   name: string;
   title: string;
   company: string;
+  email: string | null;
+  phone: string | null;
 };
 
 type FlowJob = {
@@ -83,6 +85,7 @@ interface FlowState {
   location: string;
   instructions: string;
   reminders: string;
+  inviteChannel: "email" | "whatsapp";
   message: string;
 }
 
@@ -109,6 +112,7 @@ function initialState(): FlowState {
     location: "",
     instructions: "",
     reminders: REMINDER_CONFIGS[0],
+    inviteChannel: "email",
     message:
       "Hi {{first_name}}, we'd love to schedule the next round for {{job_title}}. {{scheduling_details}}",
   };
@@ -127,6 +131,13 @@ function durationMinutes(value: string): number {
   return match ? Number(match[0]) : 45;
 }
 
+function reminderHours(value: string): number[] {
+  if (value === "24h before only") return [24];
+  if (value === "2h before only") return [2];
+  if (value === "No reminders") return [];
+  return [24, 2];
+}
+
 const STEPS = [
   { id: "candidate", title: "Select Candidate" },
   { id: "job", title: "Select Job" },
@@ -143,8 +154,18 @@ function stepErrors(step: number, state: FlowState): string[] {
   if (step === 1 && !state.jobId) errors.push("Select a job.");
   if (step === 3 && state.interviewers.length === 0)
     errors.push("Select at least one interviewer.");
-  if (step === 4 && !state.method)
-    errors.push("Choose how the interview will be scheduled.");
+  if (step === 4) {
+    if (!state.method) {
+      errors.push("Choose how the interview will be scheduled.");
+    } else if (state.method === "Calendly Link" && !state.calendlyEvent) {
+      errors.push("Connect Calendly and select an event type.");
+    } else if (
+      state.method === "Manual Time Selection" &&
+      (!state.manualAt || new Date(state.manualAt).getTime() <= Date.now())
+    ) {
+      errors.push("Choose a future date and time.");
+    }
+  }
   if (step === 5 && !state.message.trim())
     errors.push("Message to the candidate cannot be empty.");
   return errors;
@@ -208,6 +229,8 @@ export function ScheduleInterviewFlow({
             name: row.name,
             title: row.currentRole || row.headline || "",
             company: row.currentCompany || "",
+            email: row.email || null,
+            phone: row.phone || null,
           }))
         );
         setJobs(
@@ -219,7 +242,10 @@ export function ScheduleInterviewFlow({
           }))
         );
         setInterviewerOptions(
-          members.map((member) => ({ id: member.id, name: member.name }))
+          members.map((member) => ({
+            id: member.userId || member.id,
+            name: member.name,
+          }))
         );
         setEventTypes(events);
         if (events[0]?.uri || events[0]?.schedulingUrl) {
@@ -288,6 +314,14 @@ export function ScheduleInterviewFlow({
         ? new Date(new Date(startAt).getTime() + minutes * 60_000).toISOString()
         : null;
 
+      const candidate = candidates.find((row) => row.id === state.candidateId);
+      if (state.inviteChannel === "email" && !candidate?.email) {
+        throw new Error("This candidate has no email address.");
+      }
+      if (state.inviteChannel === "whatsapp" && !candidate?.phone) {
+        throw new Error("This candidate has no phone number.");
+      }
+
       await schedulingApi.scheduleInterview({
         candidateId: state.candidateId || null,
         jobId: state.jobId || null,
@@ -299,10 +333,17 @@ export function ScheduleInterviewFlow({
         startAt,
         endAt,
         timezone,
-        location: state.location || null,
+        location: state.location || state.platform || null,
+        meetingUrl:
+          state.location && /^https?:\/\//i.test(state.location)
+            ? state.location
+            : null,
         instructions: state.instructions || null,
-        inviteChannel: "email",
-        sendLink: state.method !== "Manual Time Selection",
+        reminderHours: reminderHours(state.reminders),
+        inviteChannel: state.inviteChannel,
+        inviteeEmail: candidate?.email || null,
+        message: state.message,
+        sendLink: true,
       });
       setDone(true);
     } catch (err) {
@@ -546,7 +587,7 @@ export function ScheduleInterviewFlow({
               {current === 4 ? (
                 <StepCard
                   title="Select Scheduling Method"
-                  description="How the candidate will confirm a time. Providers are not connected."
+                  description="Choose how the candidate will confirm a time."
                 >
                   <div className="space-y-4">
                     <div
@@ -557,16 +598,23 @@ export function ScheduleInterviewFlow({
                       {SCHEDULING_METHODS.map((method) => {
                         const meta = METHOD_META[method];
                         const active = state.method === method;
+                        const disabled =
+                          method === "Request Candidate Availability";
                         return (
                           <button
                             key={method}
                             type="button"
                             role="radio"
                             aria-checked={active}
-                            onClick={() => update("method", method)}
+                            disabled={disabled}
+                            onClick={() => {
+                              if (!disabled) update("method", method);
+                            }}
                             className={cn(
                               "flex items-start gap-3 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                              active
+                              disabled
+                                ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
+                                : active
                                 ? "border-primary/50 bg-brand-subtle/40"
                                 : "border-border hover:bg-muted/40"
                             )}
@@ -578,14 +626,19 @@ export function ScheduleInterviewFlow({
                                 active ? "text-primary" : "text-muted-foreground"
                               )}
                             />
-                            <span>
+                            <span className="min-w-0 flex-1">
                               <span
                                 className={cn(
-                                  "block text-sm font-medium",
+                                  "flex items-center justify-between gap-2 text-sm font-medium",
                                   active ? "text-primary" : "text-foreground"
                                 )}
                               >
-                                {method}
+                                <span>{method}</span>
+                                {disabled ? (
+                                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    Soon
+                                  </span>
+                                ) : null}
                               </span>
                               <span className="block text-xs text-muted-foreground">
                                 {meta.description}
@@ -619,27 +672,21 @@ export function ScheduleInterviewFlow({
                               <SelectValue placeholder="Select event type" />
                             </SelectTrigger>
                             <SelectContent>
-                              {(eventTypes.length > 0
-                                ? eventTypes.map((eventType) => ({
-                                    value: eventType.uri || eventType.schedulingUrl,
-                                    label: eventType.name,
-                                  }))
-                                : [
-                                    {
-                                      value: "intro",
-                                      label: "Intro call (connect Calendly)",
-                                    },
-                                  ]
-                              ).map((eventType) => (
+                              {eventTypes.map((eventType) => (
                                 <SelectItem
-                                  key={eventType.value}
-                                  value={eventType.value}
+                                  key={eventType.uri || eventType.schedulingUrl}
+                                  value={eventType.uri || eventType.schedulingUrl}
                                 >
-                                  {eventType.label}
+                                  {eventType.name}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          {eventTypes.length === 0 ? (
+                            <p className="text-xs text-destructive">
+                              Connect Calendly before using this method.
+                            </p>
+                          ) : null}
                         </Field>
                       </div>
                     ) : null}
@@ -770,6 +817,40 @@ export function ScheduleInterviewFlow({
                   title="Configure Message"
                   description="Sent to the candidate with the link, slot, or availability request."
                 >
+                  <Field label="Send via" required>
+                    <div
+                      role="radiogroup"
+                      aria-label="Invitation channel"
+                      className="grid gap-2 sm:grid-cols-2"
+                    >
+                      {(["email", "whatsapp"] as const).map((channel) => {
+                        const active = state.inviteChannel === channel;
+                        const unavailable =
+                          channel === "email" ? !candidate?.email : !candidate?.phone;
+                        return (
+                          <button
+                            key={channel}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            disabled={unavailable}
+                            onClick={() => update("inviteChannel", channel)}
+                            className={cn(
+                              "rounded-lg border px-3 py-2.5 text-left text-sm capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                              unavailable
+                                ? "cursor-not-allowed bg-muted/30 opacity-60"
+                                : active
+                                  ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
+                                  : "border-border hover:bg-muted/40"
+                            )}
+                          >
+                            {channel}
+                            {unavailable ? " — unavailable" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Field>
                   <Field
                     label="Message"
                     htmlFor="flow-message"
@@ -826,6 +907,7 @@ export function ScheduleInterviewFlow({
                         ["Platform", state.platform],
                         ["Timezone", state.timezone],
                         ["Reminders", state.reminders],
+                        ["Invite channel", state.inviteChannel],
                         ["Location", state.location || "—"],
                       ] as const
                     ).map(([label, value]) => (
