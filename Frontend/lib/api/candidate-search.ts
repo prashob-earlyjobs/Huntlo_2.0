@@ -2,7 +2,53 @@ import { apiClient } from "./client";
 import { createDomainService, simulateMockLatency } from "./service";
 import { buildQueryString } from "./types";
 
-export type CandidateFilterForm = Record<string, unknown>;
+export type CandidateSkillsBuckets = {
+  mandatory?: string[];
+  core?: string[];
+  secondary?: string[];
+};
+
+/** Flat Future Jobs filter-form keys accepted by search annotate/apply. */
+export type CandidateFilterForm = {
+  selectRegion?: string[];
+  currentTitle?: string;
+  yearsExpMin?: string;
+  yearsExpMax?: string;
+  keywordSkills?: string;
+  skills?: CandidateSkillsBuckets;
+  seniorityLevel?: string;
+  location?: string[];
+  openToWork?: boolean;
+  functionCategory?: string;
+  geoDistance?: string;
+  industry?: string;
+  school?: string[];
+  fieldOfStudy?: string[];
+  degree?: string[];
+  certifications?: string[];
+  honorsAwards?: string;
+  targetCompanyScope?: "current" | "past" | "current_past";
+  currentCompany?: string[];
+  yearsAtCompany?: string[];
+  pastCompany?: string[];
+  pastTitle?: string[];
+  companyType?: string;
+  companyHeadquarters?: string;
+  companyFocus?: string[];
+  employmentType?: string;
+  companyHeadcountRange?: string;
+  fundingStage?: string[];
+  headcountGrowthMin?: string;
+  headcountGrowthMax?: string;
+  companyHeadcountMin?: string;
+  companyHeadcountMax?: string;
+  annualRevenue?: string;
+  totalFundingRaised?: string[];
+  yearFoundedMin?: string;
+  yearFoundedMax?: string;
+  recentlyFunded?: string[];
+  [key: string]: unknown;
+};
 
 export type SearchAnnotationResponse = {
   success: true;
@@ -239,7 +285,13 @@ const mockCandidateSearchApi: CandidateSearchApi = {
       success: true,
       filterType: filter_type ?? "region",
       query,
-      suggestions: query.length >= 3 ? [`${query}apura`, `${query}alore`] : [],
+      suggestions:
+        query.length >= 2
+          ? [
+              { label: `${query}apura`, value: `${query}apura` },
+              { label: `${query}alore`, value: `${query}alore` },
+            ]
+          : [],
     };
   },
   async createCandidateSearchSession() {

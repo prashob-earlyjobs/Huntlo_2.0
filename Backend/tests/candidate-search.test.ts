@@ -94,7 +94,21 @@ describe('Candidate search workflow', () => {
     expect(after?.used ?? 0).toBe(before?.used ?? 0);
   });
 
-  it('rejects autocomplete queries shorter than 3 characters', async () => {
+  it('rejects autocomplete queries shorter than 2 characters', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    const res = await agent
+      .get('/api/v1/candidates/filters/autocomplete')
+      .query({ query: 'b', filter_type: 'region' })
+      .set('Authorization', `Bearer ${auth.token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('AUTOCOMPLETE_QUERY_TOO_SHORT');
+  });
+
+  it('accepts a 2-character autocomplete query', async () => {
     const app = createApp();
     const agent = request.agent(app);
     const auth = await registerAndAuth(agent);
@@ -104,8 +118,10 @@ describe('Candidate search workflow', () => {
       .query({ query: 'ba', filter_type: 'region' })
       .set('Authorization', `Bearer ${auth.token}`);
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('AUTOCOMPLETE_QUERY_TOO_SHORT');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.suggestions)).toBe(true);
+    expect(res.body.suggestions.length).toBeGreaterThan(0);
   });
 
   it('clamps autocomplete limit to 25', async () => {

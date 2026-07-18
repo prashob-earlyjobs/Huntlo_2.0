@@ -127,7 +127,7 @@ export function CandidateCard({
         ) : null}
       </dl>
 
-      <div className="mt-3">
+      <div className="mt-3 mb-3">
         <ContactReveal
           candidate={candidate}
           revealed={revealed}
@@ -135,7 +135,7 @@ export function CandidateCard({
         />
       </div>
 
-      <div className="mt-3 flex items-center gap-1.5 border-t border-border pt-3">
+      <div className="mt-auto flex items-center gap-1.5 border-t border-border pt-3">
         <Button
           type="button"
           size="xs"

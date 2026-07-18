@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Bookmark,
@@ -14,7 +15,6 @@ import {
   Send,
   SlidersHorizontal,
   Users,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,14 +22,10 @@ import { CandidateCard } from "@/components/sessions/candidate-card";
 import { CandidateDrawer } from "@/components/sessions/candidate-drawer";
 import { CandidateTable } from "@/components/sessions/candidate-table";
 import type { RevealState } from "@/components/sessions/contact-reveal";
+import { FilterPanel } from "@/components/search/filter-panel";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -37,10 +33,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage, candidatesApi, uiRevealKindToType } from "@/lib/api";
 import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-details";
-import { getCandidateDetails } from "@/lib/api/candidate-search";
+import {
+  applyCandidateSearch,
+  getCandidateDetails,
+} from "@/lib/api/candidate-search";
+import {
+  FILTER_SECTIONS,
+  INTERPRETED_FILTER_STATE,
+  isFieldActive,
+  type FilterValue,
+  type SearchFilterState,
+} from "@/lib/mock-search";
 import {
   SORT_OPTIONS,
   sortCandidates,
@@ -49,17 +63,9 @@ import {
   type SortOptionId,
   type SourcingSession,
 } from "@/lib/mock-sessions";
-import { ROUTES, jobDetailPath } from "@/lib/routes";
+import { ROUTES, jobDetailPath, sessionDetailPath } from "@/lib/routes";
+import { filtersToProviderPayload } from "@/lib/search-filter-adapters";
 import { cn } from "@/lib/utils";
-
-const FILTER_CHIPS = [
-  "Bengaluru",
-  "4–7 yrs",
-  "Node.js",
-  "AWS",
-  "SaaS",
-  "Backend Engineer",
-];
 
 function matchesResultQuery(candidate: SessionCandidate, query: string): boolean {
   if (!query.trim()) return true;
@@ -73,6 +79,20 @@ function matchesResultQuery(candidate: SessionCandidate, query: string): boolean
     .join(" ")
     .toLowerCase();
   return haystack.includes(query.trim().toLowerCase());
+}
+
+function loadSessionFilters(sessionId: string): SearchFilterState {
+  if (typeof window === "undefined") return INTERPRETED_FILTER_STATE;
+  try {
+    const stored = sessionStorage.getItem(`huntlo:search:${sessionId}`);
+    if (!stored) return INTERPRETED_FILTER_STATE;
+    const parsed = JSON.parse(stored) as { filters?: SearchFilterState };
+    return parsed.filters && typeof parsed.filters === "object"
+      ? parsed.filters
+      : INTERPRETED_FILTER_STATE;
+  } catch {
+    return INTERPRETED_FILTER_STATE;
+  }
 }
 
 function SessionStateBanner({
@@ -172,15 +192,23 @@ function ResultsSkeleton({ count = 5 }: { count?: number }) {
 export function SessionResults({
   session,
   candidates,
+  initialFilters,
 }: {
   session: SourcingSession;
   candidates: SessionCandidate[];
+  initialFilters?: SearchFilterState | null;
 }) {
+  const router = useRouter();
   const [sort, setSort] = useState<SortOptionId>("best-match");
   const [view, setView] = useState<"table" | "card">("table");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [resultQuery, setResultQuery] = useState("");
-  const [filterChips, setFilterChips] = useState<string[]>(FILTER_CHIPS);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<SearchFilterState>(() =>
+    initialFilters ?? loadSessionFilters(session.id)
+  );
+  const [rerunningSearch, setRerunningSearch] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(candidates.map((c) => [c.id, c.saved]))
@@ -218,7 +246,7 @@ export function SessionResults({
     session.state === "running" ? 0 : candidates.length
   );
   const [initialLoading, setInitialLoading] = useState(
-    session.state === "running"
+    session.state === "running" && candidates.length === 0
   );
 
   useEffect(() => {
@@ -260,26 +288,42 @@ export function SessionResults({
     };
   }, [drawerId, session.id]);
 
+  // Keep the progressive reveal in sync with live candidate growth. Never leave
+  // the skeleton stuck after the session leaves "running".
   useEffect(() => {
-    if (session.state !== "running") return;
+    if (session.state !== "running") {
+      setInitialLoading(false);
+      setProgressCount(candidates.length);
+      return;
+    }
 
-    setInitialLoading(true);
-    const timer = window.setTimeout(() => setInitialLoading(false), 800);
+    if (candidates.length === 0) {
+      setInitialLoading(true);
+      const timer = window.setTimeout(() => setInitialLoading(false), 800);
+      return () => window.clearTimeout(timer);
+    }
 
+    setInitialLoading(false);
     const interval = window.setInterval(() => {
       setProgressCount((previous) => {
         if (previous >= candidates.length) {
           window.clearInterval(interval);
-          return previous;
+          return candidates.length;
         }
         return previous + 1;
       });
-    }, 600);
+    }, 60);
 
-    return () => {
-      window.clearTimeout(timer);
-      window.clearInterval(interval);
-    };
+    return () => window.clearInterval(interval);
+  }, [session.state, candidates.length]);
+
+  // If more candidates arrive while running, never clamp progress below what we
+  // already revealed — just let the interval catch up.
+  useEffect(() => {
+    if (session.state !== "running") return;
+    setProgressCount((previous) =>
+      previous > candidates.length ? candidates.length : previous
+    );
   }, [session.state, candidates.length]);
 
   const visibleCandidates = useMemo(() => {
@@ -329,12 +373,35 @@ export function SessionResults({
     if (kind === "phone" && candidate.phoneRevealed) return;
 
     setRevealError(null);
+    setRevealedMap((previous) => {
+      const current = previous[id] ?? { email: false, phone: false };
+      return {
+        ...previous,
+        [id]: {
+          ...current,
+          [kind === "email" ? "emailStatus" : "phoneStatus"]: "loading",
+        },
+      };
+    });
     try {
       const result = await candidatesApi.revealContact({
         candidateId: id,
         type: uiRevealKindToType(kind),
       });
       const value = result.value || result.values[0] || "";
+      if (!result.found || !value) {
+        setRevealedMap((previous) => {
+          const current = previous[id] ?? { email: false, phone: false };
+          return {
+            ...previous,
+            [id]: {
+              ...current,
+              [kind === "email" ? "emailStatus" : "phoneStatus"]: "unavailable",
+            },
+          };
+        });
+        return;
+      }
       setLocalCandidates((previous) =>
         previous.map((item) => {
           if (item.id !== id) return item;
@@ -355,12 +422,83 @@ export function SessionResults({
       setRevealedMap((previous) => ({
         ...previous,
         [id]: {
-          email: kind === "email" ? true : (previous[id]?.email ?? false),
-          phone: kind === "phone" ? true : (previous[id]?.phone ?? false),
+          ...(previous[id] ?? { email: false, phone: false }),
+          [kind]: true,
+          [kind === "email" ? "emailStatus" : "phoneStatus"]: "idle",
         },
       }));
     } catch (err) {
+      setRevealedMap((previous) => {
+        const current = previous[id] ?? { email: false, phone: false };
+        return {
+          ...previous,
+          [id]: {
+            ...current,
+            [kind === "email" ? "emailStatus" : "phoneStatus"]: "idle",
+          },
+        };
+      });
       setRevealError(getApiErrorMessage(err));
+    }
+  }
+
+  const activeFilterCount = Object.values(searchFilters).filter(isFieldActive).length;
+
+  function updateSearchFilter(fieldId: string, value: FilterValue | undefined) {
+    setSearchFilters((previous) => {
+      if (value === undefined) {
+        const next = { ...previous };
+        delete next[fieldId];
+        return next;
+      }
+      return { ...previous, [fieldId]: value };
+    });
+  }
+
+  function resetFilterSection(sectionId: string) {
+    const section = FILTER_SECTIONS.find((item) => item.id === sectionId);
+    if (!section) return;
+    setSearchFilters((previous) => {
+      const next = { ...previous };
+      section.fields.forEach((field) => delete next[field.id]);
+      return next;
+    });
+  }
+
+  async function rerunSearch() {
+    if (rerunningSearch) return;
+    setRerunningSearch(true);
+    setRerunError(null);
+    try {
+      const result = await applyCandidateSearch({
+        prompt: session.query,
+        filterForm: filtersToProviderPayload(searchFilters),
+        page: 1,
+        limit: 300,
+      });
+      const savedSessionId =
+        "savedSessionId" in result ? result.savedSessionId : undefined;
+      if (!savedSessionId) {
+        throw new Error("Search started without a session id.");
+      }
+      try {
+        sessionStorage.setItem(
+          `huntlo:search:${savedSessionId}`,
+          JSON.stringify({
+            sessionId: result.sessionId,
+            savedSessionId,
+            prompt: session.query,
+            filters: searchFilters,
+          })
+        );
+      } catch {
+        // Navigation still succeeds when browser storage is unavailable.
+      }
+      setFilterDrawerOpen(false);
+      router.push(sessionDetailPath(savedSessionId));
+    } catch (error) {
+      setRerunError(getApiErrorMessage(error));
+      setRerunningSearch(false);
     }
   }
 
@@ -469,59 +607,20 @@ export function SessionResults({
             />
           </div>
 
-          <Popover>
-            <PopoverTrigger render={<Button type="button" size="sm" variant="outline" />}>
-              <SlidersHorizontal aria-hidden />
-              Filters
-              {filterChips.length > 0 ? (
-                <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
-                  {filterChips.length}
-                </span>
-              ) : null}
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-72">
-              <p className="text-xs font-semibold text-foreground">
-                Search filters
-              </p>
-              {filterChips.length === 0 ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  No filters applied to this search.
-                </p>
-              ) : (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {filterChips.map((chip) => (
-                    <span
-                      key={chip}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-foreground"
-                    >
-                      {chip}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${chip} filter`}
-                        onClick={() =>
-                          setFilterChips((previous) =>
-                            previous.filter((item) => item !== chip)
-                          )
-                        }
-                        className="rounded-sm outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50"
-                      >
-                        <X aria-hidden className="size-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <Button
-                size="xs"
-                variant="ghost"
-                className="mt-2"
-                nativeButton={false}
-                render={<Link href={ROUTES.search} />}
-              >
-                Edit filters in Search
-              </Button>
-            </PopoverContent>
-          </Popover>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setFilterDrawerOpen(true)}
+          >
+            <SlidersHorizontal aria-hidden />
+            Filters
+            {activeFilterCount > 0 ? (
+              <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </Button>
 
           <Select
             value={sort}
@@ -721,6 +820,45 @@ export function SessionResults({
           )}
         </section>
       ) : null}
+
+      <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Edit search filters</SheetTitle>
+            <SheetDescription>
+              Update the filters used for this candidate search.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1">
+            <FilterPanel
+              filters={searchFilters}
+              onFieldChange={updateSearchFilter}
+              onResetSection={resetFilterSection}
+              onResetAll={() => setSearchFilters({})}
+              activeCount={activeFilterCount}
+            />
+          </div>
+          <SheetFooter className="mt-0 border-t border-border p-3">
+            {rerunError ? (
+              <p role="alert" className="mr-auto text-xs text-destructive">
+                {rerunError}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => void rerunSearch()}
+              disabled={rerunningSearch}
+            >
+              {rerunningSearch ? (
+                <Loader2 aria-hidden className="animate-spin" />
+              ) : (
+                <Search aria-hidden />
+              )}
+              {rerunningSearch ? "Searching…" : "Search again"}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <CandidateDrawer
         candidate={drawerCandidate}

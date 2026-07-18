@@ -76,6 +76,14 @@ function SkillChips({ skills }: { skills: string[] }) {
   );
 }
 
+function experienceSortKey(duration: string) {
+  const years = duration.match(/\b(?:19|20)\d{2}\b/g)?.map(Number) ?? [];
+  const ongoing = /present|current|now/i.test(duration);
+  const end = ongoing ? Number.MAX_SAFE_INTEGER : Math.max(...years, 0);
+  const start = years.length ? Math.min(...years) : 0;
+  return { end, start };
+}
+
 export function CandidateDrawer({
   candidate,
   open,
@@ -106,6 +114,13 @@ export function CandidateDrawer({
   const emailVisible = revealed.email || candidate.emailRevealed;
   const phoneVisible = revealed.phone || candidate.phoneRevealed;
   const hasRevealedContact = emailVisible || phoneVisible;
+  const experience = [...candidate.experience].sort((a, b) => {
+    const byCurrent = Number(b.current) - Number(a.current);
+    if (byCurrent) return byCurrent;
+    const ka = experienceSortKey(a.duration);
+    const kb = experienceSortKey(b.duration);
+    return kb.end - ka.end || kb.start - ka.start;
+  });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -141,7 +156,7 @@ export function CandidateDrawer({
 
         <ScrollArea className="min-h-0 flex-1">
           <Tabs defaultValue="summary" className="p-4">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-none">
               <TabsList className="min-w-max">
                 <TabsTrigger value="summary">Summary</TabsTrigger>
                 <TabsTrigger value="experience">Experience</TabsTrigger>
@@ -215,19 +230,19 @@ export function CandidateDrawer({
             </TabsContent>
 
             <TabsContent value="experience" className="pt-2">
-              {detailsLoading && candidate.experience.length <= 1 ? (
+              {detailsLoading && experience.length <= 1 ? (
                 <p className="mb-3 text-sm text-muted-foreground">Loading experience…</p>
               ) : null}
-              {!detailsLoading && candidate.experience.length === 0 ? (
+              {!detailsLoading && experience.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No experience listed.</p>
               ) : null}
               <ol className="space-y-0">
-                {candidate.experience.map((entry, index) => (
+                {experience.map((entry, index) => (
                   <li
                     key={`${entry.company}-${entry.role}`}
                     className="relative flex gap-3 pb-5 last:pb-0"
                   >
-                    {index < candidate.experience.length - 1 ? (
+                    {index < experience.length - 1 ? (
                       <span
                         aria-hidden
                         className="absolute top-4 left-[5px] h-full w-px bg-border"

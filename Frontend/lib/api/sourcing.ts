@@ -371,7 +371,7 @@ const liveSourcingApi: SourcingApi = {
   },
   async getSessionResults(id) {
     const result = await apiClient.get<{ items: SourcedCandidateApi[] }>(
-      `/sourcing/sessions/${id}/results?limit=100`
+      `/sourcing/sessions/${id}/results?limit=300`
     );
     return result.data.items ?? [];
   },
