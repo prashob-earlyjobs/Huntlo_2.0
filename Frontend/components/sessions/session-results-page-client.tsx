@@ -8,6 +8,7 @@ import {
   getApiErrorMessage,
   mapApiCandidateToSessionCandidate,
   mapApiSessionToUi,
+  mapSessionState,
   sourcingApi,
 } from "@/lib/api";
 import {
@@ -214,14 +215,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
           prev
             ? {
                 ...prev,
-                state: mapApiSessionToUi({
-                  id: sessionId,
-                  name: prev.name,
-                  status: progress.status,
-                  progress: progress.progress,
-                  estimatedResults: progress.estimatedResults,
-                  resultCount: progress.totalResults,
-                }).state,
+                state: mapSessionState(progress.status),
                 coverage: progress.progress,
                 resultCount: progress.totalResults,
                 failureReason: progress.errorMessage ?? prev.failureReason,
