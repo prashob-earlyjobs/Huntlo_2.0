@@ -3,6 +3,7 @@
 import {
   Building2,
   Check,
+  Copy,
   Globe,
   KeyRound,
   MoreHorizontal,
@@ -72,6 +73,7 @@ import {
   organizationApi,
   teamApi,
   toRoleKey,
+  type CreateTeamAccountResult,
   type OrganizationProfile,
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
@@ -136,6 +138,36 @@ function toOptions(values: readonly string[]): FilterOption[] {
   return values.map((value) => ({ id: value, label: value }));
 }
 
+/** UI module label → backend permission module key. */
+const MODULE_TO_PERMISSION_KEY: Record<ModuleAccess, string> = {
+  "Candidate Search": "sourcing",
+  "Candidate Pool": "candidates",
+  "People Scout": "peopleScout",
+  Outreach: "outreach",
+  "Huntlo 360": "huntlo360",
+  Screening: "screening",
+  Scheduling: "scheduling",
+  Analytics: "analytics",
+  Integrations: "integrations",
+  Plans: "plans",
+  Team: "team",
+};
+
+/** Actions granted (additively) for each selected module at invite time. */
+const GRANTED_ACTIONS = ["view", "create", "edit", "launch", "export"] as const;
+
+function modulesToPermissionKeys(modules: ModuleAccess[]): string[] {
+  const keys: string[] = [];
+  for (const mod of modules) {
+    const moduleKey = MODULE_TO_PERMISSION_KEY[mod];
+    if (!moduleKey) continue;
+    for (const action of GRANTED_ACTIONS) {
+      keys.push(`${moduleKey}:${action}`);
+    }
+  }
+  return keys;
+}
+
 /* ------------------------------------------------------------------ */
 /* Invite dialog                                                        */
 /* ------------------------------------------------------------------ */
@@ -143,17 +175,18 @@ function toOptions(values: readonly string[]): FilterOption[] {
 function InviteMemberDialog({
   open,
   onOpenChange,
-  onSent,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSent: (message: string) => void;
+  onCreated: (credentials: CreateTeamAccountResult["credentials"]) => void;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("Recruiter");
   const [jobs, setJobs] = useState<string[]>([]);
   const [jobOptions, setJobOptions] = useState<JobListItem[]>([]);
+  // `jobs` holds job IDs (sent as assignedJobIds); options provide the display titles.
   const [modules, setModules] = useState<ModuleAccess[]>([
     "Candidate Search",
     "Candidate Pool",
@@ -186,11 +219,11 @@ function InviteMemberDialog({
     setModules(["Candidate Search", "Candidate Pool", "Outreach"]);
   }
 
-  function toggleJob(title: string) {
+  function toggleJob(jobId: string) {
     setJobs((previous) =>
-      previous.includes(title)
-        ? previous.filter((j) => j !== title)
-        : [...previous, title]
+      previous.includes(jobId)
+        ? previous.filter((j) => j !== jobId)
+        : [...previous, jobId]
     );
   }
 
@@ -214,10 +247,10 @@ function InviteMemberDialog({
     >
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Invite member</DialogTitle>
+          <DialogTitle>Create member account</DialogTitle>
           <DialogDescription>
-            Send a workspace invitation. Seat limits and role permissions are
-            enforced by the API.
+            Create an active workspace account. Temporary credentials will be
+            shown once after creation.
           </DialogDescription>
         </DialogHeader>
 
@@ -261,13 +294,13 @@ function InviteMemberDialog({
             <p className="text-sm font-medium text-foreground">Assigned jobs</p>
             <div className="flex flex-wrap gap-1.5">
               {jobOptions.map((job) => {
-                const active = jobs.includes(job.title);
+                const active = jobs.includes(job.id);
                 return (
                   <button
                     key={job.id}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => toggleJob(job.title)}
+                    onClick={() => toggleJob(job.id)}
                     className={cn(
                       "rounded-md border px-2 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                       active
@@ -324,18 +357,18 @@ function InviteMemberDialog({
                 setSubmitting(true);
                 setError(null);
                 try {
-                  void name;
-                  void jobs;
-                  void modules;
-                  await teamApi.createInvitation({
+                  const result = await teamApi.createAccount({
                     email,
+                    name: name.trim(),
                     role: toRoleKey(role),
+                    permissions: modulesToPermissionKeys(modules),
+                    assignedJobIds: jobs,
                   });
-                  onSent(`Invitation sent to ${email}.`);
+                  onCreated(result.credentials);
                   reset();
                   onOpenChange(false);
                 } catch (err) {
-                  setError(getApiErrorMessage(err, "Unable to send invitation."));
+                  setError(getApiErrorMessage(err, "Unable to create account."));
                 } finally {
                   setSubmitting(false);
                 }
@@ -343,7 +376,92 @@ function InviteMemberDialog({
             }}
           >
             <UserPlus aria-hidden />
-            {submitting ? "Sending…" : "Send invitation"}
+            {submitting ? "Creating…" : "Create account"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AccountCredentialsDialog({
+  credentials,
+  onClose,
+}: {
+  credentials: CreateTeamAccountResult["credentials"] | null;
+  onClose: () => void;
+}) {
+  const copy = (value: string) => {
+    void navigator.clipboard.writeText(value);
+  };
+
+  return (
+    <Dialog open={Boolean(credentials)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md" showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Account created</DialogTitle>
+          <DialogDescription>
+            Share these credentials securely. The temporary password is shown only once.
+          </DialogDescription>
+        </DialogHeader>
+
+        {credentials ? (
+          <div className="space-y-3 py-2">
+            <Field label="Login email" htmlFor="created-account-email">
+              <div className="flex gap-2">
+                <Input
+                  id="created-account-email"
+                  value={credentials.email}
+                  readOnly
+                  className="font-mono"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  aria-label="Copy login email"
+                  onClick={() => copy(credentials.email)}
+                >
+                  <Copy aria-hidden />
+                </Button>
+              </div>
+            </Field>
+            <Field label="Temporary password" htmlFor="created-account-password">
+              <div className="flex gap-2">
+                <Input
+                  id="created-account-password"
+                  value={credentials.temporaryPassword}
+                  readOnly
+                  className="font-mono"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  aria-label="Copy temporary password"
+                  onClick={() => copy(credentials.temporaryPassword)}
+                >
+                  <Copy aria-hidden />
+                </Button>
+              </div>
+            </Field>
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              credentials &&
+              copy(`Email: ${credentials.email}\nPassword: ${credentials.temporaryPassword}`)
+            }
+          >
+            <Copy aria-hidden />
+            Copy credentials
+          </Button>
+          <Button type="button" onClick={onClose}>
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1013,6 +1131,9 @@ export function TeamWorkspace() {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<
+    CreateTeamAccountResult["credentials"] | null
+  >(null);
   const [selected, setSelected] = useState<TeamMember | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pageTab, setPageTab] = useState("members");
@@ -1157,7 +1278,7 @@ export function TeamWorkspace() {
           {pageTab === "members" ? (
             <Button size="sm" onClick={() => setInviteOpen(true)}>
               <UserPlus aria-hidden />
-              Invite Member
+              Create Account
             </Button>
           ) : null}
         </div>
@@ -1331,8 +1452,8 @@ export function TeamWorkspace() {
               <EmptyState
                 icon={Search}
                 title="No members match these filters"
-                description="Adjust your filters, or invite a new teammate."
-                actionLabel="Invite Member"
+                description="Adjust your filters, or create a teammate account."
+                actionLabel="Create Account"
                 onAction={() => setInviteOpen(true)}
                 className="m-4 border-0"
               />
@@ -1400,7 +1521,14 @@ export function TeamWorkspace() {
       <InviteMemberDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
-        onSent={(text) => flash(text, true)}
+        onCreated={(credentials) => {
+          setCreatedCredentials(credentials);
+          void reload();
+        }}
+      />
+      <AccountCredentialsDialog
+        credentials={createdCredentials}
+        onClose={() => setCreatedCredentials(null)}
       />
       <MemberDrawer
         member={selected}

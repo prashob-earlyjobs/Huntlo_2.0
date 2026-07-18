@@ -92,8 +92,18 @@ export type UpdateOrganizationInput = {
 
 export type CreateInvitationInput = {
   email: string;
+  name?: string;
   role?: TeamRoleKey | string;
   permissions?: string[];
+  assignedJobIds?: string[];
+};
+
+export type CreateTeamAccountResult = {
+  member: ApiTeamMember;
+  credentials: {
+    email: string;
+    temporaryPassword: string;
+  };
 };
 
 export type CustomRole = {
@@ -158,6 +168,7 @@ export interface OrganizationApi {
 export interface TeamApi {
   getOverview(): Promise<TeamOverview>;
   listMembers(): Promise<ApiTeamMember[]>;
+  createAccount(input: CreateInvitationInput & { name: string }): Promise<CreateTeamAccountResult>;
   /** @deprecated Prefer createInvitation */
   inviteMember(organizationId: string, email: string): Promise<void>;
   createInvitation(input: CreateInvitationInput): Promise<{ invitation: TeamInvitation; token: string }>;
@@ -272,6 +283,35 @@ const mockTeamApi: TeamApi = {
   async inviteMember(_organizationId, email) {
     await this.createInvitation({ email, role: "recruiter" });
   },
+  async createAccount(input) {
+    await simulateMockLatency();
+    const role = input.role ?? "recruiter";
+    return {
+      member: {
+        id: `member-${Date.now()}`,
+        organizationId: "org-1",
+        userId: `user-${Date.now()}`,
+        name: input.name,
+        firstName: input.name.split(" ")[0] ?? input.name,
+        lastName: input.name.split(" ").slice(1).join(" ") || "Member",
+        email: input.email,
+        phone: null,
+        title: null,
+        role,
+        roleLabel: role,
+        permissions: input.permissions ?? [],
+        assignedJobIds: input.assignedJobIds ?? [],
+        managerId: null,
+        status: "active",
+        joinedAt: new Date().toISOString(),
+        lastLoginAt: null,
+      },
+      credentials: {
+        email: input.email,
+        temporaryPassword: "HtMockPassword7",
+      },
+    };
+  },
   async createInvitation(input) {
     await simulateMockLatency();
     return {
@@ -365,6 +405,14 @@ const liveTeamApi: TeamApi = {
   },
   async inviteMember(_organizationId, email) {
     await this.createInvitation({ email, role: "recruiter" });
+  },
+  async createAccount(input) {
+    const result = await apiClient.post<CreateTeamAccountResult>(
+      "/team/members",
+      input,
+      { sensitive: true }
+    );
+    return result.data;
   },
   async createInvitation(input) {
     const result = await apiClient.post<{ invitation: TeamInvitation; token: string }>(

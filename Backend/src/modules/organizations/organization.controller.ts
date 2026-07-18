@@ -9,6 +9,7 @@ import { organizationService } from './organization.service.js';
 import {
   acceptInvitationSchema,
   createInvitationSchema,
+  createTeamAccountSchema,
   createRoleSchema,
   updateMemberPermissionsSchema,
   updateMemberRoleSchema,
@@ -49,8 +50,22 @@ export const createInvitation = asyncHandler(async (req: Request, res: Response)
   const input = createInvitationSchema.parse(req.body);
   const data = await organizationService.createInvitation(actorFrom(req), {
     email: normalizeEmail(input.email),
+    name: input.name,
     role: input.role,
     permissions: input.permissions,
+    assignedJobIds: input.assignedJobIds,
+  });
+  successResponse(res, data, { statusCode: 201, meta: { requestId: getRequestId(req) } });
+});
+
+export const createTeamAccount = asyncHandler(async (req: Request, res: Response) => {
+  const input = createTeamAccountSchema.parse(req.body);
+  const data = await organizationService.createTeamAccount(actorFrom(req), {
+    name: input.name,
+    email: normalizeEmail(input.email),
+    role: input.role,
+    permissions: input.permissions,
+    assignedJobIds: input.assignedJobIds,
   });
   successResponse(res, data, { statusCode: 201, meta: { requestId: getRequestId(req) } });
 });

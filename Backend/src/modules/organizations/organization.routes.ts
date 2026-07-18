@@ -11,6 +11,7 @@ import {
 import {
   acceptInvitation,
   createInvitation,
+  createTeamAccount,
   createRole,
   deleteRole,
   getMember,
@@ -41,6 +42,8 @@ organizationRouter.patch(
 
 export const teamRouter = Router();
 teamRouter.get('/', ...orgAuth, requirePermission('team:view'), listTeam);
+
+teamRouter.post('/members', ...orgAuth, requireMemberManager(), createTeamAccount);
 
 teamRouter.post(
   '/invitations',

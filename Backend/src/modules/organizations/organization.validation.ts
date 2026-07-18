@@ -42,6 +42,15 @@ const inviteableRoles = [
 
 export const createInvitationSchema = z.object({
   email: z.string().email(),
+  name: z.string().trim().max(160).optional(),
+  role: z.enum(inviteableRoles).default('recruiter'),
+  permissions: z.array(permissionKeySchema).optional(),
+  assignedJobIds: z.array(z.string()).optional(),
+});
+
+export const createTeamAccountSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  email: z.string().email(),
   role: z.enum(inviteableRoles).default('recruiter'),
   permissions: z.array(permissionKeySchema).optional(),
   assignedJobIds: z.array(z.string()).optional(),
