@@ -353,7 +353,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
 
   async function getSourcingSessionProfiles(
     sessionId: string,
-    { page = 1, limit = 20 }: GetProfilesOptions = {}
+    { page = 1, limit = 20, pollAttempt }: GetProfilesOptions = {}
   ): Promise<FutureJobsApiResponse<FutureJobsProfilesPage>> {
     maybeFail('GET /wl/sourcing-session/:id/profiles');
     if (!sessionId || typeof sessionId !== 'string') {
@@ -366,11 +366,13 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     sessionPollCounts.set(sessionId, attempt);
 
     const safePage = Math.max(1, Math.floor(Number(page)) || 1);
-    const safeLimit = Math.min(200, Math.max(1, Math.floor(Number(limit)) || 20));
+    const safeLimit = Math.min(300, Math.max(1, Math.floor(Number(limit)) || 20));
+
+    let response: FutureJobsApiResponse<FutureJobsProfilesPage>;
 
     // First 1–2 polls return empty docs while matching is "processing".
     if (attempt <= 2 || mockMode.emptyProfiles) {
-      return {
+      response = {
         status: true,
         statusCode: 200,
         data: {
@@ -380,19 +382,21 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
           limit: safeLimit,
         },
       };
+    } else {
+      const docs = buildFakeProfiles(sessionId, 4);
+      response = {
+        status: true,
+        statusCode: 200,
+        data: {
+          docs,
+          totalDocs: docs.length,
+          page: safePage,
+          limit: safeLimit,
+        },
+      };
     }
 
-    const docs = buildFakeProfiles(sessionId, 4);
-    return {
-      status: true,
-      statusCode: 200,
-      data: {
-        docs,
-        totalDocs: docs.length,
-        page: safePage,
-        limit: safeLimit,
-      },
-    };
+    return response;
   }
 
   async function getSourcingSessionProfilesWhenReady(
@@ -904,14 +908,16 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
           ]
         : [`${q} Option 1`, `${q} Option 2`, `${q} Option 3`];
 
-    const suggestions = samples
+    const list = samples
       .filter((s) => s.toLowerCase().includes(q.toLowerCase()) || q.length < 2)
-      .slice(0, cappedLimit);
+      .slice(0, cappedLimit)
+      .map((s) => ({ label: s, value: s }));
 
     return {
-      status: true,
+      status: 'SUCCESS',
       statusCode: 200,
-      data: { suggestions },
+      message: 'Successfully Accessed!',
+      data: { list },
     };
   }
 

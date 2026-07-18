@@ -296,7 +296,76 @@ export class AuthService {
       throw AppError.unauthorized('Invalid refresh token');
     }
 
+    return this.rotateSession(session, meta);
+  }
+
+  /**
+   * Rotate a refresh session. Concurrent callers that lose the race (or present a
+   * just-rotated parent token) are allowed through a short grace window by
+   * following `replacedBySessionId` and minting a fresh access token for the
+   * already-active child session — without rotating again (cookie already correct).
+   */
+  private async rotateSession(
+    session: import('./session.model.js').UserSessionDocument,
+    meta: SessionMeta,
+    depth = 0
+  ): Promise<{ accessToken: string; refreshToken?: string }> {
+    const REFRESH_REUSE_GRACE_MS = 15_000;
+    const MAX_CHAIN_DEPTH = 5;
+
+    if (depth > MAX_CHAIN_DEPTH) {
+      throw AppError.unauthorized('Refresh token reuse detected. All sessions revoked.');
+    }
+
     if (session.revokedAt) {
+      const revokedMs = session.revokedAt.getTime();
+      const withinGrace =
+        Number.isFinite(revokedMs) && Date.now() - revokedMs <= REFRESH_REUSE_GRACE_MS;
+
+      if (withinGrace && session.replacedBySessionId) {
+        const replacement = await UserSessionModel.findById(session.replacedBySessionId);
+        if (!replacement) {
+          throw AppError.unauthorized('Invalid refresh token');
+        }
+
+        // Child still active → winner already rotated; just re-issue access token.
+        if (!replacement.revokedAt) {
+          if (replacement.expiresAt.getTime() <= Date.now()) {
+            throw AppError.unauthorized('Refresh token expired');
+          }
+          const user = await loadActiveUser(session.userId.toHexString());
+          await UserSessionModel.updateOne(
+            { _id: replacement._id },
+            { $set: { lastUsedAt: new Date() } }
+          );
+
+          const accessToken = signAccessToken({
+            sub: user._id.toHexString(),
+            orgId: user.organizationId.toHexString(),
+            role: user.role,
+            sessionId: replacement._id.toHexString(),
+          });
+
+          await recordAuditEvent({
+            action: 'auth.refresh_reuse_grace',
+            userId: user._id,
+            organizationId: user.organizationId,
+            ipHash: hashIp(meta.ip),
+            userAgent: meta.userAgent,
+            metadata: {
+              parentSessionId: session._id.toHexString(),
+              sessionId: replacement._id.toHexString(),
+            },
+          });
+
+          // Omit refreshToken so the controller keeps the cookie set by the winner.
+          return { accessToken };
+        }
+
+        // Child also revoked (chained race) → keep walking.
+        return this.rotateSession(replacement, meta, depth + 1);
+      }
+
       await UserSessionModel.updateMany(
         { userId: session.userId, revokedAt: null },
         { revokedAt: new Date() }
@@ -314,13 +383,14 @@ export class AuthService {
     }
 
     if (session.expiresAt.getTime() <= Date.now()) {
-      session.revokedAt = new Date();
-      await session.save();
+      await UserSessionModel.updateOne(
+        { _id: session._id },
+        { $set: { revokedAt: new Date() } }
+      );
       throw AppError.unauthorized('Refresh token expired');
     }
 
     const user = await loadActiveUser(session.userId.toHexString());
-
     const newRefreshToken = generateOpaqueToken(48);
     const newRefreshTokenHash = hashToken(newRefreshToken);
     const expiresAt = new Date(Date.now() + parseDurationMs(getEnv().JWT_REFRESH_EXPIRES_IN));
@@ -336,10 +406,27 @@ export class AuthService {
       lastUsedAt: new Date(),
     });
 
-    session.revokedAt = new Date();
-    session.replacedBySessionId = replacement._id;
-    session.lastUsedAt = new Date();
-    await session.save();
+    // Atomic claim — only one concurrent rotator wins this session.
+    const claimed = await UserSessionModel.findOneAndUpdate(
+      { _id: session._id, revokedAt: null },
+      {
+        $set: {
+          revokedAt: new Date(),
+          replacedBySessionId: replacement._id,
+          lastUsedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!claimed) {
+      await UserSessionModel.deleteOne({ _id: replacement._id });
+      const latest = await UserSessionModel.findById(session._id);
+      if (!latest) {
+        throw AppError.unauthorized('Invalid refresh token');
+      }
+      return this.rotateSession(latest, meta, depth + 1);
+    }
 
     const accessToken = signAccessToken({
       sub: user._id.toHexString(),

@@ -149,6 +149,23 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 35%, transparent)
+      transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
   }
   body {
     @apply bg-background text-foreground text-sm antialiased;
@@ -169,9 +186,67 @@
   }
 }
 
+@property --ai-beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes ai-beam-spin {
+  to {
+    --ai-beam-angle: 360deg;
+  }
+}
+
 @layer utilities {
   .text-metric {
     @apply tabular-nums tracking-tight;
+  }
+  /* Hide scrollbar while keeping the element scrollable */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .ai-beam-border {
+    position: relative;
+    border-radius: var(--radius-md);
+  }
+  .ai-beam-border::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: -2px;
+    border-radius: calc(var(--radius-md) + 2px);
+    padding: 2px;
+    background: conic-gradient(
+      from var(--ai-beam-angle),
+      #0866fc,
+      #38bdf8,
+      #1e40af,
+      #60a5fa,
+      #0866fc
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 400ms ease;
+  }
+  .ai-beam-border[data-processing="true"]::before {
+    opacity: 1;
+    animation: ai-beam-spin 2s linear infinite;
+  }
+  /* While the beam runs, hide the textarea's own focus ring/border so they don't stack */
+  .ai-beam-border[data-processing="true"] textarea {
+    border-color: var(--input) !important;
+    box-shadow: none !important;
+    outline: none !important;
   }
   .transition-ui {
     @apply transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-out;

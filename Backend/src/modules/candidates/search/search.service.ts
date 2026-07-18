@@ -308,7 +308,7 @@ async function enqueueBackgroundPoll(session: SourcingSessionDocument, actor: Se
       sourcingSessionId: savedId,
       futureJobsSessionId: fjId,
       page: 1,
-      limit: 200,
+      limit: 300,
       deadlineAt: new Date(Date.now() + BACKGROUND_POLL_DEADLINE_MS).toISOString(),
     },
     maxAttempts: 40,
@@ -409,7 +409,7 @@ export class CandidateSearchService {
     }
   ) {
     const q = String(query.query ?? query.q ?? '').trim();
-    if (q.length < 3) throw autocompleteQueryTooShort();
+    if (q.length < 2) throw autocompleteQueryTooShort();
 
     const filterType = String(query.filterType ?? query.filter_type ?? 'region').trim() || 'region';
     const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 25);
@@ -422,7 +422,9 @@ export class CandidateSearchService {
       suggestions = data;
     } else if (data && typeof data === 'object') {
       const obj = data as Record<string, unknown>;
-      if (Array.isArray(obj.suggestions)) suggestions = obj.suggestions;
+      // Future Jobs returns { list: [{ label, value }, ...] }.
+      if (Array.isArray(obj.list)) suggestions = obj.list;
+      else if (Array.isArray(obj.suggestions)) suggestions = obj.suggestions;
       else if (Array.isArray(obj.results)) suggestions = obj.results;
       else if (Array.isArray(obj.items)) suggestions = obj.items;
     }
@@ -684,7 +686,7 @@ export class CandidateSearchService {
         provider,
         fjId,
         page: input.page,
-        limit: Math.min(input.limit, 200),
+        limit: Math.min(input.limit, 300),
         expectedProfileCount: extractExpectedCount(lastRes),
         profileMatchingStatus: extractMatchingStatus(lastRes),
         originalFilterForm,
@@ -753,43 +755,26 @@ export class CandidateSearchService {
       session.profilesPagination = pagination;
       session.canFetchMore = pagination.hasNextPage || pollResult.canFetchMore;
 
-      // If the HTTP-capped poll returned nothing but FJ expected matches, keep polling in background.
-      const continueInBackground =
-        pollResult.polling ||
-        pollResult.partial ||
-        (upsert.candidates.length === 0 &&
-          (extractExpectedCount(lastRes) > 0 ||
-            ['processing', 'pending', 'in_progress'].includes(
-              String(extractMatchingStatus(lastRes) || '').toLowerCase()
-            )));
-
-      session.polling = continueInBackground;
+      // Always leave the session in `polling` after apply so FE getProgress
+      // (and the worker) can run the full sourcing.poller MAX_POLL_ATTEMPTS
+      // window against Future Jobs. Completing here made the FE's REST polls
+      // skip FJ and only re-read the same stored candidates.
+      session.polling = true;
       session.lastPolledAt = new Date();
-      session.status = continueInBackground
-        ? 'polling'
-        : pollResult.partial
-          ? 'partial'
-          : 'completed';
-      if (!continueInBackground) {
-        session.completedAt = new Date();
-        session.progress = 100;
-      } else {
-        session.progress = Math.min(90, 20 + upsert.candidates.length);
-        session.completedAt = null;
-      }
+      session.status = 'polling';
+      session.progress = Math.min(90, 20 + upsert.candidates.length);
+      session.completedAt = null;
       await session.save();
 
       await commitSearchQuota(actor.organizationId, quotaKey);
 
-      if (continueInBackground) {
-        try {
-          await enqueueBackgroundPoll(session, actor);
-        } catch (enqueueError) {
-          log().warn(
-            { err: enqueueError, sourcingSessionId: session._id.toHexString() },
-            'failed to enqueue background poll after apply'
-          );
-        }
+      try {
+        await enqueueBackgroundPoll(session, actor);
+      } catch (enqueueError) {
+        log().warn(
+          { err: enqueueError, sourcingSessionId: session._id.toHexString() },
+          'failed to enqueue background poll after apply'
+        );
       }
 
       emitCandidateSearchPoll({
@@ -821,7 +806,7 @@ export class CandidateSearchService {
           regionExpandStep,
           durationMs: Date.now() - started,
           usageTransactionId: quotaKey,
-          polling: continueInBackground,
+          polling: true,
         },
         'apply search completed'
       );
@@ -839,8 +824,8 @@ export class CandidateSearchService {
         sessionPayload: lastPayload,
         candidates: upsert.candidates,
         profilesPagination: pagination,
-        polling: Boolean(session.polling),
-        partial: pollResult.partial || continueInBackground,
+        polling: true,
+        partial: true,
         regionExpandFallbackUsed,
       };
     } catch (error) {
@@ -1006,7 +991,7 @@ export class CandidateSearchService {
     const pollOnce = async (sessionId: string) => {
       const res = await provider.getSourcingSessionProfilesWhenReady(sessionId, {
         page,
-        limit: Math.min(limit, 200),
+        limit: Math.min(limit, 300),
         maxWaitMs,
         intervalMs: PROFILES_POLL_INTERVAL_MS,
         expectedProfileCount: expectedProfileCount || null,
@@ -1175,7 +1160,7 @@ export class CandidateSearchService {
 
       const profilesRes = await provider.getSourcingSessionProfilesWhenReady(fjId, {
         page,
-        limit: Math.min(limit, 200),
+        limit: Math.min(limit, 300),
         maxWaitMs: PROFILES_POLL_MAX_WAIT_MS,
         intervalMs: PROFILES_POLL_INTERVAL_MS,
       });

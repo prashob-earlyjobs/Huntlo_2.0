@@ -58,7 +58,7 @@ export function AppSidebar() {
         <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="scrollbar-none min-h-0 flex-1">
         <NavList collapsed={collapsed} />
       </ScrollArea>
 

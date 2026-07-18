@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import {
-  Bookmark,
   Briefcase,
   Check,
   Coins,
   Eraser,
   FileText,
+  LoaderCircle,
   PenLine,
   Search,
   SlidersHorizontal,
@@ -44,7 +44,6 @@ import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
 import {
   annotateCandidateSearch,
   applyCandidateSearch,
-  type CandidateFilterForm,
 } from "@/lib/api/candidate-search";
 import type { JobListItem } from "@/lib/api/contracts";
 import {
@@ -59,61 +58,14 @@ import {
   type SavedSearch,
   type SearchFilterState,
 } from "@/lib/mock-search";
+import {
+  filtersToProviderPayload,
+  providerPayloadToFilters,
+} from "@/lib/search-filter-adapters";
 import { ROUTES, sessionDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-/** Map UI filter state into Future Jobs filter-form keys the backend accepts. */
-function filtersToProviderPayload(filters: SearchFilterState): CandidateFilterForm {
-  const payload: CandidateFilterForm = { ...filters };
-
-  const currentTitle = filters.currentTitle;
-  if (Array.isArray(currentTitle) && currentTitle.length > 0) {
-    payload.currentTitle = currentTitle.join(", ");
-  } else if (typeof currentTitle === "string" && currentTitle.trim()) {
-    payload.currentTitle = currentTitle.trim();
-  }
-
-  const skills = filters.requiredSkills ?? filters.keywordSkills;
-  if (Array.isArray(skills) && skills.length > 0) {
-    payload.keywordSkills = skills.join(", ");
-  } else if (typeof skills === "string" && skills.trim()) {
-    payload.keywordSkills = skills.trim();
-  }
-
-  const city = filters.city ?? filters.location;
-  if (Array.isArray(city) && city.length > 0) {
-    payload.location = city;
-  }
-
-  const experience = filters.totalExperience;
-  if (experience && typeof experience === "object" && !Array.isArray(experience)) {
-    if (experience.min != null) payload.yearsExpMin = String(experience.min);
-    if (experience.max != null) payload.yearsExpMax = String(experience.max);
-  }
-
-  const industry = filters.industry;
-  if (Array.isArray(industry) && industry.length > 0) {
-    payload.industry = industry.join(", ");
-  } else if (typeof industry === "string" && industry.trim()) {
-    payload.industry = industry.trim();
-  }
-
-  if (filters.seniorityLevel && typeof filters.seniorityLevel === "string") {
-    payload.seniorityLevel = filters.seniorityLevel;
-  }
-  if (filters.openToWork === true) payload.openToWork = true;
-
-  return payload;
-}
-
 const NUMBER_FORMAT = new Intl.NumberFormat("en-IN");
-
-const EXCLUSION_FIELD_IDS = [
-  "excludeTitles",
-  "excludeLocations",
-  "excludedEmployers",
-  "excludeKeywords",
-];
 
 function formatFilterValue(value: FilterValue): string {
   if (typeof value === "boolean") return "Yes";
@@ -362,7 +314,6 @@ export function SearchWorkspace() {
   );
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [criteriaApplied, setCriteriaApplied] = useState(false);
-  const [saveSearch, setSaveSearch] = useState(false);
   const [searching, setSearching] = useState(false);
   const [interpreting, setInterpreting] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -457,14 +408,6 @@ export function SearchWorkspace() {
     [activeCount, query]
   );
 
-  const exclusionSummary = useMemo(() => {
-    return EXCLUSION_FIELD_IDS.map((fieldId) => {
-      const value = filters[fieldId];
-      if (!isFieldActive(value)) return null;
-      return `${FILTER_FIELD_INDEX[fieldId].field.label}: ${formatFilterValue(value)}`;
-    }).filter((entry): entry is string => entry !== null);
-  }, [filters]);
-
   const isFresh =
     !query.trim() && activeCount === 0 && criteria === null && !searched;
 
@@ -501,27 +444,34 @@ export function SearchWorkspace() {
     setError(null);
     try {
       const result = await annotateCandidateSearch({ prompt: query.trim() });
-      const filterForm = result.filterForm as SearchFilterState;
+      const filterForm = providerPayloadToFilters(result.filterForm);
       setInterpretedFilters(filterForm);
       setFilters({ ...filters, ...filterForm });
       setCriteriaApplied(true);
       setFilterDrawerOpen(true);
       // Build lightweight criteria rows from filter form for the interpretation panel
       const nextCriteria: InterpretedCriterion[] = [];
-      if (typeof filterForm.currentTitle === "string" && filterForm.currentTitle.trim()) {
+      if (Array.isArray(filterForm.currentTitle) && filterForm.currentTitle.length > 0) {
         nextCriteria.push({
           id: "ic-titles",
           fieldId: "currentTitle",
           label: "Role",
-          value: filterForm.currentTitle.trim(),
+          value: filterForm.currentTitle.join(", "),
         });
       }
-      if (typeof filterForm.keywordSkills === "string" && filterForm.keywordSkills.trim()) {
+      const skillParts = [
+        ...(Array.isArray(filterForm.mandatorySkills) ? filterForm.mandatorySkills : []),
+        ...(Array.isArray(filterForm.coreSkills) ? filterForm.coreSkills : []),
+        ...(Array.isArray(filterForm.secondarySkills)
+          ? filterForm.secondarySkills
+          : []),
+      ];
+      if (skillParts.length > 0) {
         nextCriteria.push({
           id: "ic-skills",
-          fieldId: "keywordSkills",
+          fieldId: "coreSkills",
           label: "Skills",
-          value: filterForm.keywordSkills.trim(),
+          value: skillParts.join(", "),
         });
       }
       if (Array.isArray(filterForm.location) && filterForm.location.length > 0) {
@@ -620,7 +570,7 @@ export function SearchWorkspace() {
       if (!hasCriteria && query.trim()) {
         try {
           const annotated = await annotateCandidateSearch({ prompt: query.trim() });
-          const filterForm = annotated.filterForm as SearchFilterState;
+          const filterForm = providerPayloadToFilters(annotated.filterForm);
           setInterpretedFilters(filterForm);
           nextFilters = { ...filters, ...filterForm };
           setFilters(nextFilters);
@@ -636,7 +586,7 @@ export function SearchWorkspace() {
         filterForm: providerFilters,
         jobId: selectedJobId,
         page: 1,
-        limit: 20,
+        limit: 300,
       });
 
       if ("sessionPending" in result && result.sessionPending) {
@@ -645,6 +595,17 @@ export function SearchWorkspace() {
         );
         if (result.savedSessionId) {
           setSearched(true);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem(
+              `huntlo:search:${result.savedSessionId}`,
+              JSON.stringify({
+                sessionId: result.sessionId,
+                savedSessionId: result.savedSessionId,
+                prompt: query.trim() || EXAMPLE_QUERY,
+                filters: nextFilters,
+              })
+            );
+          }
           router.push(sessionDetailPath(result.savedSessionId));
           return;
         }
@@ -660,6 +621,8 @@ export function SearchWorkspace() {
             JSON.stringify({
               sessionId: result.sessionId,
               savedSessionId: result.savedSessionId,
+              prompt: query.trim() || EXAMPLE_QUERY,
+              filters: nextFilters,
             })
           );
         }
@@ -715,23 +678,28 @@ export function SearchWorkspace() {
             ) : null}
           </div>
 
-          <Textarea
-            id="nl-query"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
-            className="mt-2 min-h-20 resize-none bg-background text-sm"
-          />
+          <div
+            className="ai-beam-border mt-2 rounded-md border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/50"
+            data-processing={interpreting || searching}
+          >
+            <Textarea
+              id="nl-query"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
+              className="min-h-28 resize-none rounded-b-none border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
+              aria-busy={interpreting || searching}
+            />
 
-          <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* Composer toolbar */}
+            <div className="flex flex-wrap items-center gap-1.5 rounded-b-md bg-muted/50 px-2 py-1.5">
               <Select
                 value={selectedJobId}
                 onValueChange={(value) => setSelectedJobId(value)}
               >
                 <SelectTrigger
                   size="sm"
-                  className="max-w-56"
+                  className="max-w-48 border-0 bg-transparent shadow-none hover:bg-muted"
                   aria-label="Select job"
                 >
                   <Briefcase
@@ -751,7 +719,8 @@ export function SearchWorkspace() {
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="ghost"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={useJobDescription}
               >
                 <FileText aria-hidden />
@@ -762,10 +731,17 @@ export function SearchWorkspace() {
               <div className="lg:hidden">
                 <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
                   <SheetTrigger
-                    render={<Button type="button" size="sm" variant="outline" />}
+                    render={
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-foreground"
+                      />
+                    }
                   >
                     <SlidersHorizontal aria-hidden />
-                    Advanced Filters
+                    Filters
                     {activeCount > 0 ? (
                       <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
                         {activeCount}
@@ -794,37 +770,70 @@ export function SearchWorkspace() {
                   </SheetContent>
                 </Sheet>
               </div>
-            </div>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={clearSearch}
-                disabled={!query && !criteria}
-              >
-                <Eraser aria-hidden />
-                Clear Search
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void generateFilters()}
-                disabled={!query.trim() || interpreting}
-              >
-                {interpreting ? "Interpreting…" : "Generate filters"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => void runSearch()}
-                disabled={!canSearch || searching}
-              >
-                <Search aria-hidden />
-                {searching ? "Searching…" : "Search Candidates"}
-              </Button>
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                {query || criteria ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          aria-label="Clear search"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={clearSearch}
+                        />
+                      }
+                    >
+                      <Eraser aria-hidden />
+                    </TooltipTrigger>
+                    <TooltipContent>Clear search</TooltipContent>
+                  </Tooltip>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="relative"
+                  onClick={() => void generateFilters()}
+                  disabled={!query.trim() || interpreting || searching}
+                  aria-busy={interpreting}
+                  aria-label={interpreting ? "Generating filters" : undefined}
+                >
+                  {interpreting ? (
+                    <LoaderCircle
+                      aria-hidden
+                      className="absolute left-1/2 -translate-x-1/2 animate-spin"
+                    />
+                  ) : null}
+                  <span className={interpreting ? "invisible" : undefined}>
+                    Generate filters
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="relative"
+                  onClick={() => void runSearch()}
+                  disabled={!canSearch || searching || interpreting}
+                  aria-busy={searching}
+                  aria-label={searching ? "Searching candidates" : undefined}
+                >
+                  {searching ? (
+                    <>
+                      <Search aria-hidden className="invisible" />
+                      <LoaderCircle
+                        aria-hidden
+                        className="absolute left-1/2 -translate-x-1/2 animate-spin"
+                      />
+                    </>
+                  ) : (
+                    <Search aria-hidden />
+                  )}
+                  <span className={searching ? "invisible" : undefined}>Search</span>
+                </Button>
+              </div>
             </div>
           </div>
           {error ? (
@@ -905,7 +914,7 @@ export function SearchWorkspace() {
                     {activeCount}
                   </span>
                 </h2>
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="hidden items-center gap-1 text-xs text-muted-foreground">
                   <Users aria-hidden className="size-3.5" />
                   Est. reach{" "}
                   <span className="font-medium tabular-nums text-foreground">
@@ -958,144 +967,12 @@ export function SearchWorkspace() {
               )}
             </section>
 
-            {/* Search summary */}
-            <section
-              aria-labelledby="search-preview-heading"
-              className="rounded-lg border border-border bg-card p-4"
-            >
-              <h2
-                id="search-preview-heading"
-                className="text-sm font-semibold text-foreground"
-              >
-                Search summary
-              </h2>
-              <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Query
-                  </dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {query.trim()
-                      ? query.trim()
-                      : activeCount > 0
-                        ? `Structured search with ${activeCount} filter${activeCount === 1 ? "" : "s"}`
-                        : "Describe candidates above or apply filters to build a search."}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Expected results
-                  </dt>
-                  <dd className="mt-0.5 font-medium tabular-nums text-foreground">
-                    {canSearch
-                      ? `${NUMBER_FORMAT.format(reach.low)} – ${NUMBER_FORMAT.format(reach.high)} candidates`
-                      : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Quota cost
-                  </dt>
-                  <dd className="mt-0.5 font-medium tabular-nums text-foreground">
-                    {searchRemaining !== null
-                      ? `1 search · ${NUMBER_FORMAT.format(Math.max(0, searchRemaining - 1))} remaining after search`
-                      : "1 search"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Selected job
-                  </dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {selectedJob ? (
-                      <>
-                        {selectedJob.title}
-                        <span className="text-muted-foreground">
-                          {" "}
-                          · {selectedJob.location}
-                        </span>
-                      </>
-                    ) : (
-                      "No job linked"
-                    )}
-                  </dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Important exclusions
-                  </dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {exclusionSummary.length > 0 ? exclusionSummary.join(" · ") : "None"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Save search
-                  </dt>
-                  <dd className="mt-0.5">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={saveSearch}
-                      onClick={() => setSaveSearch((previous) => !previous)}
-                      className="inline-flex items-center gap-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      <span
-                        className={cn(
-                          "relative h-5 w-9 rounded-full transition-colors",
-                          saveSearch ? "bg-primary" : "bg-muted"
-                        )}
-                      >
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "absolute top-0.5 left-0.5 size-4 rounded-full bg-background shadow transition-transform",
-                            saveSearch && "translate-x-4"
-                          )}
-                        />
-                      </span>
-                      <Bookmark aria-hidden className="size-3.5 text-muted-foreground" />
-                      Save this search for reuse
-                    </button>
-                  </dd>
-                </div>
-              </dl>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-                {searched ? (
-                  <p className="text-sm text-success">
-                    Search complete —{" "}
-                    <Link
-                      href={sessionDetailPath("s1")}
-                      className="font-medium underline underline-offset-4"
-                    >
-                      view results
-                    </Link>
-                    .
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Searches run against the live candidate graph. UI preview uses
-                    mock data only.
-                  </p>
-                )}
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={runSearch}
-                  disabled={!canSearch || searching}
-                >
-                  <Search aria-hidden />
-                  {searching ? "Searching…" : "Search Candidates"}
-                </Button>
-              </div>
-            </section>
           </>
         )}
       </div>
 
       {/* Desktop filter sidebar — fixed height so FilterPanel's overflow-y-auto can scroll */}
-      <aside className="sticky top-20 hidden h-[calc(100svh-6rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
+      <aside className="sticky top-20 hidden max-h-[calc(100svh-6rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
         {filterPanel}
       </aside>
     </div>

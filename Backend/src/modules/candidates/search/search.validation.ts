@@ -34,7 +34,7 @@ export const applySearchSchema = z.object({
   filterForm: z.record(z.string(), z.unknown()).default({}),
   sessionId: z.string().trim().optional().default(''),
   page: z.coerce.number().int().min(1).max(100).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(20),
+  limit: z.coerce.number().int().min(1).max(300).default(20),
   jobId: z.string().trim().optional().nullable(),
 });
 
@@ -58,7 +58,7 @@ export const autocompleteQuerySchema = z.object({
 
 export const sessionProfilesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(100).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(20),
+  limit: z.coerce.number().int().min(1).max(300).default(20),
 });
 
 export const storedCandidatesQuerySchema = z.object({
@@ -71,7 +71,7 @@ export const storedCandidatesQuerySchema = z.object({
     .optional()
     .transform((v) => v === '1' || v === 'true' || v === true || v === 1),
   page: z.coerce.number().int().min(1).max(100).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(20),
+  limit: z.coerce.number().int().min(1).max(300).default(20),
 });
 
 export const allCandidatesQuerySchema = z.object({
@@ -103,7 +103,7 @@ export const claimPublicSearchSchema = z.object({
 
 export const fetchMoreBodySchema = z.object({
   page: z.coerce.number().int().min(1).max(100).optional().default(1),
-  limit: z.coerce.number().int().min(1).max(200).optional().default(20),
+  limit: z.coerce.number().int().min(1).max(300).optional().default(20),
 });
 
 export type AnnotateSearchInput = z.infer<typeof annotateSearchSchema>;

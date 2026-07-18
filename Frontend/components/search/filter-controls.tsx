@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, Plus, X } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { autocompleteCandidateFilter } from "@/lib/api/candidate-search";
 import type { RangeValue } from "@/lib/mock-search";
 import { cn } from "@/lib/utils";
 
@@ -31,21 +32,94 @@ export function MultiSelectField({
   values,
   onChange,
   placeholder = "Search…",
+  autocompleteFilterType,
 }: {
   label: string;
   options: readonly string[];
   values: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
+  autocompleteFilterType?: string;
 }) {
   const [query, setQuery] = useState("");
-  const filtered = useMemo(
-    () =>
-      options.filter((option) =>
-        option.toLowerCase().includes(query.toLowerCase())
-      ),
-    [options, query]
-  );
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [autocompleteError, setAutocompleteError] = useState(false);
+
+  useEffect(() => {
+    const trimmedQuery = query.trim();
+    if (!autocompleteFilterType || trimmedQuery.length < 2) {
+      setSuggestions([]);
+      setLoading(false);
+      setAutocompleteError(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setAutocompleteError(false);
+      try {
+        const result = await autocompleteCandidateFilter({
+          filter_type: autocompleteFilterType,
+          query: trimmedQuery,
+          limit: 10,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        setSuggestions(
+          result.suggestions
+            .map(normalizeAutocompleteSuggestion)
+            .filter((item): item is string => item !== null)
+            .filter(
+              (item, index, all) =>
+                all.findIndex(
+                  (candidate) =>
+                    candidate.toLocaleLowerCase() === item.toLocaleLowerCase()
+                ) === index
+            )
+        );
+      } catch {
+        if (!controller.signal.aborted) {
+          setSuggestions([]);
+          setAutocompleteError(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [autocompleteFilterType, query]);
+
+  const availableOptions = useMemo(() => {
+    // Autocomplete results are already ranked by the provider — show them first
+    // without requiring a local substring match (provider may use fuzzy matching).
+    const source = autocompleteFilterType
+      ? [...suggestions, ...values]
+      : [...suggestions, ...options, ...values];
+    return source.filter(
+      (option, index, all) =>
+        all.findIndex(
+          (candidate) =>
+            candidate.toLocaleLowerCase() === option.toLocaleLowerCase()
+        ) === index
+    );
+  }, [autocompleteFilterType, options, suggestions, values]);
+
+  const filtered = useMemo(() => {
+    if (autocompleteFilterType && suggestions.length > 0) {
+      return availableOptions;
+    }
+    const needle = query.trim().toLowerCase();
+    if (!needle) return availableOptions;
+    return availableOptions.filter((option) =>
+      option.toLowerCase().includes(needle)
+    );
+  }, [autocompleteFilterType, availableOptions, query, suggestions.length]);
 
   function toggle(option: string) {
     onChange(
@@ -60,7 +134,14 @@ export function MultiSelectField({
       <Label className="text-xs font-medium text-muted-foreground">
         {label}
       </Label>
-      <Popover onOpenChange={(open) => !open && setQuery("")}>
+      <Popover
+        onOpenChange={(open) => {
+          if (!open) {
+            setQuery("");
+            setSuggestions([]);
+          }
+        }}
+      >
         <PopoverTrigger
           render={
             <Button
@@ -90,16 +171,28 @@ export function MultiSelectField({
             />
           </div>
           <div className="max-h-56 overflow-y-auto p-1" role="listbox" aria-multiselectable>
-            {filtered.length === 0 ? (
+            {autocompleteFilterType && query.trim().length < 2 ? (
+              <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                Type at least 2 characters
+              </p>
+            ) : loading ? (
+              <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                Loading suggestions…
+              </p>
+            ) : autocompleteError ? (
+              <p className="px-2 py-4 text-center text-xs text-destructive">
+                Could not load suggestions
+              </p>
+            ) : filtered.length === 0 ? (
               <p className="px-2 py-4 text-center text-xs text-muted-foreground">
                 No options match “{query}”
               </p>
             ) : (
-              filtered.map((option) => {
+              filtered.map((option, index) => {
                 const isActive = values.includes(option);
                 return (
                   <button
-                    key={option}
+                    key={`${option}-${index}`}
                     type="button"
                     role="option"
                     aria-selected={isActive}
@@ -152,6 +245,22 @@ export function MultiSelectField({
       ) : null}
     </div>
   );
+}
+
+function normalizeAutocompleteSuggestion(suggestion: unknown): string | null {
+  if (typeof suggestion === "string") {
+    const value = suggestion.trim();
+    return value || null;
+  }
+  if (!suggestion || typeof suggestion !== "object") return null;
+
+  const record = suggestion as Record<string, unknown>;
+  for (const key of ["label", "name", "value", "title", "text"]) {
+    if (typeof record[key] === "string" && record[key].trim()) {
+      return record[key].trim();
+    }
+  }
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -402,15 +511,24 @@ export function SelectFilterField({
   options,
   value,
   onChange,
+  className,
+  hideLabel = false,
 }: {
   label: string;
   options: readonly string[];
   value: string;
   onChange: (value: string) => void;
+  className?: string;
+  hideLabel?: boolean;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-muted-foreground">
+    <div className={cn("space-y-1.5", className)}>
+      <Label
+        className={cn(
+          "text-xs font-medium text-muted-foreground",
+          hideLabel && "sr-only"
+        )}
+      >
         {label}
       </Label>
       <Select value={value || options[0]} onValueChange={(next) => next && onChange(next)}>

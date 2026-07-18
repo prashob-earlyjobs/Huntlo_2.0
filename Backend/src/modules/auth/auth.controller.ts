@@ -68,7 +68,9 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
     userAgent: req.headers['user-agent'],
   });
 
-  setRefreshCookie(res, result.refreshToken);
+  if (result.refreshToken) {
+    setRefreshCookie(res, result.refreshToken);
+  }
   successResponse(res, { accessToken: result.accessToken }, { meta: { requestId: getRequestId(req) } });
 });
 

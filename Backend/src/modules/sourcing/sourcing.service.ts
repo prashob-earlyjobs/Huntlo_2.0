@@ -757,20 +757,31 @@ export class SourcingService {
   async getProgress(actor: ActorContext, sessionId: string) {
     let session = await loadSessionForOrg(sessionId, actor.organizationId);
 
-    // REST fallback: advance one poll tick when the worker is not running.
+    // REST fallback: advance one poll tick while the session is still actively
+    // matching/polling. Once completed, FE reads stored candidates only.
     if (
       session.externalSessionId &&
       (session.status === 'queued' ||
         session.status === 'running' ||
-        session.status === 'polling')
+        session.status === 'polling' ||
+        session.status === 'creating' ||
+        session.status === 'pending')
     ) {
       const { pollSourcingSessionById } = await import('./sourcing.poller.js');
       try {
         await pollSourcingSessionById(sessionId);
-      } catch {
-        // Progress read should still succeed even if provider poll fails.
+      } catch (error) {
+        console.log(
+          `[sourcing-poll] getProgress poll failed session=${sessionId} error=${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
       }
       session = await loadSessionForOrg(sessionId, actor.organizationId);
+    } else {
+      console.log(
+        `[sourcing-poll] getProgress skipped FJ poll session=${sessionId} status=${session.status} stored=${session.totalResults ?? session.totalDocs ?? 0}`
+      );
     }
 
     return {
