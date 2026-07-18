@@ -44,7 +44,16 @@ export type ParsedSheet = {
 };
 
 const TARGET_FIELD_ALIASES: Record<string, string[]> = {
-  name: ['name', 'full name', 'fullname', 'candidate name', 'candidate'],
+  name: [
+    'name',
+    'full name',
+    'fullname',
+    'candidate name',
+    'candidate',
+    'username',
+    'user name',
+    'user',
+  ],
   email: ['email', 'e-mail', 'email address', 'mail'],
   phone: ['phone', 'mobile', 'phone number', 'mobile number', 'contact', 'cell'],
   linkedinUrl: ['linkedin', 'linkedin url', 'linkedin profile', 'linkedinurl', 'profile url'],

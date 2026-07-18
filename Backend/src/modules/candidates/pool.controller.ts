@@ -12,6 +12,7 @@ import {
   bulkAssignSchema,
   bulkExportSchema,
   bulkRemoveFromListSchema,
+  bulkSaveSourcedToListSchema,
   bulkStatusSchema,
   createNoteSchema,
   createPoolCandidateSchema,
@@ -86,6 +87,12 @@ export const bulkAssign = asyncHandler(async (req: Request, res: Response) => {
 export const bulkAddToList = asyncHandler(async (req: Request, res: Response) => {
   const input = bulkAddToListSchema.parse(req.body);
   const result = await poolService.bulkAddToList(actorFrom(req), input);
+  successResponse(res, result, { meta: { requestId: getRequestId(req) } });
+});
+
+export const bulkSaveSourcedToList = asyncHandler(async (req: Request, res: Response) => {
+  const input = bulkSaveSourcedToListSchema.parse(req.body);
+  const result = await poolService.bulkSaveSourcedToList(actorFrom(req), input);
   successResponse(res, result, { meta: { requestId: getRequestId(req) } });
 });
 

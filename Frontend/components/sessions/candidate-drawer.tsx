@@ -389,18 +389,10 @@ export function CandidateDrawer({
             size="sm"
             variant={saved ? "secondary" : "outline"}
             onClick={onToggleSave}
+            aria-pressed={saved}
           >
-            {saved ? (
-              <>
-                <BookmarkCheck aria-hidden />
-                Saved
-              </>
-            ) : (
-              <>
-                <Bookmark aria-hidden />
-                Save
-              </>
-            )}
+            {saved ? <BookmarkCheck aria-hidden /> : <Bookmark aria-hidden />}
+            Add to list
           </Button>
 
           <Popover>

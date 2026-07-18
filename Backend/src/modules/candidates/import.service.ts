@@ -23,7 +23,7 @@ import {
   suggestColumnMapping,
 } from './import.parser.js';
 import { listService } from './list.service.js';
-import type { ImportCommitInput } from './pool.validation.js';
+import type { ImportCommitInput, ImportRevalidateInput } from './pool.validation.js';
 import { SavedCandidateModel } from './saved-candidate.model.js';
 import type { ActorContext } from './list.service.js';
 
@@ -406,6 +406,77 @@ export class ImportService {
       jobId: job._id.toHexString(),
       suggestedColumnMapping: suggestedMapping,
       sampleRows: previewRows,
+    };
+  }
+
+  async revalidate(
+    actor: ActorContext,
+    jobId: string,
+    input: ImportRevalidateInput
+  ) {
+    if (!isValidObjectId(jobId)) {
+      throw AppError.notFound('Import job not found');
+    }
+    const job = await CandidateImportJobModel.findById(jobId);
+    if (!job) {
+      throw AppError.notFound('Import job not found');
+    }
+    assertSameOrganization(job.organizationId, actor.organizationId);
+
+    if (!job.storagePath || !fs.existsSync(job.storagePath)) {
+      throw AppError.badRequest('Import file is no longer available. Upload again.');
+    }
+
+    const mapping: Record<string, string> = {};
+    for (const [target, source] of Object.entries(input.columnMapping ?? {})) {
+      if (source && source !== '__skip__') {
+        mapping[target] = source;
+      }
+    }
+    if (!mapping.name) {
+      throw AppError.badRequest('Full name mapping is required');
+    }
+
+    let parsed;
+    try {
+      parsed = await parseSpreadsheetFile(job.storagePath);
+    } catch (error) {
+      throw AppError.badRequest(
+        error instanceof Error ? error.message : 'Failed to parse spreadsheet'
+      );
+    }
+
+    const classification = await classifyPreviewRows(
+      actor.organizationId,
+      parsed.rows,
+      mapping
+    );
+
+    job.columnMapping = mapping;
+    job.headers = parsed.headers;
+    job.previewRows = parsed.rows.slice(0, IMPORT_PREVIEW_ROW_CAP);
+    job.totals = {
+      ...emptyTotals(),
+      rows: parsed.rows.length,
+      valid: classification.importable,
+      invalid: classification.invalid,
+      duplicatesInFile: classification.duplicatesInFile,
+      duplicatesExisting: classification.duplicatesExisting,
+    };
+    await job.save();
+
+    return {
+      ...toPublicImportJob(job),
+      jobId: job._id.toHexString(),
+      suggestedColumnMapping: mapping,
+      sampleRows: job.previewRows ?? [],
+      totals: {
+        rows: parsed.rows.length,
+        valid: classification.importable,
+        invalid: classification.invalid,
+        duplicatesInFile: classification.duplicatesInFile,
+        duplicatesExisting: classification.duplicatesExisting,
+      },
     };
   }
 

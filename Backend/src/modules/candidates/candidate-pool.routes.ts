@@ -12,6 +12,7 @@ import {
   bulkAssign,
   bulkExport,
   bulkRemoveFromList,
+  bulkSaveSourcedToList,
   bulkStatus,
   createNote,
   createPoolCandidate,
@@ -56,6 +57,12 @@ candidatePoolRouter.post(
   ...orgAuth,
   requirePermission('candidates:edit'),
   bulkAddToList
+);
+candidatePoolRouter.post(
+  '/bulk/save-sourced-to-list',
+  ...orgAuth,
+  requirePermission('candidates:create', 'candidates:edit'),
+  bulkSaveSourcedToList
 );
 candidatePoolRouter.post(
   '/bulk/remove-from-list',

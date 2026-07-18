@@ -31,6 +31,13 @@ export type PoolListParams = ApiQueryParams & {
   sort?: string;
 };
 
+export type SavedListQuery = ApiQueryParams & {
+  search?: string;
+  page?: number;
+  limit?: number;
+  archived?: boolean | string;
+};
+
 export type PoolPagination = {
   page: number;
   limit: number;
@@ -327,6 +334,10 @@ export interface CandidatePoolApi {
   bulkStatus(candidateIds: string[], status: string): Promise<{ updated: number }>;
   bulkAssign(candidateIds: string[], assignedUserId: string | null): Promise<{ updated: number }>;
   bulkAddToList(candidateIds: string[], listId: string): Promise<{ updated: number }>;
+  bulkSaveSourcedToList(
+    sourcedCandidateIds: string[],
+    listId: string
+  ): Promise<{ requested: number; saved: number; notFound: number; listId: string }>;
   bulkRemoveFromList(candidateIds: string[], listId: string): Promise<{ updated: number }>;
   bulkArchive(candidateIds: string[]): Promise<{ updated: number }>;
   bulkExport(
@@ -335,7 +346,7 @@ export interface CandidatePoolApi {
   ): Promise<{ csv: string } | { items: unknown[] }>;
   listNotes(candidateId: string): Promise<CandidateNote[]>;
   addNote(candidateId: string, body: string): Promise<CandidateNote>;
-  listLists(): Promise<SavedList[]>;
+  listLists(params?: SavedListQuery, signal?: AbortSignal): Promise<SavedList[]>;
   createList(input: {
     name: string;
     description?: string;
@@ -347,6 +358,10 @@ export interface CandidatePoolApi {
   deleteList(id: string): Promise<{ id: string; deleted: boolean }>;
   archiveList(id: string): Promise<SavedList>;
   importPreview(file: File): Promise<ImportPreviewResult>;
+  importRevalidate(
+    jobId: string,
+    columnMapping: Record<string, string>
+  ): Promise<ImportPreviewResult>;
   importCommit(input: {
     jobId?: string;
     file?: File;
@@ -484,6 +499,15 @@ const mockApi: CandidatePoolApi = {
     await simulateMockLatency();
     return { updated: 1 };
   },
+  async bulkSaveSourcedToList(sourcedCandidateIds, listId) {
+    await simulateMockLatency();
+    return {
+      requested: sourcedCandidateIds.length,
+      saved: sourcedCandidateIds.length,
+      notFound: 0,
+      listId,
+    };
+  },
   async bulkRemoveFromList() {
     await simulateMockLatency();
     return { updated: 1 };
@@ -515,9 +539,12 @@ const mockApi: CandidatePoolApi = {
       time: "Just now",
     };
   },
-  async listLists() {
+  async listLists(params) {
     await simulateMockLatency();
-    return SAVED_LISTS;
+    const search = String(params?.search ?? "").trim().toLowerCase();
+    return search
+      ? SAVED_LISTS.filter((list) => list.name.toLowerCase().includes(search))
+      : SAVED_LISTS;
   },
   async createList(input) {
     await simulateMockLatency();
@@ -565,6 +592,31 @@ const mockApi: CandidatePoolApi = {
         phone: "Phone",
         linkedinUrl: "LinkedIn",
       },
+      sampleRows: IMPORT_PREVIEW_ROWS.map((row) => ({
+        "Full Name": row.cells[0] ?? "",
+        Email: row.cells[1] ?? "",
+        Phone: row.cells[2] ?? "",
+        LinkedIn: row.cells[3] ?? "",
+      })),
+      totals: {
+        rows: IMPORT_SUMMARY.total,
+        valid: IMPORT_SUMMARY.valid,
+        invalid: IMPORT_SUMMARY.invalid,
+        duplicatesInFile: IMPORT_SUMMARY.duplicates,
+        duplicatesExisting: 0,
+      },
+    };
+  },
+  async importRevalidate(jobId, columnMapping) {
+    await simulateMockLatency();
+    const { IMPORT_COLUMNS, IMPORT_PREVIEW_ROWS, IMPORT_SUMMARY } = await import(
+      "@/lib/mock-candidates"
+    );
+    return {
+      jobId,
+      filename: "import.csv",
+      headers: [...IMPORT_COLUMNS],
+      suggestedColumnMapping: columnMapping,
       sampleRows: IMPORT_PREVIEW_ROWS.map((row) => ({
         "Full Name": row.cells[0] ?? "",
         Email: row.cells[1] ?? "",
@@ -691,6 +743,18 @@ const liveApi: CandidatePoolApi = {
     );
     return result.data;
   },
+  async bulkSaveSourcedToList(sourcedCandidateIds, listId) {
+    const result = await apiClient.post<{
+      requested: number;
+      saved: number;
+      notFound: number;
+      listId: string;
+    }>("/candidate-pool/bulk/save-sourced-to-list", {
+      sourcedCandidateIds,
+      listId,
+    });
+    return result.data;
+  },
   async bulkRemoveFromList(candidateIds, listId) {
     const result = await apiClient.post<{ updated: number }>(
       "/candidate-pool/bulk/remove-from-list",
@@ -742,8 +806,17 @@ const liveApi: CandidatePoolApi = {
       time: "Just now",
     };
   },
-  async listLists() {
-    const result = await apiClient.get<{ items: ApiSavedList[] }>("/candidate-lists");
+  async listLists(params, signal) {
+    const query = buildQueryString({
+      search: params?.search,
+      page: params?.page,
+      limit: params?.limit,
+      archived: params?.archived,
+    });
+    const result = await apiClient.get<{ items: ApiSavedList[] }>(
+      `/candidate-lists${query}`,
+      { signal }
+    );
     return (result.data.items ?? []).map(mapApiListToUi);
   },
   async createList(input) {
@@ -792,6 +865,26 @@ const liveApi: CandidatePoolApi = {
       headers: data.headers ?? [],
       suggestedColumnMapping:
         data.suggestedColumnMapping ?? data.columnMapping ?? {},
+      sampleRows: data.sampleRows ?? data.previewRows ?? [],
+      totals: data.totals,
+    };
+  },
+  async importRevalidate(jobId, columnMapping) {
+    const result = await apiClient.post<
+      ImportPreviewResult & {
+        id?: string;
+        originalFilename?: string;
+        previewRows?: Record<string, string>[];
+        columnMapping?: Record<string, string>;
+      }
+    >(`/candidate-imports/${jobId}/revalidate`, { columnMapping });
+    const data = result.data;
+    return {
+      jobId: data.jobId || data.id || jobId,
+      filename: data.originalFilename || data.filename,
+      headers: data.headers ?? [],
+      suggestedColumnMapping:
+        data.suggestedColumnMapping ?? data.columnMapping ?? columnMapping,
       sampleRows: data.sampleRows ?? data.previewRows ?? [],
       totals: data.totals,
     };

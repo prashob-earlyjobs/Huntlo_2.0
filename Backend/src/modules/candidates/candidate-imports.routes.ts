@@ -12,6 +12,7 @@ import {
   getImportErrors,
   getImportJob,
   previewImport,
+  revalidateImport,
 } from './import.controller.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
@@ -33,6 +34,13 @@ candidateImportsRouter.post(
   requirePermission('candidates:create', 'candidates:edit'),
   upload.single('file'),
   commitImport
+);
+
+candidateImportsRouter.post(
+  '/:id/revalidate',
+  ...orgAuth,
+  requirePermission('candidates:create', 'candidates:edit'),
+  revalidateImport
 );
 
 candidateImportsRouter.get(
