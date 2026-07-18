@@ -29,6 +29,8 @@ export interface VoiceSummary {
   duration: string;
   outcome: string;
   highlights: string[];
+  /** Full call transcript when available from the voice provider. */
+  transcript?: string;
 }
 
 export interface ConversationEvent {

@@ -84,6 +84,7 @@ function previewBodyForStep(step: {
   subject?: string | null;
   templateId?: string | null;
 }): string {
+  if (step.type === 'ai_voice') return 'AI voice call started';
   if (step.templateId) {
     const catalogue = getApprovedTemplate(step.templateId);
     if (catalogue?.body) {
@@ -405,9 +406,12 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
         campaignDeliveryMetrics.recordDelivered();
 
         const sentSubject = delivery.renderedSubject ?? step.subject ?? null;
-        let sentBody = String(
-          delivery.renderedBody || step.body || step.note || `[${step.type}]`
-        );
+        let sentBody =
+          step.type === 'ai_voice'
+            ? String(delivery.renderedBody || 'AI voice call started')
+            : String(
+                delivery.renderedBody || step.body || step.note || `[${step.type}]`
+              );
         // Last-resort personalization for WhatsApp cold templates if delivery forgot renderedBody.
         if (/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(sentBody) && step.templateId) {
           sentBody = renderWhatsAppTemplatePreview(String(step.templateId), {
@@ -542,6 +546,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       leased.result = {
         stepId: step.id,
         type: step.type,
+        channel: delivery.channel || channelForStep(step.type) || null,
         delivery: delivery.outcome,
         reason: delivery.outcome === 'skipped' ? delivery.reason : undefined,
       };

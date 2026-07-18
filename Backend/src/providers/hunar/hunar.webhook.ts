@@ -79,6 +79,17 @@ export function extractTranscript(body: Record<string, unknown>): string | null 
   if (typeof body.call_transcript === 'string' && body.call_transcript.trim()) {
     return body.call_transcript.trim();
   }
+  const result = asRecord(body.result);
+  if (typeof result.transcript === 'string' && result.transcript.trim()) {
+    return result.transcript.trim();
+  }
+  if (typeof result.call_transcript === 'string' && result.call_transcript.trim()) {
+    return result.call_transcript.trim();
+  }
+  const nested = asRecord(body.call_summary || body.summary_payload || body.data);
+  if (typeof nested.transcript === 'string' && nested.transcript.trim()) {
+    return nested.transcript.trim();
+  }
   return null;
 }
 

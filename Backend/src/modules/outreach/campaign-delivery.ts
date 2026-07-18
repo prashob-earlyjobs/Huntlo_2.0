@@ -891,7 +891,8 @@ export async function executeCampaignMessageStep(input: {
       channel: 'ai_voice',
       providerMessageId: sent.messageId,
       provider: sent.provider,
-      renderedBody: sent.script,
+      // Never store the agent prompt in the conversation thread — transcript arrives via webhook.
+      renderedBody: 'AI voice call started',
     };
   } catch (error) {
     logger.warn(
