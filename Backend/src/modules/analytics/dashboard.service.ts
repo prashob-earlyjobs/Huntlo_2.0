@@ -262,7 +262,8 @@ export class DashboardService {
       aggregateCoreMetrics(filters),
       aggregateChannelPerformance(filters),
     ]);
-    const contacted = Math.max(current.delivered, current.sent, 1);
+    const contacted = Math.max(current.delivered, current.sent, 0);
+    const sendAttempts = current.sent + (current.failedSends || 0);
     return {
       summary: [
         {
@@ -278,17 +279,21 @@ export class DashboardService {
         {
           id: 'delivery',
           label: 'Delivery rate',
-          value: formatPercent(rate(current.delivered, Math.max(current.sent, 1))),
+          value: formatPercent(
+            rate(current.sent, Math.max(sendAttempts, 1))
+          ),
         },
         {
           id: 'reply',
           label: 'Reply rate',
-          value: formatPercent(rate(current.replies, contacted)),
+          value: formatPercent(rate(current.replies, Math.max(contacted, 1))),
         },
         {
           id: 'positive',
           label: 'Positive reply rate',
-          value: formatPercent(rate(current.positiveReplies, Math.max(current.replies, 1))),
+          value: formatPercent(
+            rate(current.positiveReplies, Math.max(current.replies, 1))
+          ),
         },
         {
           id: 'qualified',

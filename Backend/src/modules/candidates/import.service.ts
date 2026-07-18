@@ -557,6 +557,18 @@ export class ImportService {
         const rowNumber = i + 2; // 1-indexed + header
         const row = parsed.rows[i]!;
         const mapped = mapRowToFields(row, mapping);
+        const mappedHeaders = new Set(Object.values(mapping));
+        const customFields: Record<string, string> = {};
+        for (const [header, rawValue] of Object.entries(row).slice(0, 100)) {
+          if (
+            mappedHeaders.has(header) ||
+            ['__proto__', 'constructor', 'prototype'].includes(header)
+          ) {
+            continue;
+          }
+          const value = displayValue(rawValue);
+          if (value) customFields[header] = value;
+        }
 
         const name = displayValue(mapped.name ?? '');
         const emailRaw = mapped.email ?? '';
@@ -731,6 +743,7 @@ export class ImportService {
             experienceYears,
             skills,
             tags,
+            customFields,
             status: 'new',
             sourceType: 'import',
             sourceId: job._id.toHexString(),

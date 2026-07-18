@@ -130,13 +130,29 @@ function messageToEvent(
     queued: 'Sent',
   };
 
+  let text = resolveDisplayBody(msg.bodyText, mergeContext, templateId);
+  // Legacy outbound voice rows stored the full agent prompt — never show that in the inbox.
+  if (
+    msg.channel === 'ai_voice' &&
+    msg.messageType !== 'voice_summary' &&
+    isAgentPromptDump(text)
+  ) {
+    text = 'AI voice call started';
+  }
+
+  const voiceSummary =
+    msg.messageType === 'voice_summary'
+      ? parseVoiceSummaryMeta(msg.bodyHtml, text)
+      : undefined;
+
   return {
     id: String(msg._id),
     channel: CHANNEL_DISPLAY[msg.channel] || 'System',
     author,
-    authorName,
+    authorName:
+      msg.messageType === 'voice_summary' ? 'Huntlo Voice AI' : authorName,
     subject: msg.subject || undefined,
-    text: resolveDisplayBody(msg.bodyText, mergeContext, templateId),
+    text,
     time: relativeTime(msg.receivedAt || msg.sentAt || msg.createdAt),
     delivery: deliveryMap[msg.deliveryStatus] || undefined,
     error: msg.error?.message || undefined,
@@ -144,12 +160,61 @@ function messageToEvent(
       name: a.name,
       size: a.size || '',
     })),
+    voiceSummary,
     sentAt: (msg.sentAt || msg.receivedAt || msg.createdAt).toISOString(),
     direction: msg.direction,
     messageType: msg.messageType,
     provider: msg.provider,
     deliveryStatus: msg.deliveryStatus,
     aiGenerated: msg.aiGenerated,
+  };
+}
+
+function isAgentPromptDump(text: string): boolean {
+  const raw = String(text || '');
+  if (raw.length < 400) return false;
+  return /Recruitment Screening Agent Prompt|#\s*Roshni|Call objective|jd_role_screening/i.test(
+    raw
+  );
+}
+
+function parseVoiceSummaryMeta(
+  bodyHtml: string | null | undefined,
+  bodyText: string
+): {
+  duration: string;
+  outcome: string;
+  highlights: string[];
+  transcript?: string;
+} {
+  let duration = '—';
+  let outcome = 'AI voice call';
+  let highlights: string[] = [];
+  try {
+    const meta = bodyHtml ? (JSON.parse(bodyHtml) as Record<string, unknown>) : null;
+    if (meta) {
+      if (typeof meta.duration === 'string' && meta.duration.trim()) {
+        duration = meta.duration.trim();
+      }
+      if (typeof meta.outcome === 'string' && meta.outcome.trim()) {
+        outcome = meta.outcome.trim();
+      }
+      if (Array.isArray(meta.highlights)) {
+        highlights = meta.highlights
+          .map((h) => (typeof h === 'string' ? h.trim() : ''))
+          .filter(Boolean)
+          .slice(0, 8);
+      }
+    }
+  } catch {
+    // bodyHtml may be plain text in older rows
+  }
+  const transcript = String(bodyText || '').trim();
+  return {
+    duration,
+    outcome,
+    highlights,
+    ...(transcript ? { transcript } : {}),
   };
 }
 

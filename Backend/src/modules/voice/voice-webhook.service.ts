@@ -18,7 +18,12 @@ import {
 } from '../../providers/hunar/hunar.webhook.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { quotaService } from '../../shared/usage/index.js';
-import { emitOutreachCampaignUpdated } from '../../realtime/events.js';
+import {
+  emitConversationMessageCreated,
+  emitOutreachCampaignUpdated,
+} from '../../realtime/events.js';
+import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
+import { conversationsService } from '../conversations/conversations.service.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { refreshCampaignStats } from '../outreach/campaigns.service.js';
@@ -173,6 +178,7 @@ function applyParsedToCall(row: VoiceCallDocument, kind: HunarWebhookKind, parse
     if (!row.summaryText && row.callResult.summary) {
       row.summaryText = row.callResult.summary;
     }
+    if (parsed.transcript) row.transcript = parsed.transcript;
   }
 
   const durationSeconds =
@@ -220,6 +226,136 @@ async function commitVoiceQuota(row: VoiceCallDocument) {
   } catch {
     // Already committed or missing reservation — non-fatal.
   }
+}
+
+function formatCallDuration(row: VoiceCallDocument): string {
+  const seconds = row.durationSeconds;
+  if (typeof seconds === 'number' && seconds > 0) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}m ${String(s).padStart(2, '0')}s`;
+  }
+  if (row.durationMinutes) return `${row.durationMinutes}m`;
+  return '—';
+}
+
+function voiceOutcomeLine(row: VoiceCallDocument): string {
+  const interest = asString(row.callResult?.interestLevel);
+  const outcome = asString(row.callResult?.finalOutcome || row.callResult?.candidateStatus);
+  const summary = asString(row.summaryText || row.callResult?.summary);
+  if (interest && outcome) return `${interest} — ${outcome}`;
+  if (outcome) return outcome;
+  if (interest) return interest;
+  if (summary) return summary.slice(0, 160);
+  return row.status ? `Call ${row.status}` : 'AI voice call';
+}
+
+function voiceHighlights(row: VoiceCallDocument): string[] {
+  const highlights: string[] = [];
+  const cr = row.callResult;
+  if (!cr) return highlights;
+  if (cr.noticePeriod) highlights.push(`Notice period: ${cr.noticePeriod}`);
+  if (cr.ctc) highlights.push(`CTC: ${cr.ctc}`);
+  if (cr.location) highlights.push(`Location: ${cr.location}`);
+  if (cr.skills) highlights.push(`Skills: ${cr.skills}`);
+  if (cr.education) highlights.push(`Education: ${cr.education}`);
+  if (cr.callbackRequested && cr.callbackTime) {
+    highlights.push(`Callback requested: ${cr.callbackTime}`);
+  }
+  for (const q of cr.candidateQuestions || []) {
+    if (highlights.length >= 6) break;
+    highlights.push(`Asked: ${q}`);
+  }
+  for (const o of cr.objectionsOrConcerns || []) {
+    if (highlights.length >= 6) break;
+    highlights.push(`Concern: ${o}`);
+  }
+  return highlights.slice(0, 6);
+}
+
+/** Persist call summary + transcript onto the enrollment conversation thread. */
+async function syncConversationVoiceTranscript(row: VoiceCallDocument) {
+  if (!row.campaignId || !row.enrollmentId) return;
+  const transcript = asString(row.transcript);
+  const summary = asString(row.summaryText || row.callResult?.summary);
+  if (!transcript && !summary && !isVoiceCallTerminal(row)) return;
+
+  const enrollment = await OutreachEnrollmentModel.findById(row.enrollmentId)
+    .select('candidateId campaignId organizationId')
+    .lean();
+  if (!enrollment?.candidateId) return;
+
+  const campaign = await OutreachCampaignModel.findById(row.campaignId)
+    .select('jobId')
+    .lean();
+
+  const thread = await conversationsService.ensureThreadForEnrollment({
+    organizationId: String(row.organizationId),
+    candidateId: String(enrollment.candidateId),
+    campaignId: String(row.campaignId),
+    enrollmentId: String(row.enrollmentId),
+    jobId: campaign?.jobId ? String(campaign.jobId) : null,
+    channel: 'ai_voice',
+  });
+
+  const providerMessageId = `voice-summary:${row.callId}`;
+  const meta = {
+    duration: formatCallDuration(row),
+    outcome: voiceOutcomeLine(row),
+    highlights: voiceHighlights(row),
+    recordingUrl: row.recordingUrl || null,
+    callId: row.callId,
+    status: row.status,
+  };
+  const bodyText = (transcript || summary || `AI voice call ${row.status}`).slice(0, 50000);
+
+  const msg = await ConversationMessageModel.findOneAndUpdate(
+    {
+      organizationId: thread.organizationId,
+      provider: 'hunar',
+      providerMessageId,
+    },
+    {
+      $set: {
+        organizationId: thread.organizationId,
+        threadId: thread._id,
+        provider: 'hunar',
+        channel: 'ai_voice',
+        direction: 'outbound',
+        sender: 'Huntlo Voice AI',
+        recipient: row.toNumber || null,
+        subject: 'AI voice call',
+        bodyText,
+        bodyHtml: JSON.stringify(meta),
+        providerMessageId,
+        providerThreadId: row.callId,
+        deliveryStatus: 'delivered',
+        messageType: 'voice_summary',
+        aiGenerated: true,
+        sentAt: row.endedAt || row.updatedAt || new Date(),
+        receivedAt: row.endedAt || new Date(),
+        error: null,
+      },
+    },
+    { upsert: true, new: true }
+  );
+
+  thread.lastMessageAt = msg.sentAt || new Date();
+  thread.lastMessagePreview = (summary || transcript || 'AI voice call').slice(0, 240);
+  if (!thread.channels.includes('ai_voice')) {
+    thread.channels = [...thread.channels, 'ai_voice'];
+  }
+  await thread.save();
+
+  emitConversationMessageCreated({
+    organizationId: String(thread.organizationId),
+    threadId: String(thread._id),
+    messageId: String(msg._id),
+    campaignId: String(row.campaignId),
+    candidateId: String(enrollment.candidateId),
+    direction: 'outbound',
+    channel: 'ai_voice',
+  });
 }
 
 async function syncOutreachEnrollment(row: VoiceCallDocument, parsed: ParsedHunarWebhook) {
@@ -432,6 +568,12 @@ export async function processCampaignVoiceWebhook(input: {
   }
 
   await syncOutreachEnrollment(row, parsed);
+  await syncConversationVoiceTranscript(row).catch((err) => {
+    log().warn(
+      { err, callId: row.callId, campaignId: input.campaignId },
+      'Failed to sync voice transcript to conversation'
+    );
+  });
   await maybeCompleteOutreachCampaign(String(campaign._id));
   await refreshCampaignStats(String(campaign._id)).catch(() => undefined);
 

@@ -128,17 +128,29 @@ function EventBubble({ event }: { event: ConversationEvent }) {
         <p className="mt-1 text-xs font-medium text-success">
           {event.voiceSummary.outcome}
         </p>
-        <ul className="mt-2 space-y-1">
-          {event.voiceSummary.highlights.map((highlight) => (
-            <li
-              key={highlight}
-              className="flex items-start gap-1.5 text-xs text-muted-foreground"
-            >
-              <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-primary" />
-              {highlight}
-            </li>
-          ))}
-        </ul>
+        {event.voiceSummary.highlights.length > 0 ? (
+          <ul className="mt-2 space-y-1">
+            {event.voiceSummary.highlights.map((highlight) => (
+              <li
+                key={highlight}
+                className="flex items-start gap-1.5 text-xs text-muted-foreground"
+              >
+                <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-primary" />
+                {highlight}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {(event.voiceSummary.transcript || event.text) ? (
+          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Transcription
+            </p>
+            <p className="mt-1 text-xs leading-relaxed whitespace-pre-wrap text-foreground">
+              {event.voiceSummary.transcript || event.text}
+            </p>
+          </div>
+        ) : null}
         <p className="mt-2 text-[11px] text-muted-foreground">{event.time}</p>
       </div>
     );
@@ -148,6 +160,16 @@ function EventBubble({ event }: { event: ConversationEvent }) {
   const ChannelIcon = CHANNEL_ICONS[event.channel as OutreachChannel];
   const AuthorIcon =
     event.author === "ai" ? Bot : event.author === "recruiter" ? User : null;
+
+  // Legacy AI voice rows may still contain the full agent prompt — keep the bubble usable.
+  const displayText =
+    event.channel === "AI Voice" &&
+    event.text.length > 400 &&
+    /Recruitment Screening Agent Prompt|#\s*Roshni|Call objective/i.test(
+      event.text
+    )
+      ? "AI voice call started"
+      : event.text;
 
   return (
     <div className={cn("flex", inbound ? "justify-start" : "justify-end")}>
@@ -170,7 +192,7 @@ function EventBubble({ event }: { event: ConversationEvent }) {
           </p>
         ) : null}
         <p className="mt-1 text-sm leading-relaxed whitespace-pre-line text-foreground">
-          {event.text}
+          {displayText}
         </p>
         {event.delivery === "Failed" && event.error ? (
           <p

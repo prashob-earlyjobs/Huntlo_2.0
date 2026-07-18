@@ -120,6 +120,34 @@ describe('Candidate pool, lists, notes, import', () => {
     expect(searched.body.data.items.some((c: { name: string }) => c.name === 'Priya Sharma')).toBe(
       true
     );
+
+    const secondPage = await agent
+      .get('/api/v1/candidate-pool')
+      .query({ view: 'all', page: 2, limit: 1 })
+      .set('Authorization', `Bearer ${auth.token}`)
+      .expect(200);
+    expect(secondPage.body.data.items).toHaveLength(1);
+    expect(secondPage.body.data.pagination).toMatchObject({
+      page: 2,
+      limit: 1,
+      total: 2,
+      totalPages: 2,
+    });
+
+    const clampedPage = await agent
+      .get('/api/v1/candidate-pool')
+      .query({ view: 'all', page: 99, limit: 1 })
+      .set('Authorization', `Bearer ${auth.token}`)
+      .expect(200);
+    expect(clampedPage.body.data.pagination.page).toBe(2);
+
+    const revealed = await agent
+      .get('/api/v1/candidate-pool')
+      .query({ view: 'revealed', page: 1, limit: 10 })
+      .set('Authorization', `Bearer ${auth.token}`)
+      .expect(200);
+    expect(revealed.body.data.pagination.total).toBe(1);
+    expect(revealed.body.data.items[0].name).toBe('Priya Sharma');
   });
 
   it('isolates candidates by organization', async () => {
@@ -267,10 +295,10 @@ describe('Candidate pool, lists, notes, import', () => {
     fs.writeFileSync(
       csvPath,
       [
-        'Name,Email,Phone,Title,Company',
-        'Alice Imported,alice@example.com,9876543211,Engineer,Acme',
-        'Bob Imported,bob@example.com,9876543212,Designer,Beta',
-        "Evil Formula,evil@example.com,9876543213,=cmd|'/C calc',EvilCo",
+        'Name,Email,Phone,Title,Company,Notice Period',
+        'Alice Imported,alice@example.com,9876543211,Engineer,Acme,30 days',
+        'Bob Imported,bob@example.com,9876543212,Designer,Beta,Immediate',
+        "Evil Formula,evil@example.com,9876543213,=cmd|'/C calc',EvilCo,60 days",
       ].join('\n'),
       'utf8'
     );
@@ -317,6 +345,10 @@ describe('Candidate pool, lists, notes, import', () => {
       expect(
         pool.body.data.items.some((c: { name: string }) => c.name === 'Alice Imported')
       ).toBe(true);
+      const alice = pool.body.data.items.find(
+        (c: { name: string }) => c.name === 'Alice Imported'
+      );
+      expect(alice.customFields['Notice Period']).toBe('30 days');
 
       const evil = pool.body.data.items.find(
         (c: { email: string | null }) => c.email === 'evil@example.com'

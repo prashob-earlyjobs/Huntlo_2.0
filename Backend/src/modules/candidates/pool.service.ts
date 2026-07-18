@@ -11,6 +11,7 @@ import { isValidEmail, normalizeEmail } from '../../shared/validation/email.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { isValidPhone, normalizePhone } from '../../shared/validation/phone.js';
 import { UserModel } from '../auth/user.model.js';
+import { JobModel } from '../jobs/job.model.js';
 import { CandidateListModel } from './candidate-list.model.js';
 import { listService } from './list.service.js';
 import {
@@ -137,12 +138,28 @@ async function loadListNames(
   return map;
 }
 
+async function loadJobNames(
+  organizationId: string,
+  jobIds: mongoose.Types.ObjectId[]
+) {
+  if (!jobIds.length) return new Map<string, string>();
+  const jobs = await JobModel.find({
+    _id: { $in: jobIds },
+    organizationId,
+    deletedAt: null,
+  })
+    .select('title')
+    .lean();
+  return new Map(jobs.map((job) => [String(job._id), job.title]));
+}
+
 export function toPublicPoolCandidate(
   candidate: SavedCandidateDocument,
   options?: {
     ownerName?: string | null;
     assignedName?: string | null;
     listNames?: Map<string, string>;
+    jobNames?: Map<string, string>;
   }
 ) {
   const listIds = (candidate.listIds ?? []).map((id) => id.toHexString());
@@ -178,11 +195,16 @@ export function toPublicPoolCandidate(
     assignedUserId,
     assigned: options?.assignedName ?? null,
     jobIds: (candidate.jobIds ?? []).map((id) => id.toHexString()),
+    jobs: (candidate.jobIds ?? []).map(
+      (id) => options?.jobNames?.get(id.toHexString()) ?? id.toHexString()
+    ),
     listIds,
     lists,
     customFields: candidate.customFields ?? {},
     lastActivityAt: candidate.lastActivityAt?.toISOString?.() ?? null,
     archivedAt: candidate.archivedAt?.toISOString?.() ?? null,
+    emailRevealed: Boolean(candidate.email),
+    phoneRevealed: Boolean(candidate.phone),
     createdAt: candidate.createdAt?.toISOString?.() ?? null,
     updatedAt: candidate.updatedAt?.toISOString?.() ?? null,
   };
@@ -205,10 +227,14 @@ async function enrichPublic(candidates: SavedCandidateDocument[]) {
   const assignedIds = candidates.map((c) => c.assignedUserId);
   const names = await loadUserNames([...ownerIds, ...assignedIds]);
   const allListIds = candidates.flatMap((c) => c.listIds ?? []);
+  const allJobIds = candidates.flatMap((c) => c.jobIds ?? []);
   const orgId = candidates[0]?.organizationId?.toHexString();
-  const listNames = orgId
-    ? await loadListNames(orgId, allListIds)
-    : new Map<string, string>();
+  const [listNames, jobNames] = orgId
+    ? await Promise.all([
+        loadListNames(orgId, allListIds),
+        loadJobNames(orgId, allJobIds),
+      ])
+    : [new Map<string, string>(), new Map<string, string>()];
 
   return candidates.map((c) =>
     toPublicPoolCandidate(c, {
@@ -217,6 +243,7 @@ async function enrichPublic(candidates: SavedCandidateDocument[]) {
         ? names.get(c.assignedUserId.toHexString()) ?? null
         : null,
       listNames,
+      jobNames,
     })
   );
 }
@@ -271,20 +298,35 @@ export class PoolService {
     if (query.tags?.length) {
       filter.tags = { $all: query.tags };
     }
+    if (query.view === 'recent') {
+      filter.createdAt = { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
+    }
+    const conditions: Record<string, unknown>[] = [];
+    if (query.view === 'revealed') {
+      conditions.push({
+        $or: [
+          { email: { $nin: [null, ''] } },
+          { phone: { $nin: [null, ''] } },
+        ],
+      });
+    }
     if (query.search) {
       const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(escaped, 'i');
-      filter.$or = [
-        { name: regex },
-        { email: regex },
-        { headline: regex },
-        { currentTitle: regex },
-        { currentCompany: regex },
-        { location: regex },
-        { skills: regex },
-        { tags: regex },
-      ];
+      conditions.push({
+        $or: [
+          { name: regex },
+          { email: regex },
+          { headline: regex },
+          { currentTitle: regex },
+          { currentCompany: regex },
+          { location: regex },
+          { skills: regex },
+          { tags: regex },
+        ],
+      });
     }
+    if (conditions.length) filter.$and = conditions;
 
     let sort: Record<string, 1 | -1>;
     try {
@@ -294,18 +336,19 @@ export class PoolService {
     }
 
     const total = await SavedCandidateModel.countDocuments(filter);
+    const totalPages = Math.max(1, Math.ceil(total / query.limit));
+    const page = Math.min(query.page, totalPages);
     const candidates = await SavedCandidateModel.find(filter)
       .sort(sort)
-      .skip(getSkip(query.page, query.limit))
+      .skip(getSkip(page, query.limit))
       .limit(query.limit);
 
     const items = await enrichPublic(candidates);
-    const totalPages = Math.max(1, Math.ceil(total / query.limit));
 
     return {
       items,
       total,
-      page: query.page,
+      page,
       limit: query.limit,
       totalPages,
     };

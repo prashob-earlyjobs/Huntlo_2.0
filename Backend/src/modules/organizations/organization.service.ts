@@ -10,7 +10,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { normalizeEmail } from '../../shared/validation/email.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { quotaService, type QuotaUsageView } from '../../shared/usage/index.js';
-import { UserModel } from '../auth/user.model.js';
+import { UserModel, type UserDocument } from '../auth/user.model.js';
 import { assertSameOrganization } from '../../middleware/auth.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { TeamInvitationModel } from './invitation.model.js';
@@ -285,8 +285,10 @@ export class OrganizationService {
 
   async createInvitation(actor: ActorContext, input: {
     email: string;
+    name?: string;
     role: string;
     permissions?: string[];
+    assignedJobIds?: string[];
   }) {
     const organization = await loadOrganization(actor.organizationId);
     await assertSeatAvailable(organization._id, organization.plan);
@@ -319,12 +321,18 @@ export class OrganizationService {
       throw AppError.conflict('An active invitation already exists for this email');
     }
 
+    const assignedJobIds = (input.assignedJobIds ?? [])
+      .filter((id) => isValidObjectId(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
     const rawToken = generateOpaqueToken(32);
     const invitation = await TeamInvitationModel.create({
       organizationId: organization._id,
       email,
+      invitedName: input.name?.trim() || null,
       role: input.role as OrganizationRole,
       permissions: input.permissions ?? [],
+      assignedJobIds,
       invitedBy: actor.userId,
       tokenHash: hashToken(rawToken),
       expiresAt: new Date(Date.now() + INVITE_TTL_MS),
@@ -345,6 +353,91 @@ export class OrganizationService {
       // Returned once for email delivery / local testing — never stored in plaintext.
       token: rawToken,
     };
+  }
+
+  /**
+   * Create an active workspace account and return its temporary password once.
+   * The plaintext password is never persisted or written to the audit log.
+   */
+  async createTeamAccount(actor: ActorContext, input: {
+    name: string;
+    email: string;
+    role: string;
+    permissions?: string[];
+    assignedJobIds?: string[];
+  }) {
+    const organization = await loadOrganization(actor.organizationId);
+    await assertSeatAvailable(organization._id, organization.plan);
+
+    const email = normalizeEmail(input.email);
+    if (input.role === 'owner') {
+      throw AppError.badRequest('Cannot create another workspace owner');
+    }
+    if (await UserModel.exists({ email })) {
+      throw AppError.conflict('An account with this email already exists');
+    }
+
+    const nameParts = input.name.trim().split(/\s+/).filter(Boolean);
+    const firstName = nameParts.shift() || 'Team';
+    const lastName = nameParts.join(' ') || 'Member';
+    const temporaryPassword = `Ht${generateOpaqueToken(12)}7`;
+    const passwordHash = await hashPassword(temporaryPassword);
+    const assignedJobIds = (input.assignedJobIds ?? [])
+      .filter((id) => isValidObjectId(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    let user: UserDocument | null = null;
+    try {
+      user = await UserModel.create({
+        firstName,
+        lastName,
+        email,
+        passwordHash,
+        role: input.role as OrganizationRole,
+        organizationId: organization._id,
+        memberStatus: 'active',
+        onboardingStatus: 'completed',
+        emailVerifiedAt: new Date(),
+      });
+
+      const member = await OrganizationMemberModel.create({
+        organizationId: organization._id,
+        userId: user._id,
+        role: input.role as OrganizationRole,
+        permissions: input.permissions ?? [],
+        assignedJobIds,
+        status: 'active',
+        joinedAt: new Date(),
+      });
+
+      await integrationsService
+        .provisionDefaultsForUser(organization._id.toHexString(), user._id.toHexString())
+        .catch(() => undefined);
+
+      await recordAuditEvent({
+        action: 'team.account.created',
+        module: 'team',
+        userId: actor.userId,
+        organizationId: actor.organizationId,
+        ipHash: actor.ipHash,
+        userAgent: actor.userAgent,
+        metadata: { memberId: member._id.toHexString(), email, role: input.role },
+      });
+
+      return {
+        member: toPublicMember(member, user),
+        credentials: {
+          email,
+          temporaryPassword,
+        },
+      };
+    } catch (error) {
+      if (user?._id) {
+        await OrganizationMemberModel.deleteMany({ userId: user._id }).catch(() => undefined);
+        await UserModel.deleteOne({ _id: user._id }).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 
   async acceptInvitation(
@@ -374,15 +467,22 @@ export class OrganizationService {
 
     let user = await UserModel.findOne({ email: invitation.email });
 
+    const [invitedFirst, ...invitedRest] = String(invitation.invitedName ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const firstName = options.firstName ?? invitedFirst;
+    const lastName = options.lastName ?? (invitedRest.length ? invitedRest.join(' ') : undefined);
+
     if (!user) {
-      if (!options.password || !options.firstName || !options.lastName) {
+      if (!options.password || !firstName || !lastName) {
         throw AppError.badRequest(
           'Account details required to accept invitation (firstName, lastName, password)'
         );
       }
       user = await UserModel.create({
-        firstName: options.firstName,
-        lastName: options.lastName,
+        firstName,
+        lastName,
         email: invitation.email,
         passwordHash: await hashPassword(options.password),
         role: invitation.role as OrganizationRole,
@@ -406,9 +506,12 @@ export class OrganizationService {
       userId: user._id,
     });
 
+    const invitedJobIds = invitation.assignedJobIds ?? [];
+
     if (member) {
       member.role = invitation.role as OrganizationRole;
       member.permissions = invitation.permissions ?? [];
+      if (invitedJobIds.length) member.assignedJobIds = invitedJobIds;
       member.status = 'active';
       member.joinedAt = new Date();
       await member.save();
@@ -418,6 +521,7 @@ export class OrganizationService {
         userId: user._id,
         role: invitation.role as OrganizationRole,
         permissions: invitation.permissions ?? [],
+        assignedJobIds: invitedJobIds,
         status: 'active',
         joinedAt: new Date(),
       });
