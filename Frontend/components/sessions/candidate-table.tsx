@@ -115,7 +115,32 @@ export function CandidateTable({
               <TableRow
                 key={candidate.id}
                 data-selected={selected.has(candidate.id) || undefined}
-                className="data-selected:bg-brand-subtle/40"
+                tabIndex={0}
+                aria-label={`View ${candidate.name}'s profile`}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement;
+                  if (
+                    target.closest(
+                      "button, a, input, select, textarea, [role='button'], [role='menuitem']"
+                    )
+                  ) {
+                    return;
+                  }
+                  onOpenProfile(candidate.id);
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.target === event.currentTarget &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    onOpenProfile(candidate.id);
+                  }
+                }}
+                className={cn(
+                  "cursor-pointer data-selected:bg-brand-subtle/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+                  density === "compact" ? "h-12" : "h-[72px]"
+                )}
               >
                 <TableCell className={cellPad}>
                   <input
@@ -132,6 +157,7 @@ export function CandidateTable({
                       name={candidate.name}
                       src={candidate.avatarUrl}
                       className={density === "compact" ? "size-7" : "size-9"}
+                      preview
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -180,17 +206,17 @@ export function CandidateTable({
                   {candidate.experienceYears} yrs
                 </TableCell>
                 <TableCell className={cellPad}>
-                  <div className="flex max-w-44 flex-wrap gap-1">
+                  <div className="flex max-w-44 items-center gap-1 overflow-hidden">
                     {candidate.skills.slice(0, 3).map((skill) => (
                       <span
                         key={skill}
-                        className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
+                        className="min-w-0 truncate rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
                       >
                         {skill}
                       </span>
                     ))}
                     {candidate.skills.length > 3 ? (
-                      <span className="text-xs tabular-nums text-muted-foreground">
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                         +{candidate.skills.length - 3}
                       </span>
                     ) : null}
@@ -209,6 +235,7 @@ export function CandidateTable({
                     candidate={candidate}
                     revealed={revealed}
                     onReveal={(kind) => onReveal(candidate.id, kind)}
+                    compact
                   />
                 </TableCell>
                 <TableCell className={cellPad}>

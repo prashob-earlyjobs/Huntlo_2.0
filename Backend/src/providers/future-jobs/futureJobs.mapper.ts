@@ -46,6 +46,7 @@ const DEFAULT_FILTER_FORM: FutureJobsFilterForm = {
   yearsExpMin: "",
   yearsExpMax: "",
   keywordSkills: "",
+  skills: { mandatory: [], core: [], secondary: [] },
   seniorityLevel: "",
   location: [],
   searchOtherRegions: false,
@@ -335,6 +336,11 @@ function normalizeFilterFormForUi(form) {
       continue;
     }
 
+    if (key === "skills") {
+      out.skills = normalizeSkillsValue(val);
+      continue;
+    }
+
     if (key === "location") {
       out.location = normalizeLocationsValue(val);
       continue;
@@ -383,6 +389,15 @@ function normalizeFilterFormForUi(form) {
   out.recentlyFunded = recentlyFundedToLabels(out.recentlyFunded);
   out.degree = degreeToLabels(out.degree);
 
+  // Prefer structured skills; otherwise derive buckets from keywordSkills.
+  if (skillsHasEntries(out.skills)) {
+    out.keywordSkills = skillsToKeyword(out.skills) || out.keywordSkills;
+  } else if (String(out.keywordSkills || "").trim()) {
+    out.skills = keywordToSkills(out.keywordSkills, null);
+  } else {
+    out.skills = { mandatory: [], core: [], secondary: [] };
+  }
+
   return out;
 }
 
@@ -390,26 +405,32 @@ function normalizeSkillsValue(raw) {
   const empty = { mandatory: [], core: [], secondary: [] };
   if (raw == null) return empty;
 
+  const dedupe = (list) => {
+    const out = [];
+    const seen = new Set();
+    for (const item of list) {
+      const s = String(item ?? "").trim();
+      if (!s) continue;
+      const key = s.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
+    }
+    return out;
+  };
+
   if (Array.isArray(raw)) {
-    const core = raw
-      .map((s) => String(s ?? "").trim())
-      .filter(Boolean);
+    const core = dedupe(raw);
     return core.length > 0 ? { ...empty, core } : empty;
   }
 
   if (typeof raw !== "object") return empty;
 
-  const mandatory = Array.isArray(raw.mandatory)
-    ? raw.mandatory.map((s) => String(s ?? "").trim()).filter(Boolean)
-    : [];
-  const core = Array.isArray(raw.core)
-    ? raw.core.map((s) => String(s ?? "").trim()).filter(Boolean)
-    : [];
-  const secondary = Array.isArray(raw.secondary)
-    ? raw.secondary.map((s) => String(s ?? "").trim()).filter(Boolean)
-    : [];
-
-  return { mandatory, core, secondary };
+  return {
+    mandatory: dedupe(Array.isArray(raw.mandatory) ? raw.mandatory : []),
+    core: dedupe(Array.isArray(raw.core) ? raw.core : []),
+    secondary: dedupe(Array.isArray(raw.secondary) ? raw.secondary : []),
+  };
 }
 
 function skillsToKeyword(skillsValue) {
@@ -590,7 +611,15 @@ function ensureSkillsForFutureJobs(skills, form, session) {
  */
 function enrichFilterFormSkillsFromPrompt(form, promptText) {
   const out = { ...form };
-  if (String(out.keywordSkills || "").trim()) return out;
+  if (skillsHasEntries(out.skills) || String(out.keywordSkills || "").trim()) {
+    if (!skillsHasEntries(out.skills) && String(out.keywordSkills || "").trim()) {
+      out.skills = keywordToSkills(out.keywordSkills, null);
+    }
+    if (!String(out.keywordSkills || "").trim() && skillsHasEntries(out.skills)) {
+      out.keywordSkills = skillsToKeyword(out.skills);
+    }
+    return out;
+  }
 
   const prompt = String(promptText ?? "").trim();
   const session = {
@@ -602,6 +631,7 @@ function enrichFilterFormSkillsFromPrompt(form, promptText) {
     out,
     session
   );
+  out.skills = skills;
   const keyword = skillsToKeyword(skills);
   if (keyword) out.keywordSkills = keyword;
   return out;
@@ -890,6 +920,7 @@ function filterFormFromCreateResponse(futureJobsCreateResponse, requestPayload) 
     yearsExpMin: yoe.min,
     yearsExpMax: yoe.max,
     keywordSkills: skillsToKeyword(skillsQ),
+    skills: normalizeSkillsValue(skillsQ),
     seniorityLevel: queryValueFirst(queries, "current_employers.seniority_level", [
       "seniority_level",
     ]),
@@ -1154,7 +1185,9 @@ function mergeFilterFormIntoSession(baseSession, form) {
   setQueryIn(queries, "languages", normalizeChipListValue(form.languages));
 
   const skillsValue = ensureSkillsForFutureJobs(
-    keywordToSkills(form.keywordSkills, existingSkills),
+    skillsHasEntries(form.skills)
+      ? normalizeSkillsValue(form.skills)
+      : keywordToSkills(form.keywordSkills, existingSkills),
     form,
     session
   );
@@ -1308,7 +1341,9 @@ function filterFormFromAnnotation(annotationData) {
 
   const skillsField = annotationData.skills;
   if (skillsField && skillsField.presence === true && skillsField.value != null) {
-    const keyword = skillsToKeyword(skillsField.value);
+    const skills = normalizeSkillsValue(skillsField.value);
+    form.skills = skills;
+    const keyword = skillsToKeyword(skills);
     if (keyword) form.keywordSkills = keyword;
   }
 

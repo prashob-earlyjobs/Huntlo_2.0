@@ -89,6 +89,12 @@ export type FutureJobsAnnotationField = {
 
 export type FutureJobsAnnotationData = Record<string, FutureJobsAnnotationField>;
 
+export type FutureJobsSkillsBuckets = {
+  mandatory: string[];
+  core: string[];
+  secondary: string[];
+};
+
 export type FutureJobsFilterForm = {
   searchType: string;
   selectRegion: string[];
@@ -96,6 +102,8 @@ export type FutureJobsFilterForm = {
   yearsExpMin: string;
   yearsExpMax: string;
   keywordSkills: string;
+  /** Structured skill buckets preferred over keywordSkills when present. */
+  skills?: FutureJobsSkillsBuckets;
   seniorityLevel: string;
   location: string[];
   searchOtherRegions: boolean;

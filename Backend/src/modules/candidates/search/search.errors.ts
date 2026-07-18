@@ -35,7 +35,7 @@ export function autocompleteQueryTooShort(): AppError {
   return new AppError(
     400,
     SEARCH_ERROR_CODES.AUTOCOMPLETE_QUERY_TOO_SHORT,
-    'Autocomplete query must contain at least 3 characters'
+    'Autocomplete query must contain at least 2 characters'
   );
 }
 

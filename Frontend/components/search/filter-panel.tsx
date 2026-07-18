@@ -41,6 +41,7 @@ function FieldControl({
           values={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(next.length > 0 ? next : undefined)}
           placeholder={field.placeholder}
+          autocompleteFilterType={field.autocompleteFilterType}
         />
       );
     case "tags":
@@ -89,6 +90,8 @@ function FieldControl({
           onChange={(next) =>
             onChange(next === field.options?.[0] ? undefined : next)
           }
+          className={field.className}
+          hideLabel={field.hideLabel}
         />
       );
   }
@@ -121,7 +124,7 @@ function SectionBlock({
           type="button"
           onClick={() => setOpen((previous) => !previous)}
           aria-expanded={isOpen}
-          className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-3 py-2.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
         >
           <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted">
             <section.icon aria-hidden className="size-3.5 text-muted-foreground" />
@@ -162,13 +165,19 @@ function SectionBlock({
       </div>
       {isOpen ? (
         <div className="space-y-4 px-3 pt-1 pb-4">
-          {section.fields.map((field) => (
-            <FieldControl
+          {section.fields.map((field, index) => (
+            <div
               key={field.id}
-              field={field}
-              value={filters[field.id]}
-              onChange={(value) => onFieldChange(field.id, value)}
-            />
+              className={cn(
+                index > 0 && section.fields[index - 1]?.compactAfter && "!mt-1"
+              )}
+            >
+              <FieldControl
+                field={field}
+                value={filters[field.id]}
+                onChange={(value) => onFieldChange(field.id, value)}
+              />
+            </div>
           ))}
         </div>
       ) : null}

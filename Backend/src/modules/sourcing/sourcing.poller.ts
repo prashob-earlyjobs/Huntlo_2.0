@@ -13,10 +13,9 @@ import {
   type SourcingSessionDocument,
 } from './sourcing-session.model.js';
 
-const MAX_POLL_ATTEMPTS = 120;
-const MAX_POLL_DURATION_MS = 10 * 60 * 1000;
+const MAX_POLL_ATTEMPTS = 15;
 const POLL_BATCH_LIMIT = 25;
-const PROFILES_PAGE_LIMIT = 200;
+const PROFILES_PAGE_LIMIT = 300;
 
 const ACTIVE_STATUSES = ['creating', 'pending', 'queued', 'running', 'polling'] as const;
 
@@ -283,6 +282,10 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   const attempt = (pollAttempts.get(sessionId) ?? 0) + 1;
   pollAttempts.set(sessionId, attempt);
 
+  console.log(
+    `[sourcing-poll] calling Future Jobs GET /profiles attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} limit=${PROFILES_PAGE_LIMIT}`
+  );
+
   const provider = getFutureJobsProvider();
   let profilesRes;
   try {
@@ -293,6 +296,9 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.log(
+      `[sourcing-poll] ERROR attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} error=${message}`
+    );
     const code =
       error && typeof error === 'object' && 'code' in error
         ? String((error as { code?: string }).code ?? 'PROVIDER_ERROR')
@@ -316,10 +322,32 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   session.lastPolledAt = new Date();
 
   if (provider.isFjSessionPending(profilesRes)) {
+    const pendingDocs = Array.isArray(profilesRes?.data?.docs)
+      ? profilesRes.data.docs.length
+      : 0;
+    const storedSoFar = session.totalResults ?? session.totalDocs ?? 0;
+    console.log(
+      `[sourcing-poll] attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} requestedLimit=${PROFILES_PAGE_LIMIT} responseCandidateCount=${pendingDocs} newCandidateCount=0 storedCandidateCount=${storedSoFar} providerStatus=pending`
+    );
+    log().info(
+      {
+        sourcingSessionId: sessionId,
+        futureJobsSessionId: externalId,
+        attempt,
+        maxAttempts: MAX_POLL_ATTEMPTS,
+        requestedLimit: PROFILES_PAGE_LIMIT,
+        responseCandidateCount: pendingDocs,
+        newCandidateCount: 0,
+        storedCandidateCount: storedSoFar,
+        providerStatus: 'pending',
+      },
+      'Future Jobs profiles poll response'
+    );
+
     session.status = 'polling';
     session.polling = true;
     session.progress = computeProgress(
-      session.totalResults ?? session.totalDocs ?? 0,
+      storedSoFar,
       session.estimatedResults,
       attempt
     );
@@ -370,9 +398,28 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     sourcingSessionId: session._id,
   });
 
+  console.log(
+    `[sourcing-poll] attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} requestedLimit=${PROFILES_PAGE_LIMIT} responseCandidateCount=${docs.length} providerTotalDocs=${totalDocs} newCandidateCount=${newCandidateCount} storedCandidateCount=${storedCount} providerStatus=ready`
+  );
+  log().info(
+    {
+      sourcingSessionId: sessionId,
+      futureJobsSessionId: externalId,
+      attempt,
+      maxAttempts: MAX_POLL_ATTEMPTS,
+      requestedLimit: PROFILES_PAGE_LIMIT,
+      responseCandidateCount: docs.length,
+      providerTotalDocs: totalDocs,
+      newCandidateCount,
+      storedCandidateCount: storedCount,
+      providerStatus: 'ready',
+    },
+    'Future Jobs profiles poll response'
+  );
+
   session.totalResults = Math.max(storedCount, totalDocs);
   session.totalDocs = session.totalResults;
-  session.canFetchMore = totalDocs > storedCount;
+  session.canFetchMore = totalDocs > storedCount || attempt < MAX_POLL_ATTEMPTS;
   if (session.estimatedResults <= 0 && totalDocs > 0) {
     session.estimatedResults = totalDocs;
   }
@@ -400,29 +447,19 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     error: null,
   });
 
-  const startedAt = session.startedAt ? session.startedAt.getTime() : Date.now();
-  const timedOut =
-    attempt >= MAX_POLL_ATTEMPTS || Date.now() - startedAt >= MAX_POLL_DURATION_MS;
-
   const pendingEmpty = docs.length === 0 && totalDocs === 0;
-  const ready = !pendingEmpty || (totalDocs === 0 && attempt >= 3);
 
-  if (ready && !pendingEmpty) {
-    const hasNext = Boolean(profilesRes?.data?.hasNextPage);
-    if (!hasNext || storedCount >= totalDocs) {
-      await finalizeSession(session, 'completed');
-    }
-    return;
-  }
-
-  if (ready && pendingEmpty && attempt >= 3 && session.estimatedResults === 0) {
+  // Always run the full MAX_POLL_ATTEMPTS window so the FE can observe growth
+  // across polls. Finalize only when the attempt budget is exhausted (or the
+  // provider stays empty with no expected results).
+  if (pendingEmpty && attempt >= 3 && session.estimatedResults === 0) {
     await finalizeSession(session, 'completed');
     return;
   }
 
-  if (timedOut) {
+  if (attempt >= MAX_POLL_ATTEMPTS) {
     if ((session.totalResults ?? 0) > 0) {
-      await finalizeSession(session, 'partial');
+      await finalizeSession(session, 'completed');
     } else {
       await finalizeSession(session, 'failed', {
         errorCode: 'POLL_TIMEOUT',
