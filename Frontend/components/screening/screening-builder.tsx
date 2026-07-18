@@ -24,7 +24,6 @@ import {
   ErrorList,
   Field,
   StepCard,
-  ToggleRow,
 } from "@/components/outreach/builder-ui";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
@@ -71,7 +70,9 @@ import {
   defaultAiVoiceStepBody,
   isRoshniAgentPrompt,
   ROSHNI_INTRODUCTION,
+  shouldApplyRemoteVoiceDefault,
 } from "@/lib/roshni-agent-prompt";
+import { loadVoiceDefaultsSafe } from "@/lib/api/voice-defaults";
 import { ROUTES, screeningDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers";
@@ -116,7 +117,6 @@ interface BuilderState {
   delay: string;
   callWindow: string;
   timezone: string;
-  retryOnNoAnswer: boolean;
   voicemail: string;
 }
 
@@ -160,7 +160,6 @@ function initialState(): BuilderState {
     delay: "24 hours",
     callWindow: CALL_WINDOWS[0],
     timezone: TIMEZONE_OPTIONS_SCREENING[0],
-    retryOnNoAnswer: true,
     voicemail: VOICEMAIL_BEHAVIOURS[0],
   };
 }
@@ -508,10 +507,12 @@ function AgentStep({
   state,
   update,
   showErrors,
+  voiceDefaults,
 }: {
   state: BuilderState;
   update: Update;
   showErrors: boolean;
+  voiceDefaults: { introduction: string; agentPrompt: string };
 }) {
   const languageLabel =
     SCREENING_LANGUAGE_OPTIONS.find((option) => option.value === state.language)
@@ -621,7 +622,10 @@ function AgentStep({
               type="button"
               size="xs"
               variant="outline"
-              onClick={() => update("agentPrompt", defaultAiVoiceStepBody())}
+              onClick={() => {
+                update("introduction", voiceDefaults.introduction);
+                update("agentPrompt", voiceDefaults.agentPrompt);
+              }}
             >
               Reset to Roshni default
             </Button>
@@ -636,7 +640,7 @@ function AgentStep({
           />
           <p className="pt-1 text-xs text-muted-foreground">
             Opening line stays{" "}
-            <span className="font-mono">{ROSHNI_INTRODUCTION}</span> unless
+            <span className="font-mono">{voiceDefaults.introduction}</span> unless
             you change the introduction above. Leave{" "}
             <span className="font-mono">{"{callee_name}"}</span> for the dialer.
             {isRoshniAgentPrompt(state.agentPrompt)
@@ -821,6 +825,30 @@ function QuestionsStep({
   );
 }
 
+function questionCriterionId(question: BuilderQuestion): string {
+  const fromVariable = question.expectedVariable
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+  if (fromVariable) return fromVariable;
+  return question.id;
+}
+
+function questionCriterionLabel(question: BuilderQuestion, index: number): string {
+  const text = question.text.trim().replace(/\s+/g, " ");
+  if (text) {
+    return text.length > 72 ? `${text.slice(0, 69)}…` : text;
+  }
+  return `Question ${index + 1} score`;
+}
+
+function evaluatedQuestions(state: BuilderState): BuilderQuestion[] {
+  return state.questions.filter(
+    (question) => question.evaluationEnabled && question.text.trim()
+  );
+}
+
 function EvaluationStep({
   state,
   update,
@@ -833,18 +861,26 @@ function EvaluationStep({
   const score = Number(state.minShortlistScore);
   const scoreInvalid =
     showErrors && (Number.isNaN(score) || score < 0 || score > 100);
+  const questionCriteria = evaluatedQuestions(state);
+
+  function updateWeight(id: string, value: number) {
+    update("categoryWeights", {
+      ...state.categoryWeights,
+      [id]: value,
+    });
+  }
 
   return (
     <StepCard
       title="Evaluation"
-      description="Weight the scorecard categories, set knockout rules, and define the shortlist threshold."
+      description="Weight category and question scores, set knockout rules, and define the shortlist threshold."
     >
       <div className="space-y-5">
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">Category scores</p>
           <p className="text-xs text-muted-foreground">
             Weights are relative — the overall score is a weighted average of
-            enabled categories.
+            enabled categories and evaluated questions.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {EVALUATION_CATEGORIES.map((category) => (
@@ -865,10 +901,7 @@ function EvaluationStep({
                   max={100}
                   value={state.categoryWeights[category.id] ?? 0}
                   onChange={(event) =>
-                    update("categoryWeights", {
-                      ...state.categoryWeights,
-                      [category.id]: Number(event.target.value) || 0,
-                    })
+                    updateWeight(category.id, Number(event.target.value) || 0)
                   }
                   className="w-20 text-right tabular-nums"
                   aria-label={`${category.label} weight`}
@@ -876,6 +909,64 @@ function EvaluationStep({
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground">Question scores</p>
+          <p className="text-xs text-muted-foreground">
+            Questions marked “Evaluation enabled” in the previous step are scored
+            from the candidate’s answers and included in the overall result.
+          </p>
+          {questionCriteria.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+              No evaluated questions yet. Enable evaluation on one or more
+              questions to score their answers here.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {questionCriteria.map((question, index) => {
+                const criterionId = questionCriterionId(question);
+                const label = questionCriterionLabel(question, index);
+                return (
+                  <div
+                    key={question.id}
+                    className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <label
+                        htmlFor={`weight-${criterionId}`}
+                        className="block text-sm text-foreground"
+                      >
+                        <span className="mr-1.5 text-xs font-medium tabular-nums text-muted-foreground">
+                          Q
+                          {state.questions.findIndex((q) => q.id === question.id) +
+                            1}
+                        </span>
+                        {label}
+                      </label>
+                      {question.expectedVariable.trim() ? (
+                        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                          {question.expectedVariable.trim()}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Input
+                      id={`weight-${criterionId}`}
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={state.categoryWeights[criterionId] ?? 10}
+                      onChange={(event) =>
+                        updateWeight(criterionId, Number(event.target.value) || 0)
+                      }
+                      className="w-20 shrink-0 text-right tabular-nums sm:self-center"
+                      aria-label={`Weight for ${label}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -1021,14 +1112,6 @@ function CallSettingsStep({
           </Field>
         </div>
 
-        <ToggleRow
-          id="scr-retry"
-          label="Retry on no answer"
-          description="Schedule the next attempt automatically when the candidate does not pick up."
-          checked={state.retryOnNoAnswer}
-          onChange={(checked) => update("retryOnNoAnswer", checked)}
-        />
-
         <Field label="Voicemail behaviour" htmlFor="scr-voicemail">
           <Select
             value={state.voicemail}
@@ -1065,6 +1148,7 @@ function ReviewStep({
   const job = jobs.find((j) => j.id === state.jobId);
   const stats = state.audiencePreview;
   const activeQuestions = state.questions.filter((q) => q.text.trim());
+  const scoredQuestions = evaluatedQuestions(state);
 
   const sections: {
     step: number;
@@ -1122,7 +1206,7 @@ function ReviewStep({
       title: "Evaluation",
       lines: [
         `Shortlist at ≥ ${state.minShortlistScore}/100`,
-        `${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
+        `${scoredQuestions.length} question score${scoredQuestions.length === 1 ? "" : "s"} · ${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
       ],
     },
     {
@@ -1132,9 +1216,7 @@ function ReviewStep({
       lines: [
         `${state.attempts} attempts · ${state.delay} apart`,
         `${state.callWindow} · ${state.timezone}`,
-        state.retryOnNoAnswer
-          ? `Retry on no answer · ${state.voicemail}`
-          : `No retry · ${state.voicemail}`,
+        `Retry on no answer · ${state.voicemail}`,
       ],
     },
   ];
@@ -1216,6 +1298,27 @@ function toCreateInput(
   state: BuilderState,
   candidateIds: string[]
 ): ScreeningCreateInput {
+  const questionCriteria = evaluatedQuestions(state).map((question, index) => {
+    const id = questionCriterionId(question);
+    return {
+      id,
+      label: questionCriterionLabel(question, index),
+      weight: state.categoryWeights[id] ?? 10,
+      description: `Score 0-100 based on the candidate's answer to: ${question.text.trim()}`,
+    };
+  });
+
+  const categoryCriteria = EVALUATION_CATEGORIES.map((category) => ({
+    id: category.id,
+    label: category.label,
+    weight: state.categoryWeights[category.id] ?? category.defaultWeight,
+  }));
+
+  // Prefer question criteria ids when they collide with category ids.
+  const byId = new Map<string, (typeof categoryCriteria)[number]>();
+  for (const criterion of categoryCriteria) byId.set(criterion.id, criterion);
+  for (const criterion of questionCriteria) byId.set(criterion.id, criterion);
+
   return {
     name: state.name.trim(),
     ownerUserId: state.ownerUserId || undefined,
@@ -1230,15 +1333,13 @@ function toCreateInput(
     questions: state.questions
       .filter((q) => q.text.trim())
       .map((q) => ({ id: q.id, prompt: q.text.trim() })),
-    evaluationCriteria: EVALUATION_CATEGORIES.map((category) => ({
-      id: category.id,
-      label: category.label,
-      weight: state.categoryWeights[category.id] ?? category.defaultWeight,
-    })),
+    evaluationCriteria: Array.from(byId.values()),
+    minShortlistScore: Number(state.minShortlistScore) || 70,
+    knockouts: state.knockouts,
     callSettings: {
       maxAttempts: Number.parseInt(state.attempts, 10) || 2,
       attemptIntervalHours: Number.parseInt(state.delay, 10) || 24,
-      maxRetryCount: state.retryOnNoAnswer ? 2 : 0,
+      maxRetryCount: 2,
       retryIntervalHours: 6,
       consentRequired: true,
     },
@@ -1264,6 +1365,45 @@ export function ScreeningBuilder() {
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [ownersError, setOwnersError] = useState<string | null>(null);
   const [loadVersion, setLoadVersion] = useState(0);
+  const [voiceDefaults, setVoiceDefaults] = useState({
+    introduction: ROSHNI_INTRODUCTION,
+    agentPrompt: defaultAiVoiceStepBody(),
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadVoiceDefaultsSafe().then((defaults) => {
+      if (cancelled) return;
+      setVoiceDefaults({
+        introduction: defaults.introduction,
+        agentPrompt: defaults.agentPrompt,
+      });
+      setState((previous) => {
+        const next = { ...previous };
+        let changed = false;
+        if (
+          shouldApplyRemoteVoiceDefault(previous.introduction, defaults.introduction, {
+            bundled: ROSHNI_INTRODUCTION,
+          })
+        ) {
+          next.introduction = defaults.introduction;
+          changed = true;
+        }
+        if (
+          shouldApplyRemoteVoiceDefault(previous.agentPrompt, defaults.agentPrompt, {
+            bundled: defaultAiVoiceStepBody(),
+          })
+        ) {
+          next.agentPrompt = defaults.agentPrompt;
+          changed = true;
+        }
+        return changed ? next : previous;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1505,7 +1645,12 @@ export function ScreeningBuilder() {
           importListTags={["screening-import"]}
         />
       ) : current === 2 ? (
-        <AgentStep state={state} update={update} showErrors={showErrors} />
+        <AgentStep
+          state={state}
+          update={update}
+          showErrors={showErrors}
+          voiceDefaults={voiceDefaults}
+        />
       ) : current === 3 ? (
         <QuestionsStep state={state} update={update} />
       ) : current === 4 ? (

@@ -52,7 +52,9 @@ import {
   isRoshniAgentPrompt,
   LEGACY_AI_VOICE_SCRIPT,
   ROSHNI_INTRODUCTION,
+  shouldApplyRemoteVoiceDefault,
 } from "@/lib/roshni-agent-prompt";
+import { loadVoiceDefaultsSafe } from "@/lib/api/voice-defaults";
 import {
   makeStep,
   DELAY_UNIT_OPTIONS,
@@ -79,12 +81,14 @@ function StepEditor({
   templateOptions,
   whatsappSlot,
   isFirstStep,
+  voiceDefaults,
 }: {
   step: SequenceStep;
   onChange: (next: SequenceStep) => void;
   templateOptions: string[];
   whatsappSlot: WhatsAppTemplateSlot | null;
   isFirstStep: boolean;
+  voiceDefaults: { introduction: string; agentPrompt: string };
 }) {
   const channel = STEP_CHANNELS[step.type];
   const isMessage = channel !== undefined;
@@ -112,17 +116,23 @@ function StepEditor({
 
   useEffect(() => {
     if (!isAiVoice) return;
-    const trimmed = step.body.trim();
-    if (!trimmed || trimmed === LEGACY_AI_VOICE_SCRIPT) {
-      onChange({
-        ...step,
-        body: defaultAiVoiceStepBody(),
-        template: "Roshni agent prompt",
-      });
+    if (
+      !shouldApplyRemoteVoiceDefault(step.body, voiceDefaults.agentPrompt, {
+        bundled: defaultAiVoiceStepBody(),
+        legacy: LEGACY_AI_VOICE_SCRIPT,
+      })
+    ) {
+      return;
     }
-    // Seed once when opening an empty / legacy AI voice step.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when step id/body stub changes
-  }, [isAiVoice, step.id, step.body]);
+    if (step.body.trim() === voiceDefaults.agentPrompt.trim()) return;
+    onChange({
+      ...step,
+      body: voiceDefaults.agentPrompt,
+      template: "Roshni agent prompt",
+    });
+    // Seed when opening an empty / legacy / bundled AI voice step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when defaults or stub body changes
+  }, [isAiVoice, step.id, step.body, voiceDefaults.agentPrompt]);
 
   return (
     <div className="space-y-4 border-t border-border px-4 py-4">
@@ -303,7 +313,7 @@ function StepEditor({
                 onClick={() =>
                   onChange({
                     ...step,
-                    body: defaultAiVoiceStepBody(),
+                    body: voiceDefaults.agentPrompt,
                     template: "Roshni agent prompt",
                   })
                 }
@@ -354,7 +364,7 @@ function StepEditor({
           ) : isAiVoice ? (
             <p className="pt-1 text-xs text-muted-foreground">
               Opening line stays{" "}
-              <span className="font-mono">{ROSHNI_INTRODUCTION}</span> unless
+              <span className="font-mono">{voiceDefaults.introduction}</span> unless
               you change campaign voice settings. Leave{" "}
               <span className="font-mono">{"{callee_name}"}</span> for the dialer.
             </p>
@@ -470,7 +480,25 @@ export function SequenceStepBuilder({
   const [templateOptions, setTemplateOptions] = useState<string[]>([
     "Blank message",
   ]);
+  const [voiceDefaults, setVoiceDefaults] = useState({
+    introduction: ROSHNI_INTRODUCTION,
+    agentPrompt: defaultAiVoiceStepBody(),
+  });
   const errors = showErrors ? stepErrors(3, state) : [];
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadVoiceDefaultsSafe().then((defaults) => {
+      if (cancelled) return;
+      setVoiceDefaults({
+        introduction: defaults.introduction,
+        agentPrompt: defaults.agentPrompt,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -731,6 +759,7 @@ export function SequenceStepBuilder({
                       templateOptions={templateOptions}
                       whatsappSlot={whatsappSlot}
                       isFirstStep={index === 0}
+                      voiceDefaults={voiceDefaults}
                     />
                   ) : null}
                 </div>

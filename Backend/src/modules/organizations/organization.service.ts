@@ -11,6 +11,7 @@ import { normalizeEmail } from '../../shared/validation/email.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { quotaService, type QuotaUsageView } from '../../shared/usage/index.js';
 import { UserModel, type UserDocument } from '../auth/user.model.js';
+import { UserSessionModel } from '../auth/session.model.js';
 import { assertSameOrganization } from '../../middleware/auth.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { TeamInvitationModel } from './invitation.model.js';
@@ -22,12 +23,15 @@ import {
 } from './organization.model.js';
 import {
   buildPermissionMatrix,
+  modulesFromPermissions,
+  normalizeAllowedModules,
   ORGANIZATION_ROLES,
   PERMISSION_ACTIONS,
   PERMISSION_MODULES,
   resolvePermissions,
   roleDisplayName,
   type OrganizationRole,
+  type PermissionModule,
 } from './permissions.js';
 import { CustomRoleModel } from './role.model.js';
 import { buildOrganizationInitials } from '../../shared/auth/crypto.js';
@@ -41,6 +45,14 @@ type ActorContext = {
 };
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function readAllowedModules(
+  value: unknown
+): PermissionModule[] | null {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value)) return null;
+  return normalizeAllowedModules(value.map(String));
+}
 
 async function loadOrganization(organizationId: string) {
   if (!isValidObjectId(organizationId)) {
@@ -109,6 +121,7 @@ function toPublicMember(
     userId: mongoose.Types.ObjectId;
     role: string;
     permissions: string[];
+    allowedModules?: string[] | null;
     assignedJobIds?: mongoose.Types.ObjectId[];
     managerId?: mongoose.Types.ObjectId | null;
     status: string;
@@ -125,7 +138,12 @@ function toPublicMember(
 ) {
   const firstName = user?.firstName ?? '';
   const lastName = user?.lastName ?? '';
-  const permissions = resolvePermissions(member.role, member.permissions ?? []);
+  const allowedModules = readAllowedModules(member.allowedModules);
+  const permissions = resolvePermissions(
+    member.role,
+    member.permissions ?? [],
+    allowedModules
+  );
 
   return {
     id: member._id.toHexString(),
@@ -140,6 +158,8 @@ function toPublicMember(
     role: member.role,
     roleLabel: roleDisplayName(member.role),
     permissions,
+    allowedModules,
+    moduleAccess: modulesFromPermissions(permissions),
     assignedJobIds: (member.assignedJobIds ?? []).map((id) => id.toHexString()),
     managerId: member.managerId ? member.managerId.toHexString() : null,
     status: member.status,
@@ -154,12 +174,14 @@ function toPublicInvitation(invite: {
   email: string;
   role: string;
   permissions: string[];
+  allowedModules?: string[] | null;
   invitedBy: mongoose.Types.ObjectId;
   expiresAt: Date;
   acceptedAt?: Date | null;
   revokedAt?: Date | null;
   createdAt?: Date;
 }) {
+  const allowedModules = readAllowedModules(invite.allowedModules);
   return {
     id: invite._id.toHexString(),
     organizationId: invite.organizationId.toHexString(),
@@ -167,6 +189,7 @@ function toPublicInvitation(invite: {
     role: invite.role,
     roleLabel: roleDisplayName(invite.role),
     permissions: invite.permissions ?? [],
+    allowedModules,
     invitedBy: invite.invitedBy.toHexString(),
     expiresAt: invite.expiresAt.toISOString(),
     acceptedAt: invite.acceptedAt?.toISOString() ?? null,
@@ -288,6 +311,7 @@ export class OrganizationService {
     name?: string;
     role: string;
     permissions?: string[];
+    allowedModules?: string[] | null;
     assignedJobIds?: string[];
   }) {
     const organization = await loadOrganization(actor.organizationId);
@@ -324,6 +348,7 @@ export class OrganizationService {
     const assignedJobIds = (input.assignedJobIds ?? [])
       .filter((id) => isValidObjectId(id))
       .map((id) => new mongoose.Types.ObjectId(id));
+    const allowedModules = normalizeAllowedModules(input.allowedModules);
 
     const rawToken = generateOpaqueToken(32);
     const invitation = await TeamInvitationModel.create({
@@ -332,6 +357,7 @@ export class OrganizationService {
       invitedName: input.name?.trim() || null,
       role: input.role as OrganizationRole,
       permissions: input.permissions ?? [],
+      allowedModules,
       assignedJobIds,
       invitedBy: actor.userId,
       tokenHash: hashToken(rawToken),
@@ -364,6 +390,7 @@ export class OrganizationService {
     email: string;
     role: string;
     permissions?: string[];
+    allowedModules?: string[] | null;
     assignedJobIds?: string[];
   }) {
     const organization = await loadOrganization(actor.organizationId);
@@ -385,6 +412,7 @@ export class OrganizationService {
     const assignedJobIds = (input.assignedJobIds ?? [])
       .filter((id) => isValidObjectId(id))
       .map((id) => new mongoose.Types.ObjectId(id));
+    const allowedModules = normalizeAllowedModules(input.allowedModules);
 
     let user: UserDocument | null = null;
     try {
@@ -405,6 +433,7 @@ export class OrganizationService {
         userId: user._id,
         role: input.role as OrganizationRole,
         permissions: input.permissions ?? [],
+        allowedModules,
         assignedJobIds,
         status: 'active',
         joinedAt: new Date(),
@@ -507,10 +536,12 @@ export class OrganizationService {
     });
 
     const invitedJobIds = invitation.assignedJobIds ?? [];
+    const allowedModules = readAllowedModules(invitation.allowedModules);
 
     if (member) {
       member.role = invitation.role as OrganizationRole;
       member.permissions = invitation.permissions ?? [];
+      member.allowedModules = allowedModules;
       if (invitedJobIds.length) member.assignedJobIds = invitedJobIds;
       member.status = 'active';
       member.joinedAt = new Date();
@@ -521,6 +552,7 @@ export class OrganizationService {
         userId: user._id,
         role: invitation.role as OrganizationRole,
         permissions: invitation.permissions ?? [],
+        allowedModules,
         assignedJobIds: invitedJobIds,
         status: 'active',
         joinedAt: new Date(),
@@ -680,7 +712,7 @@ export class OrganizationService {
   async updateMemberPermissions(
     actor: ActorContext,
     memberId: string,
-    permissions: string[]
+    input: { permissions?: string[]; allowedModules?: string[] | null }
   ) {
     const member = await OrganizationMemberModel.findById(memberId);
     if (!member) throw AppError.notFound('Member not found');
@@ -690,7 +722,12 @@ export class OrganizationService {
       throw AppError.forbidden('Owner permissions cannot be restricted');
     }
 
-    member.permissions = permissions;
+    if (input.permissions !== undefined) {
+      member.permissions = input.permissions;
+    }
+    if (input.allowedModules !== undefined) {
+      member.allowedModules = normalizeAllowedModules(input.allowedModules);
+    }
     await member.save();
 
     await recordAuditEvent({
@@ -700,7 +737,11 @@ export class OrganizationService {
       organizationId: actor.organizationId,
       ipHash: actor.ipHash,
       userAgent: actor.userAgent,
-      metadata: { memberId, permissions },
+      metadata: {
+        memberId,
+        permissions: member.permissions,
+        allowedModules: member.allowedModules ?? null,
+      },
     });
 
     const user = await UserModel.findById(member.userId);
@@ -727,6 +768,12 @@ export class OrganizationService {
     const userStatus =
       status === 'active' ? 'active' : status === 'suspended' ? 'suspended' : 'blocked';
     await UserModel.updateOne({ _id: member.userId }, { $set: { memberStatus: userStatus } });
+    if (status !== 'active') {
+      await UserSessionModel.updateMany(
+        { userId: member.userId, revokedAt: null },
+        { $set: { revokedAt: new Date() } }
+      );
+    }
 
     await recordAuditEvent({
       action: 'team.member.status_changed',
@@ -740,6 +787,49 @@ export class OrganizationService {
 
     const user = await UserModel.findById(member.userId);
     return toPublicMember(member, user);
+  }
+
+  async resetMemberPassword(actor: ActorContext, memberId: string) {
+    const member = await OrganizationMemberModel.findById(memberId);
+    if (!member) throw AppError.notFound('Member not found');
+    assertSameOrganization(member.organizationId, actor.organizationId);
+
+    if (member.role === 'owner') {
+      throw AppError.forbidden('The workspace owner password cannot be reset here');
+    }
+    if (member.status === 'deactivated') {
+      throw AppError.badRequest('Cannot reset the password of a deactivated member');
+    }
+
+    const user = await UserModel.findById(member.userId).select('+passwordHash');
+    if (!user) throw AppError.notFound('User not found');
+
+    const temporaryPassword = `Ht${generateOpaqueToken(12)}7`;
+    user.passwordHash = await hashPassword(temporaryPassword);
+    user.failedLoginCount = 0;
+    user.lockedUntil = null;
+    await user.save();
+
+    // A password reset invalidates every existing device session immediately.
+    await UserSessionModel.updateMany(
+      { userId: user._id, revokedAt: null },
+      { $set: { revokedAt: new Date() } }
+    );
+
+    await recordAuditEvent({
+      action: 'team.member.password_reset',
+      module: 'team',
+      userId: actor.userId,
+      organizationId: actor.organizationId,
+      ipHash: actor.ipHash,
+      userAgent: actor.userAgent,
+      metadata: { memberId },
+    });
+
+    return {
+      email: user.email,
+      temporaryPassword,
+    };
   }
 
   async removeMember(actor: ActorContext, memberId: string) {
@@ -758,6 +848,10 @@ export class OrganizationService {
     member.status = 'deactivated';
     await member.save();
     await UserModel.updateOne({ _id: member.userId }, { $set: { memberStatus: 'blocked' } });
+    await UserSessionModel.updateMany(
+      { userId: member.userId, revokedAt: null },
+      { $set: { revokedAt: new Date() } }
+    );
 
     await recordAuditEvent({
       action: 'team.member.removed',

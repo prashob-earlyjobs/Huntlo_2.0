@@ -25,6 +25,7 @@ export * from "./admin";
 export * from "./system";
 export * from "./profile";
 export * from "./settings";
+export * from "./voice-defaults";
 
 export { apiClient, setTokenProvider, tokenStorage } from "./client";
 export { ApiError, mapApiErrorToUiState, getApiErrorMessage, isQuotaError } from "./errors";

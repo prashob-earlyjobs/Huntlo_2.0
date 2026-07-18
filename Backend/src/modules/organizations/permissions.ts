@@ -133,21 +133,76 @@ export function expandPermissions(permissions: string[]): Set<string> {
 
 export function resolvePermissions(
   role: string,
-  overrides: string[] = []
+  overrides: string[] = [],
+  allowedModules: PermissionModule[] | null = null
 ): string[] {
   const normalizedRole = normalizeRole(role);
-  const base =
-    normalizedRole && DEFAULT_ROLE_PERMISSIONS[normalizedRole]
-      ? DEFAULT_ROLE_PERMISSIONS[normalizedRole]
-      : DEFAULT_ROLE_PERMISSIONS.analyst;
 
-  if (base.includes('*') || overrides.includes('*')) {
+  // Workspace owners always retain full access to avoid lockout.
+  if (normalizedRole === 'owner') {
     return ['*'];
   }
 
-  const merged = expandPermissions([...base, ...overrides]);
-  merged.delete('*');
-  return Array.from(merged).sort();
+  if (!normalizedRole || !DEFAULT_ROLE_PERMISSIONS[normalizedRole]) {
+    return [];
+  }
+
+  const base = DEFAULT_ROLE_PERMISSIONS[normalizedRole];
+
+  // Explicit wildcard override still yields full access when unrestricted.
+  if (overrides.includes('*') && allowedModules === null) {
+    return ['*'];
+  }
+
+  // Role wildcards (admin) expand first; allow-lists can then restrict them.
+  if (base.includes('*') && allowedModules === null) {
+    return ['*'];
+  }
+
+  // Role defaults are the action ceiling — overrides never escalate beyond them.
+  let effective = expandPermissions(base);
+  effective.delete('*');
+
+  if (allowedModules !== null) {
+    const allowed = new Set(allowedModules);
+    effective = new Set(
+      Array.from(effective).filter((permission) => {
+        const [module] = permission.split(':');
+        return module ? allowed.has(module as PermissionModule) : false;
+      })
+    );
+  }
+
+  return Array.from(effective).sort();
+}
+
+/** Derive unique permission modules from an effective permission list. */
+export function modulesFromPermissions(permissions: string[]): PermissionModule[] {
+  if (permissions.includes('*')) {
+    return [...PERMISSION_MODULES];
+  }
+  const modules = new Set<PermissionModule>();
+  for (const permission of permissions) {
+    const [module] = permission.split(':');
+    if (module && (PERMISSION_MODULES as readonly string[]).includes(module)) {
+      modules.add(module as PermissionModule);
+    }
+  }
+  return Array.from(modules);
+}
+
+/** Normalize and validate a module allow-list from API input. */
+export function normalizeAllowedModules(
+  input: string[] | null | undefined
+): PermissionModule[] | null {
+  if (input === undefined || input === null) return null;
+  const allowed = new Set<PermissionModule>();
+  for (const value of input) {
+    if ((PERMISSION_MODULES as readonly string[]).includes(value)) {
+      allowed.add(value as PermissionModule);
+    }
+  }
+  return Array.from(allowed);
 }
 
 export function hasPermission(

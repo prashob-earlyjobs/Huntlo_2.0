@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
+import { ResultsWorkspace } from "@/components/screening/results-workspace";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +47,6 @@ import {
 import {
   candidateDetailPath,
   jobDetailPath,
-  ROUTES,
   screeningResultPath,
 } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -285,6 +285,7 @@ function SettingsTab() {
 export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
   const [status, setStatus] = useState<ScreeningBatchStatus>(batch.status);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
   function flash(text: string) {
     setFeedback(text);
@@ -371,8 +372,7 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
             <Button
               size="sm"
               variant="outline"
-              nativeButton={false}
-              render={<Link href={ROUTES.screeningResults} />}
+              onClick={() => setActiveTab("results")}
             >
               View Results
             </Button>
@@ -424,11 +424,12 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
         ) : null}
       </header>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="overflow-x-auto">
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
+            <TabsTrigger value="results">Results</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
         </div>
@@ -437,6 +438,9 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
           <CandidatesTab />
+        </TabsContent>
+        <TabsContent value="results" className="pt-3">
+          <ResultsWorkspace screeningId={batch.id} />
         </TabsContent>
         <TabsContent value="settings" className="pt-3">
           <SettingsTab />

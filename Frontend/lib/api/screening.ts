@@ -33,6 +33,8 @@ export type ScreeningCreateInput = {
     weight?: number;
     description?: string | null;
   }>;
+  minShortlistScore?: number;
+  knockouts?: string[];
   callSettings?: {
     maxAttempts?: number;
     attemptIntervalHours?: number;
@@ -224,10 +226,13 @@ const mockScreeningApi: ScreeningApi = {
       objective: input.objective || "",
     };
   },
-  async listResults() {
+  async listResults(params) {
     await simulateMockLatency();
     const { SCREENING_RESULTS } = await import("@/lib/mock-screening");
-    return SCREENING_RESULTS;
+    const screeningId =
+      typeof params?.screeningId === "string" ? params.screeningId : null;
+    if (!screeningId) return SCREENING_RESULTS;
+    return SCREENING_RESULTS.filter((result) => result.screeningId === screeningId);
   },
   async getResult(id) {
     await simulateMockLatency();

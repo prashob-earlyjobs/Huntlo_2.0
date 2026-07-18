@@ -17,10 +17,14 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { hasPermission } from "@/lib/access-control";
 import { ROUTES } from "@/lib/routes";
+import { useAuth } from "@/providers/auth-provider";
 
 export function HeaderOverflowMenu() {
   const { theme, setTheme } = useTheme();
+  const { permissions } = useAuth();
+  const canViewPlans = hasPermission(permissions, "plans:view");
 
   return (
     <DropdownMenu>
@@ -37,10 +41,12 @@ export function HeaderOverflowMenu() {
         <EllipsisVertical aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem render={<Link href={ROUTES.plans} />}>
-          <Gauge aria-hidden />
-          <span className="flex-1">Usage</span>
-        </DropdownMenuItem>
+        {canViewPlans ? (
+          <DropdownMenuItem render={<Link href={ROUTES.plans} />}>
+            <Gauge aria-hidden />
+            <span className="flex-1">Usage</span>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <Sun aria-hidden className="dark:hidden" />

@@ -53,6 +53,7 @@ export const createInvitation = asyncHandler(async (req: Request, res: Response)
     name: input.name,
     role: input.role,
     permissions: input.permissions,
+    allowedModules: input.allowedModules,
     assignedJobIds: input.assignedJobIds,
   });
   successResponse(res, data, { statusCode: 201, meta: { requestId: getRequestId(req) } });
@@ -65,6 +66,7 @@ export const createTeamAccount = asyncHandler(async (req: Request, res: Response
     email: normalizeEmail(input.email),
     role: input.role,
     permissions: input.permissions,
+    allowedModules: input.allowedModules,
     assignedJobIds: input.assignedJobIds,
   });
   successResponse(res, data, { statusCode: 201, meta: { requestId: getRequestId(req) } });
@@ -130,7 +132,10 @@ export const updateMemberPermissions = asyncHandler(async (req: Request, res: Re
   const data = await organizationService.updateMemberPermissions(
     actorFrom(req),
     String(req.params.id),
-    input.permissions
+    {
+      permissions: input.permissions,
+      allowedModules: input.allowedModules,
+    }
   );
   successResponse(res, data, { meta: { requestId: getRequestId(req) } });
 });
@@ -141,6 +146,14 @@ export const updateMemberStatus = asyncHandler(async (req: Request, res: Respons
     actorFrom(req),
     String(req.params.id),
     input.status
+  );
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
+export const resetMemberPassword = asyncHandler(async (req: Request, res: Response) => {
+  const data = await organizationService.resetMemberPassword(
+    actorFrom(req),
+    String(req.params.id)
   );
   successResponse(res, data, { meta: { requestId: getRequestId(req) } });
 });

@@ -11,6 +11,8 @@ export {
   resolvePermissions,
   rolePermissions,
   hasPermission,
+  modulesFromPermissions,
+  normalizeAllowedModules,
 } from './permissions.js';
 export {
   OrganizationModel,

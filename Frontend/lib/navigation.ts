@@ -115,17 +115,18 @@ export const NAV_SECTIONS: NavSection[] = [
         description: "Email, WhatsApp and AI voice campaigns",
       },
       {
+        title: "Conversations",
+        href: ROUTES.conversations,
+        icon: MessageSquare,
+        description: "Candidate replies across channels",
+      },
+      {
         title: "Huntlo 360",
         href: ROUTES.huntlo360,
         icon: Orbit,
         description: "Unified multi-channel engagement",
         featureLabel: "New",
-      },
-      {
-        title: "Conversations",
-        href: ROUTES.conversations,
-        icon: MessageSquare,
-        description: "Candidate replies across channels",
+        disabled: true,
       },
       {
         title: "Templates",

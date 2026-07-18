@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_ROSHNI_QUESTIONS,
+  getBundledRoshniPromptTemplate,
   getRoshniPromptTemplate,
+  missingRoshniPlaceholders,
   resolveVoiceTokens,
 } from '../src/modules/voice/index.js';
 import { buildRoshniJdTokens } from '../src/modules/voice/roshni-prompt.js';
@@ -13,7 +15,9 @@ describe('Roshni prompt', () => {
     expect(template).toContain('You are Roshni');
     expect(template).toContain('{callee_name}');
     expect(template).toContain('{jd_role_screening_label}');
+    expect(template).toBe(getBundledRoshniPromptTemplate());
     expect(DEFAULT_ROSHNI_QUESTIONS).toHaveLength(8);
+    expect(missingRoshniPlaceholders(template)).toEqual([]);
   });
 
   it('renders JD tokens into the agent prompt', async () => {

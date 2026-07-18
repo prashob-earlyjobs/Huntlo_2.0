@@ -163,16 +163,19 @@ export function SearchHistoryTable({
           <TableBody>
             {entries.map((entry) => (
               <TableRow key={entry.id}>
-                <TableCell className="py-2.5 text-sm font-medium text-foreground">
+                <TableCell className="max-w-56 py-2.5 text-sm font-medium text-foreground">
                   {entry.sessionId ? (
                     <Link
                       href={sessionDetailPath(entry.sessionId)}
-                      className="underline-offset-4 hover:underline"
+                      title={entry.name}
+                      className="line-clamp-2 underline-offset-4 hover:underline"
                     >
                       {entry.name}
                     </Link>
                   ) : (
-                    entry.name
+                    <span title={entry.name} className="line-clamp-2">
+                      {entry.name}
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="max-w-44 py-2.5">

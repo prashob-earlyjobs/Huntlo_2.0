@@ -139,6 +139,8 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     consentText: doc.consentText,
     questions: doc.questions,
     evaluationCriteria: doc.evaluationCriteria,
+    minShortlistScore: doc.minShortlistScore ?? 70,
+    knockouts: doc.knockouts || [],
     callSettings: doc.callSettings,
     candidateIds: doc.candidateIds,
     candidates: doc.stats.enrolled,
@@ -309,6 +311,9 @@ export const screeningService = {
       consentText: input.consentText ?? null,
       questions: input.questions || [],
       evaluationCriteria: input.evaluationCriteria || [],
+      minShortlistScore:
+        typeof input.minShortlistScore === 'number' ? input.minShortlistScore : 70,
+      knockouts: input.knockouts || [],
       callSettings: {
         maxAttempts: input.callSettings?.maxAttempts ?? 2,
         attemptIntervalHours: input.callSettings?.attemptIntervalHours ?? 24,
@@ -365,6 +370,8 @@ export const screeningService = {
     if (input.consentText !== undefined) doc.consentText = input.consentText;
     if (input.questions !== undefined) doc.questions = input.questions;
     if (input.evaluationCriteria !== undefined) doc.evaluationCriteria = input.evaluationCriteria;
+    if (input.minShortlistScore !== undefined) doc.minShortlistScore = input.minShortlistScore;
+    if (input.knockouts !== undefined) doc.knockouts = input.knockouts;
     if (input.callSettings !== undefined) {
       doc.callSettings = { ...doc.callSettings, ...input.callSettings };
     }
@@ -549,12 +556,25 @@ export const screeningService = {
         description: criterion.description || `score 0-100 for ${criterion.label}`,
       };
     }
+    const knockouts = (doc.knockouts || []).map((value) => String(value).trim()).filter(Boolean);
+    if (knockouts.length > 0) {
+      (resultSchema.properties as Record<string, unknown>).knockouts_triggered = {
+        type: 'array',
+        items: { type: 'string' },
+        description: `List which of these knockout rules failed for the candidate (use exact labels): ${knockouts.join('; ')}. Empty array if none failed.`,
+      };
+    }
     let resultPrompt = roshni.resultPrompt;
     if (doc.evaluationCriteria?.length) {
       const extra = doc.evaluationCriteria
         .map((c) => `"${c.id}": number 0-100 — ${c.label}`)
         .join(', ');
       resultPrompt = `${resultPrompt}\n\nAlso include evaluation scores: ${extra}.`;
+    }
+    if (knockouts.length > 0) {
+      resultPrompt = `${resultPrompt}\n\nAlso include "knockouts_triggered": string[] using only these exact labels when the candidate fails them: ${knockouts
+        .map((rule) => `"${rule}"`)
+        .join(', ')}. Use [] when none apply.`;
     }
 
     const storedPrompt = String(doc.agentPrompt || '').trim();

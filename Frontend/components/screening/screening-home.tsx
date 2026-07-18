@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -328,9 +329,33 @@ export function ScreeningHome() {
         </div>
 
         {loading ? (
-          <p className="px-4 py-8 text-sm text-muted-foreground">
-            Loading screenings…
-          </p>
+          <div aria-busy aria-label="Loading screenings" className="overflow-x-auto">
+            <div className="min-w-[1000px]">
+              <div className="grid grid-cols-[1.5fr_1.2fr_0.7fr_0.8fr_0.6fr_0.8fr_0.9fr_0.8fr_0.8fr_0.9fr_40px] gap-3 border-b border-border px-4 py-2.5">
+                {Array.from({ length: 11 }).map((_, index) => (
+                  <Skeleton key={index} className="h-3 w-full max-w-20" />
+                ))}
+              </div>
+              {Array.from({ length: 5 }).map((_, row) => (
+                <div
+                  key={row}
+                  className="grid grid-cols-[1.5fr_1.2fr_0.7fr_0.8fr_0.6fr_0.8fr_0.9fr_0.8fr_0.8fr_0.9fr_40px] items-center gap-3 border-b border-border px-4 py-3 last:border-b-0"
+                >
+                  <Skeleton className="h-3.5 w-40 max-w-full" />
+                  <Skeleton className="h-3.5 w-28 max-w-full" />
+                  <Skeleton className="ml-auto h-3.5 w-8" />
+                  <Skeleton className="h-3.5 w-16" />
+                  <Skeleton className="ml-auto h-3.5 w-6" />
+                  <Skeleton className="ml-auto h-3.5 w-10" />
+                  <Skeleton className="ml-auto h-3.5 w-8" />
+                  <Skeleton className="ml-auto h-3.5 w-8" />
+                  <Skeleton className="h-5 w-16 rounded-md" />
+                  <Skeleton className="h-3.5 w-20" />
+                  <Skeleton className="ml-auto size-7 rounded-md" />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : filtered.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>

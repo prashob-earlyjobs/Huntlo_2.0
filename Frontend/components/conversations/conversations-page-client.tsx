@@ -78,11 +78,11 @@ export function ConversationsPageClient() {
         </p>
       ) : null}
       {loading ? (
-        <ConversationInboxSkeleton className="min-h-[28rem] flex-1" />
+        <ConversationInboxSkeleton className="min-h-112 flex-1 xl:h-[calc(100svh-9.25rem)] xl:flex-none" />
       ) : (
         <ConversationInbox
           conversations={conversations}
-          className="min-h-[28rem] flex-1"
+          className="min-h-112 flex-1 xl:h-[calc(100svh-9.25rem)] xl:flex-none"
         />
       )}
     </>

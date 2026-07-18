@@ -83,6 +83,26 @@ export type ProviderHealth = {
   errorSummary: string | null;
 };
 
+export type AdminRoshniPromptSettings = {
+  introduction: string | null;
+  agentPrompt: string | null;
+  version: number;
+  effectiveIntroduction: string;
+  effectiveAgentPrompt: string;
+  introductionSource: "db" | "file";
+  agentPromptSource: "db" | "file";
+  bundledIntroduction: string;
+  bundledAgentPrompt: string;
+};
+
+export type AdminPlatformSettings = {
+  maintenanceMode: boolean;
+  featureFlags: Record<string, unknown>;
+  providers: ProviderHealth[];
+  roshniPrompt?: AdminRoshniPromptSettings;
+  updatedAt?: string;
+};
+
 export type BlogArticle = {
   id: string;
   title: string;
@@ -168,12 +188,8 @@ export interface AdminApi {
   retryWorkerTask(id: string): Promise<unknown>;
   listWebhooks(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
   getProviderHealth(): Promise<{ providers: ProviderHealth[] }>;
-  getPlatformSettings(): Promise<{
-    maintenanceMode: boolean;
-    featureFlags: Record<string, unknown>;
-    providers: ProviderHealth[];
-  }>;
-  updatePlatformSettings(input: Record<string, unknown>): Promise<unknown>;
+  getPlatformSettings(): Promise<AdminPlatformSettings>;
+  updatePlatformSettings(input: Record<string, unknown>): Promise<AdminPlatformSettings>;
   listBlog(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<BlogArticle>>;
   createBlog(input: Record<string, unknown>): Promise<BlogArticle>;
   updateBlog(id: string, input: Record<string, unknown>): Promise<BlogArticle>;
@@ -327,17 +343,17 @@ const liveAdminApi: AdminApi = {
     return result.data;
   },
   async getPlatformSettings() {
-    const result = await apiClient.get<{
-      maintenanceMode: boolean;
-      featureFlags: Record<string, unknown>;
-      providers: ProviderHealth[];
-    }>("/admin/platform-settings");
+    const result = await apiClient.get<AdminPlatformSettings>("/admin/platform-settings");
     return result.data;
   },
   async updatePlatformSettings(input) {
-    const result = await apiClient.patch("/admin/platform-settings", input, {
-      sensitive: true,
-    });
+    const result = await apiClient.patch<AdminPlatformSettings>(
+      "/admin/platform-settings",
+      input,
+      {
+        sensitive: true,
+      }
+    );
     return result.data;
   },
   async listBlog(params) {
@@ -537,10 +553,61 @@ const mockAdminApi: AdminApi = {
   },
   async getPlatformSettings() {
     const health = await this.getProviderHealth();
-    return { maintenanceMode: false, featureFlags: {}, providers: health.providers };
+    const {
+      ROSHNI_INTRODUCTION,
+      ROSHNI_AGENT_PROMPT_TEMPLATE,
+    } = await import("@/lib/roshni-agent-prompt");
+    return {
+      maintenanceMode: false,
+      featureFlags: {},
+      providers: health.providers,
+      roshniPrompt: {
+        introduction: null,
+        agentPrompt: null,
+        version: 0,
+        effectiveIntroduction: ROSHNI_INTRODUCTION,
+        effectiveAgentPrompt: ROSHNI_AGENT_PROMPT_TEMPLATE,
+        introductionSource: "file" as const,
+        agentPromptSource: "file" as const,
+        bundledIntroduction: ROSHNI_INTRODUCTION,
+        bundledAgentPrompt: ROSHNI_AGENT_PROMPT_TEMPLATE,
+      },
+    };
   },
   async updatePlatformSettings(input) {
-    return input;
+    const current = await this.getPlatformSettings();
+    const patch = input as {
+      roshniPrompt?: { introduction?: string | null; agentPrompt?: string | null };
+    };
+    if (!patch.roshniPrompt) return { ...current, ...input } as AdminPlatformSettings;
+    const nextIntro =
+      patch.roshniPrompt.introduction === undefined
+        ? current.roshniPrompt!.introduction
+        : patch.roshniPrompt.introduction;
+    const nextAgent =
+      patch.roshniPrompt.agentPrompt === undefined
+        ? current.roshniPrompt!.agentPrompt
+        : patch.roshniPrompt.agentPrompt;
+    const version =
+      nextIntro !== current.roshniPrompt!.introduction ||
+      nextAgent !== current.roshniPrompt!.agentPrompt
+        ? current.roshniPrompt!.version + 1
+        : current.roshniPrompt!.version;
+    return {
+      ...current,
+      roshniPrompt: {
+        ...current.roshniPrompt!,
+        introduction: nextIntro ?? null,
+        agentPrompt: nextAgent ?? null,
+        version,
+        effectiveIntroduction:
+          String(nextIntro || "").trim() || current.roshniPrompt!.bundledIntroduction,
+        effectiveAgentPrompt:
+          String(nextAgent || "").trim() || current.roshniPrompt!.bundledAgentPrompt,
+        introductionSource: String(nextIntro || "").trim() ? "db" : "file",
+        agentPromptSource: String(nextAgent || "").trim() ? "db" : "file",
+      },
+    };
   },
   async listBlog() {
     await simulateMockLatency();

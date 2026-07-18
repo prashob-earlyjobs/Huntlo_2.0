@@ -93,6 +93,8 @@ export interface IntegrationProvider {
   serverConfigured?: boolean;
   /** Public OAuth client id (e.g. Google) when needed for popup auth. */
   oauthClientId?: string | null;
+  /** When true, card is shown but connect/configure is unavailable. */
+  inactive?: boolean;
 }
 
 export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
@@ -254,6 +256,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     connectionDetails: [],
     isDefault: false,
     configKind: "whatsapp",
+    inactive: true,
   },
   /* Voice */
   {
@@ -314,31 +317,6 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     ],
     isDefault: true,
     configKind: "calendly",
-  },
-  /* Candidate data */
-  {
-    id: "future-jobs",
-    name: "Future Jobs",
-    description:
-      "Enrich candidate profiles and pull public career signals into Huntlo.",
-    category: "Candidate Data",
-    status: "Connected",
-    connectedIdentity: "API key · production",
-    lastSynced: "1h ago",
-    docsLabel: "Future Jobs API",
-    initials: "FJ",
-    accent: "info",
-    permissions: ["Lookup profiles", "Enrich contact fields"],
-    usage: [
-      { label: "Lookups today", value: "24 / 200" },
-      { label: "Enrichments", value: "11" },
-    ],
-    connectionDetails: [
-      { label: "Environment", value: "Production" },
-      { label: "Rate limit", value: "200 lookups / day" },
-    ],
-    isDefault: true,
-    configKind: "data",
   },
   /* Payments */
   {

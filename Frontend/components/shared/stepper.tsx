@@ -77,7 +77,7 @@ export function Stepper({
             <div className="min-w-0">
               <p
                 className={cn(
-                  "text-sm font-medium",
+                  "truncate text-sm font-medium",
                   locked
                     ? "text-muted-foreground/50"
                     : hasError
@@ -90,7 +90,9 @@ export function Stepper({
                 {step.title}
               </p>
               {step.description ? (
-                <p className="text-xs text-muted-foreground">{step.description}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {step.description}
+                </p>
               ) : null}
             </div>
           </>
@@ -100,7 +102,7 @@ export function Stepper({
           <li
             key={step.id}
             aria-current={state === "active" ? "step" : undefined}
-            className="flex flex-1"
+            className="flex min-w-0 flex-1"
           >
             {onStepSelect ? (
               <button

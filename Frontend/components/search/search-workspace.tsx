@@ -6,7 +6,6 @@ import {
   Check,
   Coins,
   Eraser,
-  FileText,
   LoaderCircle,
   PenLine,
   Search,
@@ -513,10 +512,9 @@ export function SearchWorkspace() {
     setError(null);
   }
 
-  function useJobDescription() {
-    const job = selectedJob ?? jobOptions[0];
+  function fillPromptFromJob(jobId: string) {
+    const job = jobOptions.find((item) => item.id === jobId);
     if (!job) return;
-    if (!selectedJobId) setSelectedJobId(job.id);
     const location =
       "location" in job && typeof job.location === "string"
         ? job.location
@@ -687,7 +685,7 @@ export function SearchWorkspace() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
-              className="min-h-28 resize-none rounded-b-none border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
+              className="min-h-48 resize-none rounded-b-none border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
               aria-busy={interpreting || searching}
             />
 
@@ -695,7 +693,14 @@ export function SearchWorkspace() {
             <div className="flex flex-wrap items-center gap-1.5 rounded-b-md bg-muted/50 px-2 py-1.5">
               <Select
                 value={selectedJobId}
-                onValueChange={(value) => setSelectedJobId(value)}
+                onValueChange={(value) => {
+                  if (!value) {
+                    setSelectedJobId(null);
+                    return;
+                  }
+                  setSelectedJobId(value);
+                  fillPromptFromJob(value);
+                }}
               >
                 <SelectTrigger
                   size="sm"
@@ -706,7 +711,9 @@ export function SearchWorkspace() {
                     aria-hidden
                     className="size-3.5 shrink-0 text-muted-foreground"
                   />
-                  <SelectValue placeholder="Select Job" />
+                  <SelectValue placeholder="Select Job">
+                    {selectedJob?.title}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {jobOptions.map((job) => (
@@ -716,16 +723,6 @@ export function SearchWorkspace() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={useJobDescription}
-              >
-                <FileText aria-hidden />
-                Use Job Description
-              </Button>
 
               {/* Advanced filters toggle — mobile / narrow screens only */}
               <div className="lg:hidden">
@@ -972,7 +969,7 @@ export function SearchWorkspace() {
       </div>
 
       {/* Desktop filter sidebar — fixed height so FilterPanel's overflow-y-auto can scroll */}
-      <aside className="sticky top-20 hidden max-h-[calc(100svh-6rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
+      <aside className="sticky top-20 hidden h-[calc(100svh-5.25rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
         {filterPanel}
       </aside>
     </div>

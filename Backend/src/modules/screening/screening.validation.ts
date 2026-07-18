@@ -52,6 +52,8 @@ export const createScreeningSchema = z.object({
     )
     .max(30)
     .optional(),
+  minShortlistScore: z.number().min(0).max(100).optional(),
+  knockouts: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
   callSettings: z
     .object({
       maxAttempts: z.number().int().min(1).max(10).optional(),

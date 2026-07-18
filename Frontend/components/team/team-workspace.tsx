@@ -28,6 +28,16 @@ import {
 } from "@/components/shared/filter-popover";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -67,6 +77,11 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  MODULE_LABEL_TO_KEY,
+  ROLE_AVAILABLE_MODULES,
+  type PermissionModule,
+} from "@/lib/access-control";
+import {
   getApiErrorMessage,
   jobsApi,
   mapApiMemberToUi,
@@ -80,8 +95,6 @@ import type { JobListItem } from "@/lib/api/contracts";
 import {
   ACCOUNT_STATUSES,
   MODULE_ACCESS_OPTIONS,
-  PERMISSION_ACTIONS,
-  PERMISSION_MATRIX,
   TEAM_ROLES,
   type AccountStatus,
   type ModuleAccess,
@@ -89,6 +102,7 @@ import {
   type TeamMetric,
   type TeamRole,
 } from "@/lib/mock-team";
+import { cn } from "@/lib/utils";
 
 const EMPTY_ORG_FORM = {
   name: "",
@@ -101,7 +115,6 @@ const EMPTY_ORG_FORM = {
   country: "",
   logoInitials: "",
 };
-import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
@@ -138,34 +151,18 @@ function toOptions(values: readonly string[]): FilterOption[] {
   return values.map((value) => ({ id: value, label: value }));
 }
 
-/** UI module label → backend permission module key. */
-const MODULE_TO_PERMISSION_KEY: Record<ModuleAccess, string> = {
-  "Candidate Search": "sourcing",
-  "Candidate Pool": "candidates",
-  "People Scout": "peopleScout",
-  Outreach: "outreach",
-  "Huntlo 360": "huntlo360",
-  Screening: "screening",
-  Scheduling: "scheduling",
-  Analytics: "analytics",
-  Integrations: "integrations",
-  Plans: "plans",
-  Team: "team",
-};
+function availableModulesForRole(role: TeamRole): ModuleAccess[] {
+  const roleKey = String(toRoleKey(role));
+  const keys = ROLE_AVAILABLE_MODULES[roleKey] ?? ROLE_AVAILABLE_MODULES.recruiter;
+  return MODULE_ACCESS_OPTIONS.filter((label) =>
+    keys.includes(MODULE_LABEL_TO_KEY[label] as PermissionModule)
+  );
+}
 
-/** Actions granted (additively) for each selected module at invite time. */
-const GRANTED_ACTIONS = ["view", "create", "edit", "launch", "export"] as const;
-
-function modulesToPermissionKeys(modules: ModuleAccess[]): string[] {
-  const keys: string[] = [];
-  for (const mod of modules) {
-    const moduleKey = MODULE_TO_PERMISSION_KEY[mod];
-    if (!moduleKey) continue;
-    for (const action of GRANTED_ACTIONS) {
-      keys.push(`${moduleKey}:${action}`);
-    }
-  }
-  return keys;
+function modulesToAllowedKeys(modules: ModuleAccess[]): PermissionModule[] {
+  return modules
+    .map((label) => MODULE_LABEL_TO_KEY[label])
+    .filter((key): key is PermissionModule => Boolean(key));
 }
 
 /* ------------------------------------------------------------------ */
@@ -194,6 +191,19 @@ function InviteMemberDialog({
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const availableModules = useMemo(
+    () => availableModulesForRole(role),
+    [role]
+  );
+
+  useEffect(() => {
+    setModules((previous) => {
+      const next = previous.filter((mod) => availableModules.includes(mod));
+      if (next.length > 0) return next;
+      return availableModules.slice(0, 3);
+    });
+  }, [availableModules]);
 
   useEffect(() => {
     if (!open) return;
@@ -318,20 +328,34 @@ function InviteMemberDialog({
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">Module access</p>
             <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
-              {MODULE_ACCESS_OPTIONS.map((mod) => (
-                <label
-                  key={mod}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-muted/40"
-                >
-                  <input
-                    type="checkbox"
-                    checked={modules.includes(mod)}
-                    onChange={() => toggleModule(mod)}
-                    className="size-3.5 accent-primary"
-                  />
-                  {mod}
-                </label>
-              ))}
+              {MODULE_ACCESS_OPTIONS.map((mod) => {
+                const supported = availableModules.includes(mod);
+                return (
+                  <label
+                    key={mod}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-1.5 py-1 text-sm",
+                      supported
+                        ? "cursor-pointer hover:bg-muted/40"
+                        : "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={modules.includes(mod)}
+                      disabled={!supported}
+                      onChange={() => supported && toggleModule(mod)}
+                      className="size-3.5 accent-primary"
+                    />
+                    <span className="flex-1">{mod}</span>
+                    {!supported ? (
+                      <span className="text-[10px] text-muted-foreground">
+                        Not in role
+                      </span>
+                    ) : null}
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -361,7 +385,7 @@ function InviteMemberDialog({
                     email,
                     name: name.trim(),
                     role: toRoleKey(role),
-                    permissions: modulesToPermissionKeys(modules),
+                    allowedModules: modulesToAllowedKeys(modules),
                     assignedJobIds: jobs,
                   });
                   onCreated(result.credentials);
@@ -387,9 +411,11 @@ function InviteMemberDialog({
 function AccountCredentialsDialog({
   credentials,
   onClose,
+  title = "Account created",
 }: {
   credentials: CreateTeamAccountResult["credentials"] | null;
   onClose: () => void;
+  title?: string;
 }) {
   const copy = (value: string) => {
     void navigator.clipboard.writeText(value);
@@ -399,7 +425,7 @@ function AccountCredentialsDialog({
     <Dialog open={Boolean(credentials)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Account created</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             Share these credentials securely. The temporary password is shown only once.
           </DialogDescription>
@@ -748,94 +774,6 @@ function MemberDrawer({
 }
 
 /* ------------------------------------------------------------------ */
-/* Permissions matrix                                                   */
-/* ------------------------------------------------------------------ */
-
-function PermissionsMatrix() {
-  const [role, setRole] = useState<TeamRole>("Recruiter");
-  const matrix = PERMISSION_MATRIX[role];
-
-  return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">
-            Permission matrix
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            View / Create / Edit / Launch / Export / Manage by role — UI only,
-            not enforced
-          </p>
-        </div>
-        <Select
-          value={role}
-          onValueChange={(value) => value && setRole(value as TeamRole)}
-        >
-          <SelectTrigger size="sm" className="w-48" aria-label="Role">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TEAM_ROLES.map((r) => (
-              <SelectItem key={r} value={r}>
-                {r}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="overflow-x-auto">
-        <Table>
-          <caption className="sr-only">
-            Permissions for {role} across Huntlo modules
-          </caption>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className={HEAD}>Module</TableHead>
-              {PERMISSION_ACTIONS.map((action) => (
-                <TableHead key={action} className={`${HEAD} text-center`}>
-                  {action}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {MODULE_ACCESS_OPTIONS.map((mod) => {
-              const allowed = matrix[mod] ?? [];
-              return (
-                <TableRow key={mod}>
-                  <TableCell className="py-2 text-sm font-medium text-foreground">
-                    {mod}
-                  </TableCell>
-                  {PERMISSION_ACTIONS.map((action) => {
-                    const has = allowed.includes(action);
-                    return (
-                      <TableCell key={action} className="py-2 text-center">
-                        {has ? (
-                          <Check
-                            aria-label={`${action} allowed`}
-                            className="mx-auto size-4 text-success"
-                          />
-                        ) : (
-                          <span
-                            aria-label={`${action} not allowed`}
-                            className="mx-auto block size-1.5 rounded-full bg-border"
-                          />
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Organisation settings                                                */
 /* ------------------------------------------------------------------ */
 
@@ -1042,82 +980,159 @@ function MemberRowActions({
   member,
   onOpen,
   onAction,
+  onPasswordReset,
 }: {
   member: TeamMember;
   onOpen: () => void;
   onAction: (message: string, reload?: boolean) => void;
+  onPasswordReset: (
+    credentials: CreateTeamAccountResult["credentials"]
+  ) => void;
 }) {
+  const [confirmAction, setConfirmAction] = useState<
+    "reset" | "suspend" | "activate" | "deactivate" | null
+  >(null);
+  const [busy, setBusy] = useState(false);
+
+  async function runConfirmedAction() {
+    if (!confirmAction) return;
+    setBusy(true);
+    try {
+      if (confirmAction === "reset") {
+        const credentials = await teamApi.resetMemberPassword(member.id);
+        onPasswordReset(credentials);
+        onAction(`Password reset for ${member.name}.`);
+      } else if (confirmAction === "suspend") {
+        await teamApi.updateMemberStatus(member.id, "suspended");
+        onAction(`Suspended ${member.name}.`, true);
+      } else if (confirmAction === "activate") {
+        await teamApi.updateMemberStatus(member.id, "active");
+        onAction(`Activated ${member.name}.`, true);
+      } else {
+        await teamApi.removeMember(member.id);
+        onAction(`Deactivated ${member.name}.`, true);
+      }
+      setConfirmAction(null);
+    } catch (error) {
+      onAction(
+        getApiErrorMessage(error, `Unable to ${confirmAction} member.`)
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const actionLabel =
+    confirmAction === "reset"
+      ? "Reset password"
+      : confirmAction === "suspend"
+        ? "Suspend member"
+        : confirmAction === "activate"
+          ? "Activate member"
+          : "Deactivate member";
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={`Actions for ${member.name}`}
-          />
-        }
-      >
-        <MoreHorizontal aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={onOpen}>View member</DropdownMenuItem>
-        {member.status === "Invited" ? (
-          <DropdownMenuItem
-            onClick={() =>
-              void teamApi
-                .resendInvitation(member.id)
-                .then(() => onAction(`Resent invitation to ${member.email}.`, true))
-                .catch((error) =>
-                  onAction(getApiErrorMessage(error, "Unable to resend invitation."))
-                )
-            }
-          >
-            Resend invitation
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem
-          onClick={() =>
-            onAction(`Password reset prepared for ${member.name}.`)
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Actions for ${member.name}`}
+              disabled={busy}
+            />
           }
         >
-          <KeyRound aria-hidden />
-          Reset password
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {member.status === "Active" ? (
-          <DropdownMenuItem
-            onClick={() =>
-              void teamApi
-                .updateMemberStatus(member.id, "suspended")
-                .then(() => onAction(`Suspended ${member.name}.`, true))
-                .catch((error) =>
-                  onAction(getApiErrorMessage(error, "Unable to suspend member."))
-                )
-            }
-          >
-            <UserMinus aria-hidden />
-            Suspend
-          </DropdownMenuItem>
-        ) : null}
-        {member.role !== "Workspace Owner" ? (
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() =>
-              void teamApi
-                .removeMember(member.id)
-                .then(() => onAction(`Deactivated ${member.name}.`, true))
-                .catch((error) =>
-                  onAction(getApiErrorMessage(error, "Unable to remove member."))
-                )
-            }
-          >
-            <UserX aria-hidden />
-            Deactivate
-          </DropdownMenuItem>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <MoreHorizontal aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={onOpen}>View member</DropdownMenuItem>
+          {member.status === "Invited" ? (
+            <DropdownMenuItem
+              onClick={() =>
+                void teamApi
+                  .resendInvitation(member.id)
+                  .then(() => onAction(`Resent invitation to ${member.email}.`, true))
+                  .catch((error) =>
+                    onAction(getApiErrorMessage(error, "Unable to resend invitation."))
+                  )
+              }
+            >
+              Resend invitation
+            </DropdownMenuItem>
+          ) : null}
+          {member.role !== "Workspace Owner" &&
+          member.status !== "Deactivated" ? (
+            <DropdownMenuItem onClick={() => setConfirmAction("reset")}>
+              <KeyRound aria-hidden />
+              Reset password
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuSeparator />
+          {member.status === "Active" &&
+          member.role !== "Workspace Owner" ? (
+            <DropdownMenuItem onClick={() => setConfirmAction("suspend")}>
+              <UserMinus aria-hidden />
+              Suspend
+            </DropdownMenuItem>
+          ) : null}
+          {member.status === "Suspended" ? (
+            <DropdownMenuItem onClick={() => setConfirmAction("activate")}>
+              <UserCheck aria-hidden />
+              Activate
+            </DropdownMenuItem>
+          ) : null}
+          {member.role !== "Workspace Owner" &&
+          member.status !== "Deactivated" ? (
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => setConfirmAction("deactivate")}
+            >
+              <UserX aria-hidden />
+              Deactivate
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => !open && !busy && setConfirmAction(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{actionLabel}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction === "reset"
+                ? `This signs ${member.name} out on every device and creates a new temporary password.`
+                : confirmAction === "suspend"
+                  ? `${member.name} will be signed out and unable to access the workspace until reactivated.`
+                  : confirmAction === "activate"
+                    ? `${member.name} will be able to sign in and access assigned modules again.`
+                    : `${member.name} will be signed out and removed from active workspace access.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              className={
+                confirmAction === "deactivate"
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : undefined
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                void runConfirmedAction();
+              }}
+            >
+              {busy ? "Working…" : actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -1132,6 +1147,9 @@ export function TeamWorkspace() {
   const [message, setMessage] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<
+    CreateTeamAccountResult["credentials"] | null
+  >(null);
+  const [resetCredentials, setResetCredentials] = useState<
     CreateTeamAccountResult["credentials"] | null
   >(null);
   const [selected, setSelected] = useState<TeamMember | null>(null);
@@ -1272,7 +1290,6 @@ export function TeamWorkspace() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
             <TabsTrigger value="members">Team</TabsTrigger>
-            <TabsTrigger value="permissions">Permissions</TabsTrigger>
             <TabsTrigger value="organisation">Organisation</TabsTrigger>
           </TabsList>
           {pageTab === "members" ? (
@@ -1441,6 +1458,7 @@ export function TeamWorkspace() {
                               setDrawerOpen(true);
                             }}
                             onAction={flash}
+                            onPasswordReset={setResetCredentials}
                           />
                         </TableCell>
                       </TableRow>
@@ -1459,10 +1477,6 @@ export function TeamWorkspace() {
               />
             )}
           </section>
-        </TabsContent>
-
-        <TabsContent value="permissions" className="pt-3">
-          <PermissionsMatrix />
         </TabsContent>
 
         <TabsContent value="organisation" className="space-y-4 pt-3">
@@ -1529,6 +1543,11 @@ export function TeamWorkspace() {
       <AccountCredentialsDialog
         credentials={createdCredentials}
         onClose={() => setCreatedCredentials(null)}
+      />
+      <AccountCredentialsDialog
+        credentials={resetCredentials}
+        title="Password reset"
+        onClose={() => setResetCredentials(null)}
       />
       <MemberDrawer
         member={selected}

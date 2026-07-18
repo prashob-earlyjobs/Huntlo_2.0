@@ -109,6 +109,7 @@ function ProviderCard({
   provider: IntegrationProvider;
   onOpen: (provider: IntegrationProvider) => void;
 }) {
+  const inactive = Boolean(provider.inactive);
   const isConnected =
     provider.status === "Connected" ||
     provider.status === "Needs Attention" ||
@@ -122,7 +123,13 @@ function ProviderCard({
         : "Configure";
 
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-card p-4">
+    <article
+      aria-disabled={inactive || undefined}
+      className={cn(
+        "flex flex-col rounded-xl border border-border bg-card p-4",
+        inactive && "opacity-60"
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <span
           aria-hidden
@@ -133,7 +140,13 @@ function ProviderCard({
         >
           {provider.initials}
         </span>
-        <ConnectionStatusBadge status={provider.status} />
+        {inactive ? (
+          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Soon
+          </span>
+        ) : (
+          <ConnectionStatusBadge status={provider.status} />
+        )}
       </div>
 
       <h3 className="mt-3 text-sm font-semibold text-foreground">
@@ -159,7 +172,12 @@ function ProviderCard({
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button size="sm" variant={isConnected ? "outline" : "default"} onClick={() => onOpen(provider)}>
+        <Button
+          size="sm"
+          variant={isConnected ? "outline" : "default"}
+          disabled={inactive}
+          onClick={() => onOpen(provider)}
+        >
           {provider.status === "Not Connected" ? (
             <Plug aria-hidden />
           ) : (
@@ -170,6 +188,7 @@ function ProviderCard({
         <Button
           size="sm"
           variant="ghost"
+          disabled={inactive}
           onClick={() => onOpen(provider)}
           className="text-muted-foreground"
         >
@@ -979,6 +998,7 @@ export function IntegrationsWorkspace() {
   }
 
   function openProvider(provider: IntegrationProvider) {
+    if (provider.inactive) return;
     setSelected(provider);
     setDrawerOpen(true);
   }
@@ -1021,7 +1041,9 @@ export function IntegrationsWorkspace() {
         >
           All
         </button>
-        {INTEGRATION_CATEGORIES.map((cat) => {
+        {INTEGRATION_CATEGORIES.filter((cat) =>
+          providers.some((provider) => provider.category === cat)
+        ).map((cat) => {
           const Icon = CATEGORY_META[cat].icon;
           return (
             <button

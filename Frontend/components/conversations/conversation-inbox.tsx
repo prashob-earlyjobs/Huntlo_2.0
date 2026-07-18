@@ -725,7 +725,7 @@ export function ConversationInbox({
   return (
     <div
       className={cn(
-        "grid min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)_300px]",
+        "grid min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:grid-rows-[minmax(0,1fr)]",
         className
       )}
     >

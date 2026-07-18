@@ -77,6 +77,10 @@ export type ScreeningDocument = Document & {
   consentText: string | null;
   questions: ScreeningQuestion[];
   evaluationCriteria: EvaluationCriterion[];
+  /** Minimum overall score (0–100) for an AI Shortlist recommendation. */
+  minShortlistScore: number;
+  /** Human-readable knockout rules; a match forces Reject regardless of score. */
+  knockouts: string[];
   callSettings: ScreeningCallSettings;
   candidateIds: string[];
   providerAgentId: string | null;
@@ -141,6 +145,8 @@ const screeningSchema = new Schema<ScreeningDocument>(
       ],
       default: [],
     },
+    minShortlistScore: { type: Number, default: 70, min: 0, max: 100 },
+    knockouts: { type: [String], default: [] },
     callSettings: {
       type: {
         maxAttempts: { type: Number, default: 2 },

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import {
@@ -11,9 +11,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { schedulingApi } from "@/lib/api";
-import { NAV_ITEMS, NAV_SECTIONS, type NavItem } from "@/lib/navigation";
+import { filterNavSections } from "@/lib/access-control";
+import { NAV_ITEMS, type NavItem } from "@/lib/navigation";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
 /** Longest nav href that prefixes the current pathname wins active state. */
 function useActiveHref(): string | undefined {
@@ -112,9 +114,24 @@ export function NavList({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const { permissions } = useAuth();
   const [interviewCount, setInterviewCount] = useState<number | undefined>();
+  const sections = useMemo(
+    () => filterNavSections(permissions),
+    [permissions]
+  );
+  const canViewScheduling = useMemo(
+    () =>
+      permissions.includes("*") ||
+      permissions.some((permission) => permission.startsWith("scheduling:")),
+    [permissions]
+  );
 
   const refreshInterviewCount = useCallback(async () => {
+    if (!canViewScheduling) {
+      setInterviewCount(undefined);
+      return;
+    }
     try {
       const rows = await schedulingApi.listInterviews({ limit: 100 });
       setInterviewCount(
@@ -128,7 +145,7 @@ export function NavList({
     } catch {
       setInterviewCount(undefined);
     }
-  }, []);
+  }, [canViewScheduling]);
 
   useEffect(() => {
     void refreshInterviewCount();
@@ -140,7 +157,7 @@ export function NavList({
 
   return (
     <nav aria-label="Main navigation" className="flex flex-col gap-1 px-2 py-2">
-      {NAV_SECTIONS.map((section, index) => (
+      {sections.map((section, index) => (
         <div
           key={section.label}
           className={cn(index > 0 && (collapsed ? "mt-2.5" : "mt-3"))}

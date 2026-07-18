@@ -58,6 +58,7 @@ export const schedulingSyncService = {
           organizationId,
           event,
           invitee,
+          source: 'sync',
         });
         if (doc) synced += 1;
       }

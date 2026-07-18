@@ -15,6 +15,11 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { consumeRateLimit, resetRateLimit } from '../../middleware/rate-limit.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
+import {
+  normalizeAllowedModules,
+  resolvePermissions,
+  type PermissionModule,
+} from '../organizations/permissions.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { OnboardingModel } from './onboarding.model.js';
 import {
@@ -23,7 +28,7 @@ import {
   UserSessionModel,
   type UserSessionDocument,
 } from './session.model.js';
-import { rolePermissions, parseUserAgent, getClientIp } from './auth.types.js';
+import { parseUserAgent, getClientIp } from './auth.types.js';
 import type { RequestContext } from './auth.types.js';
 import { toPublicUser, UserModel, type UserDocument } from './user.model.js';
 import type { OrganizationDocument } from '../organizations/organization.model.js';
@@ -32,6 +37,30 @@ type SessionMeta = {
   ip: string;
   userAgent?: string;
 };
+
+async function resolveUserPermissions(
+  user: UserDocument,
+  organizationId: mongoose.Types.ObjectId
+): Promise<string[]> {
+  const member = await OrganizationMemberModel.findOne({
+    organizationId,
+    userId: user._id,
+  });
+
+  if (!member) {
+    return resolvePermissions(user.role);
+  }
+
+  const allowedModules = normalizeAllowedModules(
+    member.allowedModules as string[] | null | undefined
+  ) as PermissionModule[] | null;
+
+  return resolvePermissions(
+    member.role || user.role,
+    member.permissions ?? [],
+    allowedModules
+  );
+}
 
 function slugify(value: string): string {
   return value
@@ -100,6 +129,7 @@ async function createSession(userId: mongoose.Types.ObjectId, meta: SessionMeta)
 async function buildAuthResponse(userId: string, sessionId: string) {
   const user = await loadActiveUser(userId);
   const organization = await loadOrganization(user.organizationId);
+  const permissions = await resolveUserPermissions(user, organization._id);
 
   const accessToken = signAccessToken({
     sub: user._id.toHexString(),
@@ -118,7 +148,7 @@ async function buildAuthResponse(userId: string, sessionId: string) {
         plan: organization.plan,
         initials: organization.initials,
       },
-      permissions: rolePermissions(user.role),
+      permissions,
     },
   };
 }
@@ -477,6 +507,7 @@ export class AuthService {
   async me(context: RequestContext) {
     const user = await loadActiveUser(context.userId);
     const organization = await loadOrganization(user.organizationId);
+    const permissions = await resolveUserPermissions(user, organization._id);
     return {
       user: toPublicUser(user, organization.plan),
       organization: {
@@ -485,7 +516,7 @@ export class AuthService {
         plan: organization.plan,
         initials: organization.initials,
       },
-      permissions: rolePermissions(user.role),
+      permissions,
     };
   }
 

@@ -779,6 +779,14 @@ export const adminConsoleService = {
 
   async getPlatformSettings() {
     const doc = await this.ensurePlatformSettings();
+    const {
+      getActiveRoshniPromptDefaults,
+      getBundledRoshniPromptTemplate,
+      ROSHNI_INTRODUCTION,
+    } = await import('../voice/roshni-prompt.js');
+    const active = await getActiveRoshniPromptDefaults();
+    const storedIntro = String(doc.roshniPrompt?.introduction ?? '').trim() || null;
+    const storedAgent = String(doc.roshniPrompt?.agentPrompt ?? '').trim() || null;
     return {
       maintenanceMode: Boolean(doc.maintenanceMode),
       featureFlags: doc.featureFlags || {},
@@ -792,6 +800,17 @@ export const adminConsoleService = {
         errorSummary: p.errorSummary,
         publicConfig: p.publicConfig || {},
       })),
+      roshniPrompt: {
+        introduction: storedIntro,
+        agentPrompt: storedAgent,
+        version: Number(doc.roshniPrompt?.version || 0),
+        effectiveIntroduction: active.introduction,
+        effectiveAgentPrompt: active.agentPrompt,
+        introductionSource: active.introductionSource,
+        agentPromptSource: active.agentPromptSource,
+        bundledIntroduction: ROSHNI_INTRODUCTION,
+        bundledAgentPrompt: getBundledRoshniPromptTemplate(),
+      },
       updatedAt: doc.updatedAt.toISOString(),
     };
   },
@@ -800,6 +819,10 @@ export const adminConsoleService = {
     input: {
       maintenanceMode?: boolean;
       featureFlags?: Record<string, unknown>;
+      roshniPrompt?: {
+        introduction?: string | null;
+        agentPrompt?: string | null;
+      };
       providers?: Array<{
         provider: PlatformProviderId;
         configured?: boolean;
@@ -816,6 +839,61 @@ export const adminConsoleService = {
     if (input.maintenanceMode !== undefined) doc.maintenanceMode = input.maintenanceMode;
     if (input.featureFlags) {
       doc.featureFlags = { ...(doc.featureFlags as object), ...input.featureFlags };
+    }
+    let roshniPromptChanged = false;
+    if (input.roshniPrompt) {
+      const { missingRoshniPlaceholders } = await import('../voice/roshni-prompt.js');
+      if (!doc.roshniPrompt) {
+        doc.roshniPrompt = {
+          introduction: null,
+          agentPrompt: null,
+          version: 0,
+        } as typeof doc.roshniPrompt;
+      }
+      if (input.roshniPrompt.introduction !== undefined) {
+        const nextIntro =
+          input.roshniPrompt.introduction === null
+            ? null
+            : String(input.roshniPrompt.introduction).trim() || null;
+        if (nextIntro && !nextIntro.includes('{callee_name}')) {
+          throw AppError.validation(
+            'Introduction must include the {callee_name} placeholder',
+            [{ path: 'roshniPrompt.introduction', message: 'Missing {callee_name}' }]
+          );
+        }
+        const prevIntro = String(doc.roshniPrompt.introduction ?? '').trim() || null;
+        if (prevIntro !== nextIntro) {
+          doc.roshniPrompt.introduction = nextIntro;
+          roshniPromptChanged = true;
+        }
+      }
+      if (input.roshniPrompt.agentPrompt !== undefined) {
+        const nextAgent =
+          input.roshniPrompt.agentPrompt === null
+            ? null
+            : String(input.roshniPrompt.agentPrompt).trim() || null;
+        if (nextAgent) {
+          const missing = missingRoshniPlaceholders(nextAgent);
+          if (missing.length > 0) {
+            throw AppError.validation(
+              `Agent prompt is missing required placeholders: ${missing.join(', ')}`,
+              missing.map((token) => ({
+                path: 'roshniPrompt.agentPrompt',
+                message: `Missing ${token}`,
+              }))
+            );
+          }
+        }
+        const prevAgent = String(doc.roshniPrompt.agentPrompt ?? '').trim() || null;
+        if (prevAgent !== nextAgent) {
+          doc.roshniPrompt.agentPrompt = nextAgent;
+          roshniPromptChanged = true;
+        }
+      }
+      if (roshniPromptChanged) {
+        doc.roshniPrompt.version = Number(doc.roshniPrompt.version || 0) + 1;
+        doc.markModified('roshniPrompt');
+      }
     }
     if (input.providers) {
       for (const patch of input.providers) {
@@ -855,6 +933,10 @@ export const adminConsoleService = {
     }
     doc.updatedByUserId = new mongoose.Types.ObjectId(actorUserId);
     await doc.save();
+    if (roshniPromptChanged) {
+      const { invalidateRoshniPromptCache } = await import('../voice/roshni-prompt.js');
+      invalidateRoshniPromptCache();
+    }
     return this.getPlatformSettings();
   },
 

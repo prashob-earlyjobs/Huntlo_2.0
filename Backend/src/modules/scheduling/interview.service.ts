@@ -710,6 +710,8 @@ export const interviewsService = {
     event: Record<string, unknown>;
     invitee: Record<string, unknown>;
     matchInterviewIds?: string[];
+    /** Sync re-imports must not spam booking notifications. */
+    source?: 'sync' | 'webhook';
   }) {
     const inviteeUri = String(input.invitee.uri || '').trim();
     const eventUri = String(input.event.uri || '').trim();
@@ -798,6 +800,10 @@ export const interviewsService = {
       provider: 'calendly',
     };
 
+    const existed = Boolean(doc);
+    const previousStatus = doc?.status ?? null;
+    const source = input.source ?? 'sync';
+
     if (!doc) {
       // Create orphan booking record for unmatched invitees (org-level)
       const orgMember = await OrganizationMemberModel.findOne({
@@ -858,7 +864,16 @@ export const interviewsService = {
       startAt: doc.startAt?.toISOString() ?? null,
     });
 
-    if (doc.status === 'scheduled' && doc.createdBy) {
+    // Only notify on a real booking transition — never on Calendly re-sync of
+    // interviews that were already scheduled.
+    const becameScheduled =
+      doc.status === 'scheduled' && previousStatus !== 'scheduled';
+    const shouldNotify =
+      becameScheduled &&
+      Boolean(doc.createdBy) &&
+      (existed || source === 'webhook');
+
+    if (shouldNotify) {
       const { notificationsService } = await import(
         '../notifications/notifications.service.js'
       );
