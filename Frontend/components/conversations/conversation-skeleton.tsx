@@ -43,7 +43,7 @@ export function ConversationInboxSkeleton({
       aria-busy
       aria-label="Loading conversations"
       className={cn(
-        "grid overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)_300px]",
+        "grid min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)_300px]",
         className
       )}
     >
@@ -116,12 +116,12 @@ export function ConversationInboxSkeleton({
 
 export function ConversationsPageSkeleton() {
   return (
-    <div aria-busy className="space-y-4">
-      <div className="space-y-2">
+    <>
+      <div className="shrink-0 space-y-2">
         <Skeleton className="h-7 w-44" />
         <Skeleton className="h-4 w-96 max-w-full" />
       </div>
-      <ConversationInboxSkeleton className="lg:h-[calc(100vh-14rem)]" />
-    </div>
+      <ConversationInboxSkeleton className="min-h-[28rem] flex-1" />
+    </>
   );
 }

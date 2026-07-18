@@ -155,19 +155,91 @@ function recomputeStatsFromCounts(counts: Record<string, number>) {
 }
 
 export async function refreshCampaignStats(campaignId: string) {
+  const oid = new mongoose.Types.ObjectId(campaignId);
   const rows = await OutreachEnrollmentModel.aggregate<{ _id: string; count: number }>([
-    { $match: { campaignId: new mongoose.Types.ObjectId(campaignId) } },
+    { $match: { campaignId: oid } },
     { $group: { _id: '$status', count: { $sum: 1 } } },
   ]);
   const counts: Record<string, number> = {};
   for (const row of rows) counts[row._id] = row.count;
   const stats = recomputeStatsFromCounts(counts);
+
+  // Enrollment status flips to `stopped` after stopOnReply, so count replies/interest
+  // from replyState (and qualification) rather than status alone.
+  const [replyTruth] = await OutreachEnrollmentModel.aggregate<{
+    replies: number;
+    interested: number;
+    qualified: number;
+  }>([
+    { $match: { campaignId: oid } },
+    {
+      $group: {
+        _id: null,
+        replies: {
+          $sum: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ['$replyState.hasReply', true] },
+                  { $eq: ['$hasReply', true] },
+                  { $eq: ['$status', 'replied'] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+        interested: {
+          $sum: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ['$replyState.disposition', 'interested'] },
+                  { $eq: ['$replyDisposition', 'interested'] },
+                  { $eq: ['$status', 'interested'] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+        qualified: {
+          $sum: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ['$status', 'qualified'] },
+                  { $eq: ['$qualificationState.status', 'qualified'] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+      },
+    },
+  ]);
+  stats.replies = replyTruth?.replies || 0;
+  stats.interested = replyTruth?.interested || 0;
+  stats.qualified = replyTruth?.qualified || counts.qualified || 0;
+
+  // Succeeded send jobs are the source of truth for Contacted/Delivered.
+  // (Nested Mixed `stats.sent++` was often not persisted by Mongoose.)
+  const sentCount = await CampaignJobModel.countDocuments({
+    campaignId: oid,
+    status: 'succeeded',
+    'result.delivery': 'sent',
+  });
+  stats.sent = sentCount;
+  stats.delivered = sentCount;
+
   const campaign = await OutreachCampaignModel.findById(campaignId);
   if (!campaign) return stats;
-  stats.sent = campaign.stats?.sent || 0;
-  stats.delivered = campaign.stats?.delivered || 0;
-  stats.interested = campaign.stats?.interested || 0;
   campaign.stats = stats;
+  campaign.markModified('stats');
   await campaign.save();
   return stats;
 }
@@ -264,7 +336,7 @@ async function enqueueFirstJobs(campaign: OutreachCampaignDocument, enrollmentId
     stepId: first.id,
     jobType: jobTypeForStep(first.type),
     scheduledAt: now,
-    status: 'queued' as const,
+    status: 'queued_v2' as const,
     attempts: 0,
   }));
   if (docs.length) await CampaignJobModel.insertMany(docs, { ordered: false });
@@ -306,9 +378,13 @@ export const campaignsService = {
 
   async get(organizationId: string, id: string) {
     const doc = await loadCampaign(organizationId, id);
-    return toSafeCampaign(doc, {
-      ownerName: await ownerName(String(doc.ownerUserId)),
-      relatedJobTitle: await jobTitle(doc.jobId),
+    // Heal overview counters from enrollments/jobs so UI stays accurate.
+    await refreshCampaignStats(id).catch(() => undefined);
+    const refreshed = await OutreachCampaignModel.findById(id);
+    const campaign = refreshed || doc;
+    return toSafeCampaign(campaign, {
+      ownerName: await ownerName(String(campaign.ownerUserId)),
+      relatedJobTitle: await jobTitle(campaign.jobId),
     });
   },
 
@@ -438,6 +514,8 @@ export const campaignsService = {
         enabled: input.qualificationConfig.enabled,
         questions: input.qualificationConfig.questions,
         aiReplyEnabled: input.qualificationConfig.aiReplyEnabled ?? false,
+        takeoverCondition: input.qualificationConfig.takeoverCondition ?? null,
+        autoScreening: input.qualificationConfig.autoScreening ?? false,
       };
     }
     if (input.schedulingConfig !== undefined) {
@@ -492,7 +570,7 @@ export const campaignsService = {
     doc.cancelledAt = new Date();
     await doc.save();
     await CampaignJobModel.updateMany(
-      { campaignId: doc._id, status: { $in: ['queued', 'leased', 'running'] } },
+      { campaignId: doc._id, status: { $in: ['queued', 'queued_v2', 'leased', 'running'] } },
       { $set: { status: 'cancelled' } }
     );
     await recordCampaignActivity({
@@ -916,7 +994,7 @@ export const campaignsService = {
     doc.pausedAt = new Date();
     await doc.save();
     await CampaignJobModel.updateMany(
-      { campaignId: doc._id, status: 'queued' },
+      { campaignId: doc._id, status: { $in: ['queued', 'queued_v2'] } },
       { $set: { status: 'cancelled' } }
     );
     await OutreachEnrollmentModel.updateMany(
@@ -1011,7 +1089,7 @@ export const campaignsService = {
     doc.completedAt = new Date();
     await doc.save();
     await CampaignJobModel.updateMany(
-      { campaignId: doc._id, status: { $in: ['queued', 'leased', 'running'] } },
+      { campaignId: doc._id, status: { $in: ['queued', 'queued_v2', 'leased', 'running'] } },
       { $set: { status: 'cancelled' } }
     );
     await OutreachEnrollmentModel.updateMany(
@@ -1164,71 +1242,128 @@ export const campaignsService = {
       sourceModule: 'outreach',
     };
 
-    const [statusRows, campaignIds, campaignAgg] = await Promise.all([
+    const [statusRows, campaignIds] = await Promise.all([
       OutreachCampaignModel.aggregate<{ _id: string; count: number }>([
         { $match: campaignMatch },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
       OutreachCampaignModel.find(campaignMatch).distinct('_id'),
-      OutreachCampaignModel.aggregate<{
-        sent: number;
-        delivered: number;
+    ]);
+
+    const byStatus: Record<string, number> = {};
+    for (const row of statusRows) byStatus[row._id] = row.count;
+    const activeCampaigns = (byStatus.running || 0) + (byStatus.scheduled || 0);
+    const totalCampaigns = Object.values(byStatus).reduce((a, b) => a + b, 0);
+
+    if (campaignIds.length === 0) {
+      return {
+        activeCampaigns: 0,
+        totalCampaigns: 0,
+        candidatesEnrolled: 0,
+        messagesSent: 0,
+        messagesDelivered: 0,
+        replies: 0,
+        interested: 0,
+        qualified: 0,
+        replyRate: 0,
+        positiveReplyRate: 0,
+        byStatus,
+      };
+    }
+
+    // Prefer live jobs/enrollments over nested Mixed `stats.*` (often stale/unpersisted).
+    const [enrollmentCount, sentCount, replyTruth] = await Promise.all([
+      OutreachEnrollmentModel.countDocuments({
+        organizationId: orgOid,
+        campaignId: { $in: campaignIds },
+      }),
+      CampaignJobModel.countDocuments({
+        organizationId: orgOid,
+        campaignId: { $in: campaignIds },
+        status: 'succeeded',
+        'result.delivery': 'sent',
+      }),
+      OutreachEnrollmentModel.aggregate<{
         replies: number;
         interested: number;
         qualified: number;
-        enrolled: number;
       }>([
-        { $match: campaignMatch },
+        {
+          $match: {
+            organizationId: orgOid,
+            campaignId: { $in: campaignIds },
+          },
+        },
         {
           $group: {
             _id: null,
-            sent: { $sum: { $ifNull: ['$stats.sent', 0] } },
-            delivered: { $sum: { $ifNull: ['$stats.delivered', 0] } },
-            replies: { $sum: { $ifNull: ['$stats.replies', 0] } },
-            interested: { $sum: { $ifNull: ['$stats.interested', 0] } },
-            qualified: { $sum: { $ifNull: ['$stats.qualified', 0] } },
-            enrolled: { $sum: { $ifNull: ['$stats.enrolled', 0] } },
+            replies: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ['$replyState.hasReply', true] },
+                      { $eq: ['$hasReply', true] },
+                      { $eq: ['$status', 'replied'] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            interested: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ['$replyState.disposition', 'interested'] },
+                      { $eq: ['$replyDisposition', 'interested'] },
+                      { $eq: ['$status', 'interested'] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            qualified: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ['$status', 'qualified'] },
+                      { $eq: ['$qualificationState.status', 'qualified'] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
           },
         },
       ]),
     ]);
 
-    const enrollmentCount =
-      campaignIds.length === 0
-        ? 0
-        : await OutreachEnrollmentModel.countDocuments({
-            organizationId: orgOid,
-            campaignId: { $in: campaignIds },
-          });
-
-    const byStatus: Record<string, number> = {};
-    for (const row of statusRows) byStatus[row._id] = row.count;
-
-    const activeCampaigns = (byStatus.running || 0) + (byStatus.scheduled || 0);
-    const totals = campaignAgg[0] ?? {
-      sent: 0,
-      delivered: 0,
-      replies: 0,
-      interested: 0,
-      qualified: 0,
-      enrolled: 0,
-    };
-
-    const contacted = Math.max(totals.delivered, totals.sent, 0);
-    const replyRate = contacted > 0 ? (totals.replies / contacted) * 100 : 0;
-    const positiveReplyRate =
-      totals.replies > 0 ? (totals.interested / totals.replies) * 100 : 0;
-    const enrolled = Math.max(enrollmentCount, totals.enrolled);
+    const replies = replyTruth[0]?.replies || 0;
+    const interested = replyTruth[0]?.interested || 0;
+    const qualified = replyTruth[0]?.qualified || 0;
+    const messagesSent = sentCount;
+    const messagesDelivered = sentCount;
+    const contacted = Math.max(messagesDelivered, messagesSent, 0);
+    const replyRate = contacted > 0 ? (replies / contacted) * 100 : 0;
+    const positiveReplyRate = replies > 0 ? (interested / replies) * 100 : 0;
 
     return {
       activeCampaigns,
-      totalCampaigns: Object.values(byStatus).reduce((a, b) => a + b, 0),
-      candidatesEnrolled: enrolled,
-      messagesSent: totals.sent,
-      messagesDelivered: totals.delivered,
-      replies: totals.replies,
-      interested: totals.interested,
-      qualified: totals.qualified,
+      totalCampaigns,
+      candidatesEnrolled: enrollmentCount,
+      messagesSent,
+      messagesDelivered,
+      replies,
+      interested,
+      qualified,
       replyRate: Math.round(replyRate * 10) / 10,
       positiveReplyRate: Math.round(positiveReplyRate * 10) / 10,
       byStatus,
@@ -1270,7 +1405,7 @@ export const campaignsService = {
     }
     await enrollment.save();
     await CampaignJobModel.updateMany(
-      { enrollmentId: enrollment._id, status: { $in: ['queued', 'leased'] } },
+      { enrollmentId: enrollment._id, status: { $in: ['queued', 'queued_v2', 'leased'] } },
       { $set: { status: 'cancelled' } }
     );
     await refreshCampaignStats(String(enrollment.campaignId));

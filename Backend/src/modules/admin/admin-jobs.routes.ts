@@ -9,6 +9,7 @@ import {
   adminJobIdParamSchema,
   adminJobsService,
   listAdminJobsSchema,
+  listPendingTasksSchema,
 } from './admin-jobs.service.js';
 import { requireAdmin, requireAdminPermission } from './require-admin.js';
 
@@ -23,6 +24,17 @@ adminJobsRouter.get(
   asyncHandler(async (req, res) => {
     const query = listAdminJobsSchema.parse(req.query);
     const data = await adminJobsService.list(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+adminJobsRouter.get(
+  '/pending',
+  ...adminAuth,
+  requireAdminPermission('admin:jobs:read'),
+  asyncHandler(async (req, res) => {
+    const query = listPendingTasksSchema.parse(req.query);
+    const data = await adminJobsService.listPendingTasks(query);
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );
@@ -57,7 +69,8 @@ adminJobsRouter.post(
     const data = await adminJobsService.retry(id);
     await recordAdminMutation(req, {
       action: 'admin.job.retried',
-      relatedEntityType: 'background_job',
+      relatedEntityType:
+        data.queue === 'campaign' ? 'campaign_job' : 'background_job',
       relatedEntityId: id,
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
@@ -73,7 +86,8 @@ adminJobsRouter.post(
     const data = await adminJobsService.cancel(id);
     await recordAdminMutation(req, {
       action: 'admin.job.cancelled',
-      relatedEntityType: 'background_job',
+      relatedEntityType:
+        data.queue === 'campaign' ? 'campaign_job' : 'background_job',
       relatedEntityId: id,
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });

@@ -147,6 +147,17 @@ describe('AI voice screening (Hunar)', () => {
       .set('Authorization', `Bearer ${auth.token}`);
     expect(launched.status).toBe(200);
     expect(launched.body.data.status).toBe('Running');
+
+    expect(hunarClient.createHunarVoiceAgent).toHaveBeenCalled();
+    const agentArg = vi.mocked(hunarClient.createHunarVoiceAgent).mock.calls[0]![0] as {
+      agentPrompt: string;
+      introduction: string;
+      resultPrompt: string;
+    };
+    expect(agentArg.agentPrompt).toContain('You are Roshni');
+    expect(agentArg.agentPrompt).toContain('Tell me about your Node experience');
+    expect(agentArg.introduction).toBe('Hi, this is a screening call.');
+    expect(agentArg.resultPrompt).toContain('experience');
     expect(launched.body.data.providerAgentId).toBe('agent-test-1');
     expect(hunarClient.createHunarVoiceAgent).toHaveBeenCalled();
     expect(hunarClient.createHunarBulkCalls).toHaveBeenCalled();

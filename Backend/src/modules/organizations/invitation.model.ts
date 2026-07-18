@@ -9,6 +9,7 @@ const teamInvitationSchema = new mongoose.Schema(
       index: true,
     },
     email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    invitedName: { type: String, default: null, trim: true, maxlength: 160 },
     role: {
       type: String,
       enum: ['admin', 'recruiter', 'hiring_manager', 'interviewer', 'analyst'],
@@ -16,6 +17,11 @@ const teamInvitationSchema = new mongoose.Schema(
       default: 'recruiter',
     },
     permissions: { type: [String], default: [] },
+    assignedJobIds: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: 'Job',
+      default: [],
+    },
     invitedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

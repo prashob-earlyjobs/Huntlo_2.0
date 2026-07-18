@@ -15,6 +15,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { consumeRateLimit, resetRateLimit } from '../../middleware/rate-limit.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
+import { integrationsService } from '../integrations/integration.service.js';
 import { OnboardingModel } from './onboarding.model.js';
 import {
   EmailVerificationTokenModel,
@@ -190,6 +191,12 @@ export class AuthService {
           name: orgName,
         },
       });
+
+      // Auto-connect platform-managed Huntlo Voice AI (and WhatsApp) when configured.
+      await integrationsService.provisionDefaultsForUser(
+        organization._id.toHexString(),
+        user._id.toHexString()
+      );
 
       const createdSession = await createSession(user._id, input.meta);
       const auth = await buildAuthResponse(

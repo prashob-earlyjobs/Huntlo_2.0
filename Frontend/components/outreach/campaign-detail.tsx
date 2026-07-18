@@ -305,6 +305,8 @@ function CandidatesTab({
           <TableRow className="hover:bg-transparent">
             <TableHead className={HEAD}>Candidate</TableHead>
             <TableHead className={HEAD}>Current company</TableHead>
+            <TableHead className={HEAD}>Email</TableHead>
+            <TableHead className={HEAD}>Mobile</TableHead>
             <TableHead className={HEAD}>Sequence step</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
             <TableHead className={HEAD}>Reply</TableHead>
@@ -348,6 +350,30 @@ function CandidatesTab({
                 </TableCell>
                 <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
                   {candidate.company ?? "—"}
+                </TableCell>
+                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                  {candidate.email ? (
+                    <a
+                      href={`mailto:${candidate.email}`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {candidate.email}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                  {candidate.phone ? (
+                    <a
+                      href={`tel:${candidate.phone}`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {candidate.phone}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
                 </TableCell>
                 <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
                   Step {candidate.currentStepIndex + 1}
@@ -1010,7 +1036,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         <TabsContent value="conversations" className="pt-3">
           <ConversationsPanel
             campaignId={campaign.id}
-            emptyDescription="Replies from candidates in this campaign will appear here."
+            emptyDescription="Outbound messages (sent or failed) and candidate replies for this campaign will appear here."
           />
         </TabsContent>
         <TabsContent value="sequence" className="pt-3">

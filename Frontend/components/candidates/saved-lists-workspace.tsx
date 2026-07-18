@@ -4,6 +4,8 @@ import {
   Archive,
   ArchiveRestore,
   Briefcase,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Contact,
   Download,
@@ -19,7 +21,7 @@ import {
   Users2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { PoolTable } from "@/components/candidates/pool-table";
@@ -53,7 +55,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiErrorMessage, candidatePoolApi } from "@/lib/api";
+import {
+  getApiErrorMessage,
+  candidatePoolApi,
+  type PoolPagination,
+} from "@/lib/api";
 import {
   type ListVisibility,
   type PoolCandidate,
@@ -104,23 +110,6 @@ const VISIBILITY_META: Record<
   Workspace: { icon: Globe, label: "Shared with the workspace" },
 };
 
-function countSmart(id: SmartListId, pool: PoolCandidate[]): number {
-  switch (id) {
-    case "recent":
-      return pool.filter((candidate) =>
-        /m ago|h ago|^Today|^Yesterday|^[1-6]d ago|Just now/.test(
-          candidate.lastActivity
-        )
-      ).length;
-    case "revealed":
-      return pool.filter(
-        (candidate) => candidate.emailRevealed || candidate.phoneRevealed
-      ).length;
-    default:
-      return pool.length;
-  }
-}
-
 function NavButton({
   active,
   onClick,
@@ -159,6 +148,21 @@ function NavButton({
 export function SavedListsWorkspace() {
   const [lists, setLists] = useState<SavedList[]>([]);
   const [pool, setPool] = useState<PoolCandidate[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [pagination, setPagination] = useState<PoolPagination>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  });
+  const [smartCounts, setSmartCounts] = useState<Record<SmartListId, number>>({
+    all: 0,
+    recent: 0,
+    revealed: 0,
+  });
+  const [tableLoading, setTableLoading] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState<PanelSelection>({
     kind: "smart",
@@ -176,12 +180,19 @@ export function SavedListsWorkspace() {
 
   async function refresh() {
     try {
-      const [nextLists, nextPool] = await Promise.all([
+      const [nextLists, all, recent, revealed] = await Promise.all([
         candidatePoolApi.listLists(),
-        candidatePoolApi.list({ limit: 200 }),
+        candidatePoolApi.listPage({ view: "all", page: 1, limit: 1 }),
+        candidatePoolApi.listPage({ view: "recent", page: 1, limit: 1 }),
+        candidatePoolApi.listPage({ view: "revealed", page: 1, limit: 1 }),
       ]);
       setLists(nextLists);
-      setPool(nextPool);
+      setSmartCounts({
+        all: all.pagination.total,
+        recent: recent.pagination.total,
+        revealed: revealed.pagination.total,
+      });
+      setRefreshVersion((value) => value + 1);
     } catch (err) {
       setFeedback(getApiErrorMessage(err));
       setLists([]);
@@ -222,30 +233,7 @@ export function SavedListsWorkspace() {
       ? SMART_LISTS.find((entry) => entry.id === selection.id)!
       : null;
 
-  const candidates = useMemo(() => {
-    if (currentList) {
-      if (currentList.candidateIds.length > 0) {
-        return pool.filter((candidate) =>
-          currentList.candidateIds.includes(candidate.id)
-        );
-      }
-      return pool.filter((candidate) => candidate.lists.includes(currentList.name));
-    }
-    switch (selection.id as SmartListId) {
-      case "recent":
-        return pool.filter((candidate) =>
-          /m ago|h ago|^Today|^Yesterday|^[1-6]d ago|Just now/.test(
-            candidate.lastActivity
-          )
-        );
-      case "revealed":
-        return pool.filter(
-          (candidate) => candidate.emailRevealed || candidate.phoneRevealed
-        );
-      default:
-        return pool;
-    }
-  }, [currentList, selection.id, pool]);
+  const candidates = pool;
 
   function openRename() {
     if (!currentList) return;
@@ -333,29 +321,35 @@ export function SavedListsWorkspace() {
   }
 
   useEffect(() => {
-    if (selection.kind !== "list") return;
     let cancelled = false;
+    setTableLoading(true);
     void (async () => {
       try {
-        const items = await candidatePoolApi.list({
-          listId: selection.id,
-          limit: 200,
+        const result = await candidatePoolApi.listPage({
+          ...(selection.kind === "list"
+            ? { listId: selection.id }
+            : { view: selection.id as SmartListId }),
+          page,
+          limit: pageSize,
         });
-        if (!cancelled && items.length > 0) {
-          setPool((previous) => {
-            const byId = new Map(previous.map((item) => [item.id, item]));
-            for (const item of items) byId.set(item.id, item);
-            return Array.from(byId.values());
-          });
+        if (!cancelled) {
+          setPool(result.items);
+          setPagination(result.pagination);
+          if (result.pagination.page !== page) setPage(result.pagination.page);
         }
-      } catch {
-        // Keep existing pool snapshot on list-member fetch failure.
+      } catch (err) {
+        if (!cancelled) {
+          setPool([]);
+          setFeedback(getApiErrorMessage(err));
+        }
+      } finally {
+        if (!cancelled) setTableLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [selection]);
+  }, [selection, page, pageSize, refreshVersion]);
 
   function listCount(list: SavedList) {
     return list.candidateCount ?? list.candidateIds.length;
@@ -363,6 +357,7 @@ export function SavedListsWorkspace() {
 
   function select(next: PanelSelection) {
     setSelection(next);
+    setPage(1);
     setSelected(new Set());
   }
 
@@ -418,7 +413,7 @@ export function SavedListsWorkspace() {
                     onClick={() => select({ kind: "smart", id: entry.id })}
                     icon={entry.icon}
                     label={entry.label}
-                    count={countSmart(entry.id, pool)}
+                    count={smartCounts[entry.id]}
                   />
                 </li>
               ))}
@@ -587,7 +582,7 @@ export function SavedListsWorkspace() {
               <Users aria-hidden className="size-3.5" />
               <dd>
                 <span className="font-medium tabular-nums text-foreground">
-                  {candidates.length}
+                  {pagination.total}
                 </span>{" "}
                 candidates
               </dd>
@@ -648,15 +643,93 @@ export function SavedListsWorkspace() {
         </header>
 
         <section className="rounded-xl border border-border bg-card">
-          {candidates.length > 0 ? (
-            <PoolTable
-              candidates={candidates}
-              selected={selected}
-              onToggleSelect={toggleSelect}
-              onToggleSelectAll={toggleSelectAll}
-              onRemove={() => {}}
-              caption={`Candidates in ${currentList ? currentList.name : currentSmart!.label}`}
-            />
+          {tableLoading ? (
+            <div className="flex min-h-56 items-center justify-center text-sm text-muted-foreground">
+              Loading candidates…
+            </div>
+          ) : candidates.length > 0 ? (
+            <>
+              <PoolTable
+                candidates={candidates}
+                selected={selected}
+                onToggleSelect={toggleSelect}
+                onToggleSelectAll={toggleSelectAll}
+                onRemove={() => {}}
+                caption={`Candidates in ${currentList ? currentList.name : currentSmart!.label}`}
+              />
+              <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Showing{" "}
+                  <span className="font-medium text-foreground">
+                    {(pagination.page - 1) * pagination.limit + 1}
+                  </span>
+                  {"–"}
+                  <span className="font-medium text-foreground">
+                    {Math.min(
+                      pagination.page * pagination.limit,
+                      pagination.total
+                    )}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium text-foreground">
+                    {pagination.total}
+                  </span>
+                </p>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    Rows
+                    <select
+                      value={pageSize}
+                      onChange={(event) => {
+                        setPageSize(Number(event.target.value));
+                        setPage(1);
+                        setSelected(new Set());
+                      }}
+                      className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    >
+                      {[10, 20, 50, 100].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    Page {pagination.page} of {pagination.totalPages}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="outline"
+                      aria-label="Previous page"
+                      disabled={pagination.page <= 1}
+                      onClick={() => {
+                        setPage((value) => Math.max(1, value - 1));
+                        setSelected(new Set());
+                      }}
+                    >
+                      <ChevronLeft aria-hidden />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="outline"
+                      aria-label="Next page"
+                      disabled={pagination.page >= pagination.totalPages}
+                      onClick={() => {
+                        setPage((value) =>
+                          Math.min(pagination.totalPages, value + 1)
+                        );
+                        setSelected(new Set());
+                      }}
+                    >
+                      <ChevronRight aria-hidden />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <EmptyState
               icon={Users}

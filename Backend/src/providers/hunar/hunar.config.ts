@@ -40,10 +40,12 @@ export async function testHunarConnection(): Promise<{ ok: boolean; message: str
   if (!apiKey) {
     return { ok: false, message: 'Hunar voice API key is not configured on the server.' };
   }
+  // Hunar external API expects X-API-Key (same as hunar.client.ts), not Bearer.
   const res = await fetch(HUNAR_AGENTS_URL, {
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      'X-API-Key': apiKey,
       'Content-Type': 'application/json',
+      Accept: 'application/json',
     },
   });
   if (res.status === 401 || res.status === 403) {
@@ -54,6 +56,6 @@ export async function testHunarConnection(): Promise<{ ok: boolean; message: str
   }
   return {
     ok: true,
-    message: `Hunar voice is ready (persona ${getHunarVoicePersona()}).`,
+    message: `Huntlo Voice AI is ready (persona ${getHunarVoicePersona()}).`,
   };
 }

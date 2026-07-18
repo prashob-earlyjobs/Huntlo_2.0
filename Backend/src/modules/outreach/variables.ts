@@ -175,14 +175,46 @@ export const validateTemplateVariables = validateMessageVariables;
  * When a token has no value and no fallback, the original `{{token}}` text is preserved
  * verbatim so callers can still detect/highlight it.
  */
+/**
+ * WhatsApp cold templates use {{1}}, {{2}} while Huntlo merge context uses
+ * semantic keys. Map the common outreach positions so free-text merge and
+ * conversation previews never leave `{{1}}` / `{{2}}` unfilled when we already
+ * know first_name / job_title.
+ */
+const POSITIONAL_MERGE_FALLBACKS: Record<string, AllowedMessageVariable[]> = {
+  '1': ['first_name', 'candidate_name'],
+  '2': ['job_title', 'current_role'],
+  '3': ['company_name', 'current_company'],
+  '4': ['recruiter_name'],
+  '5': ['location'],
+};
+
+function lookupMergeValue(
+  context: Record<string, string | null | undefined>,
+  rawName: string
+): string | null {
+  const positional = isPositionalVariable(rawName);
+  const canonical = canonicalizeTokenName(rawName);
+  const direct = context[canonical] ?? (positional ? undefined : context[rawName]);
+  if (direct != null && String(direct).trim() !== '') return String(direct);
+
+  if (positional) {
+    for (const key of POSITIONAL_MERGE_FALLBACKS[canonical] || []) {
+      const fromSemantic = context[key];
+      if (fromSemantic != null && String(fromSemantic).trim() !== '') {
+        return String(fromSemantic);
+      }
+    }
+  }
+  return null;
+}
+
 export function mergeMessageTemplate(
   template: string,
   context: Record<string, string | null | undefined>
 ): string {
   return template.replace(VARIABLE_RE, (full, rawName: string, rawFallback?: string) => {
-    const positional = isPositionalVariable(rawName);
-    const canonical = canonicalizeTokenName(rawName);
-    const value = context[canonical] ?? (positional ? undefined : context[rawName]);
+    const value = lookupMergeValue(context, rawName);
     if (value != null && String(value).trim() !== '') return String(value);
     if (rawFallback != null) return rawFallback.trim();
     return full;
@@ -206,7 +238,7 @@ export function listMissingVariables(
   const variables = extractVariables(template);
   return variables.filter((name) => {
     if (fallbacks[name] !== undefined) return false;
-    const value = context[name];
+    const value = lookupMergeValue(context, name);
     return value == null || String(value).trim() === '';
   });
 }
@@ -257,6 +289,14 @@ export function buildCandidateMergeContext(
   set('recruiter_name', extras?.recruiterName ?? extras?.senderFirstName);
   set('candidate_email', candidate?.email);
   set('candidate_phone', candidate?.phone);
+
+  // Always mirror semantic values onto WhatsApp positional slots so {{1}}/{{2}}
+  // resolve even when the step body was copied from a Meta template.
+  if (context.first_name) set('1', context.first_name);
+  if (context.job_title) set('2', context.job_title);
+  if (context.company_name) set('3', context.company_name);
+  if (context.recruiter_name) set('4', context.recruiter_name);
+  if (context.location) set('5', context.location);
 
   if (extras?.positional?.length) {
     extras.positional.forEach((value, index) => set(String(index + 1), value));

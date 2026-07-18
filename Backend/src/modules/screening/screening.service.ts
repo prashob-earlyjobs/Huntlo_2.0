@@ -22,6 +22,10 @@ import {
 } from '../../providers/hunar/hunar.config.js';
 import { emitScreeningResultUpdated } from '../../realtime/events.js';
 import {
+  buildRoshniAgentPrompt,
+  ROSHNI_INTRODUCTION,
+} from '../voice/roshni-prompt.js';
+import {
   ScreeningModel,
   defaultScreeningStats,
   type ScreeningDocument,
@@ -154,53 +158,6 @@ function toResultDisplay(
   };
 }
 
-function buildAgentPrompt(doc: ScreeningDocument) {
-  const questionLines = (doc.questions || [])
-    .map((q, index) => `${index + 1}. ${q.prompt}`)
-    .join('\n');
-  const closing = doc.closingScript ? `\n\nClosing:\n${doc.closingScript}` : '';
-  const consent = doc.consentText ? `\n\nConsent:\n${doc.consentText}` : '';
-  return `You are conducting a voice screening interview.\n\nQuestions:\n${questionLines || 'Ask about role fit and availability.'}${consent}${closing}`;
-}
-
-function buildResultPrompt(doc: ScreeningDocument) {
-  const fields = (doc.evaluationCriteria || []).map((c) => `"${c.id}": number 0-100`);
-  const known = [
-    '"summary": ""',
-    '"final_outcome": ""',
-    '"interest_level": ""',
-    '"candidate_status": ""',
-    '"callback_requested": ""',
-    '"callback_time": ""',
-    '"candidate_questions": []',
-    '"objections_or_concerns": []',
-  ];
-  return `TASK
-Analyze the conversation and return only valid JSON.
-
-OUTPUT FORMAT
-{
-  ${[...known, ...fields].join(',\n  ')}
-}`;
-}
-
-function buildResultSchema(doc: ScreeningDocument) {
-  const schema: Record<string, unknown> = {
-    summary: 'short call summary',
-    final_outcome: 'interested | not_interested | callback',
-    interest_level: 'high | medium | low',
-    candidate_status: 'string',
-    callback_requested: 'yes | no',
-    callback_time: 'string',
-    candidate_questions: 'array of strings',
-    objections_or_concerns: 'array of strings',
-  };
-  for (const criterion of doc.evaluationCriteria || []) {
-    schema[criterion.id] = criterion.description || `score 0-100 for ${criterion.label}`;
-  }
-  return schema;
-}
-
 export async function refreshScreeningStats(screeningId: string) {
   const rows = await ScreeningCandidateModel.find({ screeningId }).lean();
   const stats = defaultScreeningStats();
@@ -223,7 +180,25 @@ export async function refreshScreeningStats(screeningId: string) {
     }
   }
   stats.averageScore = scoreCount ? Math.round(scoreSum / scoreCount) : null;
-  await ScreeningModel.findByIdAndUpdate(screeningId, { stats });
+
+  const screening = await ScreeningModel.findById(screeningId);
+  if (!screening) return stats;
+  screening.stats = stats;
+  screening.markModified('stats');
+
+  // Auto-complete when every dialable contact is terminal and nothing is in-flight.
+  if (screening.status === 'running' && rows.length > 0) {
+    const open = rows.filter((r) =>
+      ['queued', 'ringing', 'in_progress'].includes(String(r.callStatus || ''))
+    ).length;
+    const dialed = rows.filter((r) => Boolean(r.providerRequestId || r.providerCallId));
+    if (open === 0 && dialed.length > 0) {
+      screening.status = 'completed';
+      screening.completedAt = screening.completedAt || new Date();
+    }
+  }
+
+  await screening.save();
   return stats;
 }
 
@@ -432,17 +407,17 @@ export const screeningService = {
     if (!doc.questions?.length) {
       issues.push({
         id: 'questions',
-        severity: 'error',
-        code: 'QUESTIONS_EMPTY',
-        message: 'Add at least one screening question.',
+        severity: 'warning',
+        code: 'QUESTIONS_DEFAULTS',
+        message: 'No custom questions set — Roshni will use the default eight screening questions.',
       });
     }
     if (!doc.introductionScript?.trim()) {
       issues.push({
         id: 'introduction',
         severity: 'warning',
-        code: 'INTRODUCTION_MISSING',
-        message: 'Introduction script is empty.',
+        code: 'INTRODUCTION_DEFAULT',
+        message: `Introduction will default to: ${ROSHNI_INTRODUCTION}`,
       });
     }
 
@@ -505,13 +480,49 @@ export const screeningService = {
       });
     }
 
+    const roshni = await buildRoshniAgentPrompt({
+      jobId: doc.jobId ? String(doc.jobId) : null,
+      organizationId,
+      campaignName: doc.name,
+      questions: doc.questions || [],
+    });
+
+    const resultSchema = {
+      ...roshni.resultSchema,
+      properties: {
+        ...((roshni.resultSchema.properties as Record<string, unknown>) || {}),
+      },
+    };
+    for (const criterion of doc.evaluationCriteria || []) {
+      (resultSchema.properties as Record<string, unknown>)[criterion.id] = {
+        type: 'number',
+        description: criterion.description || `score 0-100 for ${criterion.label}`,
+      };
+    }
+    let resultPrompt = roshni.resultPrompt;
+    if (doc.evaluationCriteria?.length) {
+      const extra = doc.evaluationCriteria
+        .map((c) => `"${c.id}": number 0-100 — ${c.label}`)
+        .join(', ');
+      resultPrompt = `${resultPrompt}\n\nAlso include evaluation scores: ${extra}.`;
+    }
+    if (doc.consentText?.trim()) {
+      resultPrompt = `${resultPrompt}\n\nConsent note for the agent was: ${doc.consentText.trim()}`;
+    }
+
     const agentInput = {
       name: doc.name,
-      agentPrompt: buildAgentPrompt(doc),
-      objective: doc.objective || `Screen candidates for ${doc.name}`,
-      introduction: doc.introductionScript || 'Hello, this is a screening call from Huntlo.',
-      resultPrompt: buildResultPrompt(doc),
-      resultSchema: buildResultSchema(doc),
+      agentPrompt: [
+        roshni.agentPrompt,
+        doc.consentText?.trim() ? `\n\n## Consent\n${doc.consentText.trim()}` : '',
+        doc.closingScript?.trim() ? `\n\n## Closing\n${doc.closingScript.trim()}` : '',
+      ]
+        .filter(Boolean)
+        .join(''),
+      objective: doc.objective?.trim() || roshni.objective,
+      introduction: doc.introductionScript?.trim() || roshni.introduction,
+      resultPrompt,
+      resultSchema,
       voicePersona: doc.voice || getHunarVoicePersona(),
       language: doc.language || getHunarVoiceLanguage(),
     };

@@ -19,6 +19,7 @@ const importTotalsSchema = new mongoose.Schema(
     invalid: { type: Number, default: 0, min: 0 },
     duplicatesInFile: { type: Number, default: 0, min: 0 },
     duplicatesExisting: { type: Number, default: 0, min: 0 },
+    linkedExisting: { type: Number, default: 0, min: 0 },
     imported: { type: Number, default: 0, min: 0 },
     skipped: { type: Number, default: 0, min: 0 },
     failed: { type: Number, default: 0, min: 0 },

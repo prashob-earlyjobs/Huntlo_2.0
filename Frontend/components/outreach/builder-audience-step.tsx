@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from "react";
 
 import {
+  listAllPoolPages,
   loadAudiencePoolRows,
   statsFromPoolRows,
 } from "@/components/outreach/audience-resolve";
@@ -131,10 +132,10 @@ function CandidatePicker({
           Clear
         </Button>
         <span className="text-xs text-muted-foreground">
-          {selectedIds.length} selected
+          {selectedIds.length} selected · {rows.length} shown
         </span>
       </div>
-      <div className="max-h-56 overflow-y-auto rounded-lg border border-border">
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
         {loading ? (
           <p className="px-3 py-4 text-sm text-muted-foreground">
             Loading candidates…
@@ -143,7 +144,7 @@ function CandidatePicker({
           <p className="px-3 py-4 text-sm text-muted-foreground">{emptyLabel}</p>
         ) : (
           <ul className="divide-y divide-border">
-            {rows.map((row) => {
+            {rows.map((row, index) => {
               const checked = selected.has(row.id);
               return (
                 <li key={row.id}>
@@ -155,14 +156,26 @@ function CandidatePicker({
                       onChange={() => toggle(row.id)}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">
-                        {row.name}
+                      <span className="flex items-baseline gap-2">
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {index + 1}.
+                        </span>
+                        <span className="truncate text-sm font-medium text-foreground">
+                          {row.name}
+                        </span>
                       </span>
-                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {[row.currentTitle, row.currentCompany, row.email]
+                      <span className="mt-0.5 block pl-5 text-xs text-muted-foreground">
+                        {[row.email || null, row.phone || null]
                           .filter(Boolean)
-                          .join(" · ") || "No contact details"}
+                          .join(" · ") || "No email or mobile"}
                       </span>
+                      {(row.currentTitle || row.currentCompany) && (
+                        <span className="mt-0.5 block truncate pl-5 text-[11px] text-muted-foreground/80">
+                          {[row.currentTitle, row.currentCompany]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      )}
                     </span>
                   </label>
                 </li>
@@ -180,7 +193,7 @@ export function AudienceStep({
   update,
   showErrors,
   title = "Audience",
-  description = "Choose where the campaign audience comes from. Duplicates and invalid contacts are excluded automatically.",
+  description = "Choose where the campaign audience comes from. CSV imports include new rows and existing pool matches linked to this campaign list.",
   sourceErrorLabel = "Choose where the campaign audience comes from.",
 }: {
   state: AudienceStepState;
@@ -484,10 +497,7 @@ export function AudienceStep({
                 update("sourceDetail", id);
                 setImportListId(id);
                 try {
-                  const rows = await candidatePoolApi.listRaw({
-                    listId: id,
-                    limit: 200,
-                  });
+                  const rows = await listAllPoolPages({ listId: id });
                   update(
                     "selectedCandidateIds",
                     rows.map((row) => row.id)
@@ -495,7 +505,9 @@ export function AudienceStep({
                   update("audiencePreview", statsFromPoolRows(rows));
                   setPickerRows(rows);
                   if (imported === 0 && rows.length === 0) {
-                    setError("Import finished but no new candidates were added.");
+                    setError(
+                      "Import finished but no candidates were added to this campaign."
+                    );
                   }
                 } catch (err) {
                   setError(
@@ -510,7 +522,8 @@ export function AudienceStep({
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Imported candidates are attached to a saved list for this campaign.
+                Imported candidates (and existing pool matches) are attached to a
+                saved list for this campaign.
               </p>
             )}
             {showErrors && state.selectedCandidateIds.length === 0 ? (

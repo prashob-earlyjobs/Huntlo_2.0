@@ -85,6 +85,37 @@ describe('Organization & Team API', () => {
     expect(response.body.data.metrics.activeMembers).toBe(1);
   });
 
+  it('creates an active team account and returns temporary credentials once', async () => {
+    const register = await registerOrg(agentA, 'owner-create@huntlo.ai', 'Create Corp');
+    const token = register.body.data.accessToken as string;
+
+    const created = await agentA
+      .post('/api/v1/team/members')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Riya Recruiter',
+        email: 'riya@huntlo.ai',
+        role: 'recruiter',
+        permissions: ['analytics:view'],
+      })
+      .expect(201);
+
+    expect(created.body.data.member.name).toBe('Riya Recruiter');
+    expect(created.body.data.member.status).toBe('active');
+    expect(created.body.data.credentials.email).toBe('riya@huntlo.ai');
+    expect(created.body.data.credentials.temporaryPassword).toBeTruthy();
+
+    const login = await agentB
+      .post('/api/v1/auth/login')
+      .send({
+        email: created.body.data.credentials.email,
+        password: created.body.data.credentials.temporaryPassword,
+      })
+      .expect(200);
+
+    expect(login.body.data.user.email).toBe('riya@huntlo.ai');
+  });
+
   it('creates and accepts invitations within seat limits', async () => {
     const register = await registerOrg(agentA, 'owner-c@huntlo.ai', 'Gamma Corp');
     const token = register.body.data.accessToken as string;

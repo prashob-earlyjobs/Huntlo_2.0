@@ -57,20 +57,25 @@ describe('outreach personalization', () => {
 });
 
 describe('whatsapp template catalogue', () => {
-  it('lists approved templates and validates variables', () => {
+  it('lists the 5 unique Meta cold-outbound templates', () => {
     const templates = listApprovedTemplates();
-    expect(templates.length).toBeGreaterThan(0);
-    const opening =
-      templates.find(
-        (t) => t.id.includes('opening') || t.name.toLowerCase().includes('opening')
-      ) || templates[0];
-    expect(opening).toBeDefined();
-    expect(getApprovedTemplate(opening!.id)?.id).toBe(opening!.id);
+    expect(templates).toHaveLength(5);
+    expect(templates.map((t) => t.id).sort()).toEqual(
+      [
+        'final_profile_follow_up_v1',
+        'profile_review_closure_v1',
+        'profile_review_reminder_v1',
+        'recruitment_update_reminder_v1',
+        'role_alignment_review',
+      ].sort()
+    );
+    const opening = getApprovedTemplate('profile_review_reminder_v1');
+    expect(opening?.slot).toBe('opening');
     const result = validateWhatsAppCatalogueVariables(opening!.id, {
       '1': 'Ada',
       '2': 'Engineer',
     });
-    expect(result.valid || result.missing?.length !== undefined).toBeTruthy();
+    expect(result.valid).toBe(true);
   });
 });
 

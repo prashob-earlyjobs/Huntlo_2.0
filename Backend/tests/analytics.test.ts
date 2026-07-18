@@ -15,6 +15,8 @@ import { JobModel } from '../src/modules/jobs/job.model.js';
 import { OrganizationMemberModel } from '../src/modules/organizations/member.model.js';
 import { OrganizationModel } from '../src/modules/organizations/organization.model.js';
 import { OutreachCampaignModel } from '../src/modules/outreach/campaign.model.js';
+import { CampaignJobModel } from '../src/modules/outreach/campaign-job.model.js';
+import { OutreachEnrollmentModel } from '../src/modules/outreach/enrollment.model.js';
 import { InterviewModel } from '../src/modules/scheduling/interview.model.js';
 import { AnalyticsReportModel } from '../src/modules/analytics/report.model.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
@@ -57,6 +59,8 @@ describe('Dashboard + analytics aggregations', () => {
     await Promise.all([
       AnalyticsReportModel.deleteMany({}),
       InterviewModel.deleteMany({}),
+      CampaignJobModel.deleteMany({}),
+      OutreachEnrollmentModel.deleteMany({}),
       OutreachCampaignModel.deleteMany({}),
       RevealedContactModel.deleteMany({}),
       SavedCandidateModel.deleteMany({}),
@@ -93,7 +97,7 @@ describe('Dashboard + analytics aggregations', () => {
       },
     });
 
-    await SavedCandidateModel.insertMany([
+    const candidates = await SavedCandidateModel.insertMany([
       {
         organizationId: orgOid,
         name: 'A',
@@ -136,7 +140,7 @@ describe('Dashboard + analytics aggregations', () => {
       },
     ]);
 
-    await OutreachCampaignModel.create({
+    const campaign = await OutreachCampaignModel.create({
       organizationId: orgOid,
       ownerUserId: auth.userId,
       name: 'Fixture campaign',
@@ -148,15 +152,157 @@ describe('Dashboard + analytics aggregations', () => {
         whatsapp: { enabled: false },
         ai_voice: { enabled: false },
       },
+      sequenceSteps: [
+        {
+          id: 'step-1',
+          order: 0,
+          type: 'email',
+          subject: 'Hello',
+          body: 'Hi {{first_name}}',
+        },
+      ],
       stats: {
-        sent: 100,
-        delivered: 90,
-        replies: 30,
-        interested: 10,
-        qualified: 5,
-        enrolled: 100,
+        sent: 0,
+        delivered: 0,
+        replies: 0,
+        interested: 0,
+        qualified: 0,
+        enrolled: 0,
       },
     });
+
+    const enrollmentA = await OutreachEnrollmentModel.create({
+      organizationId: orgOid,
+      campaignId: campaign._id,
+      candidateId: candidates[0]!._id,
+      status: 'stopped',
+      replyState: {
+        hasReply: true,
+        disposition: 'interested',
+        repliedAt: hourAgo,
+      },
+      contactAvailability: { email: true, phone: false, optedOut: false },
+    });
+    const enrollmentB = await OutreachEnrollmentModel.create({
+      organizationId: orgOid,
+      campaignId: campaign._id,
+      candidateId: candidates[1]!._id,
+      status: 'replied',
+      replyState: {
+        hasReply: true,
+        disposition: 'neutral',
+        repliedAt: hourAgo,
+      },
+      contactAvailability: { email: true, phone: false, optedOut: false },
+    });
+    await OutreachEnrollmentModel.create({
+      organizationId: orgOid,
+      campaignId: campaign._id,
+      candidateId: candidates[2]!._id,
+      status: 'qualified',
+      replyState: {
+        hasReply: true,
+        disposition: 'interested',
+        repliedAt: hourAgo,
+      },
+      qualificationState: { status: 'qualified', answers: {} },
+      contactAvailability: { email: true, phone: false, optedOut: false },
+    });
+
+    // 3 succeeded email sends + 1 failed → delivery 75%, reply 3/3 = 100%
+    await CampaignJobModel.insertMany([
+      {
+        organizationId: orgOid,
+        campaignId: campaign._id,
+        enrollmentId: enrollmentA._id,
+        stepId: 'step-1',
+        jobType: 'send_email',
+        scheduledAt: hourAgo,
+        status: 'succeeded',
+        result: { delivery: 'sent', type: 'email', channel: 'email' },
+        updatedAt: hourAgo,
+        createdAt: hourAgo,
+      },
+      {
+        organizationId: orgOid,
+        campaignId: campaign._id,
+        enrollmentId: enrollmentB._id,
+        stepId: 'step-1',
+        jobType: 'send_email',
+        scheduledAt: hourAgo,
+        status: 'succeeded',
+        result: { delivery: 'sent', type: 'email', channel: 'email' },
+        updatedAt: hourAgo,
+        createdAt: hourAgo,
+      },
+      {
+        organizationId: orgOid,
+        campaignId: campaign._id,
+        enrollmentId: candidates[2]!._id,
+        stepId: 'step-1',
+        jobType: 'send_email',
+        scheduledAt: hourAgo,
+        status: 'succeeded',
+        result: { delivery: 'sent', type: 'email', channel: 'email' },
+        updatedAt: hourAgo,
+        createdAt: hourAgo,
+      },
+      {
+        organizationId: orgOid,
+        campaignId: campaign._id,
+        enrollmentId: candidates[3]!._id,
+        stepId: 'step-1',
+        jobType: 'send_email',
+        scheduledAt: hourAgo,
+        status: 'failed',
+        error: 'bounce',
+        updatedAt: hourAgo,
+        createdAt: hourAgo,
+      },
+    ]);
+
+    // Fix third job to use a real enrollment id (CampaignJob requires enrollmentId ObjectId)
+    await CampaignJobModel.deleteMany({
+      campaignId: campaign._id,
+      enrollmentId: { $in: [candidates[2]!._id, candidates[3]!._id] },
+    });
+    const enrollmentC = await OutreachEnrollmentModel.findOne({
+      campaignId: campaign._id,
+      candidateId: candidates[2]!._id,
+    });
+    const enrollmentD = await OutreachEnrollmentModel.create({
+      organizationId: orgOid,
+      campaignId: campaign._id,
+      candidateId: candidates[3]!._id,
+      status: 'failed',
+      contactAvailability: { email: true, phone: false, optedOut: false },
+    });
+    await CampaignJobModel.insertMany([
+      {
+        organizationId: orgOid,
+        campaignId: campaign._id,
+        enrollmentId: enrollmentC!._id,
+        stepId: 'step-1b',
+        jobType: 'send_email',
+        scheduledAt: hourAgo,
+        status: 'succeeded',
+        result: { delivery: 'sent', type: 'email', channel: 'email' },
+        updatedAt: hourAgo,
+        createdAt: hourAgo,
+      },
+      {
+        organizationId: orgOid,
+        campaignId: campaign._id,
+        enrollmentId: enrollmentD._id,
+        stepId: 'step-1',
+        jobType: 'send_email',
+        scheduledAt: hourAgo,
+        status: 'failed',
+        error: 'bounce',
+        updatedAt: hourAgo,
+        createdAt: hourAgo,
+      },
+    ]);
 
     await InterviewModel.create({
       organizationId: orgOid,
@@ -179,7 +325,7 @@ describe('Dashboard + analytics aggregations', () => {
 
     expect(summary.body.data.totals.candidatesSourced).toBe(5);
     expect(summary.body.data.totals.activeJobs).toBe(1);
-    expect(summary.body.data.totals.positiveReplies).toBe(10);
+    expect(summary.body.data.totals.positiveReplies).toBe(2);
     expect(summary.body.data.totals.hired).toBe(1);
     expect(summary.body.data.metrics).toHaveLength(4);
 
@@ -192,13 +338,36 @@ describe('Dashboard + analytics aggregations', () => {
     expect(byId.sourced).toBe(5);
     expect(byId.scheduled).toBeGreaterThanOrEqual(2); // interview_scheduled + hired
 
-    const campaign = await agent
-      .get('/api/v1/dashboard/campaign-performance')
+    const campaignPerf = await agent
+      .get('/api/v1/dashboard/campaign-performance?preset=30d')
       .set('Authorization', `Bearer ${auth.token}`)
       .expect(200);
-    expect(campaign.body.data.summary.find((s: { id: string }) => s.id === 'sent')?.value).toBe(
-      '100'
-    );
+    const summaryStats = campaignPerf.body.data.summary as Array<{
+      id: string;
+      value: string;
+    }>;
+    const byStat = Object.fromEntries(summaryStats.map((s) => [s.id, s.value]));
+    expect(byStat.sent).toBe('3');
+    expect(byStat.delivery).toBe('75.0%');
+    expect(byStat.reply).toBe('100.0%');
+    expect(byStat.positive).toBe('66.7%');
+    expect(byStat.qualified).toBe('1');
+    expect(byStat.active).toBe('1');
+
+    const deliveryRow = (
+      campaignPerf.body.data.comparison as Array<{
+        metric: string;
+        email: number;
+      }>
+    ).find((r) => r.metric === 'Delivery rate');
+    expect(deliveryRow?.email).toBe(75);
+    const replyRow = (
+      campaignPerf.body.data.comparison as Array<{
+        metric: string;
+        email: number;
+      }>
+    ).find((r) => r.metric === 'Reply rate');
+    expect(replyRow?.email).toBe(100);
 
     const overview = await agent
       .get('/api/v1/analytics/overview?preset=30d')

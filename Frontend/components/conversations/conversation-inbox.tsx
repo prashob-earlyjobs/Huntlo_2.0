@@ -42,6 +42,7 @@ import {
 import { CHANNEL_ICONS, type OutreachChannel } from "@/lib/mock-outreach";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
 /* ------------------------------------------------------------------ */
 /* Badges                                                               */
@@ -86,7 +87,12 @@ function MiniBadge({
 
 function DeliveryIndicator({ state }: { state: NonNullable<ConversationEvent["delivery"]> }) {
   return (
-    <span className="inline-flex items-center gap-0.5">
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5",
+        state === "Failed" && "text-destructive"
+      )}
+    >
       {state === "Read" ? (
         <CheckCheck aria-hidden className="size-3 text-info" />
       ) : state === "Delivered" ? (
@@ -122,17 +128,29 @@ function EventBubble({ event }: { event: ConversationEvent }) {
         <p className="mt-1 text-xs font-medium text-success">
           {event.voiceSummary.outcome}
         </p>
-        <ul className="mt-2 space-y-1">
-          {event.voiceSummary.highlights.map((highlight) => (
-            <li
-              key={highlight}
-              className="flex items-start gap-1.5 text-xs text-muted-foreground"
-            >
-              <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-primary" />
-              {highlight}
-            </li>
-          ))}
-        </ul>
+        {event.voiceSummary.highlights.length > 0 ? (
+          <ul className="mt-2 space-y-1">
+            {event.voiceSummary.highlights.map((highlight) => (
+              <li
+                key={highlight}
+                className="flex items-start gap-1.5 text-xs text-muted-foreground"
+              >
+                <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-primary" />
+                {highlight}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {(event.voiceSummary.transcript || event.text) ? (
+          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Transcription
+            </p>
+            <p className="mt-1 text-xs leading-relaxed whitespace-pre-wrap text-foreground">
+              {event.voiceSummary.transcript || event.text}
+            </p>
+          </div>
+        ) : null}
         <p className="mt-2 text-[11px] text-muted-foreground">{event.time}</p>
       </div>
     );
@@ -142,6 +160,16 @@ function EventBubble({ event }: { event: ConversationEvent }) {
   const ChannelIcon = CHANNEL_ICONS[event.channel as OutreachChannel];
   const AuthorIcon =
     event.author === "ai" ? Bot : event.author === "recruiter" ? User : null;
+
+  // Legacy AI voice rows may still contain the full agent prompt — keep the bubble usable.
+  const displayText =
+    event.channel === "AI Voice" &&
+    event.text.length > 400 &&
+    /Recruitment Screening Agent Prompt|#\s*Roshni|Call objective/i.test(
+      event.text
+    )
+      ? "AI voice call started"
+      : event.text;
 
   return (
     <div className={cn("flex", inbound ? "justify-start" : "justify-end")}>
@@ -164,8 +192,16 @@ function EventBubble({ event }: { event: ConversationEvent }) {
           </p>
         ) : null}
         <p className="mt-1 text-sm leading-relaxed whitespace-pre-line text-foreground">
-          {event.text}
+          {displayText}
         </p>
+        {event.delivery === "Failed" && event.error ? (
+          <p
+            role="alert"
+            className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
+          >
+            {event.error}
+          </p>
+        ) : null}
         {event.attachments?.map((attachment) => (
           <span
             key={attachment.name}
@@ -523,6 +559,9 @@ export function ConversationInbox({
   conversations: Conversation[];
   className?: string;
 }) {
+  const { user } = useAuth();
+  const noteAuthor =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "You";
   const [items, setItems] = useState(conversations);
   const [selectedId, setSelectedId] = useState<string | null>(
     conversations[0]?.id ?? null
@@ -612,6 +651,32 @@ export function ConversationInbox({
     }).catch(() => undefined);
   }
 
+  function persistNote(conversationId: string, text: string) {
+    void conversationsApi
+      .addNote(conversationId, { text })
+      .then((updated) => {
+        setItems((previous) =>
+          previous.map((row) => (row.id === updated.id ? updated : row))
+        );
+        flash("Note added.");
+      })
+      .catch(() => {
+        setAddedNotes((previous) => ({
+          ...previous,
+          [conversationId]: [
+            ...(previous[conversationId] ?? []),
+            {
+              id: `note-${Date.now()}`,
+              author: noteAuthor,
+              text,
+              time: "Just now",
+            },
+          ],
+        }));
+        flash("Note added locally.");
+      });
+  }
+
   function flash(text: string) {
     setFeedback(text);
     window.setTimeout(() => setFeedback(null), 2200);
@@ -660,7 +725,7 @@ export function ConversationInbox({
   return (
     <div
       className={cn(
-        "grid overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)_300px]",
+        "grid min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)_300px]",
         className
       )}
     >
@@ -923,33 +988,8 @@ export function ConversationInbox({
                       return;
                     }
                     const text = composer.trim();
-                    void conversationsApi
-                      .addNote(selected.id, { text })
-                      .then((updated) => {
-                        setItems((previous) =>
-                          previous.map((row) =>
-                            row.id === updated.id ? updated : row
-                          )
-                        );
-                        setComposer("");
-                        flash("Note added.");
-                      })
-                      .catch(() => {
-                        setAddedNotes((previous) => ({
-                          ...previous,
-                          [selected.id]: [
-                            ...(previous[selected.id] ?? []),
-                            {
-                              id: `note-${Date.now()}`,
-                              author: "You",
-                              text,
-                              time: "Just now",
-                            },
-                          ],
-                        }));
-                        setComposer("");
-                        flash("Note added locally.");
-                      });
+                    persistNote(selected.id, text);
+                    setComposer("");
                   }}
                 >
                   <StickyNote aria-hidden />
@@ -975,20 +1015,7 @@ export function ConversationInbox({
             <ProfilePanel
               conversation={selected}
               notes={notes}
-              onAddNote={(text) =>
-                setAddedNotes((previous) => ({
-                  ...previous,
-                  [selected.id]: [
-                    ...(previous[selected.id] ?? []),
-                    {
-                      id: `note-${Date.now()}`,
-                      author: "Ananya Sharma",
-                      text,
-                      time: "Just now",
-                    },
-                  ],
-                }))
-              }
+              onAddNote={(text) => persistNote(selected.id, text)}
             />
           </ScrollArea>
         ) : null}

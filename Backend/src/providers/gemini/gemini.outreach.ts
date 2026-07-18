@@ -241,33 +241,42 @@ function offlineGenerateSequence(input: {
   };
 }
 
-function offlineQualificationQuestions(jobTitle?: string) {
+function offlineQualificationQuestions(jobTitle?: string, jobContext?: string) {
   const job = jobTitle || '{{job_title}}';
+  const locationHint = /\b(remote|hybrid|onsite|bengaluru|bangalore|mumbai|delhi|pune|hyderabad)\b/i.exec(
+    jobContext || ''
+  )?.[1];
   return {
     questions: [
       {
         id: 'q1',
         prompt: `How many years of experience do you have relevant to ${job}?`,
-        answerType: 'number',
-        knockout: false,
+        answerType: 'Number',
+        knockout: true,
+        knockoutCondition: 'Reject if less than 2',
       },
       {
         id: 'q2',
         prompt: 'What is your notice period in days?',
-        answerType: 'number',
+        answerType: 'Number',
         knockout: true,
+        knockoutCondition: 'Reject if more than 90',
       },
       {
         id: 'q3',
-        prompt: 'What is your expected compensation?',
-        answerType: 'text',
-        knockout: false,
+        prompt: locationHint
+          ? `Are you open to ${locationHint} work for this ${job} role?`
+          : `Are you open to the work location / workplace type for this ${job} role?`,
+        answerType: 'Yes / No',
+        knockout: true,
+        knockoutCondition: 'Reject if No',
       },
       {
         id: 'q4',
-        prompt: 'Are you open to {{location}}?',
-        answerType: 'yes_no',
-        knockout: true,
+        prompt: 'What is your expected annual compensation?',
+        answerType: 'Short text',
+        knockout: false,
+        knockoutCondition: null,
       },
     ],
     generation: meta('qualification_questions', 'Offline qualification questions draft', 'offline-draft'),
@@ -402,30 +411,68 @@ export async function generateOutreachSequence(input: {
 
 export async function generateQualificationQuestions(input: {
   jobTitle?: string;
+  jobDescription?: string;
+  locations?: string[];
+  workplaceType?: string | null;
+  requirements?: string[];
+  requiredSkills?: string[];
+  experienceRange?: string | null;
+  salaryRange?: string | null;
   instructions?: string;
 }) {
-  const offline = offlineQualificationQuestions(input.jobTitle);
+  const contextParts = [
+    input.jobDescription ? `JD:\n${input.jobDescription.slice(0, 6000)}` : '',
+    input.locations?.length ? `Locations: ${input.locations.join(', ')}` : '',
+    input.workplaceType ? `Workplace: ${input.workplaceType}` : '',
+    input.requirements?.length
+      ? `Requirements: ${input.requirements.slice(0, 12).join('; ')}`
+      : '',
+    input.requiredSkills?.length
+      ? `Skills: ${input.requiredSkills.slice(0, 20).join(', ')}`
+      : '',
+    input.experienceRange ? `Experience: ${input.experienceRange}` : '',
+    input.salaryRange ? `Salary: ${input.salaryRange}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const offline = offlineQualificationQuestions(input.jobTitle, contextParts);
   const raw = await callGeminiJson(
     [
-      'Generate knockout qualification questions as JSON.',
-      'Shape: {"questions":[{"id":string,"prompt":string,"answerType":string,"knockout":boolean}]}',
+      'Generate 3-5 recruiting qualification / knockout screening questions as JSON from the job description.',
+      'Questions must be specific to THIS role (skills, location, notice, experience, compensation, must-haves from the JD).',
+      'Do NOT invent company policies that are not in the JD. Prefer concrete yes/no or number questions for knockouts.',
+      'Shape: {"questions":[{"id":string,"prompt":string,"answerType":"Yes / No"|"Number"|"Short text"|"Single choice","knockout":boolean,"knockoutCondition":string|null}]}',
+      'knockoutCondition examples: "Reject if No", "Reject if more than 60", "Reject if less than 3". Use null when knockout is false.',
       'Allowed placeholders only: {{first_name}} {{job_title}} {{company_name}} {{location}} {{recruiter_name}} {{current_company}} {{current_role}} {{last_name}}',
-      `Job: ${(input.jobTitle || '').slice(0, 120)}`,
+      `Job title: ${(input.jobTitle || '').slice(0, 120)}`,
+      contextParts || '(no JD provided — use sensible generic role questions)',
       `Notes: ${(input.instructions || '').slice(0, 400)}`,
     ].join('\n')
   );
   if (!raw) return offline;
   try {
-    const parsed = JSON.parse(raw) as { questions?: typeof offline.questions };
+    const parsed = JSON.parse(raw) as {
+      questions?: Array<{
+        id?: string;
+        prompt?: string;
+        answerType?: string;
+        knockout?: boolean;
+        knockoutCondition?: string | null;
+      }>;
+    };
     if (!Array.isArray(parsed.questions) || !parsed.questions.length) return offline;
     return {
-      questions: parsed.questions.slice(0, 12).map((q, i) => ({
+      questions: parsed.questions.slice(0, 8).map((q, i) => ({
         id: String(q.id || `q${i + 1}`),
-        prompt: String(q.prompt || ''),
-        answerType: String(q.answerType || 'text'),
+        prompt: String(q.prompt || '').slice(0, 500),
+        answerType: String(q.answerType || 'Short text'),
         knockout: Boolean(q.knockout),
+        knockoutCondition: q.knockout
+          ? String(q.knockoutCondition || '').slice(0, 200) || null
+          : null,
       })),
-      generation: meta('qualification_questions', 'Qualification questions via Gemini'),
+      generation: meta('qualification_questions', 'Qualification questions via Gemini from JD'),
     };
   } catch {
     return offline;
