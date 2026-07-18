@@ -143,17 +143,8 @@ export function CandidateCard({
           onClick={onToggleSave}
           aria-pressed={saved}
         >
-          {saved ? (
-            <>
-              <BookmarkCheck aria-hidden />
-              Saved
-            </>
-          ) : (
-            <>
-              <Bookmark aria-hidden />
-              Save
-            </>
-          )}
+          {saved ? <BookmarkCheck aria-hidden /> : <Bookmark aria-hidden />}
+          Add to list
         </Button>
         <Button type="button" size="xs" variant="outline" onClick={onOpenProfile}>
           <Eye aria-hidden />

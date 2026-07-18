@@ -359,8 +359,13 @@ export function ChannelsStep({
             return (
               <div
                 key={config.channel}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement;
+                  if (target.closest("button, a, input, select, textarea")) return;
+                  toggleChannel(config.channel);
+                }}
                 className={cn(
-                  "flex flex-col rounded-xl border p-4 transition-colors",
+                  "flex cursor-pointer flex-col rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/20",
                   enabled
                     ? "border-primary/50 bg-brand-subtle/20"
                     : "border-border"
@@ -394,7 +399,7 @@ export function ChannelsStep({
                             ? `Use ${config.channel}`
                             : `Enable ${config.channel}`
                         }
-                        className="size-3.5 accent-primary"
+                        className="size-3.5 cursor-pointer accent-primary"
                       />
                     </div>
                     {usageLoading ? (

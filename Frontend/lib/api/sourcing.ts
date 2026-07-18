@@ -61,6 +61,7 @@ export type SourcedCandidateApi = {
   profileSignals: string[];
   rank: number;
   matchScore: number | null;
+  saved?: boolean;
 };
 
 export type CreateSourcingSessionInput = {
@@ -145,7 +146,7 @@ export function mapApiCandidateToSessionCandidate(
       education: score,
     },
     contactStatus: "Not contacted",
-    saved: false,
+    saved: Boolean(candidate.saved),
     linkedin: Boolean(candidate.linkedinUrl),
     avatarUrl: candidate.profilePictureUrl ?? null,
     email: "",

@@ -25,6 +25,7 @@ import { AppError } from '../../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../../shared/validation/object-id.js';
 import { enqueueJob } from '../../../workers/queue.js';
 import { UserModel } from '../../auth/user.model.js';
+import { SavedCandidateModel } from '../saved-candidate.model.js';
 import { JobModel } from '../../jobs/job.model.js';
 import { SOURCING_QUOTA_COST, quotaService } from '../../sourcing/quota.service.js';
 import { SourcedCandidateModel } from '../../sourcing/sourced-candidate.model.js';
@@ -1274,13 +1275,42 @@ export class CandidateSearchService {
       all: query.all,
       allLimit: STORED_CANDIDATES_ALL_LIMIT,
     });
+    const externalCandidateIds = stored.candidates.map(
+      (candidate) =>
+        candidate.candidateId ||
+        candidate.externalCandidateId ||
+        candidate._id.toHexString()
+    );
+    const savedCandidates = await SavedCandidateModel.find({
+      organizationId: new mongoose.Types.ObjectId(actor.organizationId),
+      externalCandidateId: { $in: externalCandidateIds },
+      deletedAt: null,
+      'listIds.0': { $exists: true },
+    })
+      .select('externalCandidateId')
+      .lean();
+    const savedExternalIds = new Set(
+      savedCandidates
+        .map((candidate) => candidate.externalCandidateId)
+        .filter((id): id is string => Boolean(id))
+    );
 
     return {
       success: true,
       sessionId: fjId,
       savedSessionId: session._id.toHexString(),
       fromStored: true,
-      candidates: stored.candidates.map((c) => toCandidateSummaryDto(c, fjId)),
+      candidates: stored.candidates.map((candidate) => {
+        const externalCandidateId =
+          candidate.candidateId ||
+          candidate.externalCandidateId ||
+          candidate._id.toHexString();
+        return toCandidateSummaryDto(
+          candidate,
+          fjId,
+          savedExternalIds.has(externalCandidateId)
+        );
+      }),
       profilesPagination: buildPaginationDto({
         totalDocs: stored.total,
         page: stored.page,

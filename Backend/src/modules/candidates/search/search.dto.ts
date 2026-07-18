@@ -34,6 +34,7 @@ export type CandidateSummaryDto = {
   profilePictureUrl: string | null;
   profileSignals: string[];
   rank: number;
+  saved?: boolean;
 };
 
 export type CandidateExperienceDto = {
@@ -153,7 +154,8 @@ export function buildPaginationDto(input: {
 
 export function toCandidateSummaryDto(
   candidate: SourcedCandidateDocument,
-  futureJobsSessionId?: string | null
+  futureJobsSessionId?: string | null,
+  saved = false
 ): CandidateSummaryDto {
   const candidateId = String(
     candidate.candidateId || candidate.externalCandidateId || candidate._id.toHexString()
@@ -190,6 +192,7 @@ export function toCandidateSummaryDto(
     profilePictureUrl,
     profileSignals: candidate.profileSignals ?? [],
     rank: candidate.rank ?? 0,
+    saved,
   };
 }
 

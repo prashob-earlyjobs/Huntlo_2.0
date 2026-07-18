@@ -58,7 +58,6 @@ import {
   DELAY_UNIT_OPTIONS,
   formatStepDelay,
   PERSONALIZATION_VARIABLES,
-  RETRY_OPTIONS,
   SEND_WINDOWS,
   STEP_CHANNELS,
   STEP_TYPE_ICONS,
@@ -97,8 +96,9 @@ function StepEditor({
     whatsappSlot ??
     slotForWhatsAppTemplateId(step.templateId) ??
     (lockedWhatsAppTemplate ? "opening" : null);
-  const isOpeningMessage =
-    isFirstStep || effectiveWhatsAppSlot === "opening";
+  // Only the first sequence step is forced immediate; later steps (including
+  // WhatsApp "opening" templates used mid-sequence) keep editable delays.
+  const isOpeningMessage = isFirstStep;
   const delayUnit = step.delayUnit ?? "days";
   const delayMax =
     DELAY_UNIT_OPTIONS.find((option) => option.value === delayUnit)?.max ?? 30;
@@ -394,7 +394,7 @@ function StepEditor({
       )}
 
       {isMessage ? (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="max-w-sm">
           <Field label="Send window" htmlFor={`${step.id}-window`}>
             <Select
               value={step.sendWindow}
@@ -414,41 +414,6 @@ function StepEditor({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Retry behaviour" htmlFor={`${step.id}-retry`}>
-            <Select
-              value={step.retry}
-              onValueChange={(value) => value && onChange({ ...step, retry: value })}
-            >
-              <SelectTrigger id={`${step.id}-retry`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RETRY_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-foreground">Stop on reply</p>
-            <label
-              htmlFor={`${step.id}-stop`}
-              className="flex h-8 cursor-pointer items-center gap-2 rounded-lg border border-border px-2.5 text-sm text-foreground"
-            >
-              <input
-                id={`${step.id}-stop`}
-                type="checkbox"
-                checked={step.stopOnReply}
-                onChange={(event) =>
-                  onChange({ ...step, stopOnReply: event.target.checked })
-                }
-                className="size-3.5 accent-primary"
-              />
-              Pause sequence when the candidate replies
-            </label>
-          </div>
         </div>
       ) : null}
     </div>
@@ -492,6 +457,24 @@ export function SequenceStepBuilder({
   // Fix sequences that still lead with Wait after channel pruning (Email→WhatsApp).
   // Always keep at least one default send step visible.
   useEffect(() => {
+    const supportedSteps = state.steps.filter(
+      (step) =>
+        step.type !== "Conditional Branch" &&
+        step.type !== "Wait" &&
+        step.type !== "Create Recruiter Task"
+    );
+    if (supportedSteps.length !== state.steps.length) {
+      const next =
+        supportedSteps.length > 0
+          ? supportedSteps
+          : ensureDefaultSequenceSteps([], state.enabledChannels);
+      update("steps", next);
+      setExpanded((current) =>
+        next.some((step) => step.id === current) ? current : (next[0]?.id ?? null)
+      );
+      return;
+    }
+
     if (state.steps.length === 0) {
       const seeded = ensureDefaultSequenceSteps([], state.enabledChannels);
       update("steps", seeded);
@@ -586,12 +569,24 @@ export function SequenceStepBuilder({
     setSteps(steps);
   }
 
+  const availableStepTypes = STEP_TYPES.filter((type) => {
+    if (
+      type === "Conditional Branch" ||
+      type === "Wait" ||
+      type === "Create Recruiter Task"
+    ) {
+      return false;
+    }
+    const channel = STEP_CHANNELS[type];
+    return !channel || state.enabledChannels.includes(channel);
+  });
+
   return (
     <StepCard
       title="Sequence"
       description={
         isSingleChannelCampaign(state)
-          ? `Steps run in order on ${state.enabledChannels[0] ?? "the selected channel"} only. Non-message steps (wait, tasks) are still available.`
+          ? `Steps run in order on ${state.enabledChannels[0] ?? "the selected channel"} only.`
           : "Design the touchpoints candidates receive. Steps run in order using each candidate's timezone rules."
       }
     >
@@ -662,11 +657,7 @@ export function SequenceStepBuilder({
                         </span>
                       ) : null}
                       <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-                        {delaySummary(
-                          step,
-                          index === 0 || whatsappSlot === "opening"
-                        )}
-                        {step.stopOnReply && channel ? " · stops on reply" : ""}
+                        {delaySummary(step, index === 0)}
                       </span>
                       <ChevronDown
                         aria-hidden
@@ -722,11 +713,7 @@ export function SequenceStepBuilder({
 
                   {isOpen ? (
                     <StepEditor
-                      step={
-                        index === 0 || whatsappSlot === "opening"
-                          ? { ...step, delayDays: 0 }
-                          : step
-                      }
+                      step={index === 0 ? { ...step, delayDays: 0 } : step}
                       onChange={updateStep}
                       templateOptions={templateOptions}
                       whatsappSlot={whatsappSlot}
@@ -739,28 +726,37 @@ export function SequenceStepBuilder({
           })}
         </ol>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button type="button" size="sm" variant="outline" />}
+        {availableStepTypes.length === 1 ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => addStep(availableStepTypes[0]!)}
           >
             <Plus aria-hidden />
-            Add Step
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            {STEP_TYPES.filter((type) => {
-              const channel = STEP_CHANNELS[type];
-              return !channel || state.enabledChannels.includes(channel);
-            }).map((type) => {
-              const Icon = STEP_TYPE_ICONS[type];
-              return (
-                <DropdownMenuItem key={type} onClick={() => addStep(type)}>
-                  <Icon aria-hidden />
-                  {type}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            Add {availableStepTypes[0]}
+          </Button>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button type="button" size="sm" variant="outline" />}
+            >
+              <Plus aria-hidden />
+              Add Step
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {availableStepTypes.map((type) => {
+                const Icon = STEP_TYPE_ICONS[type];
+                return (
+                  <DropdownMenuItem key={type} onClick={() => addStep(type)}>
+                    <Icon aria-hidden />
+                    {type}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </StepCard>
   );

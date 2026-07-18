@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AddToListDialog } from "@/components/candidates/add-to-list-dialog";
 import { CandidateCard } from "@/components/sessions/candidate-card";
 import { CandidateDrawer } from "@/components/sessions/candidate-drawer";
 import { CandidateTable } from "@/components/sessions/candidate-table";
@@ -219,6 +220,9 @@ export function SessionResults({
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [drawerDetailsLoading, setDrawerDetailsLoading] = useState(false);
   const [drawerDetailsError, setDrawerDetailsError] = useState<string | null>(null);
+  const [addToListOpen, setAddToListOpen] = useState(false);
+  const [addToListCandidateIds, setAddToListCandidateIds] = useState<string[]>([]);
+  const [addToListMessage, setAddToListMessage] = useState<string | null>(null);
   const detailsFetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -242,6 +246,19 @@ export function SessionResults({
       });
     });
   }, [candidates]);
+
+  useEffect(() => {
+    setSavedMap((previous) => ({
+      ...previous,
+      ...Object.fromEntries(
+        candidates.map((candidate) => [
+          candidate.id,
+          previous[candidate.id] || candidate.saved,
+        ])
+      ),
+    }));
+  }, [candidates]);
+
   const [progressCount, setProgressCount] = useState(
     session.state === "running" ? 0 : candidates.length
   );
@@ -359,11 +376,11 @@ export function SessionResults({
     }
   }
 
-  function toggleSave(id: string) {
-    setSavedMap((previous) => ({
-      ...previous,
-      [id]: !(previous[id] ?? false),
-    }));
+  function openAddToList(ids: string[]) {
+    if (!ids.length) return;
+    setAddToListCandidateIds(ids);
+    setAddToListMessage(null);
+    setAddToListOpen(true);
   }
 
   async function reveal(id: string, kind: "email" | "phone") {
@@ -578,6 +595,14 @@ export function SessionResults({
           {revealError}
         </p>
       ) : null}
+      {addToListMessage ? (
+        <p
+          role="status"
+          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+        >
+          {addToListMessage}
+        </p>
+      ) : null}
 
       {/* Result controls — one compact toolbar */}
       {!isFailed ? (
@@ -730,7 +755,11 @@ export function SessionResults({
                     {selected.size}
                   </span>
                 </Button>
-                <Button size="sm" variant="outline">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openAddToList(Array.from(selected))}
+                >
                   <Users aria-hidden />
                   Add to List
                   <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
@@ -792,7 +821,7 @@ export function SessionResults({
               onToggleSelect={toggleSelect}
               onToggleSelectAll={toggleSelectAll}
               savedMap={savedMap}
-              onToggleSave={toggleSave}
+              onToggleSave={(id) => openAddToList([id])}
               revealedMap={revealedMap}
               onReveal={(id, kind) => void reveal(id, kind)}
               onOpenProfile={setDrawerId}
@@ -807,7 +836,7 @@ export function SessionResults({
                   selected={selected.has(candidate.id)}
                   onToggleSelect={() => toggleSelect(candidate.id)}
                   saved={savedMap[candidate.id] ?? candidate.saved}
-                  onToggleSave={() => toggleSave(candidate.id)}
+                  onToggleSave={() => openAddToList([candidate.id])}
                   revealed={
                     revealedMap[candidate.id] ?? { email: false, phone: false }
                   }
@@ -873,10 +902,27 @@ export function SessionResults({
             ? (savedMap[drawerId] ?? drawerCandidate?.saved ?? false)
             : false
         }
-        onToggleSave={() => drawerId && toggleSave(drawerId)}
+        onToggleSave={() => drawerId && openAddToList([drawerId])}
         onAddToOutreach={() => undefined}
         detailsLoading={drawerDetailsLoading}
         detailsError={drawerDetailsError}
+      />
+      <AddToListDialog
+        open={addToListOpen}
+        onOpenChange={setAddToListOpen}
+        sourcedCandidateIds={addToListCandidateIds}
+        onSaved={(list, savedCount) => {
+          setSavedMap((previous) => ({
+            ...previous,
+            ...Object.fromEntries(addToListCandidateIds.map((id) => [id, true])),
+          }));
+          setAddToListMessage(
+            savedCount > 0
+              ? `Added ${savedCount} candidate${savedCount === 1 ? "" : "s"} to ${list.name}.`
+              : `The selected candidate${addToListCandidateIds.length === 1 ? " is" : "s are"} already in ${list.name}.`
+          );
+          setSelected(new Set());
+        }}
       />
     </div>
   );
