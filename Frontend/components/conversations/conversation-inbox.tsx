@@ -496,9 +496,6 @@ export function ConversationInbox({
   function open(conversation: Conversation) {
     setSelectedId(conversation.id);
     setReadIds((previous) => new Set(previous).add(conversation.id));
-    setComposer("");
-    setAiDraftOpen(false);
-    setComposerChannel(conversation.channels[0] ?? "Email");
     // On stacked (mobile) layout the timeline sits below the list — scroll it into view.
     window.requestAnimationFrame(() => {
       document
