@@ -6,7 +6,6 @@ import {
   Check,
   Coins,
   Eraser,
-  FileText,
   LoaderCircle,
   PenLine,
   Search,
@@ -39,6 +38,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
 import {
@@ -231,14 +231,17 @@ function GettingStarted({
   onUseExample,
   onUseSaved,
   recentSearches,
+  loading = false,
 }: {
   onUseExample: () => void;
   onUseSaved: (search: SavedSearch) => void;
   recentSearches: SavedSearch[];
+  loading?: boolean;
 }) {
   return (
     <section
       aria-label="Getting started"
+      aria-busy={loading || undefined}
       className="rounded-lg border border-border bg-card p-4"
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -246,29 +249,46 @@ function GettingStarted({
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Try an example
           </h3>
-          <button
-            type="button"
-            onClick={onUseExample}
-            className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {EXAMPLE_QUERY}
-          </button>
+          {loading ? (
+            <Skeleton className="mt-2 h-[4.25rem] w-full rounded-md" />
+          ) : (
+            <button
+              type="button"
+              onClick={onUseExample}
+              className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {EXAMPLE_QUERY}
+            </button>
+          )}
         </div>
         <div>
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Recent searches
             </h3>
-            <Button
-              size="xs"
-              variant="ghost"
-              nativeButton={false}
-              render={<Link href={ROUTES.searchHistory} />}
-            >
-              Browse search history
-            </Button>
+            {loading ? (
+              <Skeleton className="h-6 w-36 rounded-md" />
+            ) : (
+              <Button
+                size="xs"
+                variant="ghost"
+                nativeButton={false}
+                render={<Link href={ROUTES.searchHistory} />}
+              >
+                Browse search history
+              </Button>
+            )}
           </div>
-          {recentSearches.length === 0 ? (
+          {loading ? (
+            <ul className="mt-2 space-y-2" aria-hidden>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <li key={index} className="flex items-center justify-between gap-2 px-2">
+                  <Skeleton className="h-4 w-[70%] max-w-56" />
+                  <Skeleton className="h-3 w-14 shrink-0" />
+                </li>
+              ))}
+            </ul>
+          ) : recentSearches.length === 0 ? (
             <p className="mt-2 px-2 text-sm text-muted-foreground">
               No recent searches yet.
             </p>
@@ -320,6 +340,7 @@ export function SearchWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [searchRemaining, setSearchRemaining] = useState<number | null>(null);
   const [recentSearches, setRecentSearches] = useState<SavedSearch[]>([]);
+  const [recentSearchesLoading, setRecentSearchesLoading] = useState(true);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
@@ -345,6 +366,7 @@ export function SearchWorkspace() {
       }
     })();
     void (async () => {
+      setRecentSearchesLoading(true);
       try {
         const { getRecentSearches } = await import("@/lib/api/candidate-search");
         const result = await getRecentSearches({ limit: 5 });
@@ -361,6 +383,8 @@ export function SearchWorkspace() {
         );
       } catch {
         if (!cancelled) setRecentSearches([]);
+      } finally {
+        if (!cancelled) setRecentSearchesLoading(false);
       }
     })();
     return () => {
@@ -513,10 +537,9 @@ export function SearchWorkspace() {
     setError(null);
   }
 
-  function useJobDescription() {
-    const job = selectedJob ?? jobOptions[0];
+  function fillPromptFromJob(jobId: string) {
+    const job = jobOptions.find((item) => item.id === jobId);
     if (!job) return;
-    if (!selectedJobId) setSelectedJobId(job.id);
     const location =
       "location" in job && typeof job.location === "string"
         ? job.location
@@ -687,7 +710,7 @@ export function SearchWorkspace() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
-              className="min-h-28 resize-none rounded-b-none border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
+              className="min-h-48 resize-none rounded-b-none border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
               aria-busy={interpreting || searching}
             />
 
@@ -695,7 +718,14 @@ export function SearchWorkspace() {
             <div className="flex flex-wrap items-center gap-1.5 rounded-b-md bg-muted/50 px-2 py-1.5">
               <Select
                 value={selectedJobId}
-                onValueChange={(value) => setSelectedJobId(value)}
+                onValueChange={(value) => {
+                  if (!value) {
+                    setSelectedJobId(null);
+                    return;
+                  }
+                  setSelectedJobId(value);
+                  fillPromptFromJob(value);
+                }}
               >
                 <SelectTrigger
                   size="sm"
@@ -706,7 +736,9 @@ export function SearchWorkspace() {
                     aria-hidden
                     className="size-3.5 shrink-0 text-muted-foreground"
                   />
-                  <SelectValue placeholder="Select Job" />
+                  <SelectValue placeholder="Select Job">
+                    {selectedJob?.title}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {jobOptions.map((job) => (
@@ -716,16 +748,6 @@ export function SearchWorkspace() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={useJobDescription}
-              >
-                <FileText aria-hidden />
-                Use Job Description
-              </Button>
 
               {/* Advanced filters toggle — mobile / narrow screens only */}
               <div className="lg:hidden">
@@ -853,6 +875,7 @@ export function SearchWorkspace() {
             onUseExample={() => setQuery(EXAMPLE_QUERY)}
             onUseSaved={useSavedSearch}
             recentSearches={recentSearches}
+            loading={recentSearchesLoading}
           />
         ) : (
           <>
@@ -972,7 +995,7 @@ export function SearchWorkspace() {
       </div>
 
       {/* Desktop filter sidebar — fixed height so FilterPanel's overflow-y-auto can scroll */}
-      <aside className="sticky top-20 hidden max-h-[calc(100svh-6rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
+      <aside className="sticky top-20 hidden h-[calc(100svh-5.25rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
         {filterPanel}
       </aside>
     </div>

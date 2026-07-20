@@ -127,18 +127,25 @@ export function resolveVoiceTokens(
 ): string {
   let out = String(template || '');
 
-  const replaceKey = (key: string, match: string): string => {
-    if (key === 'callee_name') return '{callee_name}';
-    const value = tokens[key];
-    return value != null && String(value).length ? String(value) : match;
+  const replaceKey = (key: string, match: string, dropIfMissing: boolean): string => {
+    const normalized =
+      key === 'first_name' || key === 'candidate_name' || key === 'name'
+        ? 'callee_name'
+        : key;
+    if (normalized === 'callee_name') return '{callee_name}';
+    const value = tokens[normalized] ?? tokens[key];
+    if (value != null && String(value).length) return String(value);
+    // Missing/empty {{token}} must not survive as {{token}} — the cleanup pass
+    // would strip the inner {token} and leave invalid empty `{}` for Hunar.
+    return dropIfMissing ? '' : match;
   };
 
   // Double-brace first so {{job_title}} does not become {MERN Stack Developer}.
   out = out.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key) =>
-    replaceKey(String(key), match)
+    replaceKey(String(key), match, true)
   );
   out = out.replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, (match, key) =>
-    replaceKey(String(key), match)
+    replaceKey(String(key), match, false)
   );
 
   // Hunar only allows snake_case vars. Strip leftover invalid {…} (spaces, etc.).
@@ -152,7 +159,13 @@ export function resolveVoiceTokens(
     return key;
   });
 
-  return out;
+  // Final guard: unresolved {{x}} cleanup must never leave empty braces.
+  return out.replace(/\{\}/g, '');
+}
+
+/** Strip empty `{}` left by unresolved placeholders — Hunar rejects them. */
+export function sanitizeHunarPromptText(template: string): string {
+  return String(template || '').replace(/\{\}/g, '');
 }
 
 export async function buildJdVoiceTokens(jobId: string | null | undefined) {
@@ -178,13 +191,17 @@ export async function syncVoiceAgent(input: VoiceAgentConfigInput): Promise<{ ag
     );
   }
 
-  const introduction = resolveIntroduction(input.tone, input.introduction);
+  const introduction = sanitizeHunarPromptText(
+    resolveIntroduction(input.tone, input.introduction)
+  );
   const payload = {
     name: input.name,
-    agentPrompt: input.agentPrompt,
-    objective: input.objective,
+    agentPrompt: sanitizeHunarPromptText(input.agentPrompt),
+    objective: sanitizeHunarPromptText(input.objective),
     introduction,
-    resultPrompt: String(input.resultPrompt || '').trim() || defaultResultPrompt(),
+    resultPrompt: sanitizeHunarPromptText(
+      String(input.resultPrompt || '').trim() || defaultResultPrompt()
+    ),
     resultSchema:
       input.resultSchema && Object.keys(input.resultSchema).length
         ? input.resultSchema

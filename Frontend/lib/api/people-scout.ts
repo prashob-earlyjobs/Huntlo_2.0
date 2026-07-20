@@ -40,6 +40,7 @@ export type ScoutLookupResponse = {
   candidateSnapshot?: {
     name?: string;
     linkedinProfileUrl?: string;
+    profilePictureUrl?: string;
   } | null;
 };
 
@@ -97,9 +98,14 @@ export function uiLookupTypeToApi(type: LookupType): ScoutLookupInput["type"] {
 
 export function mapLookupToRecent(item: ScoutLookupResponse): RecentLookup {
   const snapName = item.candidateSnapshot?.name ?? item.profile?.name ?? null;
+  const avatarUrl =
+    item.profile?.avatarUrl ??
+    item.candidateSnapshot?.profilePictureUrl ??
+    null;
   return {
     id: item.id,
     candidateName: snapName,
+    avatarUrl: avatarUrl || null,
     input: item.displayInput || item.maskedInput,
     type: API_TO_TYPE[item.lookupType] ?? "LinkedIn URL",
     result: RESULT_MAP[item.resultStatus] ?? "Failed",
@@ -130,11 +136,19 @@ function mapMatches(
     company?: string;
     location?: string;
     linkedinProfileUrl?: string;
+    profilePictureUrl?: string;
+    profile_picture_url?: string;
+    profile_picture_permalink?: string;
   }>
 ): ScoutMatchOption[] {
   return matches.map((match, index) => {
     const url = match.linkedinProfileUrl ?? "";
     const username = url.match(/\/in\/([^/?#]+)/i)?.[1] ?? `match-${index}`;
+    const avatarUrl =
+      match.profilePictureUrl ||
+      match.profile_picture_url ||
+      match.profile_picture_permalink ||
+      null;
     return {
       id: `${username}-${index}`,
       name: match.name ?? "Candidate",
@@ -142,6 +156,7 @@ function mapMatches(
       company: match.company ?? "",
       location: match.location ?? "",
       linkedinUsername: decodeURIComponent(username),
+      avatarUrl,
     };
   });
 }

@@ -2,6 +2,22 @@ import { OverviewMetricCardSkeleton } from "@/components/dashboard/overview-metr
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+export function PoolTableSkeleton({
+  rows = 6,
+  className,
+}: {
+  rows?: number;
+  className?: string;
+}) {
+  return (
+    <div aria-busy className={className}>
+      {Array.from({ length: rows }).map((_, index) => (
+        <PoolRowSkeleton key={index} />
+      ))}
+    </div>
+  );
+}
+
 function PoolRowSkeleton() {
   return (
     <div className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">

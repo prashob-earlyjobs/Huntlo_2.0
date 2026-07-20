@@ -40,11 +40,17 @@ const inviteableRoles = [
   'analyst',
 ] as const;
 
+const allowedModulesSchema = z
+  .array(z.enum(PERMISSION_MODULES))
+  .nullable()
+  .optional();
+
 export const createInvitationSchema = z.object({
   email: z.string().email(),
   name: z.string().trim().max(160).optional(),
   role: z.enum(inviteableRoles).default('recruiter'),
   permissions: z.array(permissionKeySchema).optional(),
+  allowedModules: allowedModulesSchema,
   assignedJobIds: z.array(z.string()).optional(),
 });
 
@@ -53,6 +59,7 @@ export const createTeamAccountSchema = z.object({
   email: z.string().email(),
   role: z.enum(inviteableRoles).default('recruiter'),
   permissions: z.array(permissionKeySchema).optional(),
+  allowedModules: allowedModulesSchema,
   assignedJobIds: z.array(z.string()).optional(),
 });
 
@@ -74,7 +81,8 @@ export const updateMemberRoleSchema = z.object({
 });
 
 export const updateMemberPermissionsSchema = z.object({
-  permissions: z.array(permissionKeySchema),
+  permissions: z.array(permissionKeySchema).optional(),
+  allowedModules: allowedModulesSchema,
 });
 
 export const updateMemberStatusSchema = z.object({

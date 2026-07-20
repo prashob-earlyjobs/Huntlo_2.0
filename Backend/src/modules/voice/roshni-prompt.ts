@@ -1,27 +1,35 @@
 /**
  * Roshni recruitment screening agent prompt — used as the default Hunar agent_prompt
  * for screening launches and outreach AI voice dials.
+ *
+ * Active defaults resolve DB-first from platform settings, then fall back to the
+ * bundled markdown file. Per-screening / per-campaign custom snapshots are unchanged.
  */
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { PlatformSettingsModel } from '../admin/platform-settings.model.js';
 import { loadOutreachJobContext } from '../outreach/job-context.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
 import { resolveVoiceTokens } from './voice-dialer.service.js';
 
 const TEMPLATE_PATH = join(dirname(fileURLToPath(import.meta.url)), 'roshni-prompt.md');
 
-let cachedTemplate: string | null = null;
+const CACHE_TTL_MS = 60_000;
 
-export function getRoshniPromptTemplate(): string {
-  if (!cachedTemplate) {
-    cachedTemplate = readFileSync(TEMPLATE_PATH, 'utf8');
-  }
-  return cachedTemplate;
-}
+let bundledTemplate: string | null = null;
+let activeCache: {
+  introduction: string;
+  agentPrompt: string;
+  version: number;
+  introductionSource: 'db' | 'file';
+  agentPromptSource: 'db' | 'file';
+  loadedAt: number;
+} | null = null;
 
+/** Bundled opening line — also used as the sync constant for offline / static fallbacks. */
 export const ROSHNI_INTRODUCTION = 'Hello, am I speaking with {callee_name}?';
 
 export const DEFAULT_ROSHNI_QUESTIONS = [
@@ -99,7 +107,143 @@ export const ROSHNI_RESULT_SCHEMA: Record<string, unknown> = {
   },
 };
 
-export type RoshniQuestion = { id?: string; prompt: string };
+export type RoshniQuestion = {
+  id?: string;
+  prompt: string;
+  followUp?: string | null;
+  required?: boolean;
+  expectedVariable?: string | null;
+  knockout?: boolean;
+  knockoutCondition?: string | null;
+};
+
+export type ActiveRoshniPromptDefaults = {
+  introduction: string;
+  agentPrompt: string;
+  version: number;
+  introductionSource: 'db' | 'file';
+  agentPromptSource: 'db' | 'file';
+  source: 'db' | 'file' | 'mixed';
+};
+
+/** Required tokens for admin-saved agent prompts (must remain provider-compatible). */
+export const ROSHNI_AGENT_PROMPT_REQUIRED_PLACEHOLDERS = [
+  '{callee_name}',
+  '{jd_role_screening_label}',
+  '{jd_screening_questions_list}',
+] as const;
+
+export function getBundledRoshniPromptTemplate(): string {
+  if (!bundledTemplate) {
+    bundledTemplate = readFileSync(TEMPLATE_PATH, 'utf8');
+  }
+  return bundledTemplate;
+}
+
+/** Sync file-only template — prefer `getActiveRoshniPromptDefaults` / async getters at runtime. */
+export function getRoshniPromptTemplate(): string {
+  return getBundledRoshniPromptTemplate();
+}
+
+export function invalidateRoshniPromptCache(): void {
+  activeCache = null;
+}
+
+function normalizeStored(value: string | null | undefined): string | null {
+  const trimmed = String(value ?? '').trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function loadActiveDefaults(): Promise<ActiveRoshniPromptDefaults> {
+  const now = Date.now();
+  if (activeCache && now - activeCache.loadedAt < CACHE_TTL_MS) {
+    const source =
+      activeCache.introductionSource === activeCache.agentPromptSource
+        ? activeCache.introductionSource
+        : 'mixed';
+    return {
+      introduction: activeCache.introduction,
+      agentPrompt: activeCache.agentPrompt,
+      version: activeCache.version,
+      introductionSource: activeCache.introductionSource,
+      agentPromptSource: activeCache.agentPromptSource,
+      source,
+    };
+  }
+
+  const bundledAgent = getBundledRoshniPromptTemplate();
+  let introduction = ROSHNI_INTRODUCTION;
+  let agentPrompt = bundledAgent;
+  let version = 0;
+  let introductionSource: 'db' | 'file' = 'file';
+  let agentPromptSource: 'db' | 'file' = 'file';
+
+  try {
+    const doc = await PlatformSettingsModel.findOne({ singletonKey: 'platform' })
+      .select('roshniPrompt')
+      .lean();
+    const stored = doc?.roshniPrompt as
+      | { introduction?: string | null; agentPrompt?: string | null; version?: number }
+      | null
+      | undefined;
+    if (stored) {
+      version = Number(stored.version || 0);
+      const dbIntro = normalizeStored(stored.introduction);
+      const dbAgent = normalizeStored(stored.agentPrompt);
+      if (dbIntro) {
+        introduction = dbIntro;
+        introductionSource = 'db';
+      }
+      if (dbAgent) {
+        agentPrompt = dbAgent;
+        agentPromptSource = 'db';
+      }
+    }
+  } catch {
+    // Mongo unavailable — keep bundled file defaults.
+  }
+
+  activeCache = {
+    introduction,
+    agentPrompt,
+    version,
+    introductionSource,
+    agentPromptSource,
+    loadedAt: now,
+  };
+
+  const source =
+    introductionSource === agentPromptSource ? introductionSource : 'mixed';
+
+  return {
+    introduction,
+    agentPrompt,
+    version,
+    introductionSource,
+    agentPromptSource,
+    source,
+  };
+}
+
+export async function getActiveRoshniPromptDefaults(): Promise<ActiveRoshniPromptDefaults> {
+  return loadActiveDefaults();
+}
+
+export async function getActiveRoshniIntroduction(): Promise<string> {
+  const defaults = await loadActiveDefaults();
+  return defaults.introduction;
+}
+
+export async function getActiveRoshniPromptTemplate(): Promise<string> {
+  const defaults = await loadActiveDefaults();
+  return defaults.agentPrompt;
+}
+
+export function missingRoshniPlaceholders(prompt: string): string[] {
+  return ROSHNI_AGENT_PROMPT_REQUIRED_PLACEHOLDERS.filter(
+    (token) => !prompt.includes(token)
+  );
+}
 
 function clip(text: string, max: number): string {
   const t = String(text || '')
@@ -109,13 +253,61 @@ function clip(text: string, max: number): string {
   return `${t.slice(0, max - 1).trim()}…`;
 }
 
-function normalizeQuestions(questions?: RoshniQuestion[] | string[] | null): string[] {
+type NormalizedVoiceQuestion = {
+  spoken: string;
+  /** Internal agent guidance — not spoken verbatim. */
+  guidance: string;
+};
+
+/** Build spoken + internal guidance from a screening / outreach question. */
+export function formatRoshniQuestionParts(
+  question: RoshniQuestion | string
+): NormalizedVoiceQuestion | null {
+  if (typeof question === 'string') {
+    const spoken = question.trim();
+    return spoken ? { spoken, guidance: '' } : null;
+  }
+
+  const spoken = String(question.prompt || '').trim();
+  if (!spoken) return null;
+
+  const notes: string[] = [];
+  if (question.knockout && String(question.knockoutCondition || '').trim()) {
+    notes.push(
+      `Internal knockout — do not read aloud: ${String(question.knockoutCondition).trim()}`
+    );
+  }
+  const followUp = String(question.followUp || '').trim();
+  if (followUp) {
+    notes.push(`Follow-up if vague — do not read as a scripted line: ${followUp}`);
+  }
+  if (question.required) {
+    notes.push('Required — get a clear answer before moving on');
+  }
+  const expectedVariable = String(question.expectedVariable || '').trim();
+  if (expectedVariable) {
+    notes.push(`Capture answer as ${expectedVariable}`);
+  }
+
+  return { spoken, guidance: notes.join('. ') };
+}
+
+/** Single-line form used in the screening questions list token. */
+export function formatRoshniQuestionForList(question: RoshniQuestion | string): string {
+  const parts = formatRoshniQuestionParts(question);
+  if (!parts) return '';
+  return parts.guidance ? `${parts.spoken} [${parts.guidance}]` : parts.spoken;
+}
+
+function normalizeQuestionEntries(
+  questions?: RoshniQuestion[] | string[] | null
+): NormalizedVoiceQuestion[] {
   const fromInput = (questions || [])
-    .map((q) => (typeof q === 'string' ? q : String(q?.prompt || '').trim()))
-    .filter(Boolean);
+    .map((q) => formatRoshniQuestionParts(q))
+    .filter((q): q is NormalizedVoiceQuestion => Boolean(q?.spoken));
   // Campaign / screening questions win as-is (cap 12). Defaults only when none provided.
   if (fromInput.length > 0) return fromInput.slice(0, 12);
-  return [...DEFAULT_ROSHNI_QUESTIONS];
+  return DEFAULT_ROSHNI_QUESTIONS.map((spoken) => ({ spoken, guidance: '' }));
 }
 
 /** Pull outreach qualification questions into the Roshni voice prompt shape. */
@@ -124,6 +316,9 @@ export function qualificationQuestionsForRoshni(
     | {
         questions?: Array<{
           prompt?: string | null;
+          followUp?: string | null;
+          required?: boolean;
+          expectedVariable?: string | null;
           knockout?: boolean;
           knockoutCondition?: string | null;
         }> | null;
@@ -135,12 +330,14 @@ export function qualificationQuestionsForRoshni(
     .map((q) => {
       const prompt = String(q.prompt || '').trim();
       if (!prompt) return null;
-      if (q.knockout && String(q.knockoutCondition || '').trim()) {
-        return {
-          prompt: `${prompt} [Internal knockout — do not read aloud: ${String(q.knockoutCondition).trim()}]`,
-        };
-      }
-      return { prompt };
+      return {
+        prompt,
+        followUp: q.followUp ?? null,
+        required: Boolean(q.required),
+        expectedVariable: q.expectedVariable ?? null,
+        knockout: Boolean(q.knockout),
+        knockoutCondition: q.knockoutCondition ?? null,
+      };
     })
     .filter((q): q is RoshniQuestion => Boolean(q?.prompt));
 }
@@ -165,14 +362,20 @@ export async function buildRoshniJdTokens(input: {
   const company = String(org?.name || '').trim();
   const hasCompany = Boolean(company);
 
-  const questions = normalizeQuestions(input.questions);
+  const entries = normalizeQuestionEntries(input.questions);
+  const questions = entries.map((q) =>
+    q.guidance ? `${q.spoken} [${q.guidance}]` : q.spoken
+  );
   const questionList = questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
-  const callFlowSteps = questions
+  const callFlowSteps = entries
     .map((q, i) => {
       const stepNum = i + 4;
       const next =
-        i === questions.length - 1 ? 'the closing step' : `Step ${stepNum + 1}`;
-      return `${stepNum}. SCREENING Q${i + 1} — Ask: "${q}" Wait for the full answer. Max two probes if vague. Then go to ${next}.`;
+        i === entries.length - 1 ? 'the closing step' : `Step ${stepNum + 1}`;
+      const guidance = q.guidance
+        ? ` ${q.guidance}.`
+        : ' Max two probes if vague.';
+      return `${stepNum}. SCREENING Q${i + 1} — Ask: "${q.spoken}" Wait for the full answer.${guidance} Then go to ${next}.`;
     })
     .join('\n\n');
 
@@ -241,7 +444,7 @@ export async function buildRoshniJdTokens(input: {
     jd_screening_call_flow_steps: callFlowSteps,
     jd_screening_probes_section:
       questions.length > 0
-        ? `Ask these ${questions.length} screening question(s) in order. If an answer is vague, ask at most two short clarifying probes, then move on. Apply any internal knockout notes silently — never read knockout rules aloud.`
+        ? `Ask these ${questions.length} screening question(s) in order. If an answer is vague, ask at most two short clarifying probes (or use any follow-up guidance on that question), then move on. Apply any internal notes (knockouts, required flags, capture keys) silently — never read them aloud.`
         : 'If an answer is vague, ask at most two short clarifying probes, then move on.',
     job_title: role,
     job_description: job.description || '',
@@ -262,8 +465,11 @@ export async function buildRoshniAgentPrompt(input: {
   resultSchema: Record<string, unknown>;
   tokens: Record<string, string>;
 }> {
-  const tokens = await buildRoshniJdTokens(input);
-  const agentPrompt = resolveVoiceTokens(getRoshniPromptTemplate(), tokens);
+  const [tokens, defaults] = await Promise.all([
+    buildRoshniJdTokens(input),
+    loadActiveDefaults(),
+  ]);
+  const agentPrompt = resolveVoiceTokens(defaults.agentPrompt, tokens);
   const role = tokens.jd_role_screening_label || 'this role';
   const questionCount = tokens.jd_screening_questions_list
     ? tokens.jd_screening_questions_list.split('\n').filter(Boolean).length
@@ -271,7 +477,7 @@ export async function buildRoshniAgentPrompt(input: {
   return {
     agentPrompt,
     objective: `Screen the candidate for the ${role}${tokens.jd_company_at_clause} — confirm identity and timing, deliver the role brief, ask ${questionCount} screening question(s), and close with next steps.`,
-    introduction: ROSHNI_INTRODUCTION,
+    introduction: defaults.introduction,
     resultPrompt: ROSHNI_RESULT_PROMPT,
     resultSchema: ROSHNI_RESULT_SCHEMA,
     tokens,

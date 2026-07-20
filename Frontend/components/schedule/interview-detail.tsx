@@ -4,8 +4,10 @@ import {
   CalendarCheck2,
   CalendarClock,
   ExternalLink,
+  Eye,
   Link2,
   MapPin,
+  MoreHorizontal,
   RefreshCw,
   Send,
   StickyNote,
@@ -20,6 +22,13 @@ import { useEffect, useState } from "react";
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getApiErrorMessage, schedulingApi } from "@/lib/api";
@@ -120,23 +129,50 @@ export function InterviewDetail({
                 )}
                 <InterviewStatusBadge status={interview.status} />
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {interview.candidateTitle} · {interview.candidateCompany}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {interview.jobId ? (
-                  <Link
-                    href={jobDetailPath(interview.jobId)}
-                    className="font-medium text-foreground underline-offset-4 hover:underline"
-                  >
-                    {interview.jobTitle}
-                  </Link>
-                ) : (
-                  <span>{interview.jobTitle}</span>
-                )}
-                <span>{interview.round}</span>
-                <span>{interview.interviewType}</span>
-                <span>Recruiter: {interview.recruiter}</span>
+              {interview.candidateTitle || interview.candidateCompany ? (
+                <p className="mt-1 truncate text-sm text-muted-foreground">
+                  {[interview.candidateTitle, interview.candidateCompany]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                {[
+                  interview.jobId && interview.jobTitle ? (
+                    <Link
+                      key="job"
+                      href={jobDetailPath(interview.jobId)}
+                      className="font-medium text-foreground underline-offset-4 hover:underline"
+                    >
+                      {interview.jobTitle}
+                    </Link>
+                  ) : interview.jobTitle ? (
+                    <span key="job">{interview.jobTitle}</span>
+                  ) : null,
+                  interview.round ? (
+                    <span key="round">{interview.round}</span>
+                  ) : null,
+                  interview.interviewType ? (
+                    <span key="type">{interview.interviewType}</span>
+                  ) : null,
+                  interview.recruiter ? (
+                    <span key="recruiter">Recruiter: {interview.recruiter}</span>
+                  ) : null,
+                ]
+                  .filter(Boolean)
+                  .map((item, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center gap-x-1.5"
+                    >
+                      {index > 0 ? (
+                        <span aria-hidden className="text-border">
+                          ·
+                        </span>
+                      ) : null}
+                      {item}
+                    </span>
+                  ))}
               </div>
             </div>
           </div>
@@ -157,48 +193,6 @@ export function InterviewDetail({
               disabled={busy}
               onClick={() =>
                 void runAction(
-                  () => schedulingApi.cancel(interview.id),
-                  `Cancelled interview with ${interview.candidateName}.`
-                )
-              }
-            >
-              <XCircle aria-hidden />
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                void runAction(
-                  () => schedulingApi.complete(interview.id),
-                  "Marked completed."
-                )
-              }
-            >
-              <CalendarCheck2 aria-hidden />
-              Mark Completed
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                void runAction(
-                  () => schedulingApi.noShow(interview.id),
-                  "Marked as no show."
-                )
-              }
-            >
-              <UserX aria-hidden />
-              Mark No Show
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                void runAction(
                   () => schedulingApi.remind(interview.id),
                   `Reminder sent to ${interview.candidateName}.`
                 )
@@ -210,37 +204,86 @@ export function InterviewDetail({
             <Button
               size="sm"
               variant="outline"
-              disabled={busy}
-              onClick={() =>
-                void runAction(
-                  () => schedulingApi.sendLink(interview.id, { channel: "email" }),
-                  `Scheduling link sent to ${interview.candidateName}.`
-                )
-              }
-            >
-              <Link2 aria-hidden />
-              Send Link
-            </Button>
-            {interview.candidateId ? (
-              <Button
-                size="sm"
-                variant="outline"
-                nativeButton={false}
-                render={
-                  <Link href={candidateDetailPath(interview.candidateId)} />
-                }
-              >
-                View Candidate
-              </Button>
-            ) : null}
-            <Button
-              size="sm"
-              variant="outline"
               onClick={() => setNoteOpen((previous) => !previous)}
             >
               <StickyNote aria-hidden />
               Add Note
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    size="icon-sm"
+                    variant="outline"
+                    disabled={busy}
+                    aria-label="More actions"
+                  />
+                }
+              >
+                <MoreHorizontal aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem
+                  onClick={() =>
+                    void runAction(
+                      () => schedulingApi.complete(interview.id),
+                      "Marked completed."
+                    )
+                  }
+                >
+                  <CalendarCheck2 aria-hidden />
+                  Mark Completed
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void runAction(
+                      () => schedulingApi.noShow(interview.id),
+                      "Marked as no show."
+                    )
+                  }
+                >
+                  <UserX aria-hidden />
+                  Mark No Show
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void runAction(
+                      () =>
+                        schedulingApi.sendLink(interview.id, {
+                          channel: "email",
+                        }),
+                      `Scheduling link sent to ${interview.candidateName}.`
+                    )
+                  }
+                >
+                  <Link2 aria-hidden />
+                  Send Link
+                </DropdownMenuItem>
+                {interview.candidateId ? (
+                  <DropdownMenuItem
+                    render={
+                      <Link href={candidateDetailPath(interview.candidateId)} />
+                    }
+                  >
+                    <Eye aria-hidden />
+                    View Candidate
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() =>
+                    void runAction(
+                      () => schedulingApi.cancel(interview.id),
+                      `Cancelled interview with ${interview.candidateName}.`
+                    )
+                  }
+                >
+                  <XCircle aria-hidden />
+                  Cancel Interview
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

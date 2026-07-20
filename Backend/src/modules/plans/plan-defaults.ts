@@ -10,9 +10,47 @@ type SeedPlan = {
   limits: PlanLimits;
   sortOrder: number;
   public: boolean;
+  isDefaultSignup?: boolean;
+  isTrialPlan?: boolean;
+  trialDays?: number;
 };
 
 export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
+  {
+    name: 'Trial',
+    code: 'trial',
+    description: 'Free trial for new workspaces — explore Huntlo before upgrading.',
+    prices: { monthly: 0, yearly: 0 },
+    usdPrices: { monthly: 0, yearly: 0 },
+    sortOrder: 0,
+    public: true,
+    isDefaultSignup: true,
+    isTrialPlan: true,
+    trialDays: 14,
+    featureAccess: {
+      sourcing: true,
+      peopleScout: true,
+      outreach: true,
+      screening: true,
+      assessments: false,
+      huntlo360: false,
+      analytics: true,
+      integrations: false,
+      team: true,
+    },
+    limits: {
+      candidate_search: 20,
+      email_reveal: 50,
+      mobile_reveal: 25,
+      people_scout: 10,
+      email_outreach: 200,
+      whatsapp_outreach: 50,
+      ai_voice_minutes: 30,
+      assessment_invites: 0,
+      team_seats: 2,
+      allowOverage: false,
+    },
+  },
   {
     name: 'Starter',
     code: 'starter',

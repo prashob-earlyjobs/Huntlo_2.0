@@ -335,6 +335,8 @@ export const ADMIN_USERS: AdminUser[] = [
 export interface AdminPlan {
   id: string;
   name: string;
+  code: string;
+  description: string;
   price: string;
   billingCycle: "Monthly" | "Annual";
   searchLimit: string;
@@ -347,6 +349,11 @@ export interface AdminPlan {
   teamMemberLimit: string;
   modules: string[];
   active: boolean;
+  public: boolean;
+  sortOrder: number;
+  isDefaultSignup: boolean;
+  isTrialPlan: boolean;
+  trialDays: number;
 }
 
 export const ADMIN_MODULES = [
@@ -364,8 +371,33 @@ export const ADMIN_MODULES = [
 
 export const ADMIN_PLANS: AdminPlan[] = [
   {
+    id: "p-trial",
+    name: "Trial",
+    code: "trial",
+    description: "Free trial for new workspaces.",
+    price: "Free",
+    billingCycle: "Monthly",
+    searchLimit: "20",
+    emailRevealLimit: "50",
+    mobileRevealLimit: "25",
+    peopleScoutLimit: "10",
+    emailOutreachLimit: "200",
+    whatsappLimit: "50",
+    aiVoiceLimit: "30 min",
+    teamMemberLimit: "2",
+    modules: ["Candidate Search", "Candidate Pool", "Outreach"],
+    active: true,
+    public: true,
+    sortOrder: 0,
+    isDefaultSignup: true,
+    isTrialPlan: true,
+    trialDays: 14,
+  },
+  {
     id: "p-starter",
     name: "Starter",
+    code: "starter",
+    description: "For small recruiting teams getting started.",
     price: "₹4,999",
     billingCycle: "Monthly",
     searchLimit: "1,000",
@@ -376,17 +408,19 @@ export const ADMIN_PLANS: AdminPlan[] = [
     whatsappLimit: "500",
     aiVoiceLimit: "60 min",
     teamMemberLimit: "3",
-    modules: [
-      "Candidate Search",
-      "Candidate Pool",
-      "Outreach",
-      "Scheduling",
-    ],
+    modules: ["Candidate Search", "Candidate Pool", "Outreach", "Scheduling"],
     active: true,
+    public: true,
+    sortOrder: 10,
+    isDefaultSignup: false,
+    isTrialPlan: false,
+    trialDays: 14,
   },
   {
     id: "p-growth",
     name: "Growth",
+    code: "growth",
+    description: "For growing teams.",
     price: "₹14,999",
     billingCycle: "Monthly",
     searchLimit: "10,000",
@@ -399,10 +433,17 @@ export const ADMIN_PLANS: AdminPlan[] = [
     teamMemberLimit: "15",
     modules: [...ADMIN_MODULES],
     active: true,
+    public: true,
+    sortOrder: 20,
+    isDefaultSignup: false,
+    isTrialPlan: false,
+    trialDays: 14,
   },
   {
     id: "p-scale",
     name: "Scale",
+    code: "scale",
+    description: "For high-volume hiring.",
     price: "₹39,999",
     billingCycle: "Monthly",
     searchLimit: "40,000",
@@ -415,10 +456,17 @@ export const ADMIN_PLANS: AdminPlan[] = [
     teamMemberLimit: "50",
     modules: [...ADMIN_MODULES],
     active: true,
+    public: true,
+    sortOrder: 30,
+    isDefaultSignup: false,
+    isTrialPlan: false,
+    trialDays: 14,
   },
   {
     id: "p-enterprise",
     name: "Enterprise",
+    code: "enterprise",
+    description: "Custom limits and dedicated support.",
     price: "Custom",
     billingCycle: "Annual",
     searchLimit: "Unlimited",
@@ -431,6 +479,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     teamMemberLimit: "Unlimited",
     modules: [...ADMIN_MODULES],
     active: true,
+    public: true,
+    sortOrder: 40,
+    isDefaultSignup: false,
+    isTrialPlan: false,
+    trialDays: 14,
   },
 ];
 
@@ -438,6 +491,8 @@ export function emptyPlanDraft(): AdminPlan {
   return {
     id: "draft",
     name: "",
+    code: "",
+    description: "",
     price: "",
     billingCycle: "Monthly",
     searchLimit: "",
@@ -450,6 +505,11 @@ export function emptyPlanDraft(): AdminPlan {
     teamMemberLimit: "",
     modules: ["Candidate Search", "Candidate Pool"],
     active: true,
+    public: true,
+    sortOrder: 100,
+    isDefaultSignup: false,
+    isTrialPlan: false,
+    trialDays: 14,
   };
 }
 

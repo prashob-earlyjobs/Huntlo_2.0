@@ -9,6 +9,7 @@ import { UserModel } from '../auth/user.model.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { UserIntegrationModel } from '../integrations/user-integration.model.js';
+import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
   createHunarBulkCalls,
   createHunarVoiceAgent,
@@ -25,6 +26,11 @@ import {
   buildRoshniAgentPrompt,
   ROSHNI_INTRODUCTION,
 } from '../voice/roshni-prompt.js';
+import {
+  resolveIntroduction,
+  resolveVoiceTokens,
+  sanitizeHunarPromptText,
+} from '../voice/voice-dialer.service.js';
 import {
   ScreeningModel,
   defaultScreeningStats,
@@ -65,6 +71,30 @@ async function ownerName(userId: string) {
   return `${user.firstName} ${user.lastName}`.trim();
 }
 
+async function resolveOwnerUserId(
+  organizationId: string,
+  actorUserId: string,
+  requestedOwnerUserId?: string | null
+) {
+  const ownerUserId = String(requestedOwnerUserId || actorUserId).trim();
+  if (!mongoose.Types.ObjectId.isValid(ownerUserId)) {
+    throw new AppError(400, 'INVALID_OWNER', 'Invalid screening owner.');
+  }
+  const member = await OrganizationMemberModel.findOne({
+    organizationId,
+    userId: ownerUserId,
+    status: { $in: ['active', 'invited'] },
+  }).lean();
+  if (!member) {
+    throw new AppError(
+      400,
+      'OWNER_NOT_IN_ORG',
+      'Screening owner must be an active member of this organization.'
+    );
+  }
+  return ownerUserId;
+}
+
 async function jobTitle(jobId: mongoose.Types.ObjectId | null) {
   if (!jobId) return null;
   const job = await JobModel.findById(jobId).select('title').lean();
@@ -96,6 +126,7 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     campaignId: doc.campaignId ? String(doc.campaignId) : null,
     workflowId: doc.workflowId ? String(doc.workflowId) : null,
     sourceModule: doc.sourceModule,
+    description: doc.description,
     status: STATUS_DISPLAY[doc.status] || doc.status,
     statusRaw: doc.status,
     objective: doc.objective,
@@ -103,10 +134,13 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     voice: doc.voice,
     tone: doc.tone,
     introductionScript: doc.introductionScript,
+    agentPrompt: doc.agentPrompt,
     closingScript: doc.closingScript,
     consentText: doc.consentText,
     questions: doc.questions,
     evaluationCriteria: doc.evaluationCriteria,
+    minShortlistScore: doc.minShortlistScore ?? 70,
+    knockouts: doc.knockouts || [],
     callSettings: doc.callSettings,
     candidateIds: doc.candidateIds,
     candidates: doc.stats.enrolled,
@@ -244,6 +278,11 @@ export const screeningService = {
   },
 
   async create(organizationId: string, userId: string, input: CreateInput) {
+    const ownerUserId = await resolveOwnerUserId(
+      organizationId,
+      userId,
+      input.ownerUserId
+    );
     if (input.jobId) {
       const job = await JobModel.findOne({
         _id: input.jobId,
@@ -255,21 +294,26 @@ export const screeningService = {
 
     const doc = await ScreeningModel.create({
       organizationId,
-      ownerUserId: userId,
+      ownerUserId,
       jobId: input.jobId || null,
       campaignId: input.campaignId || null,
       workflowId: input.workflowId || null,
       sourceModule: input.sourceModule || 'screening',
       name: input.name,
+      description: input.description ?? null,
       objective: input.objective ?? null,
-      language: input.language ?? getHunarVoiceLanguage(),
-      voice: input.voice ?? getHunarVoicePersona(),
+      language: input.language ? String(input.language).toUpperCase() : getHunarVoiceLanguage(),
+      voice: input.voice ? String(input.voice).toUpperCase() : getHunarVoicePersona(),
       tone: input.tone ?? null,
       introductionScript: input.introductionScript ?? null,
+      agentPrompt: input.agentPrompt ?? null,
       closingScript: input.closingScript ?? null,
       consentText: input.consentText ?? null,
       questions: input.questions || [],
       evaluationCriteria: input.evaluationCriteria || [],
+      minShortlistScore:
+        typeof input.minShortlistScore === 'number' ? input.minShortlistScore : 70,
+      knockouts: input.knockouts || [],
       callSettings: {
         maxAttempts: input.callSettings?.maxAttempts ?? 2,
         attemptIntervalHours: input.callSettings?.attemptIntervalHours ?? 24,
@@ -288,7 +332,7 @@ export const screeningService = {
     }
 
     return toDisplay(doc, {
-      ownerName: await ownerName(userId),
+      ownerName: await ownerName(ownerUserId),
       jobTitle: await jobTitle(doc.jobId),
     });
   },
@@ -300,21 +344,34 @@ export const screeningService = {
     }
 
     if (input.name !== undefined) doc.name = input.name;
+    if (input.ownerUserId !== undefined) {
+      doc.ownerUserId = new mongoose.Types.ObjectId(
+        await resolveOwnerUserId(organizationId, userId, input.ownerUserId)
+      );
+    }
     if (input.jobId !== undefined) doc.jobId = input.jobId ? new mongoose.Types.ObjectId(input.jobId) : null;
     if (input.campaignId !== undefined) {
       doc.campaignId = input.campaignId
         ? new mongoose.Types.ObjectId(input.campaignId)
         : null;
     }
+    if (input.description !== undefined) doc.description = input.description;
     if (input.objective !== undefined) doc.objective = input.objective;
-    if (input.language !== undefined) doc.language = input.language;
-    if (input.voice !== undefined) doc.voice = input.voice;
+    if (input.language !== undefined) {
+      doc.language = input.language ? String(input.language).toUpperCase() : null;
+    }
+    if (input.voice !== undefined) {
+      doc.voice = input.voice ? String(input.voice).toUpperCase() : null;
+    }
     if (input.tone !== undefined) doc.tone = input.tone;
     if (input.introductionScript !== undefined) doc.introductionScript = input.introductionScript;
+    if (input.agentPrompt !== undefined) doc.agentPrompt = input.agentPrompt;
     if (input.closingScript !== undefined) doc.closingScript = input.closingScript;
     if (input.consentText !== undefined) doc.consentText = input.consentText;
     if (input.questions !== undefined) doc.questions = input.questions;
     if (input.evaluationCriteria !== undefined) doc.evaluationCriteria = input.evaluationCriteria;
+    if (input.minShortlistScore !== undefined) doc.minShortlistScore = input.minShortlistScore;
+    if (input.knockouts !== undefined) doc.knockouts = input.knockouts;
     if (input.callSettings !== undefined) {
       doc.callSettings = { ...doc.callSettings, ...input.callSettings };
     }
@@ -484,7 +541,14 @@ export const screeningService = {
       jobId: doc.jobId ? String(doc.jobId) : null,
       organizationId,
       campaignName: doc.name,
-      questions: doc.questions || [],
+      questions: (doc.questions || []).map((q) => ({
+        id: q.id,
+        prompt: q.prompt,
+        followUp: q.followUp,
+        required: q.required,
+        expectedVariable: q.expectedVariable,
+        knockout: q.knockout,
+      })),
     });
 
     const resultSchema = {
@@ -499,6 +563,29 @@ export const screeningService = {
         description: criterion.description || `score 0-100 for ${criterion.label}`,
       };
     }
+    for (const question of doc.questions || []) {
+      const variable = String(question.expectedVariable || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+      if (!variable) continue;
+      const answerKey = `${variable}_answer`;
+      if (!(resultSchema.properties as Record<string, unknown>)[answerKey]) {
+        (resultSchema.properties as Record<string, unknown>)[answerKey] = {
+          type: 'string',
+          description: `Candidate's spoken answer for "${question.prompt}" (variable ${variable}). Use "Not provided" when unclear.`,
+        };
+      }
+    }
+    const knockouts = (doc.knockouts || []).map((value) => String(value).trim()).filter(Boolean);
+    if (knockouts.length > 0) {
+      (resultSchema.properties as Record<string, unknown>).knockouts_triggered = {
+        type: 'array',
+        items: { type: 'string' },
+        description: `List which of these knockout rules failed for the candidate (use exact labels): ${knockouts.join('; ')}. Empty array if none failed.`,
+      };
+    }
     let resultPrompt = roshni.resultPrompt;
     if (doc.evaluationCriteria?.length) {
       const extra = doc.evaluationCriteria
@@ -506,22 +593,45 @@ export const screeningService = {
         .join(', ');
       resultPrompt = `${resultPrompt}\n\nAlso include evaluation scores: ${extra}.`;
     }
-    if (doc.consentText?.trim()) {
-      resultPrompt = `${resultPrompt}\n\nConsent note for the agent was: ${doc.consentText.trim()}`;
+    const answerFields = (doc.questions || [])
+      .map((question) => {
+        const variable = String(question.expectedVariable || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '');
+        if (!variable) return null;
+        return `"${variable}_answer": string — answer to "${question.prompt}"`;
+      })
+      .filter(Boolean);
+    if (answerFields.length > 0) {
+      resultPrompt = `${resultPrompt}\n\nAlso include captured answers: ${answerFields.join(', ')}.`;
     }
+    if (knockouts.length > 0) {
+      resultPrompt = `${resultPrompt}\n\nAlso include "knockouts_triggered": string[] using only these exact labels when the candidate fails them: ${knockouts
+        .map((rule) => `"${rule}"`)
+        .join(', ')}. Use [] when none apply.`;
+    }
+
+    const storedPrompt = String(doc.agentPrompt || '').trim();
+    const usesRoshniTemplate = !storedPrompt || storedPrompt.includes('You are Roshni');
+    const agentPrompt = usesRoshniTemplate
+      ? resolveVoiceTokens(storedPrompt || roshni.agentPrompt, roshni.tokens)
+      : resolveVoiceTokens(storedPrompt, roshni.tokens);
+
+    const introduction = resolveIntroduction(
+      doc.tone,
+      doc.introductionScript?.trim()
+        ? resolveVoiceTokens(doc.introductionScript, roshni.tokens)
+        : null
+    );
 
     const agentInput = {
       name: doc.name,
-      agentPrompt: [
-        roshni.agentPrompt,
-        doc.consentText?.trim() ? `\n\n## Consent\n${doc.consentText.trim()}` : '',
-        doc.closingScript?.trim() ? `\n\n## Closing\n${doc.closingScript.trim()}` : '',
-      ]
-        .filter(Boolean)
-        .join(''),
-      objective: doc.objective?.trim() || roshni.objective,
-      introduction: doc.introductionScript?.trim() || roshni.introduction,
-      resultPrompt,
+      agentPrompt: sanitizeHunarPromptText(agentPrompt),
+      objective: sanitizeHunarPromptText(doc.objective?.trim() || roshni.objective),
+      introduction: sanitizeHunarPromptText(introduction),
+      resultPrompt: sanitizeHunarPromptText(resultPrompt),
       resultSchema,
       voicePersona: doc.voice || getHunarVoicePersona(),
       language: doc.language || getHunarVoiceLanguage(),

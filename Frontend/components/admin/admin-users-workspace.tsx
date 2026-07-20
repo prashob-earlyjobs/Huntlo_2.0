@@ -467,7 +467,7 @@ export function AdminUsersWorkspace() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Starter", "Growth", "Scale", "Enterprise"].map((plan) => (
+                  {["Trial", "Starter", "Growth", "Scale", "Enterprise"].map((plan) => (
                     <SelectItem key={plan} value={plan}>
                       {plan}
                     </SelectItem>

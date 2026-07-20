@@ -55,6 +55,22 @@ describe('Auth API', () => {
     expect(response.headers['set-cookie']?.join(';')).toContain(getEnv().REFRESH_COOKIE_NAME);
   });
 
+  it('rejects personal email providers at signup', async () => {
+    const response = await agent
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'founder@gmail.com',
+        password: 'Password123!',
+        firstName: 'Founder',
+        lastName: 'Personal',
+        organizationName: 'Personal Co',
+      })
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(String(response.body.error?.message || '')).toMatch(/Validation|work email|Personal/i);
+  });
+
   it('logs in with valid credentials', async () => {
     await agent.post('/api/v1/auth/register').send({
       email: 'login@huntlo.ai',
@@ -154,23 +170,24 @@ describe('Auth API', () => {
     const auth = { Authorization: `Bearer ${accessToken}` };
 
     const initial = await agent.get('/api/v1/onboarding').set(auth).expect(200);
-    expect(initial.body.data.currentStep).toBe(1);
+    expect(initial.body.data.completed).toBe(false);
 
-    await agent
+    const completed = await agent
       .patch('/api/v1/onboarding')
       .set(auth)
       .send({
-        currentStep: 2,
-        recruitingGoals: ['Engineering hires'],
-        hiringLocations: ['Bengaluru'],
+        companyType: 'startup',
+        hiringChallenges: ['screening'],
+        outreachChannels: ['email'],
+        hiringVolume: '1_5',
       })
       .expect(200);
-
-    const completed = await agent.post('/api/v1/onboarding/complete').set(auth).expect(200);
     expect(completed.body.data.completed).toBe(true);
+    expect(completed.body.data.user.onboardingCompleted).toBe(true);
 
     const me = await agent.get('/api/v1/auth/me').set(auth).expect(200);
     expect(me.body.data.user.onboardingStatus).toBe('completed');
+    expect(me.body.data.user.onboardingCompleted).toBe(true);
   });
 
   it('never returns password hash from API', async () => {

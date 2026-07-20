@@ -1,11 +1,5 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { SessionResultsPageSkeleton } from "@/components/sessions/session-results-skeleton";
 
 export default function SessionLoading() {
-  return (
-    <div className="space-y-4" aria-busy aria-label="Loading search results">
-      <Skeleton className="h-36 rounded-xl" />
-      <Skeleton className="h-20 rounded-xl" />
-      <Skeleton className="h-96 rounded-xl" />
-    </div>
-  );
+  return <SessionResultsPageSkeleton />;
 }

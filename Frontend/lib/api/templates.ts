@@ -116,6 +116,7 @@ export interface TemplatesApi {
   list(params?: {
     archived?: boolean;
     channel?: OutreachChannelApi;
+    category?: TemplateCategoryApi;
     q?: string;
   }): Promise<OutreachTemplate[]>;
   create(input: {
@@ -164,13 +165,38 @@ export interface TemplatesApi {
 const mockTemplatesApi: TemplatesApi = {
   async list(params) {
     await simulateMockLatency();
-    return MOCK_TEMPLATES.filter((item) =>
-      params?.archived === undefined
-        ? true
-        : params.archived
-          ? item.archived
-          : !item.archived
-    );
+    return MOCK_TEMPLATES.filter((item) => {
+      if (params?.archived !== undefined) {
+        if (params.archived ? !item.archived : item.archived) return false;
+      }
+      if (params?.channel) {
+        const itemChannel =
+          item.channel ||
+          (item.type === "WhatsApp"
+            ? "whatsapp"
+            : item.type === "Voice Script"
+              ? "ai_voice"
+              : "email");
+        if (itemChannel !== params.channel) return false;
+      }
+      if (params?.category) {
+        const matchesCategory =
+          item.category === params.category ||
+          (params.category === "scheduling" && item.type === "Scheduling Message");
+        if (!matchesCategory) return false;
+      }
+      if (params?.q) {
+        const query = params.q.toLowerCase();
+        if (
+          !`${item.name} ${item.body} ${item.subject ?? ""}`
+            .toLowerCase()
+            .includes(query)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
   },
   async create(input) {
     await simulateMockLatency();
@@ -268,6 +294,7 @@ const liveTemplatesApi: TemplatesApi = {
     const search = new URLSearchParams();
     if (params.archived !== undefined) search.set("archived", String(params.archived));
     if (params.channel) search.set("channel", params.channel);
+    if (params.category) search.set("category", params.category);
     if (params.q) search.set("q", params.q);
     const qs = search.toString();
     const result = await apiClient.get<ApiOutreachTemplate[]>(

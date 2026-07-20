@@ -314,6 +314,26 @@ adminConsoleRouter.patch(
   asyncHandler(async (req, res) => {
     const body = patchPlatformSettingsSchema.parse(req.body ?? {});
     const data = await adminConsoleService.updatePlatformSettings(body, req.auth!.sub);
+    const promptMeta = body.roshniPrompt
+      ? {
+          roshniPromptUpdated: true,
+          roshniPromptVersion: data.roshniPrompt?.version ?? null,
+          introductionLength:
+            body.roshniPrompt.introduction === undefined
+              ? undefined
+              : body.roshniPrompt.introduction === null
+                ? 0
+                : String(body.roshniPrompt.introduction).trim().length,
+          agentPromptLength:
+            body.roshniPrompt.agentPrompt === undefined
+              ? undefined
+              : body.roshniPrompt.agentPrompt === null
+                ? 0
+                : String(body.roshniPrompt.agentPrompt).trim().length,
+          introductionCleared: body.roshniPrompt.introduction === null,
+          agentPromptCleared: body.roshniPrompt.agentPrompt === null,
+        }
+      : {};
     await recordAdminMutation(req, {
       action: 'admin.platform_settings.updated',
       relatedEntityType: 'platform_settings',
@@ -321,6 +341,7 @@ adminConsoleRouter.patch(
       metadata: {
         providers: body.providers?.map((p) => p.provider) ?? [],
         hasSecrets: Boolean(body.providers?.some((p) => p.secretValue)),
+        ...promptMeta,
       },
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });

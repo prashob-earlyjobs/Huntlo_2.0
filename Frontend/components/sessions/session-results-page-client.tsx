@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { notFound } from "next/navigation";
 
 import { SessionResults } from "@/components/sessions/session-results";
+import { SessionResultsPageSkeleton } from "@/components/sessions/session-results-skeleton";
 import {
   getApiErrorMessage,
   mapApiCandidateToSessionCandidate,
@@ -436,13 +437,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
   }
 
   if (loading && !session) {
-    return (
-      <div className="space-y-4 p-1">
-        <div className="h-8 w-64 animate-pulse rounded bg-muted" />
-        <div className="h-24 animate-pulse rounded-lg bg-muted" />
-        <div className="h-64 animate-pulse rounded-lg bg-muted" />
-      </div>
-    );
+    return <SessionResultsPageSkeleton />;
   }
 
   if (!session) {

@@ -8,7 +8,7 @@ import {
   User,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,9 +22,11 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { candidatePoolApi, jobsApi, sourcingApi } from "@/lib/api";
+import { filterNavItems, hasPermission } from "@/lib/access-control";
 import { NAV_ITEMS } from "@/lib/navigation";
 import { ROUTES, type AppRoute } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
 type SearchResult = {
   id: string;
@@ -46,10 +48,27 @@ const NAV_RESULTS: SearchResult[] = NAV_ITEMS.map((item) => ({
 
 export function GlobalSearch() {
   const router = useRouter();
+  const { permissions } = useAuth();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>(NAV_RESULTS);
+  const allowedNavResults = useMemo(
+    () =>
+      filterNavItems(permissions, NAV_ITEMS).map((item) => ({
+        id: `nav-${item.href}`,
+        group: "Go to",
+        title: item.title,
+        meta: item.description || item.title,
+        href: item.href as AppRoute,
+        icon: item.icon,
+      })),
+    [permissions]
+  );
+  const [results, setResults] = useState<SearchResult[]>(allowedNavResults);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setResults(allowedNavResults);
+  }, [allowedNavResults]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -66,7 +85,7 @@ export function GlobalSearch() {
     if (!open) return;
     const q = query.trim();
     if (q.length < 2) {
-      setResults(NAV_RESULTS);
+      setResults(allowedNavResults);
       return;
     }
 
@@ -75,50 +94,65 @@ export function GlobalSearch() {
       void (async () => {
         setLoading(true);
         try {
+          const canCandidates = hasPermission(permissions, "candidates:view");
+          const canJobs = hasPermission(permissions, "jobs:view");
+          const canSourcing = hasPermission(permissions, "sourcing:view");
           const [candidates, jobs, history] = await Promise.all([
-            candidatePoolApi.list({ q, limit: 8 }).catch(() => []),
-            jobsApi.list({ q, limit: 8 }).catch(() => []),
-            sourcingApi.listHistory().catch(() => []),
+            canCandidates
+              ? candidatePoolApi.list({ q, limit: 8 }).catch(() => [])
+              : Promise.resolve([]),
+            canJobs
+              ? jobsApi.list({ q, limit: 8 }).catch(() => [])
+              : Promise.resolve([]),
+            canSourcing
+              ? sourcingApi.listHistory().catch(() => [])
+              : Promise.resolve([]),
           ]);
           if (cancelled) return;
           const next: SearchResult[] = [
-            ...NAV_RESULTS.filter((item) =>
+            ...allowedNavResults.filter((item) =>
               item.title.toLowerCase().includes(q.toLowerCase())
             ),
-            ...candidates.slice(0, 8).map((candidate) => ({
-              id: `candidate-${candidate.id}`,
-              group: "Candidates",
-              title: candidate.name || "Candidate",
-              meta: [
-                candidate.currentRole,
-                candidate.currentCompany,
-                candidate.location,
-              ]
-                .filter(Boolean)
-                .join(" · "),
-              href: `/dashboard/candidates/${candidate.id}` as AppRoute,
-              icon: User,
-            })),
-            ...jobs.slice(0, 8).map((job) => ({
-              id: `job-${job.id}`,
-              group: "Jobs",
-              title: job.title || "Job",
-              meta: String(job.status || ""),
-              href: `/dashboard/jobs/${job.id}` as AppRoute,
-              icon: Briefcase,
-            })),
-            ...history.slice(0, 5).map((session) => ({
-              id: `session-${session.id}`,
-              group: "Recent searches",
-              title: session.query || "Search session",
-              meta: "Sourcing history",
-              href: `/dashboard/sessions/${session.id}` as AppRoute,
-              icon: HistoryIcon,
-            })),
+            ...(canCandidates
+              ? candidates.slice(0, 8).map((candidate) => ({
+                  id: `candidate-${candidate.id}`,
+                  group: "Candidates",
+                  title: candidate.name || "Candidate",
+                  meta: [
+                    candidate.currentRole,
+                    candidate.currentCompany,
+                    candidate.location,
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                  href: `/dashboard/candidates/${candidate.id}` as AppRoute,
+                  icon: User,
+                }))
+              : []),
+            ...(canJobs
+              ? jobs.slice(0, 8).map((job) => ({
+                  id: `job-${job.id}`,
+                  group: "Jobs",
+                  title: job.title || "Job",
+                  meta: String(job.status || ""),
+                  href: `/dashboard/jobs/${job.id}` as AppRoute,
+                  icon: Briefcase,
+                }))
+              : []),
+            ...(canSourcing
+              ? history.slice(0, 5).map((session) => ({
+                  id: `session-${session.id}`,
+                  group: "Recent searches",
+                  title: session.query || "Search session",
+                  meta: "Sourcing history",
+                  href: `/dashboard/sessions/${session.id}` as AppRoute,
+                  icon: HistoryIcon,
+                }))
+              : []),
           ];
           setResults(next);
         } catch {
-          if (!cancelled) setResults(NAV_RESULTS);
+          if (!cancelled) setResults(allowedNavResults);
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -129,7 +163,7 @@ export function GlobalSearch() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, query]);
+  }, [allowedNavResults, open, permissions, query]);
 
   const groups = Array.from(new Set(results.map((item) => item.group)));
 
@@ -138,6 +172,7 @@ export function GlobalSearch() {
       <Button
         variant="outline"
         size="sm"
+        data-tour="global-search"
         className={cn(
           "hidden h-8 w-56 justify-start gap-2 text-muted-foreground md:inline-flex"
         )}

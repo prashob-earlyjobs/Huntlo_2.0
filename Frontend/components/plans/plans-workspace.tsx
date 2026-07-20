@@ -22,6 +22,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+import { PlansWorkspaceSkeleton } from "@/components/plans/plans-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
   AlertDialog,
@@ -306,7 +307,16 @@ function PlanComparison({
         </p>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-4">
+      <div
+        className={cn(
+          "grid gap-3 grid-cols-1",
+          tiers.length === 1 && "max-w-sm",
+          tiers.length === 2 && "sm:grid-cols-2 max-w-3xl",
+          tiers.length === 3 && "sm:grid-cols-2 lg:grid-cols-3",
+          tiers.length === 4 && "sm:grid-cols-2 xl:grid-cols-4",
+          tiers.length >= 5 && "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+        )}
+      >
         {tiers.map((tier) => (
           <article
             key={tier.id}
@@ -691,6 +701,7 @@ export function PlansWorkspace() {
   const [quotas, setQuotas] = useState<UsageQuota[]>([]);
   const [tiers, setTiers] = useState<PlanTier[]>([]);
   const [upgrading, setUpgrading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const planName = currentPlan?.name ?? "";
 
@@ -701,13 +712,24 @@ export function PlansWorkspace() {
       plansApi.listTiers(),
     ]);
     setCurrentPlan(plan);
-    setTiers(planTiers);
+    setTiers(
+      planTiers.map((tier) => {
+        const isCurrent = tier.name.toLowerCase() === plan.name.toLowerCase();
+        return {
+          ...tier,
+          highlighted: isCurrent,
+          cta: isCurrent ? "Current plan" : tier.cta,
+        };
+      })
+    );
     setQuotas(
-      usage.map((row) => ({
-        ...row,
-        icon: QUOTA_ICONS[row.id] ?? row.icon ?? Search,
-        description: row.description ?? row.label,
-      }))
+      usage
+        .filter((row) => row.id !== "assessments")
+        .map((row) => ({
+          ...row,
+          icon: QUOTA_ICONS[row.id] ?? row.icon ?? Search,
+          description: row.description ?? row.label,
+        }))
     );
   }
 
@@ -718,6 +740,8 @@ export function PlansWorkspace() {
         await refreshPlan();
       } catch (err) {
         if (!cancelled) setMessage(getApiErrorMessage(err));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -828,6 +852,10 @@ export function PlansWorkspace() {
     }
   }
 
+  if (loading && !currentPlan) {
+    return <PlansWorkspaceSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Actions bar */}
@@ -906,7 +934,11 @@ export function PlansWorkspace() {
                 </h2>
                 <Badge
                   text={currentPlan.status}
-                  className="bg-success/10 text-success"
+                  className={
+                    currentPlan.status === "Trial"
+                      ? "bg-brand-subtle text-primary"
+                      : "bg-success/10 text-success"
+                  }
                 />
               </div>
               <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -14,6 +14,15 @@ export type ScreeningStatus = (typeof SCREENING_STATUSES)[number];
 export type ScreeningQuestion = {
   id: string;
   prompt: string;
+  /** Builder category label (Introduction, Experience, Skills, …). */
+  type?: string | null;
+  required?: boolean;
+  /** Probe guidance for the voice agent — not read aloud as a scripted line. */
+  followUp?: string | null;
+  /** Scorecard / result-field key (e.g. notice_period). */
+  expectedVariable?: string | null;
+  /** When true, answer feeds evaluationCriteria at launch. */
+  evaluationEnabled?: boolean;
   knockout?: boolean;
 };
 
@@ -66,15 +75,21 @@ export type ScreeningDocument = Document & {
   workflowId: mongoose.Types.ObjectId | null;
   sourceModule: string;
   name: string;
+  description: string | null;
   objective: string | null;
   language: string | null;
   voice: string | null;
   tone: string | null;
   introductionScript: string | null;
+  agentPrompt: string | null;
   closingScript: string | null;
   consentText: string | null;
   questions: ScreeningQuestion[];
   evaluationCriteria: EvaluationCriterion[];
+  /** Minimum overall score (0–100) for an AI Shortlist recommendation. */
+  minShortlistScore: number;
+  /** Human-readable knockout rules; a match forces Reject regardless of score. */
+  knockouts: string[];
   callSettings: ScreeningCallSettings;
   candidateIds: string[];
   providerAgentId: string | null;
@@ -109,11 +124,13 @@ const screeningSchema = new Schema<ScreeningDocument>(
     workflowId: { type: Schema.Types.ObjectId, ref: 'Huntlo360Workflow', default: null },
     sourceModule: { type: String, default: 'screening', index: true },
     name: { type: String, required: true, trim: true, maxlength: 200 },
+    description: { type: String, default: null },
     objective: { type: String, default: null },
     language: { type: String, default: null },
     voice: { type: String, default: null },
     tone: { type: String, default: null },
     introductionScript: { type: String, default: null },
+    agentPrompt: { type: String, default: null },
     closingScript: { type: String, default: null },
     consentText: { type: String, default: null },
     questions: {
@@ -121,6 +138,11 @@ const screeningSchema = new Schema<ScreeningDocument>(
         {
           id: { type: String, required: true },
           prompt: { type: String, required: true },
+          type: { type: String, default: null, maxlength: 80 },
+          required: { type: Boolean, default: false },
+          followUp: { type: String, default: null, maxlength: 1000 },
+          expectedVariable: { type: String, default: null, maxlength: 80 },
+          evaluationEnabled: { type: Boolean, default: true },
           knockout: { type: Boolean, default: false },
         },
       ],
@@ -137,6 +159,8 @@ const screeningSchema = new Schema<ScreeningDocument>(
       ],
       default: [],
     },
+    minShortlistScore: { type: Number, default: 70, min: 0, max: 100 },
+    knockouts: { type: [String], default: [] },
     callSettings: {
       type: {
         maxAttempts: { type: Number, default: 2 },

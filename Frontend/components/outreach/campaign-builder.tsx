@@ -54,6 +54,14 @@ const BUILDER_STEPS = [
   { id: "review", title: "Review & Launch" },
 ];
 
+/** Highest step index reachable: all prior steps must be valid. */
+function maxReachableStep(state: BuilderState): number {
+  for (let index = 0; index < BUILDER_STEPS.length; index += 1) {
+    if (stepErrors(index, state).length > 0) return index;
+  }
+  return BUILDER_STEPS.length - 1;
+}
+
 type Outcome = "draft" | "scheduled" | "launched";
 
 const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
@@ -254,8 +262,15 @@ export function CampaignBuilder({
 
   const currentErrors = stepErrors(current, state);
   const showErrors = attempted.has(current);
+  const reachable = maxReachableStep(state);
 
   function goTo(step: number) {
+    if (step > reachable) {
+      setAttempted((previous) => new Set(previous).add(reachable));
+      setCurrent(reachable);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setCurrent(step);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -402,30 +417,20 @@ export function CampaignBuilder({
         aria-label="Campaign builder steps"
         className="rounded-xl border border-border bg-card p-4"
       >
-        <Stepper steps={BUILDER_STEPS} currentStep={current} />
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
-          {BUILDER_STEPS.map((step, index) => {
-            const hasError = attempted.has(index) && stepErrors(index, state).length > 0;
-            return (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => goTo(index)}
-                aria-current={index === current ? "step" : undefined}
-                className={`rounded-md px-2 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 ${
-                  index === current
-                    ? "bg-brand-subtle font-medium text-primary"
-                    : hasError
-                      ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-                      : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {index + 1}. {step.title}
-                {hasError ? " ⚠" : ""}
-              </button>
-            );
-          })}
-        </div>
+        <Stepper
+          steps={BUILDER_STEPS}
+          currentStep={current}
+          onStepSelect={goTo}
+          maxEnabledStep={reachable}
+          errorSteps={
+            new Set(
+              BUILDER_STEPS.map((_, index) => index).filter(
+                (index) =>
+                  attempted.has(index) && stepErrors(index, state).length > 0
+              )
+            )
+          }
+        />
       </nav>
 
       {current === 0 ? (

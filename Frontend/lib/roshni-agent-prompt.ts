@@ -13,3 +13,34 @@ export function isRoshniAgentPrompt(text: string | null | undefined): boolean {
 export function defaultAiVoiceStepBody(): string {
   return ROSHNI_AGENT_PROMPT_TEMPLATE;
 }
+
+export function defaultRoshniIntroduction(): string {
+  return ROSHNI_INTRODUCTION;
+}
+
+/** True when the field still matches the bundled static default (safe to replace with remote). */
+export function isBundledRoshniIntroduction(text: string | null | undefined): boolean {
+  return String(text || '').trim() === ROSHNI_INTRODUCTION;
+}
+
+export function isBundledRoshniAgentPrompt(text: string | null | undefined): boolean {
+  return String(text || '').trim() === ROSHNI_AGENT_PROMPT_TEMPLATE;
+}
+
+/**
+ * Whether a builder field should be replaced by the latest remote default.
+ * Preserves custom edits and hydrated drafts; upgrades empty / legacy / bundled values.
+ */
+export function shouldApplyRemoteVoiceDefault(
+  current: string | null | undefined,
+  remote: string,
+  options?: { bundled?: string; legacy?: string }
+): boolean {
+  const trimmed = String(current || '').trim();
+  if (!trimmed) return true;
+  if (options?.legacy && trimmed === options.legacy) return true;
+  if (options?.bundled && trimmed === options.bundled) return true;
+  // Already matches the active remote default — no write needed.
+  if (trimmed === remote.trim()) return false;
+  return false;
+}

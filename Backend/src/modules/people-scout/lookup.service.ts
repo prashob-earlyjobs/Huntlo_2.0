@@ -75,6 +75,8 @@ export type PublicScoutProfile = {
   about: string;
   linkedinUrl: string;
   linkedinUsername: string;
+  /** Future Jobs / LinkedIn profile photo when available. */
+  avatarUrl: string | null;
   email: string;
   emailVerified: boolean;
   phone: string;
@@ -166,6 +168,7 @@ function toPublicProfile(
     about: snap!.summary || '',
     linkedinUrl,
     linkedinUsername: username,
+    avatarUrl: asString(snap!.profilePictureUrl) || null,
     email: '',
     emailVerified: false,
     phone: '',

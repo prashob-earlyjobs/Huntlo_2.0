@@ -15,7 +15,13 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { consumeRateLimit, resetRateLimit } from '../../middleware/rate-limit.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
+import {
+  normalizeAllowedModules,
+  resolvePermissions,
+  type PermissionModule,
+} from '../organizations/permissions.js';
 import { integrationsService } from '../integrations/integration.service.js';
+import { plansService } from '../plans/plans.service.js';
 import { OnboardingModel } from './onboarding.model.js';
 import {
   EmailVerificationTokenModel,
@@ -23,7 +29,7 @@ import {
   UserSessionModel,
   type UserSessionDocument,
 } from './session.model.js';
-import { rolePermissions, parseUserAgent, getClientIp } from './auth.types.js';
+import { parseUserAgent, getClientIp } from './auth.types.js';
 import type { RequestContext } from './auth.types.js';
 import { toPublicUser, UserModel, type UserDocument } from './user.model.js';
 import type { OrganizationDocument } from '../organizations/organization.model.js';
@@ -32,6 +38,30 @@ type SessionMeta = {
   ip: string;
   userAgent?: string;
 };
+
+async function resolveUserPermissions(
+  user: UserDocument,
+  organizationId: mongoose.Types.ObjectId
+): Promise<string[]> {
+  const member = await OrganizationMemberModel.findOne({
+    organizationId,
+    userId: user._id,
+  });
+
+  if (!member) {
+    return resolvePermissions(user.role);
+  }
+
+  const allowedModules = normalizeAllowedModules(
+    member.allowedModules as string[] | null | undefined
+  ) as PermissionModule[] | null;
+
+  return resolvePermissions(
+    member.role || user.role,
+    member.permissions ?? [],
+    allowedModules
+  );
+}
 
 function slugify(value: string): string {
   return value
@@ -100,6 +130,7 @@ async function createSession(userId: mongoose.Types.ObjectId, meta: SessionMeta)
 async function buildAuthResponse(userId: string, sessionId: string) {
   const user = await loadActiveUser(userId);
   const organization = await loadOrganization(user.organizationId);
+  const permissions = await resolveUserPermissions(user, organization._id);
 
   const accessToken = signAccessToken({
     sub: user._id.toHexString(),
@@ -118,7 +149,7 @@ async function buildAuthResponse(userId: string, sessionId: string) {
         plan: organization.plan,
         initials: organization.initials,
       },
-      permissions: rolePermissions(user.role),
+      permissions,
     },
   };
 }
@@ -129,15 +160,20 @@ export class AuthService {
     password: string;
     firstName: string;
     lastName: string;
+    companyName: string;
+    mobile?: string | null;
     organizationName?: string;
     meta: SessionMeta;
   }) {
     const existing = await UserModel.findOne({ email: input.email });
     if (existing) {
-      throw AppError.conflict('An account with this email already exists');
+      throw new AppError(409, 'AUTH_EMAIL_ALREADY_EXISTS', 'An account with this email already exists');
     }
 
-    const orgName = input.organizationName?.trim() || `${input.firstName}'s Workspace`;
+    const orgName =
+      input.companyName?.trim() ||
+      input.organizationName?.trim() ||
+      `${input.firstName}'s Workspace`;
     const slug = await uniqueOrganizationSlug(orgName);
     const passwordHash = await hashPassword(input.password);
 
@@ -148,23 +184,46 @@ export class AuthService {
       organization = await OrganizationModel.create({
         name: orgName,
         slug,
-        plan: 'Starter',
+        plan: 'Trial',
         initials: buildOrganizationInitials(orgName),
         timezone: 'Asia/Kolkata',
         defaultTimezone: 'Asia/Kolkata',
         currency: 'INR',
+        country: 'IN',
         status: 'active',
       });
+
+      let defaultPlanId: mongoose.Types.ObjectId | null = null;
+      let signupPlanName = 'Trial';
+      try {
+        const signupPlan = await plansService.resolveSignupPlan();
+        signupPlanName = signupPlan.name;
+        organization.plan = signupPlanName;
+        await organization.save();
+        const subscription = await plansService.ensureSubscription(organization._id.toHexString());
+        defaultPlanId = subscription.planId as mongoose.Types.ObjectId;
+      } catch {
+        throw new AppError(
+          500,
+          'AUTH_DEFAULT_PLAN_NOT_CONFIGURED',
+          'Default signup plan is not configured'
+        );
+      }
 
       user = await UserModel.create({
         firstName: input.firstName,
         lastName: input.lastName,
+        companyName: orgName,
         email: input.email,
+        phone: input.mobile ?? null,
         passwordHash,
         role: 'owner',
         organizationId: organization._id,
+        planId: defaultPlanId,
         memberStatus: 'active',
         onboardingStatus: 'not_started',
+        onboardingCompleted: false,
+        onboardingCompletedAt: null,
       });
 
       organization.ownerUserId = user._id;
@@ -186,6 +245,7 @@ export class AuthService {
         personalDetails: {
           firstName: input.firstName,
           lastName: input.lastName,
+          phone: input.mobile ?? null,
         },
         organisationDetails: {
           name: orgName,
@@ -216,6 +276,7 @@ export class AuthService {
     } catch (error) {
       if (user) {
         await OrganizationMemberModel.deleteMany({ userId: user._id });
+        await OnboardingModel.deleteMany({ userId: user._id });
         await UserModel.deleteOne({ _id: user._id });
       }
       if (organization) await OrganizationModel.deleteOne({ _id: organization._id });
@@ -477,6 +538,7 @@ export class AuthService {
   async me(context: RequestContext) {
     const user = await loadActiveUser(context.userId);
     const organization = await loadOrganization(user.organizationId);
+    const permissions = await resolveUserPermissions(user, organization._id);
     return {
       user: toPublicUser(user, organization.plan),
       organization: {
@@ -485,7 +547,7 @@ export class AuthService {
         plan: organization.plan,
         initials: organization.initials,
       },
-      permissions: rolePermissions(user.role),
+      permissions,
     };
   }
 

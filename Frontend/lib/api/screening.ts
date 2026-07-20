@@ -15,21 +15,35 @@ import type {
 
 export type ScreeningCreateInput = {
   name: string;
+  ownerUserId?: string;
   jobId?: string | null;
+  description?: string | null;
   objective?: string | null;
   language?: string | null;
   voice?: string | null;
   tone?: string | null;
   introductionScript?: string | null;
+  agentPrompt?: string | null;
   closingScript?: string | null;
   consentText?: string | null;
-  questions?: Array<{ id: string; prompt: string; knockout?: boolean }>;
+  questions?: Array<{
+    id: string;
+    prompt: string;
+    type?: string | null;
+    required?: boolean;
+    followUp?: string | null;
+    expectedVariable?: string | null;
+    evaluationEnabled?: boolean;
+    knockout?: boolean;
+  }>;
   evaluationCriteria?: Array<{
     id: string;
     label: string;
     weight?: number;
     description?: string | null;
   }>;
+  minShortlistScore?: number;
+  knockouts?: string[];
   callSettings?: {
     maxAttempts?: number;
     attemptIntervalHours?: number;
@@ -221,10 +235,13 @@ const mockScreeningApi: ScreeningApi = {
       objective: input.objective || "",
     };
   },
-  async listResults() {
+  async listResults(params) {
     await simulateMockLatency();
     const { SCREENING_RESULTS } = await import("@/lib/mock-screening");
-    return SCREENING_RESULTS;
+    const screeningId =
+      typeof params?.screeningId === "string" ? params.screeningId : null;
+    if (!screeningId) return SCREENING_RESULTS;
+    return SCREENING_RESULTS.filter((result) => result.screeningId === screeningId);
   },
   async getResult(id) {
     await simulateMockLatency();
