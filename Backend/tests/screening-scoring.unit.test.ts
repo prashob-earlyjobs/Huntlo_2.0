@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { detectTriggeredKnockouts, mapEvaluationScores } from '../src/modules/screening/scoring.js';
 
 describe('mapEvaluationScores', () => {
-  it('uses minShortlistScore for recommendations', () => {
+  it('uses communication score only for overall score and recommendations', () => {
     const scored = mapEvaluationScores({
       result: { communication: 80, technical: 70 },
       criteria: [
@@ -12,8 +12,9 @@ describe('mapEvaluationScores', () => {
       ],
       minScore: 80,
     });
-    expect(scored.overallScore).toBe(75);
-    expect(scored.recommendation).toBe('review');
+    // Overall score is communication only — technical is ignored for shortlist.
+    expect(scored.overallScore).toBe(80);
+    expect(scored.recommendation).toBe('shortlist');
   });
 
   it('shortlists when score meets threshold', () => {
@@ -44,6 +45,14 @@ describe('detectTriggeredKnockouts', () => {
   it('detects notice period heuristics', () => {
     const triggered = detectTriggeredKnockouts(
       { notice_period_days: 120 },
+      ['Notice period over 90 days']
+    );
+    expect(triggered).toEqual(['Notice period over 90 days']);
+  });
+
+  it('detects notice period from answer text fields', () => {
+    const triggered = detectTriggeredKnockouts(
+      { notice_period_answer: '120 days' },
       ['Notice period over 90 days']
     );
     expect(triggered).toEqual(['Notice period over 90 days']);

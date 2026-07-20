@@ -153,6 +153,65 @@ export type AdminPendingTasksResult = {
   offset: number;
 };
 
+export type AdminAnalyticsSource = {
+  count: number;
+  credits: number;
+};
+
+export type AdminUsageAnalyticsBreakdownRow = {
+  eventType: "people_scout_lookup" | "email_unveil" | "phone_unveil";
+  sources: {
+    user_cache: AdminAnalyticsSource;
+    shared_cache: AdminAnalyticsSource;
+    futurejobs: AdminAnalyticsSource;
+    not_found: AdminAnalyticsSource;
+  };
+  total: AdminAnalyticsSource;
+};
+
+export type AdminOutreachCreditsRow = {
+  metric: string;
+  label: string;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+};
+
+export type AdminUsageAnalyticsSummary = {
+  periodKey: string;
+  breakdown: AdminUsageAnalyticsBreakdownRow[];
+  outreachCredits: AdminOutreachCreditsRow[];
+  filters?: {
+    userId: string | null;
+    organizationId: string | null;
+    from: string | null;
+    to: string | null;
+  };
+};
+
+export type AdminUsageHistoryEntry = {
+  id: string;
+  createdAt: string;
+  userId: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  metric: string;
+  activity: string;
+  units: number;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+};
+
+export type AdminUsageHistoryResult = {
+  history: AdminUsageHistoryEntry[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 export type Paginated<T> = {
   items: T[];
   total: number;
@@ -178,6 +237,20 @@ export interface AdminApi {
   updatePlan(id: string, input: Record<string, unknown>): Promise<AdminPlan>;
   setDefaultSignupPlan(id: string): Promise<AdminPlan>;
   getUsage(): Promise<{ byAction: Array<Record<string, unknown>>; periodKey: string }>;
+  getUsageAnalyticsSummary(params?: {
+    userId?: string;
+    organizationId?: string;
+    from?: string;
+    to?: string;
+  }): Promise<AdminUsageAnalyticsSummary>;
+  getUsageAnalyticsHistory(params?: {
+    userId?: string;
+    organizationId?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<AdminUsageHistoryResult>;
   listCandidates(params?: { page?: number; limit?: number; q?: string }): Promise<Paginated<AdminCandidate>>;
   listCampaigns(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<AdminCampaign>>;
   listScreenings(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
@@ -290,6 +363,18 @@ const liveAdminApi: AdminApi = {
       byAction: Array<Record<string, unknown>>;
       periodKey: string;
     }>("/admin/usage");
+    return result.data;
+  },
+  async getUsageAnalyticsSummary(params) {
+    const result = await apiClient.get<AdminUsageAnalyticsSummary>(
+      `/admin/usage-analytics/summary${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getUsageAnalyticsHistory(params) {
+    const result = await apiClient.get<AdminUsageHistoryResult>(
+      `/admin/usage-analytics/history${buildQueryString(params)}`
+    );
     return result.data;
   },
   async listCandidates(params) {
@@ -518,6 +603,87 @@ const mockAdminApi: AdminApi = {
   },
   async getUsage() {
     return { byAction: [], periodKey: "current" };
+  },
+  async getUsageAnalyticsSummary() {
+    await simulateMockLatency();
+    return {
+      periodKey: "2026-07",
+      breakdown: [
+        {
+          eventType: "people_scout_lookup" as const,
+          sources: {
+            user_cache: { count: 12, credits: 0 },
+            shared_cache: { count: 34, credits: 34 },
+            futurejobs: { count: 18, credits: 18 },
+            not_found: { count: 6, credits: 0 },
+          },
+          total: { count: 70, credits: 52 },
+        },
+        {
+          eventType: "email_unveil" as const,
+          sources: {
+            user_cache: { count: 8, credits: 0 },
+            shared_cache: { count: 22, credits: 44 },
+            futurejobs: { count: 15, credits: 30 },
+            not_found: { count: 4, credits: 0 },
+          },
+          total: { count: 49, credits: 74 },
+        },
+        {
+          eventType: "phone_unveil" as const,
+          sources: {
+            user_cache: { count: 5, credits: 0 },
+            shared_cache: { count: 11, credits: 55 },
+            futurejobs: { count: 9, credits: 45 },
+            not_found: { count: 3, credits: 0 },
+          },
+          total: { count: 28, credits: 100 },
+        },
+      ],
+      outreachCredits: [
+        {
+          metric: "email_outreach",
+          label: "Email outreach",
+          used: 420,
+          limit: 2000,
+          remaining: 1580,
+        },
+        {
+          metric: "whatsapp_outreach",
+          label: "WhatsApp outreach",
+          used: 88,
+          limit: 500,
+          remaining: 412,
+        },
+        {
+          metric: "ai_voice_minutes",
+          label: "AI voice minutes",
+          used: 36,
+          limit: 100,
+          remaining: 64,
+        },
+      ],
+    };
+  },
+  async getUsageAnalyticsHistory() {
+    await simulateMockLatency();
+    return {
+      history: [
+        {
+          id: "hist_1",
+          createdAt: new Date().toISOString(),
+          userId: "u_1",
+          userName: "Ananya Sharma",
+          userEmail: "ananya@acmetalent.com",
+          metric: "people_scout",
+          activity: "People Scout lookups",
+          units: 1,
+          relatedEntityType: "people_scout_lookup",
+          relatedEntityId: "lookup_1",
+        },
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    };
   },
   async listCandidates() {
     await simulateMockLatency();

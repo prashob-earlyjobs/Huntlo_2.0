@@ -522,6 +522,7 @@ export interface ScreeningResult {
   duration: string;
   overallScore: number;
   recommendation: AiRecommendation;
+  knockoutFailed?: boolean;
   keyVariables: string[];
   completedDate: string;
   decision: RecruiterDecision;

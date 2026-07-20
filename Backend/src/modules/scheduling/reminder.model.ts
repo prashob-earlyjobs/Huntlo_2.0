@@ -47,6 +47,7 @@ export type ReminderLogDocument = Document & {
   candidateId: mongoose.Types.ObjectId | null;
   channel: 'email' | 'whatsapp';
   timingHours: number;
+  message: string | null;
   scheduledAt: Date;
   sentAt: Date | null;
   status: ReminderLogStatus;
@@ -77,6 +78,7 @@ const reminderLogSchema = new Schema<ReminderLogDocument>(
     },
     channel: { type: String, enum: ['email', 'whatsapp'], required: true },
     timingHours: { type: Number, required: true },
+    message: { type: String, default: null, maxlength: 5000 },
     scheduledAt: { type: Date, required: true, index: true },
     sentAt: { type: Date, default: null },
     status: {

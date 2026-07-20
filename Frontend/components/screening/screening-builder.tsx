@@ -50,7 +50,6 @@ import {
   CALL_WINDOWS,
   DEFAULT_QUESTIONS,
   DELAY_OPTIONS,
-  EVALUATION_CATEGORIES,
   KNOCKOUT_CRITERIA,
   QUESTION_TYPES,
   SCREENING_LANGUAGE_OPTIONS,
@@ -110,7 +109,6 @@ interface BuilderState {
   introduction: string;
   agentPrompt: string;
   questions: BuilderQuestion[];
-  categoryWeights: Record<string, number>;
   knockouts: string[];
   minShortlistScore: string;
   attempts: string;
@@ -148,12 +146,6 @@ function initialState(): BuilderState {
       expectedVariable: question.expectedVariable,
       evaluationEnabled: true,
     })),
-    categoryWeights: Object.fromEntries(
-      EVALUATION_CATEGORIES.map((category) => [
-        category.id,
-        category.defaultWeight,
-      ])
-    ),
     knockouts: [KNOCKOUT_CRITERIA[0], KNOCKOUT_CRITERIA[1]],
     minShortlistScore: "75",
     attempts: "3",
@@ -729,7 +721,7 @@ function QuestionsStep({
                   }
                   className="size-3.5 accent-primary"
                 />
-                Evaluation enabled
+                Capture answer
               </label>
               <Button
                 size="icon-sm"
@@ -777,7 +769,7 @@ function QuestionsStep({
               <Field
                 label="Expected variable"
                 htmlFor={`${question.id}-var`}
-                hint="Scorecard key and captured answer field (e.g. notice_period)."
+                hint="Answer field key for the call result (e.g. notice_period → notice_period_answer)."
               >
                 <Input
                   id={`${question.id}-var`}
@@ -827,27 +819,28 @@ function QuestionsStep({
   );
 }
 
-function questionCriterionId(question: BuilderQuestion): string {
-  const fromVariable = question.expectedVariable
+function questionAnswerVariable(question: BuilderQuestion): string {
+  return question.expectedVariable
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
-  if (fromVariable) return fromVariable;
-  return question.id;
 }
 
-function questionCriterionLabel(question: BuilderQuestion, index: number): string {
+function questionAnswerLabel(question: BuilderQuestion, index: number): string {
   const text = question.text.trim().replace(/\s+/g, " ");
   if (text) {
     return text.length > 72 ? `${text.slice(0, 69)}…` : text;
   }
-  return `Question ${index + 1} score`;
+  return `Question ${index + 1}`;
 }
 
-function evaluatedQuestions(state: BuilderState): BuilderQuestion[] {
+function answerCaptureQuestions(state: BuilderState): BuilderQuestion[] {
   return state.questions.filter(
-    (question) => question.evaluationEnabled && question.text.trim()
+    (question) =>
+      question.evaluationEnabled &&
+      question.text.trim() &&
+      questionAnswerVariable(question)
   );
 }
 
@@ -863,107 +856,58 @@ function EvaluationStep({
   const score = Number(state.minShortlistScore);
   const scoreInvalid =
     showErrors && (Number.isNaN(score) || score < 0 || score > 100);
-  const questionCriteria = evaluatedQuestions(state);
-
-  function updateWeight(id: string, value: number) {
-    update("categoryWeights", {
-      ...state.categoryWeights,
-      [id]: value,
-    });
-  }
+  const answerQuestions = answerCaptureQuestions(state);
 
   return (
     <StepCard
       title="Evaluation"
-      description="Weight category and question scores, set knockout rules, and define the shortlist threshold."
+      description="Capture each question answer as text. Only Communication is scored for shortlist decisions."
     >
       <div className="space-y-5">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-foreground">Category scores</p>
+          <p className="text-sm font-medium text-foreground">Communication score</p>
           <p className="text-xs text-muted-foreground">
-            Weights are relative — the overall score is a weighted average of
-            enabled categories and evaluated questions.
+            The voice agent returns a single 0–100 communication score. That score
+            is the overall result used against the shortlist threshold below.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {EVALUATION_CATEGORIES.map((category) => (
-              <div
-                key={category.id}
-                className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
-              >
-                <label
-                  htmlFor={`weight-${category.id}`}
-                  className="min-w-0 flex-1 text-sm text-foreground"
-                >
-                  {category.label}
-                </label>
-                <Input
-                  id={`weight-${category.id}`}
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={state.categoryWeights[category.id] ?? 0}
-                  onChange={(event) =>
-                    updateWeight(category.id, Number(event.target.value) || 0)
-                  }
-                  className="w-20 text-right tabular-nums"
-                  aria-label={`${category.label} weight`}
-                />
-              </div>
-            ))}
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground">
+            Scored category:{" "}
+            <span className="font-medium">Communication</span>
           </div>
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium text-foreground">Question scores</p>
+          <p className="text-sm font-medium text-foreground">Question answers</p>
           <p className="text-xs text-muted-foreground">
-            Questions marked “Evaluation enabled” in the previous step are scored
-            from the candidate’s answers and included in the overall result.
+            Questions with “Capture answer” enabled and an expected variable store
+            the candidate’s spoken answer as text — they are not point-scored.
           </p>
-          {questionCriteria.length === 0 ? (
+          {answerQuestions.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
-              No evaluated questions yet. Enable evaluation on one or more
-              questions to score their answers here.
+              No answer fields yet. In the Questions step, enable “Capture answer”
+              and set an expected variable (e.g. notice_period).
             </p>
           ) : (
             <div className="space-y-2">
-              {questionCriteria.map((question, index) => {
-                const criterionId = questionCriterionId(question);
-                const label = questionCriterionLabel(question, index);
+              {answerQuestions.map((question, index) => {
+                const variable = questionAnswerVariable(question);
+                const label = questionAnswerLabel(question, index);
                 return (
                   <div
                     key={question.id}
-                    className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center"
+                    className="rounded-lg border border-border px-3 py-2"
                   >
-                    <div className="min-w-0 flex-1">
-                      <label
-                        htmlFor={`weight-${criterionId}`}
-                        className="block text-sm text-foreground"
-                      >
-                        <span className="mr-1.5 text-xs font-medium tabular-nums text-muted-foreground">
-                          Q
-                          {state.questions.findIndex((q) => q.id === question.id) +
-                            1}
-                        </span>
-                        {label}
-                      </label>
-                      {question.expectedVariable.trim() ? (
-                        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                          {question.expectedVariable.trim()}
-                        </p>
-                      ) : null}
-                    </div>
-                    <Input
-                      id={`weight-${criterionId}`}
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={state.categoryWeights[criterionId] ?? 10}
-                      onChange={(event) =>
-                        updateWeight(criterionId, Number(event.target.value) || 0)
-                      }
-                      className="w-20 shrink-0 text-right tabular-nums sm:self-center"
-                      aria-label={`Weight for ${label}`}
-                    />
+                    <p className="text-sm text-foreground">
+                      <span className="mr-1.5 text-xs font-medium tabular-nums text-muted-foreground">
+                        Q
+                        {state.questions.findIndex((q) => q.id === question.id) +
+                          1}
+                      </span>
+                      {label}
+                    </p>
+                    <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                      {variable}_answer
+                    </p>
                   </div>
                 );
               })}
@@ -974,7 +918,8 @@ function EvaluationStep({
         <div className="space-y-1.5">
           <p className="text-sm font-medium text-foreground">Knockout criteria</p>
           <p className="text-xs text-muted-foreground">
-            A failed knockout forces a Reject recommendation regardless of score.
+            A failed knockout forces a Reject recommendation regardless of
+            communication score.
           </p>
           <div className="space-y-1.5">
             {KNOCKOUT_CRITERIA.map((criterion) => (
@@ -1002,9 +947,9 @@ function EvaluationStep({
         </div>
 
         <Field
-          label="Minimum shortlist score"
+          label="Minimum communication score to shortlist"
           htmlFor="scr-min-score"
-          hint="Candidates at or above this score get an AI Shortlist recommendation."
+          hint="Candidates at or above this communication score get an AI Shortlist recommendation."
         >
           <Input
             id="scr-min-score"
@@ -1150,7 +1095,7 @@ function ReviewStep({
   const job = jobs.find((j) => j.id === state.jobId);
   const stats = state.audiencePreview;
   const activeQuestions = state.questions.filter((q) => q.text.trim());
-  const scoredQuestions = evaluatedQuestions(state);
+  const capturedAnswers = answerCaptureQuestions(state);
 
   const sections: {
     step: number;
@@ -1199,7 +1144,7 @@ function ReviewStep({
       title: "Questions",
       lines: [
         `${activeQuestions.length} questions`,
-        `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} evaluated · ${activeQuestions.filter((q) => q.followUp.trim()).length} with follow-ups`,
+        `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} capture answers · ${activeQuestions.filter((q) => q.followUp.trim()).length} with follow-ups`,
         ...activeQuestions.slice(0, 3).map((question, index) => {
           const bits = [
             `Q${index + 1} ${question.type}`,
@@ -1220,8 +1165,8 @@ function ReviewStep({
       icon: CheckCircle2,
       title: "Evaluation",
       lines: [
-        `Shortlist at ≥ ${state.minShortlistScore}/100`,
-        `${scoredQuestions.length} question score${scoredQuestions.length === 1 ? "" : "s"} · ${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
+        `Shortlist at communication ≥ ${state.minShortlistScore}/100`,
+        `${capturedAnswers.length} answer field${capturedAnswers.length === 1 ? "" : "s"} · ${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
       ],
     },
     {
@@ -1313,30 +1258,6 @@ function toCreateInput(
   state: BuilderState,
   candidateIds: string[]
 ): ScreeningCreateInput {
-  const questionCriteria = evaluatedQuestions(state).map((question, index) => {
-    const id = questionCriterionId(question);
-    return {
-      id,
-      label: questionCriterionLabel(question, index),
-      weight: state.categoryWeights[id] ?? 10,
-      description: `Score 0-100 based on the candidate's answer to: ${question.text.trim()}`,
-    };
-  });
-
-  const categoryCriteria = EVALUATION_CATEGORIES.map((category) => ({
-    id: category.id,
-    label: category.label,
-    weight: state.categoryWeights[category.id] ?? category.defaultWeight,
-  }));
-
-  // Prefer question criteria ids when they collide with category ids.
-  const byId = new Map<
-    string,
-    NonNullable<ScreeningCreateInput["evaluationCriteria"]>[number]
-  >();
-  for (const criterion of categoryCriteria) byId.set(criterion.id, criterion);
-  for (const criterion of questionCriteria) byId.set(criterion.id, criterion);
-
   return {
     name: state.name.trim(),
     ownerUserId: state.ownerUserId || undefined,
@@ -1359,7 +1280,15 @@ function toCreateInput(
         expectedVariable: q.expectedVariable.trim() || null,
         evaluationEnabled: q.evaluationEnabled,
       })),
-    evaluationCriteria: Array.from(byId.values()),
+    evaluationCriteria: [
+      {
+        id: "communication",
+        label: "Communication score",
+        weight: 1,
+        description:
+          "Score 0-100 for how clearly and professionally the candidate communicates during the call. Do not score individual screening questions.",
+      },
+    ],
     minShortlistScore: Number(state.minShortlistScore) || 70,
     knockouts: state.knockouts,
     callSettings: {

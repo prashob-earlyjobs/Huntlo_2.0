@@ -17,6 +17,18 @@ export const adminListQuerySchema = z.object({
   module: z.string().trim().max(40).optional(),
 });
 
+export const adminUsageAnalyticsQuerySchema = z.object({
+  userId: z.string().trim().max(40).optional(),
+  organizationId: z.string().trim().max(40).optional(),
+  from: z.string().trim().max(40).optional(),
+  to: z.string().trim().max(40).optional(),
+});
+
+export const adminUsageHistoryQuerySchema = adminUsageAnalyticsQuerySchema.extend({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
 export const createAdminUserSchema = z.object({
   email: z.string().email(),
   password: passwordSchema,

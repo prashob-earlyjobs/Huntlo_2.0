@@ -18,7 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
 import {
@@ -97,7 +97,12 @@ interface FlowState {
   location: string;
   instructions: string;
   reminderHours: number[];
-  inviteChannel: "email" | "whatsapp";
+  /** Per-reminder copy keyed by hours-before (e.g. "48"). */
+  reminderMessages: Record<
+    string,
+    { templateId: string; message: string }
+  >;
+  inviteChannels: Array<"email" | "whatsapp">;
   messageTemplateId: string;
   message: string;
 }
@@ -125,11 +130,30 @@ function initialState(interviewerId?: string | null): FlowState {
     location: "",
     instructions: "",
     reminderHours: [24, 2],
-    inviteChannel: "email",
+    reminderMessages: {
+      "24": { templateId: "", message: defaultReminderMessage(24) },
+      "2": { templateId: "", message: defaultReminderMessage(2) },
+    },
+    inviteChannels: ["email"],
     messageTemplateId: "",
-    message:
-      "Hi {{first_name}}, we'd love to schedule the next round for {{job_title}}. {{scheduling_details}}",
+    message: DEFAULT_INVITE_MESSAGE,
   };
+}
+
+function toApiInviteChannel(
+  channels: Array<"email" | "whatsapp">
+): "email" | "whatsapp" | "both" {
+  const unique = Array.from(new Set(channels));
+  if (unique.includes("email") && unique.includes("whatsapp")) return "both";
+  if (unique.includes("whatsapp")) return "whatsapp";
+  return "email";
+}
+
+function formatInviteChannels(channels: Array<"email" | "whatsapp">): string {
+  if (channels.length === 0) return "—";
+  return channels
+    .map((channel) => (channel === "whatsapp" ? "WhatsApp" : "Email"))
+    .join(" + ");
 }
 
 function methodToApi(
@@ -152,12 +176,186 @@ const REMINDER_OPTIONS = [
   { hours: 1, label: "1 hour before" },
 ] as const;
 
+const DEFAULT_INVITE_MESSAGE =
+  "Hi {{first_name}}, we'd love to schedule the next round for {{job_title}}. {{scheduling_details}}";
+
+function defaultReminderMessage(hours: number): string {
+  const when =
+    hours === 1
+      ? "in about 1 hour"
+      : hours < 24
+        ? `in about ${hours} hours`
+        : hours === 24
+          ? "in 24 hours"
+          : `in ${hours} hours`;
+  return `Hi {{first_name}}, reminder that your interview for {{job_title}} is ${when}. {{scheduling_details}}`;
+}
+
 function formatReminderHours(hours: number[]): string {
   if (hours.length === 0) return "No reminders";
   return [...hours]
     .sort((a, b) => b - a)
     .map((value) => `${value}h before`)
     .join(", ");
+}
+
+function reminderLabel(hours: number): string {
+  return (
+    REMINDER_OPTIONS.find((option) => option.hours === hours)?.label ??
+    `${hours} hours before`
+  );
+}
+
+function MessageTemplatePicker({
+  templates,
+  selectedId,
+  allowCustom = true,
+  onSelectCustom,
+  onSelectTemplate,
+}: {
+  templates: OutreachTemplate[];
+  selectedId: string;
+  allowCustom?: boolean;
+  onSelectCustom: () => void;
+  onSelectTemplate: (template: OutreachTemplate) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Message template"
+      className="grid gap-2"
+    >
+      {allowCustom ? (
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!selectedId}
+          onClick={onSelectCustom}
+          className={cn(
+            "rounded-lg border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+            !selectedId
+              ? "border-primary/50 bg-brand-subtle/40"
+              : "border-border hover:bg-muted/40"
+          )}
+        >
+          <span
+            className={cn(
+              "block text-sm font-medium",
+              !selectedId ? "text-primary" : "text-foreground"
+            )}
+          >
+            Custom message
+          </span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Keep or edit the message below
+          </span>
+        </button>
+      ) : null}
+      {templates.map((template) => {
+        const active = selectedId === template.id;
+        return (
+          <button
+            key={template.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onSelectTemplate(template)}
+            className={cn(
+              "rounded-lg border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+              active
+                ? "border-primary/50 bg-brand-subtle/40"
+                : "border-border hover:bg-muted/40"
+            )}
+          >
+            <span
+              className={cn(
+                "block text-sm font-medium",
+                active ? "text-primary" : "text-foreground"
+              )}
+            >
+              {template.name}
+            </span>
+            <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+              {template.body}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function isWhatsAppTemplate(template: OutreachTemplate): boolean {
+  return (
+    template.channel === "whatsapp" ||
+    template.type === "WhatsApp"
+  );
+}
+
+const SCHEDULE_DRAFT_KEY = "huntlo.schedule-interview.draft.v1";
+
+type ScheduleInterviewDraft = {
+  version: 1;
+  savedAt: string;
+  userId: string | null;
+  current: number;
+  attempted: number[];
+  state: FlowState;
+  candidateSource: CandidateSource;
+  selectedListId: string;
+  selectedCandidates: FlowCandidate[];
+};
+
+function scheduleDraftStorageKey(userId: string | null | undefined): string {
+  return `${SCHEDULE_DRAFT_KEY}:${userId || "anon"}`;
+}
+
+function loadScheduleDraft(
+  userId: string | null | undefined
+): ScheduleInterviewDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(scheduleDraftStorageKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ScheduleInterviewDraft;
+    if (!parsed || parsed.version !== 1 || !parsed.state) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveScheduleDraft(draft: ScheduleInterviewDraft): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      scheduleDraftStorageKey(draft.userId),
+      JSON.stringify(draft)
+    );
+  } catch {
+    // Ignore quota / private mode failures.
+  }
+}
+
+function clearScheduleDraft(userId: string | null | undefined): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(scheduleDraftStorageKey(userId));
+  } catch {
+    // ignore
+  }
+}
+
+function hasScheduleProgress(state: FlowState, current: number): boolean {
+  if (current > 0) return true;
+  if (state.candidateIds.length > 0) return true;
+  if (state.jobId) return true;
+  if (state.method) return true;
+  if (state.instructions.trim()) return true;
+  if (state.message.trim() && state.message !== DEFAULT_INVITE_MESSAGE) {
+    return true;
+  }
+  return false;
 }
 
 const STEPS = [
@@ -246,8 +444,20 @@ function stepErrors(step: number, state: FlowState): string[] {
       errors.push("Choose a future date and time.");
     }
   }
-  if (step === 4 && !state.message.trim())
-    errors.push("Message to the candidate cannot be empty.");
+  if (step === 4) {
+    if (!state.inviteChannels.includes("email")) {
+      errors.push("Email channel is required.");
+    }
+    if (!state.message.trim()) {
+      errors.push("Invitation message cannot be empty.");
+    }
+    for (const hours of state.reminderHours) {
+      const entry = state.reminderMessages[String(hours)];
+      if (!entry?.message.trim()) {
+        errors.push(`Reminder message for ${reminderLabel(hours)} cannot be empty.`);
+      }
+    }
+  }
   return errors;
 }
 
@@ -307,6 +517,43 @@ export function ScheduleInterviewFlow({
     []
   );
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [resumedDraft, setResumedDraft] = useState(false);
+  const closingActionRef = useRef<"save" | "discard">("save");
+
+  useEffect(() => {
+    if (!open) return;
+    const draft = loadScheduleDraft(user?.id ?? null);
+    if (!draft) {
+      setResumedDraft(false);
+      return;
+    }
+    setState({
+      ...initialState(user?.id),
+      ...draft.state,
+      inviteChannels: ["email"],
+      interviewers:
+        draft.state.interviewers.length > 0
+          ? draft.state.interviewers
+          : user?.id
+            ? [user.id]
+            : [],
+    });
+    setCurrent(Math.min(Math.max(0, draft.current), STEPS.length - 1));
+    setAttempted(new Set(draft.attempted || []));
+    setCandidateSource(draft.candidateSource || "pool");
+    setSelectedListId(draft.selectedListId || "");
+    setCandidateQuery("");
+    setDone(false);
+    setSubmitError(null);
+    setResumedDraft(true);
+    if (draft.selectedCandidates?.length) {
+      setCandidates((previous) => {
+        const merged = new Map(previous.map((row) => [row.id, row]));
+        draft.selectedCandidates.forEach((row) => merged.set(row.id, row));
+        return Array.from(merged.values());
+      });
+    }
+  }, [open, user?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -365,7 +612,7 @@ export function ScheduleInterviewFlow({
     setTemplatesLoading(true);
     void (async () => {
       try {
-        const channel = state.inviteChannel;
+        const channel = "email" as const;
         let items = await templatesApi.list({
           archived: false,
           channel,
@@ -376,15 +623,15 @@ export function ScheduleInterviewFlow({
         }
         if (cancelled) return;
         setMessageTemplates(items);
-        setState((previous) => {
-          if (
+        setState((previous) => ({
+          ...previous,
+          inviteChannels: ["email"],
+          messageTemplateId:
             previous.messageTemplateId &&
             items.some((item) => item.id === previous.messageTemplateId)
-          ) {
-            return previous;
-          }
-          return { ...previous, messageTemplateId: "" };
-        });
+              ? previous.messageTemplateId
+              : "",
+        }));
       } catch {
         if (!cancelled) setMessageTemplates([]);
       } finally {
@@ -394,7 +641,7 @@ export function ScheduleInterviewFlow({
     return () => {
       cancelled = true;
     };
-  }, [open, state.inviteChannel]);
+  }, [open]);
 
   useEffect(() => {
     if (!open || candidateSource !== "list" || !selectedListId) {
@@ -448,6 +695,35 @@ export function ScheduleInterviewFlow({
     setDone(false);
     setSubmitting(false);
     setSubmitError(null);
+    setResumedDraft(false);
+  }
+
+  function persistDraftFromState() {
+    if (done || !hasScheduleProgress(state, current)) {
+      clearScheduleDraft(user?.id ?? null);
+      return;
+    }
+    const selected = state.candidateIds
+      .map((id) => candidates.find((row) => row.id === id))
+      .filter((row): row is FlowCandidate => Boolean(row));
+    saveScheduleDraft({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      userId: user?.id ?? null,
+      current,
+      attempted: Array.from(attempted),
+      state,
+      candidateSource,
+      selectedListId,
+      selectedCandidates: selected,
+    });
+  }
+
+  function discardDraftAndClose() {
+    closingActionRef.current = "discard";
+    clearScheduleDraft(user?.id ?? null);
+    reset();
+    onOpenChange(false);
   }
 
   async function refreshCandidates(selectNewest = false) {
@@ -522,12 +798,65 @@ export function ScheduleInterviewFlow({
     update("candidateIds", []);
   }
 
+  function toggleInviteChannel(channel: "email" | "whatsapp") {
+    if (channel === "whatsapp") return;
+    setState((previous) => {
+      const active = previous.inviteChannels.includes(channel);
+      // Email must stay selected while WhatsApp is disabled.
+      if (active && channel === "email") return previous;
+      const next = active
+        ? previous.inviteChannels.filter((value) => value !== channel)
+        : [...previous.inviteChannels.filter((value) => value !== "whatsapp"), channel];
+      return {
+        ...previous,
+        inviteChannels: next.length > 0 ? next : ["email"],
+      };
+    });
+  }
+
   function toggleReminderHour(hours: number) {
     setState((previous) => {
-      const next = previous.reminderHours.includes(hours)
-        ? previous.reminderHours.filter((value) => value !== hours)
-        : [...previous.reminderHours, hours].sort((a, b) => b - a);
-      return { ...previous, reminderHours: next };
+      const key = String(hours);
+      if (previous.reminderHours.includes(hours)) {
+        const nextMessages = { ...previous.reminderMessages };
+        delete nextMessages[key];
+        return {
+          ...previous,
+          reminderHours: previous.reminderHours.filter((value) => value !== hours),
+          reminderMessages: nextMessages,
+        };
+      }
+      return {
+        ...previous,
+        reminderHours: [...previous.reminderHours, hours].sort((a, b) => b - a),
+        reminderMessages: {
+          ...previous.reminderMessages,
+          [key]: previous.reminderMessages[key] ?? {
+            templateId: "",
+            message: defaultReminderMessage(hours),
+          },
+        },
+      };
+    });
+  }
+
+  function setReminderMessage(
+    hours: number,
+    patch: Partial<{ templateId: string; message: string }>
+  ) {
+    const key = String(hours);
+    setState((previous) => {
+      const current = previous.reminderMessages[key] ?? {
+        templateId: "",
+        message: defaultReminderMessage(hours),
+      };
+      return {
+        ...previous,
+        reminderMessages: {
+          ...previous.reminderMessages,
+          [key]: { ...current, ...patch },
+        },
+      };
     });
   }
 
@@ -573,7 +902,7 @@ export function ScheduleInterviewFlow({
         throw new Error("Select at least one candidate.");
       }
 
-      if (state.inviteChannel === "email") {
+      if (state.inviteChannels.includes("email")) {
         const missing = selected.filter((row) => !row.email);
         if (missing.length > 0) {
           throw new Error(
@@ -581,7 +910,7 @@ export function ScheduleInterviewFlow({
           );
         }
       }
-      if (state.inviteChannel === "whatsapp") {
+      if (state.inviteChannels.includes("whatsapp")) {
         const missing = selected.filter((row) => !row.phone);
         if (missing.length > 0) {
           throw new Error(
@@ -614,13 +943,23 @@ export function ScheduleInterviewFlow({
               : null,
           instructions: state.instructions || null,
           reminderHours: state.reminderHours,
-          inviteChannel: state.inviteChannel,
+          reminderMessages: state.reminderHours.map((hours) => ({
+            hours,
+            message:
+              state.reminderMessages[String(hours)]?.message.trim() ||
+              defaultReminderMessage(hours),
+            templateId:
+              state.reminderMessages[String(hours)]?.templateId || null,
+          })),
+          inviteChannel: toApiInviteChannel(state.inviteChannels),
           inviteeEmail: person.email || null,
           message: state.message,
           sendLink: true,
         });
       }
       setDone(true);
+      clearScheduleDraft(user?.id ?? null);
+      setResumedDraft(false);
     } catch (err) {
       setSubmitError(getApiErrorMessage(err));
     } finally {
@@ -652,12 +991,26 @@ export function ScheduleInterviewFlow({
   const canUseWhatsappInvite = selectedCandidates.every((row) =>
     Boolean(row.phone)
   );
+  const selectableTemplates = useMemo(
+    () => messageTemplates.filter((template) => !isWhatsAppTemplate(template)),
+    [messageTemplates]
+  );
 
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) reset();
+        if (!nextOpen) {
+          if (closingActionRef.current === "discard") {
+            clearScheduleDraft(user?.id ?? null);
+          } else if (done) {
+            clearScheduleDraft(user?.id ?? null);
+          } else {
+            persistDraftFromState();
+          }
+          closingActionRef.current = "save";
+          reset();
+        }
         onOpenChange(nextOpen);
       }}
     >
@@ -691,6 +1044,8 @@ export function ScheduleInterviewFlow({
                 size="sm"
                 className="mt-5"
                 onClick={() => {
+                  closingActionRef.current = "discard";
+                  clearScheduleDraft(user?.id ?? null);
                   onComplete(
                     `Scheduled interviews for ${selectedCandidates.length} candidate${selectedCandidates.length === 1 ? "" : "s"}.`
                   );
@@ -704,6 +1059,24 @@ export function ScheduleInterviewFlow({
           ) : (
             <div className="space-y-4">
               <Stepper steps={STEPS} currentStep={current} />
+
+              {resumedDraft ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    Resuming your draft from step {current + 1} of {STEPS.length}.
+                  </p>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => {
+                      clearScheduleDraft(user?.id ?? null);
+                      reset();
+                    }}
+                  >
+                    Discard draft
+                  </Button>
+                </div>
+              ) : null}
 
               {showErrors ? <ErrorList errors={errors} /> : null}
 
@@ -1306,32 +1679,35 @@ export function ScheduleInterviewFlow({
               {current === 4 ? (
                 <StepCard
                   title="Configure Message"
-                  description="Sent to the candidate with the link, slot, or availability request."
+                  description="Invitation copy plus a template for each reminder timing you selected."
                 >
                   <Field label="Send via" required>
                     <div
-                      role="radiogroup"
-                      aria-label="Invitation channel"
+                      role="group"
+                      aria-label="Invitation channels"
                       className="grid gap-2 sm:grid-cols-2"
                     >
                       {(["email", "whatsapp"] as const).map((channel) => {
-                        const active = state.inviteChannel === channel;
+                        const active = state.inviteChannels.includes(channel);
+                        const channelDisabled = channel === "whatsapp";
                         const unavailable =
-                          selectedCandidates.length === 0
-                            ? true
-                            : channel === "email"
-                              ? !canUseEmailInvite
-                              : !canUseWhatsappInvite;
+                          channelDisabled ||
+                          selectedCandidates.length === 0 ||
+                          (channel === "email"
+                            ? !canUseEmailInvite
+                            : !canUseWhatsappInvite);
                         return (
                           <button
                             key={channel}
                             type="button"
-                            role="radio"
-                            aria-checked={active}
+                            aria-pressed={active}
                             disabled={unavailable}
-                            onClick={() => update("inviteChannel", channel)}
+                            onClick={() => {
+                              if (channelDisabled) return;
+                              toggleInviteChannel(channel);
+                            }}
                             className={cn(
-                              "rounded-lg border px-3 py-2.5 text-left text-sm capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                              "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                               unavailable
                                 ? "cursor-not-allowed bg-muted/30 opacity-60"
                                 : active
@@ -1339,120 +1715,39 @@ export function ScheduleInterviewFlow({
                                   : "border-border hover:bg-muted/40"
                             )}
                           >
-                            {channel}
-                            {unavailable && selectedCandidates.length > 0
-                              ? " — missing for some"
-                              : ""}
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "flex size-4 shrink-0 items-center justify-center rounded border",
+                                active && !channelDisabled
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-background"
+                              )}
+                            >
+                              {active && !channelDisabled ? (
+                                <Check className="size-3" />
+                              ) : null}
+                            </span>
+                            {channel === "whatsapp" ? "WhatsApp" : "Email"}
+                            {channelDisabled
+                              ? ""
+                              : unavailable && selectedCandidates.length > 0
+                                ? " — missing for some"
+                                : ""}
                           </button>
                         );
                       })}
                     </div>
-                  </Field>
-
-                  <Field label="Message template">
-                    {templatesLoading ? (
-                      <p className="text-xs text-muted-foreground">
-                        Loading templates…
-                      </p>
-                    ) : messageTemplates.length === 0 ? (
-                      <div className="flex flex-col items-start gap-2">
-                        <p className="text-xs text-muted-foreground">
-                          No {state.inviteChannel} scheduling templates yet.
-                          Create one in Templates, or write a custom message
-                          below.
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          nativeButton={false}
-                          render={<Link href={ROUTES.templates} />}
-                        >
-                          Open Templates
-                        </Button>
-                      </div>
-                    ) : (
-                      <div
-                        role="radiogroup"
-                        aria-label="Message template"
-                        className="grid gap-2"
-                      >
-                        <button
-                          type="button"
-                          role="radio"
-                          aria-checked={!state.messageTemplateId}
-                          onClick={() =>
-                            setState((previous) => ({
-                              ...previous,
-                              messageTemplateId: "",
-                            }))
-                          }
-                          className={cn(
-                            "rounded-lg border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                            !state.messageTemplateId
-                              ? "border-primary/50 bg-brand-subtle/40"
-                              : "border-border hover:bg-muted/40"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "block text-sm font-medium",
-                              !state.messageTemplateId
-                                ? "text-primary"
-                                : "text-foreground"
-                            )}
-                          >
-                            Custom message
-                          </span>
-                          <span className="mt-0.5 block text-xs text-muted-foreground">
-                            Keep or edit the message below
-                          </span>
-                        </button>
-                        {messageTemplates.map((template) => {
-                          const active =
-                            state.messageTemplateId === template.id;
-                          return (
-                            <button
-                              key={template.id}
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              onClick={() =>
-                                setState((previous) => ({
-                                  ...previous,
-                                  messageTemplateId: template.id,
-                                  message: template.body,
-                                }))
-                              }
-                              className={cn(
-                                "rounded-lg border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                                active
-                                  ? "border-primary/50 bg-brand-subtle/40"
-                                  : "border-border hover:bg-muted/40"
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  "block text-sm font-medium",
-                                  active ? "text-primary" : "text-foreground"
-                                )}
-                              >
-                                {template.name}
-                              </span>
-                              <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-                                {template.body}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Invitations are sent by email.
+                    </p>
                   </Field>
 
                   <Field
-                    label="Message"
+                    label="Invitation message"
                     htmlFor="flow-message"
                     required
-                    hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}. Requires a connected Email or WhatsApp integration."
+                    hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}. Requires a connected Email integration."
                   >
                     <Textarea
                       id="flow-message"
@@ -1462,19 +1757,108 @@ export function ScheduleInterviewFlow({
                         setState((previous) => ({
                           ...previous,
                           message: value,
-                          messageTemplateId:
-                            previous.messageTemplateId &&
-                            messageTemplates.find(
-                              (item) => item.id === previous.messageTemplateId
-                            )?.body === value
-                              ? previous.messageTemplateId
-                              : "",
+                          messageTemplateId: "",
                         }));
                       }}
                       className="min-h-28 font-mono text-xs"
                       aria-invalid={showErrors && !state.message.trim()}
                     />
                   </Field>
+
+                  {state.reminderHours.length > 0 ? (
+                    <div className="space-y-4 border-t border-border pt-4">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          Reminder messages
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Choose a template for each selected reminder timing.
+                        </p>
+                      </div>
+                      {[...state.reminderHours]
+                        .sort((a, b) => b - a)
+                        .map((hours) => {
+                          const key = String(hours);
+                          const entry = state.reminderMessages[key] ?? {
+                            templateId: "",
+                            message: defaultReminderMessage(hours),
+                          };
+                          const invalid =
+                            showErrors && !entry.message.trim();
+                          return (
+                            <div
+                              key={hours}
+                              className="space-y-3 rounded-lg border border-border p-3"
+                            >
+                              <p className="text-sm font-medium text-foreground">
+                                {reminderLabel(hours)}
+                              </p>
+                              <Field label="Template">
+                                {templatesLoading ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Loading templates…
+                                  </p>
+                                ) : selectableTemplates.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    No templates available — edit the custom
+                                    message below.
+                                  </p>
+                                ) : (
+                                  <MessageTemplatePicker
+                                    templates={selectableTemplates}
+                                    selectedId={entry.templateId}
+                                    allowCustom
+                                    onSelectCustom={() =>
+                                      setReminderMessage(hours, {
+                                        templateId: "",
+                                      })
+                                    }
+                                    onSelectTemplate={(template) =>
+                                      setReminderMessage(hours, {
+                                        templateId: template.id,
+                                        message: template.body,
+                                      })
+                                    }
+                                  />
+                                )}
+                              </Field>
+                              <Field
+                                label="Message"
+                                htmlFor={`flow-reminder-${hours}`}
+                                required
+                                hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}."
+                              >
+                                <Textarea
+                                  id={`flow-reminder-${hours}`}
+                                  value={entry.message}
+                                  onChange={(event) => {
+                                    const value = event.target.value;
+                                    const matched =
+                                      entry.templateId &&
+                                      selectableTemplates.find(
+                                        (item) => item.id === entry.templateId
+                                      )?.body === value;
+                                    setReminderMessage(hours, {
+                                      message: value,
+                                      templateId: matched
+                                        ? entry.templateId
+                                        : "",
+                                    });
+                                  }}
+                                  className="min-h-24 font-mono text-xs"
+                                  aria-invalid={invalid}
+                                />
+                              </Field>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">
+                      No reminder timings selected. Go back to Scheduling to add
+                      them — each timing gets its own template here.
+                    </p>
+                  )}
                 </StepCard>
               ) : null}
 
@@ -1521,7 +1905,13 @@ export function ScheduleInterviewFlow({
                               : "Awaiting candidate availability",
                         ],
                         ["Reminders", formatReminderHours(state.reminderHours)],
-                        ["Invite channel", state.inviteChannel],
+                        [
+                          "Reminder templates",
+                          state.reminderHours.length === 0
+                            ? "—"
+                            : `${state.reminderHours.length} configured`,
+                        ],
+                        ["Invite channel", formatInviteChannels(state.inviteChannels)],
                       ] as const
                     ).map(([label, value]) => (
                       <div
@@ -1564,10 +1954,7 @@ export function ScheduleInterviewFlow({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  reset();
-                  onOpenChange(false);
-                }}
+                onClick={() => discardDraftAndClose()}
               >
                 Cancel
               </Button>
@@ -1595,12 +1982,24 @@ export function ScheduleInterviewFlow({
           </div>
         ) : null}
         {submitError ? (
-          <p
+          <div
             role="alert"
-            className="border-t border-destructive/20 bg-destructive/5 px-5 py-2 text-sm text-destructive"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-destructive/20 bg-destructive/5 px-5 py-2 text-sm text-destructive"
           >
-            {submitError}
-          </p>
+            <p>{submitError}</p>
+            {/email integration|connected email/i.test(submitError) ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                nativeButton={false}
+                render={<Link href={ROUTES.integrations} />}
+              >
+                <Plug aria-hidden />
+                Open Integrations
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>

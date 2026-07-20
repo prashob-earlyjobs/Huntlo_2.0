@@ -328,7 +328,7 @@ function ScorecardTab({
               Overall score
             </h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Weighted average of category scores
+              Based on communication score
             </p>
           </div>
           <p
@@ -375,32 +375,59 @@ function ScorecardTab({
       </div>
 
       <section className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">
-          Knockout results
-        </h3>
-        <ul className="mt-3 divide-y divide-border">
-          {detail.knockouts.map((knockout) => (
-            <li
-              key={knockout.criterion}
-              className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  {knockout.criterion}
-                </p>
-                <p className="text-xs text-muted-foreground">{knockout.detail}</p>
-              </div>
-              <Badge
-                text={knockout.passed ? "Passed" : "Failed"}
-                className={
-                  knockout.passed
-                    ? "bg-success/10 text-success"
-                    : "bg-destructive/10 text-destructive"
-                }
-              />
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              Knockout results
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Configured rules from the screening. A failed rule forces Reject.
+            </p>
+          </div>
+          {detail.knockouts.length > 0 ? (
+            <Badge
+              text={
+                detail.knockouts.some((item) => !item.passed)
+                  ? `${detail.knockouts.filter((item) => !item.passed).length} failed`
+                  : "All passed"
+              }
+              className={
+                detail.knockouts.some((item) => !item.passed)
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-success/10 text-success"
+              }
+            />
+          ) : null}
+        </div>
+        {detail.knockouts.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No knockout criteria were configured for this screening.
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-border">
+            {detail.knockouts.map((knockout) => (
+              <li
+                key={knockout.criterion}
+                className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {knockout.criterion}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{knockout.detail}</p>
+                </div>
+                <Badge
+                  text={knockout.passed ? "Passed" : "Failed"}
+                  className={
+                    knockout.passed
+                      ? "bg-success/10 text-success"
+                      : "bg-destructive/10 text-destructive"
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );
@@ -473,6 +500,19 @@ function ActivityTab({ detail }: { detail: ScreeningResultDetail }) {
   );
 }
 
+function formatResultWhen(value: string): string {
+  if (!value || value === "—") return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function ResultDetail({
   result,
   detail,
@@ -514,77 +554,106 @@ export function ResultDetail({
 
   return (
     <div className="space-y-4">
-      <header className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <header className="rounded-xl border border-border bg-card p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <CandidateAvatar
               name={result.candidateName}
-              className="size-12 text-base"
+              className="size-12 shrink-0 text-base"
             />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                {result.candidateId ? (
-                  <Link
-                    href={candidateDetailPath(result.candidateId)}
-                    className="text-xl font-semibold tracking-tight text-foreground underline-offset-4 hover:underline"
-                  >
-                    {result.candidateName}
-                  </Link>
-                ) : (
-                  <h1 className="text-xl font-semibold tracking-tight text-foreground">
-                    {result.candidateName}
-                  </h1>
-                )}
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <div className="min-w-0 space-y-2">
+              {result.candidateId ? (
+                <Link
+                  href={candidateDetailPath(result.candidateId)}
+                  className="block truncate text-xl font-semibold tracking-tight text-foreground underline-offset-4 hover:underline"
+                >
+                  {result.candidateName}
+                </Link>
+              ) : (
+                <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">
+                  {result.candidateName}
+                </h1>
+              )}
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 {result.jobId ? (
                   <Link
                     href={jobDetailPath(result.jobId)}
                     className="font-medium text-foreground underline-offset-4 hover:underline"
                   >
-                    {result.jobTitle}
+                    {result.jobTitle || "Job"}
                   </Link>
-                ) : (
+                ) : result.jobTitle ? (
                   <span>{result.jobTitle}</span>
-                )}
-                <Link
-                  href={screeningDetailPath(result.screeningId)}
-                  className="underline-offset-4 hover:underline"
-                >
-                  {result.screeningName}
-                </Link>
-                <span>{result.duration}</span>
-                <span>{result.completedDate}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <p
-                  className={cn(
-                    "text-2xl font-semibold tabular-nums",
-                    result.overallScore >= 75
-                      ? "text-success"
-                      : result.overallScore < 60
-                        ? "text-destructive"
-                        : "text-foreground"
-                  )}
-                >
-                  {result.overallScore}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    /100
-                  </span>
-                </p>
+                ) : null}
+                {result.screeningName ? (
+                  <>
+                    {result.jobTitle ? (
+                      <span aria-hidden className="text-border">
+                        ·
+                      </span>
+                    ) : null}
+                    <Link
+                      href={screeningDetailPath(result.screeningId)}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {result.screeningName}
+                    </Link>
+                  </>
+                ) : null}
+                {result.duration && result.duration !== "—" ? (
+                  <>
+                    <span aria-hidden className="text-border">
+                      ·
+                    </span>
+                    <span>{result.duration}</span>
+                  </>
+                ) : null}
+                {result.completedDate ? (
+                  <>
+                    <span aria-hidden className="text-border">
+                      ·
+                    </span>
+                    <span>{formatResultWhen(result.completedDate)}</span>
+                  </>
+                ) : null}
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Badge
                   text={`AI: ${result.recommendation}`}
                   className={REC_CLASSES[result.recommendation]}
                 />
-                <Badge
-                  text={`Decision: ${decision}`}
-                  className={DECISION_CLASSES[decision]}
-                />
+                <Badge text={decision} className={DECISION_CLASSES[decision]} />
+                {detail.knockouts.some((item) => !item.passed) ? (
+                  <Badge
+                    text="Knockout failed"
+                    className="bg-destructive/10 text-destructive"
+                  />
+                ) : null}
               </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-baseline gap-1 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:min-w-30 sm:flex-col sm:items-end">
+            <p
+              className={cn(
+                "text-3xl font-semibold tabular-nums leading-none",
+                result.overallScore >= 75
+                  ? "text-success"
+                  : result.overallScore < 60
+                    ? "text-destructive"
+                    : "text-foreground"
+              )}
+            >
+              {result.overallScore}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              <span className="sm:hidden">/</span>100 communication
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
               disabled={busy}
@@ -620,11 +689,13 @@ export function ResultDetail({
               disabled={busy}
               onClick={() => {
                 setDecision("Interview scheduled");
-                flash(`Open scheduling for ${result.candidateName} from Schedule.`);
+                flash(
+                  `Open scheduling for ${result.candidateName} from Schedule.`
+                );
               }}
             >
               <CalendarClock aria-hidden />
-              Schedule Interview
+              Schedule
             </Button>
             <Button
               size="sm"
@@ -639,23 +710,27 @@ export function ResultDetail({
               }
             >
               <Phone aria-hidden />
-              Call Again
+              Call again
             </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={() => setNoteOpen((previous) => !previous)}
             >
               <StickyNote aria-hidden />
-              Add Note
+              Add note
             </Button>
             <Button
               size="sm"
-              variant="outline"
-              onClick={() => flash("Report download will be available from exports.")}
+              variant="ghost"
+              onClick={() =>
+                flash("Report download will be available from exports.")
+              }
             >
               <Download aria-hidden />
-              Download Report
+              Download
             </Button>
           </div>
         </div>

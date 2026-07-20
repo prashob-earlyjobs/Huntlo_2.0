@@ -92,6 +92,11 @@ const SOURCE_META: Record<
 
 const DISABLED_AUDIENCE_SOURCES = [
   {
+    id: "Upload resumes",
+    icon: Upload,
+    description: "Upload resumes to add candidates",
+  },
+  {
     id: "Import from ATS",
     icon: Plug,
     description: "Pull candidates from a connected ATS",
@@ -370,6 +375,16 @@ export function AudienceStep({
   }, [state.source, state.sourceDetail]);
 
   useEffect(() => {
+    if (state.source !== "Manual Add") return;
+    update("source", null);
+    update("sourceDetail", "");
+    update("selectedCandidateIds", []);
+    update("poolSearch", "");
+    update("audiencePreview", null);
+    setPickerRows([]);
+  }, [state.source, update]);
+
+  useEffect(() => {
     if (!state.source) {
       update("audiencePreview", null);
       setPickerRows([]);
@@ -550,7 +565,8 @@ export function AudienceStep({
     <StepCard title={title} description={description}>
       <div className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {AUDIENCE_SOURCES.map((source) => {
+          {AUDIENCE_SOURCES.filter((source) => source !== "Manual Add").map(
+            (source) => {
             const meta = SOURCE_META[source];
             const Icon = meta.icon;
             const selected = state.source === source;
@@ -583,7 +599,8 @@ export function AudienceStep({
                 </span>
               </button>
             );
-          })}
+          }
+          )}
           {DISABLED_AUDIENCE_SOURCES.map((source) => {
             const Icon = source.icon;
             return (
@@ -599,13 +616,8 @@ export function AudienceStep({
                   className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="block text-sm font-medium text-foreground">
-                      {source.id}
-                    </span>
-                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Soon
-                    </span>
+                  <span className="block text-sm font-medium text-foreground">
+                    {source.id}
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
                     {source.description}
