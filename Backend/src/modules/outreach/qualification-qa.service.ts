@@ -1,13 +1,21 @@
 /**
  * End-to-end qualification Q&A after a candidate replies to outreach.
- * Asks configured questions one-by-one (free-text), evaluates knockouts,
- * then qualifies / hands off / optionally flags screening.
+ * Asks screening questions (one-by-one on WhatsApp; on email, all predefined
+ * questions after interest, then batched follow-ups for missed answers),
+ * then qualifies / hands off with a thank-you wrap-up email, or optionally
+ * flags screening.
  */
 
 import mongoose from 'mongoose';
 
 import { getLogger } from '../../config/logger.js';
-import { answerCandidateQuestionFromJd } from '../../providers/gemini/gemini.conversations.js';
+import {
+  answerCandidateQuestionFromJd,
+  composeQualificationEmailBatch,
+  composeQualificationMessage,
+  evaluateScreeningAnswer,
+  logEmailPipeline,
+} from '../../providers/gemini/gemini.conversations.js';
 import { generateQualificationQuestions } from '../../providers/gemini/gemini.outreach.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
 import {
@@ -28,6 +36,81 @@ import { recordCampaignActivity } from './campaign-activity.model.js';
 import { loadOutreachJobContext } from './job-context.js';
 
 const log = () => getLogger().child({ component: 'qualification-qa' });
+
+function replySubject(original: string | null | undefined, fallback: string): string {
+  const base = String(original || '').trim() || fallback;
+  return /^re\s*:/i.test(base) ? base : `Re: ${base}`;
+}
+
+/**
+ * Resolve Gmail/SMTP threading fields from prior email messages on this conversation.
+ * Without providerThreadId + RFC In-Reply-To, follow-ups land as brand-new inbox threads.
+ */
+async function resolveEmailReplyContext(
+  threadId: string,
+  fallbackSubject: string
+): Promise<{
+  subject: string;
+  providerThreadId: string | null;
+  inReplyTo: string | null;
+  references: string | null;
+  gmailMessageIdHint: string | null;
+}> {
+  const [thread, recentEmails] = await Promise.all([
+    ConversationThreadModel.findById(threadId)
+      .select('providerThreadIds')
+      .lean(),
+    ConversationMessageModel.find({
+      threadId,
+      channel: 'email',
+      deliveryStatus: { $ne: 'failed' },
+    })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('subject providerMessageId providerThreadId direction createdAt')
+      .lean(),
+  ]);
+
+  const lastAny = recentEmails[0] || null;
+  const lastInbound = recentEmails.find((m) => m.direction === 'inbound') || null;
+  const firstOutbound =
+    [...recentEmails].reverse().find((m) => m.direction === 'outbound') || null;
+
+  // Prefer the original outreach subject so every follow-up stays `Re: <original>`.
+  const subjectAnchor = firstOutbound || lastInbound || lastAny;
+  const fromThread =
+    thread?.providerThreadIds?.find((p) => p.provider === 'gmail')?.threadId ||
+    thread?.providerThreadIds?.[0]?.threadId ||
+    null;
+
+  const providerThreadId =
+    recentEmails.map((m) => m.providerThreadId).find((id) => Boolean(id)) ||
+    fromThread ||
+    null;
+
+  // Prefer the most recent message as the In-Reply-To target.
+  const anchor = lastAny;
+  const rfcId = String(anchor?.providerMessageId || '');
+  const inReplyTo = rfcId.startsWith('<') && rfcId.includes('@') ? rfcId : null;
+
+  // Always pass a Gmail API message id hint so we can fetch RFC Message-ID + threadId.
+  let gmailMessageIdHint: string | null = null;
+  for (const msg of recentEmails) {
+    const pid = String(msg.providerMessageId || '').trim();
+    if (pid && !pid.startsWith('<') && !pid.includes(':')) {
+      gmailMessageIdHint = pid;
+      break;
+    }
+  }
+
+  return {
+    subject: replySubject(subjectAnchor?.subject, fallbackSubject),
+    providerThreadId: providerThreadId ? String(providerThreadId) : null,
+    inReplyTo,
+    references: inReplyTo,
+    gmailMessageIdHint,
+  };
+}
 
 export type QualificationQuestion = {
   id: string;
@@ -145,9 +228,37 @@ function pickOutboundChannel(
   }
   const last = [...(threadChannels || [])].reverse().find((c) => c === 'email' || c === 'whatsapp');
   if (last === 'whatsapp' || last === 'email') return last;
-  if (campaign.channelConfig?.whatsapp?.enabled) return 'whatsapp';
+  // Prefer the channel the campaign actually uses; email first for outreach replies.
   if (campaign.channelConfig?.email?.enabled) return 'email';
+  if (campaign.channelConfig?.whatsapp?.enabled) return 'whatsapp';
   return null;
+}
+
+/** Email is default for screening; only use WhatsApp one-by-one when explicitly selected. */
+function resolveScreeningChannel(
+  _threadChannels: string[] | undefined,
+  _campaign: OutreachCampaignDocument,
+  preferred?: 'email' | 'whatsapp' | null
+): 'email' | 'whatsapp' {
+  return preferWhatsAppScreening(preferred) ? 'whatsapp' : 'email';
+}
+
+function preferWhatsAppScreening(preferred?: 'email' | 'whatsapp' | null): boolean {
+  return preferred === 'whatsapp';
+}
+
+async function qualificationEmailWasBatched(threadId: string): Promise<boolean> {
+  const msgs = await ConversationMessageModel.find({
+    threadId,
+    direction: 'outbound',
+    messageType: 'qualification',
+    channel: 'email',
+  })
+    .sort({ createdAt: -1 })
+    .limit(8)
+    .select('bodyText')
+    .lean();
+  return msgs.some((m) => (m.bodyText?.match(/^\s*\d+\.\s+/gm)?.length ?? 0) >= 2);
 }
 
 async function persistOutboundQuestion(input: {
@@ -155,8 +266,10 @@ async function persistOutboundQuestion(input: {
   threadId: string;
   channel: ConversationChannel;
   body: string;
+  subject?: string | null;
   provider: string;
   providerMessageId?: string;
+  providerThreadId?: string | null;
   to: string;
 }) {
   await ConversationMessageModel.create({
@@ -167,32 +280,39 @@ async function persistOutboundQuestion(input: {
     direction: 'outbound',
     sender: null,
     recipient: input.to,
-    subject: null,
+    subject: input.subject ?? null,
     bodyText: input.body,
     bodyHtml: null,
     providerMessageId:
       input.providerMessageId || `qualification:${input.threadId}:${Date.now()}`,
-    providerThreadId: null,
+    providerThreadId: input.providerThreadId || null,
     deliveryStatus: 'sent',
     messageType: 'qualification',
     aiGenerated: true,
     sentAt: new Date(),
   });
 
-  await ConversationThreadModel.updateOne(
-    { _id: input.threadId },
-    {
-      $set: {
-        lastMessageAt: new Date(),
-        lastRecruiterMessageAt: new Date(),
-        lastMessagePreview: input.body.slice(0, 240),
-        status: 'awaiting_reply',
-        qualificationStatus: 'in_progress',
-      },
-      $addToSet: { channels: input.channel },
-    }
-  );
+  const threadUpdate: Record<string, unknown> = {
+    $set: {
+      lastMessageAt: new Date(),
+      lastRecruiterMessageAt: new Date(),
+      lastMessagePreview: input.body.slice(0, 240),
+      status: 'awaiting_reply',
+      qualificationStatus: 'in_progress',
+    },
+    $addToSet: { channels: input.channel } as Record<string, unknown>,
+  };
+  if (input.providerThreadId && input.provider) {
+    (threadUpdate.$addToSet as Record<string, unknown>).providerThreadIds = {
+      provider: input.provider,
+      threadId: input.providerThreadId,
+    };
+  }
+
+  await ConversationThreadModel.updateOne({ _id: input.threadId }, threadUpdate);
 }
+
+export type QualificationEmailBatchKind = 'initial' | 'missed';
 
 export async function sendQualificationQuestion(input: {
   campaign: OutreachCampaignDocument;
@@ -201,6 +321,11 @@ export async function sendQualificationQuestion(input: {
   question: QualificationQuestion;
   questionIndex: number;
   preferredChannel?: 'email' | 'whatsapp' | null;
+  /** Full campaign question list. */
+  allQuestions?: QualificationQuestion[];
+  /** Email: exact questions to include in this message (Gemini-formatted batch). */
+  batchQuestions?: QualificationQuestion[];
+  batchKind?: QualificationEmailBatchKind;
 }): Promise<{ sent: boolean; error?: string }> {
   const { campaign, enrollment, question } = input;
   const organizationId = String(campaign.organizationId);
@@ -217,12 +342,51 @@ export async function sendQualificationQuestion(input: {
     .select('email phone name')
     .lean();
 
-  const channel = pickOutboundChannel(
-    thread.channels as string[] | undefined,
-    campaign,
-    input.preferredChannel
-  );
+  const allQuestions =
+    input.allQuestions ||
+    (Array.isArray(campaign.qualificationConfig?.questions)
+      ? (campaign.qualificationConfig.questions as QualificationQuestion[])
+      : [question]);
+
+  const answersState = enrollment.qualificationState?.answers || {};
+  const preferWhatsApp = input.preferredChannel === 'whatsapp';
+
+  /** Email with 2+ campaign questions must never use single-question compose on first outreach. */
+  const shouldSendEmailBatch =
+    !preferWhatsApp &&
+    allQuestions.length >= 2 &&
+    ((input.batchQuestions?.length ?? 0) >= 2 ||
+      input.batchKind === 'initial' ||
+      (input.questionIndex === 0 && input.batchKind !== 'missed') ||
+      (input.batchKind === 'missed' && (input.batchQuestions?.length ?? 0) >= 2));
+
+  let channel: 'email' | 'whatsapp' | null = shouldSendEmailBatch
+    ? 'email'
+    : input.batchQuestions?.length
+      ? 'email'
+      : pickOutboundChannel(
+          thread.channels as string[] | undefined,
+          campaign,
+          preferWhatsApp ? 'whatsapp' : 'email'
+        );
   if (!channel) return { sent: false, error: 'No email/WhatsApp channel available' };
+
+  let questionsForMessage: QualificationQuestion[] = [question];
+  if (shouldSendEmailBatch) {
+    questionsForMessage =
+      (input.batchQuestions?.length ?? 0) >= 2 ? input.batchQuestions! : allQuestions;
+  } else if (input.batchQuestions?.length) {
+    questionsForMessage = input.batchQuestions;
+  }
+
+  const effectiveBatchKind =
+    input.batchKind ?? (input.questionIndex === 0 ? 'initial' : 'missed');
+  const useBatchComposer =
+    channel === 'email' && questionsForMessage.length >= 2;
+  const useEmailBatch = useBatchComposer;
+
+  const leadQuestion = questionsForMessage[0]!;
+  const batchKind = effectiveBatchKind;
 
   const to =
     channel === 'whatsapp'
@@ -236,11 +400,142 @@ export async function sendQualificationQuestion(input: {
   }
 
   const firstName = String(candidate?.name || 'there').trim().split(/\s+/)[0] || 'there';
-  const intro =
-    input.questionIndex === 0
-      ? `Thanks for getting back, ${firstName}! Quick question to move forward:\n\n`
-      : `Thanks — next question:\n\n`;
-  const body = `${intro}${question.prompt}`;
+  const templateIntro =
+    batchKind === 'initial'
+      ? `Thanks for getting back, ${firstName}! A few quick questions to move forward:\n\n`
+      : `Thanks for your reply, ${firstName}! Still need a few details:\n\n`;
+  let body = useEmailBatch
+    ? `${templateIntro}Could you reply with answers to these?\n\n${questionsForMessage
+        .map((q, i) => `${i + 1}. ${q.prompt}`)
+        .join('\n')}`
+    : `${templateIntro}${leadQuestion.prompt}`;
+
+  log().info(
+    {
+      enrollmentId: String(enrollment._id),
+      questionId: leadQuestion.id,
+      questionIndex: input.questionIndex,
+      batchCount: useBatchComposer ? questionsForMessage.length : 1,
+      channel,
+      to,
+    },
+    useBatchComposer ? 'Sending qualification questions (email batch)' : 'Sending qualification question'
+  );
+
+  if (channel === 'email') {
+    // Compose with Gemini; never block the send if AI is slow/unavailable.
+    try {
+      const [recentMessages, job] = await Promise.all([
+        ConversationMessageModel.find({
+          threadId: input.threadId,
+          channel: { $in: ['email', 'whatsapp'] },
+          messageType: { $ne: 'note' },
+        })
+          .sort({ createdAt: -1 })
+          .limit(8)
+          .select('direction bodyText')
+          .lean(),
+        loadOutreachJobContext(campaign.jobId ? String(campaign.jobId) : null),
+      ]);
+      const conversation = [...recentMessages].reverse().map((m) => ({
+        direction: (m.direction === 'inbound' ? 'inbound' : 'outbound') as
+          | 'inbound'
+          | 'outbound',
+        bodyText: String(m.bodyText || ''),
+      }));
+      const latestReply =
+        recentMessages.find((m) => m.direction === 'inbound')?.bodyText || null;
+
+      const answeredSoFar = allQuestions
+        .filter((q) => answerValue(answersState[q.id]).trim())
+        .map((q) => ({
+          question: q.prompt,
+          answer: answerValue(answersState[q.id]),
+        }));
+
+      const composed = useBatchComposer
+        ? await composeQualificationEmailBatch({
+            candidateName: candidate?.name,
+            jobTitle: job.title,
+            campaignName: campaign.name,
+            channel,
+            latestReply,
+            conversation,
+            answeredSoFar,
+            nextQuestionPrompts: questionsForMessage.map((q) => q.prompt),
+            questionIndex: input.questionIndex,
+            batchKind,
+          })
+        : await composeQualificationMessage({
+            candidateName: candidate?.name,
+            jobTitle: job.title,
+            campaignName: campaign.name,
+            channel,
+            latestReply,
+            conversation,
+            answeredSoFar,
+            nextQuestionPrompt: leadQuestion.prompt,
+            questionIndex: input.questionIndex,
+          });
+      if (
+        !useBatchComposer &&
+        channel === 'email' &&
+        allQuestions.length >= 2 &&
+        input.questionIndex === 0
+      ) {
+        log().error(
+          {
+            enrollmentId: String(enrollment._id),
+            allQuestionCount: allQuestions.length,
+            batchQuestions: input.batchQuestions?.length ?? 0,
+            preferredChannel: input.preferredChannel,
+          },
+          'BUG: single-question compose used for multi-question email initial — check batch flags'
+        );
+      }
+      if (composed.body?.trim()) body = composed.body;
+      log().info(
+        {
+          enrollmentId: String(enrollment._id),
+          questionId: leadQuestion.id,
+          batchCount: useBatchComposer ? questionsForMessage.length : 1,
+          model: composed.model,
+        },
+        useBatchComposer
+          ? 'Composed batched qualification email via Gemini'
+          : 'Composed qualification email via Gemini'
+      );
+    } catch (error) {
+      log().warn(
+        { err: error, enrollmentId: String(enrollment._id), questionId: leadQuestion.id },
+        'Gemini compose failed — using template body'
+      );
+    }
+  }
+
+  let emailReply: {
+    subject: string;
+    providerThreadId?: string | null;
+    inReplyTo?: string | null;
+    references?: string | null;
+    gmailMessageIdHint?: string | null;
+  } | null = null;
+  if (channel === 'email') {
+    try {
+      emailReply = await resolveEmailReplyContext(
+        input.threadId,
+        campaign.name || 'your application'
+      );
+    } catch (error) {
+      log().warn(
+        { err: error, enrollmentId: String(enrollment._id) },
+        'Email reply threading context failed — sending without thread headers'
+      );
+      emailReply = {
+        subject: `Re: ${campaign.name || 'your application'}`,
+      };
+    }
+  }
 
   try {
     const sent = await sendAdHocMessage({
@@ -248,16 +543,17 @@ export async function sendQualificationQuestion(input: {
       userId,
       channel,
       to,
-      subject:
-        channel === 'email'
-          ? `Quick question — ${campaign.name || 'your application'}`
-          : null,
+      subject: channel === 'email' ? emailReply!.subject : null,
       body,
       senderEmail: campaign.channelConfig?.email?.senderEmail,
       integrationId:
         channel === 'email'
           ? campaign.channelConfig?.email?.integrationId
           : campaign.channelConfig?.whatsapp?.integrationId,
+      providerThreadId: emailReply?.providerThreadId,
+      inReplyTo: emailReply?.inReplyTo,
+      references: emailReply?.references,
+      gmailMessageIdHint: emailReply?.gmailMessageIdHint,
     });
 
     await persistOutboundQuestion({
@@ -265,12 +561,16 @@ export async function sendQualificationQuestion(input: {
       threadId: input.threadId,
       channel,
       body,
+      subject: channel === 'email' ? emailReply!.subject : null,
       provider: sent.provider,
       providerMessageId: sent.providerMessageId,
+      providerThreadId: sent.providerThreadId || emailReply?.providerThreadId,
       to,
     });
 
-    enrollment.replyQuestionIndex = input.questionIndex;
+    enrollment.replyQuestionIndex = input.batchQuestions?.length
+      ? 0
+      : input.questionIndex;
     enrollment.autoReplyCount = (enrollment.autoReplyCount || 0) + 1;
     enrollment.qualificationState = {
       status: 'in_progress',
@@ -284,9 +584,26 @@ export async function sendQualificationQuestion(input: {
       campaignId: String(campaign._id),
       enrollmentId: String(enrollment._id),
       type: 'enrollment.qualification_question_sent',
-      title: `Asked qualification question ${input.questionIndex + 1}`,
-      metadata: { questionId: question.id, channel },
+      title: useEmailBatch
+        ? `Asked qualification questions ${input.questionIndex + 1}–${input.questionIndex + questionsForMessage.length} (email)`
+        : `Asked qualification question ${input.questionIndex + 1}`,
+      metadata: {
+        questionId: leadQuestion.id,
+        questionIds: questionsForMessage.map((q) => q.id),
+        channel,
+        batched: useEmailBatch,
+      },
     }).catch(() => undefined);
+
+    if (channel === 'email') {
+      await logEmailPipeline({
+        id: String(enrollment._id),
+        task: 'message sent',
+        detail: useEmailBatch
+          ? `batch q${input.questionIndex + 1}–${input.questionIndex + questionsForMessage.length}`
+          : `q${input.questionIndex + 1}`,
+      });
+    }
 
     return { sent: true };
   } catch (error) {
@@ -299,6 +616,343 @@ export async function sendQualificationQuestion(input: {
   }
 }
 
+async function loadRecentConversation(
+  threadId: string
+): Promise<Array<{ direction: 'inbound' | 'outbound'; bodyText: string }>> {
+  const recentMessages = await ConversationMessageModel.find({
+    threadId,
+    channel: { $in: ['email', 'whatsapp'] },
+    messageType: { $ne: 'note' },
+  })
+    .sort({ createdAt: -1 })
+    .limit(8)
+    .select('direction bodyText')
+    .lean();
+  return [...recentMessages].reverse().map((m) => ({
+    direction: (m.direction === 'inbound' ? 'inbound' : 'outbound') as 'inbound' | 'outbound',
+    bodyText: String(m.bodyText || ''),
+  }));
+}
+
+function openScreeningQuestions(
+  questions: QualificationQuestion[],
+  enrollment: OutreachEnrollmentDocument
+): QualificationQuestion[] {
+  const answers = enrollment.qualificationState?.answers || {};
+  return questions.filter((q) => !answerValue(answers[q.id]).trim());
+}
+
+async function processEmailQualificationReply(input: {
+  campaign: OutreachCampaignDocument;
+  enrollment: OutreachEnrollmentDocument;
+  enrollmentId: string;
+  threadId: string;
+  questions: QualificationQuestion[];
+  config: QualificationConfig;
+  bodyText: string;
+  conversation: Array<{ direction: 'inbound' | 'outbound'; bodyText: string }>;
+  extractedVariables?: Record<string, unknown>;
+  intent?: string | null;
+  preferredChannel?: 'email' | 'whatsapp' | null;
+}): Promise<{ action: string }> {
+  const { campaign, enrollment, questions, config } = input;
+  let anyCandidateQuestion = false;
+
+  // Classifier often extracts all numbered answers in one pass — apply before per-question Gemini eval.
+  if (input.extractedVariables && Object.keys(input.extractedVariables).length > 0) {
+    const answers = { ...(enrollment.qualificationState?.answers || {}) };
+    for (const q of questions) {
+      const raw = input.extractedVariables[q.id];
+      if (raw == null || !String(raw).trim()) continue;
+      answers[q.id] = normalizeAnswerRecord(raw, 'ai');
+      const knockout = evaluateKnockout(q, raw);
+      if (knockout === 'fail') {
+        enrollment.qualificationState = { status: 'in_progress', answers };
+        await enrollment.save();
+        await completeQualification({
+          campaign,
+          enrollment,
+          threadId: input.threadId,
+          status: 'rejected',
+          reason: `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
+        });
+        return { action: 'rejected_knockout' };
+      }
+    }
+    enrollment.qualificationState = { status: 'in_progress', answers };
+    await enrollment.save();
+  }
+
+  for (const q of openScreeningQuestions(questions, enrollment)) {
+    const evaluation = await evaluateScreeningAnswer({
+      question: {
+        id: q.id,
+        prompt: q.prompt,
+        answerType: q.answerType,
+        knockout: q.knockout,
+        knockoutCondition: q.knockoutCondition,
+      },
+      candidateReply: input.bodyText,
+      conversation: input.conversation,
+      extractedVariables: input.extractedVariables,
+      intent: input.intent,
+      channel: 'email',
+    });
+
+    log().info(
+      {
+        enrollmentId: input.enrollmentId,
+        questionId: q.id,
+        answersQuestion: evaluation.answersQuestion,
+        isNotAnAnswer: evaluation.isNotAnAnswer,
+        isCandidateQuestion: evaluation.isCandidateQuestion,
+        knockout: evaluation.knockout,
+        reason: evaluation.reason,
+        model: evaluation.model,
+      },
+      'Gemini screening answer evaluation'
+    );
+
+    if (!evaluation.answersQuestion) {
+      if (evaluation.isCandidateQuestion) anyCandidateQuestion = true;
+      continue;
+    }
+
+    const value =
+      (evaluation.answerValue && evaluation.answerValue.trim()) ||
+      input.bodyText.trim();
+
+    enrollment.qualificationState = {
+      status: 'in_progress',
+      answers: {
+        ...enrollment.qualificationState?.answers,
+        [q.id]: normalizeAnswerRecord(value, 'candidate'),
+      },
+    };
+
+    const knockout =
+      evaluation.knockout !== 'unknown'
+        ? evaluation.knockout
+        : evaluateKnockout(q, value);
+    if (knockout === 'fail') {
+      await enrollment.save();
+      await completeQualification({
+        campaign,
+        enrollment,
+        threadId: input.threadId,
+        status: 'rejected',
+        reason: `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
+      });
+      return { action: 'rejected_knockout' };
+    }
+  }
+
+  enrollment.lastActionAt = new Date();
+  await enrollment.save();
+
+  const missed = openScreeningQuestions(questions, enrollment);
+  if (missed.length === 0) {
+    const handoff = shouldHandOffAfterQuestions(config);
+    await completeQualification({
+      campaign,
+      enrollment,
+      threadId: input.threadId,
+      status: handoff ? 'handed_off' : 'qualified',
+      reason: handoff ? config.takeoverCondition || 'Takeover after questions' : undefined,
+    });
+    return { action: handoff ? 'handed_off' : 'qualified' };
+  }
+
+  if (anyCandidateQuestion) {
+    const jdWhileWaiting = await maybeAnswerCandidateQuestion({
+      campaign,
+      enrollment,
+      threadId: input.threadId,
+      bodyText: input.bodyText,
+      intent: input.intent,
+      preferredChannel: 'email',
+    });
+    if (jdWhileWaiting.handedOff) {
+      return { action: 'answered_and_handed_off' };
+    }
+  }
+
+  const firstMissedIdx = questions.findIndex((q) => q.id === missed[0]!.id);
+  enrollment.replyQuestionIndex = firstMissedIdx >= 0 ? firstMissedIdx : 0;
+  await enrollment.save();
+
+  if (missed.length >= 2) {
+    const result = await sendQualificationQuestion({
+      campaign,
+      enrollment,
+      threadId: input.threadId,
+      question: missed[0]!,
+      questionIndex: firstMissedIdx >= 0 ? firstMissedIdx : 0,
+      preferredChannel: 'email',
+      allQuestions: questions,
+      batchQuestions: missed,
+      batchKind: 'missed',
+    });
+    return {
+      action: result.sent ? 'asked_missed_batch' : `ask_failed:${result.error}`,
+    };
+  }
+
+  const one = missed[0]!;
+  const result = await sendQualificationQuestion({
+    campaign,
+    enrollment,
+    threadId: input.threadId,
+    question: one,
+    questionIndex: firstMissedIdx >= 0 ? firstMissedIdx : 0,
+    preferredChannel: input.preferredChannel,
+    allQuestions: questions,
+  });
+  return {
+    action: result.sent ? 'asked_missed_one' : `ask_failed:${result.error}`,
+  };
+}
+
+/**
+ * After all screening answers are in, send a short thank-you wrap-up so the
+ * candidate knows a recruiter will follow up. Skipped on knockout rejection.
+ */
+async function sendQualificationCompletionWrapUp(input: {
+  campaign: OutreachCampaignDocument;
+  enrollment: OutreachEnrollmentDocument;
+  threadId: string;
+  status: 'qualified' | 'handed_off';
+}): Promise<void> {
+  const { campaign, enrollment } = input;
+  const organizationId = String(campaign.organizationId);
+  const userId = String(campaign.ownerUserId);
+
+  const thread = await ConversationThreadModel.findById(input.threadId)
+    .select('channels qualificationStatus')
+    .lean();
+  if (!thread) return;
+
+  // Idempotent: do not re-send if this enrollment already completed.
+  if (
+    thread.qualificationStatus === 'qualified' ||
+    thread.qualificationStatus === 'handed_off'
+  ) {
+    return;
+  }
+
+  const candidate = await SavedCandidateModel.findOne({
+    _id: enrollment.candidateId,
+    organizationId: campaign.organizationId,
+    deletedAt: null,
+  })
+    .select('email phone name')
+    .lean();
+
+  // Prefer email for the wrap-up (matches single-channel email screening).
+  const channel =
+    pickOutboundChannel(thread.channels as string[] | undefined, campaign, 'email') ||
+    pickOutboundChannel(thread.channels as string[] | undefined, campaign, 'whatsapp');
+  if (!channel) return;
+
+  const to =
+    channel === 'whatsapp'
+      ? String(candidate?.phone || '').trim()
+      : String(candidate?.email || '').trim();
+  if (!to) return;
+
+  const firstName =
+    String(candidate?.name || 'there').trim().split(/\s+/)[0] || 'there';
+  const body =
+    `Hi ${firstName},\n\n` +
+    `We've shared your responses with our recruiting team, and a recruiter will be in touch with you soon.\n\n` +
+    `We appreciate your interest!\n\n` +
+    `Best regards`;
+
+  let emailReply: {
+    subject: string;
+    providerThreadId?: string | null;
+    inReplyTo?: string | null;
+    references?: string | null;
+    gmailMessageIdHint?: string | null;
+  } | null = null;
+  if (channel === 'email') {
+    try {
+      emailReply = await resolveEmailReplyContext(
+        input.threadId,
+        campaign.name || 'your application'
+      );
+    } catch (error) {
+      log().warn(
+        { err: error, enrollmentId: String(enrollment._id) },
+        'Wrap-up email threading context failed — sending without thread headers'
+      );
+      emailReply = { subject: `Re: ${campaign.name || 'your application'}` };
+    }
+  }
+
+  try {
+    const sent = await sendAdHocMessage({
+      organizationId,
+      userId,
+      channel,
+      to,
+      subject: channel === 'email' ? emailReply!.subject : null,
+      body,
+      senderEmail: campaign.channelConfig?.email?.senderEmail,
+      integrationId:
+        channel === 'email'
+          ? campaign.channelConfig?.email?.integrationId
+          : campaign.channelConfig?.whatsapp?.integrationId,
+      providerThreadId: emailReply?.providerThreadId,
+      inReplyTo: emailReply?.inReplyTo,
+      references: emailReply?.references,
+      gmailMessageIdHint: emailReply?.gmailMessageIdHint,
+    });
+
+    await ConversationMessageModel.create({
+      organizationId: new mongoose.Types.ObjectId(organizationId),
+      threadId: new mongoose.Types.ObjectId(input.threadId),
+      provider: sent.provider || 'system',
+      channel,
+      direction: 'outbound',
+      sender: null,
+      recipient: to,
+      subject: channel === 'email' ? emailReply?.subject ?? null : null,
+      bodyText: body,
+      bodyHtml: null,
+      providerMessageId:
+        sent.providerMessageId || `qualification-wrapup:${input.threadId}:${Date.now()}`,
+      providerThreadId: sent.providerThreadId || emailReply?.providerThreadId || null,
+      deliveryStatus: 'sent',
+      messageType: 'message',
+      aiGenerated: true,
+      sentAt: new Date(),
+    });
+
+    enrollment.autoReplyCount = (enrollment.autoReplyCount || 0) + 1;
+
+    await logEmailPipeline({
+      task: 'qualification wrap-up sent',
+      detail: `status=${input.status} channel=${channel}`,
+    }).catch(() => undefined);
+
+    log().info(
+      {
+        enrollmentId: String(enrollment._id),
+        campaignId: String(campaign._id),
+        status: input.status,
+        channel,
+      },
+      'Sent qualification completion wrap-up'
+    );
+  } catch (error) {
+    log().warn(
+      { err: error, enrollmentId: String(enrollment._id), status: input.status },
+      'Qualification wrap-up send failed — continuing completion'
+    );
+  }
+}
+
 async function completeQualification(input: {
   campaign: OutreachCampaignDocument;
   enrollment: OutreachEnrollmentDocument;
@@ -308,6 +962,15 @@ async function completeQualification(input: {
 }) {
   const { campaign, enrollment, status } = input;
   const organizationId = String(campaign.organizationId);
+
+  if (status === 'qualified' || status === 'handed_off') {
+    await sendQualificationCompletionWrapUp({
+      campaign,
+      enrollment,
+      threadId: input.threadId,
+      status,
+    });
+  }
 
   if (status === 'qualified' || status === 'rejected') {
     enrollment.qualificationState = {
@@ -384,14 +1047,17 @@ function shouldHandOffAfterQuestions(config: QualificationConfig): boolean {
   return takeover.includes('After qualification');
 }
 
+/**
+ * Detect whether the candidate is asking us something (vs answering).
+ * Used only to decide whether to answer from the JD — screening answer
+ * acceptance is always decided by Gemini via evaluateScreeningAnswer.
+ */
 function looksLikeCandidateQuestion(bodyText: string, intent?: string | null): boolean {
-  if (intent === 'ask_question') return true;
   const text = bodyText.trim();
   if (!text) return false;
   if (/\?/.test(text)) return true;
-  return /^(what|when|where|who|why|how|is|are|can|do|does|will|would|could)\b/i.test(
-    text
-  );
+  if (intent === 'ask_question') return true;
+  return false;
 }
 
 async function persistOutboundAiReply(input: {
@@ -399,8 +1065,10 @@ async function persistOutboundAiReply(input: {
   threadId: string;
   channel: ConversationChannel;
   body: string;
+  subject?: string | null;
   provider: string;
   providerMessageId?: string;
+  providerThreadId?: string | null;
   to: string;
 }) {
   await ConversationMessageModel.create({
@@ -411,17 +1079,25 @@ async function persistOutboundAiReply(input: {
     direction: 'outbound',
     sender: null,
     recipient: input.to,
-    subject: null,
+    subject: input.subject ?? null,
     bodyText: input.body,
     bodyHtml: null,
     providerMessageId:
       input.providerMessageId || `ai-reply:${input.threadId}:${Date.now()}`,
-    providerThreadId: null,
+    providerThreadId: input.providerThreadId || null,
     deliveryStatus: 'sent',
     messageType: 'message',
     aiGenerated: true,
     sentAt: new Date(),
   });
+
+  const addToSet: Record<string, unknown> = { channels: input.channel };
+  if (input.providerThreadId && input.provider) {
+    addToSet.providerThreadIds = {
+      provider: input.provider,
+      threadId: input.providerThreadId,
+    };
+  }
 
   await ConversationThreadModel.updateOne(
     { _id: input.threadId },
@@ -432,7 +1108,7 @@ async function persistOutboundAiReply(input: {
         lastMessagePreview: input.body.slice(0, 240),
         status: 'awaiting_reply',
       },
-      $addToSet: { channels: input.channel },
+      $addToSet: addToSet,
     }
   );
 }
@@ -547,22 +1223,31 @@ async function maybeAnswerCandidateQuestion(input: {
   const handoffCantAnswer =
     !answer.canAnswer && takeover.includes("can't answer");
 
+  const emailReply =
+    channel === 'email'
+      ? await resolveEmailReplyContext(
+          input.threadId,
+          job.title || input.campaign.name || 'your application'
+        )
+      : null;
+
   try {
     const sent = await sendAdHocMessage({
       organizationId: String(input.campaign.organizationId),
       userId: String(input.campaign.ownerUserId),
       channel,
       to,
-      subject:
-        channel === 'email'
-          ? `Re: ${job.title || input.campaign.name || 'your application'}`
-          : null,
+      subject: channel === 'email' ? emailReply!.subject : null,
       body: answer.body,
       senderEmail: input.campaign.channelConfig?.email?.senderEmail,
       integrationId:
         channel === 'email'
           ? input.campaign.channelConfig?.email?.integrationId
           : input.campaign.channelConfig?.whatsapp?.integrationId,
+      providerThreadId: emailReply?.providerThreadId,
+      inReplyTo: emailReply?.inReplyTo,
+      references: emailReply?.references,
+      gmailMessageIdHint: emailReply?.gmailMessageIdHint,
     });
 
     await persistOutboundAiReply({
@@ -570,8 +1255,10 @@ async function maybeAnswerCandidateQuestion(input: {
       threadId: input.threadId,
       channel,
       body: answer.body,
+      subject: channel === 'email' ? emailReply!.subject : null,
       provider: sent.provider,
       providerMessageId: sent.providerMessageId,
+      providerThreadId: sent.providerThreadId || emailReply?.providerThreadId,
       to,
     });
 
@@ -628,12 +1315,32 @@ export async function processQualificationAfterReply(input: {
   extractedVariables?: Record<string, unknown>;
   preferredChannel?: 'email' | 'whatsapp' | null;
 }): Promise<{ action: string }> {
+  log().info(
+    {
+      enrollmentId: input.enrollmentId,
+      campaignId: String(input.campaign._id),
+      interest: input.interest,
+      intent: input.intent,
+      preferredChannel: input.preferredChannel,
+      bodyPreview: String(input.bodyText || '').slice(0, 120),
+    },
+    'processQualificationAfterReply start'
+  );
+
   const config = (input.campaign.qualificationConfig || {
-    enabled: false,
+    enabled: true,
     questions: [],
+    aiReplyEnabled: true,
   }) as QualificationConfig;
 
-  if (!config.enabled) {
+  // Qualification + AI reply are always-on in the product UI. Only skip when the
+  // campaign has no questions AND was explicitly disabled (legacy).
+  const hasQuestions = Array.isArray(config.questions) && config.questions.length > 0;
+  if (config.enabled === false && !hasQuestions) {
+    log().info(
+      { enrollmentId: input.enrollmentId, campaignId: String(input.campaign._id) },
+      'Qualification skipped — disabled and no questions'
+    );
     return { action: 'skipped_disabled' };
   }
 
@@ -644,106 +1351,251 @@ export async function processQualificationAfterReply(input: {
   const enrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
   if (!enrollment) return { action: 'missing_enrollment' };
 
-  // AI reply / Q&A asking requires the toggle (classification-only mode skips sends).
-  if (!config.aiReplyEnabled) {
-    // Still merge extracted answers for recruiter visibility.
-    if (input.extractedVariables && Object.keys(input.extractedVariables).length) {
-      enrollment.qualificationState = {
-        status:
-          enrollment.qualificationState.status === 'pending'
-            ? 'in_progress'
-            : enrollment.qualificationState.status,
-        answers: {
-          ...enrollment.qualificationState.answers,
-          ...Object.fromEntries(
-            Object.entries(input.extractedVariables).map(([k, v]) => [
-              k,
-              normalizeAnswerRecord(v, 'ai'),
-            ])
-          ),
-        },
-      };
-      await enrollment.save();
-    }
-    return { action: 'classification_only' };
-  }
+  // Never block Q&A sends on a missing/false aiReplyEnabled flag (legacy campaigns).
+  // Classification-only mode is no longer exposed in the builder.
 
   // Answer candidate questions from the linked JD before continuing Q&A.
-  const jdReply = await maybeAnswerCandidateQuestion({
-    campaign: input.campaign,
-    enrollment,
-    threadId: input.threadId,
-    bodyText: input.bodyText,
-    intent: input.intent,
-    preferredChannel: input.preferredChannel,
-  });
+  // While a screening question is open, Gemini decides answer vs question later —
+  // skip the early JD pass so we don't answer from JD before evaluating the screening reply.
+  const waitingForAnswer = nextQuestionIndex(enrollment) >= 0;
+  const jdReply = waitingForAnswer
+    ? { answered: false, handedOff: false }
+    : await maybeAnswerCandidateQuestion({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        bodyText: input.bodyText,
+        intent: input.intent,
+        preferredChannel: input.preferredChannel,
+      });
   if (jdReply.handedOff) {
     return { action: 'answered_and_handed_off' };
   }
 
   let questions = await ensureJdQualificationQuestions(input.campaign);
   if (questions.length === 0) {
-    // No questions and no JD to generate from → interested reply auto-qualifies.
-    if (
-      input.interest === 'interested' ||
-      input.interest === 'maybe' ||
-      input.interest === 'unclear' ||
-      jdReply.answered
-    ) {
-      await completeQualification({
-        campaign: input.campaign,
-        enrollment,
-        threadId: input.threadId,
-        status: shouldHandOffAfterQuestions(config) ? 'handed_off' : 'qualified',
-        reason: 'No qualification questions configured',
-      });
-      return {
-        action: jdReply.answered ? 'answered_then_auto_qualified' : 'auto_qualified_empty',
-      };
-    }
-    return {
-      action: jdReply.answered ? 'answered_only' : 'skipped_no_questions',
+    // Last-resort defaults so engaged replies always get a follow-up question.
+    questions = [
+      {
+        id: 'q-default-notice',
+        prompt: 'What is your notice period (in days)?',
+        answerType: 'Number',
+        knockout: false,
+        knockoutCondition: null,
+      },
+      {
+        id: 'q-default-location',
+        prompt: 'Are you open to the work location listed for this role?',
+        answerType: 'Yes / No',
+        knockout: false,
+        knockoutCondition: null,
+      },
+    ];
+    input.campaign.qualificationConfig = {
+      ...input.campaign.qualificationConfig,
+      enabled: true,
+      aiReplyEnabled: true,
+      questions,
     };
+    await input.campaign.save().catch(() => undefined);
+    log().info(
+      { campaignId: String(input.campaign._id) },
+      'Using default qualification questions — campaign had none configured'
+    );
   }
 
-  const waitingIndex = nextQuestionIndex(enrollment);
+  let waitingIndex = nextQuestionIndex(enrollment);
 
-  // Not yet asked anything — start with Q1 on engaged replies.
+  const threadDocEarly = await ConversationThreadModel.findById(input.threadId)
+    .select('channels')
+    .lean();
+  const screeningChannel = preferWhatsAppScreening(input.preferredChannel)
+    ? 'whatsapp'
+    : 'email';
+
+  // Only real screening follow-ups count — campaign outreach is also stored with
+  // aiGenerated:true, so never treat that as "already asked qualification".
+  const qualSent = await ConversationMessageModel.exists({
+    threadId: input.threadId,
+    direction: 'outbound',
+    messageType: 'qualification',
+  });
+
+  // Never sent a screening question but index/answers look "done" — common when
+  // engagement replies ("Sure, I'd be happy to chat") were wrongly stored as
+  // answers. Wipe and restart from Q1 instead of completing.
+  if (!qualSent && waitingIndex >= 0) {
+    log().warn(
+      {
+        enrollmentId: input.enrollmentId,
+        staleIndex: waitingIndex,
+        autoReplyCount: enrollment.autoReplyCount || 0,
+        answers: Object.keys(enrollment.qualificationState?.answers || {}),
+      },
+      'Qualification marked progressed but no screening email was ever sent — restarting at Q1'
+    );
+    enrollment.replyQuestionIndex = -1;
+    enrollment.autoReplyCount = 0;
+    enrollment.qualificationState = { status: 'pending', answers: {} };
+    await enrollment.save().catch(() => undefined);
+    waitingIndex = -1;
+  }
+
+  // Self-heal stale/corrupt replyQuestionIndex: if it points past the end but the
+  // candidate hasn't actually answered every question yet, restart from the first
+  // unanswered question instead of silently completing.
+  if (waitingIndex >= questions.length) {
+    const answersState = enrollment.qualificationState?.answers || {};
+    const firstUnanswered = questions.findIndex(
+      (q) => !answerValue(answersState[q.id]).trim()
+    );
+    if (firstUnanswered >= 0) {
+      log().warn(
+        {
+          enrollmentId: input.enrollmentId,
+          staleIndex: waitingIndex,
+          questionsLength: questions.length,
+          resumingAt: firstUnanswered,
+        },
+        'Qualification replyQuestionIndex was past the end with unanswered questions — resuming'
+      );
+      enrollment.replyQuestionIndex = firstUnanswered;
+      waitingIndex = firstUnanswered;
+    } else if (!qualSent) {
+      // All "answers" present but never actually asked — force Q1.
+      enrollment.replyQuestionIndex = -1;
+      enrollment.qualificationState = { status: 'pending', answers: {} };
+      await enrollment.save().catch(() => undefined);
+      waitingIndex = -1;
+    }
+  }
+
+  const qualEmailBatched = await qualificationEmailWasBatched(input.threadId);
+  if (screeningChannel === 'email' && !qualEmailBatched && (qualSent || waitingIndex >= 0)) {
+    log().info(
+      {
+        enrollmentId: input.enrollmentId,
+        qualSent,
+        waitingIndex,
+        questionCount: questions.length,
+      },
+      'Email screening not batched yet — resetting enrollment to send all questions in one follow-up'
+    );
+    enrollment.qualificationState = { status: 'in_progress', answers: {} };
+    enrollment.replyQuestionIndex = null;
+    await enrollment.save().catch(() => undefined);
+    waitingIndex = -1;
+  }
+
+  log().info(
+    {
+      enrollmentId: input.enrollmentId,
+      screeningChannel,
+      waitingIndex,
+      questionCount: questions.length,
+      qualSent,
+      qualEmailBatched,
+    },
+    'Qualification screening state'
+  );
+
+  // Not yet asked anything — send all predefined questions in one email (email) or Q1 (WhatsApp).
   if (waitingIndex < 0) {
     const engaged =
       input.interest === 'interested' ||
       input.interest === 'maybe' ||
+      input.interest === 'neutral' ||
       input.interest === 'unclear' ||
       jdReply.answered ||
       input.intent === 'ask_question' ||
-      input.intent === 'request_call';
+      input.intent === 'request_call' ||
+      input.intent === 'provide_info' ||
+      /\b(happy to|would like to|interested|sure,?|yes\b|okay|ok\b)/i.test(
+        String(input.bodyText || '')
+      );
     if (!engaged) {
+      log().info(
+        {
+          enrollmentId: input.enrollmentId,
+          interest: input.interest,
+          intent: input.intent,
+        },
+        'Qualification skipped — low interest'
+      );
       return {
         action: jdReply.answered ? 'answered_only' : 'skipped_low_interest',
       };
     }
     const first = questions[0];
     if (!first) return { action: 'skipped_no_questions' };
+
+    if (screeningChannel === 'email' && questions.length < 2) {
+      log().warn(
+        {
+          enrollmentId: input.enrollmentId,
+          campaignId: String(input.campaign._id),
+          questionCount: questions.length,
+        },
+        'Campaign has fewer than 2 qualification questions — email batch will send a single question'
+      );
+    }
+
+    const emailBatch = !preferWhatsAppScreening(input.preferredChannel) && questions.length >= 2;
+
     const result = await sendQualificationQuestion({
       campaign: input.campaign,
       enrollment,
       threadId: input.threadId,
       question: first,
       questionIndex: 0,
-      preferredChannel: input.preferredChannel,
+      preferredChannel: emailBatch ? 'email' : input.preferredChannel,
+      allQuestions: questions,
+      ...(emailBatch
+        ? { batchQuestions: questions, batchKind: 'initial' as const }
+        : {}),
     });
     return {
       action: result.sent
         ? jdReply.answered
-          ? 'answered_then_asked_first'
-          : 'asked_first'
+          ? emailBatch
+            ? 'answered_then_asked_all'
+            : 'answered_then_asked_first'
+          : emailBatch
+            ? 'asked_all_questions'
+            : 'asked_first'
         : `ask_failed:${result.error}`,
     };
   }
 
-  // Waiting for answer to questions[waitingIndex]
-  const current = questions[waitingIndex];
-  if (!current) {
+  // Waiting for answer — email evaluates all questions; WhatsApp one-by-one.
+  const conversation = await loadRecentConversation(input.threadId);
+
+  if (waitingIndex >= questions.length || !questions[waitingIndex]) {
+    const stillNoQual = await ConversationMessageModel.exists({
+      threadId: input.threadId,
+      direction: 'outbound',
+      messageType: 'qualification',
+    });
+    if (!stillNoQual && questions[0]) {
+      enrollment.replyQuestionIndex = -1;
+      enrollment.qualificationState = { status: 'pending', answers: {} };
+      await enrollment.save().catch(() => undefined);
+      const result = await sendQualificationQuestion({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        question: questions[0],
+        questionIndex: 0,
+        preferredChannel: screeningChannel === 'email' ? 'email' : input.preferredChannel,
+        allQuestions: questions,
+        ...(screeningChannel === 'email'
+          ? { batchQuestions: questions, batchKind: 'initial' as const }
+          : {}),
+      });
+      return {
+        action: result.sent ? 'asked_first_recovered' : `ask_failed:${result.error}`,
+      };
+    }
     await completeQualification({
       campaign: input.campaign,
       enrollment,
@@ -753,77 +1605,164 @@ export async function processQualificationAfterReply(input: {
     return { action: 'completed' };
   }
 
-  const fromExtract =
-    input.extractedVariables?.[current.id] ??
-    input.extractedVariables?.[`q${waitingIndex + 1}`] ??
-    input.extractedVariables?.answer;
-  const value = fromExtract != null ? answerValue(fromExtract) : input.bodyText.trim();
+  let idx = waitingIndex;
 
-  // Candidate asked something instead of answering — we already replied from JD; re-ask.
-  if (
-    jdReply.answered &&
-    fromExtract == null &&
-    looksLikeCandidateQuestion(input.bodyText, input.intent) &&
-    evaluateKnockout(current, value) === 'unknown'
-  ) {
+  if (!preferWhatsAppScreening(input.preferredChannel)) {
+    return processEmailQualificationReply({
+      campaign: input.campaign,
+      enrollment,
+      enrollmentId: input.enrollmentId,
+      threadId: input.threadId,
+      questions,
+      config,
+      bodyText: input.bodyText,
+      conversation,
+      extractedVariables: input.extractedVariables,
+      intent: input.intent,
+      preferredChannel: 'email',
+    });
+  }
+
+  while (idx < questions.length) {
+    const current = questions[idx];
+    if (!current) break;
+
+    const evaluation = await evaluateScreeningAnswer({
+      question: {
+        id: current.id,
+        prompt: current.prompt,
+        answerType: current.answerType,
+        knockout: current.knockout,
+        knockoutCondition: current.knockoutCondition,
+      },
+      candidateReply: input.bodyText,
+      conversation,
+      extractedVariables: input.extractedVariables,
+      intent: input.intent,
+      channel: screeningChannel,
+    });
+
+    log().info(
+      {
+        enrollmentId: input.enrollmentId,
+        questionId: current.id,
+        answersQuestion: evaluation.answersQuestion,
+        isNotAnAnswer: evaluation.isNotAnAnswer,
+        isCandidateQuestion: evaluation.isCandidateQuestion,
+        knockout: evaluation.knockout,
+        reason: evaluation.reason,
+        model: evaluation.model,
+      },
+      'Gemini screening answer evaluation'
+    );
+
+    if (!evaluation.answersQuestion && evaluation.isCandidateQuestion) {
+      const jdWhileWaiting = await maybeAnswerCandidateQuestion({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        bodyText: input.bodyText,
+        intent: input.intent,
+        preferredChannel: input.preferredChannel,
+      });
+      if (jdWhileWaiting.handedOff) {
+        return { action: 'answered_and_handed_off' };
+      }
+      const result = await sendQualificationQuestion({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        question: current,
+        questionIndex: idx,
+        preferredChannel: input.preferredChannel,
+        allQuestions: questions,
+      });
+      return {
+        action: result.sent
+          ? jdWhileWaiting.answered
+            ? 'answered_then_reasked'
+            : 'reasked_not_an_answer'
+          : `ask_failed:${result.error}`,
+      };
+    }
+
+    if (!evaluation.answersQuestion) {
+      const result = await sendQualificationQuestion({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        question: current,
+        questionIndex: idx,
+        preferredChannel: input.preferredChannel,
+        allQuestions: questions,
+      });
+      return {
+        action: result.sent ? 'reasked_not_an_answer' : `ask_failed:${result.error}`,
+      };
+    }
+
+    const value =
+      (evaluation.answerValue && evaluation.answerValue.trim()) ||
+      input.bodyText.trim();
+
+    enrollment.qualificationState = {
+      status: 'in_progress',
+      answers: {
+        ...enrollment.qualificationState.answers,
+        [current.id]: normalizeAnswerRecord(value, 'candidate'),
+      },
+    };
+
+    const knockout =
+      evaluation.knockout !== 'unknown'
+        ? evaluation.knockout
+        : evaluateKnockout(current, value);
+    if (knockout === 'fail') {
+      await enrollment.save();
+      await completeQualification({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        status: 'rejected',
+        reason: `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
+      });
+      return { action: 'rejected_knockout' };
+    }
+
+    idx += 1;
+    enrollment.replyQuestionIndex = idx;
+    await enrollment.save();
+
+    if (idx >= questions.length) {
+      const handoff = shouldHandOffAfterQuestions(config);
+      await completeQualification({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        status: handoff ? 'handed_off' : 'qualified',
+        reason: handoff ? config.takeoverCondition || 'Takeover after questions' : undefined,
+      });
+      return { action: handoff ? 'handed_off' : 'qualified' };
+    }
+
+    const next = questions[idx]!;
     const result = await sendQualificationQuestion({
       campaign: input.campaign,
       enrollment,
       threadId: input.threadId,
-      question: current,
-      questionIndex: waitingIndex,
+      question: next,
+      questionIndex: idx,
       preferredChannel: input.preferredChannel,
+      allQuestions: questions,
     });
-    return {
-      action: result.sent ? 'answered_then_reasked' : `ask_failed:${result.error}`,
-    };
+    return { action: result.sent ? 'asked_next' : `ask_failed:${result.error}` };
   }
 
-  enrollment.qualificationState = {
-    status: 'in_progress',
-    answers: {
-      ...enrollment.qualificationState.answers,
-      [current.id]: normalizeAnswerRecord(value, 'candidate'),
-    },
-  };
-
-  const knockout = evaluateKnockout(current, value);
-  if (knockout === 'fail') {
-    await enrollment.save();
-    await completeQualification({
-      campaign: input.campaign,
-      enrollment,
-      threadId: input.threadId,
-      status: 'rejected',
-      reason: `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
-    });
-    return { action: 'rejected_knockout' };
-  }
-
-  const nextIndex = waitingIndex + 1;
-  if (nextIndex >= questions.length) {
-    enrollment.replyQuestionIndex = nextIndex;
-    await enrollment.save();
-    const handoff = shouldHandOffAfterQuestions(config);
-    await completeQualification({
-      campaign: input.campaign,
-      enrollment,
-      threadId: input.threadId,
-      status: handoff ? 'handed_off' : 'qualified',
-      reason: handoff ? config.takeoverCondition || 'Takeover after questions' : undefined,
-    });
-    return { action: handoff ? 'handed_off' : 'qualified' };
-  }
-
-  await enrollment.save();
-  const next = questions[nextIndex]!;
-  const result = await sendQualificationQuestion({
+  await completeQualification({
     campaign: input.campaign,
     enrollment,
     threadId: input.threadId,
-    question: next,
-    questionIndex: nextIndex,
-    preferredChannel: input.preferredChannel,
+    status: 'qualified',
   });
-  return { action: result.sent ? 'asked_next' : `ask_failed:${result.error}` };
+  return { action: 'completed' };
 }

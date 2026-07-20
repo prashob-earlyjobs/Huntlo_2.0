@@ -269,17 +269,26 @@ export function compileBuilderToCampaign(campaign: OutreachCampaignDocument): Co
 
   const channelConfig = deriveChannelConfig(campaign.channelConfig, builderState, sequenceSteps);
 
+  const qualRaw = asRecord(builderState.qualification);
   const qualificationConfig =
-    asRecord(builderState.qualification).enabled !== undefined ||
-    Array.isArray(asRecord(builderState.qualification).questions)
+    qualRaw.enabled !== undefined || Array.isArray(qualRaw.questions)
       ? {
-          enabled: Boolean(asRecord(builderState.qualification).enabled),
-          questions: asArray(asRecord(builderState.qualification).questions),
-          aiReplyEnabled: Boolean(asRecord(builderState.qualification).aiReplyEnabled),
-          takeoverCondition: pickString(
-            asRecord(builderState.qualification).takeoverCondition
-          ),
-          autoScreening: Boolean(asRecord(builderState.qualification).autoScreening),
+          // Always-on in the builder UI — missing flags must not become false via Boolean(undefined).
+          enabled: qualRaw.enabled === undefined ? true : Boolean(qualRaw.enabled),
+          questions: asArray(qualRaw.questions).map((raw, index) => {
+            const q = asRecord(raw);
+            return {
+              id: pickString(q.id) || `q-${index + 1}`,
+              prompt: pickString(q.prompt, q.text) || '',
+              answerType: pickString(q.answerType, q.type) || 'Short text',
+              knockout: Boolean(q.knockout),
+              knockoutCondition: pickString(q.knockoutCondition) || null,
+            };
+          }),
+          aiReplyEnabled:
+            qualRaw.aiReplyEnabled === undefined ? true : Boolean(qualRaw.aiReplyEnabled),
+          takeoverCondition: pickString(qualRaw.takeoverCondition),
+          autoScreening: Boolean(qualRaw.autoScreening),
         }
       : campaign.qualificationConfig;
 

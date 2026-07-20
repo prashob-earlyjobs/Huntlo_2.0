@@ -25,6 +25,7 @@ import { recordAuditEvent } from '../../shared/audit/audit.service.js';
 import {
   draftConversationReply,
 } from '../../providers/gemini/gemini.conversations.js';
+import { stripEmailQuotedReply } from '../../providers/email/strip-quoted-reply.js';
 import {
   ConversationMessageModel,
   type ConversationMessageDocument,
@@ -131,6 +132,11 @@ function messageToEvent(
   };
 
   let text = resolveDisplayBody(msg.bodyText, mergeContext, templateId);
+  // Inbound email replies often include the full Gmail/Outlook quote chain —
+  // show only the candidate's new text in the conversation bubble.
+  if (msg.channel === 'email' && msg.direction === 'inbound') {
+    text = stripEmailQuotedReply(text);
+  }
   // Legacy outbound voice rows stored the full agent prompt — never show that in the inbox.
   if (
     msg.channel === 'ai_voice' &&
@@ -694,12 +700,21 @@ export const conversationsService = {
           )
           .lean()
       : null;
-    const lastInbound = await ConversationMessageModel.findOne({
+    const threadMessages = await ConversationMessageModel.find({
       threadId: thread._id,
-      direction: 'inbound',
+      direction: { $in: ['inbound', 'outbound'] },
     })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1 })
+      .select('direction bodyText')
       .lean();
+
+    const conversation = threadMessages.map((m) => ({
+      direction: (m.direction === 'inbound' ? 'inbound' : 'outbound') as
+        | 'inbound'
+        | 'outbound',
+      bodyText: String(m.bodyText || ''),
+    }));
+    const lastInbound = [...conversation].reverse().find((m) => m.direction === 'inbound');
 
     const description = String(job?.descriptionHtml || '')
       .replace(/<[^>]+>/g, ' ')
@@ -712,6 +727,7 @@ export const conversationsService = {
       candidateName: candidate?.name,
       jobTitle: job?.title || null,
       jobDescription: description || null,
+      conversation,
       lastCandidateMessage: lastInbound?.bodyText || null,
       instructions: input.instructions,
     });
@@ -844,6 +860,10 @@ export const conversationsService = {
       campaignId: thread.campaignId ? String(thread.campaignId) : null,
       enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
       userId,
+      channel:
+        message.channel === 'email' || message.channel === 'whatsapp'
+          ? message.channel
+          : null,
     });
 
     const refreshed = await loadThread(organizationId, id);

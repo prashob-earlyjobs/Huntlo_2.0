@@ -163,7 +163,7 @@ export function OutreachPageClient() {
       {loading && metrics.length === 0 ? (
         <OutreachMetricsSkeleton />
       ) : metrics.length > 0 ? (
-        <MetricStrip metrics={metrics} />
+        <MetricStrip metrics={metrics} columns="6" className="min-w-0" />
       ) : null}
 
       {error ? (

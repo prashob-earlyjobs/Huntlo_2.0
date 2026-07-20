@@ -55,7 +55,7 @@ export function ConversationsPageClient() {
   );
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:overflow-hidden">
       <PageHeader
         className="shrink-0"
         title="Conversations"
@@ -78,13 +78,13 @@ export function ConversationsPageClient() {
         </p>
       ) : null}
       {loading ? (
-        <ConversationInboxSkeleton className="min-h-112 flex-1 xl:h-[calc(100svh-9.25rem)] xl:flex-none" />
+        <ConversationInboxSkeleton className="min-h-[28rem] flex-1 lg:min-h-0" />
       ) : (
         <ConversationInbox
           conversations={conversations}
-          className="min-h-112 flex-1 xl:h-[calc(100svh-9.25rem)] xl:flex-none"
+          className="min-h-[28rem] flex-1 lg:min-h-0"
         />
       )}
-    </>
+    </div>
   );
 }

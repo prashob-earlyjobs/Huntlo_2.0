@@ -513,7 +513,7 @@ export const campaignsService = {
       doc.qualificationConfig = {
         enabled: input.qualificationConfig.enabled,
         questions: input.qualificationConfig.questions,
-        aiReplyEnabled: input.qualificationConfig.aiReplyEnabled ?? false,
+        aiReplyEnabled: input.qualificationConfig.aiReplyEnabled ?? true,
         takeoverCondition: input.qualificationConfig.takeoverCondition ?? null,
         autoScreening: input.qualificationConfig.autoScreening ?? false,
       };
