@@ -134,7 +134,7 @@ export function AdminUsageWorkspace() {
           <Select
             value={filterUserId || "all"}
             onValueChange={(value) =>
-              setFilterUserId(value === "all" ? "" : value)
+              setFilterUserId(!value || value === "all" ? "" : value)
             }
           >
             <SelectTrigger aria-label="Filter analytics by user">
