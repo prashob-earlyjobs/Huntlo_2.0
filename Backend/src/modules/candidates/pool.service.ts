@@ -12,6 +12,7 @@ import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { isValidPhone, normalizePhone } from '../../shared/validation/phone.js';
 import { UserModel } from '../auth/user.model.js';
 import { JobModel } from '../jobs/job.model.js';
+import { SourcedCandidateModel } from '../sourcing/sourced-candidate.model.js';
 import { CandidateListModel } from './candidate-list.model.js';
 import { listService } from './list.service.js';
 import {
@@ -27,6 +28,7 @@ import type {
   BulkAssignInput,
   BulkExportInput,
   BulkRemoveFromListInput,
+  BulkSaveSourcedToListInput,
   BulkStatusInput,
   CreatePoolCandidateInput,
   ListPoolQuery,
@@ -551,6 +553,133 @@ export class PoolService {
     }
 
     return { added: candidates.length, listId: input.listId };
+  }
+
+  async bulkSaveSourcedToList(
+    actor: ActorContext,
+    input: BulkSaveSourcedToListInput
+  ) {
+    const list = await CandidateListModel.findById(input.listId);
+    if (!list || list.deletedAt) {
+      throw AppError.notFound('List not found');
+    }
+    assertSameOrganization(list.organizationId, actor.organizationId);
+
+    const orgOid = new mongoose.Types.ObjectId(actor.organizationId);
+    const listOid = new mongoose.Types.ObjectId(input.listId);
+    const ownerOid = new mongoose.Types.ObjectId(actor.userId);
+    const sourcedIds = input.sourcedCandidateIds.map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
+    const sourcedCandidates = await SourcedCandidateModel.find({
+      _id: { $in: sourcedIds },
+      organizationId: orgOid,
+    });
+
+    if (!sourcedCandidates.length) {
+      return {
+        requested: input.sourcedCandidateIds.length,
+        saved: 0,
+        notFound: input.sourcedCandidateIds.length,
+        listId: input.listId,
+      };
+    }
+
+    const uniqueCandidates = [
+      ...new Map(
+        sourcedCandidates.map((candidate) => [
+          candidate.candidateId ||
+            candidate.externalCandidateId ||
+            candidate._id.toHexString(),
+          candidate,
+        ])
+      ).values(),
+    ];
+    const externalCandidateIds = uniqueCandidates.map(
+      (candidate) =>
+        candidate.candidateId ||
+        candidate.externalCandidateId ||
+        candidate._id.toHexString()
+    );
+    const alreadyOnList = await SavedCandidateModel.countDocuments({
+      organizationId: orgOid,
+      externalCandidateId: { $in: externalCandidateIds },
+      deletedAt: null,
+      listIds: listOid,
+    });
+
+    const now = new Date();
+    const operations = uniqueCandidates.map((candidate) => {
+      const externalCandidateId =
+        candidate.candidateId ||
+        candidate.externalCandidateId ||
+        candidate._id.toHexString();
+      const linkedinUrl =
+        candidate.linkedinProfileUrl ||
+        candidate.basicProfile?.linkedinUrl ||
+        null;
+
+      return {
+        updateOne: {
+          filter: {
+            organizationId: orgOid,
+            externalCandidateId,
+            deletedAt: null,
+          },
+          update: {
+            $setOnInsert: {
+              organizationId: orgOid,
+              externalCandidateId,
+              sourceType: 'sourcing' as const,
+              sourceId: candidate.sourcingSessionId.toHexString(),
+              ownerUserId: ownerOid,
+              assignedUserId: null,
+              status: 'saved' as const,
+              jobIds: [],
+              tags: [],
+              customFields: {},
+              name: candidate.name || candidate.basicProfile?.name || 'Unknown',
+              email: null,
+              phone: null,
+              linkedinUrl,
+              headline: candidate.basicProfile?.headline ?? null,
+              currentTitle:
+                candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
+              currentCompany:
+                candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
+              location: candidate.location || null,
+              experienceYears: candidate.experienceYears ?? null,
+              skills: candidate.skills ?? [],
+              archivedAt: null,
+              deletedAt: null,
+              createdAt: now,
+            },
+            $addToSet: { listIds: listOid },
+            $set: { lastActivityAt: now, updatedAt: now },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    await SavedCandidateModel.bulkWrite(operations, {
+      ordered: false,
+    });
+    const saved = uniqueCandidates.length - alreadyOnList;
+
+    if (saved > 0) {
+      await CandidateListModel.updateOne(
+        { _id: listOid },
+        { $inc: { candidateCount: saved } }
+      );
+    }
+
+    return {
+      requested: input.sourcedCandidateIds.length,
+      saved,
+      notFound: input.sourcedCandidateIds.length - sourcedCandidates.length,
+      listId: input.listId,
+    };
   }
 
   async bulkRemoveFromList(actor: ActorContext, input: BulkRemoveFromListInput) {

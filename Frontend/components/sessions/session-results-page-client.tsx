@@ -90,6 +90,7 @@ function mapSearchSummaryToSessionCandidate(
     profileSignals: candidate.profileSignals ?? [],
     rank: candidate.rank ?? 0,
     matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
+    saved: candidate.saved,
   });
 }
 

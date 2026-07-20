@@ -254,11 +254,8 @@ export function CandidateTable({
                       type="button"
                       size="icon-xs"
                       variant="ghost"
-                      aria-label={
-                        isSaved
-                          ? `Remove ${candidate.name} from saved`
-                          : `Save ${candidate.name}`
-                      }
+                      className={isSaved ? "text-primary hover:text-primary" : undefined}
+                      aria-label={`Add ${candidate.name} to a list`}
                       aria-pressed={isSaved}
                       onClick={() => onToggleSave(candidate.id)}
                     >

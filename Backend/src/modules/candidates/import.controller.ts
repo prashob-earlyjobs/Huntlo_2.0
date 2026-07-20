@@ -5,7 +5,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { successResponse } from '../../shared/http/response.js';
 import { importService } from './import.service.js';
-import { importCommitSchema } from './pool.validation.js';
+import { importCommitSchema, importRevalidateSchema } from './pool.validation.js';
 
 function actorFrom(req: Request) {
   return {
@@ -46,6 +46,16 @@ export const commitImport = asyncHandler(async (req: Request, res: Response) => 
     statusCode: 201,
     meta: { requestId: getRequestId(req) },
   });
+});
+
+export const revalidateImport = asyncHandler(async (req: Request, res: Response) => {
+  const input = importRevalidateSchema.parse(req.body);
+  const result = await importService.revalidate(
+    actorFrom(req),
+    String(req.params.id),
+    input
+  );
+  successResponse(res, result, { meta: { requestId: getRequestId(req) } });
 });
 
 export const getImportJob = asyncHandler(async (req: Request, res: Response) => {

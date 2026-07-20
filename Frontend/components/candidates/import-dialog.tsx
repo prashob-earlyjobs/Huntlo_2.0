@@ -141,6 +141,35 @@ export function ImportCandidatesDialog({
     }
   }
 
+  async function runRevalidateAndContinue() {
+    if (!preview?.jobId) {
+      setStep(3);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const cleanedMapping = Object.fromEntries(
+        Object.entries(mapping).filter(([, source]) => source && source !== "__skip__")
+      );
+      const result = await candidatePoolApi.importRevalidate(
+        preview.jobId,
+        cleanedMapping
+      );
+      setPreview({
+        ...preview,
+        ...result,
+        jobId: result.jobId || preview.jobId,
+        filename: result.filename || preview.filename,
+      });
+      setStep(3);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function waitForJob(jobId: string): Promise<ImportJob> {
     let current = await candidatePoolApi.getImportJob(jobId);
     setJobStatus(current.status);
@@ -438,6 +467,12 @@ export function ImportCandidatesDialog({
                   created again.
                 </p>
               ) : null}
+              {preview.totals.invalid > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Invalid rows usually mean a missing Full name, bad email, or
+                  unparseable phone number for the mapped columns.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -539,10 +574,18 @@ export function ImportCandidatesDialog({
                   void runPreview(file);
                   return;
                 }
+                if (step === 2) {
+                  void runRevalidateAndContinue();
+                  return;
+                }
                 setStep((previous) => previous + 1);
               }}
             >
-              {busy && step === 0 ? "Uploading…" : "Continue"}
+              {busy && step === 0
+                ? "Uploading…"
+                : busy && step === 2
+                  ? "Validating…"
+                  : "Continue"}
             </Button>
           )}
         </div>

@@ -117,6 +117,7 @@ export type CandidateSearchSummary = {
   profileSignals?: string[];
   rank?: number;
   contactStatus?: string;
+  saved?: boolean;
 };
 
 export type StoredCandidatesResponse = {
