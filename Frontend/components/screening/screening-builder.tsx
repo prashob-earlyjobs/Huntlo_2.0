@@ -1330,7 +1330,10 @@ function toCreateInput(
   }));
 
   // Prefer question criteria ids when they collide with category ids.
-  const byId = new Map<string, (typeof categoryCriteria)[number]>();
+  const byId = new Map<
+    string,
+    NonNullable<ScreeningCreateInput["evaluationCriteria"]>[number]
+  >();
   for (const criterion of categoryCriteria) byId.set(criterion.id, criterion);
   for (const criterion of questionCriteria) byId.set(criterion.id, criterion);
 
