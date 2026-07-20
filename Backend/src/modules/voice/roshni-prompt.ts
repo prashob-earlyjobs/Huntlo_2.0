@@ -327,7 +327,7 @@ export function qualificationQuestionsForRoshni(
     | undefined
 ): RoshniQuestion[] {
   return (config?.questions || [])
-    .map((q) => {
+    .map((q): RoshniQuestion | null => {
       const prompt = String(q.prompt || '').trim();
       if (!prompt) return null;
       return {
@@ -339,7 +339,7 @@ export function qualificationQuestionsForRoshni(
         knockoutCondition: q.knockoutCondition ?? null,
       };
     })
-    .filter((q): q is RoshniQuestion => Boolean(q?.prompt));
+    .filter((q): q is RoshniQuestion => q != null);
 }
 
 export async function buildRoshniJdTokens(input: {
