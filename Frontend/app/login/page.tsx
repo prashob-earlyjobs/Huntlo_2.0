@@ -2,37 +2,46 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getApiErrorMessage } from "@/lib/api";
+import { postAuthPath, resolvePostAuthDestination, sanitizeInternalPath } from "@/lib/auth-redirect";
+import { peekPendingRedirectPath } from "@/lib/claim-public-search";
 import { useAuth } from "@/providers/auth-provider";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const nextPath = searchParams.get("next") ?? "/dashboard";
+  const nextFromQuery = sanitizeInternalPath(searchParams.get("next"), "");
 
-  if (!isLoading && isAuthenticated) {
-    router.replace(nextPath);
-  }
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user) {
+      router.replace(
+        resolvePostAuthDestination(user, peekPendingRedirectPath() || nextFromQuery || null)
+      );
+    }
+  }, [isAuthenticated, isLoading, nextFromQuery, router, user]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      await login({ email, password });
-      router.replace(nextPath);
+      const nextUser = await login({ email, password });
+      const preferred =
+        peekPendingRedirectPath() ||
+        (postAuthPath(nextUser) === "/dashboard" ? nextFromQuery || null : null);
+      router.replace(resolvePostAuthDestination(nextUser, preferred));
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to sign in. Check your credentials."));
     } finally {

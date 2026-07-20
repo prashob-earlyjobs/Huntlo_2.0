@@ -11,8 +11,13 @@ export type LoginInput = {
 export type RegisterInput = {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
+  confirmPassword?: string;
+  fullName: string;
+  companyName: string;
+  mobile: string;
+  /** @deprecated Prefer fullName + companyName */
+  firstName?: string;
+  lastName?: string;
   organizationName?: string;
 };
 
@@ -124,15 +129,20 @@ const mockAuthApi: AuthApi = {
         user: {
           id: "user-1",
           name: MOCK_USER.name,
+          fullName: MOCK_USER.name,
           firstName: "Ananya",
           lastName: "Sharma",
+          companyName: "Huntlo",
           email: MOCK_USER.email,
           role: MOCK_USER.role,
+          accountRole: "owner",
           initials: MOCK_USER.initials,
           plan: MOCK_USER.plan,
           memberStatus: "active",
           onboardingStatus: "completed",
+          onboardingCompleted: true,
           emailVerified: true,
+          platformAdmin: false,
         },
         organization: workspace,
         permissions: ["*"],
@@ -158,15 +168,20 @@ const mockAuthApi: AuthApi = {
       user: {
         id: "user-1",
         name: MOCK_USER.name,
+        fullName: MOCK_USER.name,
         firstName: "Ananya",
         lastName: "Sharma",
+        companyName: "Huntlo",
         email: MOCK_USER.email,
         role: MOCK_USER.role,
+        accountRole: "owner",
         initials: MOCK_USER.initials,
         plan: MOCK_USER.plan,
         memberStatus: "active",
         onboardingStatus: "completed",
+        onboardingCompleted: true,
         emailVerified: true,
+        platformAdmin: false,
       },
       organization: WORKSPACES[0]!,
       permissions: ["*"],

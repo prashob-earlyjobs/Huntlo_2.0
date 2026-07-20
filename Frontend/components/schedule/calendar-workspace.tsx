@@ -1,19 +1,35 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  PlugZap,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+import { Field } from "@/components/outreach/builder-ui";
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import {
   FilterPopover,
   type FilterOption,
 } from "@/components/shared/filter-popover";
 import { Button } from "@/components/ui/button";
-import { schedulingApi } from "@/lib/api";
 import {
-  CALENDAR_TODAY,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { getApiErrorMessage, integrationsApi, schedulingApi } from "@/lib/api";
+import {
   formatDateKey,
   INTERVIEW_STATUSES,
   INTERVIEW_TYPES,
@@ -41,6 +57,10 @@ function shiftDateKey(dateKey: string, days: number): string {
   const [y, m, d] = dateKey.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function localDateKey(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
@@ -98,26 +118,91 @@ function EventCard({ interview }: { interview: Interview }) {
 
 export function CalendarWorkspace() {
   const [view, setView] = useState<CalendarView>("week");
-  const [anchor, setAnchor] = useState(CALENDAR_TODAY);
+  const todayKey = useMemo(() => localDateKey(), []);
+  const [anchor, setAnchor] = useState(todayKey);
   const [recruiterFilter, setRecruiterFilter] = useState<string[]>([]);
   const [interviewerFilter, setInterviewerFilter] = useState<string[]>([]);
   const [jobFilter, setJobFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [calendlyConnected, setCalendlyConnected] = useState<boolean | null>(
+    null
+  );
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [calendlyToken, setCalendlyToken] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const autoSyncStarted = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
-      const rows = await schedulingApi.listInterviews();
-      setInterviews(rows);
+      const anchorDate = new Date(`${anchor}T12:00:00`);
+      const from = new Date(anchorDate);
+      const to = new Date(anchorDate);
+      from.setDate(from.getDate() - 45);
+      to.setDate(to.getDate() + 75);
+      const result = await schedulingApi.calendar({
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+      setInterviews(result.items);
     } catch {
       // Keep empty calendar when API unavailable.
+    }
+  }, [anchor]);
+
+  const syncCalendly = useCallback(
+    async (showMessage = true) => {
+      setSyncing(true);
+      setSyncError(null);
+      try {
+        const minStart = new Date();
+        minStart.setDate(minStart.getDate() - 90);
+        const result = await schedulingApi.syncBookings({
+          minStartTime: minStart.toISOString(),
+        });
+        await refresh();
+        if (showMessage) {
+          setSyncMessage(result.message);
+          window.setTimeout(() => setSyncMessage(null), 3000);
+        }
+      } catch (error) {
+        setSyncError(
+          getApiErrorMessage(error, "Unable to sync Calendly bookings.")
+        );
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [refresh]
+  );
+
+  const refreshCalendlyStatus = useCallback(async () => {
+    try {
+      const providers = await integrationsApi.listProviders();
+      const calendly = providers.find((provider) => provider.id === "calendly");
+      setCalendlyConnected(calendly?.status === "Connected");
+    } catch {
+      setCalendlyConnected(false);
     }
   }, []);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshCalendlyStatus();
+  }, [refresh, refreshCalendlyStatus]);
+
+  useEffect(() => {
+    if (calendlyConnected && !autoSyncStarted.current) {
+      autoSyncStarted.current = true;
+      void syncCalendly(false);
+    }
+  }, [calendlyConnected, syncCalendly]);
 
   useRealtimeRefresh("interview.updated", () => {
     void refresh();
@@ -256,8 +341,151 @@ export function CalendarWorkspace() {
     }
   }
 
+  async function connectCalendly() {
+    if (!calendlyToken.trim()) return;
+    setConnecting(true);
+    setConnectError(null);
+    try {
+      const result = await integrationsApi.connect("calendly", {
+        personalAccessToken: calendlyToken.trim(),
+      });
+      if (result.mode === "connected") {
+        setCalendlyConnected(true);
+        setConnectSuccess("Calendly connected.");
+        setCalendlyToken("");
+        setConnectOpen(false);
+        window.setTimeout(() => setConnectSuccess(null), 2400);
+        return;
+      }
+      setConnectError(result.message || "Could not connect Calendly.");
+    } catch (error) {
+      setConnectError(getApiErrorMessage(error, "Unable to connect Calendly."));
+    } finally {
+      setConnecting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {connectSuccess ? (
+        <p
+          role="status"
+          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+        >
+          {connectSuccess}
+        </p>
+      ) : null}
+      {syncMessage ? (
+        <p
+          role="status"
+          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+        >
+          {syncMessage}
+        </p>
+      ) : null}
+      {syncError ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {syncError}
+        </p>
+      ) : null}
+
+      {calendlyConnected === false ? (
+        <section className="flex flex-col gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-warning/30 bg-card text-warning">
+              <CalendarClock aria-hidden className="size-4.5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                Connect Calendly
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Link your Calendly account to sync bookings and send scheduling
+                links from Huntlo.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={() => {
+              setConnectError(null);
+              setConnectOpen(true);
+            }}
+          >
+            <PlugZap aria-hidden />
+            Connect Calendly
+          </Button>
+        </section>
+      ) : null}
+
+      <Dialog
+        open={connectOpen}
+        onOpenChange={(open) => {
+          if (connecting) return;
+          setConnectOpen(open);
+          if (!open) {
+            setCalendlyToken("");
+            setConnectError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect Calendly</DialogTitle>
+            <DialogDescription>
+              Paste a Calendly personal access token to sync event types and
+              bookings with Huntlo.{" "}
+              <a
+                href="https://calendly.com/integrations/api_webhooks"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Get your token from Calendly
+              </a>
+              .
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Personal access token" htmlFor="calendar-cal-pat" required>
+            <Input
+              id="calendar-cal-pat"
+              type="password"
+              autoComplete="new-password"
+              value={calendlyToken}
+              onChange={(event) => setCalendlyToken(event.target.value)}
+              placeholder="Paste Calendly PAT"
+              disabled={connecting}
+            />
+          </Field>
+          {connectError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {connectError}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={connecting}
+              onClick={() => setConnectOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={connecting || !calendlyToken.trim()}
+              onClick={() => void connectCalendly()}
+            >
+              <PlugZap aria-hidden />
+              {connecting ? "Connecting…" : "Connect"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
@@ -280,7 +508,7 @@ export function CalendarWorkspace() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setAnchor(CALENDAR_TODAY)}
+              onClick={() => setAnchor(todayKey)}
             >
               Today
             </Button>
@@ -295,28 +523,44 @@ export function CalendarWorkspace() {
             </h2>
           </div>
 
-          <div
-            role="tablist"
-            aria-label="Calendar view"
-            className="flex rounded-lg border border-border p-0.5"
-          >
-            {VIEWS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={view === item.id}
-                onClick={() => setView(item.id)}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                  view === item.id
-                    ? "bg-brand-subtle font-medium text-primary"
-                    : "text-muted-foreground hover:bg-muted"
-                )}
+          <div className="flex flex-wrap items-center gap-2">
+            {calendlyConnected ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={syncing}
+                onClick={() => void syncCalendly()}
               >
-                {item.label}
-              </button>
-            ))}
+                <RefreshCw
+                  aria-hidden
+                  className={cn(syncing && "animate-spin")}
+                />
+                {syncing ? "Syncing…" : "Sync Calendly"}
+              </Button>
+            ) : null}
+            <div
+              role="tablist"
+              aria-label="Calendar view"
+              className="flex rounded-lg border border-border p-0.5"
+            >
+              {VIEWS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === item.id}
+                  onClick={() => setView(item.id)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                    view === item.id
+                      ? "bg-brand-subtle font-medium text-primary"
+                      : "text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -385,7 +629,7 @@ export function CalendarWorkspace() {
           <div className="grid grid-cols-7">
             {cells.map((dateKey, index) => {
               const events = dateKey ? forDate(dateKey) : [];
-              const isToday = dateKey === CALENDAR_TODAY;
+              const isToday = dateKey === todayKey;
               return (
                 <div
                   key={index}
@@ -435,7 +679,7 @@ export function CalendarWorkspace() {
           <div className="grid grid-cols-1 divide-y divide-border md:grid-cols-7 md:divide-x md:divide-y-0">
             {week.map((dateKey) => {
               const events = forDate(dateKey);
-              const isToday = dateKey === CALENDAR_TODAY;
+              const isToday = dateKey === todayKey;
               return (
                 <div key={dateKey} className="min-h-40 p-2">
                   <button

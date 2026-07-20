@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, EllipsisVertical, Gauge, Monitor, Moon, Sun } from "lucide-react";
+import { CircleHelp, EllipsisVertical, Gauge, Monitor, Moon, RotateCcw, Sun } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 
@@ -17,10 +17,17 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useDashboardProductTourOptional } from "@/hooks/use-dashboard-product-tour";
+import { hasPermission } from "@/lib/access-control";
 import { ROUTES } from "@/lib/routes";
+import { useAuth } from "@/providers/auth-provider";
 
 export function HeaderOverflowMenu() {
   const { theme, setTheme } = useTheme();
+  const { permissions } = useAuth();
+  const tour = useDashboardProductTourOptional();
+  const canViewPlans = hasPermission(permissions, "plans:view");
+  const canRestart = Boolean(tour?.canRestart);
 
   return (
     <DropdownMenu>
@@ -37,10 +44,12 @@ export function HeaderOverflowMenu() {
         <EllipsisVertical aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem render={<Link href={ROUTES.plans} />}>
-          <Gauge aria-hidden />
-          <span className="flex-1">Usage</span>
-        </DropdownMenuItem>
+        {canViewPlans ? (
+          <DropdownMenuItem render={<Link href={ROUTES.plans} />}>
+            <Gauge aria-hidden />
+            <span className="flex-1">Usage</span>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <Sun aria-hidden className="dark:hidden" />
@@ -67,10 +76,21 @@ export function HeaderOverflowMenu() {
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuItem>
-          <CircleHelp aria-hidden />
-          Help & support
-        </DropdownMenuItem>
+        {canRestart ? (
+          <DropdownMenuItem
+            onClick={() => {
+              void tour?.restartProductTour();
+            }}
+          >
+            <RotateCcw aria-hidden />
+            Restart Product Tour
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem disabled>
+            <CircleHelp aria-hidden />
+            Help & support
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
       </DropdownMenuContent>
     </DropdownMenu>

@@ -95,18 +95,19 @@ export function buildHunarAgentWritePayload(input: {
   language?: string | null;
   personaName?: string | null;
 }): HunarAgentWritePayload {
+  const stripEmptyVars = (value: string) => String(value || '').replace(/\{\}/g, '').trim();
   return {
     name: String(input.name || '').trim() || 'Screening Voice Agent',
     voice_persona: String(input.voicePersona || getHunarVoicePersona()).trim(),
-    objective: String(input.objective || '').trim(),
-    result_prompt: String(input.resultPrompt || '').trim(),
+    objective: stripEmptyVars(String(input.objective || '')),
+    result_prompt: stripEmptyVars(String(input.resultPrompt || '')),
     result_schema:
       input.resultSchema && typeof input.resultSchema === 'object' ? input.resultSchema : {},
     language: String(input.language || getHunarVoiceLanguage()).trim(),
     persona_name:
       input.personaName == null ? null : String(input.personaName).trim() || null,
-    agent_prompt: String(input.agentPrompt || '').trim(),
-    introduction: String(input.introduction || '').trim(),
+    agent_prompt: stripEmptyVars(String(input.agentPrompt || '')),
+    introduction: stripEmptyVars(String(input.introduction || '')),
   };
 }
 

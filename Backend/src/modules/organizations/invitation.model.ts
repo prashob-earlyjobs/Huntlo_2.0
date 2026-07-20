@@ -17,6 +17,10 @@ const teamInvitationSchema = new mongoose.Schema(
       default: 'recruiter',
     },
     permissions: { type: [String], default: [] },
+    allowedModules: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     assignedJobIds: {
       type: [mongoose.Schema.Types.ObjectId],
       ref: 'Job',

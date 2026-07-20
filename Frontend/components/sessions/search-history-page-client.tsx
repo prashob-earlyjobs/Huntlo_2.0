@@ -5,6 +5,10 @@ import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SearchHistoryTable } from "@/components/sessions/search-history-table";
+import {
+  SearchHistoryMetricsSkeleton,
+  SearchHistoryPageSkeleton,
+} from "@/components/sessions/search-history-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, sourcingApi } from "@/lib/api";
@@ -58,6 +62,10 @@ export function SearchHistoryPageClient() {
     };
   }, []);
 
+  if (loading && entries.length === 0 && !error) {
+    return <SearchHistoryPageSkeleton />;
+  }
+
   return (
     <>
       <PageHeader
@@ -75,26 +83,30 @@ export function SearchHistoryPageClient() {
         }
       />
 
-      <div className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card">
-        <div className="px-4 py-2.5">
-          <p className="text-xs text-muted-foreground">Total searches</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-            {loading ? "—" : entries.length}
-          </p>
+      {loading ? (
+        <SearchHistoryMetricsSkeleton />
+      ) : (
+        <div className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card">
+          <div className="px-4 py-2.5">
+            <p className="text-xs text-muted-foreground">Total searches</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+              {entries.length}
+            </p>
+          </div>
+          <div className="px-4 py-2.5">
+            <p className="text-xs text-muted-foreground">Candidates saved</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+              {entries.reduce((sum, entry) => sum + entry.saved, 0)}
+            </p>
+          </div>
+          <div className="px-4 py-2.5">
+            <p className="text-xs text-muted-foreground">Credits used</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+              {entries.reduce((sum, entry) => sum + entry.usage, 0)}
+            </p>
+          </div>
         </div>
-        <div className="px-4 py-2.5">
-          <p className="text-xs text-muted-foreground">Candidates saved</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-            {loading ? "—" : entries.reduce((sum, entry) => sum + entry.saved, 0)}
-          </p>
-        </div>
-        <div className="px-4 py-2.5">
-          <p className="text-xs text-muted-foreground">Credits used</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-            {loading ? "—" : entries.reduce((sum, entry) => sum + entry.usage, 0)}
-          </p>
-        </div>
-      </div>
+      )}
 
       {error ? (
         <p role="alert" className="text-sm text-destructive">

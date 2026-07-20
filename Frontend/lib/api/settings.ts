@@ -129,8 +129,18 @@ const mockSettingsApi: SettingsApi = {
       privacy: { ...current.privacy, ...(input.privacy || {}) },
     };
   },
-  async listAuditLogs() {
-    return { items: AUDIT_LOG, total: AUDIT_LOG.length, limit: 50, offset: 0 };
+  async listAuditLogs(params) {
+    const limit = params?.limit ?? 50;
+    const offset = params?.offset ?? 0;
+    const filtered = params?.module
+      ? AUDIT_LOG.filter((entry) => entry.module === params.module)
+      : AUDIT_LOG;
+    return {
+      items: filtered.slice(offset, offset + limit),
+      total: filtered.length,
+      limit,
+      offset,
+    };
   },
 };
 

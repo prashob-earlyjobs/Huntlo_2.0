@@ -17,8 +17,11 @@ import { WorkspaceSubscriptionModel } from './subscription.model.js';
 
 function formatInr(amount: number | null): string {
   if (amount == null) return 'Custom';
+  if (amount === 0) return 'Free';
   return `₹${amount.toLocaleString('en-IN')}`;
 }
+
+const DEFAULT_TRIAL_DAYS = 14;
 
 function toPublicPlan(plan: PricingPlanDocument) {
   return {
@@ -34,6 +37,9 @@ function toPublicPlan(plan: PricingPlanDocument) {
     active: plan.active,
     public: plan.public,
     sortOrder: plan.sortOrder,
+    isDefaultSignup: Boolean(plan.isDefaultSignup),
+    isTrialPlan: Boolean(plan.isTrialPlan),
+    trialDays: plan.trialDays ?? DEFAULT_TRIAL_DAYS,
     priceLabel: {
       monthly: formatInr(plan.prices?.monthly ?? null),
       yearly: formatInr(plan.prices?.yearly ?? null),
@@ -41,17 +47,83 @@ function toPublicPlan(plan: PricingPlanDocument) {
   };
 }
 
+async function clearOtherDefaultSignup(exceptPlanId?: mongoose.Types.ObjectId) {
+  const filter: Record<string, unknown> = { isDefaultSignup: true };
+  if (exceptPlanId) filter._id = { $ne: exceptPlanId };
+  await PricingPlanModel.updateMany(filter, { $set: { isDefaultSignup: false } });
+}
+
 export class PlansService {
   async ensureDefaultPlans(): Promise<void> {
     const count = await PricingPlanModel.countDocuments();
-    if (count > 0) return;
-    await PricingPlanModel.insertMany(
-      DEFAULT_PRICING_PLANS.map((plan) => ({
-        ...plan,
-        billingCycles: ['monthly', 'yearly'],
-        currency: 'INR',
-        active: true,
-      }))
+    if (count === 0) {
+      await PricingPlanModel.insertMany(
+        DEFAULT_PRICING_PLANS.map((plan) => ({
+          ...plan,
+          billingCycles: ['monthly', 'yearly'],
+          currency: 'INR',
+          active: true,
+          isDefaultSignup: Boolean(plan.isDefaultSignup),
+          isTrialPlan: Boolean(plan.isTrialPlan),
+          trialDays: plan.trialDays ?? DEFAULT_TRIAL_DAYS,
+        }))
+      );
+      return;
+    }
+
+    // Upsert any newly added default plans without overwriting admin edits.
+    for (const plan of DEFAULT_PRICING_PLANS) {
+      await PricingPlanModel.updateOne(
+        { code: plan.code },
+        {
+          $setOnInsert: {
+            ...plan,
+            billingCycles: ['monthly', 'yearly'],
+            currency: 'INR',
+            active: true,
+            isDefaultSignup: Boolean(plan.isDefaultSignup),
+            isTrialPlan: Boolean(plan.isTrialPlan),
+            trialDays: plan.trialDays ?? DEFAULT_TRIAL_DAYS,
+          },
+        },
+        { upsert: true }
+      );
+    }
+
+    // Ensure exactly one default signup plan exists when none is marked.
+    const hasDefault = await PricingPlanModel.exists({ isDefaultSignup: true, active: true });
+    if (!hasDefault) {
+      const preferred =
+        (await PricingPlanModel.findOne({ code: 'trial', active: true })) ??
+        (await PricingPlanModel.findOne({ active: true }).sort({ sortOrder: 1 }));
+      if (preferred) {
+        preferred.isDefaultSignup = true;
+        await preferred.save();
+      }
+    }
+  }
+
+  /**
+   * Resolve the plan assigned to new workspaces.
+   * Admin sets this via `isDefaultSignup` on a pricing plan.
+   */
+  async resolveSignupPlan(): Promise<PricingPlanDocument> {
+    await this.ensureDefaultPlans();
+    const configured = await PricingPlanModel.findOne({
+      isDefaultSignup: true,
+      active: true,
+    });
+    if (configured) return configured;
+
+    const fallback =
+      (await PricingPlanModel.findOne({ code: 'trial', active: true })) ??
+      (await PricingPlanModel.findOne({ active: true }).sort({ sortOrder: 1 }));
+    if (fallback) return fallback;
+
+    throw new AppError(
+      500,
+      'AUTH_DEFAULT_PLAN_NOT_CONFIGURED',
+      'No default signup plan is configured. Set one in Admin → Plans.'
     );
   }
 
@@ -64,17 +136,33 @@ export class PlansService {
     if (existing) return existing;
 
     const org = await OrganizationModel.findById(organizationId).select('plan');
-    const code = (org?.plan ?? 'Starter').toLowerCase();
-    const plan =
-      (await PricingPlanModel.findOne({ code, active: true })) ??
-      (await PricingPlanModel.findOne({ code: 'starter', active: true }));
-    if (!plan) {
-      throw AppError.internal('Default pricing plans are not seeded');
+    let plan: PricingPlanDocument | null = null;
+
+    if (org?.plan) {
+      const byName = await PricingPlanModel.findOne({
+        name: org.plan,
+        active: true,
+      });
+      const byCode = await PricingPlanModel.findOne({
+        code: org.plan.toLowerCase(),
+        active: true,
+      });
+      plan = byName ?? byCode;
     }
 
+    if (!plan) {
+      plan = await this.resolveSignupPlan();
+    }
+
+    const isTrial = Boolean(plan.isTrialPlan) || plan.code === 'trial';
+    const trialDays = plan.trialDays > 0 ? plan.trialDays : DEFAULT_TRIAL_DAYS;
     const start = new Date();
     const end = new Date(start);
-    end.setUTCMonth(end.getUTCMonth() + 1);
+    if (isTrial) {
+      end.setUTCDate(end.getUTCDate() + trialDays);
+    } else {
+      end.setUTCMonth(end.getUTCMonth() + 1);
+    }
 
     try {
       return await WorkspaceSubscriptionModel.create({
@@ -82,7 +170,7 @@ export class PlansService {
         planId: plan._id,
         billingProvider: 'manual',
         billingCycle: 'monthly',
-        status: 'active',
+        status: isTrial ? 'trialing' : 'active',
         currentPeriodStart: start,
         currentPeriodEnd: end,
         cancelAtPeriodEnd: false,
@@ -146,13 +234,20 @@ export class PlansService {
       owner: owner ? `${owner.firstName} ${owner.lastName}`.trim() : 'Workspace owner',
       ownerEmail: owner?.email ?? '',
       status:
-        subscription.status === 'active' || subscription.status === 'trialing'
-          ? 'Active'
-          : subscription.status === 'past_due'
-            ? 'Past due'
-            : 'Cancelled',
+        subscription.status === 'trialing'
+          ? 'Trial'
+          : subscription.status === 'active'
+            ? 'Active'
+            : subscription.status === 'past_due'
+              ? 'Past due'
+              : 'Cancelled',
       price: formatInr(priceValue),
-      pricePeriod: cycle === 'yearly' ? '/ year' : '/ month',
+      pricePeriod:
+        subscription.status === 'trialing'
+          ? ` · ${plan.trialDays || DEFAULT_TRIAL_DAYS}-day trial`
+          : cycle === 'yearly'
+            ? '/ year'
+            : '/ month',
       seats: `${occupied} of ${Number.isFinite(seats.limit) ? seats.limit : '∞'} seats used`,
       subscription: {
         id: subscription._id.toHexString(),
@@ -185,10 +280,17 @@ export class PlansService {
     public?: boolean;
     sortOrder?: number;
     active?: boolean;
+    isDefaultSignup?: boolean;
+    isTrialPlan?: boolean;
+    trialDays?: number;
   }) {
     const code = input.code.trim().toLowerCase();
     const existing = await PricingPlanModel.findOne({ code });
     if (existing) throw AppError.conflict('A plan with this code already exists');
+
+    if (input.isDefaultSignup) {
+      await clearOtherDefaultSignup();
+    }
 
     const plan = await PricingPlanModel.create({
       name: input.name.trim(),
@@ -205,6 +307,9 @@ export class PlansService {
       public: input.public ?? true,
       sortOrder: input.sortOrder ?? 100,
       active: input.active ?? true,
+      isDefaultSignup: Boolean(input.isDefaultSignup),
+      isTrialPlan: Boolean(input.isTrialPlan),
+      trialDays: input.trialDays ?? DEFAULT_TRIAL_DAYS,
     });
     return toPublicPlan(plan);
   }
@@ -236,6 +341,18 @@ export class PlansService {
     if (typeof input.public === 'boolean') plan.public = input.public;
     if (typeof input.sortOrder === 'number') plan.sortOrder = input.sortOrder;
     if (typeof input.active === 'boolean') plan.active = input.active;
+    if (typeof input.isTrialPlan === 'boolean') plan.isTrialPlan = input.isTrialPlan;
+    if (typeof input.trialDays === 'number' && input.trialDays > 0) {
+      plan.trialDays = input.trialDays;
+    }
+    if (typeof input.isDefaultSignup === 'boolean') {
+      if (input.isDefaultSignup) {
+        await clearOtherDefaultSignup(plan._id);
+        plan.isDefaultSignup = true;
+      } else {
+        plan.isDefaultSignup = false;
+      }
+    }
 
     await plan.save();
     return toPublicPlan(plan);
@@ -245,21 +362,26 @@ export class PlansService {
     return this.updatePlan(planId, { active });
   }
 
+  async setDefaultSignupPlan(planId: string) {
+    if (!isValidObjectId(planId)) throw AppError.badRequest('Invalid plan id');
+    const plan = await PricingPlanModel.findById(planId);
+    if (!plan) throw AppError.notFound('Plan not found');
+    if (!plan.active) {
+      throw AppError.badRequest('Cannot set an inactive plan as the default signup plan');
+    }
+    await clearOtherDefaultSignup(plan._id);
+    plan.isDefaultSignup = true;
+    await plan.save();
+    return toPublicPlan(plan);
+  }
+
   async syncOrgPlanFromSubscription(organizationId: string) {
     const subscription = await this.ensureSubscription(organizationId);
     const plan = await PricingPlanModel.findById(subscription.planId);
     if (!plan) return;
-    const orgPlanName =
-      plan.code === 'starter'
-        ? 'Starter'
-        : plan.code === 'growth'
-          ? 'Growth'
-          : plan.code === 'scale'
-            ? 'Scale'
-            : 'Enterprise';
     await OrganizationModel.updateOne(
       { _id: new mongoose.Types.ObjectId(organizationId) },
-      { $set: { plan: orgPlanName } }
+      { $set: { plan: plan.name } }
     );
   }
 }

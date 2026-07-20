@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, Save } from "lucide-react";
+import { Eye, EyeOff, RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Field } from "@/components/outreach/builder-ui";
@@ -8,11 +8,17 @@ import { FormSection } from "@/components/shared/form-section";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type PlatformProviderSetting,
 } from "@/lib/mock-admin";
 import { adminApi } from "@/lib/api";
+import type { AdminRoshniPromptSettings } from "@/lib/api/admin";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import {
+  ROSHNI_AGENT_PROMPT_TEMPLATE,
+  ROSHNI_INTRODUCTION,
+} from "@/lib/roshni-agent-prompt";
 import { cn } from "@/lib/utils";
 
 const STATUS_CLASS: Record<PlatformProviderSetting["status"], string> = {
@@ -21,10 +27,23 @@ const STATUS_CLASS: Record<PlatformProviderSetting["status"], string> = {
   "Needs attention": "bg-warning/10 text-warning",
 };
 
+const REQUIRED_AGENT_PLACEHOLDERS = [
+  "{callee_name}",
+  "{jd_role_screening_label}",
+  "{jd_screening_questions_list}",
+] as const;
+
 export function AdminSettingsWorkspace() {
   const [providers, setProviders] = useState<PlatformProviderSetting[]>([]);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
+  const [promptMeta, setPromptMeta] = useState<AdminRoshniPromptSettings | null>(
+    null
+  );
+  const [introduction, setIntroduction] = useState(ROSHNI_INTRODUCTION);
+  const [agentPrompt, setAgentPrompt] = useState(ROSHNI_AGENT_PROMPT_TEMPLATE);
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
 
   useEffect(() => {
     void adminApi
@@ -57,6 +76,11 @@ export function AdminSettingsWorkspace() {
             ],
           }))
         );
+        if (data.roshniPrompt) {
+          setPromptMeta(data.roshniPrompt);
+          setIntroduction(data.roshniPrompt.effectiveIntroduction);
+          setAgentPrompt(data.roshniPrompt.effectiveAgentPrompt);
+        }
       })
       .catch((error) => {
         setProviders([]);
@@ -89,6 +113,83 @@ export function AdminSettingsWorkspace() {
     );
   }
 
+  function validatePromptDraft(): string | null {
+    if (!introduction.trim()) {
+      return "Introduction is required (or reset to the bundled default).";
+    }
+    if (!introduction.includes("{callee_name}")) {
+      return "Introduction must include {callee_name}.";
+    }
+    if (!agentPrompt.trim()) {
+      return "Agent prompt is required (or reset to the bundled default).";
+    }
+    const missing = REQUIRED_AGENT_PLACEHOLDERS.filter(
+      (token) => !agentPrompt.includes(token)
+    );
+    if (missing.length > 0) {
+      return `Agent prompt is missing: ${missing.join(", ")}`;
+    }
+    return null;
+  }
+
+  async function saveRoshniPrompt() {
+    const validationError = validatePromptDraft();
+    if (validationError) {
+      setPromptError(validationError);
+      return;
+    }
+    setPromptSaving(true);
+    setPromptError(null);
+    try {
+      const data = await adminApi.updatePlatformSettings({
+        roshniPrompt: {
+          introduction: introduction.trim(),
+          agentPrompt: agentPrompt.trim(),
+        },
+      });
+      if (data.roshniPrompt) {
+        setPromptMeta(data.roshniPrompt);
+        setIntroduction(data.roshniPrompt.effectiveIntroduction);
+        setAgentPrompt(data.roshniPrompt.effectiveAgentPrompt);
+      }
+      setToast("Saved Roshni voice defaults.");
+    } catch (error) {
+      setPromptError(
+        getApiErrorMessage(error, "Unable to save Roshni voice defaults.")
+      );
+    } finally {
+      setPromptSaving(false);
+    }
+  }
+
+  async function resetRoshniPromptToBundled() {
+    setPromptSaving(true);
+    setPromptError(null);
+    try {
+      const data = await adminApi.updatePlatformSettings({
+        roshniPrompt: {
+          introduction: null,
+          agentPrompt: null,
+        },
+      });
+      if (data.roshniPrompt) {
+        setPromptMeta(data.roshniPrompt);
+        setIntroduction(data.roshniPrompt.effectiveIntroduction);
+        setAgentPrompt(data.roshniPrompt.effectiveAgentPrompt);
+      } else {
+        setIntroduction(ROSHNI_INTRODUCTION);
+        setAgentPrompt(ROSHNI_AGENT_PROMPT_TEMPLATE);
+      }
+      setToast("Reset Roshni voice defaults to the bundled template.");
+    } catch (error) {
+      setPromptError(
+        getApiErrorMessage(error, "Unable to reset Roshni voice defaults.")
+      );
+    } finally {
+      setPromptSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -104,6 +205,75 @@ export function AdminSettingsWorkspace() {
           {toast}
         </div>
       ) : null}
+
+      <FormSection
+        title="Roshni voice defaults"
+        description="Global introduction and agent prompt used for new screening and outreach voice configurations. Existing custom drafts are not overwritten."
+      >
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Version {promptMeta?.version ?? 0}
+            {promptMeta
+              ? ` · intro ${promptMeta.introductionSource}, prompt ${promptMeta.agentPromptSource}`
+              : " · loading…"}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              disabled={promptSaving}
+              onClick={() => void resetRoshniPromptToBundled()}
+            >
+              <RotateCcw aria-hidden />
+              Reset to bundled
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              disabled={promptSaving}
+              onClick={() => void saveRoshniPrompt()}
+            >
+              <Save aria-hidden />
+              Save prompt
+            </Button>
+          </div>
+        </div>
+
+        {promptError ? (
+          <p className="mb-3 text-sm text-destructive" role="alert">
+            {promptError}
+          </p>
+        ) : null}
+
+        <div className="space-y-4">
+          <Field
+            label="Introduction"
+            htmlFor="admin-roshni-intro"
+            hint="Must include {callee_name}. Used as the opening line for Roshni voice calls."
+          >
+            <Textarea
+              id="admin-roshni-intro"
+              value={introduction}
+              onChange={(event) => setIntroduction(event.target.value)}
+              className="min-h-20 font-mono text-xs"
+            />
+          </Field>
+          <Field
+            label="Agent prompt"
+            htmlFor="admin-roshni-agent"
+            hint="Must keep {callee_name}, {jd_role_screening_label}, and {jd_screening_questions_list}."
+          >
+            <Textarea
+              id="admin-roshni-agent"
+              value={agentPrompt}
+              onChange={(event) => setAgentPrompt(event.target.value)}
+              className="h-80 max-h-128 min-h-64 resize-y overflow-y-auto font-mono text-xs leading-relaxed field-sizing-fixed"
+              style={{ fieldSizing: "fixed" }}
+            />
+          </Field>
+        </div>
+      </FormSection>
 
       <div className="space-y-4">
         {providers.map((provider) => {

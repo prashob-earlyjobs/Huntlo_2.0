@@ -68,6 +68,7 @@ export type InterviewDocument = Document & {
   status: InterviewStatus;
   bookingStatus: BookingStatus;
   reminderStatus: InterviewReminderStatus;
+  reminderHours: number[];
   sourceModule: string;
   campaignId: mongoose.Types.ObjectId | null;
   screeningId: mongoose.Types.ObjectId | null;
@@ -140,6 +141,7 @@ const interviewSchema = new Schema<InterviewDocument>(
       default: 'not_sent',
       index: true,
     },
+    reminderHours: { type: [Number], default: [24, 2] },
     sourceModule: { type: String, default: 'scheduling', index: true },
     campaignId: {
       type: Schema.Types.ObjectId,

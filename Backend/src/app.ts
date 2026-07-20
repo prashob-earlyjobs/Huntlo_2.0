@@ -30,7 +30,10 @@ import { outreachRouter, campaignRoutes } from './modules/outreach/index.js';
 import { conversationsRouter } from './modules/conversations/index.js';
 import { huntlo360Router } from './modules/huntlo-360/index.js';
 import { screeningRouter } from './modules/screening/index.js';
-import { hunarVoiceWebhookRouter } from './modules/voice/index.js';
+import {
+  hunarVoiceWebhookRouter,
+  voiceDefaultsRouter,
+} from './modules/voice/index.js';
 import {
   assessmentsRouter,
   assessmentWebhookRouter,
@@ -65,6 +68,7 @@ import {
   preferencesRouter,
   profileRouter,
   settingsRouter,
+  usersMeRouter,
 } from './modules/users/index.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -143,6 +147,7 @@ export function createApp(): Express {
   app.use('/api/v1/conversations', conversationsRouter);
   app.use('/api/v1/huntlo-360', huntlo360Router);
   app.use('/api/v1/screenings', screeningRouter);
+  app.use('/api/v1/voice', voiceDefaultsRouter);
   app.use('/api/v1/assessments', assessmentsRouter);
   app.use('/api/v1/interviews', interviewsRouter);
   app.use('/api/v1/availability', availabilityRouter);
@@ -155,6 +160,7 @@ export function createApp(): Express {
   app.use('/api/v1/realtime', realtimeRouter);
   app.use('/api/v1/profile', profileRouter);
   app.use('/api/v1/preferences', preferencesRouter);
+  app.use('/api/v1/users', usersMeRouter);
   app.use('/api/v1/settings', settingsRouter);
   app.use('/api/v1/audit-logs', auditLogsRouter);
 

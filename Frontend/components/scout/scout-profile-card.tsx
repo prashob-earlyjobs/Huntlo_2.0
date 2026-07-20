@@ -2,17 +2,16 @@
 
 import {
   AudioLines,
-  BadgeCheck,
   Building2,
   Check,
   Copy,
   ExternalLink,
   ListPlus,
+  Loader2,
   Mail,
   MapPin,
   Phone,
   Send,
-  ShieldQuestion,
   UserRoundPlus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -28,11 +27,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import type { ScoutProfile } from "@/lib/mock-scout";
 import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api";
 import { REVEAL_COSTS, useRevealQuota } from "@/hooks/use-reveal-quota";
@@ -50,12 +44,10 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function RevealedRow({
   icon: Icon,
   value,
-  verified,
   label,
 }: {
   icon: typeof Mail;
   value: string;
-  verified: boolean;
   label: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -65,23 +57,6 @@ function RevealedRow({
       <span className="min-w-0 truncate text-xs font-medium text-foreground">
         {value}
       </span>
-      <Tooltip>
-        <TooltipTrigger
-          aria-label={verified ? "Verified contact" : "Unverified contact"}
-          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          {verified ? (
-            <BadgeCheck aria-hidden className="size-3.5 text-success" />
-          ) : (
-            <ShieldQuestion aria-hidden className="size-3.5 text-warning" />
-          )}
-        </TooltipTrigger>
-        <TooltipContent>
-          {verified
-            ? "Verified in the last 30 days"
-            : "Unverified — deliverability not guaranteed"}
-        </TooltipContent>
-      </Tooltip>
       <Button
         type="button"
         size="icon-xs"
@@ -122,6 +97,7 @@ export function ScoutProfileCard({
   const [linkCopied, setLinkCopied] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState<"email" | "mobile" | null>(null);
   const [listNames, setListNames] = useState<string[]>([]);
   const revealQuota = useRevealQuota();
 
@@ -147,6 +123,7 @@ export function ScoutProfileCard({
 
   async function handleReveal(type: "email" | "mobile") {
     setRevealError(null);
+    setRevealing(type);
     try {
       const result = await peopleScoutApi.revealContact({
         lookupId: lookupId ?? "",
@@ -169,6 +146,8 @@ export function ScoutProfileCard({
       );
     } catch (err) {
       setRevealError(getApiErrorMessage(err));
+    } finally {
+      setRevealing(null);
     }
   }
 
@@ -200,7 +179,12 @@ export function ScoutProfileCard({
       <div className="border-b border-border p-5">
         <div className="space-y-4">
           <div className="flex w-full min-w-0 items-start gap-4">
-            <CandidateAvatar name={profile.name} className="size-16 shrink-0 text-lg" />
+            <CandidateAvatar
+              name={profile.name}
+              src={profile.avatarUrl}
+              preview
+              className="size-16 shrink-0 text-lg"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
@@ -424,11 +408,22 @@ export function ScoutProfileCard({
           <section className="space-y-2">
             <SectionTitle>Contact</SectionTitle>
             <div className="space-y-1.5">
-              {revealed.email ? (
+              {revealing === "email" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled
+                  aria-busy
+                >
+                  <Loader2 aria-hidden className="animate-spin" />
+                  Unlocking email…
+                </Button>
+              ) : revealed.email ? (
                 <RevealedRow
                   icon={Mail}
                   value={emailValue}
-                  verified={profile.emailVerified}
                   label="email"
                 />
               ) : (
@@ -439,6 +434,7 @@ export function ScoutProfileCard({
                       size="sm"
                       variant="outline"
                       className="w-full justify-start"
+                      disabled={revealing !== null}
                     >
                       <Mail aria-hidden />
                       Reveal Email
@@ -453,11 +449,22 @@ export function ScoutProfileCard({
                   onConfirm={() => void handleReveal("email")}
                 />
               )}
-              {revealed.phone ? (
+              {revealing === "mobile" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled
+                  aria-busy
+                >
+                  <Loader2 aria-hidden className="animate-spin" />
+                  Unlocking phone…
+                </Button>
+              ) : revealed.phone ? (
                 <RevealedRow
                   icon={Phone}
                   value={phoneValue}
-                  verified={profile.phoneVerified}
                   label="phone number"
                 />
               ) : (
@@ -468,6 +475,7 @@ export function ScoutProfileCard({
                       size="sm"
                       variant="outline"
                       className="w-full justify-start"
+                      disabled={revealing !== null}
                     >
                       <Phone aria-hidden />
                       Reveal Phone

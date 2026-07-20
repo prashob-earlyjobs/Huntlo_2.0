@@ -46,14 +46,18 @@ export async function scheduleRemindersForInterview(
     );
   }
 
+  const preferredChannel = interview.inviteChannel || settings.channel;
   const channels: Array<'email' | 'whatsapp'> =
-    settings.channel === 'both'
+    preferredChannel === 'both'
       ? ['email', 'whatsapp']
-      : settings.channel === 'whatsapp'
+      : preferredChannel === 'whatsapp'
         ? ['whatsapp']
         : ['email'];
 
-  for (const hours of settings.timings) {
+  const timings = Array.isArray(interview.reminderHours)
+    ? interview.reminderHours
+    : settings.timings;
+  for (const hours of timings) {
     const scheduledAt = new Date(interview.startAt.getTime() - hours * 60 * 60 * 1000);
     if (scheduledAt.getTime() <= Date.now()) continue;
 

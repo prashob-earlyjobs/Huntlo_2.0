@@ -152,6 +152,7 @@ export async function processCalendlyWebhookPayload(payload: Record<string, unkn
         event: eventResource!,
         invitee: inviteeRow,
         matchInterviewIds: interviews.map((i) => String(i._id)),
+        source: 'webhook',
       });
       if (!doc) continue;
       synced += 1;

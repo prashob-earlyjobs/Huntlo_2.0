@@ -25,7 +25,10 @@ import { useEffect, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { PoolTable } from "@/components/candidates/pool-table";
-import { SavedListsWorkspaceSkeleton } from "@/components/candidates/pool-skeleton";
+import {
+  PoolTableSkeleton,
+  SavedListsWorkspaceSkeleton,
+} from "@/components/candidates/pool-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -644,9 +647,7 @@ export function SavedListsWorkspace() {
 
         <section className="rounded-xl border border-border bg-card">
           {tableLoading ? (
-            <div className="flex min-h-56 items-center justify-center text-sm text-muted-foreground">
-              Loading candidates…
-            </div>
+            <PoolTableSkeleton rows={Math.min(pageSize, 8)} />
           ) : candidates.length > 0 ? (
             <>
               <PoolTable

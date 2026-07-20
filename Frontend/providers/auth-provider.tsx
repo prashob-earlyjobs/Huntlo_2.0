@@ -26,6 +26,13 @@ import {
   type AuthUser,
 } from "@/lib/api";
 import type { LoginInput, RegisterInput } from "@/lib/api/auth";
+import {
+  clearPendingPublicSearch,
+  readPendingPublicSearch,
+  sessionResultsPath,
+  setPendingRedirectPath,
+} from "@/lib/claim-public-search";
+import { candidateSearchApi } from "@/lib/api/candidate-search";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -35,11 +42,13 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   isMockMode: boolean;
-  login: (input: LoginInput) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
+  login: (input: LoginInput) => Promise<AuthUser>;
+  register: (input: RegisterInput) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  applyUser: (session: Partial<AuthMeResponse> & { user: AuthUser }) => void;
   setWorkspace: (workspaceId: string) => void;
+  claimPendingPublicSearch: () => Promise<string | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -93,6 +102,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  const applyUser = useCallback(
+    (session: Partial<AuthMeResponse> & { user: AuthUser }) => {
+      setMe((previous) => {
+        const next: AuthMeResponse = {
+          user: session.user,
+          organization: session.organization ?? previous?.organization ?? {
+            id: session.user.organizationId ?? "",
+            name: session.user.companyName ?? "Workspace",
+            plan: session.user.plan ?? "Starter",
+            initials: session.user.initials,
+          },
+          permissions: session.permissions ?? previous?.permissions ?? [],
+        };
+        if (next.organization.id) {
+          tokenStorage.setWorkspaceId(next.organization.id);
+        }
+        return next;
+      });
+      setSessionState("authenticated");
+      setAuthSessionCookie(true);
+    },
+    []
+  );
+
+  const claimPendingPublicSearch = useCallback(async () => {
+    const pending = readPendingPublicSearch();
+    if (!pending) return null;
+    try {
+      const claimed = await candidateSearchApi.claimPublicSearch({
+        sessionId: pending.sessionId,
+        claimToken: pending.claimToken,
+      });
+      clearPendingPublicSearch();
+      const path = sessionResultsPath(claimed.savedSessionId || claimed.sessionId);
+      setPendingRedirectPath(path);
+      return path;
+    } catch {
+      // Soft-fail: never block signup/login/onboarding
+      clearPendingPublicSearch();
+      return null;
+    }
+  }, []);
 
   const bootstrap = useCallback(async () => {
     setSessionState("loading");
@@ -160,16 +212,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (input: LoginInput) => {
       const result = await authApi.login(input);
       applySession(result.me, { accessToken: result.accessToken, workspaceId: result.workspaceId });
+      await claimPendingPublicSearch();
+      return result.me.user;
     },
-    [applySession]
+    [applySession, claimPendingPublicSearch]
   );
 
   const register = useCallback(
     async (input: RegisterInput) => {
       const result = await authApi.register(input);
       applySession(result.me, { accessToken: result.accessToken, workspaceId: result.workspaceId });
+      await claimPendingPublicSearch();
+      return result.me.user;
     },
-    [applySession]
+    [applySession, claimPendingPublicSearch]
   );
 
   const logout = useCallback(async () => {
@@ -204,9 +260,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refresh,
+      applyUser,
       setWorkspace,
+      claimPendingPublicSearch,
     }),
-    [me, sessionState, login, register, logout, refresh, setWorkspace]
+    [
+      me,
+      sessionState,
+      login,
+      register,
+      logout,
+      refresh,
+      applyUser,
+      setWorkspace,
+      claimPendingPublicSearch,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

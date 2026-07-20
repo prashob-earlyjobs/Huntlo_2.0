@@ -191,10 +191,15 @@ export async function processHunarWebhook(input: {
       const scored = mapEvaluationScores({
         result: parsed.result,
         criteria: screening.evaluationCriteria || [],
+        minScore: screening.minShortlistScore ?? 70,
+        knockouts: screening.knockouts || [],
       });
       row.extractedVariables = {
         ...row.extractedVariables,
         ...scored.extractedVariables,
+        ...(scored.triggeredKnockouts.length
+          ? { knockouts_triggered: scored.triggeredKnockouts }
+          : {}),
       };
       row.scoreBreakdown = { ...row.scoreBreakdown, ...scored.scoreBreakdown };
       if (scored.overallScore != null) row.overallScore = scored.overallScore;

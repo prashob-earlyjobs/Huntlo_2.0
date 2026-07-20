@@ -74,25 +74,38 @@ export type AuthSession = {
 
 export type MemberStatus = "active" | "invited" | "suspended" | "blocked";
 export type OnboardingStatus = "not_started" | "in_progress" | "completed";
+export type AccountRole = "owner" | "member";
 
 export type AuthUser = {
   id: string;
   name: string;
+  fullName?: string;
   email: string;
   firstName?: string;
   lastName?: string;
+  companyName?: string | null;
   phone?: string | null;
+  mobile?: string | null;
   jobTitle?: string | null;
   profileImage?: string | null;
   timezone?: string;
   locale?: string;
   role: string;
+  accountRole?: AccountRole;
   initials: string;
   plan: string;
+  planId?: string | null;
   memberStatus?: MemberStatus;
   onboardingStatus?: OnboardingStatus;
+  onboardingCompleted?: boolean;
+  onboardingCompletedAt?: string | null;
+  onboardingCompanyType?: string | null;
+  onboardingHiringChallenges?: string[];
+  onboardingOutreachChannels?: string[];
+  onboardingHiringVolume?: string | null;
   emailVerified?: boolean;
   organizationId?: string;
+  platformAdmin?: boolean;
 };
 
 export type AuthOrganization = {

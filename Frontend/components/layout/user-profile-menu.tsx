@@ -6,9 +6,11 @@ import { useState } from "react";
 import {
   CircleUser,
   CreditCard,
+  HelpCircle,
   LogOut,
   Monitor,
   Moon,
+  RotateCcw,
   Settings,
   Sun,
   SunMoon,
@@ -39,6 +41,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useDashboardProductTourOptional } from "@/hooks/use-dashboard-product-tour";
 import { ROUTES } from "@/lib/routes";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -46,11 +49,13 @@ export function UserProfileMenu() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { user, logout, isMockMode } = useAuth();
+  const tour = useDashboardProductTourOptional();
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
 
   const displayName = user?.name ?? "Account";
   const displayEmail = user?.email ?? "";
   const displayInitials = user?.initials ?? "?";
+  const canRestartTour = Boolean(tour?.canRestart);
 
   async function handleLogout() {
     await logout();
@@ -119,6 +124,27 @@ export function UserProfileMenu() {
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        {canRestartTour ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <HelpCircle aria-hidden />
+                Help and Support
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void tour?.restartProductTour();
+                  }}
+                >
+                  <RotateCcw aria-hidden />
+                  Product Tour
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"

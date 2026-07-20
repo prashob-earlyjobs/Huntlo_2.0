@@ -69,6 +69,13 @@ export const updateBlogSchema = createBlogSchema.partial().extend({
 export const patchPlatformSettingsSchema = z.object({
   maintenanceMode: z.boolean().optional(),
   featureFlags: z.record(z.string(), z.unknown()).optional(),
+  roshniPrompt: z
+    .object({
+      /** Null clears to bundled file default. */
+      introduction: z.string().trim().max(2000).nullable().optional(),
+      agentPrompt: z.string().trim().max(100_000).nullable().optional(),
+    })
+    .optional(),
   providers: z
     .array(
       z.object({

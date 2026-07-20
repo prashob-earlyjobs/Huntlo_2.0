@@ -36,6 +36,9 @@ adminPlansRouter.post(
     const data = await plansService.createPlan({
       ...body,
       limits: body.limits as never,
+      isDefaultSignup: body.isDefaultSignup,
+      isTrialPlan: body.isTrialPlan,
+      trialDays: body.trialDays,
     });
     await recordAdminMutation(req, {
       action: 'admin.plan.created',
@@ -77,6 +80,21 @@ adminPlansRouter.patch(
       relatedEntityType: 'pricing_plan',
       relatedEntityId: data.id,
       metadata: { active: body.active },
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+adminPlansRouter.post(
+  '/:id/set-default-signup',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:write'),
+  asyncHandler(async (req, res) => {
+    const data = await plansService.setDefaultSignupPlan(String(req.params.id ?? ''));
+    await recordAdminMutation(req, {
+      action: 'admin.plan.default_signup_set',
+      relatedEntityType: 'pricing_plan',
+      relatedEntityId: data.id,
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })

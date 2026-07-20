@@ -93,6 +93,8 @@ export interface IntegrationProvider {
   serverConfigured?: boolean;
   /** Public OAuth client id (e.g. Google) when needed for popup auth. */
   oauthClientId?: string | null;
+  /** When true, card is shown but connect/configure is unavailable. */
+  inactive?: boolean;
 }
 
 export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
@@ -132,9 +134,9 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     description:
       "Connect Microsoft 365 mailboxes for multi-recruiter outreach.",
     category: "Email",
-    status: "Connected",
-    connectedIdentity: "neha@acmetalent.com",
-    lastSynced: "12m ago",
+    status: "Not Connected",
+    connectedIdentity: null,
+    lastSynced: null,
     docsLabel: "Outlook setup guide",
     initials: "Ol",
     accent: "info",
@@ -143,16 +145,11 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
       "Read mail",
       "Access calendars (optional)",
     ],
-    usage: [
-      { label: "Sent today", value: "27 / 500" },
-      { label: "Replies synced", value: "9" },
-    ],
-    connectionDetails: [
-      { label: "Tenant", value: "acmetalent.onmicrosoft.com" },
-      { label: "Auth", value: "Microsoft OAuth 2.0" },
-    ],
+    usage: [],
+    connectionDetails: [],
     isDefault: false,
     configKind: "email",
+    inactive: true,
   },
   {
     id: "zoho-mail",
@@ -254,6 +251,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     connectionDetails: [],
     isDefault: false,
     configKind: "whatsapp",
+    inactive: true,
   },
   /* Voice */
   {
@@ -314,31 +312,6 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     ],
     isDefault: true,
     configKind: "calendly",
-  },
-  /* Candidate data */
-  {
-    id: "future-jobs",
-    name: "Future Jobs",
-    description:
-      "Enrich candidate profiles and pull public career signals into Huntlo.",
-    category: "Candidate Data",
-    status: "Connected",
-    connectedIdentity: "API key · production",
-    lastSynced: "1h ago",
-    docsLabel: "Future Jobs API",
-    initials: "FJ",
-    accent: "info",
-    permissions: ["Lookup profiles", "Enrich contact fields"],
-    usage: [
-      { label: "Lookups today", value: "24 / 200" },
-      { label: "Enrichments", value: "11" },
-    ],
-    connectionDetails: [
-      { label: "Environment", value: "Production" },
-      { label: "Rate limit", value: "200 lookups / day" },
-    ],
-    isDefault: true,
-    configKind: "data",
   },
   /* Payments */
   {

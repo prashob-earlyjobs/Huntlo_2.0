@@ -142,7 +142,11 @@ function ResultRowActions({
   );
 }
 
-export function ResultsWorkspace() {
+export function ResultsWorkspace({
+  screeningId,
+}: {
+  screeningId?: string;
+} = {}) {
   const [results, setResults] = useState<ScreeningResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -152,10 +156,13 @@ export function ResultsWorkspace() {
   const [message, setMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const next = await screeningApi.listResults({ limit: 100 });
+    const next = await screeningApi.listResults({
+      limit: 100,
+      ...(screeningId ? { screeningId } : {}),
+    });
     setResults(next);
     setError(null);
-  }, []);
+  }, [screeningId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -355,12 +362,14 @@ export function ResultsWorkspace() {
                           >
                             {result.candidateName}
                           </Link>
-                          <Link
-                            href={screeningDetailPath(result.screeningId)}
-                            className="block truncate text-[11px] text-muted-foreground underline-offset-4 hover:underline"
-                          >
-                            {result.screeningName}
-                          </Link>
+                          {!screeningId ? (
+                            <Link
+                              href={screeningDetailPath(result.screeningId)}
+                              className="block truncate text-[11px] text-muted-foreground underline-offset-4 hover:underline"
+                            >
+                              {result.screeningName}
+                            </Link>
+                          ) : null}
                         </div>
                       </div>
                     </TableCell>
@@ -440,10 +449,18 @@ export function ResultsWorkspace() {
         ) : (
           <EmptyState
             icon={Search}
-            title="No results match these filters"
-            description="Adjust your filters, or run a voice screening batch to generate results."
-            actionLabel="Go to AI Screening"
-            actionHref={ROUTES.screening}
+            title={
+              screeningId
+                ? "No results for this screening yet"
+                : "No results match these filters"
+            }
+            description={
+              screeningId
+                ? "Results appear here once candidates complete AI voice screening for this campaign."
+                : "Adjust your filters, or run a voice screening batch to generate results."
+            }
+            actionLabel={screeningId ? undefined : "Go to AI Screening"}
+            actionHref={screeningId ? undefined : ROUTES.screening}
             className="m-4 border-0"
           />
         )}

@@ -38,6 +38,7 @@ export const createInterviewSchema = z.object({
   location: z.string().max(500).nullable().optional(),
   meetingUrl: z.string().max(1000).nullable().optional(),
   instructions: z.string().max(10000).nullable().optional(),
+  reminderHours: z.array(z.number().int().min(1).max(720)).max(10).optional(),
   sourceModule: z.string().max(40).optional(),
   campaignId: objectId.nullable().optional(),
   screeningId: objectId.nullable().optional(),
@@ -46,6 +47,7 @@ export const createInterviewSchema = z.object({
   linkExpiryHours: z.number().int().min(1).max(720).optional(),
   inviteeEmail: z.string().email().nullable().optional(),
   inviteeName: z.string().max(200).nullable().optional(),
+  message: z.string().trim().min(1).max(5000).nullable().optional(),
   sendLink: z.boolean().optional(),
 });
 

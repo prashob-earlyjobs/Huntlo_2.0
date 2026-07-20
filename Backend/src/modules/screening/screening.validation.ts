@@ -17,15 +17,18 @@ export const screeningIdParamSchema = z.object({ id: objectId });
 
 export const createScreeningSchema = z.object({
   name: z.string().trim().min(1).max(200),
+  ownerUserId: objectId.optional(),
   jobId: objectId.nullable().optional(),
   campaignId: objectId.nullable().optional(),
   workflowId: objectId.nullable().optional(),
   sourceModule: z.string().max(40).optional(),
+  description: z.string().trim().max(5000).nullable().optional(),
   objective: z.string().max(5000).nullable().optional(),
   language: z.string().max(40).nullable().optional(),
   voice: z.string().max(80).nullable().optional(),
   tone: z.string().max(80).nullable().optional(),
   introductionScript: z.string().max(20000).nullable().optional(),
+  agentPrompt: z.string().max(60000).nullable().optional(),
   closingScript: z.string().max(20000).nullable().optional(),
   consentText: z.string().max(5000).nullable().optional(),
   questions: z
@@ -33,6 +36,11 @@ export const createScreeningSchema = z.object({
       z.object({
         id: z.string().min(1).max(80),
         prompt: z.string().min(1).max(2000),
+        type: z.string().trim().max(80).nullable().optional(),
+        required: z.boolean().optional(),
+        followUp: z.string().trim().max(1000).nullable().optional(),
+        expectedVariable: z.string().trim().max(80).nullable().optional(),
+        evaluationEnabled: z.boolean().optional(),
         knockout: z.boolean().optional(),
       })
     )
@@ -49,6 +57,8 @@ export const createScreeningSchema = z.object({
     )
     .max(30)
     .optional(),
+  minShortlistScore: z.number().min(0).max(100).optional(),
+  knockouts: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
   callSettings: z
     .object({
       maxAttempts: z.number().int().min(1).max(10).optional(),

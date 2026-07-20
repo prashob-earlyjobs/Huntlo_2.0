@@ -23,18 +23,61 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { canAccessPath } from "@/lib/access-control";
 import { ROUTES } from "@/lib/routes";
+import { useAuth } from "@/providers/auth-provider";
 
 const QUICK_CREATE_OPTIONS = [
-  { title: "Job", href: ROUTES.jobsNew, icon: Briefcase },
-  { title: "Candidate search", href: ROUTES.search, icon: Search },
-  { title: "Outreach campaign", href: ROUTES.outreach, icon: Send },
-  { title: "Screening batch", href: ROUTES.screening, icon: AudioLines },
-  { title: "Interview", href: ROUTES.interviews, icon: CalendarClock },
-  { title: "Import candidates", href: ROUTES.candidates, icon: Upload },
+  {
+    title: "Job",
+    href: ROUTES.jobsNew,
+    icon: Briefcase,
+    permission: "jobs:create",
+  },
+  {
+    title: "Candidate search",
+    href: ROUTES.search,
+    icon: Search,
+    permission: "sourcing:view",
+  },
+  {
+    title: "Outreach campaign",
+    href: ROUTES.outreach,
+    icon: Send,
+    permission: "outreach:create",
+  },
+  {
+    title: "Screening batch",
+    href: ROUTES.screening,
+    icon: AudioLines,
+    permission: "screening:create",
+  },
+  {
+    title: "Interview",
+    href: ROUTES.interviews,
+    icon: CalendarClock,
+    permission: "scheduling:create",
+  },
+  {
+    title: "Import candidates",
+    href: ROUTES.candidates,
+    icon: Upload,
+    permission: "candidates:create",
+  },
 ] as const;
 
 export function QuickCreateMenu() {
+  const { permissions } = useAuth();
+  const options = QUICK_CREATE_OPTIONS.filter(
+    (option) =>
+      canAccessPath(permissions, option.href) ||
+      permissions.includes("*") ||
+      permissions.includes(option.permission) ||
+      permissions.includes(`${option.permission.split(":")[0]}:manage`)
+  );
+
+  if (options.length === 0) return null;
+
   return (
     <DropdownMenu>
       <Tooltip>
@@ -44,6 +87,7 @@ export function QuickCreateMenu() {
               render={
                 <Button
                   size="sm"
+                  data-tour="quick-create"
                   className="h-8 gap-1 px-2 sm:px-2.5"
                   aria-label="Create"
                 />
@@ -57,7 +101,7 @@ export function QuickCreateMenu() {
         <TooltipContent className="sm:hidden">Create</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-52">
-        {QUICK_CREATE_OPTIONS.map((option) => (
+        {options.map((option) => (
           <DropdownMenuItem key={option.title} render={<Link href={option.href} />}>
             <option.icon aria-hidden />
             {option.title}
