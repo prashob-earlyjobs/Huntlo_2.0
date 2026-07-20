@@ -11,11 +11,13 @@ import {
   ListPlus,
   Pencil,
   Plug,
+  Plus,
   Search,
   UserPlus,
   UserRound,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
@@ -23,7 +25,6 @@ import {
   ErrorList,
   Field,
   StepCard,
-  ToggleRow,
 } from "@/components/outreach/builder-ui";
 import { Stepper } from "@/components/shared/stepper";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
@@ -49,9 +50,10 @@ import {
   getApiErrorMessage,
   jobsApi,
   schedulingApi,
-  teamApi,
+  templatesApi,
   type CalendlyEventType,
 } from "@/lib/api";
+import type { OutreachTemplate } from "@/lib/mock-templates";
 import {
   INTERVIEW_TYPES,
   MEETING_PLATFORMS,
@@ -59,7 +61,9 @@ import {
   TIMEZONE_OPTIONS,
   type SchedulingMethod,
 } from "@/lib/mock-schedule";
+import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers";
 
 type FlowCandidate = {
   id: string;
@@ -94,6 +98,7 @@ interface FlowState {
   instructions: string;
   reminderHours: number[];
   inviteChannel: "email" | "whatsapp";
+  messageTemplateId: string;
   message: string;
 }
 
@@ -105,12 +110,12 @@ function defaultManualAt(): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function initialState(): FlowState {
+function initialState(interviewerId?: string | null): FlowState {
   return {
     candidateIds: [],
     jobId: "",
     interviewType: INTERVIEW_TYPES[0],
-    interviewers: [],
+    interviewers: interviewerId ? [interviewerId] : [],
     method: null,
     calendlyEvent: "",
     manualAt: defaultManualAt(),
@@ -121,6 +126,7 @@ function initialState(): FlowState {
     instructions: "",
     reminderHours: [24, 2],
     inviteChannel: "email",
+    messageTemplateId: "",
     message:
       "Hi {{first_name}}, we'd love to schedule the next round for {{job_title}}. {{scheduling_details}}",
   };
@@ -155,12 +161,11 @@ function formatReminderHours(hours: number[]): string {
 }
 
 const STEPS = [
-  { id: "candidate", title: "Select Candidates" },
-  { id: "job", title: "Select Job" },
-  { id: "type", title: "Select Interview Type" },
-  { id: "interviewers", title: "Select Interviewers" },
-  { id: "method", title: "Select Scheduling Method" },
-  { id: "message", title: "Configure Message" },
+  { id: "candidate", title: "Candidates" },
+  { id: "job", title: "Job" },
+  { id: "type", title: "Interview type" },
+  { id: "method", title: "Scheduling" },
+  { id: "message", title: "Message" },
   { id: "review", title: "Review" },
 ];
 
@@ -229,9 +234,7 @@ function stepErrors(step: number, state: FlowState): string[] {
   if (step === 0 && state.candidateIds.length === 0)
     errors.push("Select at least one candidate.");
   if (step === 1 && !state.jobId) errors.push("Select a job.");
-  if (step === 3 && state.interviewers.length === 0)
-    errors.push("Select at least one interviewer.");
-  if (step === 4) {
+  if (step === 3) {
     if (!state.method) {
       errors.push("Choose how the interview will be scheduled.");
     } else if (state.method === "Calendly Link" && !state.calendlyEvent) {
@@ -243,7 +246,7 @@ function stepErrors(step: number, state: FlowState): string[] {
       errors.push("Choose a future date and time.");
     }
   }
-  if (step === 5 && !state.message.trim())
+  if (step === 4 && !state.message.trim())
     errors.push("Message to the candidate cannot be empty.");
   return errors;
 }
@@ -275,7 +278,8 @@ export function ScheduleInterviewFlow({
   onOpenChange: (open: boolean) => void;
   onComplete: (message: string) => void;
 }) {
-  const [state, setState] = useState<FlowState>(initialState);
+  const { user } = useAuth();
+  const [state, setState] = useState<FlowState>(() => initialState(user?.id));
   const [current, setCurrent] = useState(0);
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
   const [done, setDone] = useState(false);
@@ -298,20 +302,20 @@ export function ScheduleInterviewFlow({
   });
   const [candidateQuery, setCandidateQuery] = useState("");
   const [jobs, setJobs] = useState<FlowJob[]>([]);
-  const [interviewerOptions, setInterviewerOptions] = useState<
-    { id: string; name: string }[]
-  >([]);
   const [eventTypes, setEventTypes] = useState<CalendlyEventType[]>([]);
+  const [messageTemplates, setMessageTemplates] = useState<OutreachTemplate[]>(
+    []
+  );
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     void (async () => {
       try {
-        const [pool, jobRows, members, events, lists] = await Promise.all([
+        const [pool, jobRows, events, lists] = await Promise.all([
           candidatePoolApi.list({ limit: 100 }).catch(() => []),
           jobsApi.list({ limit: 40 }).catch(() => []),
-          teamApi.listMembers().catch(() => []),
           schedulingApi.listEventTypes().catch(() => []),
           candidatePoolApi.listLists().catch(() => []),
         ]);
@@ -324,12 +328,6 @@ export function ScheduleInterviewFlow({
             title: row.title,
             department: row.department || "",
             location: row.location || "",
-          }))
-        );
-        setInterviewerOptions(
-          members.map((member) => ({
-            id: member.userId || member.id,
-            name: member.name,
           }))
         );
         setEventTypes(events);
@@ -351,6 +349,52 @@ export function ScheduleInterviewFlow({
       cancelled = true;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setState((previous) =>
+      previous.interviewers.includes(user.id)
+        ? previous
+        : { ...previous, interviewers: [user.id] }
+    );
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setTemplatesLoading(true);
+    void (async () => {
+      try {
+        const channel = state.inviteChannel;
+        let items = await templatesApi.list({
+          archived: false,
+          channel,
+          category: "scheduling",
+        });
+        if (items.length === 0) {
+          items = await templatesApi.list({ archived: false, channel });
+        }
+        if (cancelled) return;
+        setMessageTemplates(items);
+        setState((previous) => {
+          if (
+            previous.messageTemplateId &&
+            items.some((item) => item.id === previous.messageTemplateId)
+          ) {
+            return previous;
+          }
+          return { ...previous, messageTemplateId: "" };
+        });
+      } catch {
+        if (!cancelled) setMessageTemplates([]);
+      } finally {
+        if (!cancelled) setTemplatesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, state.inviteChannel]);
 
   useEffect(() => {
     if (!open || candidateSource !== "list" || !selectedListId) {
@@ -392,7 +436,7 @@ export function ScheduleInterviewFlow({
   }
 
   function reset() {
-    setState(initialState());
+    setState(initialState(user?.id));
     setCandidateSource("pool");
     setSelectedListId("");
     setListCandidates([]);
@@ -551,7 +595,12 @@ export function ScheduleInterviewFlow({
           candidateId: person.id,
           jobId: state.jobId || null,
           interviewType: state.interviewType,
-          interviewerIds: state.interviewers,
+          interviewerIds:
+            state.interviewers.length > 0
+              ? state.interviewers
+              : user?.id
+                ? [user.id]
+                : [],
           schedulingMethod: methodToApi(state.method),
           providerEventTypeId: selectedEvent?.uri || state.calendlyEvent || null,
           schedulingUrl: selectedEvent?.schedulingUrl || null,
@@ -654,9 +703,7 @@ export function ScheduleInterviewFlow({
             </div>
           ) : (
             <div className="space-y-4">
-              <nav aria-label="Schedule interview steps">
-                <Stepper steps={STEPS} currentStep={current} />
-              </nav>
+              <Stepper steps={STEPS} currentStep={current} />
 
               {showErrors ? <ErrorList errors={errors} /> : null}
 
@@ -840,7 +887,7 @@ export function ScheduleInterviewFlow({
                     </p>
                   ) : null}
 
-                  <div className="space-y-2">
+                  <div className="mt-3 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="relative min-w-0 flex-1">
                         <Search
@@ -1003,9 +1050,19 @@ export function ScheduleInterviewFlow({
                       );
                     })}
                     {jobs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground sm:col-span-2">
-                        No jobs available. Create a job first.
-                      </p>
+                      <div className="flex flex-col items-start gap-3 sm:col-span-2">
+                        <p className="text-sm text-muted-foreground">
+                          No jobs available. Create a job first.
+                        </p>
+                        <Button
+                          size="sm"
+                          nativeButton={false}
+                          render={<Link href={ROUTES.jobsNew} />}
+                        >
+                          <Plus aria-hidden />
+                          Create job
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
                 </StepCard>
@@ -1046,43 +1103,6 @@ export function ScheduleInterviewFlow({
               ) : null}
 
               {current === 3 ? (
-                <StepCard
-                  title="Select Interviewers"
-                  description="Panel members who need the calendar hold."
-                >
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {interviewerOptions.length === 0 ? (
-                      <p className="col-span-full text-sm text-muted-foreground">
-                        No team members available to add as interviewers.
-                      </p>
-                    ) : (
-                      interviewerOptions.map((person) => {
-                        const active = state.interviewers.includes(person.id);
-                        return (
-                          <ToggleRow
-                            key={person.id}
-                            id={`iv-${person.id}`}
-                            label={person.name}
-                            checked={active}
-                            onChange={(checked) =>
-                              update(
-                                "interviewers",
-                                checked
-                                  ? [...state.interviewers, person.id]
-                                  : state.interviewers.filter(
-                                      (p) => p !== person.id
-                                    )
-                              )
-                            }
-                          />
-                        );
-                      })
-                    )}
-                  </div>
-                </StepCard>
-              ) : null}
-
-              {current === 4 ? (
                 <StepCard
                   title="Select Scheduling Method"
                   description="Choose how the candidate will confirm a time."
@@ -1187,9 +1207,20 @@ export function ScheduleInterviewFlow({
                             </SelectContent>
                           </Select>
                           {eventTypes.length === 0 ? (
-                            <p className="text-xs text-destructive">
-                              Connect Calendly before using this method.
-                            </p>
+                            <div className="flex flex-col items-start gap-2">
+                              <p className="text-xs text-destructive">
+                                Connect Calendly before using this method.
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                nativeButton={false}
+                                render={<Link href={ROUTES.integrations} />}
+                              >
+                                <Plug aria-hidden />
+                                Open Integrations
+                              </Button>
+                            </div>
                           ) : null}
                         </Field>
                       </div>
@@ -1272,7 +1303,7 @@ export function ScheduleInterviewFlow({
                 </StepCard>
               ) : null}
 
-              {current === 5 ? (
+              {current === 4 ? (
                 <StepCard
                   title="Configure Message"
                   description="Sent to the candidate with the link, slot, or availability request."
@@ -1317,16 +1348,129 @@ export function ScheduleInterviewFlow({
                       })}
                     </div>
                   </Field>
+
+                  <Field label="Message template">
+                    {templatesLoading ? (
+                      <p className="text-xs text-muted-foreground">
+                        Loading templates…
+                      </p>
+                    ) : messageTemplates.length === 0 ? (
+                      <div className="flex flex-col items-start gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          No {state.inviteChannel} scheduling templates yet.
+                          Create one in Templates, or write a custom message
+                          below.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          nativeButton={false}
+                          render={<Link href={ROUTES.templates} />}
+                        >
+                          Open Templates
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        role="radiogroup"
+                        aria-label="Message template"
+                        className="grid gap-2"
+                      >
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={!state.messageTemplateId}
+                          onClick={() =>
+                            setState((previous) => ({
+                              ...previous,
+                              messageTemplateId: "",
+                            }))
+                          }
+                          className={cn(
+                            "rounded-lg border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                            !state.messageTemplateId
+                              ? "border-primary/50 bg-brand-subtle/40"
+                              : "border-border hover:bg-muted/40"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "block text-sm font-medium",
+                              !state.messageTemplateId
+                                ? "text-primary"
+                                : "text-foreground"
+                            )}
+                          >
+                            Custom message
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            Keep or edit the message below
+                          </span>
+                        </button>
+                        {messageTemplates.map((template) => {
+                          const active =
+                            state.messageTemplateId === template.id;
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              onClick={() =>
+                                setState((previous) => ({
+                                  ...previous,
+                                  messageTemplateId: template.id,
+                                  message: template.body,
+                                }))
+                              }
+                              className={cn(
+                                "rounded-lg border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                                active
+                                  ? "border-primary/50 bg-brand-subtle/40"
+                                  : "border-border hover:bg-muted/40"
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "block text-sm font-medium",
+                                  active ? "text-primary" : "text-foreground"
+                                )}
+                              >
+                                {template.name}
+                              </span>
+                              <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+                                {template.body}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Field>
+
                   <Field
                     label="Message"
                     htmlFor="flow-message"
                     required
-                    hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}"
+                    hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}. Requires a connected Email or WhatsApp integration."
                   >
                     <Textarea
                       id="flow-message"
                       value={state.message}
-                      onChange={(event) => update("message", event.target.value)}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setState((previous) => ({
+                          ...previous,
+                          message: value,
+                          messageTemplateId:
+                            previous.messageTemplateId &&
+                            messageTemplates.find(
+                              (item) => item.id === previous.messageTemplateId
+                            )?.body === value
+                              ? previous.messageTemplateId
+                              : "",
+                        }));
+                      }}
                       className="min-h-28 font-mono text-xs"
                       aria-invalid={showErrors && !state.message.trim()}
                     />
@@ -1334,7 +1478,7 @@ export function ScheduleInterviewFlow({
                 </StepCard>
               ) : null}
 
-              {current === 6 ? (
+              {current === 5 ? (
                 <StepCard
                   title="Review"
                   description="Confirm before creating the interview."
@@ -1361,14 +1505,7 @@ export function ScheduleInterviewFlow({
                         ["Type", state.interviewType],
                         [
                           "Interviewers",
-                          state.interviewers
-                            .map(
-                              (id) =>
-                                interviewerOptions.find(
-                                  (person) => person.id === id
-                                )?.name ?? id
-                            )
-                            .join(", ") || "—",
+                          user?.name || user?.fullName || "You",
                         ],
                         ["Method", state.method ?? "—"],
                         [

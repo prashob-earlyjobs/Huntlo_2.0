@@ -31,10 +31,17 @@ export const createPlanSchema = z.object({
   public: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   active: z.boolean().optional(),
+  isDefaultSignup: z.boolean().optional(),
+  isTrialPlan: z.boolean().optional(),
+  trialDays: z.number().int().min(1).max(365).optional(),
 });
 
 export const updatePlanSchema = createPlanSchema.partial().omit({ code: true });
 
 export const updatePlanStatusSchema = z.object({
   active: z.boolean(),
+});
+
+export const setDefaultSignupPlanSchema = z.object({
+  planId: z.string().trim().min(1).optional(),
 });

@@ -14,6 +14,7 @@ import {
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
+import { SearchHistoryTableSkeleton } from "@/components/sessions/search-history-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,9 +122,7 @@ export function SearchHistoryTable({
   onDelete?: (entry: SearchHistoryEntry) => void;
 }) {
   if (loading) {
-    return (
-      <div className="h-48 animate-pulse rounded-xl border border-border bg-muted/40" />
-    );
+    return <SearchHistoryTableSkeleton />;
   }
 
   if (entries.length === 0) {

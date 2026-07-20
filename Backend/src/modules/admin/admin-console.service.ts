@@ -142,7 +142,7 @@ export const adminConsoleService = {
       OrganizationModel.countDocuments({
         status: 'active',
         deletedAt: null,
-        plan: { $nin: ['Starter'] },
+        plan: { $nin: ['Trial', 'Starter'] },
       }),
       SourcingSessionModel.countDocuments({ createdAt: { $gte: startOfDay } }),
       OutreachCampaignModel.countDocuments({ status: { $in: ['running', 'active'] } }),

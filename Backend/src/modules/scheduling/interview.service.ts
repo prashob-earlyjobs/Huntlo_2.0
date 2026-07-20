@@ -7,11 +7,13 @@ import {
 } from '../../providers/calendly/calendly.client.js';
 import { emitRealtime } from '../../realtime/events.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { normalizePhone } from '../../shared/validation/phone.js';
 import { UserModel } from '../auth/user.model.js';
 import { CandidateActivityModel } from '../candidates/candidate-activity.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { JobModel } from '../jobs/job.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
+import { sendAdHocMessage } from '../outreach/campaign-delivery.js';
 import { getOrgCalendlyCredentials } from './calendly-credentials.js';
 import {
   InterviewModel,
@@ -505,11 +507,27 @@ export const interviewsService = {
       ? await SavedCandidateModel.findById(doc.candidateId).lean()
       : null;
 
-    if (channel === 'email' && !(doc.inviteeEmail || candidate?.email)) {
+    const email = String(doc.inviteeEmail || candidate?.email || '').trim();
+    const phoneRaw = String(candidate?.phone || '').trim();
+
+    if (channel === 'email' && !email) {
       throw new AppError(400, 'NO_EMAIL', 'Candidate has no email for link delivery.');
     }
-    if (channel === 'whatsapp' && !candidate?.phone) {
+    if (channel === 'whatsapp' && !phoneRaw) {
       throw new AppError(400, 'NO_PHONE', 'Candidate has no phone for WhatsApp delivery.');
+    }
+
+    let phone = phoneRaw;
+    if (channel === 'whatsapp') {
+      try {
+        phone = normalizePhone(phoneRaw);
+      } catch {
+        throw new AppError(
+          400,
+          'INVALID_PHONE',
+          'Candidate phone number is invalid for WhatsApp delivery.'
+        );
+      }
     }
 
     const title = await jobTitle(doc.jobId);
@@ -530,9 +548,44 @@ export const interviewsService = {
       schedulingDetails,
     });
 
-    // Provider delivery is represented by the same persisted activity contract
-    // used by scheduling messages. Connected channel delivery can consume this
-    // payload without losing the recruiter's customized text.
+    let delivery: { providerMessageId?: string; provider: string };
+    try {
+      delivery = await sendAdHocMessage({
+        organizationId,
+        userId,
+        channel,
+        to: channel === 'email' ? email : phone,
+        subject:
+          channel === 'email'
+            ? `Interview invitation${title ? ` — ${title}` : ''}`
+            : null,
+        body: renderedMessage,
+      });
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      const statusCode =
+        typeof error === 'object' &&
+        error &&
+        'statusCode' in error &&
+        typeof (error as { statusCode?: unknown }).statusCode === 'number'
+          ? (error as { statusCode: number }).statusCode
+          : 502;
+      const code =
+        typeof error === 'object' &&
+        error &&
+        'code' in error &&
+        typeof (error as { code?: unknown }).code === 'string'
+          ? (error as { code: string }).code
+          : 'INVITE_DELIVERY_FAILED';
+      const message =
+        error instanceof Error
+          ? error.message
+          : `Failed to send interview invite via ${channel}.`;
+      throw new AppError(statusCode >= 400 && statusCode < 600 ? statusCode : 502, code, message, {
+        cause: error,
+      });
+    }
+
     doc.inviteChannel = channel;
     doc.status = doc.startAt ? doc.status : 'awaiting_booking';
     if (!doc.startAt) {
@@ -554,6 +607,8 @@ export const interviewsService = {
         channel,
         schedulingUrl: doc.schedulingUrl,
         message: renderedMessage,
+        provider: delivery.provider,
+        providerMessageId: delivery.providerMessageId ?? null,
       }
     );
 
@@ -562,6 +617,7 @@ export const interviewsService = {
       interviewId: id,
       candidateId: doc.candidateId ? String(doc.candidateId) : null,
       channel,
+      provider: delivery.provider,
     });
     emitInterviewUpdated(doc);
 

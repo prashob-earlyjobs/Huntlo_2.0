@@ -94,6 +94,25 @@ describe('Jobs API', () => {
     expect(detail.body.data.requiredSkills).toContain('Node.js');
   });
 
+  it('truncates overlong required skills instead of failing validation', async () => {
+    const reg = await register(agentA, 'jobs-skills@huntlo.ai', 'Jobs Skills');
+    const token = reg.body.data.accessToken as string;
+    const longSkill = `A${'b'.repeat(140)}`;
+
+    const created = await agentA
+      .post('/api/v1/jobs')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'Skills Truncation Role',
+        requiredSkills: ['React', longSkill, 'TypeScript'],
+      })
+      .expect(201);
+
+    expect(created.body.data.requiredSkills).toHaveLength(3);
+    expect(created.body.data.requiredSkills[1]).toHaveLength(120);
+    expect(created.body.data.requiredSkills[1]).toBe(longSkill.slice(0, 120));
+  });
+
   it('publishes, pauses, reopens, closes, and archives with activity history', async () => {
     const reg = await register(agentA, 'jobs-flow@huntlo.ai', 'Jobs Flow');
     const token = reg.body.data.accessToken as string;

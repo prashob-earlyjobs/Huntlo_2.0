@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Field } from "@/components/outreach/builder-ui";
+import { CompanyDomainLogo } from "@/components/shared/company-domain-logo";
 import { FormSaveBar, type FormSaveStatus } from "@/components/shared/form-save-bar";
 import { FormSection } from "@/components/shared/form-section";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ import {
 } from "@/lib/mock-settings";
 import { getApiErrorMessage, settingsApi } from "@/lib/api";
 import { isMockApiEnabled } from "@/lib/api/config";
+import { workEmailDomain } from "@/lib/work-email";
+import { useAuth } from "@/providers/auth-provider";
 
 interface SettingsForm {
   workspace: WorkspaceSettings;
@@ -95,6 +98,7 @@ function useSimulatedSave() {
 }
 
 export function SettingsWorkspace() {
+  const { user } = useAuth();
   const [saved, setSaved] = useState(() => cloneForm(INITIAL_FORM));
   const [form, setForm] = useState(() => cloneForm(INITIAL_FORM));
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
@@ -108,6 +112,9 @@ export function SettingsWorkspace() {
   const auditCurrentPage = Math.min(auditPage, auditTotalPages);
   const auditPageStart =
     auditTotal === 0 ? 0 : (auditCurrentPage - 1) * auditPageSize;
+  const logoSource =
+    form.workspace.website.trim() || workEmailDomain(user?.email || "") || "";
+
 
   async function loadAuditLogs(page = auditPage, pageSize = auditPageSize) {
     const offset = (page - 1) * pageSize;
@@ -187,13 +194,21 @@ export function SettingsWorkspace() {
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Organisation name" htmlFor="ws-name" required>
-            <Input
-              id="ws-name"
-              value={form.workspace.organisationName}
-              onChange={(event) =>
-                patchWorkspace("organisationName", event.target.value)
-              }
-            />
+            <div className="flex items-center gap-2">
+              <CompanyDomainLogo
+                websiteOrDomain={logoSource}
+                name={form.workspace.organisationName}
+                size={32}
+              />
+              <Input
+                id="ws-name"
+                value={form.workspace.organisationName}
+                onChange={(event) =>
+                  patchWorkspace("organisationName", event.target.value)
+                }
+                className="flex-1"
+              />
+            </div>
           </Field>
           <Field label="Industry" htmlFor="ws-industry">
             <Input
@@ -211,6 +226,7 @@ export function SettingsWorkspace() {
               onChange={(event) =>
                 patchWorkspace("website", event.target.value)
               }
+              placeholder="https://company.com"
             />
           </Field>
           <Field label="Company size" htmlFor="ws-size">

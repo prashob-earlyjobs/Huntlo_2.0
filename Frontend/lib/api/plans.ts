@@ -11,7 +11,7 @@ export type CurrentPlan = {
   renewalDate: string;
   owner: string;
   ownerEmail: string;
-  status: "Active" | "Past due" | "Cancelled";
+  status: "Active" | "Trial" | "Past due" | "Cancelled";
   price: string;
   pricePeriod: string;
   seats: string;
@@ -160,7 +160,7 @@ const livePlansApi: PlansApi = {
       : Array.isArray(result.data?.items)
         ? result.data.items
         : [];
-    return mapUsageRows(rows);
+    return mapUsageRows(rows).filter((row) => row.id !== "assessments");
   },
   async getUsageSummary() {
     const result = await apiClient.get<UsageSummary>("/usage/summary");
@@ -197,14 +197,20 @@ const livePlansApi: PlansApi = {
         return `${n.toLocaleString("en-IN")} ${unit}`;
       };
       const isEnterprise = plan.code === "enterprise";
+      const isTrial = plan.code === "trial";
+      const monthlyLabel = plan.priceLabel?.monthly ?? "Custom";
       return {
         id: plan.id,
         name: plan.name,
-        price: plan.priceLabel?.monthly ?? "Custom",
-        priceNote: isEnterprise ? " · talk to sales" : " / month",
+        price: isTrial || monthlyLabel === "Free" || monthlyLabel === "₹0" ? "Free" : monthlyLabel,
+        priceNote: isEnterprise
+          ? " · talk to sales"
+          : isTrial
+            ? " · 14-day trial"
+            : " / month",
         description: plan.description ?? "",
-        highlighted: plan.code === "growth",
-        cta: isEnterprise ? "Contact Sales" : "Choose plan",
+        highlighted: false,
+        cta: isEnterprise ? "Contact Sales" : isTrial ? "Start free" : "Choose plan",
         features: {
           searches: perMonth("candidate_search"),
           emailReveals: perMonth("email_reveal"),

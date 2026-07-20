@@ -14,6 +14,8 @@ export {
 export {
   buildRoshniAgentPrompt,
   buildRoshniJdTokens,
+  formatRoshniQuestionForList,
+  formatRoshniQuestionParts,
   getActiveRoshniIntroduction,
   getActiveRoshniPromptDefaults,
   getActiveRoshniPromptTemplate,

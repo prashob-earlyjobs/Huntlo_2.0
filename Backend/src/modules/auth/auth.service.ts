@@ -21,6 +21,7 @@ import {
   type PermissionModule,
 } from '../organizations/permissions.js';
 import { integrationsService } from '../integrations/integration.service.js';
+import { plansService } from '../plans/plans.service.js';
 import { OnboardingModel } from './onboarding.model.js';
 import {
   EmailVerificationTokenModel,
@@ -159,15 +160,20 @@ export class AuthService {
     password: string;
     firstName: string;
     lastName: string;
+    companyName: string;
+    mobile?: string | null;
     organizationName?: string;
     meta: SessionMeta;
   }) {
     const existing = await UserModel.findOne({ email: input.email });
     if (existing) {
-      throw AppError.conflict('An account with this email already exists');
+      throw new AppError(409, 'AUTH_EMAIL_ALREADY_EXISTS', 'An account with this email already exists');
     }
 
-    const orgName = input.organizationName?.trim() || `${input.firstName}'s Workspace`;
+    const orgName =
+      input.companyName?.trim() ||
+      input.organizationName?.trim() ||
+      `${input.firstName}'s Workspace`;
     const slug = await uniqueOrganizationSlug(orgName);
     const passwordHash = await hashPassword(input.password);
 
@@ -178,23 +184,46 @@ export class AuthService {
       organization = await OrganizationModel.create({
         name: orgName,
         slug,
-        plan: 'Starter',
+        plan: 'Trial',
         initials: buildOrganizationInitials(orgName),
         timezone: 'Asia/Kolkata',
         defaultTimezone: 'Asia/Kolkata',
         currency: 'INR',
+        country: 'IN',
         status: 'active',
       });
+
+      let defaultPlanId: mongoose.Types.ObjectId | null = null;
+      let signupPlanName = 'Trial';
+      try {
+        const signupPlan = await plansService.resolveSignupPlan();
+        signupPlanName = signupPlan.name;
+        organization.plan = signupPlanName;
+        await organization.save();
+        const subscription = await plansService.ensureSubscription(organization._id.toHexString());
+        defaultPlanId = subscription.planId as mongoose.Types.ObjectId;
+      } catch {
+        throw new AppError(
+          500,
+          'AUTH_DEFAULT_PLAN_NOT_CONFIGURED',
+          'Default signup plan is not configured'
+        );
+      }
 
       user = await UserModel.create({
         firstName: input.firstName,
         lastName: input.lastName,
+        companyName: orgName,
         email: input.email,
+        phone: input.mobile ?? null,
         passwordHash,
         role: 'owner',
         organizationId: organization._id,
+        planId: defaultPlanId,
         memberStatus: 'active',
         onboardingStatus: 'not_started',
+        onboardingCompleted: false,
+        onboardingCompletedAt: null,
       });
 
       organization.ownerUserId = user._id;
@@ -216,6 +245,7 @@ export class AuthService {
         personalDetails: {
           firstName: input.firstName,
           lastName: input.lastName,
+          phone: input.mobile ?? null,
         },
         organisationDetails: {
           name: orgName,
@@ -246,6 +276,7 @@ export class AuthService {
     } catch (error) {
       if (user) {
         await OrganizationMemberModel.deleteMany({ userId: user._id });
+        await OnboardingModel.deleteMany({ userId: user._id });
         await UserModel.deleteOne({ _id: user._id });
       }
       if (organization) await OrganizationModel.deleteOne({ _id: organization._id });

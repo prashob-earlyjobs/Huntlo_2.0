@@ -53,9 +53,8 @@ describe('Roshni prompt', () => {
   });
 
   it('attaches silent knockout notes for voice', async () => {
-    const { qualificationQuestionsForRoshni } = await import(
-      '../src/modules/voice/roshni-prompt.js'
-    );
+    const { formatRoshniQuestionForList, qualificationQuestionsForRoshni } =
+      await import('../src/modules/voice/roshni-prompt.js');
     const qs = qualificationQuestionsForRoshni({
       questions: [
         {
@@ -66,8 +65,34 @@ describe('Roshni prompt', () => {
       ],
     });
     expect(qs[0]?.prompt).toContain('Notice period in days?');
-    expect(qs[0]?.prompt).toContain('Internal knockout');
-    expect(qs[0]?.prompt).toContain('Reject if more than 60');
+    expect(qs[0]?.knockout).toBe(true);
+    const listed = formatRoshniQuestionForList(qs[0]!);
+    expect(listed).toContain('Internal knockout');
+    expect(listed).toContain('Reject if more than 60');
+  });
+
+  it('embeds follow-up, required, and capture keys into voice tokens', async () => {
+    const tokens = await buildRoshniJdTokens({
+      campaignName: 'Platform Engineer',
+      questions: [
+        {
+          prompt: 'What is your notice period?',
+          followUp: 'Ask for exact days if they say ASAP',
+          required: true,
+          expectedVariable: 'notice_period',
+        },
+      ],
+    });
+    expect(tokens.jd_screening_questions_list).toContain('What is your notice period?');
+    expect(tokens.jd_screening_questions_list).toContain('Follow-up if vague');
+    expect(tokens.jd_screening_questions_list).toContain('Ask for exact days');
+    expect(tokens.jd_screening_questions_list).toContain('Required');
+    expect(tokens.jd_screening_questions_list).toContain('notice_period');
+    expect(tokens.jd_screening_call_flow_steps).toContain('Ask: "What is your notice period?"');
+    expect(tokens.jd_screening_call_flow_steps).toContain('Ask for exact days');
+    expect(tokens.jd_screening_call_flow_steps).not.toContain(
+      'Ask: "What is your notice period? [Follow-up'
+    );
   });
 
   it('does not leave Hunar-invalid braces from {{job_title}}', () => {

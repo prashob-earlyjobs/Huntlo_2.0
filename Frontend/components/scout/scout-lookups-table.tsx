@@ -127,7 +127,7 @@ function LookupDrawer({
         <SheetHeader className="border-b border-border pb-3">
           <div className="flex items-start gap-3 pr-8">
             {lookup.candidateName ? (
-              <CandidateAvatar name={lookup.candidateName} className="size-10" />
+              <CandidateAvatar name={lookup.candidateName} src={lookup.avatarUrl} className="size-10" />
             ) : (
               <span className="flex size-10 items-center justify-center rounded-full border border-border bg-muted">
                 <TypeIcon aria-hidden className="size-4 text-muted-foreground" />
@@ -254,6 +254,7 @@ export function ScoutLookupsTable({
                       <div className="flex items-center gap-2.5">
                         <CandidateAvatar
                           name={lookup.candidateName}
+                          src={lookup.avatarUrl}
                           className="size-7"
                         />
                         <button

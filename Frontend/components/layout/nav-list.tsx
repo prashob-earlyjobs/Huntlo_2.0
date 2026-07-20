@@ -13,9 +13,19 @@ import {
 import { schedulingApi } from "@/lib/api";
 import { filterNavSections } from "@/lib/access-control";
 import { NAV_ITEMS, type NavItem } from "@/lib/navigation";
-import { ROUTES } from "@/lib/routes";
+import type { TourTargetId } from "@/lib/config/dashboard-tour";
+import { ROUTES, type AppRoute } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+
+const NAV_TOUR_TARGETS: Partial<Record<AppRoute, TourTargetId>> = {
+  [ROUTES.search]: "source-navigation",
+  [ROUTES.candidates]: "candidate-pool-navigation",
+  [ROUTES.outreach]: "outreach-navigation",
+  [ROUTES.screening]: "screening-navigation",
+  [ROUTES.interviews]: "schedule-navigation",
+  [ROUTES.integrations]: "integrations-navigation",
+};
 
 /** Longest nav href that prefixes the current pathname wins active state. */
 function useActiveHref(): string | undefined {
@@ -53,6 +63,8 @@ function NavLink({
   const activeHref = useActiveHref();
   const isActive = activeHref === item.href;
 
+  const tourTarget = NAV_TOUR_TARGETS[item.href];
+
   const link = (
     <Link
       href={item.href}
@@ -60,6 +72,7 @@ function NavLink({
       aria-current={isActive ? "page" : undefined}
       aria-disabled={item.disabled || undefined}
       tabIndex={item.disabled ? -1 : undefined}
+      {...(tourTarget ? { "data-tour": tourTarget } : {})}
       className={cn(
         "group relative flex items-center gap-2 text-[13px] outline-none transition-colors transition-ui",
         "focus-visible:ring-2 focus-visible:ring-ring/50",

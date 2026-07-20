@@ -10,6 +10,7 @@ import {
   canAccessPath,
   firstAccessibleRoute,
 } from "@/lib/access-control";
+import { postAuthPath } from "@/lib/auth-redirect";
 import { useAuth } from "@/providers/auth-provider";
 
 export function DashboardAuthGuard({ children }: { children: ReactNode }) {
@@ -30,13 +31,15 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (
-      sessionState === "authenticated" &&
-      !isMockMode &&
-      user?.onboardingStatus !== "completed" &&
-      !pathname.startsWith("/onboarding")
-    ) {
-      router.replace("/onboarding");
+    if (sessionState === "authenticated" && !isMockMode && user) {
+      const destination = postAuthPath(user);
+      if (destination === "/onboarding") {
+        router.replace("/onboarding");
+        return;
+      }
+      if (destination === "/admin/dashboard" && !pathname.startsWith("/admin")) {
+        router.replace("/admin/dashboard");
+      }
     }
   }, [sessionState, user, pathname, router, isMockMode]);
 
@@ -87,6 +90,10 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (sessionState !== "authenticated") {
+    return null;
+  }
+
+  if (user && !isMockMode && postAuthPath(user) === "/onboarding") {
     return null;
   }
 

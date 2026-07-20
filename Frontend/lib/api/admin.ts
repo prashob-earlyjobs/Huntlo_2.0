@@ -67,6 +67,11 @@ export type AdminPlan = {
   code: string;
   description?: string | null;
   active: boolean;
+  public?: boolean;
+  sortOrder?: number;
+  isDefaultSignup?: boolean;
+  isTrialPlan?: boolean;
+  trialDays?: number;
   prices?: { monthly?: number | null; yearly?: number | null };
   limits?: Record<string, unknown>;
   featureAccess?: Record<string, unknown>;
@@ -171,6 +176,7 @@ export interface AdminApi {
   listPlans(): Promise<AdminPlan[]>;
   createPlan(input: Record<string, unknown>): Promise<AdminPlan>;
   updatePlan(id: string, input: Record<string, unknown>): Promise<AdminPlan>;
+  setDefaultSignupPlan(id: string): Promise<AdminPlan>;
   getUsage(): Promise<{ byAction: Array<Record<string, unknown>>; periodKey: string }>;
   listCandidates(params?: { page?: number; limit?: number; q?: string }): Promise<Paginated<AdminCandidate>>;
   listCampaigns(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<AdminCampaign>>;
@@ -271,6 +277,12 @@ const liveAdminApi: AdminApi = {
   },
   async updatePlan(id, input) {
     const result = await apiClient.patch<AdminPlan>(`/admin/plans/${id}`, input);
+    return result.data;
+  },
+  async setDefaultSignupPlan(id: string) {
+    const result = await apiClient.post<AdminPlan>(
+      `/admin/plans/${id}/set-default-signup`
+    );
     return result.data;
   },
   async getUsage() {
@@ -452,12 +464,21 @@ const mockAdminApi: AdminApi = {
   async listPlans() {
     await simulateMockLatency();
     const { ADMIN_PLANS } = await import("@/lib/mock-admin");
-    return ADMIN_PLANS.map((plan, index) => ({
-      id: `plan_${index}`,
+    return ADMIN_PLANS.map((plan) => ({
+      id: plan.id,
       name: plan.name,
-      code: plan.name.toLowerCase(),
-      active: true,
+      code: plan.code,
+      description: plan.description,
+      active: plan.active,
+      public: plan.public,
+      sortOrder: plan.sortOrder,
+      isDefaultSignup: plan.isDefaultSignup,
+      isTrialPlan: plan.isTrialPlan,
+      trialDays: plan.trialDays,
       priceLabel: { monthly: plan.price, yearly: plan.price },
+      prices: { monthly: plan.price === "Free" || plan.price === "Custom" ? 0 : null, yearly: null },
+      limits: {},
+      featureAccess: {},
     }));
   },
   async createPlan(input) {
@@ -466,10 +487,34 @@ const mockAdminApi: AdminApi = {
       name: String(input.name || "Plan"),
       code: String(input.code || "plan"),
       active: true,
+      public: true,
+      isDefaultSignup: Boolean(input.isDefaultSignup),
+      isTrialPlan: Boolean(input.isTrialPlan),
+      trialDays: Number(input.trialDays) || 14,
     };
   },
   async updatePlan(id, input) {
-    return { id, name: String(input.name || "Plan"), code: "plan", active: true };
+    return {
+      id,
+      name: String(input.name || "Plan"),
+      code: "plan",
+      active: input.active !== false,
+      public: input.public !== false,
+      isDefaultSignup: Boolean(input.isDefaultSignup),
+      isTrialPlan: Boolean(input.isTrialPlan),
+      trialDays: Number(input.trialDays) || 14,
+    };
+  },
+  async setDefaultSignupPlan(id) {
+    return {
+      id,
+      name: "Trial",
+      code: "trial",
+      active: true,
+      isDefaultSignup: true,
+      isTrialPlan: true,
+      trialDays: 14,
+    };
   },
   async getUsage() {
     return { byAction: [], periodKey: "current" };

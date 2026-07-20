@@ -252,3 +252,83 @@
     @apply transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-out;
   }
 }
+
+/* Huntlo product tour — driver.js themed with semantic tokens */
+.huntlo-driver-popover.driver-popover,
+.driver-popover.huntlo-driver-popover {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 12%, transparent);
+  max-width: min(22rem, calc(100vw - 1.5rem));
+}
+
+.huntlo-driver-popover .driver-popover-title {
+  color: var(--popover-foreground);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.huntlo-driver-popover .driver-popover-description {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.huntlo-driver-popover .driver-popover-progress-text {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.huntlo-driver-popover .driver-popover-navigation-btns {
+  gap: 0.5rem;
+}
+
+.huntlo-driver-popover .driver-popover-prev-btn,
+.huntlo-driver-popover .driver-popover-next-btn,
+.huntlo-driver-popover .driver-popover-close-btn {
+  border-radius: var(--radius-md);
+  text-shadow: none;
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  text-decoration: none;
+}
+
+.huntlo-driver-popover .driver-popover-next-btn {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.huntlo-driver-popover .driver-popover-close-btn {
+  color: var(--muted-foreground);
+}
+
+.huntlo-driver-popover .driver-popover-arrow-side-left,
+.huntlo-driver-popover .driver-popover-arrow-side-right,
+.huntlo-driver-popover .driver-popover-arrow-side-top,
+.huntlo-driver-popover .driver-popover-arrow-side-bottom {
+  border-color: var(--popover);
+}
+
+.driver-active .driver-overlay {
+  /* Soften default overlay; actual colour set via config when possible */
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-popover,
+  .driver-overlay,
+  .driver-active-element {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .huntlo-driver-popover.driver-popover {
+    max-width: calc(100vw - 1rem);
+  }
+}

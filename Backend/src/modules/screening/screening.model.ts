@@ -14,6 +14,15 @@ export type ScreeningStatus = (typeof SCREENING_STATUSES)[number];
 export type ScreeningQuestion = {
   id: string;
   prompt: string;
+  /** Builder category label (Introduction, Experience, Skills, …). */
+  type?: string | null;
+  required?: boolean;
+  /** Probe guidance for the voice agent — not read aloud as a scripted line. */
+  followUp?: string | null;
+  /** Scorecard / result-field key (e.g. notice_period). */
+  expectedVariable?: string | null;
+  /** When true, answer feeds evaluationCriteria at launch. */
+  evaluationEnabled?: boolean;
   knockout?: boolean;
 };
 
@@ -129,6 +138,11 @@ const screeningSchema = new Schema<ScreeningDocument>(
         {
           id: { type: String, required: true },
           prompt: { type: String, required: true },
+          type: { type: String, default: null, maxlength: 80 },
+          required: { type: Boolean, default: false },
+          followUp: { type: String, default: null, maxlength: 1000 },
+          expectedVariable: { type: String, default: null, maxlength: 80 },
+          evaluationEnabled: { type: Boolean, default: true },
           knockout: { type: Boolean, default: false },
         },
       ],

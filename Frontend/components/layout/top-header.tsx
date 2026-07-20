@@ -1,11 +1,3 @@
-import { CircleHelp } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { HeaderOverflowMenu } from "@/components/layout/header-overflow-menu";
@@ -15,6 +7,7 @@ import { QuickCreateMenu } from "@/components/layout/quick-create-menu";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UsageIndicator } from "@/components/layout/usage-indicator";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
+import { HelpMenu } from "@/components/product-tour/HelpMenu";
 
 export function TopHeader() {
   return (
@@ -36,21 +29,7 @@ export function TopHeader() {
         <NotificationPanel />
         <div className="hidden sm:contents">
           <ThemeToggle />
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Help & support"
-                  className="text-muted-foreground hover:text-foreground"
-                />
-              }
-            >
-              <CircleHelp aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent>Help & support</TooltipContent>
-          </Tooltip>
+          <HelpMenu variant="icon" />
         </div>
         <HeaderOverflowMenu />
         <UserProfileMenu />

@@ -82,13 +82,15 @@ describe('Plans + usage API', () => {
     expect(plans.status).toBe(200);
     expect(plans.body.data.length).toBeGreaterThanOrEqual(3);
     expect(plans.body.data[0].code).toBeTruthy();
+    expect(plans.body.data.some((plan: { code: string }) => plan.code === 'trial')).toBe(true);
 
     const current = await agent
       .get('/api/v1/plans/current')
       .set('Authorization', `Bearer ${auth.token}`);
     expect(current.status).toBe(200);
-    expect(current.body.data.name).toBeTruthy();
-    expect(current.body.data.subscription.status).toBe('active');
+    expect(current.body.data.name).toBe('Trial');
+    expect(current.body.data.status).toBe('Trial');
+    expect(current.body.data.subscription.status).toBe('trialing');
 
     const usage = await agent
       .get('/api/v1/usage')
@@ -134,6 +136,20 @@ describe('Plans + usage API', () => {
       });
     expect(created.status).toBe(201);
     expect(created.body.data.code).toBe('pilot');
+
+    const setDefault = await agent
+      .post(`/api/v1/admin/plans/${created.body.data.id}/set-default-signup`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(setDefault.status).toBe(200);
+    expect(setDefault.body.data.isDefaultSignup).toBe(true);
+
+    const plans = await agent
+      .get('/api/v1/admin/plans')
+      .set('Authorization', `Bearer ${token}`);
+    expect(plans.status).toBe(200);
+    const defaults = plans.body.data.filter((p: { isDefaultSignup: boolean }) => p.isDefaultSignup);
+    expect(defaults).toHaveLength(1);
+    expect(defaults[0].code).toBe('pilot');
 
     const deactivated = await agent
       .patch(`/api/v1/admin/plans/${created.body.data.id}/status`)

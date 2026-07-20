@@ -416,15 +416,29 @@ export class OrganizationService {
 
     let user: UserDocument | null = null;
     try {
+      const owner = await UserModel.findOne({
+        organizationId: organization._id,
+        role: 'owner',
+        deletedAt: null,
+      });
+
       user = await UserModel.create({
         firstName,
         lastName,
+        companyName: owner?.companyName ?? organization.name,
         email,
         passwordHash,
         role: input.role as OrganizationRole,
         organizationId: organization._id,
+        planId: owner?.planId ?? null,
         memberStatus: 'active',
         onboardingStatus: 'completed',
+        onboardingCompleted: true,
+        onboardingCompletedAt: new Date(),
+        onboardingCompanyType: owner?.onboardingCompanyType ?? null,
+        onboardingHiringChallenges: owner?.onboardingHiringChallenges ?? [],
+        onboardingOutreachChannels: owner?.onboardingOutreachChannels ?? [],
+        onboardingHiringVolume: owner?.onboardingHiringVolume ?? null,
         emailVerifiedAt: new Date(),
       });
 
@@ -509,15 +523,28 @@ export class OrganizationService {
           'Account details required to accept invitation (firstName, lastName, password)'
         );
       }
+      const owner = await UserModel.findOne({
+        organizationId: organization._id,
+        role: 'owner',
+        deletedAt: null,
+      });
       user = await UserModel.create({
         firstName,
         lastName,
+        companyName: owner?.companyName ?? organization.name,
         email: invitation.email,
         passwordHash: await hashPassword(options.password),
         role: invitation.role as OrganizationRole,
         organizationId: organization._id,
+        planId: owner?.planId ?? null,
         memberStatus: 'active',
         onboardingStatus: 'completed',
+        onboardingCompleted: true,
+        onboardingCompletedAt: new Date(),
+        onboardingCompanyType: owner?.onboardingCompanyType ?? null,
+        onboardingHiringChallenges: owner?.onboardingHiringChallenges ?? [],
+        onboardingOutreachChannels: owner?.onboardingOutreachChannels ?? [],
+        onboardingHiringVolume: owner?.onboardingHiringVolume ?? null,
         emailVerifiedAt: new Date(),
       });
     } else {
@@ -527,6 +554,9 @@ export class OrganizationService {
       user.organizationId = organization._id;
       user.role = invitation.role as typeof user.role;
       user.memberStatus = 'active';
+      user.onboardingCompleted = true;
+      user.onboardingStatus = 'completed';
+      if (!user.onboardingCompletedAt) user.onboardingCompletedAt = new Date();
       await user.save();
     }
 

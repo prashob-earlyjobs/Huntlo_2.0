@@ -541,7 +541,14 @@ export const screeningService = {
       jobId: doc.jobId ? String(doc.jobId) : null,
       organizationId,
       campaignName: doc.name,
-      questions: doc.questions || [],
+      questions: (doc.questions || []).map((q) => ({
+        id: q.id,
+        prompt: q.prompt,
+        followUp: q.followUp,
+        required: q.required,
+        expectedVariable: q.expectedVariable,
+        knockout: q.knockout,
+      })),
     });
 
     const resultSchema = {
@@ -555,6 +562,21 @@ export const screeningService = {
         type: 'number',
         description: criterion.description || `score 0-100 for ${criterion.label}`,
       };
+    }
+    for (const question of doc.questions || []) {
+      const variable = String(question.expectedVariable || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+      if (!variable) continue;
+      const answerKey = `${variable}_answer`;
+      if (!(resultSchema.properties as Record<string, unknown>)[answerKey]) {
+        (resultSchema.properties as Record<string, unknown>)[answerKey] = {
+          type: 'string',
+          description: `Candidate's spoken answer for "${question.prompt}" (variable ${variable}). Use "Not provided" when unclear.`,
+        };
+      }
     }
     const knockouts = (doc.knockouts || []).map((value) => String(value).trim()).filter(Boolean);
     if (knockouts.length > 0) {
@@ -570,6 +592,20 @@ export const screeningService = {
         .map((c) => `"${c.id}": number 0-100 — ${c.label}`)
         .join(', ');
       resultPrompt = `${resultPrompt}\n\nAlso include evaluation scores: ${extra}.`;
+    }
+    const answerFields = (doc.questions || [])
+      .map((question) => {
+        const variable = String(question.expectedVariable || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '');
+        if (!variable) return null;
+        return `"${variable}_answer": string — answer to "${question.prompt}"`;
+      })
+      .filter(Boolean);
+    if (answerFields.length > 0) {
+      resultPrompt = `${resultPrompt}\n\nAlso include captured answers: ${answerFields.join(', ')}.`;
     }
     if (knockouts.length > 0) {
       resultPrompt = `${resultPrompt}\n\nAlso include "knockouts_triggered": string[] using only these exact labels when the candidate fails them: ${knockouts

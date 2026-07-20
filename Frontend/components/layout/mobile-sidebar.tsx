@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Menu } from "lucide-react";
-import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,14 +15,15 @@ import {
 } from "@/components/ui/sheet";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { NavList } from "@/components/layout/nav-list";
+import { useSidebar } from "@/components/layout/sidebar-context";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { ROUTES } from "@/lib/routes";
 
 export function MobileSidebar() {
-  const [open, setOpen] = useState(false);
+  const { mobileOpen, setMobileOpen } = useSidebar();
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
       <SheetTrigger
         render={
           <Button
@@ -44,7 +44,7 @@ export function MobileSidebar() {
           <SheetTitle>
             <Link
               href={ROUTES.home}
-              onClick={() => setOpen(false)}
+              onClick={() => setMobileOpen(false)}
               aria-label="Huntlo home"
               className="inline-block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
@@ -59,7 +59,7 @@ export function MobileSidebar() {
           <WorkspaceSwitcher />
         </div>
         <ScrollArea className="min-h-0 flex-1">
-          <NavList onNavigate={() => setOpen(false)} />
+          <NavList onNavigate={() => setMobileOpen(false)} />
         </ScrollArea>
       </SheetContent>
     </Sheet>

@@ -672,7 +672,7 @@ function QuestionsStep({
   return (
     <StepCard
       title="Questions"
-      description="Build the conversational script. Each question can extract a variable and feed the scorecard."
+      description="Build the conversational script. Type, required, follow-ups, and expected variables are saved with the screening and used on launch."
     >
       <div className="space-y-3">
         {state.questions.map((question, index) => (
@@ -760,6 +760,7 @@ function QuestionsStep({
               <Field
                 label="Follow-up instruction"
                 htmlFor={`${question.id}-followup`}
+                hint="Used by the voice agent when the answer is vague — not read as a scripted line."
               >
                 <Input
                   id={`${question.id}-followup`}
@@ -776,6 +777,7 @@ function QuestionsStep({
               <Field
                 label="Expected variable"
                 htmlFor={`${question.id}-var`}
+                hint="Scorecard key and captured answer field (e.g. notice_period)."
               >
                 <Input
                   id={`${question.id}-var`}
@@ -1197,8 +1199,21 @@ function ReviewStep({
       title: "Questions",
       lines: [
         `${activeQuestions.length} questions`,
-        `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} evaluated`,
-      ],
+        `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} evaluated · ${activeQuestions.filter((q) => q.followUp.trim()).length} with follow-ups`,
+        ...activeQuestions.slice(0, 3).map((question, index) => {
+          const bits = [
+            `Q${index + 1} ${question.type}`,
+            question.expectedVariable.trim()
+              ? `→ ${question.expectedVariable.trim()}`
+              : null,
+            question.required ? "required" : null,
+          ].filter(Boolean);
+          return bits.join(" · ");
+        }),
+        activeQuestions.length > 3
+          ? `+${activeQuestions.length - 3} more`
+          : null,
+      ].filter((line): line is string => Boolean(line)),
     },
     {
       step: 4,
@@ -1332,7 +1347,15 @@ function toCreateInput(
     agentPrompt: state.agentPrompt,
     questions: state.questions
       .filter((q) => q.text.trim())
-      .map((q) => ({ id: q.id, prompt: q.text.trim() })),
+      .map((q) => ({
+        id: q.id,
+        prompt: q.text.trim(),
+        type: q.type,
+        required: q.required,
+        followUp: q.followUp.trim() || null,
+        expectedVariable: q.expectedVariable.trim() || null,
+        evaluationEnabled: q.evaluationEnabled,
+      })),
     evaluationCriteria: Array.from(byId.values()),
     minShortlistScore: Number(state.minShortlistScore) || 70,
     knockouts: state.knockouts,
@@ -1591,7 +1614,7 @@ export function ScreeningBuilder() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-[calc(100svh-5.5rem)] flex-col gap-4">
       <nav
         aria-label="Screening builder steps"
         className="rounded-xl border border-border bg-card p-4"
@@ -1661,7 +1684,7 @@ export function ScreeningBuilder() {
         <ReviewStep state={state} errors={launchErrors} goTo={goTo} jobs={jobs} />
       )}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">
+      <div className="sticky bottom-0 z-20 mt-auto flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/95 p-4 backdrop-blur supports-backdrop-filter:bg-card/90">
         <Button
           type="button"
           size="sm"

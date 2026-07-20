@@ -1,75 +1,55 @@
 import { isMockApiEnabled } from "./config";
 import { apiClient } from "./client";
+import type { AuthMeResponse, AuthOrganization, AuthUser } from "./types";
+import type { OnboardingAnswers } from "@/lib/onboarding";
+import { emptyOnboardingAnswers } from "@/lib/onboarding";
 
 export type OnboardingRecord = {
-  currentStep: number;
-  currentStepKey: string;
   completed: boolean;
-  personalDetails: {
-    firstName?: string | null;
-    lastName?: string | null;
-    jobTitle?: string | null;
-    phone?: string | null;
-    timezone?: string | null;
-  };
-  organisationDetails: {
-    name?: string | null;
-    industry?: string | null;
-    website?: string | null;
-    companySize?: string | null;
-  };
-  recruitingGoals: string[];
-  teamSize: string | null;
-  hiringLocations: string[];
-  modulePreferences: string[];
-  initialIntegrations: string[];
   completedAt: string | null;
+  companyType: string | null;
+  hiringChallenges: string[];
+  outreachChannels: string[];
+  hiringVolume: string | null;
 };
 
-export type OnboardingPatchInput = {
-  currentStep?: number;
-  personalDetails?: Partial<OnboardingRecord["personalDetails"]>;
-  organisationDetails?: Partial<OnboardingRecord["organisationDetails"]>;
-  recruitingGoals?: string[];
-  teamSize?: string | null;
-  hiringLocations?: string[];
-  modulePreferences?: string[];
-  initialIntegrations?: string[];
+export type OnboardingCompleteResult = {
+  completed: boolean;
+  redirectPath: string;
+  user: AuthUser;
+  organization: Pick<AuthOrganization, "id" | "name"> & { slug?: string };
+};
+
+export type OnboardingCompleteInput = {
+  companyType: NonNullable<OnboardingAnswers["companyType"]>;
+  hiringChallenges: OnboardingAnswers["hiringChallenges"];
+  outreachChannels: OnboardingAnswers["outreachChannels"];
+  hiringVolume: NonNullable<OnboardingAnswers["hiringVolume"]>;
 };
 
 export interface OnboardingApi {
   get(): Promise<OnboardingRecord>;
-  patch(input: OnboardingPatchInput): Promise<OnboardingRecord>;
-  complete(): Promise<{ completed: boolean }>;
+  complete(input: OnboardingCompleteInput): Promise<OnboardingCompleteResult>;
 }
 
-const mockOnboarding: OnboardingRecord = {
-  currentStep: 1,
-  currentStepKey: "personal_details",
-  completed: false,
-  personalDetails: {},
-  organisationDetails: {},
-  recruitingGoals: [],
-  teamSize: null,
-  hiringLocations: [],
-  modulePreferences: [],
-  initialIntegrations: [],
-  completedAt: null,
-};
+function toRecord(data: Partial<OnboardingRecord>): OnboardingRecord {
+  return {
+    completed: Boolean(data.completed),
+    completedAt: data.completedAt ?? null,
+    companyType: data.companyType ?? null,
+    hiringChallenges: data.hiringChallenges ?? [],
+    outreachChannels: data.outreachChannels ?? [],
+    hiringVolume: data.hiringVolume ?? null,
+  };
+}
 
 const liveOnboardingApi: OnboardingApi = {
   async get() {
     const result = await apiClient.get<OnboardingRecord>("/onboarding");
-    return result.data;
+    return toRecord(result.data);
   },
-  async patch(input) {
-    const result = await apiClient.patch<OnboardingRecord>("/onboarding", input, {
-      sensitive: true,
-    });
-    return result.data;
-  },
-  async complete() {
-    const result = await apiClient.post<{ completed: boolean }>("/onboarding/complete", undefined, {
+  async complete(input) {
+    const result = await apiClient.patch<OnboardingCompleteResult>("/onboarding", input, {
       sensitive: true,
     });
     return result.data;
@@ -78,24 +58,39 @@ const liveOnboardingApi: OnboardingApi = {
 
 const mockOnboardingApi: OnboardingApi = {
   async get() {
-    return { ...mockOnboarding };
+    return toRecord({
+      ...emptyOnboardingAnswers(),
+      completed: false,
+      completedAt: null,
+    });
   },
-  async patch(input) {
+  async complete(input) {
     return {
-      ...mockOnboarding,
-      ...input,
-      personalDetails: { ...mockOnboarding.personalDetails, ...input.personalDetails },
-      organisationDetails: {
-        ...mockOnboarding.organisationDetails,
-        ...input.organisationDetails,
+      completed: true,
+      redirectPath: "/dashboard",
+      user: {
+        id: "user-1",
+        name: "Ananya Sharma",
+        fullName: "Ananya Sharma",
+        email: "ananya@huntlo.ai",
+        role: "owner",
+        accountRole: "owner",
+        initials: "AS",
+        plan: "Starter",
+        onboardingCompleted: true,
+        onboardingStatus: "completed",
+        onboardingCompanyType: input.companyType,
+        onboardingHiringChallenges: input.hiringChallenges,
+        onboardingOutreachChannels: input.outreachChannels,
+        onboardingHiringVolume: input.hiringVolume,
       },
+      organization: { id: "ws-1", name: "Huntlo", slug: "huntlo" },
     };
-  },
-  async complete() {
-    return { completed: true };
   },
 };
 
 export const onboardingApi: OnboardingApi = isMockApiEnabled()
   ? mockOnboardingApi
   : liveOnboardingApi;
+
+export type { AuthMeResponse };

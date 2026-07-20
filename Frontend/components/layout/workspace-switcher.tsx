@@ -3,6 +3,7 @@
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { CompanyDomainLogo } from "@/components/shared/company-domain-logo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { workEmailDomain } from "@/lib/work-email";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +33,8 @@ export function WorkspaceSwitcher({
 }: {
   collapsed?: boolean;
 }) {
-  const { organization, setWorkspace } = useAuth();
+  const { organization, user, setWorkspace } = useAuth();
+  const logoDomain = workEmailDomain(user?.email || "") || "";
   const workspaces = useMemo(() => {
     if (!organization) return [];
     return [
@@ -39,7 +42,7 @@ export function WorkspaceSwitcher({
         id: organization.id,
         name: organization.name,
         plan: organization.plan || "Plan",
-        initials: initialsFromName(organization.name),
+        initials: organization.initials || initialsFromName(organization.name),
       },
     ];
   }, [organization]);
@@ -61,6 +64,15 @@ export function WorkspaceSwitcher({
     );
   }
 
+  const mark = (
+    <CompanyDomainLogo
+      websiteOrDomain={logoDomain}
+      name={active.name}
+      fallbackLabel={active.initials}
+      size={24}
+    />
+  );
+
   const trigger = (
     <DropdownMenuTrigger
       aria-label={`Workspace: ${active.name}`}
@@ -69,9 +81,7 @@ export function WorkspaceSwitcher({
         collapsed && "size-9 justify-center p-0"
       )}
     >
-      <span className="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground">
-        {active.initials}
-      </span>
+      {mark}
       {!collapsed ? (
         <>
           <span className="min-w-0 flex-1 leading-tight">
@@ -112,9 +122,12 @@ export function WorkspaceSwitcher({
               setWorkspace(workspace.id);
             }}
           >
-            <span className="flex size-6 items-center justify-center rounded bg-muted text-[10px] font-medium">
-              {workspace.initials}
-            </span>
+            <CompanyDomainLogo
+              websiteOrDomain={logoDomain}
+              name={workspace.name}
+              fallbackLabel={workspace.initials}
+              size={24}
+            />
             <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
             {workspace.id === active.id ? (
               <Check aria-hidden className="size-3.5 text-primary" />

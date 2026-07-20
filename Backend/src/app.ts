@@ -68,6 +68,7 @@ import {
   preferencesRouter,
   profileRouter,
   settingsRouter,
+  usersMeRouter,
 } from './modules/users/index.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -159,6 +160,7 @@ export function createApp(): Express {
   app.use('/api/v1/realtime', realtimeRouter);
   app.use('/api/v1/profile', profileRouter);
   app.use('/api/v1/preferences', preferencesRouter);
+  app.use('/api/v1/users', usersMeRouter);
   app.use('/api/v1/settings', settingsRouter);
   app.use('/api/v1/audit-logs', auditLogsRouter);
 

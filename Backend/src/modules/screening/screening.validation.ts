@@ -36,6 +36,11 @@ export const createScreeningSchema = z.object({
       z.object({
         id: z.string().min(1).max(80),
         prompt: z.string().min(1).max(2000),
+        type: z.string().trim().max(80).nullable().optional(),
+        required: z.boolean().optional(),
+        followUp: z.string().trim().max(1000).nullable().optional(),
+        expectedVariable: z.string().trim().max(80).nullable().optional(),
+        evaluationEnabled: z.boolean().optional(),
         knockout: z.boolean().optional(),
       })
     )

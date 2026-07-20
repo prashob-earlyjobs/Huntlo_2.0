@@ -3,7 +3,13 @@ import { z } from 'zod';
 import { objectIdSchema } from '../../shared/validation/object-id.js';
 import { JOB_PRIORITIES, JOB_STATUSES } from './job.model.js';
 
-const stringList = z.array(z.string().trim().min(1).max(120)).max(50).optional();
+/** Cap list items so JD-parsed phrases never fail create/update. */
+const listItem = z
+  .string()
+  .trim()
+  .min(1)
+  .transform((value) => value.slice(0, 120));
+const stringList = z.array(listItem).max(50).optional();
 
 export const jobFieldsSchema = z.object({
   title: z.string().trim().min(1).max(200),

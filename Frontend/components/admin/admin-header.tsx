@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { CandidateAvatar } from "@/components/shared/candidate-avatar";
+import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -64,7 +64,7 @@ export function AdminHeader() {
       </div>
 
       <ThemeToggle />
-      <CandidateAvatar name="Admin" />
+      <UserProfileMenu />
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-[280px] p-0">

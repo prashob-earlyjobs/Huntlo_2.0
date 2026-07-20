@@ -87,6 +87,7 @@ export function QuickCreateMenu() {
               render={
                 <Button
                   size="sm"
+                  data-tour="quick-create"
                   className="h-8 gap-1 px-2 sm:px-2.5"
                   aria-label="Create"
                 />

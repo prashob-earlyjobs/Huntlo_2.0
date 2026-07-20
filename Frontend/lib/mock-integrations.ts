@@ -134,9 +134,9 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     description:
       "Connect Microsoft 365 mailboxes for multi-recruiter outreach.",
     category: "Email",
-    status: "Connected",
-    connectedIdentity: "neha@acmetalent.com",
-    lastSynced: "12m ago",
+    status: "Not Connected",
+    connectedIdentity: null,
+    lastSynced: null,
     docsLabel: "Outlook setup guide",
     initials: "Ol",
     accent: "info",
@@ -145,16 +145,11 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
       "Read mail",
       "Access calendars (optional)",
     ],
-    usage: [
-      { label: "Sent today", value: "27 / 500" },
-      { label: "Replies synced", value: "9" },
-    ],
-    connectionDetails: [
-      { label: "Tenant", value: "acmetalent.onmicrosoft.com" },
-      { label: "Auth", value: "Microsoft OAuth 2.0" },
-    ],
+    usage: [],
+    connectionDetails: [],
     isDefault: false,
     configKind: "email",
+    inactive: true,
   },
   {
     id: "zoho-mail",

@@ -41,7 +41,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SessionResultsTableSkeleton } from "@/components/sessions/session-results-skeleton";
 import { getApiErrorMessage, candidatesApi, uiRevealKindToType } from "@/lib/api";
 import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-details";
 import {
@@ -177,16 +177,6 @@ function SessionStateBanner({
   }
 
   return null;
-}
-
-function ResultsSkeleton({ count = 5 }: { count?: number }) {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: count }).map((_, index) => (
-        <Skeleton key={index} className="h-14 rounded-lg" />
-      ))}
-    </div>
-  );
 }
 
 export function SessionResults({
@@ -754,9 +744,7 @@ export function SessionResults({
 
       {/* Results body */}
       {initialLoading ? (
-        <section className="rounded-xl border border-border bg-card p-4">
-          <ResultsSkeleton />
-        </section>
+        <SessionResultsTableSkeleton rows={8} />
       ) : isFailed ? (
         <EmptyState
           icon={AlertCircle}

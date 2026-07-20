@@ -172,6 +172,7 @@ export function GlobalSearch() {
       <Button
         variant="outline"
         size="sm"
+        data-tour="global-search"
         className={cn(
           "hidden h-8 w-56 justify-start gap-2 text-muted-foreground md:inline-flex"
         )}

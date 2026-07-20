@@ -38,6 +38,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
 import {
@@ -230,14 +231,17 @@ function GettingStarted({
   onUseExample,
   onUseSaved,
   recentSearches,
+  loading = false,
 }: {
   onUseExample: () => void;
   onUseSaved: (search: SavedSearch) => void;
   recentSearches: SavedSearch[];
+  loading?: boolean;
 }) {
   return (
     <section
       aria-label="Getting started"
+      aria-busy={loading || undefined}
       className="rounded-lg border border-border bg-card p-4"
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -245,29 +249,46 @@ function GettingStarted({
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Try an example
           </h3>
-          <button
-            type="button"
-            onClick={onUseExample}
-            className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {EXAMPLE_QUERY}
-          </button>
+          {loading ? (
+            <Skeleton className="mt-2 h-[4.25rem] w-full rounded-md" />
+          ) : (
+            <button
+              type="button"
+              onClick={onUseExample}
+              className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {EXAMPLE_QUERY}
+            </button>
+          )}
         </div>
         <div>
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Recent searches
             </h3>
-            <Button
-              size="xs"
-              variant="ghost"
-              nativeButton={false}
-              render={<Link href={ROUTES.searchHistory} />}
-            >
-              Browse search history
-            </Button>
+            {loading ? (
+              <Skeleton className="h-6 w-36 rounded-md" />
+            ) : (
+              <Button
+                size="xs"
+                variant="ghost"
+                nativeButton={false}
+                render={<Link href={ROUTES.searchHistory} />}
+              >
+                Browse search history
+              </Button>
+            )}
           </div>
-          {recentSearches.length === 0 ? (
+          {loading ? (
+            <ul className="mt-2 space-y-2" aria-hidden>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <li key={index} className="flex items-center justify-between gap-2 px-2">
+                  <Skeleton className="h-4 w-[70%] max-w-56" />
+                  <Skeleton className="h-3 w-14 shrink-0" />
+                </li>
+              ))}
+            </ul>
+          ) : recentSearches.length === 0 ? (
             <p className="mt-2 px-2 text-sm text-muted-foreground">
               No recent searches yet.
             </p>
@@ -319,6 +340,7 @@ export function SearchWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [searchRemaining, setSearchRemaining] = useState<number | null>(null);
   const [recentSearches, setRecentSearches] = useState<SavedSearch[]>([]);
+  const [recentSearchesLoading, setRecentSearchesLoading] = useState(true);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
@@ -344,6 +366,7 @@ export function SearchWorkspace() {
       }
     })();
     void (async () => {
+      setRecentSearchesLoading(true);
       try {
         const { getRecentSearches } = await import("@/lib/api/candidate-search");
         const result = await getRecentSearches({ limit: 5 });
@@ -360,6 +383,8 @@ export function SearchWorkspace() {
         );
       } catch {
         if (!cancelled) setRecentSearches([]);
+      } finally {
+        if (!cancelled) setRecentSearchesLoading(false);
       }
     })();
     return () => {
@@ -850,6 +875,7 @@ export function SearchWorkspace() {
             onUseExample={() => setQuery(EXAMPLE_QUERY)}
             onUseSaved={useSavedSearch}
             recentSearches={recentSearches}
+            loading={recentSearchesLoading}
           />
         ) : (
           <>

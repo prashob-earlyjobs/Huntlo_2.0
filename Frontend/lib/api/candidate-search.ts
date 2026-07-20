@@ -267,6 +267,10 @@ export interface CandidateSearchApi {
       createdAt: string | null;
     }>;
   }>;
+  claimPublicSearch(input: {
+    sessionId?: string;
+    claimToken?: string;
+  }): Promise<{ success: true; sessionId: string; savedSessionId?: string }>;
 }
 
 const mockCandidateSearchApi: CandidateSearchApi = {
@@ -452,6 +456,14 @@ const mockCandidateSearchApi: CandidateSearchApi = {
     await simulateMockLatency();
     return { success: true, recentSearches: [] };
   },
+  async claimPublicSearch(input) {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      sessionId: input.sessionId ?? "mock-session",
+      savedSessionId: input.sessionId ?? "mock-session",
+    };
+  },
 };
 
 const liveCandidateSearchApi: CandidateSearchApi = {
@@ -542,6 +554,17 @@ const liveCandidateSearchApi: CandidateSearchApi = {
   async getRecentSearches(params) {
     const qs = buildQueryString(params ?? { limit: 6 });
     return rawGet(`/candidates/recent-searches${qs}`);
+  },
+  async claimPublicSearch(input) {
+    const result = await rawPost<{
+      success: true;
+      session: { savedSessionId: string; sessionId?: string | null };
+    }>("/candidates/claim-public-search", input);
+    return {
+      success: true as const,
+      sessionId: result.session.sessionId || result.session.savedSessionId,
+      savedSessionId: result.session.savedSessionId,
+    };
   },
 };
 

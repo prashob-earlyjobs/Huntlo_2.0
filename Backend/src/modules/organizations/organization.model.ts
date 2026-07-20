@@ -1,12 +1,15 @@
 import mongoose from 'mongoose';
 
+import { COMPANY_TYPES } from '../auth/onboarding.constants.js';
+
 export const ORGANIZATION_STATUSES = ['active', 'suspended', 'deleted'] as const;
 export type OrganizationStatus = (typeof ORGANIZATION_STATUSES)[number];
 
-export const ORGANIZATION_PLANS = ['Starter', 'Growth', 'Scale', 'Enterprise'] as const;
+export const ORGANIZATION_PLANS = ['Trial', 'Starter', 'Growth', 'Scale', 'Enterprise'] as const;
 export type OrganizationPlan = (typeof ORGANIZATION_PLANS)[number];
 
 export const PLAN_SEAT_LIMITS: Record<OrganizationPlan, number> = {
+  Trial: 2,
   Starter: 3,
   Growth: 15,
   Scale: 50,
@@ -18,6 +21,10 @@ const organizationSettingsSchema = new mongoose.Schema(
     dateFormat: { type: String, default: 'DD/MM/YYYY' },
     allowMemberInvites: { type: Boolean, default: true },
     requireEmailVerification: { type: Boolean, default: false },
+    companyType: { type: String, enum: COMPANY_TYPES, default: null },
+    hiringVolume: { type: String, default: null },
+    hiringChallenges: { type: [String], default: [] },
+    outreachChannels: { type: [String], default: [] },
   },
   { _id: false }
 );
@@ -29,6 +36,11 @@ const organizationSchema = new mongoose.Schema(
     website: { type: String, default: null, trim: true },
     industry: { type: String, default: null, trim: true },
     companySize: { type: String, default: null, trim: true },
+    companyType: {
+      type: String,
+      enum: COMPANY_TYPES,
+      default: null,
+    },
     country: { type: String, default: null, trim: true },
     timezone: { type: String, default: 'Asia/Kolkata' },
     currency: { type: String, default: 'INR' },
@@ -48,8 +60,9 @@ const organizationSchema = new mongoose.Schema(
     settings: { type: organizationSettingsSchema, default: () => ({}) },
     plan: {
       type: String,
-      enum: ORGANIZATION_PLANS,
-      default: 'Starter',
+      default: 'Trial',
+      trim: true,
+      index: true,
     },
     initials: { type: String, required: true, trim: true },
     /** @deprecated Prefer `timezone` — kept for auth/onboarding compatibility */
@@ -68,7 +81,10 @@ export const OrganizationModel = (mongoose.models.Organization ??
   mongoose.model('Organization', organizationSchema)) as mongoose.Model<OrganizationDocument>;
 
 export function getSeatLimit(plan: string): number {
-  return PLAN_SEAT_LIMITS[(plan as OrganizationPlan) ?? 'Starter'] ?? PLAN_SEAT_LIMITS.Starter;
+  if ((ORGANIZATION_PLANS as readonly string[]).includes(plan)) {
+    return PLAN_SEAT_LIMITS[plan as OrganizationPlan];
+  }
+  return PLAN_SEAT_LIMITS.Trial;
 }
 
 export function toPublicOrganization(org: OrganizationDocument) {

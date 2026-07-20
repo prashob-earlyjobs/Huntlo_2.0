@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { MetricStrip } from "@/components/shared/metric-strip";
+import { CompanyDomainLogo } from "@/components/shared/company-domain-logo";
 import { TeamWorkspaceSkeleton } from "@/components/team/team-skeleton";
 import { Field } from "@/components/outreach/builder-ui";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
@@ -102,6 +103,7 @@ import {
   type TeamMetric,
   type TeamRole,
 } from "@/lib/mock-team";
+import { workEmailDomain } from "@/lib/work-email";
 import { cn } from "@/lib/utils";
 
 const EMPTY_ORG_FORM = {
@@ -843,16 +845,15 @@ function OrganisationSettings({
 
       <div className="mt-4 flex flex-col gap-4 sm:flex-row">
         <div className="flex flex-col items-center gap-2">
-          <span
-            aria-hidden
-            className="flex size-20 items-center justify-center rounded-xl border border-dashed border-border bg-muted text-lg font-bold text-primary"
-          >
-            {form.logoInitials}
-          </span>
-          <Button size="xs" variant="outline" disabled>
-            Upload logo
-          </Button>
-          <p className="text-[11px] text-muted-foreground">Placeholder</p>
+          <CompanyDomainLogo
+            websiteOrDomain={
+              form.website.trim() || workEmailDomain(ownerEmail) || ""
+            }
+            name={form.name}
+            fallbackLabel={form.logoInitials}
+            size={80}
+            className="rounded-xl border-dashed"
+          />
         </div>
 
         <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">

@@ -26,7 +26,16 @@ export type ScreeningCreateInput = {
   agentPrompt?: string | null;
   closingScript?: string | null;
   consentText?: string | null;
-  questions?: Array<{ id: string; prompt: string; knockout?: boolean }>;
+  questions?: Array<{
+    id: string;
+    prompt: string;
+    type?: string | null;
+    required?: boolean;
+    followUp?: string | null;
+    expectedVariable?: string | null;
+    evaluationEnabled?: boolean;
+    knockout?: boolean;
+  }>;
   evaluationCriteria?: Array<{
     id: string;
     label: string;

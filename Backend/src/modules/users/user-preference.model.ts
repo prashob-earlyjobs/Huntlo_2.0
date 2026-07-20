@@ -25,6 +25,65 @@ export type NotificationChannelPrefs = {
 
 export type NotificationPreferences = Record<NotificationEventId, NotificationChannelPrefs>;
 
+export const PRODUCT_TOUR_STATUSES = [
+  'not_started',
+  'in_progress',
+  'completed',
+  'skipped',
+] as const;
+export type ProductTourStatus = (typeof PRODUCT_TOUR_STATUSES)[number];
+
+export const HUNTLO_DASHBOARD_TOUR_VERSION = 1;
+
+export type DashboardProductTourState = {
+  version: number;
+  status: ProductTourStatus;
+  lastStep: number;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  skippedAt: Date | null;
+  updatedAt: Date | null;
+};
+
+export type ProductToursPreferences = {
+  dashboard: DashboardProductTourState;
+};
+
+export function defaultDashboardProductTour(): DashboardProductTourState {
+  return {
+    version: HUNTLO_DASHBOARD_TOUR_VERSION,
+    status: 'not_started',
+    lastStep: 0,
+    startedAt: null,
+    completedAt: null,
+    skippedAt: null,
+    updatedAt: null,
+  };
+}
+
+export function defaultProductTours(): ProductToursPreferences {
+  return {
+    dashboard: defaultDashboardProductTour(),
+  };
+}
+
+const productTourStateSchema = new mongoose.Schema(
+  {
+    version: { type: Number, default: HUNTLO_DASHBOARD_TOUR_VERSION },
+    status: {
+      type: String,
+      enum: PRODUCT_TOUR_STATUSES,
+      default: 'not_started',
+    },
+    lastStep: { type: Number, default: 0, min: 0 },
+    startedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+    skippedAt: { type: Date, default: null },
+    updatedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const channelSchema = new mongoose.Schema(
   {
     inApp: { type: Boolean, default: true },
@@ -93,6 +152,18 @@ const userPreferenceSchema = new mongoose.Schema(
       ),
       default: () => defaultNotificationPreferences(),
     },
+    productTours: {
+      type: new mongoose.Schema(
+        {
+          dashboard: {
+            type: productTourStateSchema,
+            default: () => defaultDashboardProductTour(),
+          },
+        },
+        { _id: false }
+      ),
+      default: () => defaultProductTours(),
+    },
   },
   { timestamps: true }
 );
@@ -107,10 +178,28 @@ export const UserPreferenceModel = (mongoose.models.UserPreference ??
     userPreferenceSchema
   )) as mongoose.Model<UserPreferenceDocument>;
 
+export function toPublicDashboardTour(
+  tour?: Partial<DashboardProductTourState> | null
+) {
+  const defaults = defaultDashboardProductTour();
+  const status = (tour?.status as ProductTourStatus | undefined) ?? defaults.status;
+  return {
+    tour: 'dashboard' as const,
+    version: typeof tour?.version === 'number' ? tour.version : defaults.version,
+    status,
+    lastStep: typeof tour?.lastStep === 'number' ? tour.lastStep : defaults.lastStep,
+    startedAt: tour?.startedAt ? new Date(tour.startedAt).toISOString() : null,
+    completedAt: tour?.completedAt ? new Date(tour.completedAt).toISOString() : null,
+    skippedAt: tour?.skippedAt ? new Date(tour.skippedAt).toISOString() : null,
+  };
+}
+
 export function toPublicPreferences(doc: UserPreferenceDocument) {
   const notifications =
     (doc.notificationPreferences as NotificationPreferences | undefined) ??
     defaultNotificationPreferences();
+  const productTours =
+    (doc.productTours as ProductToursPreferences | undefined) ?? defaultProductTours();
   return {
     theme: doc.theme as ThemePreference,
     density: doc.density as DensityPreference,
@@ -121,6 +210,9 @@ export function toPublicPreferences(doc: UserPreferenceDocument) {
     appearance: {
       theme: doc.theme as ThemePreference,
       density: doc.density as DensityPreference,
+    },
+    productTours: {
+      dashboard: toPublicDashboardTour(productTours.dashboard),
     },
   };
 }
