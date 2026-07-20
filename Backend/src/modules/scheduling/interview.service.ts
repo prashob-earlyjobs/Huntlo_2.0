@@ -27,6 +27,7 @@ import {
   normalizeTimezone,
   timeLabelInTimezone,
 } from './timezone.js';
+import { renderInterviewMessage } from './interview-message.js';
 import type {
   calendarQuerySchema,
   createInterviewSchema,
@@ -42,6 +43,14 @@ type ListQuery = z.infer<typeof listInterviewsQuerySchema>;
 type CalendarQuery = z.infer<typeof calendarQuerySchema>;
 type SendLinkInput = z.infer<typeof sendLinkBodySchema>;
 type RescheduleInput = z.infer<typeof rescheduleBodySchema>;
+
+function deliveryChannels(
+  channel: 'email' | 'whatsapp' | 'both' | null | undefined
+): Array<'email' | 'whatsapp'> {
+  if (channel === 'both') return ['email', 'whatsapp'];
+  if (channel === 'whatsapp') return ['whatsapp'];
+  return ['email'];
+}
 
 const STATUS_DISPLAY: Record<InterviewStatus, string> = {
   draft: 'Draft',
@@ -159,23 +168,6 @@ function durationMinutes(startAt: Date | null, endAt: Date | null): string {
   return `${mins} min`;
 }
 
-function renderInterviewMessage(
-  template: string | null | undefined,
-  values: {
-    firstName: string;
-    jobTitle: string;
-    schedulingDetails: string;
-  }
-): string {
-  const source =
-    template ||
-    'Hi {{first_name}}, we would like to schedule your next interview for {{job_title}}. {{scheduling_details}}';
-  return source
-    .replace(/\{\{\s*first_name\s*\}\}/gi, values.firstName)
-    .replace(/\{\{\s*job_title\s*\}\}/gi, values.jobTitle)
-    .replace(/\{\{\s*scheduling_details\s*\}\}/gi, values.schedulingDetails);
-}
-
 function emitInterviewUpdated(doc: InterviewDocument) {
   emitRealtime('interview.updated', {
     organizationId: String(doc.organizationId),
@@ -252,6 +244,7 @@ export function toInterviewDisplay(
                 ? 'Failed'
                 : 'Not sent',
     reminderHours: doc.reminderHours,
+    reminderMessages: doc.reminderMessages || [],
     reminderStatusRaw: doc.reminderStatus,
     bookingSource:
       doc.sourceModule === 'huntlo360'
@@ -422,6 +415,11 @@ export const interviewsService = {
       meetingUrl: input.meetingUrl ?? null,
       instructions: input.instructions ?? null,
       reminderHours: input.reminderHours ?? [24, 2],
+      reminderMessages: (input.reminderMessages || []).map((entry) => ({
+        hours: entry.hours,
+        message: entry.message,
+        templateId: entry.templateId ?? null,
+      })),
       status: isManualBooked ? 'scheduled' : schedulingUrl ? 'link_sent' : 'draft',
       bookingStatus: isManualBooked ? 'booked' : schedulingUrl ? 'link_sent' : 'pending',
       sourceModule: input.sourceModule || 'scheduling',
@@ -480,6 +478,13 @@ export const interviewsService = {
     if (input.meetingUrl !== undefined) doc.meetingUrl = input.meetingUrl;
     if (input.instructions !== undefined) doc.instructions = input.instructions;
     if (input.reminderHours !== undefined) doc.reminderHours = input.reminderHours;
+    if (input.reminderMessages !== undefined) {
+      doc.reminderMessages = input.reminderMessages.map((entry) => ({
+        hours: entry.hours,
+        message: entry.message,
+        templateId: entry.templateId ?? null,
+      }));
+    }
     if (input.status !== undefined) doc.status = input.status;
     if (input.bookingStatus !== undefined) doc.bookingStatus = input.bookingStatus;
     if (input.inviteChannel !== undefined) doc.inviteChannel = input.inviteChannel;
@@ -502,34 +507,11 @@ export const interviewsService = {
       throw new AppError(400, 'NO_SCHEDULING_URL', 'Interview has no scheduling URL.');
     }
 
-    const channel = input.channel || doc.inviteChannel || 'email';
     const candidate = doc.candidateId
       ? await SavedCandidateModel.findById(doc.candidateId).lean()
       : null;
-
     const email = String(doc.inviteeEmail || candidate?.email || '').trim();
     const phoneRaw = String(candidate?.phone || '').trim();
-
-    if (channel === 'email' && !email) {
-      throw new AppError(400, 'NO_EMAIL', 'Candidate has no email for link delivery.');
-    }
-    if (channel === 'whatsapp' && !phoneRaw) {
-      throw new AppError(400, 'NO_PHONE', 'Candidate has no phone for WhatsApp delivery.');
-    }
-
-    let phone = phoneRaw;
-    if (channel === 'whatsapp') {
-      try {
-        phone = normalizePhone(phoneRaw);
-      } catch {
-        throw new AppError(
-          400,
-          'INVALID_PHONE',
-          'Candidate phone number is invalid for WhatsApp delivery.'
-        );
-      }
-    }
-
     const title = await jobTitle(doc.jobId);
     const firstName = String(doc.inviteeName || candidate?.name || 'Candidate')
       .trim()
@@ -548,45 +530,74 @@ export const interviewsService = {
       schedulingDetails,
     });
 
-    let delivery: { providerMessageId?: string; provider: string };
-    try {
-      delivery = await sendAdHocMessage({
-        organizationId,
-        userId,
-        channel,
-        to: channel === 'email' ? email : phone,
-        subject:
-          channel === 'email'
-            ? `Interview invitation${title ? ` — ${title}` : ''}`
-            : null,
-        body: renderedMessage,
-      });
-    } catch (error) {
-      if (error instanceof AppError) throw error;
-      const statusCode =
-        typeof error === 'object' &&
-        error &&
-        'statusCode' in error &&
-        typeof (error as { statusCode?: unknown }).statusCode === 'number'
-          ? (error as { statusCode: number }).statusCode
-          : 502;
-      const code =
-        typeof error === 'object' &&
-        error &&
-        'code' in error &&
-        typeof (error as { code?: unknown }).code === 'string'
-          ? (error as { code: string }).code
-          : 'INVITE_DELIVERY_FAILED';
-      const message =
-        error instanceof Error
-          ? error.message
-          : `Failed to send interview invite via ${channel}.`;
-      throw new AppError(statusCode >= 400 && statusCode < 600 ? statusCode : 502, code, message, {
-        cause: error,
-      });
+    const requested = input.channel || doc.inviteChannel || 'email';
+    const channels = deliveryChannels(requested);
+    let lastDelivery: { providerMessageId?: string; provider: string } | null = null;
+
+    for (const channel of channels) {
+      if (channel === 'email' && !email) {
+        throw new AppError(400, 'NO_EMAIL', 'Candidate has no email for link delivery.');
+      }
+      if (channel === 'whatsapp' && !phoneRaw) {
+        throw new AppError(400, 'NO_PHONE', 'Candidate has no phone for WhatsApp delivery.');
+      }
+
+      let phone = phoneRaw;
+      if (channel === 'whatsapp') {
+        try {
+          phone = normalizePhone(phoneRaw);
+        } catch {
+          throw new AppError(
+            400,
+            'INVALID_PHONE',
+            'Candidate phone number is invalid for WhatsApp delivery.'
+          );
+        }
+      }
+
+      try {
+        lastDelivery = await sendAdHocMessage({
+          organizationId,
+          userId,
+          channel,
+          to: channel === 'email' ? email : phone,
+          subject:
+            channel === 'email'
+              ? `Interview invitation${title ? ` — ${title}` : ''}`
+              : null,
+          body: renderedMessage,
+        });
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        const statusCode =
+          typeof error === 'object' &&
+          error &&
+          'statusCode' in error &&
+          typeof (error as { statusCode?: unknown }).statusCode === 'number'
+            ? (error as { statusCode: number }).statusCode
+            : 502;
+        const code =
+          typeof error === 'object' &&
+          error &&
+          'code' in error &&
+          typeof (error as { code?: unknown }).code === 'string'
+            ? (error as { code: string }).code
+            : 'INVITE_DELIVERY_FAILED';
+        const message =
+          error instanceof Error
+            ? error.message
+            : `Failed to send interview invite via ${channel}.`;
+        throw new AppError(statusCode >= 400 && statusCode < 600 ? statusCode : 502, code, message, {
+          cause: error,
+        });
+      }
     }
 
-    doc.inviteChannel = channel;
+    const delivery = lastDelivery || { provider: 'none' };
+    doc.inviteChannel =
+      requested === 'both' || channels.length > 1
+        ? 'both'
+        : channels[0] || 'email';
     doc.status = doc.startAt ? doc.status : 'awaiting_booking';
     if (!doc.startAt) {
       doc.bookingStatus = 'link_sent';
@@ -604,7 +615,7 @@ export const interviewsService = {
       'interview_link_sent',
       {
         interviewId: id,
-        channel,
+        channel: doc.inviteChannel,
         schedulingUrl: doc.schedulingUrl,
         message: renderedMessage,
         provider: delivery.provider,
@@ -616,7 +627,7 @@ export const interviewsService = {
       organizationId,
       interviewId: id,
       candidateId: doc.candidateId ? String(doc.candidateId) : null,
-      channel,
+      channel: doc.inviteChannel,
       provider: delivery.provider,
     });
     emitInterviewUpdated(doc);
@@ -690,7 +701,9 @@ export const interviewsService = {
       { interviewId: id }
     );
     const { sendInterviewReminderNow } = await import('./reminder.service.js');
-    await sendInterviewReminderNow(doc, doc.inviteChannel || 'email');
+    for (const channel of deliveryChannels(doc.inviteChannel)) {
+      await sendInterviewReminderNow(doc, channel, { userId });
+    }
     emitInterviewUpdated(doc);
     return display(doc);
   },

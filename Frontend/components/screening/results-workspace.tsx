@@ -412,10 +412,18 @@ export function ResultsWorkspace({
                       </Link>
                     </TableCell>
                     <TableCell className="py-2.5">
-                      <Badge
-                        text={result.recommendation}
-                        className={REC_CLASSES[result.recommendation]}
-                      />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge
+                          text={result.recommendation}
+                          className={REC_CLASSES[result.recommendation]}
+                        />
+                        {result.knockoutFailed ? (
+                          <Badge
+                            text="Knockout"
+                            className="bg-destructive/10 text-destructive"
+                          />
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="py-2.5">
                       <div className="flex max-w-56 flex-wrap gap-1">

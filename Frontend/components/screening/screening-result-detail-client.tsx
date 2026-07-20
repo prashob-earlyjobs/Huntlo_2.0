@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { ResultDetail } from "@/components/screening/result-detail";
+import { ResultDetailSkeleton } from "@/components/screening/result-detail-skeleton";
 import { ApiFeedback } from "@/components/shared/api-feedback";
 import { Button } from "@/components/ui/button";
 import { screeningApi, getApiErrorMessage, mapApiErrorToUiState } from "@/lib/api";
@@ -20,10 +21,12 @@ export function ScreeningResultDetailClient({ id }: { id: string }) {
   const [uiState, setUiState] = useState<ApiUiState>("loading");
   const [message, setMessage] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setUiState("loading");
-    setMessage(null);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true);
+      setUiState("loading");
+      setMessage(null);
+    }
     try {
       const [summary, full] = await Promise.all([
         screeningApi.getResult(id),
@@ -45,7 +48,7 @@ export function ScreeningResultDetailClient({ id }: { id: string }) {
       setUiState(mapApiErrorToUiState(error));
       setMessage(getApiErrorMessage(error, "Unable to load screening result."));
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [id]);
 
@@ -54,7 +57,7 @@ export function ScreeningResultDetailClient({ id }: { id: string }) {
   }, [load]);
 
   useRealtimeRefresh("screening.result.updated", () => {
-    void load();
+    void load({ silent: true });
   });
 
   return (
@@ -70,11 +73,7 @@ export function ScreeningResultDetailClient({ id }: { id: string }) {
         Screening Results
       </Button>
 
-      {loading ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          Loading screening result…
-        </div>
-      ) : null}
+      {loading ? <ResultDetailSkeleton /> : null}
 
       {!loading && uiState !== "success" ? (
         <ApiFeedback
@@ -89,7 +88,11 @@ export function ScreeningResultDetailClient({ id }: { id: string }) {
       ) : null}
 
       {!loading && result && detail ? (
-        <ResultDetail result={result} detail={detail} onChanged={() => void load()} />
+        <ResultDetail
+          result={result}
+          detail={detail}
+          onChanged={() => void load({ silent: true })}
+        />
       ) : null}
     </>
   );

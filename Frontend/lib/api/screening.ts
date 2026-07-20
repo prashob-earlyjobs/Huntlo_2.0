@@ -10,6 +10,7 @@ import { buildQueryString } from "./types";
 import type {
   AiRecommendation,
   CallStatus,
+  KnockoutResult,
   RecruiterDecision,
 } from "@/lib/mock-screening";
 
@@ -134,6 +135,7 @@ function mapBatch(row: Record<string, unknown>): ScreeningBatch {
 
 function mapResult(row: Record<string, unknown>): ScreeningResult {
   const extracted = (row.extractedVariables as Record<string, unknown>) || {};
+  const knockoutResults = mapKnockoutResults(row);
   return {
     id: String(row.id),
     candidateId: (row.candidateId as string | null) ?? null,
@@ -148,9 +150,18 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
     duration: formatDuration(row.durationSeconds as number | null),
     overallScore: Number(row.overallScore ?? 0),
     recommendation: mapRecommendation(row.recommendation as string | null),
+    knockoutFailed: knockoutResults.some((item) => !item.passed),
     keyVariables: Object.entries(extracted)
+      .filter(
+        ([key]) =>
+          ![
+            "knockouts_triggered",
+            "knockoutsTriggered",
+            "failed_knockouts",
+          ].includes(key)
+      )
       .slice(0, 3)
-      .map(([, value]) => String(value)),
+      .map(([, value]) => formatExtractedValue(value)),
     completedDate: String(row.completedAt || row.lastActivity || ""),
     decision: mapDecision(
       (row.recruiterDecision as string) || (row.decision as string)
@@ -161,6 +172,21 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
 function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
   const breakdown = (row.scoreBreakdown as Record<string, number>) || {};
   const extracted = (row.extractedVariables as Record<string, unknown>) || {};
+  const communicationEntries = Object.entries(breakdown).filter(([key]) =>
+    key.toLowerCase().includes("communication")
+  );
+  const scoreEntries =
+    communicationEntries.length > 0
+      ? communicationEntries
+      : Object.entries(breakdown).slice(0, 1);
+
+  const extractedForDisplay = Object.entries(extracted).filter(
+    ([key]) =>
+      !["knockouts_triggered", "knockoutsTriggered", "failed_knockouts"].includes(
+        key
+      )
+  );
+
   return {
     resultId: String(row.id),
     summary: String(row.summary || "No summary yet."),
@@ -168,18 +194,25 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
     concerns: [],
     keyAnswers: [],
     salaryExpectation: String(extracted.salary || extracted.salary_expectation || "—"),
-    noticePeriod: String(extracted.notice_period || "—"),
-    preferredLocation: String(extracted.location || extracted.preferred_location || "—"),
+    noticePeriod: String(
+      extracted.notice_period || extracted.notice_period_answer || "—"
+    ),
+    preferredLocation: String(
+      extracted.location ||
+        extracted.preferred_location ||
+        extracted.location_answer ||
+        "—"
+    ),
     candidateInterest: String(
       extracted.interest_level || extracted.final_outcome || "—"
     ),
-    categories: Object.entries(breakdown).map(([label, score], index) => ({
+    categories: scoreEntries.map(([label, score], index) => ({
       id: `cat-${index}`,
-      label,
+      label: label.toLowerCase() === "communication" ? "Communication" : label,
       score: Number(score),
       evidence: "",
     })),
-    knockouts: [],
+    knockouts: mapKnockoutResults(row),
     transcript: row.transcript
       ? [
           {
@@ -195,14 +228,69 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
       label: row.recordingReference ? "Call recording" : "No recording",
       size: "—",
     },
-    extracted: Object.entries(extracted).map(([label, value], index) => ({
+    extracted: extractedForDisplay.map(([label, value], index) => ({
       id: `ex-${index}`,
       label,
-      value: String(value ?? ""),
+      value: formatExtractedValue(value),
       confidence: "Medium" as const,
     })),
     activity: [],
   };
+}
+
+function mapKnockoutResults(row: Record<string, unknown>): KnockoutResult[] {
+  const fromApi = row.knockoutResults;
+  if (Array.isArray(fromApi) && fromApi.length > 0) {
+    return fromApi.map((item) => {
+      const entry = item as Record<string, unknown>;
+      return {
+        criterion: String(entry.criterion || ""),
+        passed: Boolean(entry.passed),
+        detail: String(entry.detail || ""),
+      };
+    }).filter((item) => item.criterion);
+  }
+
+  const configured = Array.isArray(row.knockouts)
+    ? row.knockouts.map((value) => String(value).trim()).filter(Boolean)
+    : [];
+  const triggeredRaw =
+    row.triggeredKnockouts ??
+    (row.extractedVariables as Record<string, unknown> | undefined)
+      ?.knockouts_triggered;
+  const triggered = Array.isArray(triggeredRaw)
+    ? triggeredRaw.map((value) => String(value).trim()).filter(Boolean)
+    : [];
+
+  if (configured.length === 0) return [];
+
+  const normalizedTriggered = triggered.map((value) => value.toLowerCase());
+  return configured.map((criterion) => {
+    const needle = criterion.toLowerCase();
+    const failed = normalizedTriggered.some(
+      (value) =>
+        value === needle || value.includes(needle) || needle.includes(value)
+    );
+    return {
+      criterion,
+      passed: !failed,
+      detail: failed
+        ? "Triggered during the screening call — forces Reject"
+        : "No trigger detected for this rule",
+    };
+  });
+}
+
+function formatExtractedValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map((item) => String(item)).join(", ");
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 const mockScreeningApi: ScreeningApi = {

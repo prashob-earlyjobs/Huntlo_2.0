@@ -112,13 +112,7 @@ function OverviewTab({ batch }: { batch: ScreeningBatch }) {
         ))}
       </div>
 
-      <section className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">Objective</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{batch.objective}</p>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Language: {batch.language} · Max attempts: {batch.attempts}
-        </p>
-      </section>
+      <ResultsWorkspace screeningId={batch.id} />
     </div>
   );
 }
@@ -372,7 +366,7 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setActiveTab("results")}
+              onClick={() => setActiveTab("overview")}
             >
               View Results
             </Button>
@@ -429,7 +423,6 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
-            <TabsTrigger value="results">Results</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
         </div>
@@ -438,9 +431,6 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
           <CandidatesTab />
-        </TabsContent>
-        <TabsContent value="results" className="pt-3">
-          <ResultsWorkspace screeningId={batch.id} />
         </TabsContent>
         <TabsContent value="settings" className="pt-3">
           <SettingsTab />

@@ -161,8 +161,22 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
 
 function toResultDisplay(
   row: ScreeningCandidateDocument,
-  extras: { name: string; jobId: string | null; screeningName: string }
+  extras: {
+    name: string;
+    jobId: string | null;
+    screeningName: string;
+    knockouts?: string[];
+  }
 ) {
+  const configuredKnockouts = (extras.knockouts || [])
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const triggeredKnockouts = normalizeTriggeredKnockouts(
+    row.extractedVariables?.knockouts_triggered ??
+      row.extractedVariables?.knockoutsTriggered
+  );
+  const knockoutResults = buildKnockoutResults(configuredKnockouts, triggeredKnockouts);
+
   return {
     id: String(row._id),
     screeningId: String(row.screeningId),
@@ -189,7 +203,49 @@ function toResultDisplay(
     lastActivity: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    knockouts: configuredKnockouts,
+    triggeredKnockouts,
+    knockoutResults,
   };
+}
+
+function normalizeTriggeredKnockouts(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item).trim()).filter(Boolean);
+      }
+    } catch {
+      // fall through — treat as a single label
+    }
+    return [value.trim()];
+  }
+  return [];
+}
+
+function buildKnockoutResults(
+  configured: string[],
+  triggered: string[]
+): Array<{ criterion: string; passed: boolean; detail: string }> {
+  if (configured.length === 0) return [];
+  const normalizedTriggered = triggered.map((value) => value.trim().toLowerCase());
+  return configured.map((criterion) => {
+    const needle = criterion.trim().toLowerCase();
+    const failed = normalizedTriggered.some(
+      (value) => value === needle || value.includes(needle) || needle.includes(value)
+    );
+    return {
+      criterion,
+      passed: !failed,
+      detail: failed
+        ? 'Triggered during the screening call — forces Reject'
+        : 'No trigger detected for this rule',
+    };
+  });
 }
 
 export async function refreshScreeningStats(screeningId: string) {
@@ -558,12 +614,15 @@ export const screeningService = {
       },
     };
     for (const criterion of doc.evaluationCriteria || []) {
+      // Only numeric scores requested for configured criteria (communication).
+      if (criterion.id !== 'communication') continue;
       (resultSchema.properties as Record<string, unknown>)[criterion.id] = {
         type: 'number',
         description: criterion.description || `score 0-100 for ${criterion.label}`,
       };
     }
     for (const question of doc.questions || []) {
+      if (question.evaluationEnabled === false) continue;
       const variable = String(question.expectedVariable || '')
         .trim()
         .toLowerCase()
@@ -587,14 +646,15 @@ export const screeningService = {
       };
     }
     let resultPrompt = roshni.resultPrompt;
-    if (doc.evaluationCriteria?.length) {
-      const extra = doc.evaluationCriteria
-        .map((c) => `"${c.id}": number 0-100 — ${c.label}`)
-        .join(', ');
-      resultPrompt = `${resultPrompt}\n\nAlso include evaluation scores: ${extra}.`;
+    const communicationCriterion = (doc.evaluationCriteria || []).find(
+      (criterion) => criterion.id === 'communication'
+    );
+    if (communicationCriterion) {
+      resultPrompt = `${resultPrompt}\n\nAlso include evaluation scores: "communication": number 0-100 — ${communicationCriterion.label}. Do not score other categories or individual questions.`;
     }
     const answerFields = (doc.questions || [])
       .map((question) => {
+        if (question.evaluationEnabled === false) return null;
         const variable = String(question.expectedVariable || '')
           .trim()
           .toLowerCase()
@@ -605,7 +665,7 @@ export const screeningService = {
       })
       .filter(Boolean);
     if (answerFields.length > 0) {
-      resultPrompt = `${resultPrompt}\n\nAlso include captured answers: ${answerFields.join(', ')}.`;
+      resultPrompt = `${resultPrompt}\n\nAlso include captured answers (text only, no scores): ${answerFields.join(', ')}.`;
     }
     if (knockouts.length > 0) {
       resultPrompt = `${resultPrompt}\n\nAlso include "knockouts_triggered": string[] using only these exact labels when the candidate fails them: ${knockouts
@@ -804,7 +864,7 @@ export const screeningService = {
       .select('name')
       .lean();
     const names = new Map(candidates.map((c) => [String(c._id), c.name]));
-    const screening = await ScreeningModel.findById(id).select('name jobId').lean();
+    const screening = await ScreeningModel.findById(id).select('name jobId knockouts').lean();
 
     return {
       items: rows.map((row) =>
@@ -812,6 +872,7 @@ export const screeningService = {
           name: names.get(String(row.candidateId)) || 'Unknown',
           jobId: screening?.jobId ? String(screening.jobId) : null,
           screeningName: screening?.name || '',
+          knockouts: screening?.knockouts || [],
         })
       ),
       pagination: {
@@ -858,7 +919,7 @@ export const screeningService = {
     const screenings = await ScreeningModel.find({
       _id: { $in: rows.map((r) => r.screeningId) },
     })
-      .select('name jobId')
+      .select('name jobId knockouts')
       .lean();
     const names = new Map(candidates.map((c) => [String(c._id), c.name]));
     const screeningMap = new Map(screenings.map((s) => [String(s._id), s]));
@@ -869,6 +930,7 @@ export const screeningService = {
         name: names.get(String(row.candidateId)) || 'Unknown',
         jobId: screening?.jobId ? String(screening.jobId) : null,
         screeningName: screening?.name || '',
+        knockouts: screening?.knockouts || [],
       });
     });
 
@@ -892,11 +954,14 @@ export const screeningService = {
     const row = await ScreeningCandidateModel.findOne({ _id: id, organizationId });
     if (!row) throw new AppError(404, 'RESULT_NOT_FOUND', 'Screening result not found.');
     const candidate = await SavedCandidateModel.findById(row.candidateId).select('name').lean();
-    const screening = await ScreeningModel.findById(row.screeningId).select('name jobId').lean();
+    const screening = await ScreeningModel.findById(row.screeningId)
+      .select('name jobId knockouts')
+      .lean();
     return toResultDisplay(row, {
       name: candidate?.name || 'Unknown',
       jobId: screening?.jobId ? String(screening.jobId) : null,
       screeningName: screening?.name || '',
+      knockouts: screening?.knockouts || [],
     });
   },
 

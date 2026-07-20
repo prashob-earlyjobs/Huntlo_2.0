@@ -7,9 +7,12 @@ import { successResponse } from '../../shared/http/response.js';
 import { adminJobsService } from './admin-jobs.service.js';
 import { recordAdminMutation } from './admin-audit.js';
 import { adminConsoleService } from './admin-console.service.js';
+import { adminUsageAnalyticsService } from './admin-usage-analytics.service.js';
 import {
   adjustQuotaSchema,
   adminListQuerySchema,
+  adminUsageAnalyticsQuerySchema,
+  adminUsageHistoryQuerySchema,
   assignPlanSchema,
   createAdminUserSchema,
   createBlogSchema,
@@ -215,6 +218,31 @@ adminConsoleRouter.get(
   asyncHandler(async (req, res) => {
     const data = await adminConsoleService.getUsageOverview();
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/usage-analytics/summary',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = adminUsageAnalyticsQuerySchema.parse(req.query);
+    const data = await adminUsageAnalyticsService.getSummary(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/usage-analytics/history',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = adminUsageHistoryQuerySchema.parse(req.query);
+    const data = await adminUsageAnalyticsService.listHistory(query);
+    successResponse(res, data, {
+      meta: {
+        requestId: getRequestId(req),
+        pagination: data.pagination,
+      },
+    });
   })
 );
 adminConsoleRouter.get(

@@ -120,12 +120,8 @@ function ScreeningDetailSkeleton() {
         ))}
       </div>
 
-      {/* Objective card */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="mt-3 h-4 w-3/4" />
-        <Skeleton className="mt-2 h-3.5 w-56" />
-      </div>
+      <Skeleton className="h-14 rounded-xl" />
+      <Skeleton className="h-72 rounded-xl" />
     </div>
   );
 }

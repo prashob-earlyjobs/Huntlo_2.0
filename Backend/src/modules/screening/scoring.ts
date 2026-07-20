@@ -38,24 +38,33 @@ export function mapEvaluationScores(input: {
     }
   }
 
+  // Product rule: overall score is the Communication score only.
+  // Question answers are captured as string fields (*_answer), not scored.
   let overallScore: number | null = null;
-  const numericScores = Object.values(scoreBreakdown);
-  if (numericScores.length > 0) {
-    if (input.criteria?.length) {
-      let weighted = 0;
-      let weightSum = 0;
-      for (const criterion of input.criteria) {
-        const score = scoreBreakdown[criterion.id];
-        if (typeof score !== 'number') continue;
-        const weight = criterion.weight > 0 ? criterion.weight : 1;
-        weighted += score * weight;
-        weightSum += weight;
+  const communicationScore =
+    typeof scoreBreakdown.communication === 'number'
+      ? scoreBreakdown.communication
+      : typeof scoreBreakdown.Communication === 'number'
+        ? scoreBreakdown.Communication
+        : null;
+
+  if (communicationScore != null) {
+    overallScore = Math.round(communicationScore);
+  } else if (input.criteria?.length) {
+    const communicationCriterion = input.criteria.find(
+      (criterion) =>
+        criterion.id === 'communication' ||
+        criterion.label.toLowerCase().includes('communication')
+    );
+    if (communicationCriterion) {
+      const score = scoreBreakdown[communicationCriterion.id];
+      if (typeof score === 'number') {
+        overallScore = Math.round(score);
       }
-      overallScore = weightSum > 0 ? Math.round(weighted / weightSum) : average(numericScores);
-    } else {
-      overallScore = average(numericScores);
     }
-  } else if (input.result) {
+  }
+
+  if (overallScore == null && input.result) {
     overallScore = deriveScoreFromOutcome(input.result);
   }
 
@@ -80,10 +89,6 @@ export function mapEvaluationScores(input: {
     extractedVariables,
     triggeredKnockouts,
   };
-}
-
-function average(values: number[]): number {
-  return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
 }
 
 /** Heuristic only over known Hunar result keys from EJHunterLanding. */
@@ -182,7 +187,12 @@ function knockoutMatchesResult(rule: string, result: Record<string, unknown>): b
       result.noticePeriodDays
     );
     if (days != null && days > 90) return true;
-    const text = firstString(result.notice_period, result.noticePeriod);
+    const text = firstString(
+      result.notice_period,
+      result.noticePeriod,
+      result.notice_period_answer,
+      result.noticePeriod_answer
+    );
     if (text && /(\d+)\s*day/.test(text)) {
       const match = text.match(/(\d+)\s*day/i);
       if (match && Number(match[1]) > 90) return true;
@@ -201,7 +211,10 @@ function knockoutMatchesResult(rule: string, result: Record<string, unknown>): b
     const preference = firstString(
       result.location_preference,
       result.work_mode,
-      result.preferred_work_mode
+      result.preferred_work_mode,
+      result.location_answer,
+      result.work_mode_answer,
+      result.hybrid_answer
     );
     if (preference && /(remote\s*only|wfh\s*only|not\s*open)/i.test(preference)) return true;
   }
@@ -215,6 +228,14 @@ function knockoutMatchesResult(rule: string, result: Record<string, unknown>): b
       result.salary_out_of_range
     );
     if (aboveBand === true) return true;
+    const salaryAnswer = firstString(
+      result.salary_answer,
+      result.salary_expectation_answer,
+      result.compensation_answer
+    );
+    if (salaryAnswer && /(above\s*band|out\s*of\s*range|too\s*high)/i.test(salaryAnswer)) {
+      return true;
+    }
   }
 
   if (key.includes('relevant experience') || key.includes('no relevant')) {
@@ -222,6 +243,14 @@ function knockoutMatchesResult(rule: string, result: Record<string, unknown>): b
     if (experience != null && experience < 35) return true;
     const flag = firstBoolean(result.no_relevant_experience, result.lacks_relevant_experience);
     if (flag === true) return true;
+    const experienceAnswer = firstString(
+      result.experience_answer,
+      result.relevant_experience_answer,
+      result.role_fit_answer
+    );
+    if (experienceAnswer && /(no\s*relevant|not\s*relevant|lacks?\s*experience)/i.test(experienceAnswer)) {
+      return true;
+    }
   }
 
   if (key.includes('consent') || key.includes('recording')) {
@@ -234,6 +263,13 @@ function knockoutMatchesResult(rule: string, result: Record<string, unknown>): b
     if (key.includes('declined')) {
       if (consent === false) return true;
       if (result.declined_recording_consent === true) return true;
+      const consentAnswer = firstString(
+        result.consent_answer,
+        result.recording_consent_answer
+      );
+      if (consentAnswer && /(declin|refus|no\b|not\s*okay|don'?t)/i.test(consentAnswer)) {
+        return true;
+      }
     }
   }
 
