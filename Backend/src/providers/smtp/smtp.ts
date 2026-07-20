@@ -100,6 +100,8 @@ export async function sendSmtpMail(input: {
   subject: string;
   text?: string;
   html?: string;
+  inReplyTo?: string | null;
+  references?: string | null;
 }): Promise<{ messageId?: string }> {
   assertSmtpConfig(input.config);
   const transport = createSmtpTransport(input.config);
@@ -112,6 +114,8 @@ export async function sendSmtpMail(input: {
       subject: input.subject,
       text: input.text,
       html: input.html,
+      inReplyTo: input.inReplyTo || undefined,
+      references: input.references || undefined,
     });
     return { messageId: typeof info.messageId === 'string' ? info.messageId : undefined };
   } finally {

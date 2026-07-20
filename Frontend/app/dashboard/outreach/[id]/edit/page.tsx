@@ -11,10 +11,16 @@ export const metadata: Metadata = { title: "Edit Campaign" };
 
 export default async function EditCampaignPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ step?: string }>;
 }) {
   const { id } = await params;
+  const { step: stepRaw } = await searchParams;
+  const parsedStep = Number(stepRaw);
+  const initialStep =
+    Number.isFinite(parsedStep) && parsedStep >= 0 ? Math.floor(parsedStep) : undefined;
 
   return (
     <>
@@ -43,7 +49,7 @@ export default async function EditCampaignPage({
           </div>
         }
       />
-      <CampaignBuilder campaignId={id} />
+      <CampaignBuilder campaignId={id} initialStep={initialStep} />
     </>
   );
 }

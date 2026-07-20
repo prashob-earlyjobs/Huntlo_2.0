@@ -6,6 +6,8 @@
  * https://developers.google.com/gmail/api/reference/rest/v1/users.messages
  */
 
+import { stripEmailQuotedReply } from '../email/strip-quoted-reply.js';
+
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
 export type GmailFetchOptions = {
@@ -125,10 +127,60 @@ export async function fetchRecentInboxReplies(
       from: headerValue(headers, 'From') || '',
       to: headerValue(headers, 'To'),
       subject: headerValue(headers, 'Subject'),
-      bodyText: text || msg.snippet || '',
+      bodyText: stripEmailQuotedReply(text || msg.snippet || ''),
       bodyHtml: html,
       receivedAt: msg.internalDate ? new Date(Number(msg.internalDate)) : new Date(),
     });
   }
   return items;
+}
+
+export type GmailThreadingMeta = {
+  threadId: string | null;
+  /** RFC 2822 Message-ID header value, e.g. `<abc@mail.gmail.com>`. */
+  rfcMessageId: string | null;
+};
+
+/**
+ * Resolve Gmail conversation threadId + RFC Message-ID for reply threading.
+ * Gmail only keeps messages in one inbox thread when In-Reply-To/References
+ * point at the prior message's Message-ID (API id alone is not enough).
+ */
+export async function getGmailThreadingMeta(
+  accessToken: string,
+  messageId: string
+): Promise<GmailThreadingMeta> {
+  const id = String(messageId || '').trim();
+  if (!id || id.startsWith('<') || id.startsWith('campaign-job:') || id.includes(':')) {
+    return { threadId: null, rfcMessageId: null };
+  }
+  const url = new URL(`${GMAIL_API_BASE}/messages/${encodeURIComponent(id)}`);
+  url.searchParams.set('format', 'metadata');
+  url.searchParams.append('metadataHeaders', 'Message-ID');
+  url.searchParams.append('metadataHeaders', 'Message-Id');
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return { threadId: null, rfcMessageId: null };
+  const data = (await res.json().catch(() => ({}))) as {
+    threadId?: string;
+    payload?: { headers?: GmailHeader[] };
+  };
+  const headers = data.payload?.headers || [];
+  const rfcMessageId =
+    headerValue(headers, 'Message-ID') || headerValue(headers, 'Message-Id');
+  return {
+    threadId: data.threadId ? String(data.threadId) : null,
+    rfcMessageId: rfcMessageId ? String(rfcMessageId).trim() : null,
+  };
+}
+
+/** Look up the Gmail conversation threadId for an existing message id. */
+export async function getGmailThreadIdForMessage(
+  accessToken: string,
+  messageId: string
+): Promise<string | null> {
+  const meta = await getGmailThreadingMeta(accessToken, messageId);
+  return meta.threadId;
 }

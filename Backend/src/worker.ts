@@ -30,7 +30,16 @@ async function startWorker(): Promise<void> {
   );
 
   const metricsTimer = setInterval(() => {
-    logger.info({ metrics: runner.getMetrics() }, 'Worker metrics');
+    const m = runner.getMetrics();
+    logger.debug(
+      {
+        leased: m.jobsLeased,
+        done: m.jobsCompleted,
+        failed: m.jobsFailed,
+        active: m.activeJobs,
+      },
+      'Worker metrics'
+    );
   }, 60_000);
   metricsTimer.unref?.();
 

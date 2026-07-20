@@ -8,18 +8,31 @@ function toBase64Url(raw: string): string {
     .replace(/=+$/, '');
 }
 
+/** RFC 2047 encode Subject so non-ASCII (em dashes, etc.) do not mojibake. */
+export function encodeRfc2047Subject(subject: string): string {
+  const value = String(subject || '').replace(/[\r\n]+/g, ' ').trim();
+  if (!value) return '(no subject)';
+  if (/^[\x20-\x7E]*$/.test(value)) return value;
+  const b64 = Buffer.from(value, 'utf8').toString('base64');
+  return `=?UTF-8?B?${b64}?=`;
+}
+
 function buildRfc822(input: {
   to: string;
   from?: string | null;
   subject: string;
   text?: string;
   html?: string;
+  inReplyTo?: string | null;
+  references?: string | null;
 }): string {
   const boundary = `huntlo_${Date.now().toString(36)}`;
   const headers = [
     `To: ${input.to}`,
     input.from ? `From: ${input.from}` : null,
-    `Subject: ${input.subject}`,
+    `Subject: ${encodeRfc2047Subject(input.subject)}`,
+    input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
+    input.references ? `References: ${input.references}` : null,
     'MIME-Version: 1.0',
   ].filter(Boolean);
 
@@ -56,7 +69,12 @@ export async function sendGmailMessage(input: {
   text?: string;
   html?: string;
   from?: string | null;
-}): Promise<{ messageId?: string }> {
+  /** Gmail conversation thread id — required to keep replies in the same inbox thread. */
+  threadId?: string | null;
+  /** RFC Message-ID of the message being replied to (optional; threadId is primary). */
+  inReplyTo?: string | null;
+  references?: string | null;
+}): Promise<{ messageId?: string; threadId?: string }> {
   const raw = toBase64Url(
     buildRfc822({
       to: input.to,
@@ -64,8 +82,13 @@ export async function sendGmailMessage(input: {
       subject: input.subject,
       text: input.text,
       html: input.html,
+      inReplyTo: input.inReplyTo,
+      references: input.references,
     })
   );
+
+  const body: Record<string, string> = { raw };
+  if (input.threadId) body.threadId = input.threadId;
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
@@ -73,10 +96,11 @@ export async function sendGmailMessage(input: {
       Authorization: `Bearer ${input.accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ raw }),
+    body: JSON.stringify(body),
   });
   const data = (await res.json().catch(() => ({}))) as {
     id?: string;
+    threadId?: string;
     error?: { message?: string };
   };
   if (!res.ok) {
@@ -85,5 +109,5 @@ export async function sendGmailMessage(input: {
       { statusCode: res.status >= 400 && res.status < 600 ? res.status : 502 }
     );
   }
-  return { messageId: data.id };
+  return { messageId: data.id, threadId: data.threadId };
 }

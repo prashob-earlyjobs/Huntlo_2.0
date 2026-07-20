@@ -1,6 +1,6 @@
 import pino from 'pino';
 
-import { getEnv, isProduction } from './env.js';
+import { getEnv, isProduction, isTest } from './env.js';
 
 let loggerInstance: pino.Logger | null = null;
 
@@ -46,6 +46,8 @@ export function getLogger(): pino.Logger {
   if (loggerInstance) return loggerInstance;
 
   const env = getEnv();
+  const usePretty = !isProduction() && !isTest();
+
   loggerInstance = pino({
     level: env.LOG_LEVEL,
     redact: {
@@ -62,6 +64,19 @@ export function getLogger(): pino.Logger {
       env: env.APP_ENV,
       service: 'huntlo-api',
     },
+    ...(usePretty
+      ? {
+          transport: {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'HH:MM:ss',
+              ignore: 'pid,hostname,env,service',
+              singleLine: true,
+            },
+          },
+        }
+      : {}),
   });
 
   if (isProduction()) {

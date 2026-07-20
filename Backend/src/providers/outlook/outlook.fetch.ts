@@ -4,6 +4,7 @@
  */
 
 import type { InboxFetchOptions, InboxReplyItem } from '../email/inbox-reply.js';
+import { stripEmailQuotedReply } from '../email/strip-quoted-reply.js';
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0/me';
 
@@ -79,7 +80,9 @@ export async function fetchRecentOutlookInboxReplies(
         from: formatAddress(msg.from),
         to: msg.toRecipients?.[0] ? formatAddress(msg.toRecipients[0]) : null,
         subject: msg.subject ? String(msg.subject) : null,
-        bodyText: isHtml ? preview || content.replace(/<[^>]+>/g, ' ').trim() : content || preview,
+        bodyText: stripEmailQuotedReply(
+          isHtml ? preview || content.replace(/<[^>]+>/g, ' ').trim() : content || preview
+        ),
         bodyHtml: isHtml ? content || null : null,
         receivedAt: msg.receivedDateTime ? new Date(msg.receivedDateTime) : new Date(),
       } satisfies InboxReplyItem;

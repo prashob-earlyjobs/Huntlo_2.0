@@ -168,9 +168,9 @@ export function builderStateFromCampaign(
       ])
     ) as Record<OutreachChannel, ChannelConnection>,
     steps: steps.length > 0 ? steps : base.steps,
-    classificationEnabled: Boolean(campaign.qualificationConfig?.enabled),
+    classificationEnabled: true,
     questions,
-    aiReplyEnabled: Boolean(campaign.qualificationConfig?.aiReplyEnabled),
+    aiReplyEnabled: true,
     takeoverCondition:
       campaign.qualificationConfig?.takeoverCondition &&
       (TAKEOVER_CONDITIONS as readonly string[]).includes(

@@ -5,11 +5,11 @@ import {
   ArrowRight,
   CalendarClock,
   CheckCircle2,
+  Loader2,
   Rocket,
-  Save,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AudienceStep } from "@/components/outreach/builder-audience-step";
 import { ChannelsStep } from "@/components/outreach/builder-channels-step";
@@ -55,6 +55,9 @@ const BUILDER_STEPS = [
 ];
 
 type Outcome = "draft" | "scheduled" | "launched";
+type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+
+const AUTOSAVE_DELAY_MS = 900;
 
 const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
   draft: {
@@ -123,7 +126,7 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       note: step.note || null,
     })),
     qualificationConfig: {
-      enabled: state.classificationEnabled,
+      enabled: true,
       questions: state.questions.map((question) => ({
         id: question.id,
         prompt: question.text,
@@ -131,7 +134,7 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
         knockout: question.knockout,
         knockoutCondition: question.knockoutCondition || null,
       })),
-      aiReplyEnabled: state.aiReplyEnabled,
+      aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
       autoScreening: state.autoScreening,
     },
@@ -144,12 +147,22 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
 
 export function CampaignBuilder({
   campaignId: editCampaignId,
+  initialStep,
 }: {
   campaignId?: string;
+  /** Jump to a builder step (0-based) after load — e.g. from Launch validation. */
+  initialStep?: number;
 } = {}) {
   const [state, setState] = useState<BuilderState>(initialBuilderState);
-  const [current, setCurrent] = useState(0);
-  const [attempted, setAttempted] = useState<Set<number>>(new Set());
+  const [current, setCurrent] = useState(() => {
+    if (initialStep == null || !Number.isFinite(initialStep)) return 0;
+    return Math.min(Math.max(0, Math.floor(initialStep)), BUILDER_STEPS.length - 1);
+  });
+  const [attempted, setAttempted] = useState<Set<number>>(() => {
+    if (initialStep == null || !Number.isFinite(initialStep)) return new Set();
+    const step = Math.min(Math.max(0, Math.floor(initialStep)), BUILDER_STEPS.length - 1);
+    return new Set([step]);
+  });
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [campaignId, setCampaignId] = useState<string | null>(
     editCampaignId ?? null
@@ -157,9 +170,15 @@ export function CampaignBuilder({
   const [loadingCampaign, setLoadingCampaign] = useState(Boolean(editCampaignId));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submittingMode, setSubmittingMode] = useState<Outcome | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
+  const campaignIdRef = useRef<string | null>(editCampaignId ?? null);
+  const autosaveVersionRef = useRef(0);
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let cancelled = false;
@@ -218,6 +237,7 @@ export function CampaignBuilder({
         ];
         setState(builderStateFromCampaign(raw, enrolledIds));
         setCampaignId(raw.id);
+        campaignIdRef.current = raw.id;
       } catch (err) {
         if (!cancelled) {
           setLoadError(getApiErrorMessage(err, "Unable to load campaign."));
@@ -230,6 +250,64 @@ export function CampaignBuilder({
       cancelled = true;
     };
   }, [editCampaignId]);
+
+  const queueAutosave = useCallback(
+    (snapshot: BuilderState, version: number) => {
+      if (!snapshot.name.trim()) return Promise.resolve();
+
+      const operation = autosaveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (version !== autosaveVersionRef.current) return;
+
+          setAutosaveStatus("saving");
+          setAutosaveError(null);
+          try {
+            const input = toCreateInput(snapshot);
+            let id = campaignIdRef.current;
+            if (id) {
+              await outreachApi.updateCampaign(id, input);
+            } else {
+              const created = await outreachApi.createCampaign(input);
+              id = created.id;
+              campaignIdRef.current = id;
+              setCampaignId(id);
+            }
+            if (version === autosaveVersionRef.current) {
+              setAutosaveStatus("saved");
+            }
+          } catch (err) {
+            if (version === autosaveVersionRef.current) {
+              setAutosaveStatus("error");
+              setAutosaveError(
+                getApiErrorMessage(err, "Unable to autosave campaign.")
+              );
+            }
+          }
+        });
+
+      autosaveQueueRef.current = operation;
+      return operation;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (loadingCampaign || outcome || submitting) return;
+    const version = ++autosaveVersionRef.current;
+    if (!state.name.trim()) {
+      setAutosaveStatus("idle");
+      setAutosaveError(null);
+      return;
+    }
+
+    setAutosaveStatus("pending");
+    const timer = window.setTimeout(() => {
+      void queueAutosave(state, version);
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [loadingCampaign, outcome, queueAutosave, state, submitting]);
 
   function update<K extends keyof BuilderState>(key: K, value: BuilderState[K]) {
     setState((previous) => {
@@ -256,6 +334,10 @@ export function CampaignBuilder({
   const showErrors = attempted.has(current);
 
   function goTo(step: number) {
+    if (state.name.trim() && !submitting) {
+      const version = ++autosaveVersionRef.current;
+      void queueAutosave(state, version);
+    }
     setCurrent(step);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -270,15 +352,19 @@ export function CampaignBuilder({
 
   async function submit(mode: Outcome) {
     setSubmitting(true);
+    setSubmittingMode(mode);
     setSubmitError(null);
+    autosaveVersionRef.current += 1;
     try {
+      await autosaveQueueRef.current.catch(() => undefined);
       const input = toCreateInput(state);
-      let id = campaignId;
+      let id = campaignIdRef.current;
       if (id) {
         await outreachApi.updateCampaign(id, input);
       } else {
         const created = await outreachApi.createCampaign(input);
         id = created.id;
+        campaignIdRef.current = id;
       }
 
       const audienceIds = await resolveAudienceCandidateIds({
@@ -319,11 +405,13 @@ export function CampaignBuilder({
       }
 
       setCampaignId(id);
+      campaignIdRef.current = id;
       setOutcome(mode);
     } catch (err) {
       setSubmitError(getApiErrorMessage(err, "Unable to save campaign."));
     } finally {
       setSubmitting(false);
+      setSubmittingMode(null);
     }
   }
 
@@ -385,7 +473,10 @@ export function CampaignBuilder({
                 setAttempted(new Set());
                 setOutcome(null);
                 setCampaignId(null);
+                campaignIdRef.current = null;
                 setSubmitError(null);
+                setAutosaveStatus("idle");
+                setAutosaveError(null);
               }}
             >
               Create Another Campaign
@@ -466,16 +557,33 @@ export function CampaignBuilder({
         </Button>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={submitting || !state.name.trim()}
-            onClick={() => void submit("draft")}
+          <span
+            role={autosaveStatus === "error" ? "alert" : "status"}
+            title={autosaveError ?? undefined}
+            className={`inline-flex items-center gap-1.5 text-xs ${
+              autosaveStatus === "error"
+                ? "text-destructive"
+                : "text-muted-foreground"
+            }`}
           >
-            <Save aria-hidden />
-            {editCampaignId ? "Save Changes" : "Save Draft"}
-          </Button>
+            {autosaveStatus === "saving" ? (
+              <>
+                <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                Saving draft…
+              </>
+            ) : autosaveStatus === "saved" ? (
+              <>
+                <CheckCircle2 aria-hidden className="size-3.5 text-success" />
+                Draft saved automatically
+              </>
+            ) : autosaveStatus === "pending" ? (
+              <>Changes pending…</>
+            ) : autosaveStatus === "error" ? (
+              <>Autosave failed</>
+            ) : (
+              <>Enter a campaign name to enable autosave</>
+            )}
+          </span>
 
           {current < BUILDER_STEPS.length - 1 ? (
             <Button type="button" size="sm" onClick={next} disabled={submitting}>
@@ -491,8 +599,12 @@ export function CampaignBuilder({
                 disabled={blockingErrors.length > 0 || submitting}
                 onClick={() => void submit("scheduled")}
               >
-                <CalendarClock aria-hidden />
-                Schedule
+                {submittingMode === "scheduled" ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <CalendarClock aria-hidden />
+                )}
+                {submittingMode === "scheduled" ? "Scheduling…" : "Schedule"}
               </Button>
               <Button
                 type="button"
@@ -500,8 +612,18 @@ export function CampaignBuilder({
                 disabled={blockingErrors.length > 0 || submitting}
                 onClick={() => void submit("launched")}
               >
-                <Rocket aria-hidden />
-                {editCampaignId ? "Save & Launch" : "Launch Campaign"}
+                {submittingMode === "launched" ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Rocket aria-hidden />
+                )}
+                {submittingMode === "launched"
+                  ? editCampaignId
+                    ? "Saving & Launching…"
+                    : "Launching…"
+                  : editCampaignId
+                    ? "Save & Launch"
+                    : "Launch Campaign"}
               </Button>
             </>
           )}

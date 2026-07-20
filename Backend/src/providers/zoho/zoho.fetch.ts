@@ -3,6 +3,7 @@
  */
 
 import type { InboxFetchOptions, InboxReplyItem } from '../email/inbox-reply.js';
+import { stripEmailQuotedReply } from '../email/strip-quoted-reply.js';
 import { getZohoDcConfig, type ZohoDataCenter } from './zoho.oauth.js';
 
 type ZohoAccount = {
@@ -213,7 +214,7 @@ export async function fetchRecentZohoInboxReplies(
       from: String(meta.fromAddress || meta.sender || '').trim(),
       to: meta.toAddress ? String(meta.toAddress) : null,
       subject: meta.subject ? String(meta.subject) : null,
-      bodyText: body.text || String(meta.summary || '').trim(),
+      bodyText: stripEmailQuotedReply(body.text || String(meta.summary || '').trim()),
       bodyHtml: body.html,
       receivedAt: Number.isFinite(receivedAt.getTime()) ? receivedAt : new Date(),
     });

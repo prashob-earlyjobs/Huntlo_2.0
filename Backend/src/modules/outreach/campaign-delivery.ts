@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 import { getLogger } from '../../config/logger.js';
 import { sendGmailMessage } from '../../providers/gmail/gmail.send.js';
+import { getGmailThreadingMeta } from '../../providers/gmail/gmail.fetch.js';
 import { refreshGmailAccessToken } from '../../providers/gmail/gmail.oauth.js';
 import { sendGupshupTemplate, sendGupshupText } from '../../providers/gupshup/gupshup.send.js';
 import {
@@ -66,6 +67,7 @@ export type DeliveryResult =
       outcome: 'sent';
       channel: 'email' | 'whatsapp' | 'ai_voice';
       providerMessageId?: string;
+      providerThreadId?: string;
       provider?: string;
       /** Personalized text actually sent — used to store accurate conversation history. */
       renderedSubject?: string | null;
@@ -232,10 +234,21 @@ async function sendEmailViaIntegration(input: {
   subject: string;
   body: string;
   fromOverride?: string | null;
-}): Promise<{ messageId?: string; provider: string }> {
+  /** Provider conversation / Gmail thread id for reply threading. */
+  providerThreadId?: string | null;
+  /** RFC Message-ID for In-Reply-To / References. */
+  inReplyTo?: string | null;
+  references?: string | null;
+  /** Gmail API message id used to look up threadId when providerThreadId is unknown. */
+  gmailMessageIdHint?: string | null;
+}): Promise<{ messageId?: string; providerThreadId?: string; provider: string }> {
   const { secrets } = input;
   const subject = input.subject || '(no subject)';
   const text = input.body || '';
+  const replyHeaders = {
+    inReplyTo: input.inReplyTo || null,
+    references: input.references || input.inReplyTo || null,
+  };
 
   if (secrets.provider === 'smtp') {
     const config = smtpConfigFromSecrets(secrets);
@@ -245,6 +258,7 @@ async function sendEmailViaIntegration(input: {
       to: input.to,
       subject,
       text,
+      ...replyHeaders,
     });
     return { messageId: result.messageId, provider: secrets.provider };
   }
@@ -261,6 +275,7 @@ async function sendEmailViaIntegration(input: {
       to: input.to,
       subject,
       text,
+      ...replyHeaders,
     });
     return { messageId: result.messageId, provider: 'zoho-mail' };
   }
@@ -273,14 +288,66 @@ async function sendEmailViaIntegration(input: {
   }
 
   if (secrets.provider === 'gmail') {
+    let threadId = input.providerThreadId || null;
+    let inReplyTo = input.inReplyTo || null;
+    let references = input.references || input.inReplyTo || null;
+
+    // Always resolve RFC Message-ID (+ threadId) from a prior Gmail API message.
+    // Subject "Re:" alone is not enough — Gmail splits threads without these headers.
+    const hint = String(input.gmailMessageIdHint || '').trim();
+    if (hint) {
+      const meta = await getGmailThreadingMeta(accessToken, hint);
+      if (!threadId && meta.threadId) threadId = meta.threadId;
+      if (!inReplyTo && meta.rfcMessageId) {
+        inReplyTo = meta.rfcMessageId;
+        references = meta.rfcMessageId;
+      }
+    }
+
+    if (!threadId || !inReplyTo) {
+      getLogger().warn(
+        {
+          component: 'email-threading',
+          hasThreadId: Boolean(threadId),
+          hasInReplyTo: Boolean(inReplyTo),
+          hint: hint || null,
+        },
+        'Gmail follow-up missing threadId or In-Reply-To — may create a new inbox thread'
+      );
+    }
+
     const result = await sendGmailMessage({
       accessToken,
       to: input.to,
       subject,
       text,
       from: input.fromOverride || secrets.email,
+      threadId,
+      inReplyTo,
+      references,
     });
-    return { messageId: result.messageId, provider: 'gmail' };
+
+    if (
+      threadId &&
+      result.threadId &&
+      result.threadId !== threadId
+    ) {
+      getLogger().warn(
+        {
+          component: 'email-threading',
+          requestedThreadId: threadId,
+          returnedThreadId: result.threadId,
+          hasInReplyTo: Boolean(inReplyTo),
+        },
+        'Gmail created/returned a different threadId — reply headers may be incomplete'
+      );
+    }
+
+    return {
+      messageId: result.messageId,
+      providerThreadId: result.threadId || threadId || undefined,
+      provider: 'gmail',
+    };
   }
 
   if (secrets.provider === 'outlook') {
@@ -650,7 +717,16 @@ export async function sendAdHocMessage(input: {
   body: string;
   senderEmail?: string | null;
   integrationId?: string | null;
-}): Promise<{ providerMessageId?: string; provider: string }> {
+  /** Keep follow-ups in the same Gmail/provider conversation. */
+  providerThreadId?: string | null;
+  inReplyTo?: string | null;
+  references?: string | null;
+  gmailMessageIdHint?: string | null;
+}): Promise<{
+  providerMessageId?: string;
+  providerThreadId?: string;
+  provider: string;
+}> {
   const integration = await resolveIntegration(
     input.organizationId,
     input.userId,
@@ -671,8 +747,16 @@ export async function sendAdHocMessage(input: {
       subject: input.subject || '',
       body: input.body,
       fromOverride: input.senderEmail,
+      providerThreadId: input.providerThreadId,
+      inReplyTo: input.inReplyTo,
+      references: input.references,
+      gmailMessageIdHint: input.gmailMessageIdHint,
     });
-    return { providerMessageId: sent.messageId, provider: sent.provider };
+    return {
+      providerMessageId: sent.messageId,
+      providerThreadId: sent.providerThreadId,
+      provider: sent.provider,
+    };
   }
 
   const sent = await sendWhatsAppViaIntegration({
@@ -771,6 +855,7 @@ export async function executeCampaignMessageStep(input: {
         outcome: 'sent',
         channel: 'email',
         providerMessageId: sent.messageId,
+        providerThreadId: sent.providerThreadId,
         provider: sent.provider,
         renderedSubject,
         renderedBody,

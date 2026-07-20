@@ -350,10 +350,10 @@ export function OutreachWorkspace({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 pb-1">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div className="flex min-w-0 flex-col gap-3 pb-1">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
             <Search
               aria-hidden
@@ -427,7 +427,7 @@ export function OutreachWorkspace({
       ) : null}
 
       {/* Table */}
-      <section className="rounded-lg border border-border bg-card">
+      <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card">
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium tabular-nums text-foreground">
@@ -438,7 +438,7 @@ export function OutreachWorkspace({
         </div>
 
         {filtered.length > 0 ? (
-          <div className="overflow-x-auto">
+          <div className="min-w-0 overflow-x-auto">
             <Table>
               <caption className="sr-only">
                 Outreach campaigns with delivery and reply performance

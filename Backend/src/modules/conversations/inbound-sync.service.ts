@@ -14,7 +14,10 @@ import { recordAuditEvent } from '../../shared/audit/audit.service.js';
 import {
   classifyConversationReply,
   DEFAULT_CLASSIFY_CONFIDENCE_THRESHOLD,
+  logEmailPipeline,
+  setEmailPipelineLogContextId,
 } from '../../providers/gemini/gemini.conversations.js';
+import { stripEmailQuotedReply } from '../../providers/email/strip-quoted-reply.js';
 import {
   ConversationMessageModel,
   type MessageProvider,
@@ -162,7 +165,22 @@ async function findOrCreateThread(input: {
         $elemMatch: { provider: input.provider, threadId: input.providerThreadId },
       },
     });
-    if (byProvider) return byProvider;
+    if (byProvider) {
+      if (!byProvider.channels.includes(input.channel)) {
+        byProvider.channels.push(input.channel);
+      }
+      if (input.enrollmentId) {
+        byProvider.enrollmentId = new mongoose.Types.ObjectId(input.enrollmentId);
+      }
+      if (input.campaignId) {
+        byProvider.campaignId = new mongoose.Types.ObjectId(input.campaignId);
+      }
+      if (input.jobId) {
+        byProvider.jobId = new mongoose.Types.ObjectId(input.jobId);
+      }
+      await byProvider.save();
+      return byProvider;
+    }
   }
 
   const existing = await ConversationThreadModel.findOne({
@@ -186,8 +204,16 @@ async function findOrCreateThread(input: {
     if (!existing.channels.includes(input.channel)) {
       existing.channels.push(input.channel);
     }
-    if (!existing.enrollmentId && input.enrollmentId) {
+    // Keep thread linked to the latest enrollment/campaign when the same Gmail
+    // thread is reused across a new outreach campaign.
+    if (input.enrollmentId) {
       existing.enrollmentId = new mongoose.Types.ObjectId(input.enrollmentId);
+    }
+    if (input.campaignId) {
+      existing.campaignId = new mongoose.Types.ObjectId(input.campaignId);
+    }
+    if (input.jobId) {
+      existing.jobId = new mongoose.Types.ObjectId(input.jobId);
     }
     await existing.save();
     return existing;
@@ -222,6 +248,14 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     return { duplicate: false, threadId: null, messageId: null };
   }
 
+  // Keep only the new reply text for email (drop Gmail/Outlook quote chains).
+  if (input.channel === 'email') {
+    input = {
+      ...input,
+      bodyText: stripEmailQuotedReply(input.bodyText) || input.bodyText,
+    };
+  }
+
   const existing = await ConversationMessageModel.findOne({
     organizationId: input.organizationId,
     provider: input.provider,
@@ -237,6 +271,12 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
 
   const candidate = await findCandidate(input);
   if (!candidate) {
+    getLogger()
+      .child({ component: 'inbound-sync' })
+      .debug(
+        { from: input.from, subject: input.subject },
+        'Inbound email unmatched'
+      );
     await recordAuditEvent({
       action: 'conversation.inbound.unmatched',
       module: 'conversations',
@@ -277,6 +317,14 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     providerThreadId: input.providerThreadId || null,
   });
 
+  // Prefer IDs from the resolved thread — existing threads may already be linked
+  // even when this inbound couldn't resolve an enrollment by email alone.
+  const enrollmentId =
+    (enrollment ? String(enrollment._id) : null) ||
+    (thread.enrollmentId ? String(thread.enrollmentId) : null);
+  if (!campaignId && thread.campaignId) {
+    campaignId = String(thread.campaignId);
+  }
   const receivedAt = input.receivedAt || new Date();
   let message;
   try {
@@ -354,6 +402,23 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       thread.automationStatus = 'stopped';
       await thread.save();
     }
+  } else if (enrollmentId) {
+    // Thread was already linked; still mark reply + stop on the linked enrollment.
+    const linked = await OutreachEnrollmentModel.findById(enrollmentId);
+    if (linked) {
+      linked.replyState = {
+        hasReply: true,
+        disposition: looksLikeOptOut(input.bodyText) ? 'opt_out' : linked.replyState?.disposition || null,
+        repliedAt: receivedAt,
+      };
+      linked.status = looksLikeOptOut(input.bodyText) ? 'opted_out' : 'replied';
+      await linked.save();
+      if (!looksLikeOptOut(input.bodyText) && thread.automationStatus === 'active') {
+        await campaignsService.stopEnrollment(String(linked._id), 'candidate_replied');
+        thread.automationStatus = 'stopped';
+        await thread.save();
+      }
+    }
   }
 
   emitConversationMessageCreated({
@@ -382,7 +447,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       bodyText: input.bodyText,
       subject: input.subject,
       campaignId,
-      enrollmentId: enrollment ? String(enrollment._id) : null,
+      enrollmentId,
       channel: input.channel === 'email' || input.channel === 'whatsapp' ? input.channel : null,
     });
   }
@@ -405,6 +470,29 @@ export async function classifyAndAttach(input: {
   userId?: string | null;
   channel?: 'email' | 'whatsapp' | null;
 }) {
+  const threadDoc = await ConversationThreadModel.findById(input.threadId)
+    .select('campaignId enrollmentId channels')
+    .lean();
+  let campaignId =
+    input.campaignId || (threadDoc?.campaignId ? String(threadDoc.campaignId) : null);
+  let enrollmentId =
+    input.enrollmentId ||
+    (threadDoc?.enrollmentId ? String(threadDoc.enrollmentId) : null);
+  const channel: 'email' | 'whatsapp' | null =
+    input.channel ||
+    (threadDoc?.channels?.includes('email')
+      ? 'email'
+      : threadDoc?.channels?.includes('whatsapp')
+        ? 'whatsapp'
+        : null);
+
+  const pipelineLogId = enrollmentId || input.threadId;
+  setEmailPipelineLogContextId(pipelineLogId);
+  try {
+  if (channel === 'email') {
+    await logEmailPipeline({ id: pipelineLogId, task: 'message received' });
+  }
+
   const prior = await ConversationMessageModel.find({ threadId: input.threadId })
     .sort({ createdAt: -1 })
     .limit(8)
@@ -412,8 +500,8 @@ export async function classifyAndAttach(input: {
     .lean();
 
   let questions: Array<{ id: string; prompt: string }> = [];
-  if (input.campaignId) {
-    const campaign = await OutreachCampaignModel.findById(input.campaignId)
+  if (campaignId) {
+    const campaign = await OutreachCampaignModel.findById(campaignId)
       .select('qualificationConfig')
       .lean();
     questions = (campaign?.qualificationConfig?.questions || []).map((q) => ({
@@ -495,16 +583,24 @@ export async function classifyAndAttach(input: {
       thread.status = 'opted_out';
       thread.automationStatus = 'stopped';
       await thread.save();
-      if (input.enrollmentId) {
-        await campaignsService.stopEnrollment(input.enrollmentId, 'candidate_opted_out');
+      if (enrollmentId) {
+        await campaignsService.stopEnrollment(enrollmentId, 'candidate_opted_out');
       }
     }
   }
 
-  if (input.enrollmentId) {
-    const enrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
+  if (enrollmentId) {
+    const enrollment = await OutreachEnrollmentModel.findById(enrollmentId);
     if (enrollment) {
-      if (Object.keys(result.extractedVariables).length) {
+      const qualSentAlready = await ConversationMessageModel.exists({
+        threadId: input.threadId,
+        direction: 'outbound',
+        messageType: 'qualification',
+      });
+      if (
+        Object.keys(result.extractedVariables).length &&
+        !(channel === 'email' && qualSentAlready)
+      ) {
         enrollment.qualificationState = {
           status:
             enrollment.qualificationState.status === 'pending'
@@ -523,45 +619,102 @@ export async function classifyAndAttach(input: {
       };
       await enrollment.save();
       await refreshCampaignStats(String(enrollment.campaignId)).catch(() => undefined);
+      if (!campaignId) campaignId = String(enrollment.campaignId);
     }
   }
 
   // Drive qualification Q&A (ask next question / knockout / qualify).
-  if (input.enrollmentId && input.campaignId) {
+  if (enrollmentId && campaignId) {
     try {
-      const campaign = await OutreachCampaignModel.findById(input.campaignId);
+      const campaign = await OutreachCampaignModel.findById(campaignId);
       if (campaign) {
-        await processQualificationAfterReply({
+        const qa = await processQualificationAfterReply({
           organizationId: input.organizationId,
           campaign,
-          enrollmentId: input.enrollmentId,
+          enrollmentId,
           threadId: input.threadId,
           bodyText: input.bodyText,
           interest: result.interest,
           intent: result.intent,
           extractedVariables: result.extractedVariables as Record<string, unknown>,
-          preferredChannel: input.channel || null,
+          preferredChannel: channel === 'whatsapp' ? 'whatsapp' : 'email',
+        });
+        getLogger()
+          .child({ component: 'inbound-sync' })
+          .info(
+            {
+              enrollmentId,
+              campaignId,
+              action: qa.action,
+              interest: result.interest,
+              channel,
+            },
+            'Qualification Q&A after reply'
+          );
+        await logEmailPipeline({
+          id: enrollmentId || undefined,
+          task: 'qualification Q&A',
+          detail: `${qa.action} · ${result.interest}/${result.intent}`,
+        });
+        if (qa.action.startsWith('ask_failed')) {
+          getLogger()
+            .child({ component: 'inbound-sync' })
+            .warn(
+              {
+                enrollmentId,
+                campaignId,
+                action: qa.action,
+              },
+              'Qualification question send failed after classify'
+            );
+        }
+      } else {
+        await logEmailPipeline({
+          id: enrollmentId || undefined,
+          task: 'qualification Q&A skipped',
+          detail: 'campaign not found',
         });
       }
     } catch (error) {
       getLogger()
         .child({ component: 'inbound-sync' })
-        .warn({ err: error, enrollmentId: input.enrollmentId }, 'Qualification Q&A failed');
+        .warn({ err: error, enrollmentId }, 'Qualification Q&A failed');
+      await logEmailPipeline({
+        id: enrollmentId || undefined,
+        task: 'qualification Q&A failed',
+        detail: error instanceof Error ? error.message : String(error),
+      });
     }
+  } else {
+    await logEmailPipeline({
+      id: enrollmentId || input.threadId,
+      task: 'qualification Q&A skipped',
+      detail: 'no enrollment or campaign',
+    });
+    getLogger()
+      .child({ component: 'inbound-sync' })
+      .warn(
+        {
+          enrollmentId,
+          campaignId,
+          threadId: input.threadId,
+        },
+        'Qualification Q&A skipped — missing enrollment or campaign on thread'
+      );
   }
 
   // Huntlo 360 orchestration hook (no-op when campaign is not a 360 workflow)
   try {
     const { huntlo360Service } = await import('../huntlo-360/huntlo360.service.js');
-    const threadDoc = await ConversationThreadModel.findById(input.threadId)
+    const threadFor360 = await ConversationThreadModel.findById(input.threadId)
       .select('candidateId')
       .lean();
-    if (threadDoc) {
+    if (threadFor360) {
       await huntlo360Service.onConversationSignal({
         organizationId: input.organizationId,
-        campaignId: input.campaignId || null,
-        candidateId: String(threadDoc.candidateId),
-        enrollmentId: input.enrollmentId,
+        campaignId: campaignId || null,
+        candidateId: String(threadFor360.candidateId),
+        enrollmentId,
         interest: result.interest,
         optedOut: result.interest === 'opt_out' || result.intent === 'opt_out',
       });
@@ -571,6 +724,9 @@ export async function classifyAndAttach(input: {
   }
 
   return doc;
+  } finally {
+    setEmailPipelineLogContextId(undefined);
+  }
 }
 
 export async function updateDeliveryStatus(input: {

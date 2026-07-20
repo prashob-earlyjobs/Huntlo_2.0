@@ -6,6 +6,7 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 
 import type { InboxFetchOptions, InboxReplyItem } from '../email/inbox-reply.js';
+import { stripEmailQuotedReply } from '../email/strip-quoted-reply.js';
 
 export type ImapFetchConfig = {
   host: string;
@@ -136,7 +137,7 @@ export async function fetchRecentImapInboxReplies(
           from,
           to,
           subject,
-          bodyText: bodyText || String(msg.envelope?.subject || ''),
+          bodyText: stripEmailQuotedReply(bodyText || String(msg.envelope?.subject || '')),
           bodyHtml,
           receivedAt,
         });
