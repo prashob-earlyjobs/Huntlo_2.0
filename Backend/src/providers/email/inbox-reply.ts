@@ -15,3 +15,5 @@ export type InboxFetchOptions = {
   maxResults?: number;
   newerThanDays?: number;
 };
+
+export { stripEmailQuotedReply } from './strip-quoted-reply.js';

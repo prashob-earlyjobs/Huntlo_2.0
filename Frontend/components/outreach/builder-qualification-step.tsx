@@ -112,47 +112,29 @@ export function QualificationStep({
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Reply handling
           </h3>
-          <div className="grid gap-2 lg:grid-cols-2">
-            <ToggleRow
-              id="qual-classification"
-              label="Classify replies as interested / not interested"
-              description="The AI reads every reply and updates the candidate's status automatically."
-              checked={state.classificationEnabled}
-              onChange={(checked) => update("classificationEnabled", checked)}
-            />
-            <ToggleRow
-              id="qual-ai-reply"
-              label="AI reply enabled"
-              description="Answer candidate questions from the JD, then ask qualification questions."
-              checked={state.aiReplyEnabled}
-              onChange={(checked) => update("aiReplyEnabled", checked)}
-            />
-          </div>
-          {state.aiReplyEnabled ? (
-            <Field
-              label="Recruiter takeover condition"
-              htmlFor="qual-takeover"
-              hint="When this condition is met, the conversation is handed to the campaign owner."
+          <Field
+            label="Recruiter takeover condition"
+            htmlFor="qual-takeover"
+            hint="When this condition is met, the conversation is handed to the campaign owner."
+          >
+            <Select
+              value={state.takeoverCondition}
+              onValueChange={(value) =>
+                value && update("takeoverCondition", value)
+              }
             >
-              <Select
-                value={state.takeoverCondition}
-                onValueChange={(value) =>
-                  value && update("takeoverCondition", value)
-                }
-              >
-                <SelectTrigger id="qual-takeover" className="w-full sm:w-96">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TAKEOVER_CONDITIONS.map((condition) => (
-                    <SelectItem key={condition} value={condition}>
-                      {condition}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          ) : null}
+              <SelectTrigger id="qual-takeover" className="w-full sm:w-96">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TAKEOVER_CONDITIONS.map((condition) => (
+                  <SelectItem key={condition} value={condition}>
+                    {condition}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         </section>
 
         <section className="space-y-2">

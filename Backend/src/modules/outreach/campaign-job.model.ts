@@ -41,6 +41,14 @@ export type CampaignJobDocument = Document & {
   leaseExpiresAt: Date | null;
   error: string | null;
   result: Record<string, unknown> | null;
+  /**
+   * Set the moment a provider send/launch for this job succeeds. Guards against
+   * re-sending the same message when a *post-send* step (conversation store,
+   * sequence advance, etc.) throws and the job is retried.
+   */
+  deliveredAt: Date | null;
+  /** Cached delivery outcome, reused on retry so bookkeeping can finish without re-sending. */
+  deliveryResult: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -74,6 +82,8 @@ const campaignJobSchema = new Schema<CampaignJobDocument>(
     leaseExpiresAt: { type: Date, default: null },
     error: { type: String, default: null },
     result: { type: Schema.Types.Mixed, default: null },
+    deliveredAt: { type: Date, default: null },
+    deliveryResult: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );

@@ -12,12 +12,12 @@ export default function DashboardLayout({
     <DashboardAuthGuard>
       <SidebarProvider>
         <DashboardProductTourProvider>
-          <div className="flex min-h-svh w-full overflow-x-clip">
+          <div className="flex h-svh w-full min-w-0 max-w-full overflow-hidden">
             <AppSidebar />
-            <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <TopHeader />
-              <main className="flex min-h-0 flex-1 flex-col overflow-x-clip px-3 py-4 sm:px-5 sm:py-4">
-                <div className="mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col gap-4">
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-4 sm:px-5 sm:py-4">
+                <div className="mx-auto flex w-full min-h-0 min-w-0 max-w-7xl flex-1 flex-col gap-4">
                   {children}
                 </div>
               </main>

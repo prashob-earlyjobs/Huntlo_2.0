@@ -202,7 +202,7 @@ export function ReviewStep({
             />
             <SummaryRow
               label="Qualification"
-              value={`${state.questions.length} questions · AI reply ${state.aiReplyEnabled ? "on" : "off"}`}
+              value={`${state.questions.length} questions · AI reply on`}
             />
           </dl>
 

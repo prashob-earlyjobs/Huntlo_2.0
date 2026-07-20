@@ -16,7 +16,7 @@ import {
 } from './enrollment.model.js';
 import { campaignsService } from './campaigns.service.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
-import { executeCampaignMessageStep } from './campaign-delivery.js';
+import { executeCampaignMessageStep, type DeliveryResult } from './campaign-delivery.js';
 import { nextSendAtWithinWindow } from './send-window.util.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import {
@@ -109,11 +109,13 @@ async function recordOutboundConversationMessage(input: {
   channel: ConversationChannel;
   provider?: string | null;
   providerMessageId?: string | null;
+  providerThreadId?: string | null;
   subject?: string | null;
   bodyText: string;
   deliveryStatus: 'sent' | 'failed';
   errorMessage?: string | null;
-}) {
+}): Promise<{ insertedNew: boolean }> {
+  let insertedNew = false;
   const convThread = await conversationsService.ensureThreadForEnrollment({
     organizationId: input.organizationId,
     candidateId: input.candidateId,
@@ -148,7 +150,7 @@ async function recordOutboundConversationMessage(input: {
           bodyText: input.bodyText.slice(0, 50000),
           bodyHtml: null,
           providerMessageId,
-          providerThreadId: null,
+          providerThreadId: input.providerThreadId ?? null,
           deliveryStatus: 'failed',
           messageType: 'message',
           aiGenerated: true,
@@ -162,25 +164,37 @@ async function recordOutboundConversationMessage(input: {
       { upsert: true, new: true }
     );
   } else {
-    await ConversationMessageModel.create({
+    // Upsert (not create) so a retry that reuses an already-sent delivery cannot
+    // insert a duplicate conversation row. `insertedNew` gates one-time side effects
+    // like stats increments in the caller.
+    const existing = await ConversationMessageModel.findOne({
       organizationId: convThread.organizationId,
-      threadId: convThread._id,
-      provider: input.provider || 'system',
-      channel: input.channel,
-      direction: 'outbound',
-      sender: null,
-      recipient: null,
-      subject: input.subject ?? null,
-      bodyText: input.bodyText.slice(0, 50000),
-      bodyHtml: null,
       providerMessageId,
-      providerThreadId: null,
-      deliveryStatus: 'sent',
-      messageType: 'message',
-      aiGenerated: true,
-      sentAt: new Date(),
-      error: null,
-    });
+    })
+      .select('_id')
+      .lean();
+    if (!existing) {
+      await ConversationMessageModel.create({
+        organizationId: convThread.organizationId,
+        threadId: convThread._id,
+        provider: input.provider || 'system',
+        channel: input.channel,
+        direction: 'outbound',
+        sender: null,
+        recipient: null,
+        subject: input.subject ?? null,
+        bodyText: input.bodyText.slice(0, 50000),
+        bodyHtml: null,
+        providerMessageId,
+        providerThreadId: input.providerThreadId ?? null,
+        deliveryStatus: 'sent',
+        messageType: 'message',
+        aiGenerated: true,
+        sentAt: new Date(),
+        error: null,
+      });
+      insertedNew = true;
+    }
   }
 
   const preview =
@@ -197,8 +211,20 @@ async function recordOutboundConversationMessage(input: {
   if (!convThread.channels.includes(input.channel)) {
     convThread.channels.push(input.channel);
   }
+  if (
+    input.providerThreadId &&
+    input.provider &&
+    !convThread.providerThreadIds.some(
+      (p) => p.provider === input.provider && p.threadId === input.providerThreadId
+    )
+  ) {
+    convThread.providerThreadIds.push({
+      provider: input.provider,
+      threadId: input.providerThreadId,
+    });
+  }
   await convThread.save();
-  return convThread;
+  return { insertedNew };
 }
 
 /**
@@ -370,16 +396,35 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       leased.status = 'running';
       await leased.save();
 
-      waDebug(
-        `EXECUTE job=${String(leased._id)} step=${step.id} type=${step.type} templateId=${step.templateId} bodyHasPh=${/\{\{/.test(String(step.body || ''))}`
-      );
+      // Idempotency guard: if a previous attempt already sent through the provider
+      // but a *post-send* step threw (and the job was requeued), never send again —
+      // reuse the cached outcome so bookkeeping can complete.
+      let delivery: DeliveryResult;
+      if (leased.deliveredAt && leased.deliveryResult) {
+        delivery = leased.deliveryResult as unknown as DeliveryResult;
+        waDebug(
+          `REUSE job=${String(leased._id)} step=${step.id} deliveredAt=${leased.deliveredAt.toISOString()}`
+        );
+      } else {
+        waDebug(
+          `EXECUTE job=${String(leased._id)} step=${step.id} type=${step.type} templateId=${step.templateId} bodyHasPh=${/\{\{/.test(String(step.body || ''))}`
+        );
 
-      const delivery = await executeCampaignMessageStep({
-        campaign,
-        enrollment,
-        step,
-        jobId: String(leased._id),
-      });
+        delivery = await executeCampaignMessageStep({
+          campaign,
+          enrollment,
+          step,
+          jobId: String(leased._id),
+        });
+
+        // Persist the send marker BEFORE any fragile post-send bookkeeping so a
+        // later throw + retry cannot re-trigger the provider send.
+        if (delivery.outcome === 'sent') {
+          leased.deliveredAt = new Date();
+          leased.deliveryResult = delivery as unknown as Record<string, unknown>;
+          await leased.save();
+        }
+      }
 
       waDebug(
         `RESULT job=${String(leased._id)} outcome=${delivery.outcome} rendered=${
@@ -394,17 +439,6 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
       );
 
       if (delivery.outcome === 'sent') {
-        await OutreachCampaignModel.updateOne(
-          { _id: campaign._id },
-          { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }
-        );
-        // Keep in-memory copy roughly in sync for any later save in this loop.
-        campaign.stats.sent = (campaign.stats.sent || 0) + 1;
-        campaign.stats.delivered = (campaign.stats.delivered || 0) + 1;
-        campaign.markModified('stats');
-        campaignDeliveryMetrics.recordSent(delivery.channel);
-        campaignDeliveryMetrics.recordDelivered();
-
         const sentSubject = delivery.renderedSubject ?? step.subject ?? null;
         let sentBody =
           step.type === 'ai_voice'
@@ -421,7 +455,10 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
             '2': 'this role',
           });
         }
-        if (/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(sentBody)) {
+        if (
+          delivery.channel === 'whatsapp' &&
+          /\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(sentBody)
+        ) {
           waDebug(`BLOCK_STORE job=${String(leased._id)} body=${sentBody.slice(0, 60)}`);
           throw Object.assign(
             new Error(
@@ -432,7 +469,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           );
         }
         waDebug(`STORE job=${String(leased._id)} body=${sentBody.slice(0, 80).replace(/\n/g, ' ')}`);
-        await recordOutboundConversationMessage({
+        const { insertedNew } = await recordOutboundConversationMessage({
           organizationId: String(campaign.organizationId),
           candidateId: String(enrollment.candidateId),
           campaignId: String(campaign._id),
@@ -442,10 +479,26 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           channel: delivery.channel,
           provider: delivery.provider,
           providerMessageId: delivery.providerMessageId || `campaign-job:${String(leased._id)}`,
+          providerThreadId: delivery.providerThreadId || null,
           subject: sentSubject,
           bodyText: sentBody,
           deliveryStatus: 'sent',
         });
+
+        // Only count stats when a brand-new outbound row was written, so a retry
+        // that reuses an already-sent delivery cannot inflate sent/delivered.
+        if (insertedNew) {
+          await OutreachCampaignModel.updateOne(
+            { _id: campaign._id },
+            { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }
+          );
+          // Keep in-memory copy roughly in sync for any later save in this loop.
+          campaign.stats.sent = (campaign.stats.sent || 0) + 1;
+          campaign.stats.delivered = (campaign.stats.delivered || 0) + 1;
+          campaign.markModified('stats');
+          campaignDeliveryMetrics.recordSent(delivery.channel);
+          campaignDeliveryMetrics.recordDelivered();
+        }
       } else if (delivery.outcome === 'skipped' && delivery.reason !== 'non_message') {
         const skipChannel =
           delivery.channel || channelForStep(step.type) || 'email';

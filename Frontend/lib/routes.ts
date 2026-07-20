@@ -57,8 +57,14 @@ export function campaignDetailPath(id: string): string {
 }
 
 /** Build the edit/builder path for an outreach campaign. */
-export function campaignEditPath(id: string): string {
-  return `${ROUTES.outreach}/${id}/edit`;
+export function campaignEditPath(
+  id: string,
+  options?: { step?: number }
+): string {
+  const base = `${ROUTES.outreach}/${id}/edit`;
+  if (options?.step == null || !Number.isFinite(options.step)) return base;
+  const step = Math.max(0, Math.floor(options.step));
+  return `${base}?step=${step}`;
 }
 
 /** Build the detail path for a Huntlo 360 workflow. */

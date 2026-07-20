@@ -4,7 +4,6 @@ import {
   AudioLines,
   Bot,
   Briefcase,
-  CalendarClock,
   Check,
   CheckCheck,
   FileText,
@@ -13,7 +12,6 @@ import {
   Paperclip,
   Phone,
   Search,
-  Send,
   StickyNote,
   User,
   X,
@@ -29,20 +27,46 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
-import { conversationsApi, getApiErrorMessage, templatesApi } from "@/lib/api";
-import {
-  AI_DRAFT_TONES,
-  type AiDraftTone,
-  type Conversation,
-  type ConversationEvent,
-  type QualificationState,
-  type ReplyStatus,
+import { conversationsApi } from "@/lib/api";
+import type {
+  Conversation,
+  ConversationEvent,
+  QualificationState,
+  ReplyStatus,
 } from "@/lib/mock-conversations";
 import { CHANNEL_ICONS, type OutreachChannel } from "@/lib/mock-outreach";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+
+/** Show only the new reply — drop Gmail/Outlook quoted history. */
+function stripEmailQuotedReply(raw: string): string {
+  if (!raw) return "";
+  let text = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const patterns = [
+    /\nOn\s+[^\n]{8,200}\bwrote:\s*(?:\n|$)/i,
+    /\n-{2,}\s*Original Message\s*-{2,}\s*(?:\n|$)/i,
+    /\nFrom:\s[^\n]+\nSent:\s[^\n]+\n/i,
+    /\nBegin forwarded message:\s*(?:\n|$)/i,
+    /\n_{5,}\s*(?:\n|$)/,
+  ];
+  let cutAt = text.length;
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    if (match?.index != null && match.index < cutAt) cutAt = match.index;
+  }
+  text = text.slice(0, cutAt);
+  const lines = text.split("\n");
+  while (lines.length > 0) {
+    const last = lines[lines.length - 1] ?? "";
+    if (!last.trim() || /^\s*>/.test(last)) {
+      lines.pop();
+      continue;
+    }
+    break;
+  }
+  return lines.join("\n").trim();
+}
 
 /* ------------------------------------------------------------------ */
 /* Badges                                                               */
@@ -157,232 +181,78 @@ function EventBubble({ event }: { event: ConversationEvent }) {
   }
 
   const inbound = event.author === "candidate";
-  const ChannelIcon = CHANNEL_ICONS[event.channel as OutreachChannel];
+  const ChannelIcon =
+    CHANNEL_ICONS[event.channel as OutreachChannel] ?? MessageCircle;
   const AuthorIcon =
     event.author === "ai" ? Bot : event.author === "recruiter" ? User : null;
 
   // Legacy AI voice rows may still contain the full agent prompt — keep the bubble usable.
-  const displayText =
+  const rawText = String(event.text || "");
+  let displayText =
     event.channel === "AI Voice" &&
-    event.text.length > 400 &&
+    rawText.length > 400 &&
     /Recruitment Screening Agent Prompt|#\s*Roshni|Call objective/i.test(
-      event.text
+      rawText
     )
       ? "AI voice call started"
-      : event.text;
+      : rawText;
+
+  // Strip Gmail/Outlook quoted history from inbound email bubbles.
+  if (event.channel === "Email" && inbound) {
+    displayText = stripEmailQuotedReply(displayText);
+  }
 
   return (
-    <div className={cn("flex", inbound ? "justify-start" : "justify-end")}>
-      <div
-        className={cn(
-          "max-w-[85%] rounded-xl px-3 py-2 sm:max-w-[70%]",
-          inbound
-            ? "rounded-bl-sm border border-border bg-card"
-            : "rounded-br-sm bg-brand-subtle"
-        )}
-      >
-        <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-          <ChannelIcon aria-hidden className="size-3" />
-          {event.authorName}
-          {AuthorIcon ? <AuthorIcon aria-hidden className="size-3" /> : null}
-        </p>
-        {event.subject ? (
-          <p className="mt-1 text-xs font-semibold text-foreground">
-            {event.subject}
-          </p>
+    <div
+      className={cn(
+        "w-fit max-w-[85cqw] overflow-hidden break-words rounded-xl px-3 py-2 [overflow-wrap:anywhere]",
+        inbound
+          ? "mr-auto rounded-bl-sm border border-border bg-card"
+          : "ml-auto rounded-br-sm bg-brand-subtle"
+      )}
+    >
+      <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+        <ChannelIcon aria-hidden className="size-3 shrink-0" />
+        <span className="truncate">{event.authorName}</span>
+        {AuthorIcon ? (
+          <AuthorIcon aria-hidden className="size-3 shrink-0" />
         ) : null}
-        <p className="mt-1 text-sm leading-relaxed whitespace-pre-line text-foreground">
-          {displayText}
+      </p>
+      {event.subject ? (
+        <p className="mt-1.5 break-words text-xs font-semibold text-foreground">
+          {event.subject}
         </p>
-        {event.delivery === "Failed" && event.error ? (
-          <p
-            role="alert"
-            className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
-          >
-            {event.error}
-          </p>
-        ) : null}
-        {event.attachments?.map((attachment) => (
-          <span
-            key={attachment.name}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
-          >
-            <Paperclip aria-hidden className="size-3 text-muted-foreground" />
-            {attachment.name}
-            <span className="text-muted-foreground">{attachment.size}</span>
+      ) : null}
+      <p className="mt-1 break-words text-sm leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
+        {displayText}
+      </p>
+      {event.delivery === "Failed" && event.error ? (
+        <p
+          role="alert"
+          className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs break-words text-destructive"
+        >
+          {event.error}
+        </p>
+      ) : null}
+      {event.attachments?.map((attachment) => (
+        <span
+          key={attachment.name}
+          className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
+        >
+          <Paperclip
+            aria-hidden
+            className="size-3 shrink-0 text-muted-foreground"
+          />
+          <span className="min-w-0 truncate">{attachment.name}</span>
+          <span className="shrink-0 text-muted-foreground">
+            {attachment.size}
           </span>
-        ))}
-        <p className="mt-1.5 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
-          {event.time}
-          {event.delivery ? <DeliveryIndicator state={event.delivery} /> : null}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* AI draft panel                                                       */
-/* ------------------------------------------------------------------ */
-
-function AiDraftPanel({
-  conversationId,
-  onInsert,
-  onDiscard,
-}: {
-  conversationId: string;
-  onInsert: (text: string) => void;
-  onDiscard: () => void;
-}) {
-  const [tone, setTone] = useState<AiDraftTone>("Friendly");
-  const [short, setShort] = useState(false);
-  const [generation, setGeneration] = useState(0);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function loadDraft(nextTone: AiDraftTone = tone) {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await conversationsApi.aiDraft(conversationId, {
-        tone: nextTone,
-        channel: "email",
-        instructions: short ? "Keep it under 3 sentences." : undefined,
-      });
-      if (result.body) {
-        setDraft(result.body);
-        setGeneration((previous) => previous + 1);
-        return;
-      }
-      throw new Error("Empty draft");
-    } catch (err) {
-      try {
-        const result = (await templatesApi.rewrite({
-          action: "change_tone",
-          body: draft,
-          tone: nextTone,
-          channel: "email",
-        })) as { draft?: { body?: string } };
-        if (result.draft?.body) {
-          setDraft(result.draft.body);
-          setGeneration((previous) => previous + 1);
-          return;
-        }
-        throw new Error("Empty draft");
-      } catch {
-        setError(getApiErrorMessage(err, "Could not generate a draft."));
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadDraft();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
-
-  async function regenerate(action: "rewrite" | "change_tone" | "shorten") {
-    if (action === "shorten") {
-      setShort(true);
-      await loadDraft(tone);
-      return;
-    }
-    await loadDraft(tone);
-  }
-
-  return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3">
-      <p className="text-[12px] font-medium text-foreground">
-        Suggested reply
-        <span className="ml-1.5 font-normal text-muted-foreground">
-          · draft {generation} · not sent
         </span>
+      ))}
+      <p className="mt-1.5 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
+        {event.time}
+        {event.delivery ? <DeliveryIndicator state={event.delivery} /> : null}
       </p>
-
-      <p className="mt-2 rounded-md border border-border bg-card px-3 py-2 text-sm leading-relaxed whitespace-pre-line text-foreground">
-        {error
-          ? error
-          : draft
-            ? draft
-            : busy
-              ? "Drafting…"
-              : "No draft yet."}
-      </p>
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-muted-foreground">Tone:</span>
-        {AI_DRAFT_TONES.map((option) => (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={tone === option}
-            onClick={() => {
-              setTone(option);
-              void loadDraft(option);
-            }}
-            className={cn(
-              "rounded-md px-2 py-0.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-              tone === option
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {option}
-          </button>
-        ))}
-        <span aria-hidden className="mx-1 h-4 w-px bg-border" />
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          disabled={busy}
-          aria-pressed={short}
-          onClick={() => {
-            setShort((previous) => !previous);
-            void regenerate(short ? "rewrite" : "shorten");
-          }}
-        >
-          {short ? "Expand" : "Shorten"}
-        </Button>
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          disabled={busy}
-          onClick={() => {
-            setTone("Professional");
-            setShort(false);
-            void regenerate("change_tone");
-          }}
-        >
-          Make more professional
-        </Button>
-        <Button
-          type="button"
-          size="xs"
-          variant="outline"
-          disabled={busy}
-          onClick={() => void regenerate("rewrite")}
-        >
-          {busy ? "Drafting…" : "Regenerate"}
-        </Button>
-      </div>
-
-      <div className="mt-2.5 flex items-center gap-2">
-        <Button
-          type="button"
-          size="xs"
-          disabled={!draft || busy}
-          onClick={() => onInsert(draft)}
-        >
-          Insert
-        </Button>
-        <Button type="button" size="xs" variant="ghost" onClick={onDiscard}>
-          Discard
-        </Button>
-      </div>
     </div>
   );
 }
@@ -572,12 +442,7 @@ export function ConversationInbox({
   const [qualFilter, setQualFilter] = useState<string[]>([]);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [composer, setComposer] = useState("");
-  const [composerChannel, setComposerChannel] = useState<OutreachChannel>("Email");
-  const [aiDraftOpen, setAiDraftOpen] = useState(false);
-  const [sentMessages, setSentMessages] = useState<Record<string, ConversationEvent[]>>({});
   const [addedNotes, setAddedNotes] = useState<Record<string, Conversation["notes"]>>({});
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     setItems(conversations);
@@ -614,9 +479,7 @@ export function ConversationInbox({
   const selected =
     items.find((conversation) => conversation.id === selectedId) ?? null;
 
-  const events = selected
-    ? [...selected.events, ...(sentMessages[selected.id] ?? [])]
-    : [];
+  const events = selected ? selected.events : [];
   const notes = selected
     ? [...selected.notes, ...(addedNotes[selected.id] ?? [])]
     : [];
@@ -636,10 +499,26 @@ export function ConversationInbox({
     setComposer("");
     setAiDraftOpen(false);
     setComposerChannel(conversation.channels[0] ?? "Email");
+    // On stacked (mobile) layout the timeline sits below the list — scroll it into view.
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("conversation-detail")
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
     void conversationsApi.markRead(conversation.id).then((updated) => {
       if (updated && typeof updated === "object" && "id" in updated) {
         setItems((previous) =>
-          previous.map((row) => (row.id === updated.id ? { ...row, ...updated, unread: false } : row))
+          previous.map((row) =>
+            row.id === updated.id
+              ? {
+                  ...row,
+                  ...updated,
+                  // Never drop the timeline if the read response omits events.
+                  events: updated.events?.length ? updated.events : row.events,
+                  unread: false,
+                }
+              : row
+          )
         );
       } else {
         setItems((previous) =>
@@ -658,7 +537,6 @@ export function ConversationInbox({
         setItems((previous) =>
           previous.map((row) => (row.id === updated.id ? updated : row))
         );
-        flash("Note added.");
       })
       .catch(() => {
         setAddedNotes((previous) => ({
@@ -673,64 +551,18 @@ export function ConversationInbox({
             },
           ],
         }));
-        flash("Note added locally.");
       });
-  }
-
-  function flash(text: string) {
-    setFeedback(text);
-    window.setTimeout(() => setFeedback(null), 2200);
-  }
-
-  async function sendReply() {
-    if (!selected || !composer.trim()) return;
-    const text = composer.trim();
-    const channel =
-      composerChannel === "WhatsApp"
-        ? "whatsapp"
-        : composerChannel === "AI Voice"
-          ? "ai_voice"
-          : "email";
-    try {
-      const updated = await conversationsApi.reply(selected.id, {
-        text,
-        channel,
-      });
-      setItems((previous) =>
-        previous.map((row) => (row.id === updated.id ? updated : row))
-      );
-      setComposer("");
-      setAiDraftOpen(false);
-      flash("Reply sent.");
-    } catch (err) {
-      const message: ConversationEvent = {
-        id: `sent-${Date.now()}`,
-        channel: composerChannel,
-        author: "recruiter",
-        authorName: "You",
-        text,
-        time: "Just now",
-        delivery: "Sent",
-      };
-      setSentMessages((previous) => ({
-        ...previous,
-        [selected.id]: [...(previous[selected.id] ?? []), message],
-      }));
-      setComposer("");
-      setAiDraftOpen(false);
-      flash(getApiErrorMessage(err, "Reply saved locally."));
-    }
   }
 
   return (
     <div
       className={cn(
-        "grid min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:grid-rows-[minmax(0,1fr)]",
+        "grid h-full min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:grid-rows-[minmax(0,1fr)]",
         className
       )}
     >
       {/* Left — list */}
-      <div className="flex min-h-0 flex-col border-b border-border lg:border-r lg:border-b-0">
+      <div className="flex min-h-0 min-w-0 flex-col border-b border-border lg:border-r lg:border-b-0">
         <div className="space-y-2 border-b border-border p-3">
           <div className="relative">
             <Search
@@ -815,7 +647,8 @@ export function ConversationInbox({
                             {conversation.candidateName}
                           </span>
                           {conversation.channels.map((channel) => {
-                            const Icon = CHANNEL_ICONS[channel];
+                            const Icon =
+                              CHANNEL_ICONS[channel] ?? MessageCircle;
                             return (
                               <Icon
                                 key={channel}
@@ -860,11 +693,14 @@ export function ConversationInbox({
         </ScrollArea>
       </div>
 
-      {/* Centre — timeline + composer */}
-      <div className="flex min-h-0 min-w-0 flex-col border-b border-border xl:border-r xl:border-b-0">
+      {/* Centre — timeline */}
+      <div
+        id="conversation-detail"
+        className="flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-b border-border xl:border-r xl:border-b-0"
+      >
         {selected ? (
           <>
-            <div className="flex items-center gap-2.5 border-b border-border px-4 py-2.5">
+            <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-2.5">
               <CandidateAvatar name={selected.candidateName} className="size-8" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">
@@ -880,123 +716,13 @@ export function ConversationInbox({
               />
             </div>
 
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="space-y-3 p-4 lg:min-h-80">
+            <ScrollArea className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden">
+              <div className="@container/thread box-border w-full max-w-full space-y-3 p-4 lg:min-h-80">
                 {events.map((event) => (
                   <EventBubble key={event.id} event={event} />
                 ))}
               </div>
             </ScrollArea>
-
-            {/* Composer */}
-            <div className="space-y-2 border-t border-border p-3">
-              {feedback ? (
-                <p role="status" className="text-xs text-success">
-                  {feedback}
-                </p>
-              ) : null}
-              {aiDraftOpen ? (
-                <AiDraftPanel
-                  conversationId={selected.id}
-                  onInsert={(text) => {
-                    setComposer(
-                      text.replaceAll(
-                        "{{first_name}}",
-                        selected.candidateName.split(" ")[0]
-                      )
-                    );
-                    setAiDraftOpen(false);
-                  }}
-                  onDiscard={() => setAiDraftOpen(false)}
-                />
-              ) : null}
-              <Textarea
-                value={composer}
-                onChange={(event) => setComposer(event.target.value)}
-                placeholder={`Reply to ${selected.candidateName.split(" ")[0]} via ${composerChannel}…`}
-                aria-label="Reply message"
-                className="min-h-16 text-sm"
-              />
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Button
-                  type="button"
-                  size="xs"
-                  onClick={() => void sendReply()}
-                  disabled={!composer.trim()}
-                >
-                  <Send aria-hidden />
-                  Reply
-                </Button>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  aria-pressed={aiDraftOpen}
-                  onClick={() => setAiDraftOpen((previous) => !previous)}
-                >
-                  Suggest reply
-                </Button>
-                <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
-                <Button
-                  type="button"
-                  size="xs"
-                  variant={composerChannel === "Email" ? "secondary" : "ghost"}
-                  aria-pressed={composerChannel === "Email"}
-                  onClick={() => setComposerChannel("Email")}
-                  disabled={!selected.email}
-                >
-                  <Mail aria-hidden />
-                  Email
-                </Button>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant={composerChannel === "WhatsApp" ? "secondary" : "ghost"}
-                  aria-pressed={composerChannel === "WhatsApp"}
-                  onClick={() => setComposerChannel("WhatsApp")}
-                  disabled={!selected.phone}
-                >
-                  <MessageCircle aria-hidden />
-                  WhatsApp
-                </Button>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => flash("Call queued via AI Voice. (UI preview)")}
-                  disabled={!selected.phone}
-                >
-                  <Phone aria-hidden />
-                  Call
-                </Button>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => flash("Scheduling link added to the composer.")}
-                >
-                  <CalendarClock aria-hidden />
-                  Schedule
-                </Button>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => {
-                    if (!composer.trim()) {
-                      flash("Type the note text in the composer first.");
-                      return;
-                    }
-                    const text = composer.trim();
-                    persistNote(selected.id, text);
-                    setComposer("");
-                  }}
-                >
-                  <StickyNote aria-hidden />
-                  Add Note
-                </Button>
-              </div>
-            </div>
           </>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
@@ -1009,7 +735,7 @@ export function ConversationInbox({
       </div>
 
       {/* Right — profile */}
-      <div className="min-h-0 max-xl:border-t max-xl:border-border">
+      <div className="min-h-0 min-w-0 max-xl:border-t max-xl:border-border">
         {selected ? (
           <ScrollArea className="h-full min-h-0">
             <ProfilePanel

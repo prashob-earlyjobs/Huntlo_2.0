@@ -5,4 +5,5 @@ dist/
 !.env.example
 coverage/
 *.log
+gemini-email-prompts.txt
 .DS_Store

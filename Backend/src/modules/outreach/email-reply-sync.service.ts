@@ -27,6 +27,12 @@ import {
 import type { InboxReplyItem } from '../../providers/email/inbox-reply.js';
 import { withFreshEmailToken, type IntegrationSecrets } from './campaign-delivery.js';
 import { OutreachCampaignModel } from './campaign.model.js';
+import { OutreachEnrollmentModel } from './enrollment.model.js';
+import { processQualificationAfterReply } from './qualification-qa.service.js';
+import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
+import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
+import { ReplyClassificationModel } from '../conversations/reply-classification.model.js';
+import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 
 const logger = () => getLogger().child({ component: 'email-reply-sync' });
 
@@ -51,12 +57,30 @@ async function ingestReplies(input: {
   replies: InboxReplyItem[];
 }): Promise<number> {
   let synced = 0;
+  let skippedSelf = 0;
+  let duplicates = 0;
+  let unmatched = 0;
   const mailbox = extractEmailAddress(String(input.mailboxEmail || ''));
 
   for (const reply of input.replies) {
     if (!reply.from || !reply.providerMessageId) continue;
     const fromAddr = extractEmailAddress(reply.from);
-    if (mailbox && fromAddr === mailbox) continue;
+
+    // Skip recruiter's own mailbox noise — unless that address is also a candidate
+    // (common when testing outreach to yourself).
+    if (mailbox && fromAddr === mailbox) {
+      const selfCandidate = await SavedCandidateModel.findOne({
+        organizationId: input.organizationId,
+        deletedAt: null,
+        email: { $regex: new RegExp(`^${fromAddr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      })
+        .select('_id')
+        .lean();
+      if (!selfCandidate) {
+        skippedSelf += 1;
+        continue;
+      }
+    }
 
     const result = await handleProviderWebhook({
       provider: input.provider,
@@ -79,7 +103,14 @@ async function ingestReplies(input: {
       },
     });
     synced += result.ingested;
+    duplicates += result.duplicates;
+    if (!result.ingested && !result.duplicates) unmatched += 1;
   }
+
+  if (synced > 0) {
+    logger().info({ synced, unmatched, duplicates }, 'Email replies synced');
+  }
+
   return synced;
 }
 
@@ -102,6 +133,7 @@ async function syncGmailIntegration(input: {
     maxResults: input.limit,
     newerThanDays: 2,
   });
+  logger().debug({ fetched: replies.length }, 'Gmail inbox poll');
   return ingestReplies({
     provider: 'gmail',
     organizationId: input.organizationId,
@@ -324,6 +356,177 @@ export async function syncEmailReplies(limit?: number): Promise<number> {
     synced += await syncEmailRepliesForOrganization(String(orgId), batch);
   }
 
-  logger().debug({ synced, orgs: orgIds.length }, 'email reply sync sweep completed');
+  if (synced > 0) {
+    logger().info({ synced, orgs: orgIds.length }, 'Email reply sync done');
+  } else {
+    logger().debug({ orgs: orgIds.length }, 'Email reply sync done (nothing new)');
+  }
+
+  // Repair enrollments that already have a reply but never got a qualification
+  // question (e.g. launched with aiReplyEnabled falsely compiled to false).
+  const repaired = await repairMissedQualificationQuestions().catch((error) => {
+    logger().warn({ err: error }, 'Missed qualification repair failed');
+    return 0;
+  });
+  if (repaired > 0) {
+    logger().info({ repaired }, 'Re-ran qualification Q&A for stuck enrollments');
+  }
+
   return synced;
+}
+
+/**
+ * Find enrollments that replied but never received a qualification question,
+ * and drive processQualificationAfterReply from the latest inbound message.
+ */
+async function repairMissedQualificationQuestions(): Promise<number> {
+  const running = await OutreachCampaignModel.find({
+    deletedAt: null,
+    status: { $in: ['running', 'paused'] },
+    'channelConfig.email.enabled': true,
+  })
+    .limit(50)
+    .exec();
+
+  let repaired = 0;
+  for (const campaign of running) {
+    const enrollments = await OutreachEnrollmentModel.find({
+      campaignId: campaign._id,
+      status: { $nin: ['cancelled', 'opted_out', 'failed'] },
+      $and: [
+        {
+          $or: [
+            { 'replyState.hasReply': true },
+            { status: 'replied' },
+            { status: 'stopped', stopReason: 'candidate_replied' },
+          ],
+        },
+        {
+          // Never successfully sent a screening follow-up — includes "completed"
+          // enrollments that only stored junk answers from engagement replies.
+          $or: [
+            { autoReplyCount: { $exists: false } },
+            { autoReplyCount: null },
+            { autoReplyCount: { $lte: 0 } },
+          ],
+        },
+      ],
+    })
+      .limit(30)
+      .exec();
+
+    if (!enrollments.length) continue;
+
+    for (const enrollment of enrollments) {
+      const thread =
+        (await ConversationThreadModel.findOne({
+          organizationId: campaign.organizationId,
+          enrollmentId: enrollment._id,
+        })
+          .sort({ updatedAt: -1 })
+          .lean()) ||
+        (await ConversationThreadModel.findOne({
+          organizationId: campaign.organizationId,
+          campaignId: campaign._id,
+          candidateId: enrollment.candidateId,
+        })
+          .sort({ updatedAt: -1 })
+          .lean());
+      if (!thread) {
+        logger().info(
+          { enrollmentId: String(enrollment._id), campaignId: String(campaign._id) },
+          'Qualification repair skipped — no thread'
+        );
+        continue;
+      }
+
+      const lastInbound = await ConversationMessageModel.findOne({
+        threadId: thread._id,
+        direction: 'inbound',
+        channel: 'email',
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+      if (!lastInbound?.bodyText) {
+        logger().info(
+          { enrollmentId: String(enrollment._id), threadId: String(thread._id) },
+          'Qualification repair skipped — no inbound email'
+        );
+        continue;
+      }
+
+      // Only skip when we already sent a real screening (qualification) follow-up.
+      // Campaign outreach is aiGenerated:true — must NOT block repair.
+      const followUp = await ConversationMessageModel.findOne({
+        threadId: thread._id,
+        direction: 'outbound',
+        channel: 'email',
+        createdAt: { $gt: lastInbound.createdAt },
+        messageType: 'qualification',
+      })
+        .select('_id messageType')
+        .lean();
+      if (followUp) {
+        logger().info(
+          {
+            enrollmentId: String(enrollment._id),
+            followUpId: String(followUp._id),
+            messageType: followUp.messageType,
+          },
+          'Qualification repair skipped — screening follow-up already sent'
+        );
+        continue;
+      }
+
+      const classification = await ReplyClassificationModel.findOne({
+        threadId: thread._id,
+        messageId: lastInbound._id,
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const interest = classification?.interest || 'interested';
+      if (interest === 'opt_out' || interest === 'not_interested') continue;
+
+      // Reset false auto-qualify so Q&A can run again.
+      if (enrollment.qualificationState?.status === 'qualified') {
+        enrollment.qualificationState = {
+          status: 'in_progress',
+          answers: enrollment.qualificationState?.answers || {},
+        };
+        await enrollment.save();
+      }
+
+      const result = await processQualificationAfterReply({
+        organizationId: String(campaign.organizationId),
+        campaign,
+        enrollmentId: String(enrollment._id),
+        threadId: String(thread._id),
+        bodyText: String(lastInbound.bodyText),
+        interest,
+        intent: classification?.intent || 'provide_info',
+        extractedVariables: (classification?.extractedVariables || {}) as Record<
+          string,
+          unknown
+        >,
+        preferredChannel: 'email',
+      });
+
+      logger().info(
+        {
+          enrollmentId: String(enrollment._id),
+          campaignId: String(campaign._id),
+          action: result.action,
+          hasReply: enrollment.replyState?.hasReply,
+        },
+        'Repaired missed qualification after reply'
+      );
+      if (result.action.includes('asked') || result.action.startsWith('ask_failed')) {
+        // Count successful asks; still surface ask_failed in logs above for debugging.
+        if (result.action.includes('asked')) repaired += 1;
+      }
+    }
+  }
+
+  return repaired;
 }

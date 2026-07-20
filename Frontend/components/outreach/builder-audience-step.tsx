@@ -333,6 +333,7 @@ export function AudienceStep({
   const [importListId, setImportListId] = useState<string | null>(
     state.source === "CSV/Excel Import" ? state.sourceDetail || null : null
   );
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -345,7 +346,15 @@ export function AudienceStep({
           sourcingApi.listSessions({ limit: 50, sort: "-createdAt" }),
         ]);
         if (cancelled) return;
-        setLists(nextLists.filter((list) => !list.archived));
+        // Keep the currently selected list even if archived so the trigger
+        // can show its name instead of a raw id.
+        setLists(
+          nextLists.filter(
+            (list) =>
+              !list.archived ||
+              (state.source === "Saved List" && list.id === state.sourceDetail)
+          )
+        );
         setSessions(nextSessions);
       } catch (err) {
         if (!cancelled) {
@@ -358,7 +367,7 @@ export function AudienceStep({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [state.source, state.sourceDetail]);
 
   useEffect(() => {
     if (!state.source) {
@@ -499,6 +508,15 @@ export function AudienceStep({
   }
 
   function selectSource(source: AudienceSource) {
+    if (
+      source === "CSV/Excel Import" &&
+      state.source === source &&
+      importListId
+    ) {
+      setImportDialogOpen(true);
+      return;
+    }
+
     update("source", source);
     update("sourceDetail", "");
     update("selectedCandidateIds", []);
@@ -518,6 +536,7 @@ export function AudienceStep({
           });
           setImportListId(list.id);
           update("sourceDetail", list.id);
+          setImportDialogOpen(true);
         } catch (err) {
           setError(
             getApiErrorMessage(err, "Unable to prepare import list.")
@@ -625,15 +644,18 @@ export function AudienceStep({
                     loadingOptions ? "Loading lists…" : "Select a list"
                   }
                 >
-                  {(() => {
-                    const list = lists.find(
-                      (entry) => entry.id === state.sourceDetail
-                    );
-                    if (!list) return null;
-                    return typeof list.candidateCount === "number"
-                      ? `${list.name} (${list.candidateCount})`
-                      : list.name;
-                  })()}
+                  {(value: string | null) => {
+                    if (!value) return null;
+                    const selected = lists.find((list) => list.id === value);
+                    if (!selected) {
+                      return loadingOptions
+                        ? "Loading lists…"
+                        : "Selected list unavailable";
+                    }
+                    return typeof selected.candidateCount === "number"
+                      ? `${selected.name} (${selected.candidateCount})`
+                      : selected.name;
+                  }}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -671,19 +693,24 @@ export function AudienceStep({
                     loadingOptions ? "Loading sessions…" : "Select a search session"
                   }
                 >
-                  {(() => {
-                    const session = sessions.find(
-                      (entry) => entry.id === state.sourceDetail
+                  {(value: string | null) => {
+                    if (!value) return null;
+                    const selected = sessions.find(
+                      (session) => session.id === value
                     );
-                    if (!session) return null;
+                    if (!selected) {
+                      return loadingOptions
+                        ? "Loading sessions…"
+                        : "Selected session unavailable";
+                    }
                     const count =
-                      typeof session.resultCount === "number"
-                        ? ` (${session.resultCount})`
-                        : typeof session.estimatedResults === "number"
-                          ? ` (~${session.estimatedResults})`
+                      typeof selected.resultCount === "number"
+                        ? ` (${selected.resultCount})`
+                        : typeof selected.estimatedResults === "number"
+                          ? ` (~${selected.estimatedResults})`
                           : "";
-                    return `${session.name}${count}`;
-                  })()}
+                    return `${selected.name}${count}`;
+                  }}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -714,6 +741,8 @@ export function AudienceStep({
           <div className="space-y-3">
             <ImportCandidatesDialog
               listId={importListId}
+              open={importDialogOpen}
+              onOpenChange={setImportDialogOpen}
               trigger={
                 <Button
                   type="button"

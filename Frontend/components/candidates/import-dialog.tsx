@@ -64,6 +64,8 @@ export function ImportCandidatesDialog({
   trigger,
   onImported,
   listId = null,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   trigger?: React.ReactElement;
   onImported?: (result: {
@@ -73,6 +75,8 @@ export function ImportCandidatesDialog({
   }) => void;
   /** Optional saved list to attach imported candidates to. */
   listId?: string | null;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
@@ -91,7 +95,8 @@ export function ImportCandidatesDialog({
     duplicatesInFile: number;
     errors: Array<{ row: number; code: string; message: string }>;
   } | null>(null);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
 
   const forList = Boolean(listId);
   const previewReadyCount = preview
@@ -122,7 +127,8 @@ export function ImportCandidatesDialog({
   }
 
   function handleOpenChange(nextOpen: boolean) {
-    setOpen(nextOpen);
+    if (controlledOpen === undefined) setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
     if (!nextOpen) reset();
   }
 
