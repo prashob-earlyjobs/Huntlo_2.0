@@ -58,7 +58,7 @@ const platformSettingsSchema = new mongoose.Schema(
       default: () => ({ introduction: null, agentPrompt: null, version: 0 }),
     },
     updatedByUserId: {
-      type: mongoose.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
