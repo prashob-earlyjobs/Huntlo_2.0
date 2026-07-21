@@ -260,7 +260,8 @@ async function resolveOrganizationBySenderPhone(
     phonesMatch(digits, phoneDigits(String(c.phone || '')))
   );
   if (!matches.length) return null;
-  if (matches.length === 1) return String(matches[0].organizationId);
+  const primary = matches[0]!;
+  if (matches.length === 1) return String(primary.organizationId);
 
   const candidateIds = matches.map((c) => c._id);
 
@@ -291,7 +292,7 @@ async function resolveOrganizationBySenderPhone(
     .lean();
   if (enrollment) return String(enrollment.organizationId);
 
-  return String(matches[0].organizationId);
+  return String(primary.organizationId);
 }
 
 async function resolveInboundWhatsAppOrganization(message: {
