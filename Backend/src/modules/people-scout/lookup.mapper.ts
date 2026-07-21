@@ -4,17 +4,14 @@
  */
 
 import type { PeopleScoutCandidateSnapshot } from './lookup.model.js';
+import { labelListFromUnknown } from '../../shared/strings/label-list.js';
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
 function asStringList(value: unknown, cap = 40): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => String(item ?? '').trim())
-    .filter(Boolean)
-    .slice(0, cap);
+  return labelListFromUnknown(value, cap);
 }
 
 function formatMonthYear(iso: string | null | undefined): string {

@@ -36,7 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { JobDetail } from "@/lib/mock-jobs";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, searchPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 function formatSalary(job: JobDetail) {
@@ -240,7 +240,7 @@ function RecentCandidatesSection({ job }: { job: JobDetail }) {
           title="No candidates yet"
           description="Source candidates for this job to populate the pipeline."
           actionLabel="Source Candidates"
-          actionHref={ROUTES.search}
+          actionHref={searchPath({ jobId: job.id })}
           className="mt-4"
         />
       )}
@@ -355,9 +355,13 @@ function JobConfigurationPanel({ job }: { job: JobDetail }) {
   );
 }
 
-function QuickActionsPanel() {
+function QuickActionsPanel({ jobId }: { jobId: string }) {
   const actions = [
-    { label: "Source candidates", icon: UserSearch, href: ROUTES.search },
+    {
+      label: "Source candidates",
+      icon: UserSearch,
+      href: searchPath({ jobId }),
+    },
     { label: "Create outreach", icon: Send, href: ROUTES.outreach },
     { label: "Start screening", icon: ListChecks, href: ROUTES.screening },
     { label: "Send assessment", icon: ListChecks, href: ROUTES.assessments },
@@ -492,7 +496,7 @@ export function JobDetailView({ job }: { job: JobDetail }) {
             <Button
               size="sm"
               nativeButton={false}
-              render={<Link href={ROUTES.search} />}
+              render={<Link href={searchPath({ jobId: job.id })} />}
             >
               <UserSearch aria-hidden />
               Source Candidates
@@ -522,7 +526,7 @@ export function JobDetailView({ job }: { job: JobDetail }) {
           <HiringTeamPanel job={job} />
           <ImportantDatesPanel job={job} />
           <JobConfigurationPanel job={job} />
-          <QuickActionsPanel />
+          <QuickActionsPanel jobId={job.id} />
         </div>
       </div>
 
@@ -552,7 +556,7 @@ export function JobDetailView({ job }: { job: JobDetail }) {
                 emptyTitle="No sourcing sessions"
                 emptyDescription="Run an AI search or People Scout to attach sessions to this job."
                 emptyAction="Start search"
-                emptyHref={ROUTES.search}
+                emptyHref={searchPath({ jobId: job.id })}
               />
             ),
           },

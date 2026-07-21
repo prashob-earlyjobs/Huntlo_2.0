@@ -38,7 +38,7 @@ import {
   jobsApi,
   type ParsedJobDescription,
 } from "@/lib/api";
-import { ROUTES, jobDetailPath } from "@/lib/routes";
+import { ROUTES, jobDetailPath, searchPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type FieldErrors = Partial<Record<"title" | "department" | "location" | "openings", string>>;
@@ -442,7 +442,7 @@ export function JobForm() {
       });
 
       if (mode === "source") {
-        router.push(ROUTES.search);
+        router.push(searchPath({ jobId: created.id }));
         return;
       }
       router.push(mode === "draft" ? ROUTES.jobs : jobDetailPath(created.id));

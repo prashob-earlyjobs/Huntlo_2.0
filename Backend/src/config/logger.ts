@@ -1,6 +1,10 @@
+import { createRequire } from 'node:module';
+
 import pino from 'pino';
 
 import { getEnv, isProduction, isTest } from './env.js';
+
+const require = createRequire(import.meta.url);
 
 let loggerInstance: pino.Logger | null = null;
 
@@ -42,11 +46,21 @@ const REDACT_PATHS = [
   '*.bodyHtml',
 ];
 
+function canUsePrettyTransport(): boolean {
+  if (isProduction() || isTest()) return false;
+  try {
+    require.resolve('pino-pretty');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getLogger(): pino.Logger {
   if (loggerInstance) return loggerInstance;
 
   const env = getEnv();
-  const usePretty = !isProduction() && !isTest();
+  const usePretty = canUsePrettyTransport();
 
   loggerInstance = pino({
     level: env.LOG_LEVEL,

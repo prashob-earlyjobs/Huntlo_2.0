@@ -11,6 +11,8 @@ import {
 } from '../../sourcing/sourced-candidate.model.js';
 import type { SourcingSessionDocument } from '../../sourcing/sourcing-session.model.js';
 import { toCandidateSummaryDto, type CandidateSummaryDto } from './search.dto.js';
+import { labelListFromUnknown } from '../../../shared/strings/label-list.js';
+import { profileSignalsFromFjDoc } from '../../../shared/sourcing/profile-signals.js';
 
 function splitName(fullName: string): { firstName: string | null; lastName: string | null } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -150,11 +152,18 @@ export async function upsertCandidatesFromDocs(options: {
         : null) ||
       (typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null);
 
-    const skillsRaw = Array.isArray(profile.skills)
-      ? profile.skills.map((s) => String(s ?? '').trim()).filter(Boolean)
-      : typeof mapped.skills === 'string' && mapped.skills !== '—'
-        ? mapped.skills.split(',').map((s) => s.trim()).filter(Boolean)
-        : [];
+    let skillsRaw = labelListFromUnknown(profile.skills, 24);
+    if (
+      skillsRaw.length === 0 &&
+      typeof mapped.skills === 'string' &&
+      mapped.skills !== '—'
+    ) {
+      skillsRaw = mapped.skills
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s && s !== '[object Object]')
+        .slice(0, 24);
+    }
 
     const matchScore =
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
@@ -200,6 +209,7 @@ export async function upsertCandidatesFromDocs(options: {
             experienceYears: experienceYearsFromProfile(profile),
             skills: skillsRaw.slice(0, 24),
             educationPreview: educationPreviewFromProfile(profile),
+            profileSignals: profileSignalsFromFjDoc(doc, profile),
             finalScore: matchScore,
             matchScore,
             candidateSummary:

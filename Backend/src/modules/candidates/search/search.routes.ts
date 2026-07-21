@@ -20,6 +20,8 @@ import {
   getStoredCandidates,
   legacySearch,
   listSearchSessions,
+  saveSearchSession,
+  unsaveSearchSession,
 } from './search.controller.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
@@ -85,6 +87,20 @@ candidateSearchRouter.get(
   ...orgAuth,
   requirePermission('sourcing:view'),
   getStoredCandidates
+);
+
+candidateSearchRouter.post(
+  '/session/:sessionId/save',
+  ...orgAuth,
+  requirePermission('sourcing:create', 'sourcing:edit'),
+  saveSearchSession
+);
+
+candidateSearchRouter.delete(
+  '/session/:sessionId/save',
+  ...orgAuth,
+  requirePermission('sourcing:create', 'sourcing:edit'),
+  unsaveSearchSession
 );
 
 candidateSearchRouter.get(

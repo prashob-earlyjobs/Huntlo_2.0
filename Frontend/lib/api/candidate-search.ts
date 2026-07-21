@@ -136,6 +136,8 @@ export type StoredCandidatesResponse = {
   totalDocs?: number;
   createdAt?: string | null;
   lastPolledAt?: string | null;
+  saved?: boolean;
+  savedAt?: string | null;
 };
 
 export type FetchMoreResponse = {
@@ -163,8 +165,24 @@ export type SourcingSessionSummary = {
   savedCandidateCount: number;
   owner: string | null;
   status: string;
+  quotaUsed?: number;
   createdAt: string | null;
   lastActivity: string | null;
+  saved?: boolean;
+  savedAt?: string | null;
+};
+
+export type SaveSearchResponse = {
+  success: true;
+  savedSessionId: string;
+  sessionId: string | null;
+  saved: boolean;
+  savedAt: string | null;
+  listId?: string | null;
+  listName?: string | null;
+  listCreated?: boolean;
+  candidatesAdded?: number;
+  candidateCount?: number;
 };
 
 /** Apply/create/fetch-more can wait 20s + poll up to ~90s on the server. */
@@ -188,6 +206,14 @@ async function rawPost<T>(
 async function rawGet<T>(path: string): Promise<T> {
   const result = await apiClient.request<T>(path, {
     method: "GET",
+    raw: true,
+  });
+  return result.data;
+}
+
+async function rawDelete<T>(path: string): Promise<T> {
+  const result = await apiClient.request<T>(path, {
+    method: "DELETE",
     raw: true,
   });
   return result.data;
@@ -266,8 +292,11 @@ export interface CandidateSearchApi {
       resultCount: number;
       status: string;
       createdAt: string | null;
+      savedAt?: string | null;
     }>;
   }>;
+  saveSearch(sessionId: string): Promise<SaveSearchResponse>;
+  unsaveSearch(sessionId: string): Promise<SaveSearchResponse>;
   claimPublicSearch(input: {
     sessionId?: string;
     claimToken?: string;
@@ -457,6 +486,32 @@ const mockCandidateSearchApi: CandidateSearchApi = {
     await simulateMockLatency();
     return { success: true, recentSearches: [] };
   },
+  async saveSearch(sessionId) {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      savedSessionId: sessionId,
+      sessionId,
+      saved: true,
+      savedAt: new Date().toISOString(),
+      listId: `list-${sessionId}`,
+      listName: "Mock saved search",
+      listCreated: true,
+      candidatesAdded: 0,
+      candidateCount: 0,
+    };
+  },
+  async unsaveSearch(sessionId) {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      savedSessionId: sessionId,
+      sessionId,
+      saved: false,
+      savedAt: null,
+      listId: null,
+    };
+  },
   async claimPublicSearch(input) {
     await simulateMockLatency();
     return {
@@ -556,6 +611,12 @@ const liveCandidateSearchApi: CandidateSearchApi = {
     const qs = buildQueryString(params ?? { limit: 6 });
     return rawGet(`/candidates/recent-searches${qs}`);
   },
+  async saveSearch(sessionId) {
+    return rawPost(`/candidates/session/${encodeURIComponent(sessionId)}/save`, {});
+  },
+  async unsaveSearch(sessionId) {
+    return rawDelete(`/candidates/session/${encodeURIComponent(sessionId)}/save`);
+  },
   async claimPublicSearch(input) {
     const result = await rawPost<{
       success: true;
@@ -638,4 +699,12 @@ export async function getSourcingSessions(params?: { limit?: number }) {
 
 export async function getRecentSearches(params?: { limit?: number }) {
   return candidateSearchApi.getRecentSearches(params);
+}
+
+export async function saveSearch(sessionId: string) {
+  return candidateSearchApi.saveSearch(sessionId);
+}
+
+export async function unsaveSearch(sessionId: string) {
+  return candidateSearchApi.unsaveSearch(sessionId);
 }

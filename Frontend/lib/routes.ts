@@ -41,6 +41,12 @@ export function jobDetailPath(id: string): string {
   return `${ROUTES.jobs}/${id}`;
 }
 
+/** Build the AI search path, optionally preselecting a job for prompt fill. */
+export function searchPath(options?: { jobId?: string }): string {
+  if (!options?.jobId) return ROUTES.search;
+  return `${ROUTES.search}?jobId=${encodeURIComponent(options.jobId)}`;
+}
+
 /** Build the detail path for a sourcing session / search result set. */
 export function sessionDetailPath(id: string): string {
   return `/dashboard/sessions/${id}`;

@@ -148,6 +148,9 @@ export function toPublicSession(
     createdAt: session.createdAt?.toISOString?.() ?? null,
     updatedAt: session.updatedAt?.toISOString?.() ?? null,
     date: session.createdAt?.toISOString?.() ?? null,
+    saved: Boolean(session.savedAt),
+    savedAt: session.savedAt?.toISOString?.() ?? null,
+    savedListId: session.savedListId ? session.savedListId.toHexString() : null,
   };
 }
 

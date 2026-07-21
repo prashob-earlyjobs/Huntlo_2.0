@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 
 function HistoryMetricSkeleton() {
   return (
-    <div className="px-4 py-2.5">
+    <div className="border-b border-border px-4 py-3 last:border-b-0 sm:border-b-0">
       <Skeleton className="h-3 w-24" />
-      <Skeleton className="mt-2 h-6 w-12" />
+      <Skeleton className="mt-2 h-7 w-14" />
     </div>
   );
 }
@@ -37,7 +37,7 @@ export function SearchHistoryMetricsSkeleton({
     <div
       aria-busy
       className={cn(
-        "grid grid-cols-3 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card",
+        "grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-border",
         className
       )}
     >

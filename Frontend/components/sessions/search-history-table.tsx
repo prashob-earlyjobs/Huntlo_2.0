@@ -150,7 +150,7 @@ export function SearchHistoryTable({
               <TableHead className={HEAD}>Query</TableHead>
               <TableHead className={HEAD}>Related job</TableHead>
               <TableHead className={`${HEAD} text-right`}>Results</TableHead>
-              <TableHead className={`${HEAD} text-right`}>Saved</TableHead>
+              <TableHead className={`${HEAD} text-right`}>In pool</TableHead>
               <TableHead className={HEAD}>Owner</TableHead>
               <TableHead className={HEAD}>Search date</TableHead>
               <TableHead className={HEAD}>Status</TableHead>

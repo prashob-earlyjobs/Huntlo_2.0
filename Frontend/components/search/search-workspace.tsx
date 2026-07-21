@@ -13,8 +13,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { FilterPanel } from "@/components/search/filter-panel";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/select";
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetFooter,
@@ -37,6 +36,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -46,6 +53,11 @@ import {
   applyCandidateSearch,
 } from "@/lib/api/candidate-search";
 import type { JobListItem } from "@/lib/api/contracts";
+import {
+  clearEditSearchDraft,
+  loadEditSearchDraft,
+  type EditSearchDraft,
+} from "@/lib/edit-search-draft";
 import {
   EXAMPLE_QUERY,
   FILTER_FIELD_INDEX,
@@ -66,6 +78,10 @@ import { ROUTES, sessionDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const NUMBER_FORMAT = new Intl.NumberFormat("en-IN");
+
+function buildPromptFromJob(job: JobListItem): string {
+  return `Find ${job.title.toLowerCase()}s in ${job.location} with ${job.experienceMin}–${job.experienceMax} years of experience for the ${job.department} team.`;
+}
 
 function formatFilterValue(value: FilterValue): string {
   if (typeof value === "boolean") return "Yes";
@@ -264,7 +280,7 @@ function GettingStarted({
         <div>
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Recent searches
+              Saved searches
             </h3>
             {loading ? (
               <Skeleton className="h-6 w-36 rounded-md" />
@@ -290,7 +306,7 @@ function GettingStarted({
             </ul>
           ) : recentSearches.length === 0 ? (
             <p className="mt-2 px-2 text-sm text-muted-foreground">
-              No recent searches yet.
+              No saved searches yet. Use Save Search on a results page.
             </p>
           ) : (
             <ul className="mt-1 space-y-0.5">
@@ -324,8 +340,15 @@ function GettingStarted({
 
 export function SearchWorkspace() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const jobIdFromUrl = searchParams.get("jobId");
+  const editSessionIdFromUrl = searchParams.get("editSessionId");
+  const appliedJobFromUrl = useRef(false);
+  const appliedEditDraft = useRef(false);
   const [query, setQuery] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(jobIdFromUrl);
+  const [editDraft, setEditDraft] = useState<EditSearchDraft | null>(null);
+  const [saveModeOpen, setSaveModeOpen] = useState(false);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [filters, setFilters] = useState<SearchFilterState>({});
   const [criteria, setCriteria] = useState<InterpretedCriterion[] | null>(null);
@@ -391,6 +414,54 @@ export function SearchWorkspace() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (appliedJobFromUrl.current || !jobIdFromUrl) return;
+    let cancelled = false;
+
+    void (async () => {
+      let job = jobs.find((item) => item.id === jobIdFromUrl) ?? null;
+      if (!job) {
+        try {
+          const detail = await jobsApi.getById(jobIdFromUrl);
+          if (cancelled) return;
+          job = detail;
+          setJobs((previous) =>
+            previous.some((item) => item.id === detail.id)
+              ? previous
+              : [detail, ...previous]
+          );
+        } catch {
+          return;
+        }
+      }
+      if (cancelled || !job) return;
+      appliedJobFromUrl.current = true;
+      setSelectedJobId(job.id);
+      setQuery(buildPromptFromJob(job));
+      setCriteria(null);
+      setCriteriaApplied(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobIdFromUrl, jobs]);
+
+  useEffect(() => {
+    if (appliedEditDraft.current) return;
+    const draft = loadEditSearchDraft(editSessionIdFromUrl);
+    if (!draft) return;
+    appliedEditDraft.current = true;
+    setEditDraft(draft);
+    setQuery(draft.prompt);
+    setFilters(draft.filters ?? {});
+    setInterpretedFilters(draft.filters ?? null);
+    setCriteriaApplied(Object.keys(draft.filters ?? {}).length > 0);
+    setSelectedJobId(draft.jobId);
+    setCriteria(null);
+    setFilterDrawerOpen(true);
+  }, [editSessionIdFromUrl]);
 
   const jobOptions = jobs;
   const selectedJob = jobOptions.find((job) => job.id === selectedJobId);
@@ -535,30 +606,17 @@ export function SearchWorkspace() {
     setCriteriaApplied(false);
     setSearched(false);
     setError(null);
+    setPendingMessage(null);
+    if (editDraft) {
+      clearEditSearchDraft();
+      setEditDraft(null);
+    }
   }
 
   function fillPromptFromJob(jobId: string) {
     const job = jobOptions.find((item) => item.id === jobId);
     if (!job) return;
-    const location =
-      "location" in job && typeof job.location === "string"
-        ? job.location
-        : "Bengaluru";
-    const experienceMin =
-      "experienceMin" in job && typeof job.experienceMin === "number"
-        ? job.experienceMin
-        : 4;
-    const experienceMax =
-      "experienceMax" in job && typeof job.experienceMax === "number"
-        ? job.experienceMax
-        : 7;
-    const department =
-      "department" in job && typeof job.department === "string"
-        ? job.department
-        : "Engineering";
-    setQuery(
-      `Find ${job.title.toLowerCase()}s in ${location} with ${experienceMin}–${experienceMax} years of experience for the ${department} team.`
-    );
+    setQuery(buildPromptFromJob(job));
     setCriteria(null);
     setCriteriaApplied(false);
   }
@@ -569,45 +627,37 @@ export function SearchWorkspace() {
     setCriteriaApplied(false);
   }
 
-  async function runSearch() {
+  async function handleSearchClick() {
+    const hasPreparedFilters = criteriaApplied || activeCount > 0;
+    if (!hasPreparedFilters && query.trim()) {
+      await generateFilters();
+      return;
+    }
+    if (editDraft) {
+      setSaveModeOpen(true);
+      return;
+    }
+    await runSearch("new");
+  }
+
+  async function runSearch(mode: "new" | "update") {
     if (!canSearch || searching) return;
     setSearching(true);
+    setSaveModeOpen(false);
     setError(null);
     setPendingMessage(null);
     try {
-      let nextFilters = filters;
-      const hasCriteria =
-        Object.keys(filters).some((key) => {
-          const value = filters[key];
-          if (value == null || value === "") return false;
-          if (Array.isArray(value)) return value.length > 0;
-          if (typeof value === "object") {
-            return Object.values(value as Record<string, unknown>).some(
-              (entry) => entry != null && entry !== ""
-            );
-          }
-          return true;
-        }) || Boolean(interpretedFilters);
-
-      // Mirror backend auto-annotate so the drawer reflects structured filters.
-      if (!hasCriteria && query.trim()) {
-        try {
-          const annotated = await annotateCandidateSearch({ prompt: query.trim() });
-          const filterForm = providerPayloadToFilters(annotated.filterForm);
-          setInterpretedFilters(filterForm);
-          nextFilters = { ...filters, ...filterForm };
-          setFilters(nextFilters);
-          setCriteriaApplied(true);
-        } catch {
-          // Backend apply also auto-annotates; continue with empty filters.
-        }
-      }
-
+      const nextFilters = filters;
       const providerFilters = filtersToProviderPayload(nextFilters);
+      const updateSessionId =
+        mode === "update"
+          ? editDraft?.sessionId || editDraft?.savedSessionId || undefined
+          : undefined;
       const result = await applyCandidateSearch({
         prompt: query.trim() || EXAMPLE_QUERY,
         filterForm: providerFilters,
         jobId: selectedJobId,
+        sessionId: updateSessionId,
         page: 1,
         limit: 300,
       });
@@ -618,6 +668,8 @@ export function SearchWorkspace() {
         );
         if (result.savedSessionId) {
           setSearched(true);
+          clearEditSearchDraft();
+          setEditDraft(null);
           if (typeof window !== "undefined") {
             sessionStorage.setItem(
               `huntlo:search:${result.savedSessionId}`,
@@ -638,6 +690,8 @@ export function SearchWorkspace() {
 
       if (result.success && result.savedSessionId) {
         setSearched(true);
+        clearEditSearchDraft();
+        setEditDraft(null);
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
             `huntlo:search:${result.savedSessionId}`,
@@ -681,6 +735,29 @@ export function SearchWorkspace() {
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_310px]">
       <div className="min-w-0 space-y-4">
+        {editDraft ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground"
+          >
+            <span className="inline-flex items-center gap-2">
+              <PenLine aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+              Editing an existing search. Adjust the prompt or filters, then search.
+            </span>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                clearEditSearchDraft();
+                setEditDraft(null);
+              }}
+            >
+              Discard edit
+            </Button>
+          </div>
+        ) : null}
+
         {/* Natural-language search composer */}
         <section
           aria-label="Search candidates"
@@ -778,16 +855,25 @@ export function SearchWorkspace() {
                       </SheetDescription>
                     </SheetHeader>
                     <div className="min-h-0 flex-1 overflow-y-auto">{filterPanel}</div>
-                    <SheetFooter className="mt-0 flex-row items-center justify-between gap-3 border-t border-border p-3">
-                      <span className="text-xs text-muted-foreground">
+                    <SheetFooter className="mt-0 flex-row items-center justify-end gap-3 border-t border-border p-3">
+                      {/* <span className="text-xs text-muted-foreground">
                         Est. reach{" "}
                         <span className="font-medium tabular-nums text-foreground">
                           {NUMBER_FORMAT.format(reach.low)}–{NUMBER_FORMAT.format(reach.high)}
                         </span>
-                      </span>
-                      <SheetClose render={<Button type="button" size="sm" />}>
-                        Show results
-                      </SheetClose>
+                      </span> */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!canSearch || searching || interpreting}
+                        aria-busy={searching}
+                        onClick={() => {
+                          setFilterDrawerOpen(false);
+                          void handleSearchClick();
+                        }}
+                      >
+                        {searching ? "Searching…" : "Show results"}
+                      </Button>
                     </SheetFooter>
                   </SheetContent>
                 </Sheet>
@@ -837,10 +923,16 @@ export function SearchWorkspace() {
                   type="button"
                   size="sm"
                   className="relative"
-                  onClick={() => void runSearch()}
+                  onClick={() => void handleSearchClick()}
                   disabled={!canSearch || searching || interpreting}
-                  aria-busy={searching}
-                  aria-label={searching ? "Searching candidates" : undefined}
+                  aria-busy={searching || interpreting}
+                  aria-label={
+                    searching
+                      ? "Searching candidates"
+                      : !criteriaApplied && activeCount === 0 && query.trim()
+                        ? "Generate filters from search"
+                        : undefined
+                  }
                 >
                   {searching ? (
                     <>
@@ -998,6 +1090,35 @@ export function SearchWorkspace() {
       <aside className="sticky top-20 hidden h-[calc(100svh-5.25rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
         {filterPanel}
       </aside>
+
+      <Dialog open={saveModeOpen} onOpenChange={setSaveModeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>How should we save this search?</DialogTitle>
+            <DialogDescription>
+              Update the search you were editing, or keep that one and create a new
+              search with these filters.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+            <Button
+              type="button"
+              disabled={searching}
+              onClick={() => void runSearch("update")}
+            >
+              Update existing search
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={searching}
+              onClick={() => void runSearch("new")}
+            >
+              Save as new search
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

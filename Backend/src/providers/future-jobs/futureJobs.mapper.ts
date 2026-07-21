@@ -1,5 +1,6 @@
 // @ts-nocheck — faithful port of filterMapping.js + mapProfile.js + payload.js
 import type { FutureJobsFilterForm, FutureJobsMappedCandidate } from './futureJobs.types.js';
+import { labelListFromUnknown } from '../../shared/strings/label-list.js';
 
 /**
  * Map Future Jobs session.queries ↔ flat filter form (dashboard drawer).
@@ -1411,7 +1412,7 @@ function mapFjDocToCandidate(doc: unknown): FutureJobsMappedCandidate | null {
     : [];
   const job = employers[0] || {};
   const years = p.years_of_experience_raw;
-  const skillsArr = Array.isArray(p.skills) ? p.skills : [];
+  const skillsArr = labelListFromUnknown(p.skills, 12);
 
   const emailRevealed =
     doc.revealStatus?.email?.revealed &&
@@ -1460,9 +1461,7 @@ function mapFjDocToCandidate(doc: unknown): FutureJobsMappedCandidate | null {
         : "—",
     location:
       typeof p.region === "string" && p.region.trim() ? p.region.trim() : "—",
-    skills: skillsArr.length
-      ? skillsArr.slice(0, 12).join(", ")
-      : "—",
+    skills: skillsArr.length ? skillsArr.join(", ") : "—",
     status,
     email,
     phone,

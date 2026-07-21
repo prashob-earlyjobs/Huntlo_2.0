@@ -6,6 +6,7 @@ import type {
   SessionCandidate,
 } from "@/lib/mock-sessions";
 import { mapApiCandidateToSessionCandidate } from "@/lib/api/sourcing";
+import { normalizeLabelList } from "@/lib/normalize-label-list";
 
 export type CandidateDetailsApi = CandidateSearchSummary & {
   summary?: string | null;
@@ -46,10 +47,15 @@ export function mapCandidateDetailsToSessionCandidate(
     details.recommendation?.trim() ||
     summaryCandidate.summary ||
     base.summary;
-  const signals = [...base.signals];
-  if (details.recommendation?.trim() && details.summary?.trim()) {
-    signals.unshift(details.recommendation.trim());
-  }
+  const signals = normalizeLabelList(
+    [
+      ...(details.recommendation?.trim() && details.summary?.trim()
+        ? [details.recommendation.trim()]
+        : []),
+      ...base.signals,
+    ],
+    12
+  );
 
   return {
     ...base,
@@ -68,6 +74,9 @@ export function mapCandidateDetailsToSessionCandidate(
         ? details.education
         : summaryCandidate.education,
     matchBreakdown: details.matchBreakdown ?? summaryCandidate.matchBreakdown,
-    skills: details.skills?.length ? details.skills : base.skills,
+    skills: normalizeLabelList(
+      details.skills?.length ? details.skills : base.skills,
+      24
+    ),
   };
 }

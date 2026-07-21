@@ -25,6 +25,7 @@ import { AppError } from '../../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../../shared/validation/object-id.js';
 import { enqueueJob } from '../../../workers/queue.js';
 import { UserModel } from '../../auth/user.model.js';
+import { CandidateListModel } from '../candidate-list.model.js';
 import { SavedCandidateModel } from '../saved-candidate.model.js';
 import { JobModel } from '../../jobs/job.model.js';
 import { SOURCING_QUOTA_COST, quotaService } from '../../sourcing/quota.service.js';
@@ -579,7 +580,7 @@ export class CandidateSearchService {
     let sessionUpdated = false;
 
     if (input.sessionId) {
-      existing = await findSessionByFjId(actor.organizationId, input.sessionId);
+      existing = await resolveSession(actor.organizationId, input.sessionId);
       assertCanUpdateSession(existing, actor);
       if (
         existing.polling &&
@@ -1264,6 +1265,8 @@ export class CandidateSearchService {
         totalDocs: session.totalDocs ?? session.totalResults ?? 0,
         createdAt: session.createdAt?.toISOString?.() ?? null,
         lastPolledAt: session.lastPolledAt?.toISOString?.() ?? null,
+        saved: Boolean(session.savedAt),
+        savedAt: session.savedAt?.toISOString?.() ?? null,
       };
     }
 
@@ -1321,6 +1324,8 @@ export class CandidateSearchService {
       canFetchMore: Boolean(session.canFetchMore),
       filterForm: session.filterForm ?? session.normalizedFilters,
       prompt: session.prompt || session.naturalLanguageQuery,
+      saved: Boolean(session.savedAt),
+      savedAt: session.savedAt?.toISOString?.() ?? null,
     };
   }
 
@@ -1533,29 +1538,232 @@ export class CandidateSearchService {
           savedCandidateCount: countMap.get(session._id.toHexString()) ?? 0,
           owner: names.get(ownerId) ?? null,
           status: session.status,
+          quotaUsed: session.quotaConsumed ?? 0,
           createdAt: session.createdAt?.toISOString?.() ?? null,
           lastActivity:
             session.lastPolledAt?.toISOString?.() ??
             session.updatedAt?.toISOString?.() ??
             null,
+          saved: Boolean(session.savedAt),
+          savedAt: session.savedAt?.toISOString?.() ?? null,
         };
       }),
     };
   }
 
   async recentSearches(actor: SearchActor, query: { limit: number }) {
-    const result = await this.listSessions(actor, { limit: query.limit });
+    const sessions = await SourcingSessionModel.find({
+      organizationId: actor.organizationId,
+      deletedAt: null,
+      savedAt: { $ne: null },
+    })
+      .sort({ savedAt: -1 })
+      .limit(query.limit);
+
     return {
       success: true,
-      recentSearches: result.sessions.map((s) => ({
-        savedSessionId: s.savedSessionId,
-        sessionId: s.sessionId,
-        title: s.title,
-        prompt: s.prompt,
-        resultCount: s.resultCount,
-        status: s.status,
-        createdAt: s.createdAt,
+      recentSearches: sessions.map((session) => ({
+        savedSessionId: session._id.toHexString(),
+        sessionId: session.futureJobsSessionId || session.externalSessionId || null,
+        title: session.sessionTitle || session.name,
+        prompt: session.prompt || session.naturalLanguageQuery || '',
+        resultCount: session.totalDocs ?? session.totalResults ?? 0,
+        status: session.status,
+        createdAt: session.createdAt?.toISOString?.() ?? null,
+        savedAt: session.savedAt?.toISOString?.() ?? null,
       })),
+    };
+  }
+
+  async saveSearch(actor: SearchActor, sessionIdParam: string) {
+    const session = await resolveSession(actor.organizationId, sessionIdParam);
+    assertCanUpdateSession(session, actor);
+
+    const orgOid = new mongoose.Types.ObjectId(actor.organizationId);
+    const ownerOid = new mongoose.Types.ObjectId(actor.userId);
+    const now = new Date();
+
+    if (!session.savedAt) {
+      session.savedAt = now;
+    }
+
+    // Reuse existing list if this search was already saved into one.
+    let list =
+      session.savedListId != null
+        ? await CandidateListModel.findOne({
+            _id: session.savedListId,
+            organizationId: orgOid,
+            deletedAt: null,
+          })
+        : null;
+
+    let listCreated = false;
+    if (!list) {
+      const baseName = (
+        session.sessionTitle ||
+        session.name ||
+        session.prompt ||
+        session.naturalLanguageQuery ||
+        'Saved search'
+      )
+        .trim()
+        .slice(0, 180);
+      let listName = baseName;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const existing = await CandidateListModel.findOne({
+          organizationId: orgOid,
+          name: listName,
+          deletedAt: null,
+        }).select('_id');
+        if (!existing) break;
+        const suffix = attempt === 0 ? ` · ${now.toISOString().slice(0, 10)}` : ` · ${attempt + 1}`;
+        listName = `${baseName.slice(0, 180 - suffix.length)}${suffix}`;
+      }
+
+      list = await CandidateListModel.create({
+        organizationId: orgOid,
+        name: listName,
+        description: `Candidates from search: ${(session.prompt || session.naturalLanguageQuery || baseName).slice(0, 500)}`,
+        jobId: session.jobId ?? null,
+        visibility: 'team',
+        ownerUserId: ownerOid,
+        tags: ['from-search'],
+        candidateCount: 0,
+      });
+      listCreated = true;
+      session.savedListId = list._id;
+    }
+
+    const sourcedCandidates = await SourcedCandidateModel.find({
+      organizationId: orgOid,
+      sourcingSessionId: session._id,
+    }).limit(500);
+
+    const uniqueCandidates = [
+      ...new Map(
+        sourcedCandidates.map((candidate) => [
+          candidate.candidateId ||
+            candidate.externalCandidateId ||
+            candidate._id.toHexString(),
+          candidate,
+        ])
+      ).values(),
+    ];
+
+    let candidatesAdded = 0;
+    if (uniqueCandidates.length > 0) {
+      const listOid = list._id;
+      const externalCandidateIds = uniqueCandidates.map(
+        (candidate) =>
+          candidate.candidateId ||
+          candidate.externalCandidateId ||
+          candidate._id.toHexString()
+      );
+      const alreadyOnList = await SavedCandidateModel.countDocuments({
+        organizationId: orgOid,
+        externalCandidateId: { $in: externalCandidateIds },
+        deletedAt: null,
+        listIds: listOid,
+      });
+
+      const operations = uniqueCandidates.map((candidate) => {
+        const externalCandidateId =
+          candidate.candidateId ||
+          candidate.externalCandidateId ||
+          candidate._id.toHexString();
+        const linkedinUrl =
+          candidate.linkedinProfileUrl ||
+          candidate.basicProfile?.linkedinUrl ||
+          null;
+
+        return {
+          updateOne: {
+            filter: {
+              organizationId: orgOid,
+              externalCandidateId,
+              deletedAt: null,
+            },
+            update: {
+              $setOnInsert: {
+                organizationId: orgOid,
+                externalCandidateId,
+                sourceType: 'sourcing' as const,
+                sourceId: session._id.toHexString(),
+                ownerUserId: ownerOid,
+                assignedUserId: null,
+                status: 'saved' as const,
+                jobIds: [],
+                tags: [],
+                customFields: {},
+                name: candidate.name || candidate.basicProfile?.name || 'Unknown',
+                email: null,
+                phone: null,
+                linkedinUrl,
+                headline: candidate.basicProfile?.headline ?? null,
+                currentTitle:
+                  candidate.currentRole ??
+                  candidate.currentEmployment?.title ??
+                  null,
+                currentCompany:
+                  candidate.currentCompany ??
+                  candidate.currentEmployment?.company ??
+                  null,
+                location: candidate.location || null,
+                experienceYears: candidate.experienceYears ?? null,
+                skills: candidate.skills ?? [],
+                archivedAt: null,
+                deletedAt: null,
+                createdAt: now,
+              },
+              $addToSet: { listIds: listOid },
+              $set: { lastActivityAt: now, updatedAt: now },
+            },
+            upsert: true,
+          },
+        };
+      });
+
+      await SavedCandidateModel.bulkWrite(operations, { ordered: false });
+      candidatesAdded = Math.max(0, uniqueCandidates.length - alreadyOnList);
+      if (candidatesAdded > 0) {
+        await CandidateListModel.updateOne(
+          { _id: listOid },
+          { $inc: { candidateCount: candidatesAdded } }
+        );
+        list.candidateCount = (list.candidateCount ?? 0) + candidatesAdded;
+      }
+    }
+
+    await session.save();
+
+    return {
+      success: true as const,
+      savedSessionId: session._id.toHexString(),
+      sessionId: session.futureJobsSessionId || session.externalSessionId || null,
+      saved: true,
+      savedAt: session.savedAt.toISOString(),
+      listId: list._id.toHexString(),
+      listName: list.name,
+      listCreated,
+      candidatesAdded,
+      candidateCount: list.candidateCount ?? uniqueCandidates.length,
+    };
+  }
+
+  async unsaveSearch(actor: SearchActor, sessionIdParam: string) {
+    const session = await resolveSession(actor.organizationId, sessionIdParam);
+    assertCanUpdateSession(session, actor);
+    if (session.savedAt) {
+      session.savedAt = null;
+      await session.save();
+    }
+    return {
+      success: true as const,
+      savedSessionId: session._id.toHexString(),
+      sessionId: session.futureJobsSessionId || session.externalSessionId || null,
+      saved: false,
+      savedAt: null,
+      listId: session.savedListId ? session.savedListId.toHexString() : null,
     };
   }
 

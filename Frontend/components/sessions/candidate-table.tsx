@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { ContactReveal, type RevealState } from "@/components/sessions/contact-reveal";
-import { MatchScoreDetail } from "@/components/sessions/match-score";
+import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { ContactStatus, SessionCandidate } from "@/lib/mock-sessions";
+import { isOpenToWork } from "@/lib/candidate-signals";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -187,6 +188,11 @@ export function CandidateTable({
                             <TooltipContent>LinkedIn profile linked</TooltipContent>
                           </Tooltip>
                         ) : null}
+                        {isOpenToWork(candidate.signals) ? (
+                          <span className="shrink-0 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            Open to work
+                          </span>
+                        ) : null}
                       </div>
                       <p className="max-w-52 truncate text-xs text-muted-foreground">
                         {candidate.currentRole} · {candidate.currentCompany}
@@ -207,9 +213,9 @@ export function CandidateTable({
                 </TableCell>
                 <TableCell className={cellPad}>
                   <div className="flex max-w-44 items-center gap-1 overflow-hidden">
-                    {candidate.skills.slice(0, 3).map((skill) => (
+                    {candidate.skills.slice(0, 3).map((skill, index) => (
                       <span
-                        key={skill}
+                        key={`${skill}-${index}`}
                         className="min-w-0 truncate rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
                       >
                         {skill}
@@ -223,10 +229,8 @@ export function CandidateTable({
                   </div>
                 </TableCell>
                 <TableCell className={cellPad}>
-                  <MatchScoreDetail
+                  <MatchScoreCompact
                     score={candidate.matchScore}
-                    breakdown={candidate.matchBreakdown}
-                    name={candidate.name}
                     showLabel={density === "comfortable"}
                   />
                 </TableCell>

@@ -1,5 +1,7 @@
 import type { SourcedCandidateDocument } from '../../sourcing/sourced-candidate.model.js';
 import type { SourcingSessionDocument } from '../../sourcing/sourcing-session.model.js';
+import { labelListFromUnknown } from '../../../shared/strings/label-list.js';
+import { profileSignalsFromFjDoc } from '../../../shared/sourcing/profile-signals.js';
 
 export type SearchPaginationDto = {
   totalDocs: number;
@@ -98,6 +100,8 @@ export type SourcingSessionDto = {
   lastPolledAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  saved: boolean;
+  savedAt: string | null;
 };
 
 export type SourcingSessionSummaryDto = {
@@ -112,8 +116,11 @@ export type SourcingSessionSummaryDto = {
   savedCandidateCount: number;
   owner: string | null;
   status: string;
+  quotaUsed: number;
   createdAt: string | null;
   lastActivity: string | null;
+  saved: boolean;
+  savedAt: string | null;
 };
 
 export type CandidateSearchPollEvent = {
@@ -168,6 +175,14 @@ export function toCandidateSummaryDto(
     candidate.profilePictureUrl ||
     candidate.basicProfile?.profilePictureUrl ||
     null;
+  const storedSignals = labelListFromUnknown(candidate.profileSignals, 12);
+  const rawSignals = profileSignalsFromFjDoc(
+    candidate.rawDoc ?? candidate.rawProviderReference ?? null
+  );
+  const profileSignals = labelListFromUnknown(
+    [...storedSignals, ...rawSignals],
+    12
+  );
   return {
     id: candidate._id.toHexString(),
     candidateId,
@@ -181,7 +196,7 @@ export function toCandidateSummaryDto(
     currentCompany: candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
     location: candidate.location ?? '',
     experienceYears: candidate.experienceYears ?? null,
-    skills: candidate.skills ?? [],
+    skills: labelListFromUnknown(candidate.skills, 24),
     educationPreview: candidate.educationPreview ?? [],
     finalScore: candidate.finalScore ?? candidate.matchScore ?? null,
     matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
@@ -190,7 +205,7 @@ export function toCandidateSummaryDto(
     linkedinProfileUrl: linkedin,
     linkedinUrl: linkedin,
     profilePictureUrl,
-    profileSignals: candidate.profileSignals ?? [],
+    profileSignals,
     rank: candidate.rank ?? 0,
     saved,
   };
@@ -420,6 +435,8 @@ export function toSourcingSessionDto(session: SourcingSessionDocument): Sourcing
     lastPolledAt: session.lastPolledAt?.toISOString?.() ?? null,
     createdAt: session.createdAt?.toISOString?.() ?? null,
     updatedAt: session.updatedAt?.toISOString?.() ?? null,
+    saved: Boolean(session.savedAt),
+    savedAt: session.savedAt?.toISOString?.() ?? null,
   };
 }
 

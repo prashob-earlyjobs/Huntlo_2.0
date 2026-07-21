@@ -78,6 +78,7 @@ import { requestTimingMiddleware } from './middleware/request-timing.js';
 import {
   healthRouter,
   openApiRouter,
+  publicBlogRouter,
   webhookRouter,
 } from './modules/public/index.js';
 
@@ -121,6 +122,7 @@ export function createApp(): Express {
   app.use('/api/v1/public/webhooks/assessments', assessmentWebhookRouter);
 
   app.use('/api', healthRouter);
+  app.use('/api/blog', publicBlogRouter);
   app.use('/api/v1', openApiRouter);
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/onboarding', onboardingRouter);
