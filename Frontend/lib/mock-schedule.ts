@@ -91,6 +91,7 @@ export const SCHEDULE_METRICS: ScheduleMetric[] = [
 /* ------------------------------------------------------------------ */
 
 export const INTERVIEW_STATUSES = [
+  "Draft",
   "Link Sent",
   "Awaiting Booking",
   "Scheduled",
@@ -98,6 +99,7 @@ export const INTERVIEW_STATUSES = [
   "Completed",
   "Cancelled",
   "No Show",
+  "Expired",
 ] as const;
 
 export type InterviewStatus = (typeof INTERVIEW_STATUSES)[number];

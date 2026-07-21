@@ -2,7 +2,53 @@ import { apiClient } from "./client";
 import { createDomainService, simulateMockLatency } from "./service";
 import { buildQueryString } from "./types";
 
-export type CandidateFilterForm = Record<string, unknown>;
+export type CandidateSkillsBuckets = {
+  mandatory?: string[];
+  core?: string[];
+  secondary?: string[];
+};
+
+/** Flat Future Jobs filter-form keys accepted by search annotate/apply. */
+export type CandidateFilterForm = {
+  selectRegion?: string[];
+  currentTitle?: string;
+  yearsExpMin?: string;
+  yearsExpMax?: string;
+  keywordSkills?: string;
+  skills?: CandidateSkillsBuckets;
+  seniorityLevel?: string;
+  location?: string[];
+  openToWork?: boolean;
+  functionCategory?: string;
+  geoDistance?: string;
+  industry?: string;
+  school?: string[];
+  fieldOfStudy?: string[];
+  degree?: string[];
+  certifications?: string[];
+  honorsAwards?: string;
+  targetCompanyScope?: "current" | "past" | "current_past";
+  currentCompany?: string[];
+  yearsAtCompany?: string[];
+  pastCompany?: string[];
+  pastTitle?: string[];
+  companyType?: string;
+  companyHeadquarters?: string;
+  companyFocus?: string[];
+  employmentType?: string;
+  companyHeadcountRange?: string;
+  fundingStage?: string[];
+  headcountGrowthMin?: string;
+  headcountGrowthMax?: string;
+  companyHeadcountMin?: string;
+  companyHeadcountMax?: string;
+  annualRevenue?: string;
+  totalFundingRaised?: string[];
+  yearFoundedMin?: string;
+  yearFoundedMax?: string;
+  recentlyFunded?: string[];
+  [key: string]: unknown;
+};
 
 export type SearchAnnotationResponse = {
   success: true;
@@ -67,9 +113,11 @@ export type CandidateSearchSummary = {
   matchScore?: number | null;
   linkedinProfileUrl?: string | null;
   linkedinUrl?: string | null;
+  profilePictureUrl?: string | null;
   profileSignals?: string[];
   rank?: number;
   contactStatus?: string;
+  saved?: boolean;
 };
 
 export type StoredCandidatesResponse = {
@@ -88,6 +136,8 @@ export type StoredCandidatesResponse = {
   totalDocs?: number;
   createdAt?: string | null;
   lastPolledAt?: string | null;
+  saved?: boolean;
+  savedAt?: string | null;
 };
 
 export type FetchMoreResponse = {
@@ -115,8 +165,24 @@ export type SourcingSessionSummary = {
   savedCandidateCount: number;
   owner: string | null;
   status: string;
+  quotaUsed?: number;
   createdAt: string | null;
   lastActivity: string | null;
+  saved?: boolean;
+  savedAt?: string | null;
+};
+
+export type SaveSearchResponse = {
+  success: true;
+  savedSessionId: string;
+  sessionId: string | null;
+  saved: boolean;
+  savedAt: string | null;
+  listId?: string | null;
+  listName?: string | null;
+  listCreated?: boolean;
+  candidatesAdded?: number;
+  candidateCount?: number;
 };
 
 /** Apply/create/fetch-more can wait 20s + poll up to ~90s on the server. */
@@ -140,6 +206,14 @@ async function rawPost<T>(
 async function rawGet<T>(path: string): Promise<T> {
   const result = await apiClient.request<T>(path, {
     method: "GET",
+    raw: true,
+  });
+  return result.data;
+}
+
+async function rawDelete<T>(path: string): Promise<T> {
+  const result = await apiClient.request<T>(path, {
+    method: "DELETE",
     raw: true,
   });
   return result.data;
@@ -199,7 +273,11 @@ export interface CandidateSearchApi {
   getCandidateDetails(
     candidateId: string,
     params?: { sessionId?: string }
-  ): Promise<{ success: true; fromStored: boolean; candidate: CandidateSearchSummary }>;
+  ): Promise<{
+    success: true;
+    fromStored: boolean;
+    candidate: import("./candidate-details").CandidateDetailsApi;
+  }>;
   getSourcingSessions(params?: { limit?: number }): Promise<{
     success: true;
     sessions: SourcingSessionSummary[];
@@ -214,8 +292,15 @@ export interface CandidateSearchApi {
       resultCount: number;
       status: string;
       createdAt: string | null;
+      savedAt?: string | null;
     }>;
   }>;
+  saveSearch(sessionId: string): Promise<SaveSearchResponse>;
+  unsaveSearch(sessionId: string): Promise<SaveSearchResponse>;
+  claimPublicSearch(input: {
+    sessionId?: string;
+    claimToken?: string;
+  }): Promise<{ success: true; sessionId: string; savedSessionId?: string }>;
 }
 
 const mockCandidateSearchApi: CandidateSearchApi = {
@@ -234,7 +319,13 @@ const mockCandidateSearchApi: CandidateSearchApi = {
       success: true,
       filterType: filter_type ?? "region",
       query,
-      suggestions: query.length >= 3 ? [`${query}apura`, `${query}alore`] : [],
+      suggestions:
+        query.length >= 2
+          ? [
+              { label: `${query}apura`, value: `${query}apura` },
+              { label: `${query}alore`, value: `${query}alore` },
+            ]
+          : [],
     };
   },
   async createCandidateSearchSession() {
@@ -342,11 +433,48 @@ const mockCandidateSearchApi: CandidateSearchApi = {
         sourcingSessionId: "",
         sessionId: null,
         name: "Mock Candidate",
-        currentRole: null,
-        currentCompany: null,
-        location: "",
-        experienceYears: null,
-        skills: [],
+        headline: "Software Engineer",
+        currentRole: "Software Engineer",
+        currentCompany: "Mock Co",
+        location: "Pune, Maharashtra, India",
+        experienceYears: 5,
+        skills: ["TypeScript", "Node.js", "React"],
+        profilePictureUrl: `https://i.pravatar.cc/150?u=${candidateId}`,
+        summary:
+          "Experienced engineer focused on backend systems and reliable delivery.",
+        recommendation: "Strong fit for backend roles. 4.5/5",
+        experience: [
+          {
+            company: "Mock Co",
+            role: "Software Engineer",
+            duration: "2023–Present",
+            description: "Built APIs and services.",
+            current: true,
+          },
+          {
+            company: "Earlier Labs",
+            role: "Junior Developer",
+            duration: "2021–2022",
+            description: "Supported product features.",
+            current: false,
+          },
+        ],
+        education: [
+          {
+            school: "Mock University",
+            degree: "B.Tech",
+            field: "Computer Science",
+            years: "2017–2021",
+          },
+        ],
+        matchBreakdown: {
+          skills: 90,
+          role: 88,
+          experience: 85,
+          location: 92,
+          industry: 80,
+          education: 78,
+        },
       },
     };
   },
@@ -357,6 +485,40 @@ const mockCandidateSearchApi: CandidateSearchApi = {
   async getRecentSearches() {
     await simulateMockLatency();
     return { success: true, recentSearches: [] };
+  },
+  async saveSearch(sessionId) {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      savedSessionId: sessionId,
+      sessionId,
+      saved: true,
+      savedAt: new Date().toISOString(),
+      listId: `list-${sessionId}`,
+      listName: "Mock saved search",
+      listCreated: true,
+      candidatesAdded: 0,
+      candidateCount: 0,
+    };
+  },
+  async unsaveSearch(sessionId) {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      savedSessionId: sessionId,
+      sessionId,
+      saved: false,
+      savedAt: null,
+      listId: null,
+    };
+  },
+  async claimPublicSearch(input) {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      sessionId: input.sessionId ?? "mock-session",
+      savedSessionId: input.sessionId ?? "mock-session",
+    };
   },
 };
 
@@ -449,6 +611,23 @@ const liveCandidateSearchApi: CandidateSearchApi = {
     const qs = buildQueryString(params ?? { limit: 6 });
     return rawGet(`/candidates/recent-searches${qs}`);
   },
+  async saveSearch(sessionId) {
+    return rawPost(`/candidates/session/${encodeURIComponent(sessionId)}/save`, {});
+  },
+  async unsaveSearch(sessionId) {
+    return rawDelete(`/candidates/session/${encodeURIComponent(sessionId)}/save`);
+  },
+  async claimPublicSearch(input) {
+    const result = await rawPost<{
+      success: true;
+      session: { savedSessionId: string; sessionId?: string | null };
+    }>("/candidates/claim-public-search", input);
+    return {
+      success: true as const,
+      sessionId: result.session.sessionId || result.session.savedSessionId,
+      savedSessionId: result.session.savedSessionId,
+    };
+  },
 };
 
 export const candidateSearchApi = createDomainService({
@@ -520,4 +699,12 @@ export async function getSourcingSessions(params?: { limit?: number }) {
 
 export async function getRecentSearches(params?: { limit?: number }) {
   return candidateSearchApi.getRecentSearches(params);
+}
+
+export async function saveSearch(sessionId: string) {
+  return candidateSearchApi.saveSearch(sessionId);
+}
+
+export async function unsaveSearch(sessionId: string) {
+  return candidateSearchApi.unsaveSearch(sessionId);
 }

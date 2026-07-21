@@ -48,6 +48,15 @@ const platformSettingsSchema = new mongoose.Schema(
     providers: { type: [providerSettingSchema], default: [] },
     featureFlags: { type: mongoose.Schema.Types.Mixed, default: {} },
     maintenanceMode: { type: Boolean, default: false },
+    /** Global Roshni voice defaults. Null/empty fields fall back to the bundled markdown template. */
+    roshniPrompt: {
+      type: {
+        introduction: { type: String, default: null, maxlength: 2000 },
+        agentPrompt: { type: String, default: null, maxlength: 100_000 },
+        version: { type: Number, default: 0, min: 0 },
+      },
+      default: () => ({ introduction: null, agentPrompt: null, version: 0 }),
+    },
     updatedByUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

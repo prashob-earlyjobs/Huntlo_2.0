@@ -23,7 +23,7 @@ import {
   ContactReveal,
   type RevealState,
 } from "@/components/sessions/contact-reveal";
-import { MatchScoreDetail } from "@/components/sessions/match-score";
+import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { ActivityTimeline } from "@/components/shared/activity-timeline";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { SectionHeader } from "@/components/shared/section-header";
@@ -111,6 +111,30 @@ function ActivityRow({
       </div>
     </div>
   );
+}
+
+function formatDetailDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function detailLabel(key: string): string {
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function detailValue(value: unknown): string {
+  if (value == null || value === "") return "—";
+  if (Array.isArray(value)) return value.map(detailValue).join(", ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
@@ -287,6 +311,39 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
     liveInterviews.find((entry) => entry.outcome === null) ??
     liveInterviews[0] ??
     null;
+  const experience =
+    candidate.experience.length > 0
+      ? candidate.experience
+      : candidate.currentRole !== "—" || candidate.currentCompany !== "—"
+        ? [
+            {
+              company: candidate.currentCompany,
+              role: candidate.currentRole,
+              duration:
+                candidate.experienceYears > 0
+                  ? `${candidate.experienceYears} yrs total experience`
+                  : "Current role",
+              description: candidate.headline,
+              current: true,
+            },
+          ]
+        : [];
+  const hiddenCustomFields = new Set([
+    "summary",
+    "profileSummary",
+    "description",
+    "experience",
+    "workExperience",
+    "education",
+    "educationHistory",
+    "signals",
+    "previousCompany",
+    "matchScore",
+  ]);
+  const customFields = Object.entries(candidate.customFields ?? {}).filter(
+    ([key, value]) =>
+      !hiddenCustomFields.has(key) && value !== null && value !== undefined && value !== ""
+  );
 
   return (
     <div className="space-y-4">
@@ -309,11 +366,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 {candidate.currentRole} · {candidate.currentCompany}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <MatchScoreDetail
-                  score={candidate.matchScore}
-                  breakdown={candidate.matchBreakdown}
-                  name={candidate.name}
-                />
+                <MatchScoreCompact score={candidate.matchScore} />
                 <span className="inline-flex items-center gap-1">
                   <MapPin aria-hidden className="size-3" />
                   {candidate.location}
@@ -439,7 +492,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           <Card>
             <SectionHeader title="Summary" />
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {candidate.summary}
+              {candidate.summary || candidate.headline || "No summary available."}
             </p>
             {candidate.signals.length > 0 ? (
               <ul className="space-y-1.5 border-t border-border pt-3">
@@ -461,13 +514,14 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
 
           <Card>
             <SectionHeader title="Experience" />
-            <ol className="space-y-0">
-              {candidate.experience.map((entry, index) => (
+            {experience.length > 0 ? (
+              <ol className="space-y-0">
+              {experience.map((entry, index) => (
                 <li
                   key={`${entry.company}-${entry.role}`}
                   className="relative flex gap-3 pb-5 last:pb-0"
                 >
-                  {index < candidate.experience.length - 1 ? (
+                  {index < experience.length - 1 ? (
                     <span
                       aria-hidden
                       className="absolute top-4 left-[5px] h-full w-px bg-border"
@@ -502,17 +556,27 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                   </div>
                 </li>
               ))}
-            </ol>
+              </ol>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No experience details available.
+              </p>
+            )}
           </Card>
 
           <Card>
             <SectionHeader title="Skills" />
-            <SkillChips skills={candidate.skills} />
+            {candidate.skills.length > 0 ? (
+              <SkillChips skills={candidate.skills} />
+            ) : (
+              <p className="text-sm text-muted-foreground">No skills added.</p>
+            )}
           </Card>
 
           <Card>
             <SectionHeader title="Education" />
-            <ul className="divide-y divide-border">
+            {candidate.education.length > 0 ? (
+              <ul className="divide-y divide-border">
               {candidate.education.map((entry) => (
                 <li key={entry.school} className="py-2.5 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">
@@ -526,7 +590,12 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                   </p>
                 </li>
               ))}
-            </ul>
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No education details available.
+              </p>
+            )}
           </Card>
         </div>
 
@@ -551,6 +620,86 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 {revealQuota.mobileRemaining.toLocaleString("en-IN")} mobile reveals
                 remaining this cycle.
               </p>
+            ) : null}
+          </Card>
+
+          <Card>
+            <SectionHeader title="Candidate details" />
+            <dl className="divide-y divide-border">
+              {[
+                ["Full name", candidate.name],
+                ["Headline", candidate.headline],
+                ["Current role", candidate.currentRole],
+                ["Current company", candidate.currentCompany],
+                ["Previous company", candidate.previousCompany],
+                ["Location", candidate.location],
+                [
+                  "Experience",
+                  candidate.experienceYears > 0
+                    ? `${candidate.experienceYears} years`
+                    : "—",
+                ],
+                ["Pipeline status", status],
+                ["Owner", candidate.owner],
+                ["Assigned to", candidate.assigned || "—"],
+                ["Source", candidate.source],
+                ["Related jobs", candidate.jobs?.join(", ") || "—"],
+                ["Saved lists", candidate.lists.join(", ") || "—"],
+                ["Tags", candidate.tags?.join(", ") || "—"],
+                ["Email", candidate.email || "—"],
+                ["Phone", candidate.phone || "—"],
+                ["Added", formatDetailDate(candidate.createdAt)],
+                ["Last updated", formatDetailDate(candidate.updatedAt)],
+                ["External candidate ID", candidate.externalCandidateId || "—"],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 py-2 first:pt-0 last:pb-0"
+                >
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="wrap-break-word text-sm text-foreground">{value}</dd>
+                </div>
+              ))}
+              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 py-2 last:pb-0">
+                <dt className="text-xs text-muted-foreground">LinkedIn</dt>
+                <dd className="min-w-0 break-all text-sm">
+                  {candidate.linkedinUrl ? (
+                    <a
+                      href={candidate.linkedinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      {candidate.linkedinUrl}
+                    </a>
+                  ) : (
+                    <span className="text-foreground">—</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+
+            {customFields.length > 0 ? (
+              <div className="border-t border-border pt-3">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  Additional fields
+                </p>
+                <dl className="divide-y divide-border">
+                  {customFields.map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 py-2"
+                    >
+                      <dt className="text-xs text-muted-foreground">
+                        {detailLabel(key)}
+                      </dt>
+                      <dd className="wrap-break-word text-sm text-foreground">
+                        {detailValue(value)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
             ) : null}
           </Card>
 

@@ -7,10 +7,13 @@ import {
 } from '../../providers/calendly/calendly.client.js';
 import { emitRealtime } from '../../realtime/events.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { normalizePhone } from '../../shared/validation/phone.js';
 import { UserModel } from '../auth/user.model.js';
 import { CandidateActivityModel } from '../candidates/candidate-activity.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { JobModel } from '../jobs/job.model.js';
+import { OrganizationMemberModel } from '../organizations/member.model.js';
+import { sendAdHocMessage } from '../outreach/campaign-delivery.js';
 import { getOrgCalendlyCredentials } from './calendly-credentials.js';
 import {
   InterviewModel,
@@ -24,6 +27,7 @@ import {
   normalizeTimezone,
   timeLabelInTimezone,
 } from './timezone.js';
+import { renderInterviewMessage } from './interview-message.js';
 import type {
   calendarQuerySchema,
   createInterviewSchema,
@@ -39,6 +43,14 @@ type ListQuery = z.infer<typeof listInterviewsQuerySchema>;
 type CalendarQuery = z.infer<typeof calendarQuerySchema>;
 type SendLinkInput = z.infer<typeof sendLinkBodySchema>;
 type RescheduleInput = z.infer<typeof rescheduleBodySchema>;
+
+function deliveryChannels(
+  channel: 'email' | 'whatsapp' | 'both' | null | undefined
+): Array<'email' | 'whatsapp'> {
+  if (channel === 'both') return ['email', 'whatsapp'];
+  if (channel === 'whatsapp') return ['whatsapp'];
+  return ['email'];
+}
 
 const STATUS_DISPLAY: Record<InterviewStatus, string> = {
   draft: 'Draft',
@@ -98,10 +110,73 @@ async function userName(userId: string) {
   return `${user.firstName} ${user.lastName}`.trim();
 }
 
+async function interviewerNames(
+  organizationId: string,
+  interviewerIds: string[]
+): Promise<string[]> {
+  const validIds = interviewerIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (validIds.length === 0) return interviewerIds;
+
+  const [users, members] = await Promise.all([
+    UserModel.find({ _id: { $in: validIds } })
+      .select('firstName lastName')
+      .lean(),
+    OrganizationMemberModel.find({
+      organizationId,
+      $or: [{ _id: { $in: validIds } }, { userId: { $in: validIds } }],
+    })
+      .select('_id userId')
+      .lean(),
+  ]);
+
+  const names = new Map(
+    users.map((user) => [
+      String(user._id),
+      `${user.firstName} ${user.lastName}`.trim(),
+    ])
+  );
+
+  // Existing interviews may store organization-member ids instead of user ids.
+  const unresolvedMemberUserIds = members
+    .map((member) => String(member.userId))
+    .filter((userId) => !names.has(userId));
+  if (unresolvedMemberUserIds.length > 0) {
+    const memberUsers = await UserModel.find({ _id: { $in: unresolvedMemberUserIds } })
+      .select('firstName lastName')
+      .lean();
+    for (const user of memberUsers) {
+      names.set(String(user._id), `${user.firstName} ${user.lastName}`.trim());
+    }
+  }
+
+  for (const member of members) {
+    const memberId = String(member._id);
+    const userId = String(member.userId);
+    const name = names.get(userId);
+    if (name) {
+      names.set(memberId, name);
+      names.set(userId, name);
+    }
+  }
+
+  return interviewerIds.map((id) => names.get(id) || id);
+}
+
 function durationMinutes(startAt: Date | null, endAt: Date | null): string {
   if (!startAt || !endAt) return '—';
   const mins = Math.max(0, Math.round((endAt.getTime() - startAt.getTime()) / 60_000));
   return `${mins} min`;
+}
+
+function emitInterviewUpdated(doc: InterviewDocument) {
+  emitRealtime('interview.updated', {
+    organizationId: String(doc.organizationId),
+    interviewId: String(doc._id),
+    status: doc.status,
+    candidateId: doc.candidateId ? String(doc.candidateId) : null,
+    jobId: doc.jobId ? String(doc.jobId) : null,
+    startAt: doc.startAt?.toISOString() ?? null,
+  });
 }
 
 export function toInterviewDisplay(
@@ -112,6 +187,7 @@ export function toInterviewDisplay(
     candidateCompany: string;
     jobTitle: string | null;
     recruiter: string;
+    interviewerNames: string[];
   }
 ) {
   const tz = normalizeTimezone(doc.timezone);
@@ -125,7 +201,7 @@ export function toInterviewDisplay(
     jobId: doc.jobId ? String(doc.jobId) : null,
     jobTitle: extras.jobTitle,
     interviewType: doc.interviewType,
-    interviewers: doc.interviewerIds,
+    interviewers: extras.interviewerNames,
     interviewerIds: doc.interviewerIds,
     recruiter: extras.recruiter,
     createdBy: String(doc.createdBy),
@@ -167,6 +243,8 @@ export function toInterviewDisplay(
               : doc.reminderStatus === 'failed'
                 ? 'Failed'
                 : 'Not sent',
+    reminderHours: doc.reminderHours,
+    reminderMessages: doc.reminderMessages || [],
     reminderStatusRaw: doc.reminderStatus,
     bookingSource:
       doc.sourceModule === 'huntlo360'
@@ -192,10 +270,11 @@ export function toInterviewDisplay(
 }
 
 async function display(doc: InterviewDocument) {
-  const [cand, title, recruiter] = await Promise.all([
+  const [cand, title, recruiter, names] = await Promise.all([
     candidateExtras(doc.candidateId),
     jobTitle(doc.jobId),
     userName(String(doc.createdBy)),
+    interviewerNames(String(doc.organizationId), doc.interviewerIds),
   ]);
   return toInterviewDisplay(doc, {
     candidateName: doc.inviteeName || cand.name,
@@ -203,6 +282,7 @@ async function display(doc: InterviewDocument) {
     candidateCompany: cand.company,
     jobTitle: title,
     recruiter,
+    interviewerNames: names,
   });
 }
 
@@ -334,6 +414,12 @@ export const interviewsService = {
       location: input.location ?? null,
       meetingUrl: input.meetingUrl ?? null,
       instructions: input.instructions ?? null,
+      reminderHours: input.reminderHours ?? [24, 2],
+      reminderMessages: (input.reminderMessages || []).map((entry) => ({
+        hours: entry.hours,
+        message: entry.message,
+        templateId: entry.templateId ?? null,
+      })),
       status: isManualBooked ? 'scheduled' : schedulingUrl ? 'link_sent' : 'draft',
       bookingStatus: isManualBooked ? 'booked' : schedulingUrl ? 'link_sent' : 'pending',
       sourceModule: input.sourceModule || 'scheduling',
@@ -349,9 +435,10 @@ export const interviewsService = {
       inviteeName: input.inviteeName || candidate?.name || null,
     });
 
-    if (input.sendLink && doc.schedulingUrl) {
+    if (input.sendLink) {
       await this.sendLink(organizationId, userId, String(doc._id), {
         channel: input.inviteChannel || 'email',
+        message: input.message,
       });
     }
 
@@ -364,6 +451,7 @@ export const interviewsService = {
       method,
     });
 
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -389,6 +477,14 @@ export const interviewsService = {
     if (input.location !== undefined) doc.location = input.location;
     if (input.meetingUrl !== undefined) doc.meetingUrl = input.meetingUrl;
     if (input.instructions !== undefined) doc.instructions = input.instructions;
+    if (input.reminderHours !== undefined) doc.reminderHours = input.reminderHours;
+    if (input.reminderMessages !== undefined) {
+      doc.reminderMessages = input.reminderMessages.map((entry) => ({
+        hours: entry.hours,
+        message: entry.message,
+        templateId: entry.templateId ?? null,
+      }));
+    }
     if (input.status !== undefined) doc.status = input.status;
     if (input.bookingStatus !== undefined) doc.bookingStatus = input.bookingStatus;
     if (input.inviteChannel !== undefined) doc.inviteChannel = input.inviteChannel;
@@ -396,6 +492,7 @@ export const interviewsService = {
     if (input.inviteeName !== undefined) doc.inviteeName = input.inviteeName;
     doc.version += 1;
     await doc.save();
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -406,24 +503,101 @@ export const interviewsService = {
     input: SendLinkInput = {}
   ) {
     const doc = await loadInterview(organizationId, id);
-    if (!doc.schedulingUrl) {
+    if (doc.schedulingMethod === 'calendly_link' && !doc.schedulingUrl) {
       throw new AppError(400, 'NO_SCHEDULING_URL', 'Interview has no scheduling URL.');
     }
 
-    const channel = input.channel || doc.inviteChannel || 'email';
     const candidate = doc.candidateId
       ? await SavedCandidateModel.findById(doc.candidateId).lean()
       : null;
+    const email = String(doc.inviteeEmail || candidate?.email || '').trim();
+    const phoneRaw = String(candidate?.phone || '').trim();
+    const title = await jobTitle(doc.jobId);
+    const firstName = String(doc.inviteeName || candidate?.name || 'Candidate')
+      .trim()
+      .split(/\s+/)[0]!;
+    const schedulingDetails =
+      doc.schedulingMethod === 'manual' && doc.startAt
+        ? `${formatInTimezone(doc.startAt, doc.timezone, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })}${doc.location ? ` · ${doc.location}` : ''}`
+        : doc.schedulingUrl ||
+          'Please reply to this message with your preferred interview slots.';
+    const renderedMessage = renderInterviewMessage(input.message, {
+      firstName,
+      jobTitle: title || 'the role',
+      schedulingDetails,
+    });
 
-    if (channel === 'email' && !(doc.inviteeEmail || candidate?.email)) {
-      throw new AppError(400, 'NO_EMAIL', 'Candidate has no email for link delivery.');
-    }
-    if (channel === 'whatsapp' && !candidate?.phone) {
-      throw new AppError(400, 'NO_PHONE', 'Candidate has no phone for WhatsApp delivery.');
+    const requested = input.channel || doc.inviteChannel || 'email';
+    const channels = deliveryChannels(requested);
+    let lastDelivery: { providerMessageId?: string; provider: string } | null = null;
+
+    for (const channel of channels) {
+      if (channel === 'email' && !email) {
+        throw new AppError(400, 'NO_EMAIL', 'Candidate has no email for link delivery.');
+      }
+      if (channel === 'whatsapp' && !phoneRaw) {
+        throw new AppError(400, 'NO_PHONE', 'Candidate has no phone for WhatsApp delivery.');
+      }
+
+      let phone = phoneRaw;
+      if (channel === 'whatsapp') {
+        try {
+          phone = normalizePhone(phoneRaw);
+        } catch {
+          throw new AppError(
+            400,
+            'INVALID_PHONE',
+            'Candidate phone number is invalid for WhatsApp delivery.'
+          );
+        }
+      }
+
+      try {
+        lastDelivery = await sendAdHocMessage({
+          organizationId,
+          userId,
+          channel,
+          to: channel === 'email' ? email : phone,
+          subject:
+            channel === 'email'
+              ? `Interview invitation${title ? ` — ${title}` : ''}`
+              : null,
+          body: renderedMessage,
+        });
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        const statusCode =
+          typeof error === 'object' &&
+          error &&
+          'statusCode' in error &&
+          typeof (error as { statusCode?: unknown }).statusCode === 'number'
+            ? (error as { statusCode: number }).statusCode
+            : 502;
+        const code =
+          typeof error === 'object' &&
+          error &&
+          'code' in error &&
+          typeof (error as { code?: unknown }).code === 'string'
+            ? (error as { code: string }).code
+            : 'INVITE_DELIVERY_FAILED';
+        const message =
+          error instanceof Error
+            ? error.message
+            : `Failed to send interview invite via ${channel}.`;
+        throw new AppError(statusCode >= 400 && statusCode < 600 ? statusCode : 502, code, message, {
+          cause: error,
+        });
+      }
     }
 
-    // Delivery mirrored as activity (provider send stubs match outreach pattern).
-    doc.inviteChannel = channel;
+    const delivery = lastDelivery || { provider: 'none' };
+    doc.inviteChannel =
+      requested === 'both' || channels.length > 1
+        ? 'both'
+        : channels[0] || 'email';
     doc.status = doc.startAt ? doc.status : 'awaiting_booking';
     if (!doc.startAt) {
       doc.bookingStatus = 'link_sent';
@@ -441,9 +615,11 @@ export const interviewsService = {
       'interview_link_sent',
       {
         interviewId: id,
-        channel,
+        channel: doc.inviteChannel,
         schedulingUrl: doc.schedulingUrl,
-        message: input.message,
+        message: renderedMessage,
+        provider: delivery.provider,
+        providerMessageId: delivery.providerMessageId ?? null,
       }
     );
 
@@ -451,16 +627,10 @@ export const interviewsService = {
       organizationId,
       interviewId: id,
       candidateId: doc.candidateId ? String(doc.candidateId) : null,
-      channel,
+      channel: doc.inviteChannel,
+      provider: delivery.provider,
     });
-    emitRealtime('interview.updated', {
-      organizationId,
-      interviewId: id,
-      status: doc.status,
-      candidateId: doc.candidateId ? String(doc.candidateId) : null,
-      jobId: doc.jobId ? String(doc.jobId) : null,
-      startAt: doc.startAt?.toISOString() ?? null,
-    });
+    emitInterviewUpdated(doc);
 
     return display(doc);
   },
@@ -494,6 +664,7 @@ export const interviewsService = {
       { interviewId: id, reason: input.reason, startAt: doc.startAt.toISOString() }
     );
 
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -513,6 +684,7 @@ export const interviewsService = {
       'interview_cancelled',
       { interviewId: id }
     );
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -529,7 +701,10 @@ export const interviewsService = {
       { interviewId: id }
     );
     const { sendInterviewReminderNow } = await import('./reminder.service.js');
-    await sendInterviewReminderNow(doc, 'email');
+    for (const channel of deliveryChannels(doc.inviteChannel)) {
+      await sendInterviewReminderNow(doc, channel, { userId });
+    }
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -545,6 +720,7 @@ export const interviewsService = {
       'interview_completed',
       { interviewId: id }
     );
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -560,6 +736,7 @@ export const interviewsService = {
       'interview_no_show',
       { interviewId: id }
     );
+    emitInterviewUpdated(doc);
     return display(doc);
   },
 
@@ -602,6 +779,8 @@ export const interviewsService = {
     event: Record<string, unknown>;
     invitee: Record<string, unknown>;
     matchInterviewIds?: string[];
+    /** Sync re-imports must not spam booking notifications. */
+    source?: 'sync' | 'webhook';
   }) {
     const inviteeUri = String(input.invitee.uri || '').trim();
     const eventUri = String(input.event.uri || '').trim();
@@ -650,12 +829,14 @@ export const interviewsService = {
       });
     }
 
+    let matchedCandidateId: mongoose.Types.ObjectId | null = null;
     if (!doc && inviteeEmail) {
       const candidate = await SavedCandidateModel.findOne({
         organizationId: input.organizationId,
         email: inviteeEmail,
       }).lean();
       if (candidate) {
+        matchedCandidateId = candidate._id;
         doc = await InterviewModel.findOne({
           organizationId: input.organizationId,
           candidateId: candidate._id,
@@ -688,12 +869,23 @@ export const interviewsService = {
       provider: 'calendly',
     };
 
+    const existed = Boolean(doc);
+    const previousStatus = doc?.status ?? null;
+    const source = input.source ?? 'sync';
+
     if (!doc) {
       // Create orphan booking record for unmatched invitees (org-level)
-      const orgOwner = await UserModel.findOne().select('_id').lean();
+      const orgMember = await OrganizationMemberModel.findOne({
+        organizationId: input.organizationId,
+        status: 'active',
+      })
+        .sort({ role: 1, createdAt: 1 })
+        .select('userId')
+        .lean();
       doc = await InterviewModel.create({
         organizationId: input.organizationId,
-        createdBy: orgOwner?._id || new mongoose.Types.ObjectId(),
+        createdBy: orgMember?.userId || new mongoose.Types.ObjectId(),
+        candidateId: matchedCandidateId,
         interviewType: String(input.event.name || 'Interview'),
         schedulingMethod: 'calendly_link',
         ...patch,
@@ -741,7 +933,16 @@ export const interviewsService = {
       startAt: doc.startAt?.toISOString() ?? null,
     });
 
-    if (doc.status === 'scheduled' && doc.createdBy) {
+    // Only notify on a real booking transition — never on Calendly re-sync of
+    // interviews that were already scheduled.
+    const becameScheduled =
+      doc.status === 'scheduled' && previousStatus !== 'scheduled';
+    const shouldNotify =
+      becameScheduled &&
+      Boolean(doc.createdBy) &&
+      (existed || source === 'webhook');
+
+    if (shouldNotify) {
       const { notificationsService } = await import(
         '../notifications/notifications.service.js'
       );

@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   AudioLines,
-  ClipboardList,
   Link2,
   Mail,
   MessageCircle,
@@ -15,15 +14,15 @@ import {
 /* ------------------------------------------------------------------ */
 
 export const CURRENT_PLAN = {
-  name: "Growth",
+  name: "Trial",
   billingCycle: "Monthly",
-  renewalDate: "1 Aug 2026",
+  renewalDate: "3 Aug 2026",
   owner: "Ananya Sharma",
   ownerEmail: "ananya@acmetalent.com",
-  status: "Active" as const,
-  price: "₹24,999",
-  pricePeriod: "/ month",
-  seats: "9 of 15 seats used",
+  status: "Trial" as const,
+  price: "Free",
+  pricePeriod: " · 14-day trial",
+  seats: "1 of 2 seats used",
 };
 
 /* ------------------------------------------------------------------ */
@@ -114,15 +113,6 @@ export const USAGE_QUOTAS: UsageQuota[] = [
     icon: AudioLines,
   },
   {
-    id: "assessments",
-    label: "Assessment invites",
-    description: "Invites sent for skills assessments",
-    used: 40,
-    limit: 200,
-    resetDate: "1 Aug 2026",
-    icon: ClipboardList,
-  },
-  {
     id: "team",
     label: "Team members",
     description: "Active seats on this workspace",
@@ -202,12 +192,33 @@ export const PLAN_FEATURE_ROWS = [
 
 export const PLAN_TIERS: PlanTier[] = [
   {
+    id: "trial",
+    name: "Trial",
+    price: "Free",
+    priceNote: " · 14-day trial",
+    description: "Free trial for new workspaces — explore Huntlo before upgrading.",
+    highlighted: true,
+    cta: "Current plan",
+    features: {
+      searches: "20 / mo",
+      emailReveals: "50 / mo",
+      mobileReveals: "25 / mo",
+      peopleScout: "10 / mo",
+      emailOutreach: "200 / mo",
+      whatsapp: "50 / mo",
+      voice: "30 min",
+      team: "2 seats",
+      analytics: "Basic",
+      support: "Email",
+    },
+  },
+  {
     id: "starter",
     name: "Starter",
     price: "₹9,999",
     priceNote: "/ month",
     description: "For solo recruiters getting started with AI sourcing.",
-    cta: "Downgrade",
+    cta: "Upgrade",
     features: {
       searches: "2,000 / mo",
       emailReveals: "500 / mo",
@@ -227,8 +238,7 @@ export const PLAN_TIERS: PlanTier[] = [
     price: "₹24,999",
     priceNote: "/ month",
     description: "For growing teams running multi-channel outreach.",
-    highlighted: true,
-    cta: "Current plan",
+    cta: "Upgrade",
     features: {
       searches: "10,000 / mo",
       emailReveals: "2,500 / mo",

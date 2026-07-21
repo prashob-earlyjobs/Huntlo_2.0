@@ -24,6 +24,15 @@ import {
   type FilterOption,
 } from "@/components/shared/filter-popover";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,12 +75,64 @@ function toOptions(values: readonly string[]): FilterOption[] {
   return values.map((value) => ({ id: value, label: value }));
 }
 
+function InterviewsTableSkeleton() {
+  return (
+    <section
+      aria-busy
+      aria-label="Loading interviews"
+      className="rounded-xl border border-border bg-card"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <Skeleton className="h-4 w-24" />
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[960px]">
+          <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_0.9fr_0.9fr_0.9fr_0.9fr_40px] gap-3 border-b border-border px-4 py-2.5">
+            {Array.from({ length: 10 }).map((_, index) => (
+              <Skeleton key={index} className="h-3 w-full max-w-20" />
+            ))}
+          </div>
+          {Array.from({ length: 6 }).map((_, row) => (
+            <div
+              key={row}
+              className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_0.9fr_0.9fr_0.9fr_0.9fr_40px] items-center gap-3 border-b border-border px-4 py-3 last:border-b-0"
+            >
+              <div className="flex items-center gap-2.5">
+                <Skeleton className="size-7 shrink-0 rounded-full" />
+                <Skeleton className="h-3.5 w-28" />
+              </div>
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-3.5 w-28" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-3.5 w-20" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <Skeleton className="h-3.5 w-16" />
+              <Skeleton className="h-3.5 w-16" />
+              <Skeleton className="h-3.5 w-14" />
+              <Skeleton className="h-5 w-16 rounded-md" />
+              <Skeleton className="ml-auto size-7 rounded-md" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RowActions({
   interview,
-  onAction,
+  busy,
+  onReschedule,
+  onRemind,
+  onCancel,
 }: {
   interview: Interview;
-  onAction: (message: string) => void;
+  busy: boolean;
+  onReschedule: () => void;
+  onRemind: () => void;
+  onCancel: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -104,16 +165,14 @@ function RowActions({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem
-          onClick={() =>
-            onAction(`Opened reschedule for ${interview.candidateName}.`)
-          }
+          disabled={busy}
+          onClick={onReschedule}
         >
           Reschedule
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() =>
-            onAction(`Reminder sent to ${interview.candidateName}.`)
-          }
+          disabled={busy || !interview.dateKey}
+          onClick={onRemind}
         >
           <Send aria-hidden />
           Send reminder
@@ -121,9 +180,12 @@ function RowActions({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
-          onClick={() =>
-            onAction(`Cancelled interview with ${interview.candidateName}.`)
+          disabled={
+            busy ||
+            interview.status === "Cancelled" ||
+            interview.status === "Completed"
           }
+          onClick={onCancel}
         >
           <Trash2 aria-hidden />
           Cancel
@@ -145,6 +207,12 @@ export function ScheduleDashboard() {
   const [flowOpen, setFlowOpen] = useState(false);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState<Interview | null>(
+    null
+  );
+  const [rescheduleAt, setRescheduleAt] = useState("");
 
   const refresh = useCallback(async () => {
     const rows = await schedulingApi.listInterviews();
@@ -236,18 +304,14 @@ export function ScheduleDashboard() {
         !typeFilter.includes(interview.interviewType)
       )
         return false;
-      // Date range is UI-only against mock data; "any" shows all.
       if (dateRange === "7d") {
-        const upcoming = [
-          "2026-07-16",
-          "2026-07-17",
-          "2026-07-18",
-          "2026-07-19",
-          "2026-07-20",
-          "2026-07-21",
-          "2026-07-22",
-        ];
-        if (!upcoming.includes(interview.dateKey)) return false;
+        if (!interview.dateKey) return false;
+        const interviewDate = new Date(`${interview.dateKey}T00:00:00`);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const end = new Date(today);
+        end.setDate(end.getDate() + 7);
+        if (interviewDate < today || interviewDate >= end) return false;
       }
       return true;
     });
@@ -276,6 +340,58 @@ export function ScheduleDashboard() {
     window.setTimeout(() => setMessage(null), 2400);
   }
 
+  async function runInterviewAction(
+    interview: Interview,
+    action: () => Promise<Interview>,
+    successMessage: string
+  ) {
+    setBusyId(interview.id);
+    setActionError(null);
+    try {
+      const updated = await action();
+      setInterviews((previous) =>
+        previous.map((row) => (row.id === updated.id ? updated : row))
+      );
+      flash(successMessage);
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, "Unable to update interview."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function openReschedule(interview: Interview) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10, 0, 0, 0);
+    const local = new Date(
+      tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000
+    )
+      .toISOString()
+      .slice(0, 16);
+    setRescheduleAt(local);
+    setRescheduleTarget(interview);
+  }
+
+  async function confirmReschedule() {
+    if (!rescheduleTarget || !rescheduleAt) return;
+    if (new Date(rescheduleAt).getTime() <= Date.now()) {
+      setActionError("Choose a future date and time.");
+      return;
+    }
+    const target = rescheduleTarget;
+    await runInterviewAction(
+      target,
+      () =>
+        schedulingApi.reschedule(target.id, {
+          startAt: new Date(rescheduleAt).toISOString(),
+          timezone: target.timezone,
+        }),
+      `Rescheduled interview with ${target.candidateName}.`
+    );
+    setRescheduleTarget(null);
+  }
+
   function resetFilters() {
     setQuery("");
     setJobFilter([]);
@@ -288,11 +404,6 @@ export function ScheduleDashboard() {
 
   return (
     <div className="space-y-4">
-      {loading ? (
-        <p className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
-          Loading interviews…
-        </p>
-      ) : null}
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
@@ -306,6 +417,7 @@ export function ScheduleDashboard() {
               placeholder="Search candidates, jobs…"
               aria-label="Search interviews"
               className="pl-8"
+              disabled={loading}
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -376,7 +488,18 @@ export function ScheduleDashboard() {
           {message}
         </p>
       ) : null}
+      {actionError ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {actionError}
+        </p>
+      ) : null}
 
+      {loading ? (
+        <InterviewsTableSkeleton />
+      ) : (
       <section className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
@@ -469,7 +592,32 @@ export function ScheduleDashboard() {
                       <InterviewStatusBadge status={interview.status} />
                     </TableCell>
                     <TableCell className="py-2.5 text-right">
-                      <RowActions interview={interview} onAction={flash} />
+                      <RowActions
+                        interview={interview}
+                        busy={busyId === interview.id}
+                        onReschedule={() => openReschedule(interview)}
+                        onRemind={() =>
+                          void runInterviewAction(
+                            interview,
+                            () => schedulingApi.remind(interview.id),
+                            `Reminder sent to ${interview.candidateName}.`
+                          )
+                        }
+                        onCancel={() => {
+                          if (
+                            !window.confirm(
+                              `Cancel the interview with ${interview.candidateName}?`
+                            )
+                          ) {
+                            return;
+                          }
+                          void runInterviewAction(
+                            interview,
+                            () => schedulingApi.cancel(interview.id),
+                            `Cancelled interview with ${interview.candidateName}.`
+                          );
+                        }}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -487,6 +635,7 @@ export function ScheduleDashboard() {
           />
         )}
       </section>
+      )}
 
       <ScheduleInterviewFlow
         open={flowOpen}
@@ -496,6 +645,47 @@ export function ScheduleDashboard() {
           void schedulingApi.listInterviews().then(setInterviews).catch(() => undefined);
         }}
       />
+
+      <Dialog
+        open={Boolean(rescheduleTarget)}
+        onOpenChange={(open) => {
+          if (!open && !busyId) setRescheduleTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reschedule interview</DialogTitle>
+            <DialogDescription>
+              Choose a new date and time for{" "}
+              {rescheduleTarget?.candidateName ?? "the candidate"}.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="datetime-local"
+            value={rescheduleAt}
+            min={new Date().toISOString().slice(0, 16)}
+            onChange={(event) => setRescheduleAt(event.target.value)}
+            aria-label="New interview date and time"
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={Boolean(busyId)}
+              onClick={() => setRescheduleTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!rescheduleAt || Boolean(busyId)}
+              onClick={() => void confirmReschedule()}
+            >
+              {busyId ? "Rescheduling…" : "Reschedule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

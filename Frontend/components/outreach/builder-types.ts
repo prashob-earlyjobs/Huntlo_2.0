@@ -5,6 +5,7 @@ import {
   DEFAULT_QUESTIONS,
   DEFAULT_SEQUENCE,
   makeStep,
+  MAX_QUALIFICATION_QUESTIONS,
   reachableCount,
   STEP_CHANNELS,
   TAKEOVER_CONDITIONS,
@@ -17,6 +18,11 @@ import {
   type SequenceStep,
   type SequenceStepType,
 } from "@/lib/mock-outreach";
+import {
+  getDefaultWhatsAppTemplate,
+  isApprovedWhatsAppTemplateId,
+  type WhatsAppTemplateSlot,
+} from "@/lib/whatsapp-outreach";
 
 export interface BuilderState {
   /* Step 1 — setup */
@@ -68,10 +74,18 @@ function pruneStepsToChannels(
   enabledChannels: OutreachChannel[]
 ): SequenceStep[] {
   const allowed = new Set(enabledChannels);
-  return steps.filter((step) => {
+  const pruned = steps.filter((step) => {
     const channel = STEP_CHANNELS[step.type];
     return !channel || allowed.has(channel);
   });
+  return dropLeadingNonMessageSteps(pruned);
+}
+
+/** Wait / task / branch steps cannot lead the sequence — first step must send. */
+function dropLeadingNonMessageSteps(steps: SequenceStep[]): SequenceStep[] {
+  const firstMessage = steps.findIndex((step) => Boolean(STEP_CHANNELS[step.type]));
+  if (firstMessage <= 0) return steps;
+  return steps.slice(firstMessage);
 }
 
 function ensureMessageStep(
@@ -79,9 +93,53 @@ function ensureMessageStep(
   channel: OutreachChannel
 ): SequenceStep[] {
   if (steps.some((step) => STEP_CHANNELS[step.type] === channel)) {
-    return steps;
+    return dropLeadingNonMessageSteps(steps);
   }
-  return [makeStep(CHANNEL_STEP_TYPE[channel]), ...steps];
+  return dropLeadingNonMessageSteps([makeStep(CHANNEL_STEP_TYPE[channel]), ...steps]);
+}
+
+function whatsappStepFromSlot(
+  slot: WhatsAppTemplateSlot,
+  delayDays: number
+): SequenceStep {
+  const picked = getDefaultWhatsAppTemplate(slot);
+  const base = makeStep("Send WhatsApp");
+  return {
+    ...base,
+    delayDays,
+    delayUnit: delayDays > 0 ? "days" : "days",
+    templateId: picked?.id ?? null,
+    template: picked?.name ?? "WhatsApp template",
+    body: picked?.body ?? "",
+    stopOnReply: true,
+    note: "",
+  };
+}
+
+/** Default Meta cold-outbound flow: opening → no-reply 1 → no-reply 2. */
+export function makeWhatsAppColdOutboundSequence(): SequenceStep[] {
+  return [
+    whatsappStepFromSlot("opening", 0),
+    whatsappStepFromSlot("no_reply_1", 2),
+    whatsappStepFromSlot("no_reply_2", 2),
+  ];
+}
+
+function ensureWhatsAppColdSequence(steps: SequenceStep[]): SequenceStep[] {
+  const waSteps = steps.filter((step) => step.type === "Send WhatsApp");
+  const approvedCount = waSteps.filter((step) =>
+    isApprovedWhatsAppTemplateId(step.templateId)
+  ).length;
+  // Seed the product WhatsApp flow when the sequence has no approved templates yet.
+  if (approvedCount === 0) {
+    return makeWhatsAppColdOutboundSequence();
+  }
+  // Drop leading Wait / task steps so the first editable card is a template.
+  const firstWa = steps.findIndex((step) => step.type === "Send WhatsApp");
+  if (firstWa > 0) {
+    return steps.slice(firstWa);
+  }
+  return steps;
 }
 
 /** Collapse to one channel and drop incompatible sequence steps. */
@@ -94,16 +152,31 @@ export function applyCampaignType(
   }
 
   const channel = state.enabledChannels[0] ?? "Email";
-  const steps = ensureMessageStep(
+  let steps = ensureMessageStep(
     pruneStepsToChannels(state.steps, [channel]),
     channel
   );
+  if (channel === "WhatsApp") {
+    steps = ensureWhatsAppColdSequence(steps);
+  }
   return {
     ...state,
     campaignType,
     enabledChannels: [channel],
     steps,
   };
+}
+
+/** Seed at least one send step for the primary enabled channel when the sequence is empty. */
+export function ensureDefaultSequenceSteps(
+  steps: SequenceStep[],
+  enabledChannels: OutreachChannel[]
+): SequenceStep[] {
+  const next = dropLeadingNonMessageSteps(steps);
+  if (next.some((step) => Boolean(STEP_CHANNELS[step.type]))) return next;
+  const channel = enabledChannels[0] ?? "Email";
+  if (channel === "WhatsApp") return makeWhatsAppColdOutboundSequence();
+  return [makeStep(CHANNEL_STEP_TYPE[channel])];
 }
 
 /** Keep single-channel campaigns on exactly one channel and sync the sequence. */
@@ -131,6 +204,14 @@ export function applyEnabledChannels(
   let steps = pruneStepsToChannels(state.steps, nextChannels);
   if (isSingleChannelCampaign(state) && nextChannels[0]) {
     steps = ensureMessageStep(steps, nextChannels[0]);
+    if (nextChannels[0] === "WhatsApp") {
+      steps = ensureWhatsAppColdSequence(steps);
+    }
+  } else if (nextChannels.length === 1 && nextChannels[0] === "WhatsApp") {
+    // Use nextChannels (not prior state) so Email→WhatsApp switches seed correctly.
+    steps = ensureWhatsAppColdSequence(ensureMessageStep(steps, "WhatsApp"));
+  } else {
+    steps = ensureDefaultSequenceSteps(steps, nextChannels);
   }
 
   return {
@@ -168,7 +249,7 @@ export function initialBuilderState(): BuilderState {
     aiReplyEnabled: true,
     takeoverCondition: TAKEOVER_CONDITIONS[1],
     autoScreening: false,
-    autoCalendly: true,
+    autoCalendly: false,
   };
 }
 
@@ -214,7 +295,6 @@ export function stepErrors(step: number, state: BuilderState): string[] {
     case 0: {
       if (!state.name.trim()) errors.push("Campaign name is required.");
       if (!state.jobId) errors.push("Select a related job.");
-      if (!state.objective) errors.push("Pick a campaign objective.");
       if (!state.ownerUserId) errors.push("Assign a campaign owner.");
       break;
     }
@@ -292,6 +372,11 @@ export function stepErrors(step: number, state: BuilderState): string[] {
       break;
     }
     case 4: {
+      if (state.questions.length > MAX_QUALIFICATION_QUESTIONS) {
+        errors.push(
+          `Maximum ${MAX_QUALIFICATION_QUESTIONS} qualification questions allowed.`
+        );
+      }
       state.questions.forEach((question, index) => {
         if (!question.text.trim())
           errors.push(`Qualification question ${index + 1} is empty.`);

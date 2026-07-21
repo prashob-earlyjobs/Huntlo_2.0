@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
-import { getHunarWebhookSecret } from './hunar.config.js';
+import { getHunarApiKey, getHunarWebhookSecret } from './hunar.config.js';
 
 /**
  * Payload field names taken from EJHunterLanding campaignVoiceCommsService.js
@@ -79,6 +79,17 @@ export function extractTranscript(body: Record<string, unknown>): string | null 
   if (typeof body.call_transcript === 'string' && body.call_transcript.trim()) {
     return body.call_transcript.trim();
   }
+  const result = asRecord(body.result);
+  if (typeof result.transcript === 'string' && result.transcript.trim()) {
+    return result.transcript.trim();
+  }
+  if (typeof result.call_transcript === 'string' && result.call_transcript.trim()) {
+    return result.call_transcript.trim();
+  }
+  const nested = asRecord(body.call_summary || body.summary_payload || body.data);
+  if (typeof nested.transcript === 'string' && nested.transcript.trim()) {
+    return nested.transcript.trim();
+  }
   return null;
 }
 
@@ -139,7 +150,7 @@ function safeEqual(a: string, b: string): boolean {
 
 /**
  * Authenticity per Huntlo Hunar integration:
- * - Callback URLs embed screeningId (validated flow from EJHunterLanding).
+ * - Callback URLs embed screeningId or campaignId.
  * - When HUNAR_WEBHOOK_SECRET is set, require a matching shared secret
  *   (ARCHITECTURE "Webhook secret") via Authorization Bearer or x-webhook-secret.
  *   HMAC of the raw body is also accepted on x-hunar-signature / x-webhook-signature.
@@ -147,10 +158,18 @@ function safeEqual(a: string, b: string): boolean {
 export function verifyHunarWebhookAuthenticity(input: {
   headers: Record<string, string | string[] | undefined>;
   rawBody?: Buffer | string | null;
-  screeningId: string | null;
+  screeningId?: string | null;
+  /** Alias for screeningId or campaignId — either entity id satisfies the check. */
+  entityId?: string | null;
+  campaignId?: string | null;
 }): { ok: boolean; reason?: string } {
-  if (!input.screeningId?.trim()) {
-    return { ok: false, reason: 'screeningId query parameter is required' };
+  const entity =
+    String(input.entityId || input.screeningId || input.campaignId || '').trim() || null;
+  if (!entity) {
+    return {
+      ok: false,
+      reason: 'screeningId or campaignId query parameter is required',
+    };
   }
 
   const secret = getHunarWebhookSecret();
@@ -170,8 +189,16 @@ export function verifyHunarWebhookAuthenticity(input: {
 
   const bearer = asString(header('authorization')).replace(/^Bearer\s+/i, '');
   const shared = asString(header('x-webhook-secret') || header('x-hunar-webhook-secret'));
+  const apiKeyHeader = asString(header('x-api-key') || header('X-API-Key'));
+  const voiceApiKey = getHunarApiKey();
+
   if (bearer && safeEqual(bearer, secret)) return { ok: true };
   if (shared && safeEqual(shared, secret)) return { ok: true };
+  if (apiKeyHeader && safeEqual(apiKeyHeader, secret)) return { ok: true };
+  if (voiceApiKey && apiKeyHeader && safeEqual(apiKeyHeader, voiceApiKey)) {
+    return { ok: true };
+  }
+  if (voiceApiKey && bearer && safeEqual(bearer, voiceApiKey)) return { ok: true };
 
   const signature = asString(
     header('x-hunar-signature') || header('x-webhook-signature')

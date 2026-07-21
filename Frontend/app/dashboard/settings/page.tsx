@@ -10,7 +10,7 @@ export default function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Workspace defaults, privacy controls and audit history. No real permissions or deletions are enforced."
+        description="Organisation identity, locale defaults, and workspace audit history."
       />
       <SettingsWorkspace />
     </>

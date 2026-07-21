@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type { SearchHistoryEntry, SessionCandidate, SourcingSession } from "./contracts";
+import { normalizeLabelList } from "@/lib/normalize-label-list";
 import { createDomainService, simulateMockLatency } from "./service";
 import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
@@ -42,6 +43,10 @@ export type SourcingSessionApi = SourcingSession & {
   requiresConfirmation?: boolean;
   message?: string;
   coverage?: number;
+  externalSessionId?: string | null;
+  saved?: boolean;
+  savedAt?: string | null;
+  savedListId?: string | null;
 };
 
 export type SourcedCandidateApi = {
@@ -51,6 +56,7 @@ export type SourcedCandidateApi = {
   name: string;
   headline: string | null;
   linkedinUrl: string | null;
+  profilePictureUrl?: string | null;
   title: string | null;
   company: string | null;
   location: string;
@@ -60,6 +66,7 @@ export type SourcedCandidateApi = {
   profileSignals: string[];
   rank: number;
   matchScore: number | null;
+  saved?: boolean;
 };
 
 export type CreateSourcingSessionInput = {
@@ -109,6 +116,8 @@ export function mapApiSessionToUi(session: SourcingSessionApi): SourcingSession 
     candidateIds: session.candidateIds ?? [],
     coverage: session.coverage ?? session.progress,
     failureReason: session.failureReason ?? undefined,
+    isSavedSearch: Boolean(session.saved ?? session.isSavedSearch ?? session.savedAt),
+    savedListId: session.savedListId ?? null,
   };
 }
 
@@ -133,7 +142,7 @@ export function mapApiCandidateToSessionCandidate(
     previousCompany: "—",
     location: candidate.location || "—",
     experienceYears: candidate.experienceYears ?? 0,
-    skills: candidate.skills ?? [],
+    skills: normalizeLabelList(candidate.skills, 24),
     matchScore: score,
     matchBreakdown: {
       skills: score,
@@ -144,8 +153,9 @@ export function mapApiCandidateToSessionCandidate(
       education: score,
     },
     contactStatus: "Not contacted",
-    saved: false,
+    saved: Boolean(candidate.saved),
     linkedin: Boolean(candidate.linkedinUrl),
+    avatarUrl: candidate.profilePictureUrl ?? null,
     email: "",
     emailVerified: false,
     phone: "",
@@ -164,8 +174,8 @@ export function mapApiCandidateToSessionCandidate(
           },
         ]
       : [],
-    summary: (candidate.profileSignals ?? []).join(" · ") || "",
-    signals: candidate.profileSignals ?? [],
+    summary: normalizeLabelList(candidate.profileSignals, 12).join(" · ") || "",
+    signals: normalizeLabelList(candidate.profileSignals, 12),
     status: "Active",
     updated: "Just now",
     activity: [
@@ -369,7 +379,7 @@ const liveSourcingApi: SourcingApi = {
   },
   async getSessionResults(id) {
     const result = await apiClient.get<{ items: SourcedCandidateApi[] }>(
-      `/sourcing/sessions/${id}/results?limit=100`
+      `/sourcing/sessions/${id}/results?limit=300`
     );
     return result.data.items ?? [];
   },

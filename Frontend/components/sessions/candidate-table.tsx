@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { ContactReveal, type RevealState } from "@/components/sessions/contact-reveal";
-import { MatchScoreDetail } from "@/components/sessions/match-score";
+import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { ContactStatus, SessionCandidate } from "@/lib/mock-sessions";
+import { isOpenToWork } from "@/lib/candidate-signals";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -115,7 +116,32 @@ export function CandidateTable({
               <TableRow
                 key={candidate.id}
                 data-selected={selected.has(candidate.id) || undefined}
-                className="data-selected:bg-brand-subtle/40"
+                tabIndex={0}
+                aria-label={`View ${candidate.name}'s profile`}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement;
+                  if (
+                    target.closest(
+                      "button, a, input, select, textarea, [role='button'], [role='menuitem']"
+                    )
+                  ) {
+                    return;
+                  }
+                  onOpenProfile(candidate.id);
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.target === event.currentTarget &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    onOpenProfile(candidate.id);
+                  }
+                }}
+                className={cn(
+                  "cursor-pointer data-selected:bg-brand-subtle/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+                  density === "compact" ? "h-12" : "h-[72px]"
+                )}
               >
                 <TableCell className={cellPad}>
                   <input
@@ -130,7 +156,9 @@ export function CandidateTable({
                   <div className="flex items-center gap-2.5">
                     <CandidateAvatar
                       name={candidate.name}
+                      src={candidate.avatarUrl}
                       className={density === "compact" ? "size-7" : "size-9"}
+                      preview
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -160,6 +188,11 @@ export function CandidateTable({
                             <TooltipContent>LinkedIn profile linked</TooltipContent>
                           </Tooltip>
                         ) : null}
+                        {isOpenToWork(candidate.signals) ? (
+                          <span className="shrink-0 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            Open to work
+                          </span>
+                        ) : null}
                       </div>
                       <p className="max-w-52 truncate text-xs text-muted-foreground">
                         {candidate.currentRole} · {candidate.currentCompany}
@@ -179,27 +212,25 @@ export function CandidateTable({
                   {candidate.experienceYears} yrs
                 </TableCell>
                 <TableCell className={cellPad}>
-                  <div className="flex max-w-44 flex-wrap gap-1">
-                    {candidate.skills.slice(0, 3).map((skill) => (
+                  <div className="flex max-w-44 items-center gap-1 overflow-hidden">
+                    {candidate.skills.slice(0, 3).map((skill, index) => (
                       <span
-                        key={skill}
-                        className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
+                        key={`${skill}-${index}`}
+                        className="min-w-0 truncate rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
                       >
                         {skill}
                       </span>
                     ))}
                     {candidate.skills.length > 3 ? (
-                      <span className="text-xs tabular-nums text-muted-foreground">
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                         +{candidate.skills.length - 3}
                       </span>
                     ) : null}
                   </div>
                 </TableCell>
                 <TableCell className={cellPad}>
-                  <MatchScoreDetail
+                  <MatchScoreCompact
                     score={candidate.matchScore}
-                    breakdown={candidate.matchBreakdown}
-                    name={candidate.name}
                     showLabel={density === "comfortable"}
                   />
                 </TableCell>
@@ -208,6 +239,7 @@ export function CandidateTable({
                     candidate={candidate}
                     revealed={revealed}
                     onReveal={(kind) => onReveal(candidate.id, kind)}
+                    compact
                   />
                 </TableCell>
                 <TableCell className={cellPad}>
@@ -226,11 +258,8 @@ export function CandidateTable({
                       type="button"
                       size="icon-xs"
                       variant="ghost"
-                      aria-label={
-                        isSaved
-                          ? `Remove ${candidate.name} from saved`
-                          : `Save ${candidate.name}`
-                      }
+                      className={isSaved ? "text-primary hover:text-primary" : undefined}
+                      aria-label={`Add ${candidate.name} to a list`}
                       aria-pressed={isSaved}
                       onClick={() => onToggleSave(candidate.id)}
                     >

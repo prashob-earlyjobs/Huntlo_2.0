@@ -11,6 +11,7 @@ import {
   hasAnyPermission,
   hasPermission,
   isMemberManager,
+  normalizeAllowedModules,
   resolvePermissions,
   type OrganizationRole,
 } from '../modules/organizations/permissions.js';
@@ -134,7 +135,11 @@ export const requireOrganization = asyncHandler(
       throw AppError.forbidden('Your membership is not active');
     }
 
-    const permissions = resolvePermissions(member.role, member.permissions ?? []);
+    const permissions = resolvePermissions(
+      member.role,
+      member.permissions ?? [],
+      normalizeAllowedModules(member.allowedModules as string[] | null | undefined)
+    );
 
     req.organization = {
       id: organization._id.toHexString(),

@@ -209,7 +209,7 @@ describe('Interview scheduling', () => {
         schedulingUrl: 'https://calendly.com/huntlo/intro',
         inviteeEmail: 'kabir@example.com',
         inviteChannel: 'email',
-        sendLink: true,
+        sendLink: false,
       });
     expect(interview.status).toBe(201);
     expect(interview.body.data.status).toMatch(/Link Sent|Awaiting Booking/);
@@ -267,5 +267,37 @@ describe('Interview scheduling', () => {
       .set('calendly-webhook-signature', `t=${timestamp},v1=deadbeef`)
       .send(body);
     expect(bad.status).toBe(401);
+  });
+
+  it('requires a connected email integration when sending the invite link', async () => {
+    const auth = await registerAndAuth(agent);
+    const candidate = await agent
+      .post('/api/v1/candidate-pool')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        name: 'Asha Verma',
+        email: 'asha@example.com',
+        status: 'saved',
+      });
+    const candidateId = candidate.body.data.id as string;
+
+    const created = await agent
+      .post('/api/v1/interviews')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        candidateId,
+        schedulingMethod: 'calendly_link',
+        providerEventTypeId: 'https://api.calendly.com/event_types/ET456',
+        schedulingUrl: 'https://calendly.com/huntlo/screen',
+        inviteeEmail: 'asha@example.com',
+        inviteChannel: 'email',
+        message: 'Hi {{first_name}}, book {{job_title}} here: {{scheduling_details}}',
+        sendLink: true,
+      });
+
+    expect(created.status).toBe(400);
+    expect(String(created.body.error?.message || '')).toMatch(
+      /No connected email integration/i
+    );
   });
 });

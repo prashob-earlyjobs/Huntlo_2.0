@@ -90,7 +90,7 @@ function resolveConnection(
 ): ChannelConnection {
   if (!provider) return "Disconnected";
   const status = statusToConnection(provider.status);
-  // Platform-managed Huntlo Voice: server-ready counts as Connected.
+  // Platform-managed Huntlo Voice AI: server-ready counts as Connected.
   if (
     channel === "AI Voice" &&
     provider.serverConfigured &&
@@ -106,7 +106,7 @@ function channelProviderLabel(
   providerName: string | undefined,
   fallback: string
 ): string {
-  if (channel === "AI Voice") return "Huntlo Voice";
+  if (channel === "AI Voice") return "Huntlo Voice AI";
   return providerName?.trim() || fallback;
 }
 
@@ -125,9 +125,7 @@ function defaultDisplays(): Record<OutreachChannel, ChannelDisplay> {
 
 function quotaFromUsage(row: UsageQuota | undefined): ChannelQuota | null {
   if (!row) return null;
-  const unlimited =
-    row.limit == null || row.limit >= UNLIMITED_LIMIT;
-  if (unlimited) {
+  if (row.limit == null || row.limit >= UNLIMITED_LIMIT) {
     return {
       used: Math.max(0, row.used),
       total: row.limit ?? UNLIMITED_LIMIT,
@@ -272,7 +270,7 @@ export function ChannelsStep({
             } else if (channel === "AI Voice") {
               nextDisplays[channel] = {
                 ...nextDisplays[channel],
-                provider: "Huntlo Voice",
+                provider: "Huntlo Voice AI",
               };
             }
           }
@@ -361,8 +359,13 @@ export function ChannelsStep({
             return (
               <div
                 key={config.channel}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement;
+                  if (target.closest("button, a, input, select, textarea")) return;
+                  toggleChannel(config.channel);
+                }}
                 className={cn(
-                  "flex flex-col rounded-xl border p-4 transition-colors",
+                  "flex cursor-pointer flex-col rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/20",
                   enabled
                     ? "border-primary/50 bg-brand-subtle/20"
                     : "border-border"
@@ -396,7 +399,7 @@ export function ChannelsStep({
                             ? `Use ${config.channel}`
                             : `Enable ${config.channel}`
                         }
-                        className="size-3.5 accent-primary"
+                        className="size-3.5 cursor-pointer accent-primary"
                       />
                     </div>
                     {usageLoading ? (

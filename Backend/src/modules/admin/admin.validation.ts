@@ -17,6 +17,18 @@ export const adminListQuerySchema = z.object({
   module: z.string().trim().max(40).optional(),
 });
 
+export const adminUsageAnalyticsQuerySchema = z.object({
+  userId: z.string().trim().max(40).optional(),
+  organizationId: z.string().trim().max(40).optional(),
+  from: z.string().trim().max(40).optional(),
+  to: z.string().trim().max(40).optional(),
+});
+
+export const adminUsageHistoryQuerySchema = adminUsageAnalyticsQuerySchema.extend({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
 export const createAdminUserSchema = z.object({
   email: z.string().email(),
   password: passwordSchema,
@@ -59,6 +71,13 @@ export const createBlogSchema = z.object({
   author: z.string().trim().max(120).optional(),
   excerpt: z.string().trim().max(500).optional(),
   body: z.string().max(100_000).optional(),
+  coverImageUrl: z.string().trim().max(2000).optional(),
+  authorAvatarUrl: z.string().trim().max(2000).optional(),
+  tags: z.array(z.string().trim().max(60)).max(12).optional(),
+  seoTitle: z.string().trim().max(200).optional(),
+  seoDescription: z.string().trim().max(320).optional(),
+  ogImageUrl: z.string().trim().max(2000).optional(),
+  featured: z.boolean().optional(),
   seoStatus: z.string().trim().max(40).optional(),
 });
 
@@ -69,6 +88,13 @@ export const updateBlogSchema = createBlogSchema.partial().extend({
 export const patchPlatformSettingsSchema = z.object({
   maintenanceMode: z.boolean().optional(),
   featureFlags: z.record(z.string(), z.unknown()).optional(),
+  roshniPrompt: z
+    .object({
+      /** Null clears to bundled file default. */
+      introduction: z.string().trim().max(2000).nullable().optional(),
+      agentPrompt: z.string().trim().max(100_000).nullable().optional(),
+    })
+    .optional(),
   providers: z
     .array(
       z.object({

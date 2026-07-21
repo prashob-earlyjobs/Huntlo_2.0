@@ -6,6 +6,8 @@ import {
 import { emitCandidateSearchPoll } from '../../realtime/events.js';
 import { createChildLogger } from '../../config/logger.js';
 import { upsertCandidatesFromDocs as upsertSearchCandidates } from '../candidates/search/search.persist.js';
+import { labelListFromUnknown } from '../../shared/strings/label-list.js';
+import { profileSignalsFromFjDoc } from '../../shared/sourcing/profile-signals.js';
 import { quotaService } from './quota.service.js';
 import { SourcedCandidateModel } from './sourced-candidate.model.js';
 import {
@@ -13,10 +15,9 @@ import {
   type SourcingSessionDocument,
 } from './sourcing-session.model.js';
 
-const MAX_POLL_ATTEMPTS = 120;
-const MAX_POLL_DURATION_MS = 10 * 60 * 1000;
+const MAX_POLL_ATTEMPTS = 15;
 const POLL_BATCH_LIMIT = 25;
-const PROFILES_PAGE_LIMIT = 200;
+const PROFILES_PAGE_LIMIT = 300;
 
 const ACTIVE_STATUSES = ['creating', 'pending', 'queued', 'running', 'polling'] as const;
 
@@ -34,24 +35,6 @@ function educationPreviewFromProfile(profile: Record<string, unknown>): unknown[
     return profile.education.slice(0, 5);
   }
   return [];
-}
-
-function profileSignalsFromDoc(doc: FutureJobsProfileDoc, profile: Record<string, unknown>): string[] {
-  const signals: string[] = [];
-  if (profile.open_to_work === true || profile.openToWork === true) {
-    signals.push('Open to work');
-  }
-  const mapped = mapFjDocToCandidate(doc);
-  if (mapped?.status && mapped.status !== 'Available') {
-    signals.push(mapped.status);
-  }
-  if (Array.isArray(profile.nuances)) {
-    for (const n of profile.nuances.slice(0, 5)) {
-      const label = String(n ?? '').trim();
-      if (label) signals.push(label);
-    }
-  }
-  return signals;
 }
 
 function experienceYearsFromProfile(profile: Record<string, unknown>): number | null {
@@ -91,11 +74,18 @@ async function upsertCandidatesFromDocsLegacy(
         ? (employers[0] as Record<string, unknown>)
         : {};
 
-    const skillsRaw = Array.isArray(profile.skills)
-      ? profile.skills.map((s) => String(s ?? '').trim()).filter(Boolean)
-      : typeof mapped.skills === 'string' && mapped.skills !== '—'
-        ? mapped.skills.split(',').map((s) => s.trim()).filter(Boolean)
-        : [];
+    let skillsRaw = labelListFromUnknown(profile.skills, 24);
+    if (
+      skillsRaw.length === 0 &&
+      typeof mapped.skills === 'string' &&
+      mapped.skills !== '—'
+    ) {
+      skillsRaw = mapped.skills
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s && s !== '[object Object]')
+        .slice(0, 24);
+    }
 
     const matchScore =
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
@@ -103,6 +93,24 @@ async function upsertCandidatesFromDocsLegacy(
         : null;
 
     rankBase += 1;
+    const profilePictureUrl =
+      (typeof mapped.profile_picture_permalink === 'string' &&
+      mapped.profile_picture_permalink.trim()
+        ? mapped.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_permalink === 'string' &&
+      profile.profile_picture_permalink.trim()
+        ? profile.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_url === 'string' && profile.profile_picture_url.trim()
+        ? profile.profile_picture_url.trim()
+        : null);
+    const currentCompany =
+      (typeof job.company_name === 'string' && job.company_name.trim()
+        ? job.company_name.trim()
+        : null) ||
+      (typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null);
+
     const result = await SourcedCandidateModel.findOneAndUpdate(
       {
         sourcingSessionId: session._id,
@@ -123,28 +131,28 @@ async function upsertCandidatesFromDocsLegacy(
                   ? profile.headline
                   : null,
             linkedinUrl: mapped.linkedin_profile_url || null,
+            profilePictureUrl,
           },
           name: mapped.name || 'Unknown',
           currentRole:
             typeof job.job_title === 'string' && job.job_title.trim()
               ? job.job_title.trim()
               : null,
-          currentCompany:
-            typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null,
+          currentCompany,
           linkedinProfileUrl: mapped.linkedin_profile_url || null,
+          profilePictureUrl,
           currentEmployment: {
             title:
               typeof job.job_title === 'string' && job.job_title.trim()
                 ? job.job_title.trim()
                 : null,
-            company:
-              typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null,
+            company: currentCompany,
           },
           location: mapped.location === '—' ? '' : mapped.location,
           experienceYears: experienceYearsFromProfile(profile),
           skills: skillsRaw.slice(0, 24),
           educationPreview: educationPreviewFromProfile(profile),
-          profileSignals: profileSignalsFromDoc(doc, profile),
+          profileSignals: profileSignalsFromFjDoc(doc, profile),
           rawProviderReference: {
             id: externalId,
             sourcingSessionId: doc.sourcingSessionId
@@ -265,6 +273,10 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   const attempt = (pollAttempts.get(sessionId) ?? 0) + 1;
   pollAttempts.set(sessionId, attempt);
 
+  console.log(
+    `[sourcing-poll] calling Future Jobs GET /profiles attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} limit=${PROFILES_PAGE_LIMIT}`
+  );
+
   const provider = getFutureJobsProvider();
   let profilesRes;
   try {
@@ -275,6 +287,9 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.log(
+      `[sourcing-poll] ERROR attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} error=${message}`
+    );
     const code =
       error && typeof error === 'object' && 'code' in error
         ? String((error as { code?: string }).code ?? 'PROVIDER_ERROR')
@@ -298,10 +313,32 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   session.lastPolledAt = new Date();
 
   if (provider.isFjSessionPending(profilesRes)) {
+    const pendingDocs = Array.isArray(profilesRes?.data?.docs)
+      ? profilesRes.data.docs.length
+      : 0;
+    const storedSoFar = session.totalResults ?? session.totalDocs ?? 0;
+    console.log(
+      `[sourcing-poll] attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} requestedLimit=${PROFILES_PAGE_LIMIT} responseCandidateCount=${pendingDocs} newCandidateCount=0 storedCandidateCount=${storedSoFar} providerStatus=pending`
+    );
+    log().info(
+      {
+        sourcingSessionId: sessionId,
+        futureJobsSessionId: externalId,
+        attempt,
+        maxAttempts: MAX_POLL_ATTEMPTS,
+        requestedLimit: PROFILES_PAGE_LIMIT,
+        responseCandidateCount: pendingDocs,
+        newCandidateCount: 0,
+        storedCandidateCount: storedSoFar,
+        providerStatus: 'pending',
+      },
+      'Future Jobs profiles poll response'
+    );
+
     session.status = 'polling';
     session.polling = true;
     session.progress = computeProgress(
-      session.totalResults ?? session.totalDocs ?? 0,
+      storedSoFar,
       session.estimatedResults,
       attempt
     );
@@ -352,9 +389,28 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     sourcingSessionId: session._id,
   });
 
+  console.log(
+    `[sourcing-poll] attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} requestedLimit=${PROFILES_PAGE_LIMIT} responseCandidateCount=${docs.length} providerTotalDocs=${totalDocs} newCandidateCount=${newCandidateCount} storedCandidateCount=${storedCount} providerStatus=ready`
+  );
+  log().info(
+    {
+      sourcingSessionId: sessionId,
+      futureJobsSessionId: externalId,
+      attempt,
+      maxAttempts: MAX_POLL_ATTEMPTS,
+      requestedLimit: PROFILES_PAGE_LIMIT,
+      responseCandidateCount: docs.length,
+      providerTotalDocs: totalDocs,
+      newCandidateCount,
+      storedCandidateCount: storedCount,
+      providerStatus: 'ready',
+    },
+    'Future Jobs profiles poll response'
+  );
+
   session.totalResults = Math.max(storedCount, totalDocs);
   session.totalDocs = session.totalResults;
-  session.canFetchMore = totalDocs > storedCount;
+  session.canFetchMore = totalDocs > storedCount || attempt < MAX_POLL_ATTEMPTS;
   if (session.estimatedResults <= 0 && totalDocs > 0) {
     session.estimatedResults = totalDocs;
   }
@@ -382,29 +438,19 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     error: null,
   });
 
-  const startedAt = session.startedAt ? session.startedAt.getTime() : Date.now();
-  const timedOut =
-    attempt >= MAX_POLL_ATTEMPTS || Date.now() - startedAt >= MAX_POLL_DURATION_MS;
-
   const pendingEmpty = docs.length === 0 && totalDocs === 0;
-  const ready = !pendingEmpty || (totalDocs === 0 && attempt >= 3);
 
-  if (ready && !pendingEmpty) {
-    const hasNext = Boolean(profilesRes?.data?.hasNextPage);
-    if (!hasNext || storedCount >= totalDocs) {
-      await finalizeSession(session, 'completed');
-    }
-    return;
-  }
-
-  if (ready && pendingEmpty && attempt >= 3 && session.estimatedResults === 0) {
+  // Always run the full MAX_POLL_ATTEMPTS window so the FE can observe growth
+  // across polls. Finalize only when the attempt budget is exhausted (or the
+  // provider stays empty with no expected results).
+  if (pendingEmpty && attempt >= 3 && session.estimatedResults === 0) {
     await finalizeSession(session, 'completed');
     return;
   }
 
-  if (timedOut) {
+  if (attempt >= MAX_POLL_ATTEMPTS) {
     if ((session.totalResults ?? 0) > 0) {
-      await finalizeSession(session, 'partial');
+      await finalizeSession(session, 'completed');
     } else {
       await finalizeSession(session, 'failed', {
         errorCode: 'POLL_TIMEOUT',

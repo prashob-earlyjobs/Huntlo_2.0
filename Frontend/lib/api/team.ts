@@ -1,6 +1,12 @@
 import { apiClient } from "./client";
 import { createDomainService, simulateMockLatency } from "./service";
 import type { TeamMember } from "./contracts";
+import {
+  labelsFromModuleKeys,
+  modulesFromPermissions,
+  type PermissionModule,
+} from "@/lib/access-control";
+import type { ModuleAccess } from "@/lib/mock-team";
 
 export type TeamRoleKey =
   | "owner"
@@ -23,6 +29,8 @@ export type ApiTeamMember = {
   role: TeamRoleKey | string;
   roleLabel: string;
   permissions: string[];
+  allowedModules?: string[] | null;
+  moduleAccess?: string[];
   assignedJobIds: string[];
   managerId: string | null;
   status: string;
@@ -92,8 +100,24 @@ export type UpdateOrganizationInput = {
 
 export type CreateInvitationInput = {
   email: string;
+  name?: string;
   role?: TeamRoleKey | string;
   permissions?: string[];
+  allowedModules?: string[] | null;
+  assignedJobIds?: string[];
+};
+
+export type CreateTeamAccountResult = {
+  member: ApiTeamMember;
+  credentials: {
+    email: string;
+    temporaryPassword: string;
+  };
+};
+
+export type ResetMemberPasswordResult = {
+  email: string;
+  temporaryPassword: string;
 };
 
 export type CustomRole = {
@@ -126,6 +150,19 @@ export function mapApiMemberToUi(member: ApiTeamMember): TeamMember {
     deactivated: "Deactivated",
   };
 
+  const moduleKeys =
+    member.allowedModules ??
+    (member.moduleAccess as PermissionModule[] | undefined) ??
+    modulesFromPermissions(member.permissions ?? []);
+
+  const moduleAccess = (
+    member.moduleAccess?.length
+      ? member.moduleAccess
+      : labelsFromModuleKeys(moduleKeys)
+  ).filter((label): label is ModuleAccess =>
+    Boolean(label)
+  ) as ModuleAccess[];
+
   return {
     id: member.id,
     name: member.name,
@@ -144,7 +181,7 @@ export function mapApiMemberToUi(member: ApiTeamMember): TeamMember {
       ? new Date(member.lastLoginAt).toLocaleString()
       : "—",
     status: statusMap[member.status] ?? "Active",
-    moduleAccess: [],
+    moduleAccess,
     usage: { searches: 0, reveals: 0, outreach: 0, screenings: 0 },
     activity: [],
   };
@@ -158,6 +195,7 @@ export interface OrganizationApi {
 export interface TeamApi {
   getOverview(): Promise<TeamOverview>;
   listMembers(): Promise<ApiTeamMember[]>;
+  createAccount(input: CreateInvitationInput & { name: string }): Promise<CreateTeamAccountResult>;
   /** @deprecated Prefer createInvitation */
   inviteMember(organizationId: string, email: string): Promise<void>;
   createInvitation(input: CreateInvitationInput): Promise<{ invitation: TeamInvitation; token: string }>;
@@ -166,8 +204,12 @@ export interface TeamApi {
   getMember(id: string): Promise<ApiTeamMember>;
   updateMember(id: string, input: Record<string, unknown>): Promise<ApiTeamMember>;
   updateMemberRole(id: string, role: string): Promise<ApiTeamMember>;
-  updateMemberPermissions(id: string, permissions: string[]): Promise<ApiTeamMember>;
+  updateMemberPermissions(
+    id: string,
+    input: { permissions?: string[]; allowedModules?: string[] | null }
+  ): Promise<ApiTeamMember>;
   updateMemberStatus(id: string, status: string): Promise<ApiTeamMember>;
+  resetMemberPassword(id: string): Promise<ResetMemberPasswordResult>;
   removeMember(id: string): Promise<void>;
   listRoles(): Promise<{ roles: CustomRole[]; matrix: TeamOverview["permissionMatrix"] }>;
   createRole(input: { name: string; description?: string; permissions: string[] }): Promise<CustomRole>;
@@ -272,6 +314,37 @@ const mockTeamApi: TeamApi = {
   async inviteMember(_organizationId, email) {
     await this.createInvitation({ email, role: "recruiter" });
   },
+  async createAccount(input) {
+    await simulateMockLatency();
+    const role = input.role ?? "recruiter";
+    return {
+      member: {
+        id: `member-${Date.now()}`,
+        organizationId: "org-1",
+        userId: `user-${Date.now()}`,
+        name: input.name,
+        firstName: input.name.split(" ")[0] ?? input.name,
+        lastName: input.name.split(" ").slice(1).join(" ") || "Member",
+        email: input.email,
+        phone: null,
+        title: null,
+        role,
+        roleLabel: role,
+        permissions: input.permissions ?? [],
+        allowedModules: input.allowedModules ?? null,
+        moduleAccess: input.allowedModules ?? [],
+        assignedJobIds: input.assignedJobIds ?? [],
+        managerId: null,
+        status: "active",
+        joinedAt: new Date().toISOString(),
+        lastLoginAt: null,
+      },
+      credentials: {
+        email: input.email,
+        temporaryPassword: "HtMockPassword7",
+      },
+    };
+  },
   async createInvitation(input) {
     await simulateMockLatency();
     return {
@@ -321,6 +394,14 @@ const mockTeamApi: TeamApi = {
   async updateMemberStatus(id) {
     return this.getMember(id);
   },
+  async resetMemberPassword(id) {
+    await simulateMockLatency();
+    const member = await this.getMember(id);
+    return {
+      email: member.email,
+      temporaryPassword: "HtMockResetPassword7",
+    };
+  },
   async removeMember() {
     await simulateMockLatency();
   },
@@ -366,6 +447,14 @@ const liveTeamApi: TeamApi = {
   async inviteMember(_organizationId, email) {
     await this.createInvitation({ email, role: "recruiter" });
   },
+  async createAccount(input) {
+    const result = await apiClient.post<CreateTeamAccountResult>(
+      "/team/members",
+      input,
+      { sensitive: true }
+    );
+    return result.data;
+  },
   async createInvitation(input) {
     const result = await apiClient.post<{ invitation: TeamInvitation; token: string }>(
       "/team/invitations",
@@ -403,10 +492,10 @@ const liveTeamApi: TeamApi = {
     );
     return result.data;
   },
-  async updateMemberPermissions(id, permissions) {
+  async updateMemberPermissions(id, input) {
     const result = await apiClient.patch<ApiTeamMember>(
       `/team/members/${id}/permissions`,
-      { permissions },
+      input,
       { sensitive: true }
     );
     return result.data;
@@ -415,6 +504,14 @@ const liveTeamApi: TeamApi = {
     const result = await apiClient.patch<ApiTeamMember>(
       `/team/members/${id}/status`,
       { status },
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async resetMemberPassword(id) {
+    const result = await apiClient.post<ResetMemberPasswordResult>(
+      `/team/members/${id}/reset-password`,
+      undefined,
       { sensitive: true }
     );
     return result.data;

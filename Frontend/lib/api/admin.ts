@@ -67,6 +67,11 @@ export type AdminPlan = {
   code: string;
   description?: string | null;
   active: boolean;
+  public?: boolean;
+  sortOrder?: number;
+  isDefaultSignup?: boolean;
+  isTrialPlan?: boolean;
+  trialDays?: number;
   prices?: { monthly?: number | null; yearly?: number | null };
   limits?: Record<string, unknown>;
   featureAccess?: Record<string, unknown>;
@@ -83,6 +88,26 @@ export type ProviderHealth = {
   errorSummary: string | null;
 };
 
+export type AdminRoshniPromptSettings = {
+  introduction: string | null;
+  agentPrompt: string | null;
+  version: number;
+  effectiveIntroduction: string;
+  effectiveAgentPrompt: string;
+  introductionSource: "db" | "file";
+  agentPromptSource: "db" | "file";
+  bundledIntroduction: string;
+  bundledAgentPrompt: string;
+};
+
+export type AdminPlatformSettings = {
+  maintenanceMode: boolean;
+  featureFlags: Record<string, unknown>;
+  providers: ProviderHealth[];
+  roshniPrompt?: AdminRoshniPromptSettings;
+  updatedAt?: string;
+};
+
 export type BlogArticle = {
   id: string;
   title: string;
@@ -91,9 +116,111 @@ export type BlogArticle = {
   author: string;
   excerpt: string;
   body?: string;
+  coverImageUrl?: string;
+  authorAvatarUrl?: string;
+  tags?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  ogImageUrl?: string;
+  readTimeMinutes?: number;
+  featured?: boolean;
+  viewCount?: number;
   status: string;
   seoStatus: string;
   publishedAt: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AdminPendingTask = {
+  id: string;
+  queue: "background" | "campaign";
+  type: string;
+  status: string;
+  dueAt: string;
+  organizationId: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  entityLabel: string | null;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  canCancel: boolean;
+  canRetry: boolean;
+};
+
+export type AdminPendingTasksResult = {
+  summary: {
+    backgroundDue: number;
+    backgroundScheduled: number;
+    campaignDue: number;
+    campaignScheduled: number;
+    inFlight: number;
+    failed24h: number;
+  };
+  items: AdminPendingTask[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AdminAnalyticsSource = {
+  count: number;
+  credits: number;
+};
+
+export type AdminUsageAnalyticsBreakdownRow = {
+  eventType: "people_scout_lookup" | "email_unveil" | "phone_unveil";
+  sources: {
+    user_cache: AdminAnalyticsSource;
+    shared_cache: AdminAnalyticsSource;
+    futurejobs: AdminAnalyticsSource;
+    not_found: AdminAnalyticsSource;
+  };
+  total: AdminAnalyticsSource;
+};
+
+export type AdminOutreachCreditsRow = {
+  metric: string;
+  label: string;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+};
+
+export type AdminUsageAnalyticsSummary = {
+  periodKey: string;
+  breakdown: AdminUsageAnalyticsBreakdownRow[];
+  outreachCredits: AdminOutreachCreditsRow[];
+  filters?: {
+    userId: string | null;
+    organizationId: string | null;
+    from: string | null;
+    to: string | null;
+  };
+};
+
+export type AdminUsageHistoryEntry = {
+  id: string;
+  createdAt: string;
+  userId: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  metric: string;
+  activity: string;
+  units: number;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+};
+
+export type AdminUsageHistoryResult = {
+  history: AdminUsageHistoryEntry[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 export type Paginated<T> = {
@@ -119,21 +246,40 @@ export interface AdminApi {
   listPlans(): Promise<AdminPlan[]>;
   createPlan(input: Record<string, unknown>): Promise<AdminPlan>;
   updatePlan(id: string, input: Record<string, unknown>): Promise<AdminPlan>;
+  setDefaultSignupPlan(id: string): Promise<AdminPlan>;
   getUsage(): Promise<{ byAction: Array<Record<string, unknown>>; periodKey: string }>;
+  getUsageAnalyticsSummary(params?: {
+    userId?: string;
+    organizationId?: string;
+    from?: string;
+    to?: string;
+  }): Promise<AdminUsageAnalyticsSummary>;
+  getUsageAnalyticsHistory(params?: {
+    userId?: string;
+    organizationId?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<AdminUsageHistoryResult>;
   listCandidates(params?: { page?: number; limit?: number; q?: string }): Promise<Paginated<AdminCandidate>>;
   listCampaigns(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<AdminCampaign>>;
   listScreenings(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
   listInterviews(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
   listSourcingSessions(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
   listBackgroundJobs(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
+  listPendingWorkerTasks(params?: {
+    queue?: "all" | "background" | "campaign";
+    includeScheduled?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<AdminPendingTasksResult>;
+  cancelWorkerTask(id: string): Promise<unknown>;
+  retryWorkerTask(id: string): Promise<unknown>;
   listWebhooks(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
   getProviderHealth(): Promise<{ providers: ProviderHealth[] }>;
-  getPlatformSettings(): Promise<{
-    maintenanceMode: boolean;
-    featureFlags: Record<string, unknown>;
-    providers: ProviderHealth[];
-  }>;
-  updatePlatformSettings(input: Record<string, unknown>): Promise<unknown>;
+  getPlatformSettings(): Promise<AdminPlatformSettings>;
+  updatePlatformSettings(input: Record<string, unknown>): Promise<AdminPlatformSettings>;
   listBlog(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<BlogArticle>>;
   createBlog(input: Record<string, unknown>): Promise<BlogArticle>;
   updateBlog(id: string, input: Record<string, unknown>): Promise<BlogArticle>;
@@ -217,11 +363,29 @@ const liveAdminApi: AdminApi = {
     const result = await apiClient.patch<AdminPlan>(`/admin/plans/${id}`, input);
     return result.data;
   },
+  async setDefaultSignupPlan(id: string) {
+    const result = await apiClient.post<AdminPlan>(
+      `/admin/plans/${id}/set-default-signup`
+    );
+    return result.data;
+  },
   async getUsage() {
     const result = await apiClient.get<{
       byAction: Array<Record<string, unknown>>;
       periodKey: string;
     }>("/admin/usage");
+    return result.data;
+  },
+  async getUsageAnalyticsSummary(params) {
+    const result = await apiClient.get<AdminUsageAnalyticsSummary>(
+      `/admin/usage-analytics/summary${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getUsageAnalyticsHistory(params) {
+    const result = await apiClient.get<AdminUsageHistoryResult>(
+      `/admin/usage-analytics/history${buildQueryString(params)}`
+    );
     return result.data;
   },
   async listCandidates(params) {
@@ -260,6 +424,20 @@ const liveAdminApi: AdminApi = {
     );
     return result.data;
   },
+  async listPendingWorkerTasks(params) {
+    const result = await apiClient.get<AdminPendingTasksResult>(
+      `/admin/jobs/pending${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async cancelWorkerTask(id) {
+    const result = await apiClient.post(`/admin/jobs/${id}/cancel`);
+    return result.data;
+  },
+  async retryWorkerTask(id) {
+    const result = await apiClient.post(`/admin/jobs/${id}/retry`);
+    return result.data;
+  },
   async listWebhooks(params) {
     const result = await apiClient.get<Paginated<Record<string, unknown>>>(
       `/admin/webhooks${buildQueryString(params)}`
@@ -273,17 +451,17 @@ const liveAdminApi: AdminApi = {
     return result.data;
   },
   async getPlatformSettings() {
-    const result = await apiClient.get<{
-      maintenanceMode: boolean;
-      featureFlags: Record<string, unknown>;
-      providers: ProviderHealth[];
-    }>("/admin/platform-settings");
+    const result = await apiClient.get<AdminPlatformSettings>("/admin/platform-settings");
     return result.data;
   },
   async updatePlatformSettings(input) {
-    const result = await apiClient.patch("/admin/platform-settings", input, {
-      sensitive: true,
-    });
+    const result = await apiClient.patch<AdminPlatformSettings>(
+      "/admin/platform-settings",
+      input,
+      {
+        sensitive: true,
+      }
+    );
     return result.data;
   },
   async listBlog(params) {
@@ -382,12 +560,21 @@ const mockAdminApi: AdminApi = {
   async listPlans() {
     await simulateMockLatency();
     const { ADMIN_PLANS } = await import("@/lib/mock-admin");
-    return ADMIN_PLANS.map((plan, index) => ({
-      id: `plan_${index}`,
+    return ADMIN_PLANS.map((plan) => ({
+      id: plan.id,
       name: plan.name,
-      code: plan.name.toLowerCase(),
-      active: true,
+      code: plan.code,
+      description: plan.description,
+      active: plan.active,
+      public: plan.public,
+      sortOrder: plan.sortOrder,
+      isDefaultSignup: plan.isDefaultSignup,
+      isTrialPlan: plan.isTrialPlan,
+      trialDays: plan.trialDays,
       priceLabel: { monthly: plan.price, yearly: plan.price },
+      prices: { monthly: plan.price === "Free" || plan.price === "Custom" ? 0 : null, yearly: null },
+      limits: {},
+      featureAccess: {},
     }));
   },
   async createPlan(input) {
@@ -396,13 +583,118 @@ const mockAdminApi: AdminApi = {
       name: String(input.name || "Plan"),
       code: String(input.code || "plan"),
       active: true,
+      public: true,
+      isDefaultSignup: Boolean(input.isDefaultSignup),
+      isTrialPlan: Boolean(input.isTrialPlan),
+      trialDays: Number(input.trialDays) || 14,
     };
   },
   async updatePlan(id, input) {
-    return { id, name: String(input.name || "Plan"), code: "plan", active: true };
+    return {
+      id,
+      name: String(input.name || "Plan"),
+      code: "plan",
+      active: input.active !== false,
+      public: input.public !== false,
+      isDefaultSignup: Boolean(input.isDefaultSignup),
+      isTrialPlan: Boolean(input.isTrialPlan),
+      trialDays: Number(input.trialDays) || 14,
+    };
+  },
+  async setDefaultSignupPlan(id) {
+    return {
+      id,
+      name: "Trial",
+      code: "trial",
+      active: true,
+      isDefaultSignup: true,
+      isTrialPlan: true,
+      trialDays: 14,
+    };
   },
   async getUsage() {
     return { byAction: [], periodKey: "current" };
+  },
+  async getUsageAnalyticsSummary() {
+    await simulateMockLatency();
+    return {
+      periodKey: "2026-07",
+      breakdown: [
+        {
+          eventType: "people_scout_lookup" as const,
+          sources: {
+            user_cache: { count: 12, credits: 0 },
+            shared_cache: { count: 34, credits: 34 },
+            futurejobs: { count: 18, credits: 18 },
+            not_found: { count: 6, credits: 0 },
+          },
+          total: { count: 70, credits: 52 },
+        },
+        {
+          eventType: "email_unveil" as const,
+          sources: {
+            user_cache: { count: 8, credits: 0 },
+            shared_cache: { count: 22, credits: 44 },
+            futurejobs: { count: 15, credits: 30 },
+            not_found: { count: 4, credits: 0 },
+          },
+          total: { count: 49, credits: 74 },
+        },
+        {
+          eventType: "phone_unveil" as const,
+          sources: {
+            user_cache: { count: 5, credits: 0 },
+            shared_cache: { count: 11, credits: 55 },
+            futurejobs: { count: 9, credits: 45 },
+            not_found: { count: 3, credits: 0 },
+          },
+          total: { count: 28, credits: 100 },
+        },
+      ],
+      outreachCredits: [
+        {
+          metric: "email_outreach",
+          label: "Email outreach",
+          used: 420,
+          limit: 2000,
+          remaining: 1580,
+        },
+        {
+          metric: "whatsapp_outreach",
+          label: "WhatsApp outreach",
+          used: 88,
+          limit: 500,
+          remaining: 412,
+        },
+        {
+          metric: "ai_voice_minutes",
+          label: "AI voice minutes",
+          used: 36,
+          limit: 100,
+          remaining: 64,
+        },
+      ],
+    };
+  },
+  async getUsageAnalyticsHistory() {
+    await simulateMockLatency();
+    return {
+      history: [
+        {
+          id: "hist_1",
+          createdAt: new Date().toISOString(),
+          userId: "u_1",
+          userName: "Ananya Sharma",
+          userEmail: "ananya@acmetalent.com",
+          metric: "people_scout",
+          activity: "People Scout lookups",
+          units: 1,
+          relatedEntityType: "people_scout_lookup",
+          relatedEntityId: "lookup_1",
+        },
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    };
   },
   async listCandidates() {
     await simulateMockLatency();
@@ -438,6 +730,31 @@ const mockAdminApi: AdminApi = {
   async listBackgroundJobs() {
     return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };
   },
+  async listPendingWorkerTasks() {
+    await simulateMockLatency();
+    return {
+      summary: {
+        backgroundDue: 0,
+        backgroundScheduled: 0,
+        campaignDue: 0,
+        campaignScheduled: 0,
+        inFlight: 0,
+        failed24h: 0,
+      },
+      items: [],
+      total: 0,
+      limit: 100,
+      offset: 0,
+    };
+  },
+  async cancelWorkerTask() {
+    await simulateMockLatency();
+    return { cancelled: true };
+  },
+  async retryWorkerTask() {
+    await simulateMockLatency();
+    return { retried: true };
+  },
   async listWebhooks() {
     return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };
   },
@@ -458,10 +775,61 @@ const mockAdminApi: AdminApi = {
   },
   async getPlatformSettings() {
     const health = await this.getProviderHealth();
-    return { maintenanceMode: false, featureFlags: {}, providers: health.providers };
+    const {
+      ROSHNI_INTRODUCTION,
+      ROSHNI_AGENT_PROMPT_TEMPLATE,
+    } = await import("@/lib/roshni-agent-prompt");
+    return {
+      maintenanceMode: false,
+      featureFlags: {},
+      providers: health.providers,
+      roshniPrompt: {
+        introduction: null,
+        agentPrompt: null,
+        version: 0,
+        effectiveIntroduction: ROSHNI_INTRODUCTION,
+        effectiveAgentPrompt: ROSHNI_AGENT_PROMPT_TEMPLATE,
+        introductionSource: "file" as const,
+        agentPromptSource: "file" as const,
+        bundledIntroduction: ROSHNI_INTRODUCTION,
+        bundledAgentPrompt: ROSHNI_AGENT_PROMPT_TEMPLATE,
+      },
+    };
   },
   async updatePlatformSettings(input) {
-    return input;
+    const current = await this.getPlatformSettings();
+    const patch = input as {
+      roshniPrompt?: { introduction?: string | null; agentPrompt?: string | null };
+    };
+    if (!patch.roshniPrompt) return { ...current, ...input } as AdminPlatformSettings;
+    const nextIntro =
+      patch.roshniPrompt.introduction === undefined
+        ? current.roshniPrompt!.introduction
+        : patch.roshniPrompt.introduction;
+    const nextAgent =
+      patch.roshniPrompt.agentPrompt === undefined
+        ? current.roshniPrompt!.agentPrompt
+        : patch.roshniPrompt.agentPrompt;
+    const version =
+      nextIntro !== current.roshniPrompt!.introduction ||
+      nextAgent !== current.roshniPrompt!.agentPrompt
+        ? current.roshniPrompt!.version + 1
+        : current.roshniPrompt!.version;
+    return {
+      ...current,
+      roshniPrompt: {
+        ...current.roshniPrompt!,
+        introduction: nextIntro ?? null,
+        agentPrompt: nextAgent ?? null,
+        version,
+        effectiveIntroduction:
+          String(nextIntro || "").trim() || current.roshniPrompt!.bundledIntroduction,
+        effectiveAgentPrompt:
+          String(nextAgent || "").trim() || current.roshniPrompt!.bundledAgentPrompt,
+        introductionSource: String(nextIntro || "").trim() ? "db" : "file",
+        agentPromptSource: String(nextAgent || "").trim() ? "db" : "file",
+      },
+    };
   },
   async listBlog() {
     await simulateMockLatency();

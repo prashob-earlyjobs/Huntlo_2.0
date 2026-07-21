@@ -3,6 +3,7 @@ import {
   FileText,
   Gauge,
   LayoutDashboard,
+  ListTodo,
   Megaphone,
   Settings,
   Users,
@@ -81,6 +82,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
   {
     label: "Platform",
     items: [
+      {
+        title: "Worker tasks",
+        href: ADMIN_ROUTES.workerTasks,
+        icon: ListTodo,
+        description: "Pending background and campaign jobs",
+      },
       {
         title: "Settings",
         href: ADMIN_ROUTES.settings,

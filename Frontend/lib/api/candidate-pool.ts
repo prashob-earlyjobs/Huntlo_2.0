@@ -17,6 +17,7 @@ import {
 import type { Status } from "@/lib/types";
 
 export type PoolListParams = ApiQueryParams & {
+  view?: "all" | "recent" | "revealed";
   status?: string;
   search?: string;
   listId?: string;
@@ -28,6 +29,25 @@ export type PoolListParams = ApiQueryParams & {
   page?: number;
   limit?: number;
   sort?: string;
+};
+
+export type SavedListQuery = ApiQueryParams & {
+  search?: string;
+  page?: number;
+  limit?: number;
+  archived?: boolean | string;
+};
+
+export type PoolPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type PoolPage = {
+  items: PoolCandidate[];
+  pagination: PoolPagination;
 };
 
 export type ApiPoolCandidate = {
@@ -54,10 +74,14 @@ export type ApiPoolCandidate = {
   assignedUserId?: string | null;
   assigned?: string | null;
   jobIds?: string[];
+  jobs?: string[];
   listIds?: string[];
   lists?: string[];
+  customFields?: Record<string, unknown>;
   lastActivityAt?: string | null;
   archivedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   emailRevealed?: boolean;
   phoneRevealed?: boolean;
 };
@@ -155,18 +179,58 @@ function asLifecycleStatus(value: string | undefined): Status {
   return "Active";
 }
 
+function stringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value.trim() : fallback;
+}
+
+function mapExperience(value: unknown): PoolCandidate["experience"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is Record<string, unknown> =>
+      Boolean(entry && typeof entry === "object" && !Array.isArray(entry))
+    )
+    .map((entry) => ({
+      company: stringValue(entry.company ?? entry.organization, "—"),
+      role: stringValue(entry.role ?? entry.title, "—"),
+      duration: stringValue(entry.duration ?? entry.period ?? entry.years, "—"),
+      description: stringValue(entry.description ?? entry.summary),
+      current: Boolean(entry.current ?? entry.isCurrent),
+    }));
+}
+
+function mapEducation(value: unknown): PoolCandidate["education"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is Record<string, unknown> =>
+      Boolean(entry && typeof entry === "object" && !Array.isArray(entry))
+    )
+    .map((entry) => ({
+      school: stringValue(entry.school ?? entry.institution, "—"),
+      degree: stringValue(entry.degree, "—"),
+      field: stringValue(entry.field ?? entry.specialization, "—"),
+      years: stringValue(entry.years ?? entry.duration ?? entry.period, "—"),
+    }));
+}
+
 export function mapApiPoolCandidateToUi(item: ApiPoolCandidate): PoolCandidate {
+  const custom = item.customFields ?? {};
+  const experience = mapExperience(custom.experience ?? custom.workExperience);
+  const education = mapEducation(custom.education ?? custom.educationHistory);
+  const customSignals = Array.isArray(custom.signals)
+    ? custom.signals.filter((value): value is string => typeof value === "string")
+    : [];
+
   return {
     id: item.id,
     name: item.name,
     headline: item.headline ?? "",
     currentRole: item.currentTitle ?? "—",
     currentCompany: item.currentCompany ?? "—",
-    previousCompany: "—",
+    previousCompany: stringValue(custom.previousCompany, "—"),
     location: item.location ?? "—",
     experienceYears: item.experienceYears ?? 0,
     skills: item.skills ?? [],
-    matchScore: 0,
+    matchScore: typeof custom.matchScore === "number" ? custom.matchScore : 0,
     matchBreakdown: {
       skills: 0,
       role: 0,
@@ -184,10 +248,13 @@ export function mapApiPoolCandidateToUi(item: ApiPoolCandidate): PoolCandidate {
     phoneVerified: false,
     emailRevealed: Boolean(item.emailRevealed),
     phoneRevealed: Boolean(item.phoneRevealed),
-    education: [],
-    experience: [],
-    summary: item.headline ?? "",
-    signals: item.tags ?? [],
+    education,
+    experience,
+    summary:
+      stringValue(custom.summary ?? custom.profileSummary ?? custom.description) ||
+      item.headline ||
+      "",
+    signals: [...new Set([...(item.tags ?? []), ...customSignals])],
     status: asLifecycleStatus(item.pipelineStatus),
     updated: formatRelative(item.lastActivityAt),
     activity: [],
@@ -202,6 +269,17 @@ export function mapApiPoolCandidateToUi(item: ApiPoolCandidate): PoolCandidate {
     screeningResults: [],
     interviews: [],
     notes: [],
+    linkedinUrl: item.linkedinUrl ?? null,
+    assigned: item.assigned ?? null,
+    tags: item.tags ?? [],
+    jobIds: item.jobIds ?? [],
+    jobs: item.jobs ?? [],
+    listIds: item.listIds ?? [],
+    externalCandidateId: item.externalCandidateId ?? null,
+    sourceId: item.sourceId ?? null,
+    createdAt: item.createdAt ?? null,
+    updatedAt: item.updatedAt ?? null,
+    customFields: custom,
   };
 }
 
@@ -245,6 +323,7 @@ function mapUiVisibilityToApi(visibility: string): string {
 
 export interface CandidatePoolApi {
   list(params?: PoolListParams): Promise<PoolCandidate[]>;
+  listPage(params?: PoolListParams): Promise<PoolPage>;
   /** Unmapped pool rows (LinkedIn URL, external IDs, contact fields). */
   listRaw(params?: PoolListParams): Promise<ApiPoolCandidate[]>;
   getOverview(): Promise<PoolOverview>;
@@ -255,6 +334,10 @@ export interface CandidatePoolApi {
   bulkStatus(candidateIds: string[], status: string): Promise<{ updated: number }>;
   bulkAssign(candidateIds: string[], assignedUserId: string | null): Promise<{ updated: number }>;
   bulkAddToList(candidateIds: string[], listId: string): Promise<{ updated: number }>;
+  bulkSaveSourcedToList(
+    sourcedCandidateIds: string[],
+    listId: string
+  ): Promise<{ requested: number; saved: number; notFound: number; listId: string }>;
   bulkRemoveFromList(candidateIds: string[], listId: string): Promise<{ updated: number }>;
   bulkArchive(candidateIds: string[]): Promise<{ updated: number }>;
   bulkExport(
@@ -263,7 +346,7 @@ export interface CandidatePoolApi {
   ): Promise<{ csv: string } | { items: unknown[] }>;
   listNotes(candidateId: string): Promise<CandidateNote[]>;
   addNote(candidateId: string, body: string): Promise<CandidateNote>;
-  listLists(): Promise<SavedList[]>;
+  listLists(params?: SavedListQuery, signal?: AbortSignal): Promise<SavedList[]>;
   createList(input: {
     name: string;
     description?: string;
@@ -275,6 +358,10 @@ export interface CandidatePoolApi {
   deleteList(id: string): Promise<{ id: string; deleted: boolean }>;
   archiveList(id: string): Promise<SavedList>;
   importPreview(file: File): Promise<ImportPreviewResult>;
+  importRevalidate(
+    jobId: string,
+    columnMapping: Record<string, string>
+  ): Promise<ImportPreviewResult>;
   importCommit(input: {
     jobId?: string;
     file?: File;
@@ -296,9 +383,42 @@ export type PoolOverview = {
 };
 
 const mockApi: CandidatePoolApi = {
-  async list() {
+  async list(params) {
+    return (await this.listPage(params)).items;
+  },
+  async listPage(params) {
     await simulateMockLatency();
-    return POOL_CANDIDATES;
+    let rows = [...POOL_CANDIDATES];
+    if (params?.view === "recent") {
+      rows = rows.filter((candidate) =>
+        /m ago|h ago|^Today|^Yesterday|^[1-6]d ago|Just now/.test(
+          candidate.lastActivity
+        )
+      );
+    } else if (params?.view === "revealed") {
+      rows = rows.filter(
+        (candidate) => candidate.emailRevealed || candidate.phoneRevealed
+      );
+    }
+    if (params?.listId) {
+      const list = SAVED_LISTS.find((item) => item.id === params.listId);
+      rows = list
+        ? rows.filter(
+            (candidate) =>
+              list.candidateIds.includes(candidate.id) ||
+              candidate.lists.includes(list.name)
+          )
+        : [];
+    }
+    const limit = params?.limit ?? 20;
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(params?.page ?? 1, totalPages);
+    const start = (page - 1) * limit;
+    return {
+      items: rows.slice(start, start + limit),
+      pagination: { page, limit, total, totalPages },
+    };
   },
   async listRaw() {
     await simulateMockLatency();
@@ -379,6 +499,15 @@ const mockApi: CandidatePoolApi = {
     await simulateMockLatency();
     return { updated: 1 };
   },
+  async bulkSaveSourcedToList(sourcedCandidateIds, listId) {
+    await simulateMockLatency();
+    return {
+      requested: sourcedCandidateIds.length,
+      saved: sourcedCandidateIds.length,
+      notFound: 0,
+      listId,
+    };
+  },
   async bulkRemoveFromList() {
     await simulateMockLatency();
     return { updated: 1 };
@@ -410,9 +539,12 @@ const mockApi: CandidatePoolApi = {
       time: "Just now",
     };
   },
-  async listLists() {
+  async listLists(params) {
     await simulateMockLatency();
-    return SAVED_LISTS;
+    const search = String(params?.search ?? "").trim().toLowerCase();
+    return search
+      ? SAVED_LISTS.filter((list) => list.name.toLowerCase().includes(search))
+      : SAVED_LISTS;
   },
   async createList(input) {
     await simulateMockLatency();
@@ -475,6 +607,31 @@ const mockApi: CandidatePoolApi = {
       },
     };
   },
+  async importRevalidate(jobId, columnMapping) {
+    await simulateMockLatency();
+    const { IMPORT_COLUMNS, IMPORT_PREVIEW_ROWS, IMPORT_SUMMARY } = await import(
+      "@/lib/mock-candidates"
+    );
+    return {
+      jobId,
+      filename: "import.csv",
+      headers: [...IMPORT_COLUMNS],
+      suggestedColumnMapping: columnMapping,
+      sampleRows: IMPORT_PREVIEW_ROWS.map((row) => ({
+        "Full Name": row.cells[0] ?? "",
+        Email: row.cells[1] ?? "",
+        Phone: row.cells[2] ?? "",
+        LinkedIn: row.cells[3] ?? "",
+      })),
+      totals: {
+        rows: IMPORT_SUMMARY.total,
+        valid: IMPORT_SUMMARY.valid,
+        invalid: IMPORT_SUMMARY.invalid,
+        duplicatesInFile: IMPORT_SUMMARY.duplicates,
+        duplicatesExisting: 0,
+      },
+    };
+  },
   async importCommit() {
     await simulateMockLatency();
     return {
@@ -503,8 +660,23 @@ const mockApi: CandidatePoolApi = {
 
 const liveApi: CandidatePoolApi = {
   async list(params) {
-    const rows = await this.listRaw(params);
-    return rows.map(mapApiPoolCandidateToUi);
+    return (await this.listPage(params)).items;
+  },
+  async listPage(params) {
+    const qs = buildQueryString(params ?? {});
+    const result = await apiClient.get<{
+      items: ApiPoolCandidate[];
+      pagination: PoolPagination;
+    }>(`/candidate-pool${qs}`);
+    return {
+      items: (result.data.items ?? []).map(mapApiPoolCandidateToUi),
+      pagination: result.data.pagination ?? {
+        page: params?.page ?? 1,
+        limit: params?.limit ?? 20,
+        total: result.data.items?.length ?? 0,
+        totalPages: 1,
+      },
+    };
   },
   async listRaw(params) {
     const qs = buildQueryString(params ?? {});
@@ -571,6 +743,18 @@ const liveApi: CandidatePoolApi = {
     );
     return result.data;
   },
+  async bulkSaveSourcedToList(sourcedCandidateIds, listId) {
+    const result = await apiClient.post<{
+      requested: number;
+      saved: number;
+      notFound: number;
+      listId: string;
+    }>("/candidate-pool/bulk/save-sourced-to-list", {
+      sourcedCandidateIds,
+      listId,
+    });
+    return result.data;
+  },
   async bulkRemoveFromList(candidateIds, listId) {
     const result = await apiClient.post<{ updated: number }>(
       "/candidate-pool/bulk/remove-from-list",
@@ -622,8 +806,17 @@ const liveApi: CandidatePoolApi = {
       time: "Just now",
     };
   },
-  async listLists() {
-    const result = await apiClient.get<{ items: ApiSavedList[] }>("/candidate-lists");
+  async listLists(params, signal) {
+    const query = buildQueryString({
+      search: params?.search,
+      page: params?.page,
+      limit: params?.limit,
+      archived: params?.archived,
+    });
+    const result = await apiClient.get<{ items: ApiSavedList[] }>(
+      `/candidate-lists${query}`,
+      { signal }
+    );
     return (result.data.items ?? []).map(mapApiListToUi);
   },
   async createList(input) {
@@ -672,6 +865,26 @@ const liveApi: CandidatePoolApi = {
       headers: data.headers ?? [],
       suggestedColumnMapping:
         data.suggestedColumnMapping ?? data.columnMapping ?? {},
+      sampleRows: data.sampleRows ?? data.previewRows ?? [],
+      totals: data.totals,
+    };
+  },
+  async importRevalidate(jobId, columnMapping) {
+    const result = await apiClient.post<
+      ImportPreviewResult & {
+        id?: string;
+        originalFilename?: string;
+        previewRows?: Record<string, string>[];
+        columnMapping?: Record<string, string>;
+      }
+    >(`/candidate-imports/${jobId}/revalidate`, { columnMapping });
+    const data = result.data;
+    return {
+      jobId: data.jobId || data.id || jobId,
+      filename: data.originalFilename || data.filename,
+      headers: data.headers ?? [],
+      suggestedColumnMapping:
+        data.suggestedColumnMapping ?? data.columnMapping ?? columnMapping,
       sampleRows: data.sampleRows ?? data.previewRows ?? [],
       totals: data.totals,
     };

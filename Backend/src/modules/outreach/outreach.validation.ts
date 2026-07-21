@@ -108,7 +108,9 @@ export const updateSequenceTemplateSchema = createSequenceTemplateSchema.partial
 
 export const generateOutreachSchema = z.object({
   mode: z.enum(['sequence', 'qualification_questions']).default('sequence'),
+  jobId: objectId.optional(),
   jobTitle: z.string().trim().max(120).optional(),
+  jobDescription: z.string().trim().max(10000).optional(),
   objective: z.string().trim().max(500).optional(),
   companyName: z.string().trim().max(120).optional(),
   channels: z.array(z.enum(OUTREACH_CHANNELS)).optional(),

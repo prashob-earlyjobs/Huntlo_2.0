@@ -79,19 +79,19 @@ function asString(value: unknown, max = 50_000): string | null {
   return text.slice(0, max);
 }
 
-function asStringList(value: unknown, maxItems = 30): string[] {
+function asStringList(value: unknown, maxItems = 30, maxLen = 120): string[] {
   if (!Array.isArray(value)) {
     if (typeof value === 'string' && value.trim()) {
       return value
         .split(/[,;\n]/)
-        .map((item) => item.trim())
+        .map((item) => item.trim().slice(0, maxLen))
         .filter(Boolean)
         .slice(0, maxItems);
     }
     return [];
   }
   return value
-    .map((item) => String(item).trim())
+    .map((item) => String(item).trim().slice(0, maxLen))
     .filter(Boolean)
     .slice(0, maxItems);
 }

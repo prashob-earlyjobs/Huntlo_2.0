@@ -148,6 +148,9 @@ export function toPublicSession(
     createdAt: session.createdAt?.toISOString?.() ?? null,
     updatedAt: session.updatedAt?.toISOString?.() ?? null,
     date: session.createdAt?.toISOString?.() ?? null,
+    saved: Boolean(session.savedAt),
+    savedAt: session.savedAt?.toISOString?.() ?? null,
+    savedListId: session.savedListId ? session.savedListId.toHexString() : null,
   };
 }
 
@@ -156,11 +159,14 @@ export function toPublicCandidate(candidate: SourcedCandidateDocument) {
     id: candidate._id.toHexString(),
     sourcingSessionId: candidate.sourcingSessionId.toHexString(),
     externalCandidateId: candidate.externalCandidateId,
-    name: candidate.basicProfile?.name ?? 'Unknown',
+    name: candidate.basicProfile?.name ?? candidate.name ?? 'Unknown',
     headline: candidate.basicProfile?.headline ?? null,
-    linkedinUrl: candidate.basicProfile?.linkedinUrl ?? null,
-    title: candidate.currentEmployment?.title ?? null,
-    company: candidate.currentEmployment?.company ?? null,
+    linkedinUrl:
+      candidate.linkedinProfileUrl ?? candidate.basicProfile?.linkedinUrl ?? null,
+    profilePictureUrl:
+      candidate.profilePictureUrl ?? candidate.basicProfile?.profilePictureUrl ?? null,
+    title: candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
+    company: candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
     location: candidate.location ?? '',
     experienceYears: candidate.experienceYears,
     skills: candidate.skills ?? [],
@@ -754,20 +760,31 @@ export class SourcingService {
   async getProgress(actor: ActorContext, sessionId: string) {
     let session = await loadSessionForOrg(sessionId, actor.organizationId);
 
-    // REST fallback: advance one poll tick when the worker is not running.
+    // REST fallback: advance one poll tick while the session is still actively
+    // matching/polling. Once completed, FE reads stored candidates only.
     if (
       session.externalSessionId &&
       (session.status === 'queued' ||
         session.status === 'running' ||
-        session.status === 'polling')
+        session.status === 'polling' ||
+        session.status === 'creating' ||
+        session.status === 'pending')
     ) {
       const { pollSourcingSessionById } = await import('./sourcing.poller.js');
       try {
         await pollSourcingSessionById(sessionId);
-      } catch {
-        // Progress read should still succeed even if provider poll fails.
+      } catch (error) {
+        console.log(
+          `[sourcing-poll] getProgress poll failed session=${sessionId} error=${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
       }
       session = await loadSessionForOrg(sessionId, actor.organizationId);
+    } else {
+      console.log(
+        `[sourcing-poll] getProgress skipped FJ poll session=${sessionId} status=${session.status} stored=${session.totalResults ?? session.totalDocs ?? 0}`
+      );
     }
 
     return {

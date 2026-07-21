@@ -27,6 +27,15 @@ const organizationMemberSchema = new mongoose.Schema(
       index: true,
     },
     permissions: { type: [String], default: [] },
+    /**
+     * Explicit feature-module allow-list.
+     * `null` / missing inherits every module available to the role.
+     * `[]` intentionally grants no optional feature modules.
+     */
+    allowedModules: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     assignedJobIds: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Job' }],
       default: [],

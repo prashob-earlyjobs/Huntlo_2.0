@@ -370,10 +370,16 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
 
   async function getSourcingSessionProfiles(
     sessionId: string,
-    { page = 1, limit = 20 }: GetProfilesOptions = {}
+    { page = 1, limit = 20, pollAttempt }: GetProfilesOptions = {}
   ): Promise<FutureJobsApiResponse<FutureJobsProfilesPage>> {
     const delegate = resolveDelegate();
-    if (delegate) return delegate.getSourcingSessionProfiles(sessionId, { page, limit });
+    if (delegate) {
+      return delegate.getSourcingSessionProfiles(sessionId, {
+        page,
+        limit,
+        pollAttempt,
+      });
+    }
 
     const { baseUrl, apiKey, authStyle } = getFutureJobsConfig();
     assertFutureJobsApiKey(apiKey);
@@ -386,7 +392,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
 
     const params = new URLSearchParams({
       page: String(Math.max(1, Math.floor(Number(page)) || 1)),
-      limit: String(Math.min(200, Math.max(1, Math.floor(Number(limit)) || 20))),
+      limit: String(Math.min(300, Math.max(1, Math.floor(Number(limit)) || 20))),
     });
 
     const url = `${baseUrl}/wl/sourcing-session/${encodeURIComponent(sessionId)}/profiles?${params}`;
@@ -630,10 +636,11 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
   }
 
   async function getSourcingSessionCandidateDetails(
-    candidateId: string
+    candidateId: string,
+    opts: { sessionId?: string | null } = {}
   ): Promise<FutureJobsApiResponse> {
     const delegate = resolveDelegate();
-    if (delegate) return delegate.getSourcingSessionCandidateDetails(candidateId);
+    if (delegate) return delegate.getSourcingSessionCandidateDetails(candidateId, opts);
 
     const { baseUrl, apiKey } = getFutureJobsConfig();
     assertFutureJobsApiKey(apiKey);
@@ -645,7 +652,13 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       throw err;
     }
 
-    const url = `${baseUrl}/wl/sourcing-session/candidate/${encodeURIComponent(cid)}/details`;
+    const params = new URLSearchParams();
+    const sid = String(opts.sessionId || '').trim();
+    if (sid) params.set('sessionId', sid);
+    const qs = params.toString();
+    const url = `${baseUrl}/wl/sourcing-session/candidate/${encodeURIComponent(cid)}/details${
+      qs ? `?${qs}` : ''
+    }`;
     return (await futureJobsHttpRequest({
       method: 'GET',
       url,

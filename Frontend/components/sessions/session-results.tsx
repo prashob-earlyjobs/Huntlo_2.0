@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Bookmark,
@@ -14,22 +15,18 @@ import {
   Send,
   SlidersHorizontal,
   Users,
-  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AddToListDialog } from "@/components/candidates/add-to-list-dialog";
 import { CandidateCard } from "@/components/sessions/candidate-card";
 import { CandidateDrawer } from "@/components/sessions/candidate-drawer";
 import { CandidateTable } from "@/components/sessions/candidate-table";
 import type { RevealState } from "@/components/sessions/contact-reveal";
+import { FilterPanel } from "@/components/search/filter-panel";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -37,8 +34,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { SessionResultsTableSkeleton } from "@/components/sessions/session-results-skeleton";
 import { getApiErrorMessage, candidatesApi, uiRevealKindToType } from "@/lib/api";
+import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-details";
+import {
+  applyCandidateSearch,
+  getCandidateDetails,
+  saveSearch,
+  unsaveSearch,
+} from "@/lib/api/candidate-search";
+import {
+  FILTER_SECTIONS,
+  INTERPRETED_FILTER_STATE,
+  isFieldActive,
+  type FilterValue,
+  type SearchFilterState,
+} from "@/lib/mock-search";
 import {
   SORT_OPTIONS,
   sortCandidates,
@@ -47,17 +66,10 @@ import {
   type SortOptionId,
   type SourcingSession,
 } from "@/lib/mock-sessions";
-import { ROUTES, jobDetailPath } from "@/lib/routes";
+import { jobDetailPath, ROUTES, sessionDetailPath } from "@/lib/routes";
+import { saveEditSearchDraft, searchEditPath } from "@/lib/edit-search-draft";
+import { filtersToProviderPayload } from "@/lib/search-filter-adapters";
 import { cn } from "@/lib/utils";
-
-const FILTER_CHIPS = [
-  "Bengaluru",
-  "4–7 yrs",
-  "Node.js",
-  "AWS",
-  "SaaS",
-  "Backend Engineer",
-];
 
 function matchesResultQuery(candidate: SessionCandidate, query: string): boolean {
   if (!query.trim()) return true;
@@ -71,6 +83,72 @@ function matchesResultQuery(candidate: SessionCandidate, query: string): boolean
     .join(" ")
     .toLowerCase();
   return haystack.includes(query.trim().toLowerCase());
+}
+
+function csvEscape(value: string | number | null | undefined): string {
+  const text = value == null ? "" : String(value);
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function downloadSessionCandidatesCsv(
+  candidates: SessionCandidate[],
+  sessionName: string
+) {
+  const headers = [
+    "Name",
+    "Headline",
+    "Current role",
+    "Current company",
+    "Location",
+    "Experience years",
+    "Skills",
+    "Match score",
+    "Email",
+    "Phone",
+  ];
+  const rows = candidates.map((candidate) => [
+    candidate.name,
+    candidate.headline,
+    candidate.currentRole,
+    candidate.currentCompany,
+    candidate.location,
+    candidate.experienceYears,
+    candidate.skills.join("; "),
+    candidate.matchScore,
+    candidate.emailRevealed ? candidate.email : "",
+    candidate.phoneRevealed ? candidate.phone : "",
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map(csvEscape).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  const safeName =
+    sessionName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "search-results";
+  anchor.href = url;
+  anchor.download = `${safeName}-export.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function loadSessionFilters(sessionId: string): SearchFilterState {
+  if (typeof window === "undefined") return INTERPRETED_FILTER_STATE;
+  try {
+    const stored = sessionStorage.getItem(`huntlo:search:${sessionId}`);
+    if (!stored) return INTERPRETED_FILTER_STATE;
+    const parsed = JSON.parse(stored) as { filters?: SearchFilterState };
+    return parsed.filters && typeof parsed.filters === "object"
+      ? parsed.filters
+      : INTERPRETED_FILTER_STATE;
+  } catch {
+    return INTERPRETED_FILTER_STATE;
+  }
 }
 
 function SessionStateBanner({
@@ -157,28 +235,37 @@ function SessionStateBanner({
   return null;
 }
 
-function ResultsSkeleton({ count = 5 }: { count?: number }) {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: count }).map((_, index) => (
-        <Skeleton key={index} className="h-14 rounded-lg" />
-      ))}
-    </div>
-  );
-}
-
 export function SessionResults({
   session,
   candidates,
+  initialFilters,
+  futureJobsSessionId = null,
 }: {
   session: SourcingSession;
   candidates: SessionCandidate[];
+  initialFilters?: SearchFilterState | null;
+  futureJobsSessionId?: string | null;
 }) {
+  const router = useRouter();
   const [sort, setSort] = useState<SortOptionId>("best-match");
   const [view, setView] = useState<"table" | "card">("table");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [resultQuery, setResultQuery] = useState("");
-  const [filterChips, setFilterChips] = useState<string[]>(FILTER_CHIPS);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<SearchFilterState>(() =>
+    initialFilters ?? loadSessionFilters(session.id)
+  );
+  const [rerunningSearch, setRerunningSearch] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+  const [searchSaved, setSearchSaved] = useState(
+    Boolean(session.isSavedSearch && session.savedListId)
+  );
+  const [savingSearch, setSavingSearch] = useState(false);
+  const [savedListId, setSavedListId] = useState<string | null>(
+    session.savedListId ?? null
+  );
+  const [saveSearchMessage, setSaveSearchMessage] = useState<string | null>(null);
+  const [saveSearchError, setSaveSearchError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(candidates.map((c) => [c.id, c.saved]))
@@ -187,37 +274,201 @@ export function SessionResults({
   const [localCandidates, setLocalCandidates] = useState(candidates);
   const [revealError, setRevealError] = useState<string | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [drawerDetailsLoading, setDrawerDetailsLoading] = useState(false);
+  const [drawerDetailsError, setDrawerDetailsError] = useState<string | null>(null);
+  const [addToListOpen, setAddToListOpen] = useState(false);
+  const [addToListCandidateIds, setAddToListCandidateIds] = useState<string[]>([]);
+  const [addToListMessage, setAddToListMessage] = useState<string | null>(null);
+  const detailsFetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    setLocalCandidates(candidates);
+    if (initialFilters && Object.keys(initialFilters).length > 0) {
+      setSearchFilters(initialFilters);
+    }
+  }, [initialFilters]);
+
+  useEffect(() => {
+    setSearchSaved(Boolean(session.isSavedSearch && session.savedListId));
+    setSavedListId(session.savedListId ?? null);
+  }, [session.id, session.isSavedSearch, session.savedListId]);
+
+  async function toggleSaveSearch() {
+    if (savingSearch) return;
+    setSavingSearch(true);
+    setSaveSearchError(null);
+    setSaveSearchMessage(null);
+    try {
+      if (searchSaved) {
+        await unsaveSearch(session.id);
+        setSearchSaved(false);
+        setSavedListId(null);
+        setSaveSearchMessage(
+          "Removed from saved searches. Your candidate list was kept."
+        );
+      } else {
+        const result = await saveSearch(session.id);
+        setSearchSaved(true);
+        setSavedListId(result.listId ?? null);
+        const added = result.candidatesAdded ?? 0;
+        const listName = result.listName || "Saved search";
+        if (result.listCreated) {
+          setSaveSearchMessage(
+            added > 0
+              ? `Created list “${listName}” with ${added} candidate${added === 1 ? "" : "s"}.`
+              : `Created list “${listName}”. No candidates to add yet.`
+          );
+        } else {
+          setSaveSearchMessage(
+            added > 0
+              ? `Added ${added} candidate${added === 1 ? "" : "s"} to “${listName}”.`
+              : `Saved. List “${listName}” is up to date.`
+          );
+        }
+      }
+    } catch (err) {
+      setSaveSearchError(getApiErrorMessage(err));
+    } finally {
+      setSavingSearch(false);
+    }
+  }
+
+  function startEditSearch() {
+    let storedSessionId: string | null = futureJobsSessionId;
+    try {
+      const stored = sessionStorage.getItem(`huntlo:search:${session.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { sessionId?: string | null };
+        if (parsed.sessionId) storedSessionId = parsed.sessionId;
+      }
+    } catch {
+      // ignore
+    }
+    saveEditSearchDraft({
+      savedSessionId: session.id,
+      sessionId: storedSessionId,
+      prompt: session.query,
+      filters: searchFilters,
+      jobId: session.relatedJobId,
+    });
+    router.push(searchEditPath(session.id));
+  }
+
+  useEffect(() => {
+    setLocalCandidates((prev) => {
+      const prevMap = new Map(prev.map((c) => [c.id, c]));
+      return candidates.map((incoming) => {
+        const existing = prevMap.get(incoming.id);
+        if (!existing || !detailsFetchedRef.current.has(incoming.id)) {
+          return incoming;
+        }
+        return {
+          ...incoming,
+          experience: existing.experience.length ? existing.experience : incoming.experience,
+          education: existing.education.length ? existing.education : incoming.education,
+          summary: existing.summary || incoming.summary,
+          matchBreakdown: existing.matchBreakdown,
+          avatarUrl: existing.avatarUrl || incoming.avatarUrl,
+          signals: existing.signals.length ? existing.signals : incoming.signals,
+          headline: existing.headline || incoming.headline,
+        };
+      });
+    });
   }, [candidates]);
+
+  useEffect(() => {
+    setSavedMap((previous) => ({
+      ...previous,
+      ...Object.fromEntries(
+        candidates.map((candidate) => [
+          candidate.id,
+          previous[candidate.id] || candidate.saved,
+        ])
+      ),
+    }));
+  }, [candidates]);
+
   const [progressCount, setProgressCount] = useState(
     session.state === "running" ? 0 : candidates.length
   );
   const [initialLoading, setInitialLoading] = useState(
-    session.state === "running"
+    session.state === "running" && candidates.length === 0
   );
 
   useEffect(() => {
-    if (session.state !== "running") return;
+    if (!drawerId) {
+      setDrawerDetailsLoading(false);
+      setDrawerDetailsError(null);
+      return;
+    }
+    if (detailsFetchedRef.current.has(drawerId)) return;
 
-    setInitialLoading(true);
-    const timer = window.setTimeout(() => setInitialLoading(false), 800);
+    let cancelled = false;
+    setDrawerDetailsLoading(true);
+    setDrawerDetailsError(null);
 
+    void getCandidateDetails(drawerId, { sessionId: session.id })
+      .then((res) => {
+        if (cancelled) return;
+        detailsFetchedRef.current.add(drawerId);
+        setLocalCandidates((prev) =>
+          prev.map((c) =>
+            c.id === drawerId
+              ? mapCandidateDetailsToSessionCandidate(c, res.candidate)
+              : c
+          )
+        );
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDrawerDetailsError(
+          getApiErrorMessage(error) || "Could not load full profile details"
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setDrawerDetailsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [drawerId, session.id]);
+
+  // Keep the progressive reveal in sync with live candidate growth. Never leave
+  // the skeleton stuck after the session leaves "running".
+  useEffect(() => {
+    if (session.state !== "running") {
+      setInitialLoading(false);
+      setProgressCount(candidates.length);
+      return;
+    }
+
+    if (candidates.length === 0) {
+      setInitialLoading(true);
+      const timer = window.setTimeout(() => setInitialLoading(false), 800);
+      return () => window.clearTimeout(timer);
+    }
+
+    setInitialLoading(false);
     const interval = window.setInterval(() => {
       setProgressCount((previous) => {
         if (previous >= candidates.length) {
           window.clearInterval(interval);
-          return previous;
+          return candidates.length;
         }
         return previous + 1;
       });
-    }, 600);
+    }, 60);
 
-    return () => {
-      window.clearTimeout(timer);
-      window.clearInterval(interval);
-    };
+    return () => window.clearInterval(interval);
+  }, [session.state, candidates.length]);
+
+  // If more candidates arrive while running, never clamp progress below what we
+  // already revealed — just let the interval catch up.
+  useEffect(() => {
+    if (session.state !== "running") return;
+    setProgressCount((previous) =>
+      previous > candidates.length ? candidates.length : previous
+    );
   }, [session.state, candidates.length]);
 
   const visibleCandidates = useMemo(() => {
@@ -253,11 +504,11 @@ export function SessionResults({
     }
   }
 
-  function toggleSave(id: string) {
-    setSavedMap((previous) => ({
-      ...previous,
-      [id]: !(previous[id] ?? false),
-    }));
+  function openAddToList(ids: string[]) {
+    if (!ids.length) return;
+    setAddToListCandidateIds(ids);
+    setAddToListMessage(null);
+    setAddToListOpen(true);
   }
 
   async function reveal(id: string, kind: "email" | "phone") {
@@ -267,12 +518,35 @@ export function SessionResults({
     if (kind === "phone" && candidate.phoneRevealed) return;
 
     setRevealError(null);
+    setRevealedMap((previous) => {
+      const current = previous[id] ?? { email: false, phone: false };
+      return {
+        ...previous,
+        [id]: {
+          ...current,
+          [kind === "email" ? "emailStatus" : "phoneStatus"]: "loading",
+        },
+      };
+    });
     try {
       const result = await candidatesApi.revealContact({
         candidateId: id,
         type: uiRevealKindToType(kind),
       });
       const value = result.value || result.values[0] || "";
+      if (!result.found || !value) {
+        setRevealedMap((previous) => {
+          const current = previous[id] ?? { email: false, phone: false };
+          return {
+            ...previous,
+            [id]: {
+              ...current,
+              [kind === "email" ? "emailStatus" : "phoneStatus"]: "unavailable",
+            },
+          };
+        });
+        return;
+      }
       setLocalCandidates((previous) =>
         previous.map((item) => {
           if (item.id !== id) return item;
@@ -293,12 +567,83 @@ export function SessionResults({
       setRevealedMap((previous) => ({
         ...previous,
         [id]: {
-          email: kind === "email" ? true : (previous[id]?.email ?? false),
-          phone: kind === "phone" ? true : (previous[id]?.phone ?? false),
+          ...(previous[id] ?? { email: false, phone: false }),
+          [kind]: true,
+          [kind === "email" ? "emailStatus" : "phoneStatus"]: "idle",
         },
       }));
     } catch (err) {
+      setRevealedMap((previous) => {
+        const current = previous[id] ?? { email: false, phone: false };
+        return {
+          ...previous,
+          [id]: {
+            ...current,
+            [kind === "email" ? "emailStatus" : "phoneStatus"]: "idle",
+          },
+        };
+      });
       setRevealError(getApiErrorMessage(err));
+    }
+  }
+
+  const activeFilterCount = Object.values(searchFilters).filter(isFieldActive).length;
+
+  function updateSearchFilter(fieldId: string, value: FilterValue | undefined) {
+    setSearchFilters((previous) => {
+      if (value === undefined) {
+        const next = { ...previous };
+        delete next[fieldId];
+        return next;
+      }
+      return { ...previous, [fieldId]: value };
+    });
+  }
+
+  function resetFilterSection(sectionId: string) {
+    const section = FILTER_SECTIONS.find((item) => item.id === sectionId);
+    if (!section) return;
+    setSearchFilters((previous) => {
+      const next = { ...previous };
+      section.fields.forEach((field) => delete next[field.id]);
+      return next;
+    });
+  }
+
+  async function rerunSearch() {
+    if (rerunningSearch) return;
+    setRerunningSearch(true);
+    setRerunError(null);
+    try {
+      const result = await applyCandidateSearch({
+        prompt: session.query,
+        filterForm: filtersToProviderPayload(searchFilters),
+        page: 1,
+        limit: 300,
+      });
+      const savedSessionId =
+        "savedSessionId" in result ? result.savedSessionId : undefined;
+      if (!savedSessionId) {
+        throw new Error("Search started without a session id.");
+      }
+      try {
+        sessionStorage.setItem(
+          `huntlo:search:${savedSessionId}`,
+          JSON.stringify({
+            sessionId: result.sessionId,
+            savedSessionId,
+            prompt: session.query,
+            filters: searchFilters,
+          })
+        );
+      } catch {
+        // Navigation still succeeds when browser storage is unavailable.
+      }
+      setFilterDrawerOpen(false);
+      router.push(sessionDetailPath(savedSessionId));
+    } catch (error) {
+      setRerunError(getApiErrorMessage(error));
+      setRerunningSearch(false);
     }
   }
 
@@ -353,17 +698,54 @@ export function SessionResults({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={ROUTES.search} />}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={startEditSearch}
+            >
               <Pencil aria-hidden />
               Edit Search
             </Button>
-            <Button size="sm" variant="outline">
-              <Bookmark aria-hidden />
-              Save Search
+            <Button
+              size="sm"
+              variant={searchSaved ? "secondary" : "outline"}
+              disabled={savingSearch}
+              aria-pressed={searchSaved}
+              aria-busy={savingSearch}
+              onClick={() => void toggleSaveSearch()}
+            >
+              {savingSearch ? (
+                <Loader2 aria-hidden className="animate-spin" />
+              ) : (
+                <Bookmark
+                  aria-hidden
+                  className={searchSaved ? "fill-current" : undefined}
+                />
+              )}
+              {searchSaved ? "Saved" : "Save Search"}
             </Button>
           </div>
         </div>
       </header>
+
+      {saveSearchError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {saveSearchError}
+        </p>
+      ) : null}
+      {saveSearchMessage ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {saveSearchMessage}{" "}
+          {savedListId || searchSaved ? (
+            <Link
+              href={ROUTES.saved}
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Open Saved Lists
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
 
       <SessionStateBanner
         state={session.state}
@@ -376,6 +758,14 @@ export function SessionResults({
       {revealError ? (
         <p role="alert" className="text-sm text-destructive">
           {revealError}
+        </p>
+      ) : null}
+      {addToListMessage ? (
+        <p
+          role="status"
+          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+        >
+          {addToListMessage}
         </p>
       ) : null}
 
@@ -407,59 +797,20 @@ export function SessionResults({
             />
           </div>
 
-          <Popover>
-            <PopoverTrigger render={<Button type="button" size="sm" variant="outline" />}>
-              <SlidersHorizontal aria-hidden />
-              Filters
-              {filterChips.length > 0 ? (
-                <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
-                  {filterChips.length}
-                </span>
-              ) : null}
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-72">
-              <p className="text-xs font-semibold text-foreground">
-                Search filters
-              </p>
-              {filterChips.length === 0 ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  No filters applied to this search.
-                </p>
-              ) : (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {filterChips.map((chip) => (
-                    <span
-                      key={chip}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-foreground"
-                    >
-                      {chip}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${chip} filter`}
-                        onClick={() =>
-                          setFilterChips((previous) =>
-                            previous.filter((item) => item !== chip)
-                          )
-                        }
-                        className="rounded-sm outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50"
-                      >
-                        <X aria-hidden className="size-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <Button
-                size="xs"
-                variant="ghost"
-                className="mt-2"
-                nativeButton={false}
-                render={<Link href={ROUTES.search} />}
-              >
-                Edit filters in Search
-              </Button>
-            </PopoverContent>
-          </Popover>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setFilterDrawerOpen(true)}
+          >
+            <SlidersHorizontal aria-hidden />
+            Filters
+            {activeFilterCount > 0 ? (
+              <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </Button>
 
           <Select
             value={sort}
@@ -569,7 +920,11 @@ export function SessionResults({
                     {selected.size}
                   </span>
                 </Button>
-                <Button size="sm" variant="outline">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openAddToList(Array.from(selected))}
+                >
                   <Users aria-hidden />
                   Add to List
                   <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
@@ -582,7 +937,17 @@ export function SessionResults({
                 </Button>
               </>
             ) : (
-              <Button size="sm" variant="ghost">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={visibleCandidates.length === 0}
+                onClick={() =>
+                  downloadSessionCandidatesCsv(
+                    visibleCandidates,
+                    session.name || session.query || "search-results"
+                  )
+                }
+              >
                 <Download aria-hidden />
                 Export
               </Button>
@@ -593,9 +958,7 @@ export function SessionResults({
 
       {/* Results body */}
       {initialLoading ? (
-        <section className="rounded-xl border border-border bg-card p-4">
-          <ResultsSkeleton />
-        </section>
+        <SessionResultsTableSkeleton rows={8} />
       ) : isFailed ? (
         <EmptyState
           icon={AlertCircle}
@@ -605,7 +968,7 @@ export function SessionResults({
             "The search could not be completed. Your quota was not charged."
           }
           actionLabel="Edit Search"
-          actionHref={ROUTES.search}
+          onAction={startEditSearch}
         />
       ) : isEmpty ? (
         <EmptyState
@@ -613,7 +976,7 @@ export function SessionResults({
           title="No candidates found"
           description="Try broadening your location, skills or experience filters and run the search again."
           actionLabel="Edit Search"
-          actionHref={ROUTES.search}
+          onAction={startEditSearch}
         />
       ) : showNoResults ? (
         <EmptyState
@@ -631,7 +994,7 @@ export function SessionResults({
               onToggleSelect={toggleSelect}
               onToggleSelectAll={toggleSelectAll}
               savedMap={savedMap}
-              onToggleSave={toggleSave}
+              onToggleSave={(id) => openAddToList([id])}
               revealedMap={revealedMap}
               onReveal={(id, kind) => void reveal(id, kind)}
               onOpenProfile={setDrawerId}
@@ -646,7 +1009,7 @@ export function SessionResults({
                   selected={selected.has(candidate.id)}
                   onToggleSelect={() => toggleSelect(candidate.id)}
                   saved={savedMap[candidate.id] ?? candidate.saved}
-                  onToggleSave={() => toggleSave(candidate.id)}
+                  onToggleSave={() => openAddToList([candidate.id])}
                   revealed={
                     revealedMap[candidate.id] ?? { email: false, phone: false }
                   }
@@ -659,6 +1022,45 @@ export function SessionResults({
           )}
         </section>
       ) : null}
+
+      <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Edit search filters</SheetTitle>
+            <SheetDescription>
+              Update the filters used for this candidate search.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1">
+            <FilterPanel
+              filters={searchFilters}
+              onFieldChange={updateSearchFilter}
+              onResetSection={resetFilterSection}
+              onResetAll={() => setSearchFilters({})}
+              activeCount={activeFilterCount}
+            />
+          </div>
+          <SheetFooter className="mt-0 border-t border-border p-3">
+            {rerunError ? (
+              <p role="alert" className="mr-auto text-xs text-destructive">
+                {rerunError}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => void rerunSearch()}
+              disabled={rerunningSearch}
+            >
+              {rerunningSearch ? (
+                <Loader2 aria-hidden className="animate-spin" />
+              ) : (
+                <Search aria-hidden />
+              )}
+              {rerunningSearch ? "Searching…" : "Search again"}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <CandidateDrawer
         candidate={drawerCandidate}
@@ -673,8 +1075,27 @@ export function SessionResults({
             ? (savedMap[drawerId] ?? drawerCandidate?.saved ?? false)
             : false
         }
-        onToggleSave={() => drawerId && toggleSave(drawerId)}
+        onToggleSave={() => drawerId && openAddToList([drawerId])}
         onAddToOutreach={() => undefined}
+        detailsLoading={drawerDetailsLoading}
+        detailsError={drawerDetailsError}
+      />
+      <AddToListDialog
+        open={addToListOpen}
+        onOpenChange={setAddToListOpen}
+        sourcedCandidateIds={addToListCandidateIds}
+        onSaved={(list, savedCount) => {
+          setSavedMap((previous) => ({
+            ...previous,
+            ...Object.fromEntries(addToListCandidateIds.map((id) => [id, true])),
+          }));
+          setAddToListMessage(
+            savedCount > 0
+              ? `Added ${savedCount} candidate${savedCount === 1 ? "" : "s"} to ${list.name}.`
+              : `The selected candidate${addToListCandidateIds.length === 1 ? " is" : "s are"} already in ${list.name}.`
+          );
+          setSelected(new Set());
+        }}
       />
     </div>
   );

@@ -10,9 +10,17 @@ import { getRequestId } from '../../middleware/request-id.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { successResponse } from '../../shared/http/response.js';
 import { outreachAiService } from './ai.service.js';
+import { emailPlansService } from './plans.service.js';
 import { sequenceTemplatesService } from './sequences.service.js';
 import { outreachTemplatesService } from './templates.service.js';
 import { listAllowedVariables } from './variables.js';
+import {
+  getDefaultTemplateForSlot,
+  listApprovedTemplates,
+  listTemplatesForSlot,
+  WHATSAPP_TEMPLATE_SLOTS,
+} from './whatsapp-template-catalogue.js';
+import { whatsappPlansService } from './whatsapp-plans.service.js';
 import {
   createSequenceTemplateSchema,
   createTemplateSchema,
@@ -26,11 +34,22 @@ import {
   updateTemplateSchema,
   validateVariablesSchema,
 } from './outreach.validation.js';
+import {
+  createOutreachPlanSchema,
+  createWhatsAppPlanSchema,
+  listOutreachPlansQuerySchema,
+  listWhatsAppPlansQuerySchema,
+  planIdParamSchema,
+  updateOutreachPlanSchema,
+  updateWhatsAppPlanSchema,
+} from './plan.validation.js';
 import { campaignRoutes } from './campaign.routes.js';
+import { voiceRoutes } from '../voice/voice.routes.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
 const readPerm = requirePermission('outreach:view', 'outreach:manage');
 const writePerm = requirePermission(
+
   'outreach:create',
   'outreach:edit',
   'outreach:manage'
@@ -38,6 +57,7 @@ const writePerm = requirePermission(
 
 export const outreachRouter = Router();
 
+outreachRouter.use('/campaigns', voiceRoutes);
 outreachRouter.use('/campaigns', campaignRoutes);
 
 /* ------------------------------------------------------------------ */
@@ -224,23 +244,192 @@ outreachRouter.delete(
 );
 
 /* ------------------------------------------------------------------ */
-/* AI + validation                                                      */
+/* Email outreach plans                                                 */
 /* ------------------------------------------------------------------ */
 
+outreachRouter.get(
+  '/plans',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const query = listOutreachPlansQuerySchema.parse(req.query);
+    const data = await emailPlansService.list(req.organizationId!, query);
+    successResponse(res, data.items, {
+      meta: { requestId: getRequestId(req), pagination: data.pagination },
+    });
+  })
+);
+
 outreachRouter.post(
-  '/generate',
+  '/plans',
   ...orgAuth,
   writePerm,
   asyncHandler(async (req, res) => {
-    const body = generateOutreachSchema.parse(req.body ?? {});
-    const data = await outreachAiService.generate(
-      req.organizationId!,
-      req.userId!,
-      body
-    );
+    const body = createOutreachPlanSchema.parse(req.body ?? {});
+    const data = await emailPlansService.create(req.organizationId!, req.userId!, body);
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+
+outreachRouter.get(
+  '/plans/:id',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await emailPlansService.get(req.organizationId!, id);
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );
+
+const updateOutreachPlanHandler = asyncHandler(async (req, res) => {
+  const { id } = planIdParamSchema.parse(req.params);
+  const body = updateOutreachPlanSchema.parse(req.body ?? {});
+  const data = await emailPlansService.update(req.organizationId!, id, body);
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
+outreachRouter.put('/plans/:id', ...orgAuth, writePerm, updateOutreachPlanHandler);
+outreachRouter.patch('/plans/:id', ...orgAuth, writePerm, updateOutreachPlanHandler);
+
+outreachRouter.delete(
+  '/plans/:id',
+  ...orgAuth,
+  requirePermission('outreach:edit', 'outreach:delete', 'outreach:manage'),
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await emailPlansService.remove(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/* ------------------------------------------------------------------ */
+/* WhatsApp outreach plans                                              */
+/* ------------------------------------------------------------------ */
+
+outreachRouter.get(
+  '/whatsapp/templates',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    successResponse(
+      res,
+      {
+        templates: listApprovedTemplates(),
+        slots: WHATSAPP_TEMPLATE_SLOTS.map((slot) => ({
+          slot,
+          templates: listTemplatesForSlot(slot),
+          defaultTemplateId: getDefaultTemplateForSlot(slot)?.id ?? null,
+        })),
+        flow: {
+          steps: [
+            { step: 1, slot: 'opening', description: 'Opening Meta template (pick 1 of 2)' },
+            {
+              step: 2,
+              slot: 'no_reply_1',
+              description: 'No-reply follow-up 1 Meta template (pick 1 of 2)',
+            },
+            {
+              step: 3,
+              slot: 'no_reply_2',
+              description: 'No-reply follow-up 2 Meta template (pick 1 of 2)',
+            },
+            {
+              step: '4+',
+              slot: null,
+              description:
+                'Reply follow-ups are free-text / AI questions (not Meta templates)',
+            },
+          ],
+          placeholders: [
+            { key: '{{1}}', meaning: 'Candidate first name (FirstName)' },
+            { key: '{{2}}', meaning: 'Open role / job title (JobTitle)' },
+          ],
+        },
+      },
+      { meta: { requestId: getRequestId(req) } }
+    );
+  })
+);
+
+outreachRouter.get(
+  '/whatsapp/plans',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const query = listWhatsAppPlansQuerySchema.parse(req.query);
+    const data = await whatsappPlansService.list(req.organizationId!, query);
+    successResponse(res, data.items, {
+      meta: { requestId: getRequestId(req), pagination: data.pagination },
+    });
+  })
+);
+
+outreachRouter.post(
+  '/whatsapp/plans',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const body = createWhatsAppPlanSchema.parse(req.body ?? {});
+    const data = await whatsappPlansService.create(req.organizationId!, req.userId!, body);
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+
+outreachRouter.get(
+  '/whatsapp/plans/:id',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await whatsappPlansService.get(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+const updateWhatsAppPlanHandler = asyncHandler(async (req, res) => {
+  const { id } = planIdParamSchema.parse(req.params);
+  const body = updateWhatsAppPlanSchema.parse(req.body ?? {});
+  const data = await whatsappPlansService.update(req.organizationId!, id, body);
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
+outreachRouter.put('/whatsapp/plans/:id', ...orgAuth, writePerm, updateWhatsAppPlanHandler);
+outreachRouter.patch('/whatsapp/plans/:id', ...orgAuth, writePerm, updateWhatsAppPlanHandler);
+
+outreachRouter.delete(
+  '/whatsapp/plans/:id',
+  ...orgAuth,
+  requirePermission('outreach:edit', 'outreach:delete', 'outreach:manage'),
+  asyncHandler(async (req, res) => {
+    const { id } = planIdParamSchema.parse(req.params);
+    const data = await whatsappPlansService.remove(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/* ------------------------------------------------------------------ */
+/* AI + validation                                                      */
+/* ------------------------------------------------------------------ */
+
+const generateSequenceHandler = asyncHandler(async (req, res) => {
+  const body = generateOutreachSchema.parse(req.body ?? {});
+  const data = await outreachAiService.generate(
+    req.organizationId!,
+    req.userId!,
+    body
+  );
+  successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+});
+
+outreachRouter.post('/generate', ...orgAuth, writePerm, generateSequenceHandler);
+outreachRouter.post('/ai/generate-sequence', ...orgAuth, writePerm, generateSequenceHandler);
 
 outreachRouter.post(
   '/rewrite',

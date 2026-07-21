@@ -41,6 +41,12 @@ export function jobDetailPath(id: string): string {
   return `${ROUTES.jobs}/${id}`;
 }
 
+/** Build the AI search path, optionally preselecting a job for prompt fill. */
+export function searchPath(options?: { jobId?: string }): string {
+  if (!options?.jobId) return ROUTES.search;
+  return `${ROUTES.search}?jobId=${encodeURIComponent(options.jobId)}`;
+}
+
 /** Build the detail path for a sourcing session / search result set. */
 export function sessionDetailPath(id: string): string {
   return `/dashboard/sessions/${id}`;
@@ -57,8 +63,14 @@ export function campaignDetailPath(id: string): string {
 }
 
 /** Build the edit/builder path for an outreach campaign. */
-export function campaignEditPath(id: string): string {
-  return `${ROUTES.outreach}/${id}/edit`;
+export function campaignEditPath(
+  id: string,
+  options?: { step?: number }
+): string {
+  const base = `${ROUTES.outreach}/${id}/edit`;
+  if (options?.step == null || !Number.isFinite(options.step)) return base;
+  const step = Math.max(0, Math.floor(options.step));
+  return `${base}?step=${step}`;
 }
 
 /** Build the detail path for a Huntlo 360 workflow. */

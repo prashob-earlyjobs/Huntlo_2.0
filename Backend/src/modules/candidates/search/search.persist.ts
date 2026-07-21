@@ -11,6 +11,8 @@ import {
 } from '../../sourcing/sourced-candidate.model.js';
 import type { SourcingSessionDocument } from '../../sourcing/sourcing-session.model.js';
 import { toCandidateSummaryDto, type CandidateSummaryDto } from './search.dto.js';
+import { labelListFromUnknown } from '../../../shared/strings/label-list.js';
+import { profileSignalsFromFjDoc } from '../../../shared/sourcing/profile-signals.js';
 
 function splitName(fullName: string): { firstName: string | null; lastName: string | null } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -123,6 +125,19 @@ export async function upsertCandidatesFromDocs(options: {
       ? normalizeLinkedinProfileUrl(linkedinUrl) || linkedinUrl.toLowerCase()
       : null;
 
+    const profilePictureUrl =
+      (typeof mapped.profile_picture_permalink === 'string' &&
+      mapped.profile_picture_permalink.trim()
+        ? mapped.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_permalink === 'string' &&
+      profile.profile_picture_permalink.trim()
+        ? profile.profile_picture_permalink.trim()
+        : null) ||
+      (typeof profile.profile_picture_url === 'string' && profile.profile_picture_url.trim()
+        ? profile.profile_picture_url.trim()
+        : null);
+
     const name = mapped.name || 'Unknown';
     const { firstName, lastName } = splitName(name);
     const currentRole =
@@ -137,11 +152,18 @@ export async function upsertCandidatesFromDocs(options: {
         : null) ||
       (typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null);
 
-    const skillsRaw = Array.isArray(profile.skills)
-      ? profile.skills.map((s) => String(s ?? '').trim()).filter(Boolean)
-      : typeof mapped.skills === 'string' && mapped.skills !== '—'
-        ? mapped.skills.split(',').map((s) => s.trim()).filter(Boolean)
-        : [];
+    let skillsRaw = labelListFromUnknown(profile.skills, 24);
+    if (
+      skillsRaw.length === 0 &&
+      typeof mapped.skills === 'string' &&
+      mapped.skills !== '—'
+    ) {
+      skillsRaw = mapped.skills
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s && s !== '[object Object]')
+        .slice(0, 24);
+    }
 
     const matchScore =
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
@@ -166,6 +188,7 @@ export async function upsertCandidatesFromDocs(options: {
             externalCandidateId: candidateId,
             linkedinProfileUrl: linkedinUrl,
             linkedinUrlNormalized,
+            profilePictureUrl,
             name,
             firstName,
             lastName,
@@ -176,6 +199,7 @@ export async function upsertCandidatesFromDocs(options: {
               headline:
                 typeof profile.headline === 'string' ? profile.headline : currentRole,
               linkedinUrl,
+              profilePictureUrl,
             },
             currentEmployment: {
               title: currentRole,
@@ -185,6 +209,7 @@ export async function upsertCandidatesFromDocs(options: {
             experienceYears: experienceYearsFromProfile(profile),
             skills: skillsRaw.slice(0, 24),
             educationPreview: educationPreviewFromProfile(profile),
+            profileSignals: profileSignalsFromFjDoc(doc, profile),
             finalScore: matchScore,
             matchScore,
             candidateSummary:

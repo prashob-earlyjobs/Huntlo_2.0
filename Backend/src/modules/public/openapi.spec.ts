@@ -20,6 +20,16 @@ export const openApiSpec = {
       description:
         'Annotate → filter drawer → apply → poll → persist → WebSocket candidate search flow',
     },
+    {
+      name: 'Outreach Config',
+      description:
+        'Configuration layer: email/WhatsApp plans, templates, AI sequence drafts under /outreach',
+    },
+    {
+      name: 'Outreach Campaigns',
+      description:
+        'Canonical campaign execution under /outreach-campaigns (also aliased at /outreach/campaigns)',
+    },
   ],
   paths: {
     '/health': {
@@ -156,6 +166,154 @@ export const openApiSpec = {
         tags: ['Candidate Search'],
         summary: 'Compact recent searches',
         responses: { '200': { description: 'Recent search shortcuts' } },
+      },
+    },
+    '/outreach/plans': {
+      get: {
+        tags: ['Outreach Config'],
+        summary: 'List email outreach plans',
+        responses: { '200': { description: 'Plan list' } },
+      },
+      post: {
+        tags: ['Outreach Config'],
+        summary: 'Create email outreach plan',
+        responses: { '201': { description: 'Created plan' } },
+      },
+    },
+    '/outreach/plans/{id}': {
+      get: {
+        tags: ['Outreach Config'],
+        summary: 'Get email outreach plan',
+        responses: { '200': { description: 'Plan' } },
+      },
+      put: {
+        tags: ['Outreach Config'],
+        summary: 'Update email outreach plan',
+        responses: { '200': { description: 'Updated plan' } },
+      },
+      delete: {
+        tags: ['Outreach Config'],
+        summary: 'Delete email outreach plan',
+        responses: { '200': { description: 'Deleted' } },
+      },
+    },
+    '/outreach/whatsapp/plans': {
+      get: {
+        tags: ['Outreach Config'],
+        summary: 'List WhatsApp outreach plans',
+        responses: { '200': { description: 'Plan list' } },
+      },
+      post: {
+        tags: ['Outreach Config'],
+        summary: 'Create WhatsApp outreach plan',
+        responses: { '201': { description: 'Created plan' } },
+      },
+    },
+    '/outreach/whatsapp/plans/{id}': {
+      put: {
+        tags: ['Outreach Config'],
+        summary: 'Update WhatsApp outreach plan',
+        responses: { '200': { description: 'Updated plan' } },
+      },
+      delete: {
+        tags: ['Outreach Config'],
+        summary: 'Delete WhatsApp outreach plan',
+        responses: { '200': { description: 'Deleted' } },
+      },
+    },
+    '/outreach/ai/generate-sequence': {
+      post: {
+        tags: ['Outreach Config'],
+        summary: 'Generate AI sequence draft (never auto-launches)',
+        responses: { '200': { description: 'Draft only' } },
+      },
+    },
+    '/outreach/generate': {
+      post: {
+        tags: ['Outreach Config'],
+        summary: 'Deprecated alias of /outreach/ai/generate-sequence',
+        deprecated: true,
+        responses: { '200': { description: 'Draft only' } },
+      },
+    },
+    '/outreach-campaigns': {
+      get: {
+        tags: ['Outreach Campaigns'],
+        summary: 'List campaigns',
+        responses: { '200': { description: 'Campaign list' } },
+      },
+      post: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Create campaign',
+        responses: { '201': { description: 'Created campaign' } },
+      },
+    },
+    '/outreach-campaigns/drafts': {
+      post: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Create empty builder draft',
+        responses: { '201': { description: 'Draft campaign' } },
+      },
+    },
+    '/outreach-campaigns/{id}/builder': {
+      get: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Load builder state',
+        responses: { '200': { description: 'Builder state' } },
+      },
+    },
+    '/outreach-campaigns/{id}/steps/{stepKey}': {
+      patch: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Save one builder step',
+        responses: { '200': { description: 'Updated builder state' } },
+      },
+    },
+    '/outreach-campaigns/{id}/validate': {
+      post: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Validate campaign (compiles builder first)',
+        responses: { '200': { description: 'Validation result' } },
+      },
+    },
+    '/outreach-campaigns/{id}/launch': {
+      post: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Launch campaign with compile + enrollment + lock',
+        responses: {
+          '200': { description: 'Launch summary' },
+          '409': { description: 'Already launched/running' },
+          '422': { description: 'Builder/validation blockers' },
+          '429': { description: 'Quota exhausted' },
+        },
+      },
+    },
+    '/outreach-campaigns/{id}/tracking': {
+      get: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Campaign tracking metrics',
+        responses: { '200': { description: 'Tracking payload' } },
+      },
+    },
+    '/outreach-campaigns/{id}/candidates/{candidateId}/actions': {
+      post: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Recruiter candidate action',
+        responses: { '200': { description: 'Action result' } },
+      },
+    },
+    '/outreach/campaigns': {
+      get: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Deprecated alias of /outreach-campaigns',
+        deprecated: true,
+        responses: { '200': { description: 'Campaign list' } },
+      },
+      post: {
+        tags: ['Outreach Campaigns'],
+        summary: 'Deprecated alias of /outreach-campaigns',
+        deprecated: true,
+        responses: { '201': { description: 'Created campaign' } },
       },
     },
   },

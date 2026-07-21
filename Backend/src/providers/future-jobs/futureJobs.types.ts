@@ -89,6 +89,12 @@ export type FutureJobsAnnotationField = {
 
 export type FutureJobsAnnotationData = Record<string, FutureJobsAnnotationField>;
 
+export type FutureJobsSkillsBuckets = {
+  mandatory: string[];
+  core: string[];
+  secondary: string[];
+};
+
 export type FutureJobsFilterForm = {
   searchType: string;
   selectRegion: string[];
@@ -96,6 +102,8 @@ export type FutureJobsFilterForm = {
   yearsExpMin: string;
   yearsExpMax: string;
   keywordSkills: string;
+  /** Structured skill buckets preferred over keywordSkills when present. */
+  skills?: FutureJobsSkillsBuckets;
   seniorityLevel: string;
   location: string[];
   searchOtherRegions: boolean;
@@ -142,6 +150,7 @@ export type FutureJobsMappedCandidate = {
   id?: string;
   sourcingSessionId?: string;
   linkedin_profile_url: string;
+  profile_picture_permalink?: string;
   name: string;
   role: string;
   experience: string;
@@ -225,7 +234,8 @@ export interface FutureJobsProvider {
   ): Promise<FutureJobsApiResponse>;
 
   getSourcingSessionCandidateDetails(
-    candidateId: string
+    candidateId: string,
+    opts?: { sessionId?: string | null }
   ): Promise<FutureJobsApiResponse>;
 
   /**

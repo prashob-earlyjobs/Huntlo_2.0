@@ -51,8 +51,15 @@ export type ScheduleInterviewInput = {
   location?: string | null;
   meetingUrl?: string | null;
   instructions?: string | null;
-  inviteChannel?: "email" | "whatsapp" | null;
+  reminderHours?: number[];
+  reminderMessages?: Array<{
+    hours: number;
+    message: string;
+    templateId?: string | null;
+  }>;
+  inviteChannel?: "email" | "whatsapp" | "both" | null;
   inviteeEmail?: string | null;
+  message?: string | null;
   sendLink?: boolean;
   linkExpiryHours?: number;
 };
@@ -62,7 +69,7 @@ export interface SchedulingApi {
   getInterview(id: string): Promise<Interview | null>;
   scheduleInterview(body: ScheduleInterviewInput): Promise<Interview>;
   updateInterview(id: string, body: Partial<ScheduleInterviewInput>): Promise<Interview>;
-  sendLink(id: string, body?: { channel?: "email" | "whatsapp"; message?: string | null }): Promise<Interview>;
+  sendLink(id: string, body?: { channel?: "email" | "whatsapp" | "both"; message?: string | null }): Promise<Interview>;
   reschedule(id: string, body: { startAt: string; endAt?: string; timezone?: string }): Promise<Interview>;
   cancel(id: string): Promise<Interview>;
   remind(id: string): Promise<Interview>;

@@ -7,6 +7,7 @@ export function compileCampaignSequence(workflow: Huntlo360WorkflowDocument) {
     order: number;
     type: 'email' | 'whatsapp' | 'wait' | 'ai_voice' | 'scheduling_link';
     delayDays: number;
+    delayUnit: 'days' | 'hours' | 'minutes';
     subject: string | null;
     body: string | null;
     stopOnReply: boolean;
@@ -27,6 +28,7 @@ export function compileCampaignSequence(workflow: Huntlo360WorkflowDocument) {
       order,
       type,
       delayDays,
+      delayUnit: 'days',
       subject: type === 'email' ? 'Quick question, {{first_name}}' : null,
       body,
       stopOnReply: workflow.outreachConfig.stopOnReply !== false,

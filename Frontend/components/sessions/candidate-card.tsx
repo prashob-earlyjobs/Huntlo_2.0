@@ -13,10 +13,11 @@ import {
 } from "lucide-react";
 
 import { ContactReveal, type RevealState } from "@/components/sessions/contact-reveal";
-import { MatchScoreDetail } from "@/components/sessions/match-score";
+import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import type { SessionCandidate } from "@/lib/mock-sessions";
+import { isOpenToWork } from "@/lib/candidate-signals";
 import { cn } from "@/lib/utils";
 
 export function CandidateCard({
@@ -57,7 +58,7 @@ export function CandidateCard({
           aria-label={`Select ${candidate.name}`}
           className="mt-1 size-3.5 shrink-0 accent-primary"
         />
-        <CandidateAvatar name={candidate.name} className="size-10" />
+        <CandidateAvatar name={candidate.name} src={candidate.avatarUrl} className="size-10" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -71,12 +72,13 @@ export function CandidateCard({
               {candidate.linkedin ? (
                 <Link2 aria-hidden className="size-3 shrink-0 text-info" />
               ) : null}
+              {isOpenToWork(candidate.signals) ? (
+                <span className="shrink-0 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                  Open to work
+                </span>
+              ) : null}
             </div>
-            <MatchScoreDetail
-              score={candidate.matchScore}
-              breakdown={candidate.matchBreakdown}
-              name={candidate.name}
-            />
+            <MatchScoreCompact score={candidate.matchScore} />
           </div>
           <p className="truncate text-sm text-muted-foreground">
             {candidate.currentRole} · {candidate.currentCompany}
@@ -95,9 +97,9 @@ export function CandidateCard({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {candidate.skills.slice(0, 4).map((skill) => (
+        {candidate.skills.slice(0, 4).map((skill, index) => (
           <span
-            key={skill}
+            key={`${skill}-${index}`}
             className="rounded-md bg-brand-subtle px-1.5 py-0.5 text-xs font-medium text-primary"
           >
             {skill}
@@ -127,7 +129,7 @@ export function CandidateCard({
         ) : null}
       </dl>
 
-      <div className="mt-3">
+      <div className="mt-3 mb-3">
         <ContactReveal
           candidate={candidate}
           revealed={revealed}
@@ -135,7 +137,7 @@ export function CandidateCard({
         />
       </div>
 
-      <div className="mt-3 flex items-center gap-1.5 border-t border-border pt-3">
+      <div className="mt-auto flex items-center gap-1.5 border-t border-border pt-3">
         <Button
           type="button"
           size="xs"
@@ -143,17 +145,8 @@ export function CandidateCard({
           onClick={onToggleSave}
           aria-pressed={saved}
         >
-          {saved ? (
-            <>
-              <BookmarkCheck aria-hidden />
-              Saved
-            </>
-          ) : (
-            <>
-              <Bookmark aria-hidden />
-              Save
-            </>
-          )}
+          {saved ? <BookmarkCheck aria-hidden /> : <Bookmark aria-hidden />}
+          Add to list
         </Button>
         <Button type="button" size="xs" variant="outline" onClick={onOpenProfile}>
           <Eye aria-hidden />

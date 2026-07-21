@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { RevealedContactModel } from '../candidates/revealed-contact.model.js';
 import { JobModel } from '../jobs/job.model.js';
+import { CampaignJobModel } from '../outreach/campaign-job.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { ScreeningCandidateModel } from '../screening/screening-candidate.model.js';
@@ -17,6 +18,30 @@ import {
   type ResolvedAnalyticsFilters,
 } from './filters.js';
 import { median, rate } from './format.js';
+
+const MESSAGE_JOB_TYPES = [
+  'send_email',
+  'send_whatsapp',
+  'launch_voice',
+  'send_scheduling_link',
+] as const;
+
+/** Map campaign job type → dashboard channel bucket. */
+function channelFromJobTypeExpr() {
+  return {
+    $switch: {
+      branches: [
+        {
+          case: { $in: ['$jobType', ['send_email', 'send_scheduling_link']] },
+          then: 'email',
+        },
+        { case: { $eq: ['$jobType', 'send_whatsapp'] }, then: 'whatsapp' },
+        { case: { $eq: ['$jobType', 'launch_voice'] }, then: 'voice' },
+      ],
+      default: 'other',
+    },
+  };
+}
 
 function candidateMatch(filters: ResolvedAnalyticsFilters, previous = false) {
   const match: Record<string, unknown> = {
@@ -35,6 +60,7 @@ function campaignMatch(filters: ResolvedAnalyticsFilters) {
   const match: Record<string, unknown> = {
     organizationId: filters.organizationId,
     deletedAt: null,
+    sourceModule: 'outreach',
   };
   if (filters.jobId) match.jobId = filters.jobId;
   if (filters.campaignId) match._id = filters.campaignId;
@@ -43,6 +69,22 @@ function campaignMatch(filters: ResolvedAnalyticsFilters) {
   if (filters.channel === 'whatsapp') match['channelConfig.whatsapp.enabled'] = true;
   if (filters.channel === 'ai_voice') match['channelConfig.ai_voice.enabled'] = true;
   return match;
+}
+
+function periodRange(
+  filters: ResolvedAnalyticsFilters,
+  previous: boolean,
+  field = 'updatedAt'
+): Record<string, unknown> {
+  return previous
+    ? previousCreatedAtRange(filters, field)
+    : createdAtRange(filters, field);
+}
+
+async function resolveCampaignIds(
+  filters: ResolvedAnalyticsFilters
+): Promise<mongoose.Types.ObjectId[]> {
+  return OutreachCampaignModel.find(campaignMatch(filters)).distinct('_id');
 }
 
 export type CoreMetricCounts = {
@@ -59,6 +101,8 @@ export type CoreMetricCounts = {
   activeJobs: number;
   activeCampaigns: number;
   sent: number;
+  /** Failed / dead message send attempts in the period (for delivery rate). */
+  failedSends: number;
 };
 
 export async function aggregateCoreMetrics(
@@ -68,11 +112,17 @@ export async function aggregateCoreMetrics(
   const range = previous ? previousCreatedAtRange(filters) : createdAtRange(filters);
   const candMatch = candidateMatch(filters, previous);
   const campMatch = campaignMatch(filters);
+  const jobTime = periodRange(filters, previous, 'updatedAt');
+  const replyTime = periodRange(filters, previous, 'replyState.repliedAt');
+  const qualTime = periodRange(filters, previous, 'updatedAt');
+
+  const campaignIds = await resolveCampaignIds(filters);
+  const hasCampaigns = campaignIds.length > 0;
 
   const [
     candidatesSourced,
     contactsRevealed,
-    campaignAgg,
+    outreachTruth,
     screeningsCompleted,
     shortlisted,
     interviewsScheduled,
@@ -85,34 +135,118 @@ export async function aggregateCoreMetrics(
       organizationId: filters.organizationId,
       ...range,
     }),
-    OutreachCampaignModel.aggregate<{
-      sent: number;
-      delivered: number;
-      replies: number;
-      interested: number;
-      qualified: number;
-    }>([
-      { $match: campMatch },
-      {
-        $group: {
-          _id: null,
-          sent: { $sum: { $ifNull: ['$stats.sent', 0] } },
-          delivered: { $sum: { $ifNull: ['$stats.delivered', 0] } },
-          replies: { $sum: { $ifNull: ['$stats.replies', 0] } },
-          interested: { $sum: { $ifNull: ['$stats.interested', 0] } },
-          qualified: { $sum: { $ifNull: ['$stats.qualified', 0] } },
-        },
-      },
-    ]),
+    hasCampaigns
+      ? Promise.all([
+          CampaignJobModel.countDocuments({
+            organizationId: filters.organizationId,
+            campaignId: { $in: campaignIds },
+            status: 'succeeded',
+            'result.delivery': 'sent',
+            jobType: { $in: [...MESSAGE_JOB_TYPES] },
+            ...jobTime,
+          }),
+          CampaignJobModel.countDocuments({
+            organizationId: filters.organizationId,
+            campaignId: { $in: campaignIds },
+            status: { $in: ['failed', 'dead'] },
+            jobType: { $in: [...MESSAGE_JOB_TYPES] },
+            ...jobTime,
+          }),
+          OutreachEnrollmentModel.aggregate<{
+            replies: number;
+            interested: number;
+            qualified: number;
+          }>([
+            {
+              $match: {
+                organizationId: filters.organizationId,
+                campaignId: { $in: campaignIds },
+              },
+            },
+            {
+              $facet: {
+                replies: [
+                  {
+                    $match: {
+                      $or: [
+                        { 'replyState.hasReply': true, ...replyTime },
+                        {
+                          hasReply: true,
+                          'replyState.repliedAt': null,
+                          ...qualTime,
+                        },
+                        { status: 'replied', ...qualTime },
+                      ],
+                    },
+                  },
+                  { $count: 'n' },
+                ],
+                interested: [
+                  {
+                    $match: {
+                      $or: [
+                        {
+                          'replyState.disposition': 'interested',
+                          ...replyTime,
+                        },
+                        {
+                          replyDisposition: 'interested',
+                          ...qualTime,
+                        },
+                        { status: 'interested', ...qualTime },
+                      ],
+                    },
+                  },
+                  { $count: 'n' },
+                ],
+                qualified: [
+                  {
+                    $match: {
+                      $or: [
+                        {
+                          'qualificationState.status': 'qualified',
+                          ...qualTime,
+                        },
+                        { status: 'qualified', ...qualTime },
+                      ],
+                    },
+                  },
+                  { $count: 'n' },
+                ],
+              },
+            },
+            {
+              $project: {
+                replies: { $ifNull: [{ $arrayElemAt: ['$replies.n', 0] }, 0] },
+                interested: {
+                  $ifNull: [{ $arrayElemAt: ['$interested.n', 0] }, 0],
+                },
+                qualified: {
+                  $ifNull: [{ $arrayElemAt: ['$qualified.n', 0] }, 0],
+                },
+              },
+            },
+          ]),
+        ]).then(([sent, failedSends, replyAgg]) => ({
+          sent,
+          failedSends,
+          replies: replyAgg[0]?.replies || 0,
+          interested: replyAgg[0]?.interested || 0,
+          qualified: replyAgg[0]?.qualified || 0,
+        }))
+      : Promise.resolve({
+          sent: 0,
+          failedSends: 0,
+          replies: 0,
+          interested: 0,
+          qualified: 0,
+        }),
     ScreeningCandidateModel.countDocuments({
       organizationId: filters.organizationId,
       callStatus: 'completed',
       ...(previous
         ? previousCreatedAtRange(filters, 'completedAt')
         : createdAtRange(filters, 'completedAt')),
-      ...(filters.jobId
-        ? {}
-        : {}),
     }),
     SavedCandidateModel.countDocuments({
       ...candMatch,
@@ -149,28 +283,21 @@ export async function aggregateCoreMetrics(
     }),
   ]);
 
-  const totals = campaignAgg[0] ?? {
-    sent: 0,
-    delivered: 0,
-    replies: 0,
-    interested: 0,
-    qualified: 0,
-  };
-
   return {
     candidatesSourced,
     contactsRevealed,
-    delivered: totals.delivered,
-    replies: totals.replies,
-    positiveReplies: totals.interested,
-    qualified: totals.qualified,
+    delivered: outreachTruth.sent,
+    replies: outreachTruth.replies,
+    positiveReplies: outreachTruth.interested,
+    qualified: outreachTruth.qualified,
     screeningsCompleted,
     shortlisted,
     interviewsScheduled,
     hired,
     activeJobs,
     activeCampaigns,
-    sent: totals.sent,
+    sent: outreachTruth.sent,
+    failedSends: outreachTruth.failedSends,
   };
 }
 
@@ -233,48 +360,165 @@ export async function aggregatePipelineStages(filters: ResolvedAnalyticsFilters)
 }
 
 export async function aggregateChannelPerformance(filters: ResolvedAnalyticsFilters) {
-  const campaigns = await OutreachCampaignModel.find(campaignMatch(filters))
-    .select('channelConfig stats sequenceSteps')
-    .lean();
+  const empty = () => [
+    { metric: 'Delivery rate', email: 0, whatsapp: 0, voice: 0 },
+    { metric: 'Reply rate', email: 0, whatsapp: 0, voice: 0 },
+    { metric: 'Positive reply rate', email: 0, whatsapp: 0, voice: 0 },
+  ];
 
+  const campaignIds = await resolveCampaignIds(filters);
+  if (campaignIds.length === 0) return empty();
+
+  const timeRange = { $gte: filters.from, $lt: filters.to };
   const buckets: Record<
     string,
-    { sent: number; delivered: number; replies: number; positive: number }
+    { sent: number; failed: number; replies: number; positive: number }
   > = {
-    email: { sent: 0, delivered: 0, replies: 0, positive: 0 },
-    whatsapp: { sent: 0, delivered: 0, replies: 0, positive: 0 },
-    voice: { sent: 0, delivered: 0, replies: 0, positive: 0 },
+    email: { sent: 0, failed: 0, replies: 0, positive: 0 },
+    whatsapp: { sent: 0, failed: 0, replies: 0, positive: 0 },
+    voice: { sent: 0, failed: 0, replies: 0, positive: 0 },
   };
 
-  for (const campaign of campaigns) {
-    const channels: string[] = [];
-    if (campaign.channelConfig?.email?.enabled) channels.push('email');
-    if (campaign.channelConfig?.whatsapp?.enabled) channels.push('whatsapp');
-    if (campaign.channelConfig?.ai_voice?.enabled) channels.push('voice');
-    if (channels.length === 0) {
-      for (const step of campaign.sequenceSteps || []) {
-        if (step.type === 'email') channels.push('email');
-        if (step.type === 'whatsapp') channels.push('whatsapp');
-        if (step.type === 'ai_voice') channels.push('voice');
-      }
-    }
-    const unique = [...new Set(channels)];
-    if (unique.length === 0) continue;
-    const share = 1 / unique.length;
-    const stats = campaign.stats || {};
-    for (const ch of unique) {
-      const bucket = buckets[ch];
-      if (!bucket) continue;
-      bucket.sent += (stats.sent || 0) * share;
-      bucket.delivered += (stats.delivered || 0) * share;
-      bucket.replies += (stats.replies || 0) * share;
-      bucket.positive += (stats.interested || 0) * share;
-    }
+  const [sentRows, failedRows, replyRows] = await Promise.all([
+    CampaignJobModel.aggregate<{ _id: string; count: number }>([
+      {
+        $match: {
+          organizationId: filters.organizationId,
+          campaignId: { $in: campaignIds },
+          status: 'succeeded',
+          'result.delivery': 'sent',
+          jobType: { $in: [...MESSAGE_JOB_TYPES] },
+          updatedAt: timeRange,
+        },
+      },
+      { $group: { _id: channelFromJobTypeExpr(), count: { $sum: 1 } } },
+    ]),
+    CampaignJobModel.aggregate<{ _id: string; count: number }>([
+      {
+        $match: {
+          organizationId: filters.organizationId,
+          campaignId: { $in: campaignIds },
+          status: { $in: ['failed', 'dead'] },
+          jobType: { $in: [...MESSAGE_JOB_TYPES] },
+          updatedAt: timeRange,
+        },
+      },
+      { $group: { _id: channelFromJobTypeExpr(), count: { $sum: 1 } } },
+    ]),
+    // Attribute each reply to the channel of the last successful send for that enrollment.
+    OutreachEnrollmentModel.aggregate<{
+      _id: string;
+      replies: number;
+      positive: number;
+    }>([
+      {
+        $match: {
+          organizationId: filters.organizationId,
+          campaignId: { $in: campaignIds },
+          $or: [
+            {
+              'replyState.hasReply': true,
+              'replyState.repliedAt': timeRange,
+            },
+            {
+              hasReply: true,
+              'replyState.repliedAt': null,
+              updatedAt: timeRange,
+            },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: CampaignJobModel.collection.name,
+          let: {
+            enrollmentId: '$_id',
+            repliedAt: '$replyState.repliedAt',
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$enrollmentId', '$$enrollmentId'] },
+                    { $eq: ['$status', 'succeeded'] },
+                    { $eq: ['$result.delivery', 'sent'] },
+                    { $in: ['$jobType', [...MESSAGE_JOB_TYPES]] },
+                    {
+                      $or: [
+                        { $eq: ['$$repliedAt', null] },
+                        { $lte: ['$updatedAt', '$$repliedAt'] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $sort: { updatedAt: -1 } },
+            { $limit: 1 },
+            {
+              $project: {
+                channel: channelFromJobTypeExpr(),
+              },
+            },
+          ],
+          as: 'lastSend',
+        },
+      },
+      {
+        $addFields: {
+          channel: {
+            $ifNull: [{ $arrayElemAt: ['$lastSend.channel', 0] }, 'email'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$channel',
+          replies: { $sum: 1 },
+          positive: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: ['$replyState.disposition', 'interested'] },
+                    { $eq: ['$replyDisposition', 'interested'] },
+                    { $eq: ['$status', 'interested'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]),
+  ]);
+
+  for (const row of sentRows) {
+    const bucket = buckets[row._id];
+    if (bucket) bucket.sent += row.count;
+  }
+  for (const row of failedRows) {
+    const bucket = buckets[row._id];
+    if (bucket) bucket.failed += row.count;
+  }
+  for (const row of replyRows) {
+    const bucket = buckets[row._id];
+    if (!bucket) continue;
+    bucket.replies += row.replies;
+    bucket.positive += row.positive;
   }
 
   const point = (
     metric: string,
-    pick: (b: { sent: number; delivered: number; replies: number; positive: number }) => number
+    pick: (b: {
+      sent: number;
+      failed: number;
+      replies: number;
+      positive: number;
+    }) => number
   ) => ({
     metric,
     email: Number(pick(buckets.email!).toFixed(1)),
@@ -283,9 +527,13 @@ export async function aggregateChannelPerformance(filters: ResolvedAnalyticsFilt
   });
 
   return [
-    point('Delivery rate', (b) => rate(b.delivered, Math.max(b.sent, 1))),
-    point('Reply rate', (b) => rate(b.replies, Math.max(b.delivered, b.sent, 1))),
-    point('Positive reply rate', (b) => rate(b.positive, Math.max(b.replies, 1))),
+    point('Delivery rate', (b) =>
+      rate(b.sent, Math.max(b.sent + b.failed, 1))
+    ),
+    point('Reply rate', (b) => rate(b.replies, Math.max(b.sent, 1))),
+    point('Positive reply rate', (b) =>
+      rate(b.positive, Math.max(b.replies, 1))
+    ),
   ];
 }
 
@@ -543,6 +791,18 @@ export async function ensureAnalyticsIndexes(): Promise<void> {
       organizationId: 1,
       deletedAt: 1,
       status: 1,
+    }),
+    CampaignJobModel.collection.createIndex({
+      organizationId: 1,
+      campaignId: 1,
+      status: 1,
+      jobType: 1,
+      updatedAt: -1,
+    }),
+    OutreachEnrollmentModel.collection.createIndex({
+      organizationId: 1,
+      campaignId: 1,
+      'replyState.repliedAt': -1,
     }),
     UsageLedgerModel.collection.createIndex({
       organizationId: 1,

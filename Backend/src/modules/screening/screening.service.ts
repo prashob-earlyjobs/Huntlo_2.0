@@ -9,6 +9,7 @@ import { UserModel } from '../auth/user.model.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { UserIntegrationModel } from '../integrations/user-integration.model.js';
+import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
   createHunarBulkCalls,
   createHunarVoiceAgent,
@@ -21,6 +22,15 @@ import {
   isHunarConfigured,
 } from '../../providers/hunar/hunar.config.js';
 import { emitScreeningResultUpdated } from '../../realtime/events.js';
+import {
+  buildRoshniAgentPrompt,
+  ROSHNI_INTRODUCTION,
+} from '../voice/roshni-prompt.js';
+import {
+  resolveIntroduction,
+  resolveVoiceTokens,
+  sanitizeHunarPromptText,
+} from '../voice/voice-dialer.service.js';
 import {
   ScreeningModel,
   defaultScreeningStats,
@@ -61,6 +71,30 @@ async function ownerName(userId: string) {
   return `${user.firstName} ${user.lastName}`.trim();
 }
 
+async function resolveOwnerUserId(
+  organizationId: string,
+  actorUserId: string,
+  requestedOwnerUserId?: string | null
+) {
+  const ownerUserId = String(requestedOwnerUserId || actorUserId).trim();
+  if (!mongoose.Types.ObjectId.isValid(ownerUserId)) {
+    throw new AppError(400, 'INVALID_OWNER', 'Invalid screening owner.');
+  }
+  const member = await OrganizationMemberModel.findOne({
+    organizationId,
+    userId: ownerUserId,
+    status: { $in: ['active', 'invited'] },
+  }).lean();
+  if (!member) {
+    throw new AppError(
+      400,
+      'OWNER_NOT_IN_ORG',
+      'Screening owner must be an active member of this organization.'
+    );
+  }
+  return ownerUserId;
+}
+
 async function jobTitle(jobId: mongoose.Types.ObjectId | null) {
   if (!jobId) return null;
   const job = await JobModel.findById(jobId).select('title').lean();
@@ -92,6 +126,7 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     campaignId: doc.campaignId ? String(doc.campaignId) : null,
     workflowId: doc.workflowId ? String(doc.workflowId) : null,
     sourceModule: doc.sourceModule,
+    description: doc.description,
     status: STATUS_DISPLAY[doc.status] || doc.status,
     statusRaw: doc.status,
     objective: doc.objective,
@@ -99,10 +134,13 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     voice: doc.voice,
     tone: doc.tone,
     introductionScript: doc.introductionScript,
+    agentPrompt: doc.agentPrompt,
     closingScript: doc.closingScript,
     consentText: doc.consentText,
     questions: doc.questions,
     evaluationCriteria: doc.evaluationCriteria,
+    minShortlistScore: doc.minShortlistScore ?? 70,
+    knockouts: doc.knockouts || [],
     callSettings: doc.callSettings,
     candidateIds: doc.candidateIds,
     candidates: doc.stats.enrolled,
@@ -123,8 +161,22 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
 
 function toResultDisplay(
   row: ScreeningCandidateDocument,
-  extras: { name: string; jobId: string | null; screeningName: string }
+  extras: {
+    name: string;
+    jobId: string | null;
+    screeningName: string;
+    knockouts?: string[];
+  }
 ) {
+  const configuredKnockouts = (extras.knockouts || [])
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const triggeredKnockouts = normalizeTriggeredKnockouts(
+    row.extractedVariables?.knockouts_triggered ??
+      row.extractedVariables?.knockoutsTriggered
+  );
+  const knockoutResults = buildKnockoutResults(configuredKnockouts, triggeredKnockouts);
+
   return {
     id: String(row._id),
     screeningId: String(row.screeningId),
@@ -151,54 +203,49 @@ function toResultDisplay(
     lastActivity: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    knockouts: configuredKnockouts,
+    triggeredKnockouts,
+    knockoutResults,
   };
 }
 
-function buildAgentPrompt(doc: ScreeningDocument) {
-  const questionLines = (doc.questions || [])
-    .map((q, index) => `${index + 1}. ${q.prompt}`)
-    .join('\n');
-  const closing = doc.closingScript ? `\n\nClosing:\n${doc.closingScript}` : '';
-  const consent = doc.consentText ? `\n\nConsent:\n${doc.consentText}` : '';
-  return `You are conducting a voice screening interview.\n\nQuestions:\n${questionLines || 'Ask about role fit and availability.'}${consent}${closing}`;
-}
-
-function buildResultPrompt(doc: ScreeningDocument) {
-  const fields = (doc.evaluationCriteria || []).map((c) => `"${c.id}": number 0-100`);
-  const known = [
-    '"summary": ""',
-    '"final_outcome": ""',
-    '"interest_level": ""',
-    '"candidate_status": ""',
-    '"callback_requested": ""',
-    '"callback_time": ""',
-    '"candidate_questions": []',
-    '"objections_or_concerns": []',
-  ];
-  return `TASK
-Analyze the conversation and return only valid JSON.
-
-OUTPUT FORMAT
-{
-  ${[...known, ...fields].join(',\n  ')}
-}`;
-}
-
-function buildResultSchema(doc: ScreeningDocument) {
-  const schema: Record<string, unknown> = {
-    summary: 'short call summary',
-    final_outcome: 'interested | not_interested | callback',
-    interest_level: 'high | medium | low',
-    candidate_status: 'string',
-    callback_requested: 'yes | no',
-    callback_time: 'string',
-    candidate_questions: 'array of strings',
-    objections_or_concerns: 'array of strings',
-  };
-  for (const criterion of doc.evaluationCriteria || []) {
-    schema[criterion.id] = criterion.description || `score 0-100 for ${criterion.label}`;
+function normalizeTriggeredKnockouts(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
-  return schema;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item).trim()).filter(Boolean);
+      }
+    } catch {
+      // fall through — treat as a single label
+    }
+    return [value.trim()];
+  }
+  return [];
+}
+
+function buildKnockoutResults(
+  configured: string[],
+  triggered: string[]
+): Array<{ criterion: string; passed: boolean; detail: string }> {
+  if (configured.length === 0) return [];
+  const normalizedTriggered = triggered.map((value) => value.trim().toLowerCase());
+  return configured.map((criterion) => {
+    const needle = criterion.trim().toLowerCase();
+    const failed = normalizedTriggered.some(
+      (value) => value === needle || value.includes(needle) || needle.includes(value)
+    );
+    return {
+      criterion,
+      passed: !failed,
+      detail: failed
+        ? 'Triggered during the screening call — forces Reject'
+        : 'No trigger detected for this rule',
+    };
+  });
 }
 
 export async function refreshScreeningStats(screeningId: string) {
@@ -223,7 +270,25 @@ export async function refreshScreeningStats(screeningId: string) {
     }
   }
   stats.averageScore = scoreCount ? Math.round(scoreSum / scoreCount) : null;
-  await ScreeningModel.findByIdAndUpdate(screeningId, { stats });
+
+  const screening = await ScreeningModel.findById(screeningId);
+  if (!screening) return stats;
+  screening.stats = stats;
+  screening.markModified('stats');
+
+  // Auto-complete when every dialable contact is terminal and nothing is in-flight.
+  if (screening.status === 'running' && rows.length > 0) {
+    const open = rows.filter((r) =>
+      ['queued', 'ringing', 'in_progress'].includes(String(r.callStatus || ''))
+    ).length;
+    const dialed = rows.filter((r) => Boolean(r.providerRequestId || r.providerCallId));
+    if (open === 0 && dialed.length > 0) {
+      screening.status = 'completed';
+      screening.completedAt = screening.completedAt || new Date();
+    }
+  }
+
+  await screening.save();
   return stats;
 }
 
@@ -269,6 +334,11 @@ export const screeningService = {
   },
 
   async create(organizationId: string, userId: string, input: CreateInput) {
+    const ownerUserId = await resolveOwnerUserId(
+      organizationId,
+      userId,
+      input.ownerUserId
+    );
     if (input.jobId) {
       const job = await JobModel.findOne({
         _id: input.jobId,
@@ -280,21 +350,26 @@ export const screeningService = {
 
     const doc = await ScreeningModel.create({
       organizationId,
-      ownerUserId: userId,
+      ownerUserId,
       jobId: input.jobId || null,
       campaignId: input.campaignId || null,
       workflowId: input.workflowId || null,
       sourceModule: input.sourceModule || 'screening',
       name: input.name,
+      description: input.description ?? null,
       objective: input.objective ?? null,
-      language: input.language ?? getHunarVoiceLanguage(),
-      voice: input.voice ?? getHunarVoicePersona(),
+      language: input.language ? String(input.language).toUpperCase() : getHunarVoiceLanguage(),
+      voice: input.voice ? String(input.voice).toUpperCase() : getHunarVoicePersona(),
       tone: input.tone ?? null,
       introductionScript: input.introductionScript ?? null,
+      agentPrompt: input.agentPrompt ?? null,
       closingScript: input.closingScript ?? null,
       consentText: input.consentText ?? null,
       questions: input.questions || [],
       evaluationCriteria: input.evaluationCriteria || [],
+      minShortlistScore:
+        typeof input.minShortlistScore === 'number' ? input.minShortlistScore : 70,
+      knockouts: input.knockouts || [],
       callSettings: {
         maxAttempts: input.callSettings?.maxAttempts ?? 2,
         attemptIntervalHours: input.callSettings?.attemptIntervalHours ?? 24,
@@ -313,7 +388,7 @@ export const screeningService = {
     }
 
     return toDisplay(doc, {
-      ownerName: await ownerName(userId),
+      ownerName: await ownerName(ownerUserId),
       jobTitle: await jobTitle(doc.jobId),
     });
   },
@@ -325,21 +400,34 @@ export const screeningService = {
     }
 
     if (input.name !== undefined) doc.name = input.name;
+    if (input.ownerUserId !== undefined) {
+      doc.ownerUserId = new mongoose.Types.ObjectId(
+        await resolveOwnerUserId(organizationId, userId, input.ownerUserId)
+      );
+    }
     if (input.jobId !== undefined) doc.jobId = input.jobId ? new mongoose.Types.ObjectId(input.jobId) : null;
     if (input.campaignId !== undefined) {
       doc.campaignId = input.campaignId
         ? new mongoose.Types.ObjectId(input.campaignId)
         : null;
     }
+    if (input.description !== undefined) doc.description = input.description;
     if (input.objective !== undefined) doc.objective = input.objective;
-    if (input.language !== undefined) doc.language = input.language;
-    if (input.voice !== undefined) doc.voice = input.voice;
+    if (input.language !== undefined) {
+      doc.language = input.language ? String(input.language).toUpperCase() : null;
+    }
+    if (input.voice !== undefined) {
+      doc.voice = input.voice ? String(input.voice).toUpperCase() : null;
+    }
     if (input.tone !== undefined) doc.tone = input.tone;
     if (input.introductionScript !== undefined) doc.introductionScript = input.introductionScript;
+    if (input.agentPrompt !== undefined) doc.agentPrompt = input.agentPrompt;
     if (input.closingScript !== undefined) doc.closingScript = input.closingScript;
     if (input.consentText !== undefined) doc.consentText = input.consentText;
     if (input.questions !== undefined) doc.questions = input.questions;
     if (input.evaluationCriteria !== undefined) doc.evaluationCriteria = input.evaluationCriteria;
+    if (input.minShortlistScore !== undefined) doc.minShortlistScore = input.minShortlistScore;
+    if (input.knockouts !== undefined) doc.knockouts = input.knockouts;
     if (input.callSettings !== undefined) {
       doc.callSettings = { ...doc.callSettings, ...input.callSettings };
     }
@@ -432,17 +520,17 @@ export const screeningService = {
     if (!doc.questions?.length) {
       issues.push({
         id: 'questions',
-        severity: 'error',
-        code: 'QUESTIONS_EMPTY',
-        message: 'Add at least one screening question.',
+        severity: 'warning',
+        code: 'QUESTIONS_DEFAULTS',
+        message: 'No custom questions set — Roshni will use the default eight screening questions.',
       });
     }
     if (!doc.introductionScript?.trim()) {
       issues.push({
         id: 'introduction',
         severity: 'warning',
-        code: 'INTRODUCTION_MISSING',
-        message: 'Introduction script is empty.',
+        code: 'INTRODUCTION_DEFAULT',
+        message: `Introduction will default to: ${ROSHNI_INTRODUCTION}`,
       });
     }
 
@@ -488,9 +576,14 @@ export const screeningService = {
     return { ok, issues };
   },
 
-  async launch(organizationId: string, userId: string, id: string) {
+  async launch(
+    organizationId: string,
+    userId: string,
+    id: string,
+    options?: { candidateIds?: string[] }
+  ) {
     const doc = await loadScreening(organizationId, id);
-    if (!['draft', 'paused', 'scheduled'].includes(doc.status)) {
+    if (!['draft', 'paused', 'scheduled', 'running'].includes(doc.status)) {
       throw new AppError(400, 'INVALID_STATUS', `Cannot launch from status ${doc.status}.`);
     }
 
@@ -505,13 +598,106 @@ export const screeningService = {
       });
     }
 
+    const roshni = await buildRoshniAgentPrompt({
+      jobId: doc.jobId ? String(doc.jobId) : null,
+      organizationId,
+      campaignName: doc.name,
+      questions: (doc.questions || []).map((q) => ({
+        id: q.id,
+        prompt: q.prompt,
+        followUp: q.followUp,
+        required: q.required,
+        expectedVariable: q.expectedVariable,
+        knockout: q.knockout,
+      })),
+    });
+
+    const resultSchema = {
+      ...roshni.resultSchema,
+      properties: {
+        ...((roshni.resultSchema.properties as Record<string, unknown>) || {}),
+      },
+    };
+    for (const criterion of doc.evaluationCriteria || []) {
+      // Only numeric scores requested for configured criteria (communication).
+      if (criterion.id !== 'communication') continue;
+      (resultSchema.properties as Record<string, unknown>)[criterion.id] = {
+        type: 'number',
+        description: criterion.description || `score 0-100 for ${criterion.label}`,
+      };
+    }
+    for (const question of doc.questions || []) {
+      if (question.evaluationEnabled === false) continue;
+      const variable = String(question.expectedVariable || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+      if (!variable) continue;
+      const answerKey = `${variable}_answer`;
+      if (!(resultSchema.properties as Record<string, unknown>)[answerKey]) {
+        (resultSchema.properties as Record<string, unknown>)[answerKey] = {
+          type: 'string',
+          description: `Candidate's spoken answer for "${question.prompt}" (variable ${variable}). Use "Not provided" when unclear.`,
+        };
+      }
+    }
+    const knockouts = (doc.knockouts || []).map((value) => String(value).trim()).filter(Boolean);
+    if (knockouts.length > 0) {
+      (resultSchema.properties as Record<string, unknown>).knockouts_triggered = {
+        type: 'array',
+        items: { type: 'string' },
+        description: `List which of these knockout rules failed for the candidate (use exact labels): ${knockouts.join('; ')}. Empty array if none failed.`,
+      };
+    }
+    let resultPrompt = roshni.resultPrompt;
+    const communicationCriterion = (doc.evaluationCriteria || []).find(
+      (criterion) => criterion.id === 'communication'
+    );
+    if (communicationCriterion) {
+      resultPrompt = `${resultPrompt}\n\nAlso include evaluation scores: "communication": number 0-100 — ${communicationCriterion.label}. Do not score other categories or individual questions.`;
+    }
+    const answerFields = (doc.questions || [])
+      .map((question) => {
+        if (question.evaluationEnabled === false) return null;
+        const variable = String(question.expectedVariable || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '');
+        if (!variable) return null;
+        return `"${variable}_answer": string — answer to "${question.prompt}"`;
+      })
+      .filter(Boolean);
+    if (answerFields.length > 0) {
+      resultPrompt = `${resultPrompt}\n\nAlso include captured answers (text only, no scores): ${answerFields.join(', ')}.`;
+    }
+    if (knockouts.length > 0) {
+      resultPrompt = `${resultPrompt}\n\nAlso include "knockouts_triggered": string[] using only these exact labels when the candidate fails them: ${knockouts
+        .map((rule) => `"${rule}"`)
+        .join(', ')}. Use [] when none apply.`;
+    }
+
+    const storedPrompt = String(doc.agentPrompt || '').trim();
+    const usesRoshniTemplate = !storedPrompt || storedPrompt.includes('You are Roshni');
+    const agentPrompt = usesRoshniTemplate
+      ? resolveVoiceTokens(storedPrompt || roshni.agentPrompt, roshni.tokens)
+      : resolveVoiceTokens(storedPrompt, roshni.tokens);
+
+    const introduction = resolveIntroduction(
+      doc.tone,
+      doc.introductionScript?.trim()
+        ? resolveVoiceTokens(doc.introductionScript, roshni.tokens)
+        : null
+    );
+
     const agentInput = {
       name: doc.name,
-      agentPrompt: buildAgentPrompt(doc),
-      objective: doc.objective || `Screen candidates for ${doc.name}`,
-      introduction: doc.introductionScript || 'Hello, this is a screening call from Huntlo.',
-      resultPrompt: buildResultPrompt(doc),
-      resultSchema: buildResultSchema(doc),
+      agentPrompt: sanitizeHunarPromptText(agentPrompt),
+      objective: sanitizeHunarPromptText(doc.objective?.trim() || roshni.objective),
+      introduction: sanitizeHunarPromptText(introduction),
+      resultPrompt: sanitizeHunarPromptText(resultPrompt),
+      resultSchema,
       voicePersona: doc.voice || getHunarVoicePersona(),
       language: doc.language || getHunarVoiceLanguage(),
     };
@@ -524,9 +710,20 @@ export const screeningService = {
       doc.providerAgentId = created.agentId;
     }
 
+    const candidateIds =
+      options?.candidateIds?.filter((candidateId) =>
+        mongoose.Types.ObjectId.isValid(candidateId)
+      ) ?? [];
     const rows = await ScreeningCandidateModel.find({
       screeningId: id,
       callStatus: { $in: ['queued', 'no_answer', 'failed', 'busy'] },
+      ...(candidateIds.length > 0
+        ? {
+            candidateId: {
+              $in: candidateIds.map((candidateId) => new mongoose.Types.ObjectId(candidateId)),
+            },
+          }
+        : {}),
     });
     const candidates = await SavedCandidateModel.find({
       _id: { $in: rows.map((r) => r.candidateId) },
@@ -683,7 +880,7 @@ export const screeningService = {
       .select('name')
       .lean();
     const names = new Map(candidates.map((c) => [String(c._id), c.name]));
-    const screening = await ScreeningModel.findById(id).select('name jobId').lean();
+    const screening = await ScreeningModel.findById(id).select('name jobId knockouts').lean();
 
     return {
       items: rows.map((row) =>
@@ -691,6 +888,7 @@ export const screeningService = {
           name: names.get(String(row.candidateId)) || 'Unknown',
           jobId: screening?.jobId ? String(screening.jobId) : null,
           screeningName: screening?.name || '',
+          knockouts: screening?.knockouts || [],
         })
       ),
       pagination: {
@@ -737,7 +935,7 @@ export const screeningService = {
     const screenings = await ScreeningModel.find({
       _id: { $in: rows.map((r) => r.screeningId) },
     })
-      .select('name jobId')
+      .select('name jobId knockouts')
       .lean();
     const names = new Map(candidates.map((c) => [String(c._id), c.name]));
     const screeningMap = new Map(screenings.map((s) => [String(s._id), s]));
@@ -748,6 +946,7 @@ export const screeningService = {
         name: names.get(String(row.candidateId)) || 'Unknown',
         jobId: screening?.jobId ? String(screening.jobId) : null,
         screeningName: screening?.name || '',
+        knockouts: screening?.knockouts || [],
       });
     });
 
@@ -771,11 +970,14 @@ export const screeningService = {
     const row = await ScreeningCandidateModel.findOne({ _id: id, organizationId });
     if (!row) throw new AppError(404, 'RESULT_NOT_FOUND', 'Screening result not found.');
     const candidate = await SavedCandidateModel.findById(row.candidateId).select('name').lean();
-    const screening = await ScreeningModel.findById(row.screeningId).select('name jobId').lean();
+    const screening = await ScreeningModel.findById(row.screeningId)
+      .select('name jobId knockouts')
+      .lean();
     return toResultDisplay(row, {
       name: candidate?.name || 'Unknown',
       jobId: screening?.jobId ? String(screening.jobId) : null,
       screeningName: screening?.name || '',
+      knockouts: screening?.knockouts || [],
     });
   },
 

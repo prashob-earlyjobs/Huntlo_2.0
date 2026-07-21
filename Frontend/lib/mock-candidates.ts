@@ -103,6 +103,18 @@ export interface PoolCandidate extends SessionCandidate {
   screeningResults: ScreeningResultEntry[];
   interviews: InterviewEntry[];
   notes: CandidateNote[];
+  /** Complete persisted pool metadata returned by the candidate-pool API. */
+  linkedinUrl?: string | null;
+  assigned?: string | null;
+  tags?: string[];
+  jobIds?: string[];
+  jobs?: string[];
+  listIds?: string[];
+  externalCandidateId?: string | null;
+  sourceId?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  customFields?: Record<string, unknown>;
 }
 
 const POOL_EXTRAS: Record<

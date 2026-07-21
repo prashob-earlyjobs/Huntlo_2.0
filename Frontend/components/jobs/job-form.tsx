@@ -38,7 +38,7 @@ import {
   jobsApi,
   type ParsedJobDescription,
 } from "@/lib/api";
-import { ROUTES, jobDetailPath } from "@/lib/routes";
+import { ROUTES, jobDetailPath, searchPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type FieldErrors = Partial<Record<"title" | "department" | "location" | "openings", string>>;
@@ -115,6 +115,24 @@ const INITIAL_STATE: JobFormState = {
   internalNotes: "",
 };
 
+const MAX_SKILL_LENGTH = 120;
+
+function normalizeSkill(value: string): string {
+  return value.trim().slice(0, MAX_SKILL_LENGTH);
+}
+
+function normalizeSkillList(skills: string[]): string[] {
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const skill of skills) {
+    const normalized = normalizeSkill(skill);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    next.push(normalized);
+  }
+  return next;
+}
+
 function pickOption<T extends string>(
   value: string | null | undefined,
   options: readonly T[],
@@ -175,11 +193,11 @@ function applyParsedJd(
         : previous.experienceMax,
     requiredSkills:
       parsed.requiredSkills.length > 0
-        ? parsed.requiredSkills
+        ? normalizeSkillList(parsed.requiredSkills)
         : previous.requiredSkills,
     preferredSkills:
       parsed.preferredSkills.length > 0
-        ? parsed.preferredSkills
+        ? normalizeSkillList(parsed.preferredSkills)
         : previous.preferredSkills,
     seniority:
       pickOption(
@@ -264,7 +282,7 @@ function SkillChips({
   const [draft, setDraft] = useState("");
 
   function commit(value: string) {
-    const trimmed = value.trim();
+    const trimmed = normalizeSkill(value);
     if (!trimmed) return;
     onAdd(trimmed);
     setDraft("");
@@ -290,6 +308,7 @@ function SkillChips({
       <div className="flex gap-2">
         <Input
           value={draft}
+          maxLength={MAX_SKILL_LENGTH}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -313,7 +332,7 @@ function SkillChips({
             <button
               key={skill}
               type="button"
-              onClick={() => onAdd(skill)}
+              onClick={() => commit(skill)}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               + {skill}
@@ -397,8 +416,8 @@ export function JobForm() {
         location: form.location || undefined,
         experienceMin: Number(form.experienceMin) || 0,
         experienceMax: Number(form.experienceMax) || 0,
-        requiredSkills: form.requiredSkills,
-        preferredSkills: form.preferredSkills,
+        requiredSkills: normalizeSkillList(form.requiredSkills),
+        preferredSkills: normalizeSkillList(form.preferredSkills),
         seniority: form.seniority || null,
         industryPreference: form.industryPreference || undefined,
         education: form.education || undefined,
@@ -423,7 +442,7 @@ export function JobForm() {
       });
 
       if (mode === "source") {
-        router.push(ROUTES.search);
+        router.push(searchPath({ jobId: created.id }));
         return;
       }
       router.push(mode === "draft" ? ROUTES.jobs : jobDetailPath(created.id));

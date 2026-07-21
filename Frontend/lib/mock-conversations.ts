@@ -16,6 +16,15 @@ export type QualificationState =
   | "Qualified"
   | "Rejected";
 
+export type CandidatePipelineStatus =
+  | "Awaiting reply"
+  | "Interested"
+  | "Not interested"
+  | "In qualification"
+  | "Qualified"
+  | "Not qualified"
+  | "In screening";
+
 export type DeliveryState = "Sent" | "Delivered" | "Read" | "Failed";
 
 export type EventAuthor = "candidate" | "ai" | "recruiter" | "system";
@@ -29,6 +38,8 @@ export interface VoiceSummary {
   duration: string;
   outcome: string;
   highlights: string[];
+  /** Full call transcript when available from the voice provider. */
+  transcript?: string;
 }
 
 export interface ConversationEvent {
@@ -40,6 +51,8 @@ export interface ConversationEvent {
   text: string;
   time: string;
   delivery?: DeliveryState;
+  /** Provider / send failure detail when delivery is Failed. */
+  error?: string;
   attachments?: ConversationAttachment[];
   voiceSummary?: VoiceSummary;
 }
@@ -65,9 +78,16 @@ export interface Conversation {
   lastMessage: string;
   lastTime: string;
   unread: boolean;
+  unreadCount?: number;
   replyStatus: ReplyStatus;
+  /** Unified outreach pipeline status (matches campaign candidates table). */
+  pipelineStatus?: CandidatePipelineStatus;
   qualification: QualificationState;
+  qualificationStatus?: string;
   screeningStatus: string;
+  screeningId?: string | null;
+  autoScreening?: boolean;
+  enrollmentId?: string | null;
   sequenceStep: string;
   nextAction: string;
   email: string | null;
@@ -97,6 +117,7 @@ export const CONVERSATIONS: Conversation[] = [
     lastTime: "24m ago",
     unread: true,
     replyStatus: "Interested",
+    pipelineStatus: "In screening",
     qualification: "Qualified",
     screeningStatus: "Completed · 92/100",
     sequenceStep: "Step 3 of 4 · WhatsApp follow-up",
@@ -228,7 +249,7 @@ export const CONVERSATIONS: Conversation[] = [
         id: "ev-4",
         channel: "AI Voice",
         author: "ai",
-        authorName: "Huntlo Voice",
+        authorName: "Huntlo Voice AI",
         text: "Outbound AI screening call.",
         time: "Today, 9:55 AM",
         voiceSummary: {

@@ -17,6 +17,7 @@ export function ConversationsPageClient() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -49,14 +50,22 @@ export function ConversationsPageClient() {
       "campaign.thread.updated",
       "conversation.qualification.updated",
     ],
-    () => {
+    (event) => {
+      const data =
+        event?.data && typeof event.data === "object"
+          ? (event.data as { threadId?: string; campaignId?: string | null })
+          : null;
+      if (data?.threadId) {
+        setFocusThreadId(String(data.threadId));
+      }
       void refresh();
     }
   );
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:overflow-hidden">
       <PageHeader
+        className="shrink-0"
         title="Conversations"
         description="Every candidate reply across email, WhatsApp and AI voice — in one inbox."
         actions={
@@ -72,18 +81,19 @@ export function ConversationsPageClient() {
         }
       />
       {error ? (
-        <p role="alert" className="mb-3 text-sm text-destructive">
+        <p role="alert" className="shrink-0 text-sm text-destructive">
           {error}
         </p>
       ) : null}
       {loading ? (
-        <ConversationInboxSkeleton className="lg:h-[calc(100vh-14rem)]" />
+        <ConversationInboxSkeleton className="min-h-[28rem] flex-1 lg:min-h-0" />
       ) : (
         <ConversationInbox
           conversations={conversations}
-          className="lg:h-[calc(100vh-14rem)]"
+          focusThreadId={focusThreadId}
+          className="min-h-[28rem] flex-1 lg:min-h-0"
         />
       )}
-    </>
+    </div>
   );
 }

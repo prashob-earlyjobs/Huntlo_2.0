@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Check,
   Copy,
+  Loader2,
   Mail,
   Phone,
   ShieldQuestion,
@@ -110,7 +111,11 @@ export function RevealedValue({
 export interface RevealState {
   email: boolean;
   phone: boolean;
+  emailStatus?: RevealRequestStatus;
+  phoneStatus?: RevealRequestStatus;
 }
+
+export type RevealRequestStatus = "idle" | "loading" | "unavailable";
 
 /**
  * Contact reveal block. `revealed` reflects session-local reveals;
@@ -132,10 +137,12 @@ function needsConfirmation(kind: "email" | "phone", quota: RevealQuota): boolean
 function RevealButton({
   kind,
   candidate,
+  status,
   onReveal,
 }: {
   kind: "email" | "phone";
   candidate: SessionCandidate;
+  status: RevealRequestStatus;
   onReveal: (kind: "email" | "phone") => void;
 }) {
   const quota = useRevealQuota();
@@ -145,21 +152,38 @@ function RevealButton({
   const remaining =
     kind === "email" ? quota.emailRemaining : quota.mobileRemaining;
   const total = kind === "email" ? quota.emailTotal : quota.mobileTotal;
+  const isLoading = status === "loading";
+  const isUnavailable = status === "unavailable";
 
   const trigger = (
-    <Button type="button" size="xs" variant="outline">
-      <Icon aria-hidden />
-      {label}
-      <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      disabled={isLoading || isUnavailable}
+    >
+      {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
+      {isLoading ? "Fetching…" : isUnavailable ? "Unavailable" : label}
+      {!isLoading && !isUnavailable ? (
+        <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
+      ) : null}
     </Button>
   );
 
   if (!needsConfirmation(kind, quota)) {
     return (
-      <Button type="button" size="xs" variant="outline" onClick={() => onReveal(kind)}>
-        <Icon aria-hidden />
-        {label}
-        <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
+      <Button
+        type="button"
+        size="xs"
+        variant="outline"
+        disabled={isLoading || isUnavailable}
+        onClick={() => onReveal(kind)}
+      >
+        {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
+        {isLoading ? "Fetching…" : isUnavailable ? "Unavailable" : label}
+        {!isLoading && !isUnavailable ? (
+          <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
+        ) : null}
       </Button>
     );
   }
@@ -175,19 +199,117 @@ function RevealButton({
   );
 }
 
+function ContactIconButton({
+  kind,
+  value,
+  visible,
+  status,
+  onReveal,
+}: {
+  kind: "email" | "phone";
+  value: string;
+  visible: boolean;
+  status: RevealRequestStatus;
+  onReveal: (kind: "email" | "phone") => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const Icon = kind === "email" ? Mail : Phone;
+  const label = kind === "email" ? "email" : "mobile";
+  const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
+  const isLoading = status === "loading";
+  const isUnavailable = status === "unavailable";
+  const tooltip = copied
+    ? `${kind === "email" ? "Email" : "Mobile"} copied`
+    : visible
+      ? value
+      : isLoading
+        ? `Fetching ${label}…`
+        : isUnavailable
+          ? `${kind === "email" ? "Email" : "Mobile"} unavailable`
+      : `Reveal ${label} · ${cost} credits`;
+
+  const button = (
+    <Button
+      type="button"
+      size="icon-xs"
+      variant="outline"
+      aria-label={
+        visible
+          ? `Copy ${label}`
+          : isLoading
+            ? `Fetching ${label}`
+            : isUnavailable
+              ? `${label} unavailable`
+              : `Reveal ${label} for ${cost} credits`
+      }
+      disabled={isLoading || isUnavailable}
+      onClick={() => {
+        if (!visible) {
+          onReveal(kind);
+          return;
+        }
+        if (!value) return;
+        void navigator.clipboard?.writeText(value);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      {isLoading ? (
+        <Loader2 aria-hidden className="animate-spin" />
+      ) : copied ? (
+        <Check aria-hidden className="text-success" />
+      ) : (
+        <Icon aria-hidden />
+      )}
+    </Button>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipContent>{tooltip || `${label} unavailable`}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function ContactReveal({
   candidate,
   revealed,
   onReveal,
   layout = "row",
+  compact = false,
 }: {
   candidate: SessionCandidate;
   revealed: RevealState;
   onReveal: (kind: "email" | "phone") => void;
   layout?: "row" | "stack";
+  compact?: boolean;
 }) {
   const emailVisible = revealed.email || candidate.emailRevealed;
   const phoneVisible = revealed.phone || candidate.phoneRevealed;
+  const emailStatus = revealed.emailStatus ?? "idle";
+  const phoneStatus = revealed.phoneStatus ?? "idle";
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <ContactIconButton
+          kind="email"
+          value={candidate.email}
+          visible={emailVisible}
+          status={emailStatus}
+          onReveal={onReveal}
+        />
+        <ContactIconButton
+          kind="phone"
+          value={candidate.phone}
+          visible={phoneVisible}
+          status={phoneStatus}
+          onReveal={onReveal}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -205,7 +327,12 @@ export function ContactReveal({
           previouslyRevealed={candidate.emailRevealed && !revealed.email}
         />
       ) : (
-        <RevealButton kind="email" candidate={candidate} onReveal={onReveal} />
+        <RevealButton
+          kind="email"
+          candidate={candidate}
+          status={emailStatus}
+          onReveal={onReveal}
+        />
       )}
 
       {phoneVisible ? (
@@ -217,7 +344,12 @@ export function ContactReveal({
           previouslyRevealed={candidate.phoneRevealed && !revealed.phone}
         />
       ) : (
-        <RevealButton kind="phone" candidate={candidate} onReveal={onReveal} />
+        <RevealButton
+          kind="phone"
+          candidate={candidate}
+          status={phoneStatus}
+          onReveal={onReveal}
+        />
       )}
     </div>
   );

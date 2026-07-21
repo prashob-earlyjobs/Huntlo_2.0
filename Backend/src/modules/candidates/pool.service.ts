@@ -11,6 +11,8 @@ import { isValidEmail, normalizeEmail } from '../../shared/validation/email.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { isValidPhone, normalizePhone } from '../../shared/validation/phone.js';
 import { UserModel } from '../auth/user.model.js';
+import { JobModel } from '../jobs/job.model.js';
+import { SourcedCandidateModel } from '../sourcing/sourced-candidate.model.js';
 import { CandidateListModel } from './candidate-list.model.js';
 import { listService } from './list.service.js';
 import {
@@ -26,6 +28,7 @@ import type {
   BulkAssignInput,
   BulkExportInput,
   BulkRemoveFromListInput,
+  BulkSaveSourcedToListInput,
   BulkStatusInput,
   CreatePoolCandidateInput,
   ListPoolQuery,
@@ -137,12 +140,28 @@ async function loadListNames(
   return map;
 }
 
+async function loadJobNames(
+  organizationId: string,
+  jobIds: mongoose.Types.ObjectId[]
+) {
+  if (!jobIds.length) return new Map<string, string>();
+  const jobs = await JobModel.find({
+    _id: { $in: jobIds },
+    organizationId,
+    deletedAt: null,
+  })
+    .select('title')
+    .lean();
+  return new Map(jobs.map((job) => [String(job._id), job.title]));
+}
+
 export function toPublicPoolCandidate(
   candidate: SavedCandidateDocument,
   options?: {
     ownerName?: string | null;
     assignedName?: string | null;
     listNames?: Map<string, string>;
+    jobNames?: Map<string, string>;
   }
 ) {
   const listIds = (candidate.listIds ?? []).map((id) => id.toHexString());
@@ -178,11 +197,16 @@ export function toPublicPoolCandidate(
     assignedUserId,
     assigned: options?.assignedName ?? null,
     jobIds: (candidate.jobIds ?? []).map((id) => id.toHexString()),
+    jobs: (candidate.jobIds ?? []).map(
+      (id) => options?.jobNames?.get(id.toHexString()) ?? id.toHexString()
+    ),
     listIds,
     lists,
     customFields: candidate.customFields ?? {},
     lastActivityAt: candidate.lastActivityAt?.toISOString?.() ?? null,
     archivedAt: candidate.archivedAt?.toISOString?.() ?? null,
+    emailRevealed: Boolean(candidate.email),
+    phoneRevealed: Boolean(candidate.phone),
     createdAt: candidate.createdAt?.toISOString?.() ?? null,
     updatedAt: candidate.updatedAt?.toISOString?.() ?? null,
   };
@@ -205,10 +229,14 @@ async function enrichPublic(candidates: SavedCandidateDocument[]) {
   const assignedIds = candidates.map((c) => c.assignedUserId);
   const names = await loadUserNames([...ownerIds, ...assignedIds]);
   const allListIds = candidates.flatMap((c) => c.listIds ?? []);
+  const allJobIds = candidates.flatMap((c) => c.jobIds ?? []);
   const orgId = candidates[0]?.organizationId?.toHexString();
-  const listNames = orgId
-    ? await loadListNames(orgId, allListIds)
-    : new Map<string, string>();
+  const [listNames, jobNames] = orgId
+    ? await Promise.all([
+        loadListNames(orgId, allListIds),
+        loadJobNames(orgId, allJobIds),
+      ])
+    : [new Map<string, string>(), new Map<string, string>()];
 
   return candidates.map((c) =>
     toPublicPoolCandidate(c, {
@@ -217,6 +245,7 @@ async function enrichPublic(candidates: SavedCandidateDocument[]) {
         ? names.get(c.assignedUserId.toHexString()) ?? null
         : null,
       listNames,
+      jobNames,
     })
   );
 }
@@ -271,20 +300,35 @@ export class PoolService {
     if (query.tags?.length) {
       filter.tags = { $all: query.tags };
     }
+    if (query.view === 'recent') {
+      filter.createdAt = { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
+    }
+    const conditions: Record<string, unknown>[] = [];
+    if (query.view === 'revealed') {
+      conditions.push({
+        $or: [
+          { email: { $nin: [null, ''] } },
+          { phone: { $nin: [null, ''] } },
+        ],
+      });
+    }
     if (query.search) {
       const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(escaped, 'i');
-      filter.$or = [
-        { name: regex },
-        { email: regex },
-        { headline: regex },
-        { currentTitle: regex },
-        { currentCompany: regex },
-        { location: regex },
-        { skills: regex },
-        { tags: regex },
-      ];
+      conditions.push({
+        $or: [
+          { name: regex },
+          { email: regex },
+          { headline: regex },
+          { currentTitle: regex },
+          { currentCompany: regex },
+          { location: regex },
+          { skills: regex },
+          { tags: regex },
+        ],
+      });
     }
+    if (conditions.length) filter.$and = conditions;
 
     let sort: Record<string, 1 | -1>;
     try {
@@ -294,18 +338,19 @@ export class PoolService {
     }
 
     const total = await SavedCandidateModel.countDocuments(filter);
+    const totalPages = Math.max(1, Math.ceil(total / query.limit));
+    const page = Math.min(query.page, totalPages);
     const candidates = await SavedCandidateModel.find(filter)
       .sort(sort)
-      .skip(getSkip(query.page, query.limit))
+      .skip(getSkip(page, query.limit))
       .limit(query.limit);
 
     const items = await enrichPublic(candidates);
-    const totalPages = Math.max(1, Math.ceil(total / query.limit));
 
     return {
       items,
       total,
-      page: query.page,
+      page,
       limit: query.limit,
       totalPages,
     };
@@ -508,6 +553,133 @@ export class PoolService {
     }
 
     return { added: candidates.length, listId: input.listId };
+  }
+
+  async bulkSaveSourcedToList(
+    actor: ActorContext,
+    input: BulkSaveSourcedToListInput
+  ) {
+    const list = await CandidateListModel.findById(input.listId);
+    if (!list || list.deletedAt) {
+      throw AppError.notFound('List not found');
+    }
+    assertSameOrganization(list.organizationId, actor.organizationId);
+
+    const orgOid = new mongoose.Types.ObjectId(actor.organizationId);
+    const listOid = new mongoose.Types.ObjectId(input.listId);
+    const ownerOid = new mongoose.Types.ObjectId(actor.userId);
+    const sourcedIds = input.sourcedCandidateIds.map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
+    const sourcedCandidates = await SourcedCandidateModel.find({
+      _id: { $in: sourcedIds },
+      organizationId: orgOid,
+    });
+
+    if (!sourcedCandidates.length) {
+      return {
+        requested: input.sourcedCandidateIds.length,
+        saved: 0,
+        notFound: input.sourcedCandidateIds.length,
+        listId: input.listId,
+      };
+    }
+
+    const uniqueCandidates = [
+      ...new Map(
+        sourcedCandidates.map((candidate) => [
+          candidate.candidateId ||
+            candidate.externalCandidateId ||
+            candidate._id.toHexString(),
+          candidate,
+        ])
+      ).values(),
+    ];
+    const externalCandidateIds = uniqueCandidates.map(
+      (candidate) =>
+        candidate.candidateId ||
+        candidate.externalCandidateId ||
+        candidate._id.toHexString()
+    );
+    const alreadyOnList = await SavedCandidateModel.countDocuments({
+      organizationId: orgOid,
+      externalCandidateId: { $in: externalCandidateIds },
+      deletedAt: null,
+      listIds: listOid,
+    });
+
+    const now = new Date();
+    const operations = uniqueCandidates.map((candidate) => {
+      const externalCandidateId =
+        candidate.candidateId ||
+        candidate.externalCandidateId ||
+        candidate._id.toHexString();
+      const linkedinUrl =
+        candidate.linkedinProfileUrl ||
+        candidate.basicProfile?.linkedinUrl ||
+        null;
+
+      return {
+        updateOne: {
+          filter: {
+            organizationId: orgOid,
+            externalCandidateId,
+            deletedAt: null,
+          },
+          update: {
+            $setOnInsert: {
+              organizationId: orgOid,
+              externalCandidateId,
+              sourceType: 'sourcing' as const,
+              sourceId: candidate.sourcingSessionId.toHexString(),
+              ownerUserId: ownerOid,
+              assignedUserId: null,
+              status: 'saved' as const,
+              jobIds: [],
+              tags: [],
+              customFields: {},
+              name: candidate.name || candidate.basicProfile?.name || 'Unknown',
+              email: null,
+              phone: null,
+              linkedinUrl,
+              headline: candidate.basicProfile?.headline ?? null,
+              currentTitle:
+                candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
+              currentCompany:
+                candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
+              location: candidate.location || null,
+              experienceYears: candidate.experienceYears ?? null,
+              skills: candidate.skills ?? [],
+              archivedAt: null,
+              deletedAt: null,
+              createdAt: now,
+            },
+            $addToSet: { listIds: listOid },
+            $set: { lastActivityAt: now, updatedAt: now },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    await SavedCandidateModel.bulkWrite(operations, {
+      ordered: false,
+    });
+    const saved = uniqueCandidates.length - alreadyOnList;
+
+    if (saved > 0) {
+      await CandidateListModel.updateOne(
+        { _id: listOid },
+        { $inc: { candidateCount: saved } }
+      );
+    }
+
+    return {
+      requested: input.sourcedCandidateIds.length,
+      saved,
+      notFound: input.sourcedCandidateIds.length - sourcedCandidates.length,
+      listId: input.listId,
+    };
   }
 
   async bulkRemoveFromList(actor: ActorContext, input: BulkRemoveFromListInput) {

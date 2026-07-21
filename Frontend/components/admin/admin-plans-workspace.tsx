@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Field, ToggleRow } from "@/components/outreach/builder-ui";
@@ -41,29 +41,66 @@ import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
+const FEATURE_KEY_BY_LABEL: Record<string, string> = {
+  "Candidate Search": "sourcing",
+  "Candidate Pool": "sourcing",
+  "People Scout": "peopleScout",
+  Outreach: "outreach",
+  "Huntlo 360": "huntlo360",
+  Screening: "screening",
+  Scheduling: "assessments",
+  Analytics: "analytics",
+  Integrations: "integrations",
+  Team: "team",
+};
+
 function limitValue(limits: Record<string, unknown> | undefined, key: string) {
   const value = limits?.[key];
   return value == null ? "—" : String(value);
 }
 
 function parsePrice(value: string): number | null {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed || trimmed === "custom") return null;
+  if (trimmed === "free" || trimmed === "0") return 0;
   const digits = value.replace(/[^\d.]/g, "");
   if (!digits) return null;
   return Number(digits);
 }
 
+function slugifyCode(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
 function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
   const limits = (plan.limits || {}) as Record<string, unknown>;
-  const features = plan.featureAccess || {};
-  const modules = Object.entries(features)
-    .filter(([, enabled]) => Boolean(enabled))
-    .map(([key]) => key);
+  const features = (plan.featureAccess || {}) as Record<string, unknown>;
+  const enabledKeys = new Set(
+    Object.entries(features)
+      .filter(([, enabled]) => Boolean(enabled))
+      .map(([key]) => key)
+  );
+  const modules = ADMIN_MODULES.filter((label) => {
+    const key = FEATURE_KEY_BY_LABEL[label];
+    return key ? enabledKeys.has(key) : false;
+  }) as string[];
+
   return {
     id: plan.id,
     name: plan.name,
+    code: plan.code,
+    description: plan.description ?? "",
     price:
       plan.priceLabel?.monthly ||
-      (plan.prices?.monthly != null ? `₹${plan.prices.monthly.toLocaleString("en-IN")}` : "—"),
+      (plan.prices?.monthly != null
+        ? plan.prices.monthly === 0
+          ? "Free"
+          : `₹${plan.prices.monthly.toLocaleString("en-IN")}`
+        : "—"),
     billingCycle: "Monthly",
     searchLimit: limitValue(limits, "candidate_search"),
     emailRevealLimit: limitValue(limits, "email_reveal"),
@@ -75,34 +112,51 @@ function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
     teamMemberLimit: limitValue(limits, "team_seats"),
     modules,
     active: plan.active,
+    public: plan.public ?? true,
+    sortOrder: plan.sortOrder ?? 100,
+    isDefaultSignup: Boolean(plan.isDefaultSignup),
+    isTrialPlan: Boolean(plan.isTrialPlan),
+    trialDays: plan.trialDays ?? 14,
   };
 }
 
-function toPlanPayload(draft: AdminPlan) {
+function toPlanPayload(draft: AdminPlan, { includeCode }: { includeCode: boolean }) {
   const monthly = parsePrice(draft.price);
+  const featureAccess: Record<string, boolean> = {};
+  for (const label of ADMIN_MODULES) {
+    const key = FEATURE_KEY_BY_LABEL[label];
+    if (!key) continue;
+    featureAccess[key] = draft.modules.includes(label);
+  }
+
   return {
     name: draft.name.trim(),
-    code: draft.name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, ""),
-    prices: { monthly, yearly: monthly == null ? null : monthly * 10 },
+    ...(includeCode
+      ? { code: (draft.code.trim() || slugifyCode(draft.name)).toLowerCase() }
+      : {}),
+    description: draft.description.trim() || null,
+    prices: {
+      monthly,
+      yearly: monthly == null ? null : monthly === 0 ? 0 : monthly * 10,
+    },
     billingCycles: draft.billingCycle === "Annual" ? ["yearly"] : ["monthly", "yearly"],
     limits: {
-      candidate_search: Number(draft.searchLimit) || 0,
-      email_reveal: Number(draft.emailRevealLimit) || 0,
-      mobile_reveal: Number(draft.mobileRevealLimit) || 0,
-      people_scout: Number(draft.peopleScoutLimit) || 0,
-      email_outreach: Number(draft.emailOutreachLimit) || 0,
-      whatsapp_outreach: Number(draft.whatsappLimit) || 0,
+      candidate_search: Number(String(draft.searchLimit).replace(/[^\d]/g, "")) || 0,
+      email_reveal: Number(String(draft.emailRevealLimit).replace(/[^\d]/g, "")) || 0,
+      mobile_reveal: Number(String(draft.mobileRevealLimit).replace(/[^\d]/g, "")) || 0,
+      people_scout: Number(String(draft.peopleScoutLimit).replace(/[^\d]/g, "")) || 0,
+      email_outreach: Number(String(draft.emailOutreachLimit).replace(/[^\d]/g, "")) || 0,
+      whatsapp_outreach: Number(String(draft.whatsappLimit).replace(/[^\d]/g, "")) || 0,
       ai_voice_minutes: Number(String(draft.aiVoiceLimit).replace(/[^\d]/g, "")) || 0,
-      team_seats: Number(draft.teamMemberLimit) || 0,
+      team_seats: Number(String(draft.teamMemberLimit).replace(/[^\d]/g, "")) || 0,
     },
-    featureAccess: Object.fromEntries(
-      ADMIN_MODULES.map((module) => [module, draft.modules.includes(module)])
-    ),
+    featureAccess,
     active: draft.active,
+    public: draft.public,
+    sortOrder: Number(draft.sortOrder) || 0,
+    isDefaultSignup: draft.isDefaultSignup,
+    isTrialPlan: draft.isTrialPlan,
+    trialDays: Number(draft.trialDays) || 14,
   };
 }
 
@@ -112,17 +166,18 @@ export function AdminPlansWorkspace() {
   const [draft, setDraft] = useState<AdminPlan>(emptyPlanDraft());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function reload() {
+    const items = await adminApi.listPlans();
+    setPlans(items.map(mapApiPlan));
+  }
 
   useEffect(() => {
-    void adminApi
-      .listPlans()
-      .then((items) => {
-        setPlans(items.map(mapApiPlan));
-      })
-      .catch((error) => {
-        setPlans([]);
-        setToast(getApiErrorMessage(error, "Unable to load plans."));
-      });
+    void reload().catch((error) => {
+      setPlans([]);
+      setToast(getApiErrorMessage(error, "Unable to load plans."));
+    });
   }, []);
 
   useEffect(() => {
@@ -153,29 +208,43 @@ export function AdminPlansWorkspace() {
   }
 
   function savePlan() {
-    if (!draft.name.trim() || !draft.price.trim()) {
-      setToast("Plan name and price are required.");
+    if (!draft.name.trim()) {
+      setToast("Plan name is required.");
       return;
     }
-    const payload = toPlanPayload(draft);
+    if (!draft.price.trim()) {
+      setToast("Price is required (use Free, Custom, or an amount).");
+      return;
+    }
+    const payload = toPlanPayload(draft, { includeCode: !editingId });
+    setSaving(true);
     void (async () => {
       try {
         if (editingId) {
-          const updated = await adminApi.updatePlan(editingId, payload);
-          setPlans((previous) =>
-            previous.map((plan) =>
-              plan.id === editingId ? mapApiPlan(updated) : plan
-            )
-          );
+          await adminApi.updatePlan(editingId, payload);
           setToast(`Updated ${draft.name}.`);
         } else {
-          const created = await adminApi.createPlan(payload);
-          setPlans((previous) => [...previous, mapApiPlan(created)]);
+          await adminApi.createPlan(payload);
           setToast(`Created ${draft.name}.`);
         }
+        await reload();
         setOpen(false);
       } catch (error) {
         setToast(getApiErrorMessage(error, "Unable to save plan."));
+      } finally {
+        setSaving(false);
+      }
+    })();
+  }
+
+  function setAsDefault(plan: AdminPlan) {
+    void (async () => {
+      try {
+        await adminApi.setDefaultSignupPlan(plan.id);
+        await reload();
+        setToast(`${plan.name} is now the default signup plan.`);
+      } catch (error) {
+        setToast(getApiErrorMessage(error, "Unable to set default signup plan."));
       }
     })();
   }
@@ -184,7 +253,7 @@ export function AdminPlansWorkspace() {
     <div className="space-y-6">
       <PageHeader
         title="Plan administration"
-        description="Build and manage commercial plans, limits and module access."
+        description="Fully manage commercial plans, signup default, trial settings, limits and module access. Changes apply to Plan comparison and new signups."
         actions={
           <Button size="sm" onClick={openCreate}>
             <Plus aria-hidden />
@@ -208,11 +277,9 @@ export function AdminPlansWorkspace() {
             <TableRow>
               <TableHead className={HEAD}>Plan</TableHead>
               <TableHead className={HEAD}>Price</TableHead>
-              <TableHead className={HEAD}>Billing</TableHead>
+              <TableHead className={HEAD}>Flags</TableHead>
               <TableHead className={HEAD}>Searches</TableHead>
               <TableHead className={HEAD}>Reveals</TableHead>
-              <TableHead className={HEAD}>Outreach</TableHead>
-              <TableHead className={HEAD}>Voice</TableHead>
               <TableHead className={HEAD}>Seats</TableHead>
               <TableHead className={HEAD}>Status</TableHead>
               <TableHead className={HEAD}>Actions</TableHead>
@@ -221,21 +288,38 @@ export function AdminPlansWorkspace() {
           <TableBody>
             {plans.map((plan) => (
               <TableRow key={plan.id}>
-                <TableCell className="font-medium">{plan.name}</TableCell>
-                <TableCell className="whitespace-nowrap text-sm">
-                  {plan.price}
+                <TableCell>
+                  <div className="font-medium">{plan.name}</div>
+                  <div className="text-xs text-muted-foreground">{plan.code}</div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {plan.billingCycle}
+                <TableCell className="whitespace-nowrap text-sm">{plan.price}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {plan.isDefaultSignup ? (
+                      <span className="rounded-md bg-brand-subtle px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                        Signup default
+                      </span>
+                    ) : null}
+                    {plan.isTrialPlan ? (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                        Trial {plan.trialDays}d
+                      </span>
+                    ) : null}
+                    {plan.public ? (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                        Public
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                        Private
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-sm">{plan.searchLimit}</TableCell>
                 <TableCell className="whitespace-nowrap text-sm">
                   {plan.emailRevealLimit} / {plan.mobileRevealLimit}
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-sm">
-                  {plan.emailOutreachLimit} / {plan.whatsappLimit}
-                </TableCell>
-                <TableCell className="text-sm">{plan.aiVoiceLimit}</TableCell>
                 <TableCell className="text-sm">{plan.teamMemberLimit}</TableCell>
                 <TableCell>
                   <span
@@ -250,14 +334,18 @@ export function AdminPlansWorkspace() {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => openEdit(plan)}
-                  >
-                    <Pencil aria-hidden />
-                    Edit
-                  </Button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button size="xs" variant="outline" onClick={() => openEdit(plan)}>
+                      <Pencil aria-hidden />
+                      Edit
+                    </Button>
+                    {!plan.isDefaultSignup && plan.active ? (
+                      <Button size="xs" variant="outline" onClick={() => setAsDefault(plan)}>
+                        <Star aria-hidden />
+                        Set default
+                      </Button>
+                    ) : null}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -268,11 +356,10 @@ export function AdminPlansWorkspace() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {editingId ? "Edit plan" : "Create plan"}
-            </DialogTitle>
+            <DialogTitle>{editingId ? "Edit plan" : "Create plan"}</DialogTitle>
             <DialogDescription>
-              Configure pricing, quotas and module access.
+              Configure pricing, quotas, visibility and signup defaults. Public plans appear in
+              Plan comparison.
             </DialogDescription>
           </DialogHeader>
 
@@ -285,8 +372,23 @@ export function AdminPlansWorkspace() {
                   setDraft((previous) => ({
                     ...previous,
                     name: event.target.value,
+                    code: editingId ? previous.code : slugifyCode(event.target.value),
                   }))
                 }
+              />
+            </Field>
+            <Field label="Code" htmlFor="pl-code" required>
+              <Input
+                id="pl-code"
+                value={draft.code}
+                disabled={Boolean(editingId)}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    code: event.target.value.toLowerCase(),
+                  }))
+                }
+                placeholder="trial"
               />
             </Field>
             <Field label="Price" htmlFor="pl-price" required>
@@ -299,7 +401,7 @@ export function AdminPlansWorkspace() {
                     price: event.target.value,
                   }))
                 }
-                placeholder="₹14,999 or Custom"
+                placeholder="Free, ₹9,999 or Custom"
               />
             </Field>
             <Field label="Billing cycle" htmlFor="pl-cycle">
@@ -322,6 +424,48 @@ export function AdminPlansWorkspace() {
                 </SelectContent>
               </Select>
             </Field>
+            <Field label="Sort order" htmlFor="pl-sort">
+              <Input
+                id="pl-sort"
+                type="number"
+                value={String(draft.sortOrder)}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    sortOrder: Number(event.target.value) || 0,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Trial days" htmlFor="pl-trial-days">
+              <Input
+                id="pl-trial-days"
+                type="number"
+                min={1}
+                max={365}
+                value={String(draft.trialDays)}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    trialDays: Number(event.target.value) || 14,
+                  }))
+                }
+              />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Description" htmlFor="pl-desc">
+                <Input
+                  id="pl-desc"
+                  value={draft.description}
+                  onChange={(event) =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      description: event.target.value,
+                    }))
+                  }
+                />
+              </Field>
+            </div>
             <Field label="Search limit" htmlFor="pl-search">
               <Input
                 id="pl-search"
@@ -421,9 +565,7 @@ export function AdminPlansWorkspace() {
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">
-              Module access
-            </p>
+            <p className="text-xs font-medium text-muted-foreground">Module access</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {ADMIN_MODULES.map((module) => (
                 <ToggleRow
@@ -437,22 +579,47 @@ export function AdminPlansWorkspace() {
             </div>
           </div>
 
-          <ToggleRow
-            id="pl-active"
-            label="Active status"
-            description="Inactive plans cannot be assigned to new workspaces"
-            checked={draft.active}
-            onChange={(checked) =>
-              setDraft((previous) => ({ ...previous, active: checked }))
-            }
-          />
+          <div className="space-y-2">
+            <ToggleRow
+              id="pl-active"
+              label="Active"
+              description="Inactive plans cannot be assigned to new workspaces"
+              checked={draft.active}
+              onChange={(checked) => setDraft((previous) => ({ ...previous, active: checked }))}
+            />
+            <ToggleRow
+              id="pl-public"
+              label="Public (show in Plan comparison)"
+              description="Only public + active plans appear on the workspace Plans page"
+              checked={draft.public}
+              onChange={(checked) => setDraft((previous) => ({ ...previous, public: checked }))}
+            />
+            <ToggleRow
+              id="pl-default"
+              label="Default signup plan"
+              description="New accounts are assigned this plan automatically"
+              checked={draft.isDefaultSignup}
+              onChange={(checked) =>
+                setDraft((previous) => ({ ...previous, isDefaultSignup: checked }))
+              }
+            />
+            <ToggleRow
+              id="pl-trial"
+              label="Trial plan"
+              description="New subscriptions use trialing status for the trial days above"
+              checked={draft.isTrialPlan}
+              onChange={(checked) =>
+                setDraft((previous) => ({ ...previous, isTrialPlan: checked }))
+              }
+            />
+          </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={savePlan}>
-              {editingId ? "Save plan" : "Create plan"}
+            <Button onClick={savePlan} disabled={saving}>
+              {saving ? "Saving…" : editingId ? "Save plan" : "Create plan"}
             </Button>
           </DialogFooter>
         </DialogContent>

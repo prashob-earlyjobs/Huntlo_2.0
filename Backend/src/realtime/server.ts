@@ -7,7 +7,8 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { getLogger } from '../config/logger.js';
 import { getRealtimeConfig } from '../config/realtime.js';
 import { verifyRealtimeTicket } from '../shared/auth/jwt.js';
-import { setRealtimeBroadcaster, type RealtimeTarget } from './events.js';
+import { setRealtimeBroadcaster, type RealtimeBroadcaster, type RealtimeTarget } from './events.js';
+import { startApiRealtimeRedisSubscriber } from './redis-bridge.js';
 import { ConnectionRegistry } from './registry.js';
 
 export type RealtimeServer = {
@@ -87,7 +88,7 @@ export function attachWebSocketServer(httpServer: Server): RealtimeServer | null
   const wss = new WebSocketServer({ noServer: true });
   const registry = new ConnectionRegistry();
 
-  setRealtimeBroadcaster((event, data, target) => {
+  const forwardToClients: RealtimeBroadcaster = (event, data, target) => {
     const resolved = resolveTarget(data, target);
     if (!resolved) {
       logger.warn({ event }, 'Realtime emit skipped — missing organization target');
@@ -103,7 +104,10 @@ export function attachWebSocketServer(httpServer: Server): RealtimeServer | null
         client.ws.send(message);
       }
     }
-  });
+  };
+
+  setRealtimeBroadcaster(forwardToClients);
+  startApiRealtimeRedisSubscriber(forwardToClients);
 
   const heartbeatTimer = setInterval(() => {
     for (const stale of registry.listStale(HEARTBEAT_TIMEOUT_MS)) {

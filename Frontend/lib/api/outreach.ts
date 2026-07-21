@@ -1,12 +1,25 @@
 import { apiClient } from "./client";
 import type { OutreachCampaign } from "./contracts";
 import { createDomainService, simulateMockLatency } from "./service";
+import type { PaginationMeta } from "./contracts/envelopes";
 import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
 import type {
   CampaignStatus,
   OutreachChannel,
 } from "@/lib/mock-outreach";
+
+export type PaginatedOutreachCampaigns = {
+  items: OutreachCampaign[];
+  pagination: PaginationMeta;
+};
+
+const DEFAULT_CAMPAIGN_PAGINATION: PaginationMeta = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
 
 /* ------------------------------------------------------------------ */
 /* Backend DTOs                                                         */
@@ -86,8 +99,11 @@ export type ApiOutreachCampaign = {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled: boolean;
+    takeoverCondition?: string | null;
+    autoScreening?: boolean;
   };
   schedulingConfig: {
     enabled: boolean;
@@ -163,8 +179,11 @@ export type CampaignCreateInput = {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled?: boolean;
+    takeoverCondition?: string | null;
+    autoScreening?: boolean;
   };
   schedulingConfig?: {
     enabled: boolean;
@@ -297,12 +316,60 @@ export function toApiStatus(status: CampaignStatus): ApiCampaignStatus {
 /* API surface                                                          */
 /* ------------------------------------------------------------------ */
 
+export type CampaignTrackingResult = {
+  campaignId: string;
+  status: string;
+  totalCandidates: number;
+  enrolled: number;
+  pending: number;
+  contacted: number;
+  delivered: number;
+  failed: number;
+  replied: number;
+  interested: number;
+  notInterested: number;
+  qualified: number;
+  screened: number;
+  shortlisted: number;
+  schedulingLinkSent: number;
+  interviewScheduled: number;
+  completed: number;
+  optedOut: number;
+  channels: Record<string, Record<string, number>>;
+  steps: Array<Record<string, unknown>>;
+  updatedAt: string;
+};
+
+export type CampaignBuilderState = {
+  campaignId: string;
+  mode: string;
+  campaignType: string;
+  status: string;
+  version: number;
+  steps: string[];
+  currentStep: string;
+  completedSteps: string[];
+  remainingSteps: string[];
+  builderState: Record<string, unknown>;
+  builderMeta: Record<string, unknown>;
+  warnings: string[];
+  blockers: string[];
+};
+
 export interface OutreachApi {
   listCampaigns(params?: ApiQueryParams): Promise<OutreachCampaign[]>;
+  listCampaignsPage(
+    params?: ApiQueryParams
+  ): Promise<PaginatedOutreachCampaigns>;
   listCampaignsRaw(params?: ApiQueryParams): Promise<ApiOutreachCampaign[]>;
   getCampaign(id: string): Promise<OutreachCampaign | null>;
   getCampaignRaw(id: string): Promise<ApiOutreachCampaign | null>;
   createCampaign(input: CampaignCreateInput): Promise<ApiOutreachCampaign>;
+  createOutreachDraft(input?: {
+    name?: string;
+    mode?: "single" | "multi";
+    jobId?: string | null;
+  }): Promise<{ id: string; name: string; status: string; mode: string }>;
   updateCampaign(
     id: string,
     input: Partial<CampaignCreateInput>
@@ -326,6 +393,34 @@ export interface OutreachApi {
   duplicateCampaign(id: string): Promise<OutreachCampaign>;
   getStats(id: string): Promise<ApiOutreachCampaign["stats"]>;
   getOverview(): Promise<OutreachOverview>;
+  getOutreachStats(): Promise<OutreachOverview>;
+  getCampaignBuilder(id: string): Promise<CampaignBuilderState>;
+  saveCampaignBuilderStep(
+    id: string,
+    stepKey: string,
+    payload: Record<string, unknown>
+  ): Promise<CampaignBuilderState>;
+  getCampaignTracking(id: string): Promise<CampaignTrackingResult>;
+  getCandidateInteractions(
+    campaignId: string,
+    candidateId: string
+  ): Promise<{ items: Array<Record<string, unknown>> }>;
+  getCandidateConversation(
+    campaignId: string,
+    candidateId: string
+  ): Promise<Record<string, unknown>>;
+  recordCandidateAction(
+    campaignId: string,
+    candidateId: string,
+    input: { action: string; note?: string; reason?: string; channel?: "email" | "whatsapp" }
+  ): Promise<Record<string, unknown>>;
+  sendCandidateSchedulingLink(
+    campaignId: string,
+    candidateId: string,
+    input?: { channel?: "email" | "whatsapp"; eventTypeUri?: string | null; message?: string | null }
+  ): Promise<Record<string, unknown>>;
+  getScheduledInterviews(campaignId: string): Promise<{ items: Array<Record<string, unknown>> }>;
+  syncScheduledInterviews(campaignId: string): Promise<{ synced: number }>;
   listEnrollments(
     id: string,
     params?: ListEnrollmentsParams
@@ -333,6 +428,20 @@ export interface OutreachApi {
   getActivity(id: string): Promise<
     Array<{ id: string; type: string; title: string; detail: string | null; createdAt: string }>
   >;
+  generateQualificationQuestions(input: {
+    jobId?: string | null;
+    jobTitle?: string;
+    jobDescription?: string;
+    instructions?: string;
+  }): Promise<{
+    questions: Array<{
+      id: string;
+      prompt: string;
+      answerType: string;
+      knockout: boolean;
+      knockoutCondition?: string | null;
+    }>;
+  }>;
 }
 
 export type OutreachOverview = {
@@ -350,10 +459,46 @@ export type OutreachOverview = {
 };
 
 const mockOutreachApi: OutreachApi = {
-  async listCampaigns() {
+  async listCampaigns(params) {
+    const page = await this.listCampaignsPage(params);
+    return page.items;
+  },
+  async listCampaignsPage(params) {
     await simulateMockLatency();
     const { OUTREACH_CAMPAIGNS } = await import("@/lib/mock-outreach");
-    return OUTREACH_CAMPAIGNS;
+    const page = Math.max(1, Number(params?.page ?? 1) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit ?? 10) || 10));
+    const q =
+      typeof params?.q === "string" ? params.q.trim().toLowerCase() : "";
+    const status =
+      typeof params?.status === "string" ? params.status.toLowerCase() : "";
+    const jobId = typeof params?.jobId === "string" ? params.jobId : "";
+
+    let rows = OUTREACH_CAMPAIGNS;
+    if (q) {
+      rows = rows.filter((campaign) =>
+        `${campaign.name} ${campaign.relatedJobTitle ?? ""}`
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    if (status) {
+      rows = rows.filter(
+        (campaign) => toApiStatus(campaign.status) === status
+      );
+    }
+    if (jobId) {
+      rows = rows.filter((campaign) => campaign.relatedJobId === jobId);
+    }
+
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
+    return {
+      items: rows.slice(start, start + limit),
+      pagination: { page: safePage, limit, total, totalPages },
+    };
   },
   async listCampaignsRaw() {
     const campaigns = await this.listCampaigns();
@@ -488,6 +633,93 @@ const mockOutreachApi: OutreachApi = {
       updatedAt: new Date().toISOString(),
     };
   },
+  async createOutreachDraft(input) {
+    const created = await this.createCampaign({
+      name: input?.name || "Untitled campaign",
+      campaignType: input?.mode === "single" ? "single_channel" : "multi_channel",
+      jobId: input?.jobId ?? null,
+    });
+    return {
+      id: created.id,
+      name: created.name,
+      status: created.status,
+      mode: input?.mode || "multi",
+    };
+  },
+  async getOutreachStats() {
+    return this.getOverview();
+  },
+  async getCampaignBuilder(id) {
+    await simulateMockLatency();
+    return {
+      campaignId: id,
+      mode: "multi",
+      campaignType: "multi_channel",
+      status: "draft",
+      version: 1,
+      steps: ["details", "sequence", "personalize", "candidates", "qualification", "review"],
+      currentStep: "details",
+      completedSteps: [],
+      remainingSteps: ["details", "sequence", "personalize", "candidates", "qualification", "review"],
+      builderState: {},
+      builderMeta: {},
+      warnings: [],
+      blockers: [],
+    };
+  },
+  async saveCampaignBuilderStep(id, stepKey, payload) {
+    const current = await this.getCampaignBuilder(id);
+    return {
+      ...current,
+      currentStep: stepKey,
+      completedSteps: [...new Set([...current.completedSteps, stepKey])],
+      builderState: { ...current.builderState, [stepKey]: payload },
+    };
+  },
+  async getCampaignTracking() {
+    await simulateMockLatency();
+    return {
+      campaignId: "",
+      status: "draft",
+      totalCandidates: 0,
+      enrolled: 0,
+      pending: 0,
+      contacted: 0,
+      delivered: 0,
+      failed: 0,
+      replied: 0,
+      interested: 0,
+      notInterested: 0,
+      qualified: 0,
+      screened: 0,
+      shortlisted: 0,
+      schedulingLinkSent: 0,
+      interviewScheduled: 0,
+      completed: 0,
+      optedOut: 0,
+      channels: {},
+      steps: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async getCandidateInteractions() {
+    return { items: [] };
+  },
+  async getCandidateConversation() {
+    return { thread: null, messages: [] };
+  },
+  async recordCandidateAction() {
+    return { ok: true };
+  },
+  async sendCandidateSchedulingLink() {
+    return { ok: true, bookingUrl: null };
+  },
+  async getScheduledInterviews() {
+    return { items: [] };
+  },
+  async syncScheduledInterviews() {
+    return { synced: 0 };
+  },
   async updateCampaign(id, input) {
     const existing = await this.getCampaignRaw(id);
     if (!existing) throw new Error("Campaign not found");
@@ -585,7 +817,8 @@ const mockOutreachApi: OutreachApi = {
   },
   async getOverview() {
     await simulateMockLatency();
-    const campaigns = await this.listCampaigns();
+    const { OUTREACH_CAMPAIGNS } = await import("@/lib/mock-outreach");
+    const campaigns = OUTREACH_CAMPAIGNS;
     const activeCampaigns = campaigns.filter(
       (c) => c.status === "Running" || c.status === "Scheduled"
     ).length;
@@ -625,25 +858,82 @@ const mockOutreachApi: OutreachApi = {
     await simulateMockLatency();
     return [];
   },
+  async generateQualificationQuestions(input) {
+    await simulateMockLatency();
+    const role = input.jobTitle || "this role";
+    return {
+      questions: [
+        {
+          id: "q-1",
+          prompt: `How many years of experience do you have for ${role}?`,
+          answerType: "Number",
+          knockout: true,
+          knockoutCondition: "Reject if less than 2",
+        },
+        {
+          id: "q-2",
+          prompt: "What is your notice period in days?",
+          answerType: "Number",
+          knockout: true,
+          knockoutCondition: "Reject if more than 90",
+        },
+        {
+          id: "q-3",
+          prompt: `Are you aligned with the location / workplace type for ${role}?`,
+          answerType: "Yes / No",
+          knockout: true,
+          knockoutCondition: "Reject if No",
+        },
+        {
+          id: "q-4",
+          prompt: "What is your expected annual compensation?",
+          answerType: "Short text",
+          knockout: false,
+          knockoutCondition: null,
+        },
+      ],
+    };
+  },
 };
 
 const liveOutreachApi: OutreachApi = {
   async listCampaigns(params) {
+    const page = await this.listCampaignsPage(params);
+    return page.items;
+  },
+  async listCampaignsPage(params) {
     const result = await apiClient.get<ApiOutreachCampaign[]>(
-      `/outreach/campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
+      `/outreach-campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
     );
-    return result.data.map(toDisplayCampaign);
+    const pagination = result.meta?.pagination;
+    return {
+      items: result.data.map(toDisplayCampaign),
+      pagination: pagination
+        ? {
+            page: pagination.page,
+            limit: pagination.limit,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+          }
+        : {
+            ...DEFAULT_CAMPAIGN_PAGINATION,
+            limit: Number(params?.limit ?? 10) || 10,
+            page: Number(params?.page ?? 1) || 1,
+            total: result.data.length,
+            totalPages: 1,
+          },
+    };
   },
   async listCampaignsRaw(params) {
     const result = await apiClient.get<ApiOutreachCampaign[]>(
-      `/outreach/campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
+      `/outreach-campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
     );
     return result.data;
   },
   async getCampaign(id) {
     try {
       const result = await apiClient.get<ApiOutreachCampaign>(
-        `/outreach/campaigns/${id}`
+        `/outreach-campaigns/${id}`
       );
       return toDisplayCampaign(result.data);
     } catch {
@@ -653,7 +943,7 @@ const liveOutreachApi: OutreachApi = {
   async getCampaignRaw(id) {
     try {
       const result = await apiClient.get<ApiOutreachCampaign>(
-        `/outreach/campaigns/${id}`
+        `/outreach-campaigns/${id}`
       );
       return result.data;
     } catch {
@@ -670,39 +960,39 @@ const liveOutreachApi: OutreachApi = {
   },
   async updateCampaign(id, input) {
     const result = await apiClient.patch<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}`,
+      `/outreach-campaigns/${id}`,
       input,
       { sensitive: true }
     );
     return result.data;
   },
   async deleteCampaign(id) {
-    await apiClient.delete(`/outreach/campaigns/${id}`, { sensitive: true });
+    await apiClient.delete(`/outreach-campaigns/${id}`, { sensitive: true });
   },
   async addAudience(id, input) {
     const result = await apiClient.post<{
       added: number;
       skippedDuplicates: number;
       enrolled: number;
-    }>(`/outreach/campaigns/${id}/audience`, input, { sensitive: true });
+    }>(`/outreach-campaigns/${id}/audience`, input, { sensitive: true });
     return result.data;
   },
   async removeAudience(id, input) {
     const result = await apiClient.request<{ removed: number }>(
-      `/outreach/campaigns/${id}/audience`,
+      `/outreach-campaigns/${id}/audience`,
       { method: "DELETE", body: input, sensitive: true }
     );
     return result.data;
   },
   async audiencePreview(id) {
     const result = await apiClient.get<CampaignAudiencePreview>(
-      `/outreach/campaigns/${id}/audience-preview`
+      `/outreach-campaigns/${id}/audience-preview`
     );
     return result.data;
   },
   async validateCampaign(id) {
     const result = await apiClient.post<CampaignValidationResult>(
-      `/outreach/campaigns/${id}/validate`,
+      `/outreach-campaigns/${id}/validate`,
       undefined,
       { sensitive: true }
     );
@@ -710,7 +1000,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async launchCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/launch`,
+      `/outreach-campaigns/${id}/launch`,
       undefined,
       { sensitive: true }
     );
@@ -718,7 +1008,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async scheduleCampaign(id, scheduledAt) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/schedule`,
+      `/outreach-campaigns/${id}/schedule`,
       { scheduledAt },
       { sensitive: true }
     );
@@ -726,7 +1016,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async pauseCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/pause`,
+      `/outreach-campaigns/${id}/pause`,
       undefined,
       { sensitive: true }
     );
@@ -734,7 +1024,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async resumeCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/resume`,
+      `/outreach-campaigns/${id}/resume`,
       undefined,
       { sensitive: true }
     );
@@ -742,7 +1032,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async cancelCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/cancel`,
+      `/outreach-campaigns/${id}/cancel`,
       undefined,
       { sensitive: true }
     );
@@ -750,7 +1040,7 @@ const liveOutreachApi: OutreachApi = {
   },
   async duplicateCampaign(id) {
     const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach/campaigns/${id}/duplicate`,
+      `/outreach-campaigns/${id}/duplicate`,
       undefined,
       { sensitive: true }
     );
@@ -758,19 +1048,19 @@ const liveOutreachApi: OutreachApi = {
   },
   async getStats(id) {
     const result = await apiClient.get<ApiOutreachCampaign["stats"]>(
-      `/outreach/campaigns/${id}/stats`
+      `/outreach-campaigns/${id}/stats`
     );
     return result.data;
   },
   async getOverview() {
     const result = await apiClient.get<OutreachOverview>(
-      "/outreach/campaigns/overview"
+      "/outreach-campaigns/overview"
     );
     return result.data;
   },
   async listEnrollments(id, params) {
     const result = await apiClient.get<ApiCampaignEnrollment[]>(
-      `/outreach/campaigns/${id}/enrollments${buildQueryString(params)}`
+      `/outreach-campaigns/${id}/enrollments${buildQueryString(params)}`
     );
     return result.data;
   },
@@ -783,8 +1073,108 @@ const liveOutreachApi: OutreachApi = {
         detail: string | null;
         createdAt: string;
       }>
-    >(`/outreach/campaigns/${id}/activity`);
+    >(`/outreach-campaigns/${id}/activity`);
     return result.data;
+  },
+  async createOutreachDraft(input) {
+    const result = await apiClient.post<{
+      id: string;
+      name: string;
+      status: string;
+      mode: string;
+    }>("/outreach-campaigns/drafts", input || {}, { sensitive: true });
+    return result.data;
+  },
+  async getOutreachStats() {
+    return this.getOverview();
+  },
+  async getCampaignBuilder(id) {
+    const result = await apiClient.get<CampaignBuilderState>(
+      `/outreach-campaigns/${id}/builder`
+    );
+    return result.data;
+  },
+  async saveCampaignBuilderStep(id, stepKey, payload) {
+    const result = await apiClient.patch<CampaignBuilderState>(
+      `/outreach-campaigns/${id}/steps/${stepKey}`,
+      payload,
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async getCampaignTracking(id) {
+    const result = await apiClient.get<CampaignTrackingResult>(
+      `/outreach-campaigns/${id}/tracking`
+    );
+    return result.data;
+  },
+  async getCandidateInteractions(campaignId, candidateId) {
+    const result = await apiClient.get<{ items: Array<Record<string, unknown>> }>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/interactions`
+    );
+    return result.data;
+  },
+  async getCandidateConversation(campaignId, candidateId) {
+    const result = await apiClient.get<Record<string, unknown>>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/conversation`
+    );
+    return result.data;
+  },
+  async recordCandidateAction(campaignId, candidateId, input) {
+    const result = await apiClient.post<Record<string, unknown>>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/actions`,
+      input,
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async sendCandidateSchedulingLink(campaignId, candidateId, input) {
+    const result = await apiClient.post<Record<string, unknown>>(
+      `/outreach-campaigns/${campaignId}/candidates/${candidateId}/send-scheduling-link`,
+      input || {},
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async getScheduledInterviews(campaignId) {
+    const result = await apiClient.get<{ items: Array<Record<string, unknown>> }>(
+      `/outreach-campaigns/${campaignId}/scheduled-interviews`
+    );
+    return result.data;
+  },
+  async syncScheduledInterviews(campaignId) {
+    const result = await apiClient.post<{ synced: number }>(
+      `/outreach-campaigns/${campaignId}/scheduled-interviews/sync`,
+      undefined,
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async generateQualificationQuestions(input) {
+    const result = await apiClient.post<{
+      kind: string;
+      draft: {
+        questions: Array<{
+          id: string;
+          prompt: string;
+          answerType: string;
+          knockout: boolean;
+          knockoutCondition?: string | null;
+        }>;
+      };
+    }>(
+      "/outreach/generate",
+      {
+        mode: "qualification_questions",
+        jobId: input.jobId || undefined,
+        jobTitle: input.jobTitle,
+        jobDescription: input.jobDescription,
+        instructions: input.instructions,
+        saveAsDraft: false,
+      },
+      { sensitive: true }
+    );
+    return { questions: result.data.draft?.questions || [] };
   },
 };
 
@@ -792,3 +1182,55 @@ export const outreachApi = createDomainService({
   mock: mockOutreachApi,
   live: liveOutreachApi,
 });
+
+/* Named aliases matching the validated outreach API contract. */
+export const getOutreachStats = () => outreachApi.getOutreachStats();
+export const getOutreachCampaigns = (params?: ApiQueryParams) =>
+  outreachApi.listCampaigns(params);
+export const getOutreachCampaignsPage = (params?: ApiQueryParams) =>
+  outreachApi.listCampaignsPage(params);
+export const getOutreachCampaign = (id: string) => outreachApi.getCampaign(id);
+export const createOutreachDraft = (
+  input?: Parameters<OutreachApi["createOutreachDraft"]>[0]
+) => outreachApi.createOutreachDraft(input);
+export const updateOutreachCampaign = (
+  id: string,
+  input: Partial<CampaignCreateInput>
+) => outreachApi.updateCampaign(id, input);
+export const getCampaignBuilder = (id: string) => outreachApi.getCampaignBuilder(id);
+export const saveCampaignBuilderStep = (
+  id: string,
+  stepKey: string,
+  payload: Record<string, unknown>
+) => outreachApi.saveCampaignBuilderStep(id, stepKey, payload);
+export const validateOutreachCampaign = (id: string) =>
+  outreachApi.validateCampaign(id);
+export const launchOutreachCampaign = (id: string) => outreachApi.launchCampaign(id);
+export const pauseOutreachCampaign = (id: string) => outreachApi.pauseCampaign(id);
+export const resumeOutreachCampaign = (id: string) => outreachApi.resumeCampaign(id);
+export const cancelOutreachCampaign = (id: string) => outreachApi.cancelCampaign(id);
+export const duplicateOutreachCampaign = (id: string) =>
+  outreachApi.duplicateCampaign(id);
+export const getCampaignTracking = (id: string) => outreachApi.getCampaignTracking(id);
+export const getCampaignCandidates = (
+  id: string,
+  params?: ListEnrollmentsParams
+) => outreachApi.listEnrollments(id, params);
+export const getCandidateInteractions = (campaignId: string, candidateId: string) =>
+  outreachApi.getCandidateInteractions(campaignId, candidateId);
+export const getCandidateConversation = (campaignId: string, candidateId: string) =>
+  outreachApi.getCandidateConversation(campaignId, candidateId);
+export const recordCandidateAction = (
+  campaignId: string,
+  candidateId: string,
+  input: { action: string; note?: string; reason?: string; channel?: "email" | "whatsapp" }
+) => outreachApi.recordCandidateAction(campaignId, candidateId, input);
+export const sendCandidateSchedulingLink = (
+  campaignId: string,
+  candidateId: string,
+  input?: { channel?: "email" | "whatsapp"; eventTypeUri?: string | null; message?: string | null }
+) => outreachApi.sendCandidateSchedulingLink(campaignId, candidateId, input);
+export const getScheduledInterviews = (campaignId: string) =>
+  outreachApi.getScheduledInterviews(campaignId);
+export const syncScheduledInterviews = (campaignId: string) =>
+  outreachApi.syncScheduledInterviews(campaignId);

@@ -9,6 +9,7 @@ export const WEBHOOK_PROVIDERS = [
   'calendly',
   'razorpay',
   'dodo',
+  'gmail',
 ] as const;
 export type WebhookProvider = (typeof WEBHOOK_PROVIDERS)[number];
 

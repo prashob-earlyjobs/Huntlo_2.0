@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
+  ExternalLink,
   Loader2,
   Plug,
   RefreshCw,
@@ -109,6 +110,7 @@ function ProviderCard({
   provider: IntegrationProvider;
   onOpen: (provider: IntegrationProvider) => void;
 }) {
+  const inactive = Boolean(provider.inactive);
   const isConnected =
     provider.status === "Connected" ||
     provider.status === "Needs Attention" ||
@@ -122,7 +124,13 @@ function ProviderCard({
         : "Configure";
 
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-card p-4">
+    <article
+      aria-disabled={inactive || undefined}
+      className={cn(
+        "flex flex-col rounded-xl border border-border bg-card p-4",
+        inactive && "opacity-60"
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <span
           aria-hidden
@@ -133,7 +141,13 @@ function ProviderCard({
         >
           {provider.initials}
         </span>
-        <ConnectionStatusBadge status={provider.status} />
+        {inactive ? (
+          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Soon
+          </span>
+        ) : (
+          <ConnectionStatusBadge status={provider.status} />
+        )}
       </div>
 
       <h3 className="mt-3 text-sm font-semibold text-foreground">
@@ -159,7 +173,12 @@ function ProviderCard({
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button size="sm" variant={isConnected ? "outline" : "default"} onClick={() => onOpen(provider)}>
+        <Button
+          size="sm"
+          variant={isConnected ? "outline" : "default"}
+          disabled={inactive}
+          onClick={() => onOpen(provider)}
+        >
           {provider.status === "Not Connected" ? (
             <Plug aria-hidden />
           ) : (
@@ -170,6 +189,7 @@ function ProviderCard({
         <Button
           size="sm"
           variant="ghost"
+          disabled={inactive}
           onClick={() => onOpen(provider)}
           className="text-muted-foreground"
         >
@@ -349,6 +369,8 @@ function SmtpConfigPanel({
                 security,
                 username: form.username,
                 password: form.password,
+                imapHost: form.imapHost || undefined,
+                imapPort: form.imapPort ? Number(form.imapPort) || 993 : undefined,
               });
               if (result.mode === "connected") {
                 onSave("SMTP connected.");
@@ -585,6 +607,19 @@ function CalendlyConfigPanel({
           value={token}
           onChange={(event) => setToken(event.target.value)}
         />
+        <p className="text-xs text-muted-foreground">
+          Create a token in Calendly under Integrations → API &amp; Webhooks.{" "}
+          <a
+            href="https://calendly.com/integrations/api_webhooks"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Get personal access token
+            <ExternalLink aria-hidden className="size-3" />
+            <span className="sr-only">(opens in a new tab)</span>
+          </a>
+        </p>
       </Field>
       <Button
         size="sm"
@@ -696,6 +731,10 @@ function ConnectionDrawer({
 
   const gmailClientId = provider.oauthClientId?.trim() || "";
   const useGmailPopup = provider.id === "gmail" && Boolean(gmailClientId);
+  const usesConfigConnect =
+    provider.configKind === "smtp" ||
+    provider.configKind === "whatsapp" ||
+    provider.configKind === "calendly";
 
   async function handleDisconnect() {
     if (!provider?.integrationRecordId) {
@@ -809,65 +848,82 @@ function ConnectionDrawer({
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-2">
-            {provider.status === "Not Connected" ? (
-              useGmailPopup ? (
-                <GmailConnectButton
-                  clientId={gmailClientId}
-                  busy={busy}
-                  onCode={(code) => void handleGmailCode(code)}
-                  onError={(message) => onFlash(message)}
-                />
-              ) : (
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  disabled={busy}
-                  onClick={() => void handleConnect()}
-                >
-                  <Plug aria-hidden />
-                  {busy ? "Connecting…" : "Connect"}
-                </Button>
-              )
-            ) : (
-              <>
-                {useGmailPopup ? (
+          {usesConfigConnect && provider.status === "Not Connected" ? (
+            <p className="text-xs text-muted-foreground">
+              Enter the details in Configuration below to connect{" "}
+              {provider.name}.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {provider.status === "Not Connected" ? (
+                useGmailPopup ? (
                   <GmailConnectButton
                     clientId={gmailClientId}
                     busy={busy}
-                    reconnect
                     onCode={(code) => void handleGmailCode(code)}
                     onError={(message) => onFlash(message)}
                   />
                 ) : (
                   <Button
                     size="sm"
-                    variant="outline"
                     className="flex-1"
                     disabled={busy}
                     onClick={() => void handleConnect()}
                   >
-                    <RefreshCw aria-hidden />
-                    Reconnect
+                    <Plug aria-hidden />
+                    {busy ? "Connecting…" : "Connect"}
                   </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 text-destructive hover:text-destructive"
-                  disabled={busy}
-                  onClick={() => {
-                    void handleDisconnect().catch((error) =>
-                      onFlash(getApiErrorMessage(error))
-                    );
-                  }}
-                >
-                  <Unplug aria-hidden />
-                  Disconnect
-                </Button>
-              </>
-            )}
-          </div>
+                )
+              ) : (
+                <>
+                  {useGmailPopup ? (
+                    <GmailConnectButton
+                      clientId={gmailClientId}
+                      busy={busy}
+                      reconnect
+                      onCode={(code) => void handleGmailCode(code)}
+                      onError={(message) => onFlash(message)}
+                    />
+                  ) : usesConfigConnect ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowConfig(true)}
+                    >
+                      <Settings2 aria-hidden />
+                      Update configuration
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={busy}
+                      onClick={() => void handleConnect()}
+                    >
+                      <RefreshCw aria-hidden />
+                      Reconnect
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 text-destructive hover:text-destructive"
+                    disabled={busy}
+                    onClick={() => {
+                      void handleDisconnect().catch((error) =>
+                        onFlash(getApiErrorMessage(error))
+                      );
+                    }}
+                  >
+                    <Unplug aria-hidden />
+                    Disconnect
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
 
           {provider.id === "gmail" && !gmailClientId ? (
             <p className="text-xs text-muted-foreground">
@@ -977,6 +1033,7 @@ export function IntegrationsWorkspace() {
   }
 
   function openProvider(provider: IntegrationProvider) {
+    if (provider.inactive) return;
     setSelected(provider);
     setDrawerOpen(true);
   }
@@ -1019,7 +1076,9 @@ export function IntegrationsWorkspace() {
         >
           All
         </button>
-        {INTEGRATION_CATEGORIES.map((cat) => {
+        {INTEGRATION_CATEGORIES.filter((cat) =>
+          providers.some((provider) => provider.category === cat)
+        ).map((cat) => {
           const Icon = CATEGORY_META[cat].icon;
           return (
             <button

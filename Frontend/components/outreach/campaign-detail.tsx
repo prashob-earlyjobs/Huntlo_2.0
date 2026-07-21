@@ -20,11 +20,13 @@ import {
   Pause,
   Pencil,
   Play,
+  Rocket,
   Send,
   ThumbsUp,
   Trash2,
   UserPlus,
   Users,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -75,9 +77,48 @@ import {
   type CampaignStatus,
   type OutreachCampaign,
 } from "@/lib/mock-outreach";
-import { candidateDetailPath, campaignDetailPath, campaignEditPath, jobDetailPath } from "@/lib/routes";
+import {
+  deriveCandidatePipelineStatus,
+  pipelineStatusBadgeClass,
+} from "@/lib/enrollment-pipeline-status";
+import {
+  campaignDetailPath,
+  campaignEditPath,
+  candidateDetailPath,
+  jobDetailPath,
+} from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
+/** Map server validation issue ids to builder step indexes (0–5). */
+function builderStepForValidationIssue(issueId: string): number {
+  const id = issueId.toLowerCase();
+  if (
+    id === "job" ||
+    id === "name" ||
+    id === "owner" ||
+    id === "objective" ||
+    id === "timezone" ||
+    id === "send_window" ||
+    id === "send_days" ||
+    id === "feature"
+  ) {
+    return 0;
+  }
+  if (id === "audience" || id === "contacts") return 1;
+  if (id === "channels" || id === "sender" || id.startsWith("integration")) return 2;
+  if (id === "sequence") return 3;
+  if (id === "qualification") return 4;
+  // Quotas / misc — land on Review so the user can see blockers before launch.
+  return 5;
+}
+
+function firstIncompleteBuilderStep(
+  issues: Array<{ id: string; severity: string }>
+): number {
+  const errors = issues.filter((issue) => issue.severity === "error");
+  if (errors.length === 0) return 5;
+  return Math.min(...errors.map((issue) => builderStepForValidationIssue(issue.id)));
+}
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
 /* ------------------------------------------------------------------ */
@@ -277,11 +318,13 @@ function CandidatesTab({
   state,
   message,
   onRetry,
+  autoScreening,
 }: {
   enrollments: ApiCampaignEnrollment[];
   state: ApiUiState;
   message: string | null;
   onRetry: () => void;
+  autoScreening?: boolean;
 }) {
   if (state !== "success") {
     return (
@@ -305,11 +348,10 @@ function CandidatesTab({
           <TableRow className="hover:bg-transparent">
             <TableHead className={HEAD}>Candidate</TableHead>
             <TableHead className={HEAD}>Current company</TableHead>
+            <TableHead className={HEAD}>Email</TableHead>
+            <TableHead className={HEAD}>Mobile</TableHead>
             <TableHead className={HEAD}>Sequence step</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
-            <TableHead className={HEAD}>Reply</TableHead>
-            <TableHead className={HEAD}>Qualification</TableHead>
-            <TableHead className={HEAD}>Screening</TableHead>
             <TableHead className={HEAD}>Interview</TableHead>
             <TableHead className={HEAD}>Last activity</TableHead>
             <TableHead className={`${HEAD} w-10 text-right`}>
@@ -319,13 +361,9 @@ function CandidatesTab({
         </TableHeader>
         <TableBody>
           {enrollments.map((candidate) => {
-            const replyLabel = candidate.replyState?.disposition
-              ? titleCase(candidate.replyState.disposition)
-              : candidate.replyState?.hasReply
-                ? "Replied"
-                : "Awaiting reply";
-            const qualification = candidate.qualificationState?.status ?? "pending";
-            const screening = candidate.screeningState?.status ?? "not_started";
+            const pipelineStatus = deriveCandidatePipelineStatus(candidate, {
+              autoScreening,
+            });
             const scheduling = candidate.schedulingState?.status ?? "not_started";
             return (
               <TableRow key={candidate.id}>
@@ -350,25 +388,37 @@ function CandidatesTab({
                   {candidate.company ?? "—"}
                 </TableCell>
                 <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                  {candidate.email ? (
+                    <a
+                      href={`mailto:${candidate.email}`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {candidate.email}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                  {candidate.phone ? (
+                    <a
+                      href={`tel:${candidate.phone}`}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {candidate.phone}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
                   Step {candidate.currentStepIndex + 1}
                 </TableCell>
                 <TableCell className="py-2.5">
                   <Badge
-                    text={titleCase(candidate.status)}
-                    className={stateBadgeClass(candidate.status)}
+                    text={pipelineStatus}
+                    className={pipelineStatusBadgeClass(pipelineStatus)}
                   />
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <Badge text={replyLabel} className={stateBadgeClass(replyLabel)} />
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <Badge
-                    text={titleCase(qualification)}
-                    className={stateBadgeClass(qualification)}
-                  />
-                </TableCell>
-                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                  {titleCase(screening)}
                 </TableCell>
                 <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
                   {titleCase(scheduling)}
@@ -812,6 +862,33 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
     }
   }
 
+  async function handleLaunchDraft() {
+    setBusy(true);
+    try {
+      const validation = await outreachApi.validateCampaign(campaign.id);
+      const errorIssues = (validation.issues || []).filter(
+        (issue) => issue.severity === "error"
+      );
+      if (!validation.ok || errorIssues.length > 0) {
+        const step = firstIncompleteBuilderStep(validation.issues || []);
+        const message =
+          errorIssues[0]?.message ||
+          "Finish the required fields before launching.";
+        flash(message);
+        router.push(campaignEditPath(campaign.id, { step }));
+        return;
+      }
+      const next = await outreachApi.launchCampaign(campaign.id);
+      setStatus(next.status);
+      setReloadKey((key) => key + 1);
+      flash("Campaign launched.");
+    } catch (err) {
+      flash(getApiErrorMessage(err, "Unable to launch campaign."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -862,6 +939,20 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {status === "Draft" ? (
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => void handleLaunchDraft()}
+              >
+                {busy ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Rocket aria-hidden />
+                )}
+                {busy ? "Launching…" : "Launch Campaign"}
+              </Button>
+            ) : null}
             {status === "Running" ? (
               <Button
                 size="sm"
@@ -1005,12 +1096,13 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             state={enrollmentsState}
             message={enrollmentsMessage}
             onRetry={() => setReloadKey((k) => k + 1)}
+            autoScreening={Boolean(raw?.qualificationConfig?.autoScreening)}
           />
         </TabsContent>
         <TabsContent value="conversations" className="pt-3">
           <ConversationsPanel
             campaignId={campaign.id}
-            emptyDescription="Replies from candidates in this campaign will appear here."
+            emptyDescription="Outbound messages (sent or failed) and candidate replies for this campaign will appear here."
           />
         </TabsContent>
         <TabsContent value="sequence" className="pt-3">

@@ -121,7 +121,7 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
     } satisfies IntegrationProvider);
 
   const displayName =
-    item.id === "hunar" ? "Huntlo Voice" : item.name || template.name;
+    item.id === "hunar" ? "Huntlo Voice AI" : item.name || template.name;
 
   const connection = item.connection;
   if (!connection) {
@@ -186,7 +186,7 @@ export interface IntegrationsApi {
 const mockIntegrationsApi: IntegrationsApi = {
   async listProviders() {
     await simulateMockLatency();
-    return MOCK_PROVIDERS;
+    return MOCK_PROVIDERS.filter((provider) => provider.id !== "future-jobs");
   },
   async listRaw() {
     await simulateMockLatency();
@@ -252,7 +252,9 @@ const liveIntegrationsApi: IntegrationsApi = {
   },
   async listProviders() {
     const data = await this.listRaw();
-    return data.catalog.map(catalogToProvider);
+    return data.catalog
+      .filter((item) => item.id !== "future-jobs")
+      .map(catalogToProvider);
   },
   async get(id) {
     const result = await apiClient.get<SafeIntegration>(`/integrations/${id}`);

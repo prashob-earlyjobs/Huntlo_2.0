@@ -153,3 +153,9 @@ webhooksRouter.post(
   '/dodo',
   asyncHandler(async (req, res) => handlePost('dodo', req, res))
 );
+
+/** Gmail Pub/Sub push — mailbox change notification (not the email body). */
+webhooksRouter.post(
+  '/gmail',
+  asyncHandler(async (req, res) => handlePost('gmail', req, res))
+);

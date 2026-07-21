@@ -5,6 +5,7 @@ export * from "./jobs";
 export * from "./sourcing";
 export * from "./candidates";
 export * from "./candidate-search";
+export * from "./candidate-details";
 export * from "./candidate-pool";
 export * from "./people-scout";
 export * from "./outreach";
@@ -24,6 +25,8 @@ export * from "./admin";
 export * from "./system";
 export * from "./profile";
 export * from "./settings";
+export * from "./voice-defaults";
+export * from "./product-tour";
 
 export { apiClient, setTokenProvider, tokenStorage } from "./client";
 export { ApiError, mapApiErrorToUiState, getApiErrorMessage, isQuotaError } from "./errors";

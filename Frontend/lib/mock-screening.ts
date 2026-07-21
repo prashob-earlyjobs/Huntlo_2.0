@@ -220,27 +220,38 @@ export const SCREENING_OBJECTIVES = [
 /* Builder catalogues                                                   */
 /* ------------------------------------------------------------------ */
 
-export const SCREENING_LANGUAGES = [
-  "English",
-  "Hindi",
-  "Kannada",
-  "Tamil",
-  "Telugu",
+/** Hunar language codes (same contract as voice outreach). */
+export const SCREENING_LANGUAGE_OPTIONS = [
+  { value: "ENGLISH", label: "English" },
+  { value: "HINDI", label: "Hindi" },
+  { value: "KANNADA", label: "Kannada" },
+  { value: "TAMIL", label: "Tamil" },
+  { value: "TELUGU", label: "Telugu" },
 ] as const;
 
-export const SCREENING_VOICES = [
-  "Aanya (female)",
-  "Kabir (male)",
-  "Meera (female)",
-  "Arjun (male)",
+export const SCREENING_LANGUAGES = SCREENING_LANGUAGE_OPTIONS.map(
+  (option) => option.value
+);
+
+/** Verified Hunar voice persona (matches HUNAR_VOICE_PERSONA default). */
+export const SCREENING_VOICE_OPTIONS = [
+  { value: "NEHA", label: "Neha (female)" },
 ] as const;
 
-export const SCREENING_TONES = [
-  "Professional",
-  "Friendly",
-  "Warm",
-  "Direct",
+export const SCREENING_VOICES = SCREENING_VOICE_OPTIONS.map(
+  (option) => option.value
+);
+
+/** Tone keys used by resolveIntroduction / VOICE_INTRO_BY_TONE. */
+export const SCREENING_TONE_OPTIONS = [
+  { value: "professional", label: "Professional" },
+  { value: "friendly", label: "Friendly" },
+  { value: "direct", label: "Direct" },
 ] as const;
+
+export const SCREENING_TONES = SCREENING_TONE_OPTIONS.map(
+  (option) => option.value
+);
 
 export const QUESTION_TYPES = [
   "Introduction",
@@ -511,6 +522,7 @@ export interface ScreeningResult {
   duration: string;
   overallScore: number;
   recommendation: AiRecommendation;
+  knockoutFailed?: boolean;
   keyVariables: string[];
   completedDate: string;
   decision: RecruiterDecision;

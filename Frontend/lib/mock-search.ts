@@ -3,7 +3,6 @@ import {
   Briefcase,
   Building2,
   GraduationCap,
-  LineChart,
   MapPin,
   Radar,
   Timer,
@@ -25,12 +24,16 @@ export interface FilterField {
   id: string;
   label: string;
   type: FilterFieldType;
+  autocompleteFilterType?: string;
   options?: readonly string[];
   placeholder?: string;
   min?: number;
   max?: number;
   unit?: string;
   hint?: string;
+  className?: string;
+  hideLabel?: boolean;
+  compactAfter?: boolean;
 }
 
 export interface FilterSection {
@@ -42,36 +45,33 @@ export interface FilterSection {
 }
 
 const TITLE_OPTIONS = [
-  "Backend Engineer",
-  "Node.js Developer",
-  "Full Stack Engineer",
+  ".NET Developer",
+  "C# Developer",
   "Software Engineer",
-  "Senior Software Engineer",
-  "Staff Engineer",
+  "Web Developer",
+  "Application Developer",
+  "Backend Developer",
+  "Full Stack Engineer",
   "Frontend Engineer",
-  "DevOps Engineer",
-  "Data Engineer",
-  "Engineering Manager",
-  "Product Designer",
-  "Product Manager",
+  "Senior Software Engineer",
+  "Software Developer",
 ] as const;
 
 const SKILL_OPTIONS = [
-  "Node.js",
-  "AWS",
-  "TypeScript",
+  "C#",
+  ".NET Core",
+  "ASP.NET MVC",
+  "Web API",
+  "SQL Server",
+  "Entity Framework",
   "React",
-  "Go",
-  "Python",
+  "Angular",
+  "Docker",
+  "Node.js",
+  "TypeScript",
+  "AWS",
   "Kubernetes",
   "PostgreSQL",
-  "GraphQL",
-  "Kafka",
-  "Docker",
-  "System design",
-  "MongoDB",
-  "Redis",
-  "Terraform",
 ] as const;
 
 const FUNCTIONAL_AREAS = [
@@ -106,35 +106,22 @@ const COUNTRY_OPTIONS = [
 ] as const;
 
 const REGION_OPTIONS = [
-  "Karnataka",
-  "Maharashtra",
-  "Telangana",
-  "Tamil Nadu",
-  "Delhi NCR",
-  "West Bengal",
+  "Pune, Maharashtra, India",
+  "Bengaluru, Karnataka, India",
+  "Mumbai, Maharashtra, India",
+  "Hyderabad, Telangana, India",
+  "Chennai, Tamil Nadu, India",
+  "Gurugram, Haryana, India",
+  "Noida, Uttar Pradesh, India",
+  "Kolkata, West Bengal, India",
 ] as const;
-
-const CITY_OPTIONS = [
-  "Bengaluru",
-  "Mumbai",
-  "Pune",
-  "Hyderabad",
-  "Chennai",
-  "Gurugram",
-  "Noida",
-  "Kolkata",
-  "Remote",
-] as const;
-
-const REMOTE_OPTIONS = ["Any", "Remote only", "Hybrid", "On-site"] as const;
 
 const COMPANY_OPTIONS = [
-  "Finovate Labs",
-  "Loopworks",
-  "Paystream",
-  "Zenlytic",
-  "Cartwheel",
-  "Mural Health",
+  "Tech Mahindra",
+  "Infosys",
+  "TCS",
+  "Wipro",
+  "Accenture",
   "Flipkart",
   "Razorpay",
   "Freshworks",
@@ -143,74 +130,117 @@ const COMPANY_OPTIONS = [
   "CRED",
 ] as const;
 
+const YEARS_AT_COMPANY_OPTIONS = [
+  "Less than 1 year",
+  "1 to 2 years",
+  "3 to 5 years",
+  "6 to 10 years",
+  "More than 10 years",
+] as const;
+
 const COMPANY_SIZE_OPTIONS = [
-  "1–10",
-  "11–50",
-  "51–200",
-  "201–500",
-  "501–1,000",
-  "1,001–5,000",
-  "5,000+",
+  "1-10",
+  "11-50",
+  "51-200",
+  "201-500",
+  "501-1000",
+  "1001-5000",
+  "5001-10000",
+  "10001+",
 ] as const;
 
 const COMPANY_TYPE_OPTIONS = [
-  "Startup",
-  "Scale-up",
-  "Enterprise",
-  "Agency",
-  "Non-profit",
-  "Public sector",
+  "Public Company",
+  "Privately Held",
+  "Partnership",
+  "Nonprofit",
+  "Government Agency",
+  "Self-Employed",
+  "Educational Institution",
+] as const;
+
+const COMPANY_FOCUS_OPTIONS = [
+  "B2B SaaS",
+  "B2C",
+  "AI / Machine Learning",
+  "Fintech",
+  "E-commerce",
+  "Healthcare / Healthtech",
+  "Edtech",
+  "Deep Tech",
+  "Developer Tools",
+  "Enterprise Software",
+  "Consumer Apps",
+  "Cybersecurity",
+  "Cloud Infrastructure",
+  "Data & Analytics",
+  "Gaming",
+  "Marketplace",
+  "Social Media",
+  "IoT",
+  "Logistics / Supply Chain",
+  "HR Tech",
 ] as const;
 
 const INDUSTRY_OPTIONS = [
+  "Software Development",
+  "IT System Custom Software Development",
+  "Design Services",
   "SaaS",
   "Fintech",
   "Healthtech",
   "E-commerce",
   "Edtech",
-  "Logistics",
-  "Gaming",
-  "Cybersecurity",
   "AI / ML",
 ] as const;
 
 const FUNDING_OPTIONS = [
-  "Bootstrapped",
   "Seed",
   "Series A",
   "Series B",
-  "Series C+",
-  "Public",
+  "Series C",
+  "Series D",
+  "Series E",
+  "Series F+",
+  "IPO",
 ] as const;
 
 const REVENUE_OPTIONS = [
-  "< $1M",
+  "Under $1M",
   "$1M – $10M",
-  "$10M – $50M",
-  "$50M – $250M",
-  "$250M+",
+  "$10M – $100M",
+  "$100M – $1B",
+  "Over $1B",
 ] as const;
 
-const GROWTH_OPTIONS = [
-  "Shrinking",
-  "Flat",
-  "Growing 10%+",
-  "Growing 25%+",
-  "Growing 50%+",
+const TOTAL_FUNDING_OPTIONS = [
+  "Under $1M",
+  "$1M – $10M",
+  "$10M – $50M",
+  "$50M – $500M",
+  "Over $500M",
+] as const;
+
+const RECENTLY_FUNDED_OPTIONS = [
+  "Last 3 months",
+  "Last 6 months",
+  "Last 12 months",
+  "Last 24 months",
 ] as const;
 
 const DEGREE_OPTIONS = [
-  "B.E. / B.Tech",
-  "B.Sc",
-  "M.E. / M.Tech",
-  "M.Sc",
-  "MBA",
-  "PhD",
+  "High School or Above",
+  "Associate's or Above",
+  "Bachelor's or Above",
+  "Master's or Above",
+  "Doctorate or Above",
+  "Post-Doctorate",
 ] as const;
 
 const FIELD_OF_STUDY_OPTIONS = [
   "Computer Science",
   "Information Technology",
+  "related field",
   "Electronics",
   "Mathematics",
   "Design",
@@ -218,6 +248,7 @@ const FIELD_OF_STUDY_OPTIONS = [
 ] as const;
 
 const CERTIFICATION_OPTIONS = [
+  "AWS Certified Cloud Practitioner",
   "AWS Certified Solutions Architect",
   "CKA (Kubernetes)",
   "PMP",
@@ -225,15 +256,24 @@ const CERTIFICATION_OPTIONS = [
   "Scrum Master",
 ] as const;
 
-const LANGUAGE_OPTIONS = [
-  "English",
-  "Hindi",
-  "Kannada",
-  "Tamil",
-  "Telugu",
-  "Marathi",
-  "Bengali",
+const GEO_DISTANCE_OPTIONS = [
+  "10_km",
+  "25_km",
+  "50_km",
+  "100_km",
+  "200_km",
 ] as const;
+
+const EMPLOYMENT_TYPE_OPTIONS = [
+  "Full-time",
+  "Part-time",
+  "Permanent",
+  "Contract",
+  "Internship",
+  "Freelance",
+] as const;
+
+const ANY_OPTION = "Any" as const;
 
 export const FILTER_SECTIONS: FilterSection[] = [
   {
@@ -250,27 +290,8 @@ export const FILTER_SECTIONS: FilterSection[] = [
         placeholder: "Search titles…",
       },
       {
-        id: "previousTitle",
+        id: "pastTitle",
         label: "Previous title",
-        type: "multi",
-        options: TITLE_OPTIONS,
-        placeholder: "Search titles…",
-      },
-      {
-        id: "exactTitle",
-        label: "Exact title match",
-        type: "toggle",
-        hint: "Match titles verbatim instead of semantically",
-      },
-      {
-        id: "relatedTitles",
-        label: "Include related titles",
-        type: "toggle",
-        hint: "Expand with similar roles, e.g. Platform Engineer",
-      },
-      {
-        id: "excludeTitles",
-        label: "Exclude titles",
         type: "multi",
         options: TITLE_OPTIONS,
         placeholder: "Search titles…",
@@ -281,41 +302,41 @@ export const FILTER_SECTIONS: FilterSection[] = [
     id: "skills",
     title: "Skills & Functions",
     icon: Wrench,
-    description: "Capabilities and functional focus",
+    description: "Mandatory, core and secondary skills",
     fields: [
       {
-        id: "requiredSkills",
-        label: "Required skills",
+        id: "mandatorySkills",
+        label: "Mandatory skills",
         type: "multi",
         options: SKILL_OPTIONS,
         placeholder: "Search skills…",
       },
       {
-        id: "preferredSkills",
-        label: "Preferred skills",
+        id: "coreSkills",
+        label: "Core skills",
         type: "multi",
         options: SKILL_OPTIONS,
         placeholder: "Search skills…",
       },
       {
-        id: "functionalArea",
+        id: "secondarySkills",
+        label: "Secondary skills",
+        type: "multi",
+        options: SKILL_OPTIONS,
+        placeholder: "Search skills…",
+      },
+      {
+        id: "functionCategory",
         label: "Functional area",
         type: "multi",
         options: FUNCTIONAL_AREAS,
         placeholder: "Search functions…",
       },
       {
-        id: "seniority",
+        id: "seniorityLevel",
         label: "Seniority",
-        type: "multi",
-        options: SENIORITY_OPTIONS,
-        placeholder: "Search levels…",
-      },
-      {
-        id: "excludeKeywords",
-        label: "Exclude keywords",
-        type: "tags",
-        placeholder: "e.g. internship, freelance",
+        type: "select",
+        options: [ANY_OPTION, ...SENIORITY_OPTIONS],
       },
     ],
   },
@@ -326,51 +347,25 @@ export const FILTER_SECTIONS: FilterSection[] = [
     description: "Where candidates live or can work",
     fields: [
       {
-        id: "country",
+        id: "selectRegion",
         label: "Country",
         type: "multi",
+        autocompleteFilterType: "location_country",
         options: COUNTRY_OPTIONS,
         placeholder: "Search countries…",
       },
       {
-        id: "region",
-        label: "State or region",
+        id: "location",
+        label: "Region",
         type: "multi",
         options: REGION_OPTIONS,
         placeholder: "Search regions…",
       },
       {
-        id: "city",
-        label: "City",
-        type: "multi",
-        options: CITY_OPTIONS,
-        placeholder: "Search cities…",
-      },
-      {
-        id: "radius",
-        label: "Radius",
-        type: "range",
-        min: 0,
-        max: 200,
-        unit: "km",
-      },
-      {
-        id: "relocation",
-        label: "Open to relocation",
-        type: "toggle",
-      },
-      {
-        id: "remotePreference",
-        label: "Remote preference",
+        id: "geoDistance",
+        label: "Geo distance",
         type: "select",
-        options: REMOTE_OPTIONS,
-      },
-      {
-        id: "excludeLocations",
-        label: "Exclude locations",
-        type: "multi",
-        options: CITY_OPTIONS,
-        placeholder: "Search locations…",
+        options: [ANY_OPTION, ...GEO_DISTANCE_OPTIONS],
       },
     ],
   },
@@ -381,72 +376,45 @@ export const FILTER_SECTIONS: FilterSection[] = [
     description: "Years of experience and tenure",
     fields: [
       {
-        id: "totalExperience",
+        id: "yearsExperience",
         label: "Total experience",
         type: "range",
         min: 0,
         max: 30,
         unit: "yrs",
       },
-      {
-        id: "currentTenure",
-        label: "Current company tenure",
-        type: "range",
-        min: 0,
-        max: 15,
-        unit: "yrs",
-      },
     ],
   },
   {
     id: "employers",
-    title: "Employers",
+    title: "Employers & Company Signals",
     icon: Building2,
-    description: "Company history and profile",
+    description: "Company history, profile and growth",
     fields: [
       {
-        id: "currentEmployers",
-        label: "Current employers",
+        id: "companyScope",
+        label: "Employer history",
+        type: "select",
+        options: ["Current + Past", "Current", "Past"],
+        className: "ml-auto w-40",
+        hideLabel: true,
+        compactAfter: true,
+      },
+      {
+        id: "companyNames",
+        label: "Employers",
         type: "multi",
+        autocompleteFilterType: "current_employers.name",
         options: COMPANY_OPTIONS,
         placeholder: "Search companies…",
       },
       {
-        id: "previousEmployers",
-        label: "Previous employers",
+        id: "companyFocus",
+        label: "Company description",
         type: "multi",
-        options: COMPANY_OPTIONS,
-        placeholder: "Search companies…",
+        options: COMPANY_FOCUS_OPTIONS,
+        placeholder: "Search company descriptions…",
       },
-      {
-        id: "excludedEmployers",
-        label: "Exclude employers",
-        type: "multi",
-        options: COMPANY_OPTIONS,
-        placeholder: "Search companies…",
-      },
-      {
-        id: "companySize",
-        label: "Company size",
-        type: "multi",
-        options: COMPANY_SIZE_OPTIONS,
-        placeholder: "Search sizes…",
-      },
-      {
-        id: "companyType",
-        label: "Company type",
-        type: "multi",
-        options: COMPANY_TYPE_OPTIONS,
-        placeholder: "Search types…",
-      },
-    ],
-  },
-  {
-    id: "industry",
-    title: "Industry & Company Signals",
-    icon: LineChart,
-    description: "Sector and company health indicators",
-    fields: [
       {
         id: "industry",
         label: "Industry",
@@ -455,33 +423,84 @@ export const FILTER_SECTIONS: FilterSection[] = [
         placeholder: "Search industries…",
       },
       {
+        id: "yearsAtCompany",
+        label: "Years at current company",
+        type: "multi",
+        options: YEARS_AT_COMPANY_OPTIONS,
+        placeholder: "e.g. 3 to 5 years",
+      },
+      {
         id: "fundingStage",
         label: "Funding stage",
         type: "multi",
         options: FUNDING_OPTIONS,
-        placeholder: "Search stages…",
+        placeholder: "e.g. Series A, Series B",
       },
       {
-        id: "revenue",
-        label: "Revenue",
-        type: "multi",
-        options: REVENUE_OPTIONS,
-        placeholder: "Search bands…",
+        id: "headcountGrowth",
+        label: "Headcount Growth (6-month %)",
+        type: "range",
+        min: 0,
+        max: 100,
+        unit: "%",
       },
       {
-        id: "employeeGrowth",
-        label: "Employee growth",
-        type: "multi",
-        options: GROWTH_OPTIONS,
-        placeholder: "Search growth…",
-      },
-      {
-        id: "headcount",
-        label: "Company headcount",
+        id: "companyHeadcount",
+        label: "Company Headcount",
         type: "range",
         min: 0,
         max: 10000,
         unit: "people",
+      },
+      {
+        id: "annualRevenue",
+        label: "Annual Revenue",
+        type: "select",
+        options: [ANY_OPTION, ...REVENUE_OPTIONS],
+      },
+      {
+        id: "totalFundingRaised",
+        label: "Total Funding Raised",
+        type: "select",
+        options: [ANY_OPTION, ...TOTAL_FUNDING_OPTIONS],
+      },
+      {
+        id: "yearFounded",
+        label: "Year Founded",
+        type: "range",
+        min: 1950,
+        max: 2026,
+      },
+      {
+        id: "recentlyFunded",
+        label: "Recently Funded",
+        type: "select",
+        options: [ANY_OPTION, ...RECENTLY_FUNDED_OPTIONS],
+      },
+      {
+        id: "companyType",
+        label: "Company type",
+        type: "select",
+        options: [ANY_OPTION, ...COMPANY_TYPE_OPTIONS],
+      },
+      {
+        id: "companyHeadquarters",
+        label: "Company HQ location",
+        type: "tags",
+        placeholder: "e.g. Pune, Maharashtra, India",
+      },
+      {
+        id: "employmentType",
+        label: "Employment type",
+        type: "multi",
+        options: EMPLOYMENT_TYPE_OPTIONS,
+        placeholder: "Search types…",
+      },
+      {
+        id: "companyHeadcountRange",
+        label: "Company headcount range",
+        type: "select",
+        options: [ANY_OPTION, ...COMPANY_SIZE_OPTIONS],
       },
     ],
   },
@@ -493,9 +512,11 @@ export const FILTER_SECTIONS: FilterSection[] = [
     fields: [
       {
         id: "school",
-        label: "School",
-        type: "tags",
-        placeholder: "e.g. IIT Bombay, BITS Pilani",
+        label: "School / institute",
+        type: "multi",
+        autocompleteFilterType: "education_background.institute_name",
+        options: [],
+        placeholder: "e.g. University of Mumbai",
       },
       {
         id: "degree",
@@ -508,22 +529,23 @@ export const FILTER_SECTIONS: FilterSection[] = [
         id: "fieldOfStudy",
         label: "Field of study",
         type: "multi",
+        autocompleteFilterType: "education_background.field_of_study",
         options: FIELD_OF_STUDY_OPTIONS,
         placeholder: "Search fields…",
-      },
-      {
-        id: "graduationYear",
-        label: "Graduation year",
-        type: "range",
-        min: 1995,
-        max: 2026,
       },
       {
         id: "certifications",
         label: "Certifications",
         type: "multi",
+        autocompleteFilterType: "certifications.name",
         options: CERTIFICATION_OPTIONS,
         placeholder: "Search certifications…",
+      },
+      {
+        id: "honorsAwards",
+        label: "Honors / awards",
+        type: "tags",
+        placeholder: "e.g. Dean's list",
       },
     ],
   },
@@ -531,38 +553,13 @@ export const FILTER_SECTIONS: FilterSection[] = [
     id: "signals",
     title: "Candidate Signals",
     icon: Radar,
-    description: "Behavioural and intent signals",
+    description: "Intent signals",
     fields: [
-      { id: "openToWork", label: "Open to work", type: "toggle" },
       {
-        id: "recentRoleChange",
-        label: "Recently changed role",
+        id: "openToWork",
+        label: "Open to work",
         type: "toggle",
-        hint: "Role change within the last 6 months",
-      },
-      {
-        id: "employmentGap",
-        label: "Employment gap",
-        type: "toggle",
-        hint: "Include candidates with career gaps",
-      },
-      {
-        id: "frequentChanges",
-        label: "Frequent job changes",
-        type: "toggle",
-        hint: "3+ roles in the last 4 years",
-      },
-      {
-        id: "managementExperience",
-        label: "Management experience",
-        type: "toggle",
-      },
-      {
-        id: "languages",
-        label: "Languages",
-        type: "multi",
-        options: LANGUAGE_OPTIONS,
-        placeholder: "Search languages…",
+        hint: "Maps to CAREER_INTEREST open-to-work cards",
       },
     ],
   },
@@ -629,35 +626,46 @@ export const INTERPRETED_CRITERIA: InterpretedCriterion[] = [
     fieldId: "currentTitle",
     value: "Backend Engineer, Node.js Developer",
   },
-  { id: "ic-skills", label: "Skills", fieldId: "requiredSkills", value: "Node.js, AWS" },
-  { id: "ic-location", label: "Location", fieldId: "city", value: "Bengaluru" },
+  {
+    id: "ic-skills",
+    label: "Skills",
+    fieldId: "coreSkills",
+    value: "Node.js, AWS",
+  },
+  {
+    id: "ic-location",
+    label: "Location",
+    fieldId: "location",
+    value: "Bengaluru, Karnataka, India",
+  },
   {
     id: "ic-experience",
     label: "Experience",
-    fieldId: "totalExperience",
+    fieldId: "yearsExperience",
     value: "4–7 years",
   },
   {
     id: "ic-industry",
     label: "Company profile",
     fieldId: "industry",
-    value: "SaaS",
+    value: "Software Development",
   },
   {
     id: "ic-employment",
     label: "Candidate signals",
     fieldId: "openToWork",
-    value: "Currently employed",
+    value: "Open to work",
   },
 ];
 
 /** Filter state produced when the interpreted criteria are applied. */
 export const INTERPRETED_FILTER_STATE: SearchFilterState = {
   currentTitle: ["Backend Engineer", "Node.js Developer"],
-  city: ["Bengaluru"],
-  totalExperience: { min: 4, max: 7 },
-  requiredSkills: ["Node.js", "AWS"],
-  industry: ["SaaS"],
+  location: ["Bengaluru, Karnataka, India"],
+  yearsExperience: { min: 4, max: 7 },
+  coreSkills: ["Node.js", "AWS"],
+  industry: ["Software Development"],
+  openToWork: true,
 };
 
 /* ------------------------------------------------------------------ */
@@ -708,7 +716,10 @@ export const SAVED_SEARCHES: SavedSearch[] = [
 ];
 
 /** Deterministic pseudo-estimate of candidate reach from active filters. */
-export function estimateReach(activeFilters: number, hasQuery: boolean): {
+export function estimateReach(
+  activeFilters: number,
+  hasQuery: boolean
+): {
   low: number;
   high: number;
 } {

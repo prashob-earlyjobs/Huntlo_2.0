@@ -2,45 +2,133 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api";
+import { resolvePostAuthDestination } from "@/lib/auth-redirect";
+import { peekPendingRedirectPath } from "@/lib/claim-public-search";
+import {
+  composeE164Mobile,
+  DEFAULT_PHONE_COUNTRY_ISO,
+  getPhoneCountry,
+  nationalNumberPlaceholder,
+  PHONE_COUNTRIES,
+} from "@/lib/phone-countries";
+import {
+  companyNameFromWorkEmail,
+  isWorkEmail,
+  workEmailDomain,
+  WORK_EMAIL_ERROR,
+} from "@/lib/work-email";
 import { useAuth } from "@/providers/auth-provider";
+import { CompanyDomainLogo } from "@/components/shared/company-domain-logo";
+
+type SignupFormState = {
+  fullName: string;
+  companyName: string;
+  email: string;
+  countryIso: string;
+  mobile: string;
+  password: string;
+  confirmPassword: string;
+};
+
+const INITIAL: SignupFormState = {
+  fullName: "",
+  companyName: "",
+  email: "",
+  countryIso: DEFAULT_PHONE_COUNTRY_ISO,
+  mobile: "",
+  password: "",
+  confirmPassword: "",
+};
+
+function validateSignup(form: SignupFormState): string | null {
+  if (!form.fullName.trim()) return "Full name is required.";
+  if (form.fullName.trim().length > 160) return "Full name is too long.";
+  if (!form.email.trim()) return "Work email is required.";
+  if (!isWorkEmail(form.email)) return WORK_EMAIL_ERROR;
+  if (!form.companyName.trim()) return "Company name is required.";
+  if (form.companyName.trim().length > 120) return "Company name is too long.";
+  if (!form.mobile.trim()) return "Mobile number is required.";
+  const composed = composeE164Mobile(getPhoneCountry(form.countryIso).dialCode, form.mobile);
+  if (composed.replace(/\D/g, "").length < 8) return "Enter a valid mobile number.";
+  if (form.password.length < 8) return "Password must be at least 8 characters.";
+  if (!/[a-z]/.test(form.password) || !/[A-Z]/.test(form.password) || !/\d/.test(form.password)) {
+    return "Password must include upper, lower, and a number.";
+  }
+  if (form.password !== form.confirmPassword) return "Passwords do not match.";
+  return null;
+}
 
 export default function SignupPage() {
   const router = useRouter();
   const { register } = useAuth();
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    organizationName: "",
-  });
+  const [form, setForm] = useState<SignupFormState>(INITIAL);
   const [error, setError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const autoCompanyNameRef = useRef("");
 
-  function updateField(key: keyof typeof form, value: string) {
+  const selectedCountry = useMemo(() => getPhoneCountry(form.countryIso), [form.countryIso]);
+  const companyDomain = useMemo(() => workEmailDomain(form.email), [form.email]);
+
+  function updateField<K extends keyof SignupFormState>(key: K, value: SignupFormState[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
+    if (key === "companyName") {
+      autoCompanyNameRef.current = "";
+    }
+  }
+
+  function applyCompanyFromEmail(email: string) {
+    const suggested = companyNameFromWorkEmail(email);
+    if (!suggested) return;
+    setForm((previous) => {
+      const current = previous.companyName.trim();
+      const previousAuto = autoCompanyNameRef.current.trim();
+      const canReplace =
+        !current ||
+        (previousAuto.length > 0 &&
+          current.toLowerCase() === previousAuto.toLowerCase());
+      if (!canReplace) return previous;
+      autoCompanyNameRef.current = suggested;
+      return { ...previous, companyName: suggested };
+    });
   }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    const validationError = validateSignup(form);
+    if (validationError) {
+      setFieldError(validationError);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
+    setFieldError(null);
     try {
-      await register({
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
+      const mobile = composeE164Mobile(selectedCountry.dialCode, form.mobile);
+      const nextUser = await register({
+        fullName: form.fullName.trim(),
+        companyName: form.companyName.trim(),
+        email: form.email.trim().toLowerCase(),
+        mobile,
         password: form.password,
-        organizationName: form.organizationName || undefined,
+        confirmPassword: form.confirmPassword,
       });
-      router.replace("/onboarding");
+      router.replace(resolvePostAuthDestination(nextUser, peekPendingRedirectPath()));
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to create your account."));
     } finally {
@@ -54,30 +142,20 @@ export default function SignupPage() {
         <BrandLogo />
         <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
         <p className="text-sm text-muted-foreground">
-          Start with a workspace for your team and finish setup in a few steps.
+          Start with email and password, then personalize your Huntlo workspace.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="firstName">First name</Label>
-            <Input
-              id="firstName"
-              value={form.firstName}
-              onChange={(event) => updateField("firstName", event.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="lastName">Last name</Label>
-            <Input
-              id="lastName"
-              value={form.lastName}
-              onChange={(event) => updateField("lastName", event.target.value)}
-              required
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="fullName">Full name</Label>
+          <Input
+            id="fullName"
+            value={form.fullName}
+            onChange={(event) => updateField("fullName", event.target.value)}
+            autoComplete="name"
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Work email</Label>
@@ -86,9 +164,72 @@ export default function SignupPage() {
             type="email"
             autoComplete="email"
             value={form.email}
-            onChange={(event) => updateField("email", event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              updateField("email", value);
+              applyCompanyFromEmail(value);
+            }}
+            onBlur={() => applyCompanyFromEmail(form.email)}
             required
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="companyName">Company name</Label>
+          <div className="flex items-center gap-2">
+            <CompanyDomainLogo
+              websiteOrDomain={companyDomain}
+              name={form.companyName}
+              size={32}
+            />
+            <Input
+              id="companyName"
+              value={form.companyName}
+              onChange={(event) => updateField("companyName", event.target.value)}
+              autoComplete="organization"
+              className="flex-1"
+              required
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="mobile">Mobile number</Label>
+          <div className="flex gap-2">
+            <Select
+              value={form.countryIso}
+              onValueChange={(value) => value && updateField("countryIso", value)}
+            >
+              <SelectTrigger
+                id="mobile-country"
+                aria-label="Country code"
+                className="h-8 w-[7.5rem] shrink-0"
+              >
+                <SelectValue>
+                  {selectedCountry.iso} +{selectedCountry.dialCode}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start" className="max-h-72 min-w-[16rem]">
+                {PHONE_COUNTRIES.map((country) => (
+                  <SelectItem key={country.iso} value={country.iso}>
+                    {country.name} (+{country.dialCode})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              id="mobile"
+              type="tel"
+              autoComplete="tel-national"
+              inputMode="tel"
+              value={form.mobile}
+              onChange={(event) => updateField("mobile", event.target.value)}
+              placeholder={nationalNumberPlaceholder(form.countryIso)}
+              className="flex-1"
+              required
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Country code +{selectedCountry.dialCode}. You can also paste a full +number.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
@@ -103,14 +244,18 @@ export default function SignupPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="organizationName">Organization name</Label>
+          <Label htmlFor="confirmPassword">Confirm password</Label>
           <Input
-            id="organizationName"
-            value={form.organizationName}
-            onChange={(event) => updateField("organizationName", event.target.value)}
-            placeholder="Acme Talent"
+            id="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            value={form.confirmPassword}
+            onChange={(event) => updateField("confirmPassword", event.target.value)}
+            minLength={8}
+            required
           />
         </div>
+        {fieldError ? <p className="text-sm text-destructive">{fieldError}</p> : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? "Creating account…" : "Create account"}

@@ -53,6 +53,8 @@ export interface ScoutProfile {
   about: string;
   linkedinUrl: string;
   linkedinUsername: string;
+  /** Profile photo URL when provided by the enrichment provider. */
+  avatarUrl?: string | null;
   email: string;
   emailVerified: boolean;
   phone: string;
@@ -144,6 +146,7 @@ export interface ScoutMatchOption {
   company: string;
   location: string;
   linkedinUsername: string;
+  avatarUrl?: string | null;
 }
 
 export const SCOUT_MATCH_OPTIONS: ScoutMatchOption[] = [
@@ -188,6 +191,7 @@ export type LookupReveal = "Email" | "Phone" | "Both" | "None";
 export interface RecentLookup {
   id: string;
   candidateName: string | null;
+  avatarUrl?: string | null;
   input: string;
   type: LookupType;
   result: LookupResult;

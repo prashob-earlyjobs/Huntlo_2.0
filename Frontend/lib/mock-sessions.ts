@@ -92,6 +92,8 @@ export interface SessionCandidate {
   contactStatus: ContactStatus;
   saved: boolean;
   linkedin: boolean;
+  /** Future Jobs profile_picture_permalink */
+  avatarUrl?: string | null;
   email: string;
   emailVerified: boolean;
   phone: string;
@@ -729,6 +731,10 @@ export interface SourcingSession {
   /** For partial states: how much of the graph was scanned. */
   coverage?: number;
   failureReason?: string;
+  /** True when the user bookmarked this search via Save Search. */
+  isSavedSearch?: boolean;
+  /** Candidate list created from this search, if any. */
+  savedListId?: string | null;
 }
 
 export const SOURCING_SESSIONS: SourcingSession[] = [

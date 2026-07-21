@@ -22,7 +22,11 @@ export function AISearchPanel({ jobs = [] }: { jobs?: ActiveJob[] }) {
   const [jobId, setJobId] = useState("all");
 
   return (
-    <section aria-labelledby="search-heading" className="space-y-2">
+    <section
+      aria-labelledby="search-heading"
+      className="space-y-2"
+      data-tour="dashboard-search"
+    >
       <h2
         id="search-heading"
         className="text-[13px] font-medium text-muted-foreground"

@@ -15,6 +15,8 @@ import {
   CalendarClock,
 } from "lucide-react";
 
+import { defaultAiVoiceStepBody } from "@/lib/roshni-agent-prompt";
+
 /* ------------------------------------------------------------------ */
 /* Channels                                                             */
 /* ------------------------------------------------------------------ */
@@ -70,7 +72,7 @@ export const CHANNEL_CONFIGS: ChannelConfig[] = [
   },
   {
     channel: "AI Voice",
-    provider: "Huntlo Voice",
+    provider: "Huntlo Voice AI",
     sender: "+91 80471 22045 (AI caller)",
     quotaUsed: 540,
     quotaTotal: 600,
@@ -496,6 +498,8 @@ export interface SequenceStep {
   /** Unit for delayDays — pick one of days, hours, or minutes. */
   delayUnit: DelayUnit;
   template: string;
+  /** Meta/Gupshup cold-outbound template id for WhatsApp steps 1–3. */
+  templateId?: string | null;
   subject: string;
   body: string;
   sendWindow: string;
@@ -530,17 +534,25 @@ export function makeStep(type: SequenceStepType): SequenceStep {
         subject: "Quick question about your next role, {{first_name}}",
         body: "Hi {{first_name}},\n\nI came across your work at {{current_company}} and think you'd be a great fit for our {{job_title}} role. Open to a quick chat this week?\n\nBest,\n{{recruiter_name}}",
       };
-    case "Send WhatsApp":
+    case "Send WhatsApp": {
+      // Default cold-outbound opening template — builder can switch per slot.
       return {
         ...defaults,
-        template: MESSAGE_TEMPLATES[3],
-        body: "Hi {{first_name}}, just following up on my email about the {{job_title}} role — happy to share details here if easier.",
+        template: "Profile review reminder",
+        templateId: "profile_review_reminder_v1",
+        body:
+          "Hi {{1}},\n" +
+          "This is a follow-up regarding the profile review communication shared earlier for the {{2}} requirement.\n" +
+          "If you would like to receive additional information regarding the recruitment process and next steps, please reply to this message.\n" +
+          "Thank you.",
+        stopOnReply: true,
       };
+    }
     case "Start AI Voice Call":
       return {
         ...defaults,
         template: MESSAGE_TEMPLATES[5],
-        body: "AI caller introduces the {{job_title}} role, confirms interest, notice period and expected compensation, then offers to schedule a recruiter call.",
+        body: defaultAiVoiceStepBody(),
         sendWindow: SEND_WINDOWS[1],
       };
     case "Wait":
@@ -568,8 +580,6 @@ export function makeStep(type: SequenceStepType): SequenceStep {
 
 export const DEFAULT_SEQUENCE: SequenceStep[] = [
   makeStep("Send Email"),
-  makeStep("Wait"),
-  makeStep("Send WhatsApp"),
 ];
 
 /* ------------------------------------------------------------------ */
@@ -592,6 +602,8 @@ export interface QualificationQuestion {
   knockout: boolean;
   knockoutCondition: string;
 }
+
+export const MAX_QUALIFICATION_QUESTIONS = 10;
 
 export const DEFAULT_QUESTIONS: QualificationQuestion[] = [
   {

@@ -145,6 +145,22 @@ export function verifyProviderSignature(input: {
         };
       }
     }
+    case 'gmail': {
+      // Pub/Sub push subscription URL should include ?token=<GMAIL_PUBSUB_VERIFICATION_TOKEN>
+      const expected = String(process.env.GMAIL_PUBSUB_VERIFICATION_TOKEN || '').trim();
+      const provided = String(input.query?.token || '').trim();
+      if (!expected) {
+        return {
+          valid: getEnv().APP_ENV !== 'production',
+          reason: 'gmail_token_optional',
+        };
+      }
+      if (!provided) return { valid: false, reason: 'Missing Gmail Pub/Sub token' };
+      return {
+        valid: safeEqualHex(provided, expected) || provided === expected,
+        reason: provided === expected ? undefined : 'Invalid Gmail Pub/Sub token',
+      };
+    }
     default:
       return { valid: false, reason: 'Unknown provider' };
   }

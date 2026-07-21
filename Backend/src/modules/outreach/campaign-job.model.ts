@@ -14,6 +14,8 @@ export type CampaignJobType = (typeof CAMPAIGN_JOB_TYPES)[number];
 
 export const CAMPAIGN_JOB_STATUSES = [
   'queued',
+  /** Isolated queue: legacy workers only poll `queued`, so they cannot steal these jobs. */
+  'queued_v2',
   'leased',
   'running',
   'succeeded',
@@ -22,6 +24,9 @@ export const CAMPAIGN_JOB_STATUSES = [
   'dead',
 ] as const;
 export type CampaignJobStatus = (typeof CAMPAIGN_JOB_STATUSES)[number];
+
+/** Status used for new/retryable campaign jobs (ignored by pre-v2 workers). */
+export const OUTREACH_QUEUE_STATUS = 'queued_v2' as const;
 
 export type CampaignJobDocument = Document & {
   organizationId: mongoose.Types.ObjectId;
@@ -36,6 +41,14 @@ export type CampaignJobDocument = Document & {
   leaseExpiresAt: Date | null;
   error: string | null;
   result: Record<string, unknown> | null;
+  /**
+   * Set the moment a provider send/launch for this job succeeds. Guards against
+   * re-sending the same message when a *post-send* step (conversation store,
+   * sequence advance, etc.) throws and the job is retried.
+   */
+  deliveredAt: Date | null;
+  /** Cached delivery outcome, reused on retry so bookkeeping can finish without re-sending. */
+  deliveryResult: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -69,6 +82,8 @@ const campaignJobSchema = new Schema<CampaignJobDocument>(
     leaseExpiresAt: { type: Date, default: null },
     error: { type: String, default: null },
     result: { type: Schema.Types.Mixed, default: null },
+    deliveredAt: { type: Date, default: null },
+    deliveryResult: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );
@@ -79,7 +94,7 @@ campaignJobSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      status: { $in: ['queued', 'leased', 'running'] },
+      status: { $in: ['queued', 'queued_v2', 'leased', 'running'] },
     },
   }
 );

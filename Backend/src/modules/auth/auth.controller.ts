@@ -22,6 +22,7 @@ import {
   updateMeSchema,
   verifyEmailSchema,
   onboardingPatchSchema,
+  onboardingAnswersSchema,
 } from './auth.validation.js';
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -68,7 +69,9 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
     userAgent: req.headers['user-agent'],
   });
 
-  setRefreshCookie(res, result.refreshToken);
+  if (result.refreshToken) {
+    setRefreshCookie(res, result.refreshToken);
+  }
   successResponse(res, { accessToken: result.accessToken }, { meta: { requestId: getRequestId(req) } });
 });
 
@@ -149,14 +152,40 @@ export const getOnboarding = asyncHandler(async (req: Request, res: Response) =>
 
 export const patchOnboarding = asyncHandler(async (req: Request, res: Response) => {
   const context = getRequestContext(req);
-  const input = onboardingPatchSchema.parse(req.body);
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const looksLikeCompletion =
+    'companyType' in body &&
+    'hiringChallenges' in body &&
+    'outreachChannels' in body &&
+    'hiringVolume' in body;
+
+  if (looksLikeCompletion) {
+    const input = onboardingAnswersSchema.parse(body);
+    const result = await onboardingService.completeOwnerOnboarding(context, input);
+    successResponse(res, result, { meta: { requestId: getRequestId(req) } });
+    return;
+  }
+
+  const input = onboardingPatchSchema.parse(body);
   const result = await onboardingService.patch(context, input);
   successResponse(res, result, { meta: { requestId: getRequestId(req) } });
 });
 
 export const completeOnboarding = asyncHandler(async (req: Request, res: Response) => {
   const context = getRequestContext(req);
-  const result = await onboardingService.complete(context);
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const looksLikeCompletion =
+    'companyType' in body &&
+    'hiringChallenges' in body &&
+    'outreachChannels' in body &&
+    'hiringVolume' in body;
+
+  const result = looksLikeCompletion
+    ? await onboardingService.completeOwnerOnboarding(
+        context,
+        onboardingAnswersSchema.parse(body)
+      )
+    : await onboardingService.complete(context);
   successResponse(res, result, { meta: { requestId: getRequestId(req) } });
 });
 

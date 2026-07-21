@@ -154,8 +154,19 @@ async function resolvePlanLimits(
 }
 
 function defaultLimitsForOrgPlan(plan: string): Record<UsageMetric, number> {
-  const key = plan as 'Starter' | 'Growth' | 'Scale' | 'Enterprise';
+  const key = plan as 'Trial' | 'Starter' | 'Growth' | 'Scale' | 'Enterprise';
   const table: Record<string, Record<UsageMetric, number>> = {
+    Trial: {
+      candidate_search: 20,
+      email_reveal: 50,
+      mobile_reveal: 25,
+      people_scout: 10,
+      email_outreach: 200,
+      whatsapp_outreach: 50,
+      ai_voice_minutes: 30,
+      assessment_invites: 0,
+      team_seats: 2,
+    },
     Starter: {
       candidate_search: 50,
       email_reveal: 500,
@@ -201,7 +212,7 @@ function defaultLimitsForOrgPlan(plan: string): Record<UsageMetric, number> {
       team_seats: 999_999_999,
     },
   };
-  return table[key] ?? table.Starter!;
+  return table[key] ?? table.Trial!;
 }
 
 async function ensureCounter(

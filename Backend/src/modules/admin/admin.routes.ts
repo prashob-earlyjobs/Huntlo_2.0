@@ -7,9 +7,12 @@ import { successResponse } from '../../shared/http/response.js';
 import { adminJobsService } from './admin-jobs.service.js';
 import { recordAdminMutation } from './admin-audit.js';
 import { adminConsoleService } from './admin-console.service.js';
+import { adminUsageAnalyticsService } from './admin-usage-analytics.service.js';
 import {
   adjustQuotaSchema,
   adminListQuerySchema,
+  adminUsageAnalyticsQuerySchema,
+  adminUsageHistoryQuerySchema,
   assignPlanSchema,
   createAdminUserSchema,
   createBlogSchema,
@@ -218,6 +221,31 @@ adminConsoleRouter.get(
   })
 );
 adminConsoleRouter.get(
+  '/usage-analytics/summary',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = adminUsageAnalyticsQuerySchema.parse(req.query);
+    const data = await adminUsageAnalyticsService.getSummary(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/usage-analytics/history',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = adminUsageHistoryQuerySchema.parse(req.query);
+    const data = await adminUsageAnalyticsService.listHistory(query);
+    successResponse(res, data, {
+      meta: {
+        requestId: getRequestId(req),
+        pagination: data.pagination,
+      },
+    });
+  })
+);
+adminConsoleRouter.get(
   '/candidates',
   ...adminAuth,
   requireAdminPermission('admin:candidates:read'),
@@ -314,6 +342,26 @@ adminConsoleRouter.patch(
   asyncHandler(async (req, res) => {
     const body = patchPlatformSettingsSchema.parse(req.body ?? {});
     const data = await adminConsoleService.updatePlatformSettings(body, req.auth!.sub);
+    const promptMeta = body.roshniPrompt
+      ? {
+          roshniPromptUpdated: true,
+          roshniPromptVersion: data.roshniPrompt?.version ?? null,
+          introductionLength:
+            body.roshniPrompt.introduction === undefined
+              ? undefined
+              : body.roshniPrompt.introduction === null
+                ? 0
+                : String(body.roshniPrompt.introduction).trim().length,
+          agentPromptLength:
+            body.roshniPrompt.agentPrompt === undefined
+              ? undefined
+              : body.roshniPrompt.agentPrompt === null
+                ? 0
+                : String(body.roshniPrompt.agentPrompt).trim().length,
+          introductionCleared: body.roshniPrompt.introduction === null,
+          agentPromptCleared: body.roshniPrompt.agentPrompt === null,
+        }
+      : {};
     await recordAdminMutation(req, {
       action: 'admin.platform_settings.updated',
       relatedEntityType: 'platform_settings',
@@ -321,6 +369,7 @@ adminConsoleRouter.patch(
       metadata: {
         providers: body.providers?.map((p) => p.provider) ?? [],
         hasSecrets: Boolean(body.providers?.some((p) => p.secretValue)),
+        ...promptMeta,
       },
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });

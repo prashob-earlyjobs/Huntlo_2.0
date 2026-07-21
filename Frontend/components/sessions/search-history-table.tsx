@@ -14,6 +14,7 @@ import {
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
+import { SearchHistoryTableSkeleton } from "@/components/sessions/search-history-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,9 +122,7 @@ export function SearchHistoryTable({
   onDelete?: (entry: SearchHistoryEntry) => void;
 }) {
   if (loading) {
-    return (
-      <div className="h-48 animate-pulse rounded-xl border border-border bg-muted/40" />
-    );
+    return <SearchHistoryTableSkeleton />;
   }
 
   if (entries.length === 0) {
@@ -151,7 +150,7 @@ export function SearchHistoryTable({
               <TableHead className={HEAD}>Query</TableHead>
               <TableHead className={HEAD}>Related job</TableHead>
               <TableHead className={`${HEAD} text-right`}>Results</TableHead>
-              <TableHead className={`${HEAD} text-right`}>Saved</TableHead>
+              <TableHead className={`${HEAD} text-right`}>In pool</TableHead>
               <TableHead className={HEAD}>Owner</TableHead>
               <TableHead className={HEAD}>Search date</TableHead>
               <TableHead className={HEAD}>Status</TableHead>
@@ -163,16 +162,19 @@ export function SearchHistoryTable({
           <TableBody>
             {entries.map((entry) => (
               <TableRow key={entry.id}>
-                <TableCell className="py-2.5 text-sm font-medium text-foreground">
+                <TableCell className="max-w-56 py-2.5 text-sm font-medium text-foreground">
                   {entry.sessionId ? (
                     <Link
                       href={sessionDetailPath(entry.sessionId)}
-                      className="underline-offset-4 hover:underline"
+                      title={entry.name}
+                      className="line-clamp-2 underline-offset-4 hover:underline"
                     >
                       {entry.name}
                     </Link>
                   ) : (
-                    entry.name
+                    <span title={entry.name} className="line-clamp-2">
+                      {entry.name}
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="max-w-44 py-2.5">

@@ -3,6 +3,7 @@ import {
   ANSWER_TYPES,
   CAMPAIGN_OBJECTIVES,
   CHANNEL_CONFIGS,
+  MAX_QUALIFICATION_QUESTIONS,
   RETRY_OPTIONS,
   SEND_WINDOWS,
   TAKEOVER_CONDITIONS,
@@ -47,14 +48,15 @@ function asDelayUnit(value: string | undefined | null): DelayUnit {
 }
 
 function hydrateSteps(steps: ApiCampaignSequenceStep[]): SequenceStep[] {
-  return [...steps]
+  const mapped = [...steps]
     .sort((a, b) => a.order - b.order)
     .map((step) => ({
       id: step.id,
       type: STEP_TYPE_FROM_API[step.type] ?? "Wait",
       delayDays: step.delayDays ?? 0,
       delayUnit: asDelayUnit(step.delayUnit),
-      template: "Blank message",
+      template: step.templateId || "Blank message",
+      templateId: step.templateId ?? null,
       subject: step.subject ?? "",
       body: step.body ?? "",
       sendWindow: SEND_WINDOWS[1],
@@ -62,6 +64,15 @@ function hydrateSteps(steps: ApiCampaignSequenceStep[]): SequenceStep[] {
       stopOnReply: step.stopOnReply ?? true,
       note: step.note ?? "",
     }));
+  // Never open the editor on a leading Wait — first step must be a send.
+  const firstMessage = mapped.findIndex(
+    (step) =>
+      step.type === "Send Email" ||
+      step.type === "Send WhatsApp" ||
+      step.type === "Start AI Voice Call" ||
+      step.type === "Send Scheduling Link"
+  );
+  return firstMessage > 0 ? mapped.slice(firstMessage) : mapped;
 }
 
 function sourceFromCampaign(campaign: ApiOutreachCampaign): {
@@ -120,8 +131,9 @@ export function builderStateFromCampaign(
       text: question.prompt,
       answerType: asAnswerType(question.answerType),
       knockout: Boolean(question.knockout),
-      knockoutCondition: "",
+      knockoutCondition: question.knockoutCondition || "",
     })) ?? base.questions;
+  const cappedQuestions = questions.slice(0, MAX_QUALIFICATION_QUESTIONS);
 
   return {
     ...base,
@@ -158,11 +170,17 @@ export function builderStateFromCampaign(
       ])
     ) as Record<OutreachChannel, ChannelConnection>,
     steps: steps.length > 0 ? steps : base.steps,
-    classificationEnabled: Boolean(campaign.qualificationConfig?.enabled),
-    questions,
-    aiReplyEnabled: Boolean(campaign.qualificationConfig?.aiReplyEnabled),
-    takeoverCondition: TAKEOVER_CONDITIONS[1],
-    autoScreening: false,
+    classificationEnabled: true,
+    questions: cappedQuestions,
+    aiReplyEnabled: true,
+    takeoverCondition:
+      campaign.qualificationConfig?.takeoverCondition &&
+      (TAKEOVER_CONDITIONS as readonly string[]).includes(
+        campaign.qualificationConfig.takeoverCondition
+      )
+        ? campaign.qualificationConfig.takeoverCondition
+        : TAKEOVER_CONDITIONS[2],
+    autoScreening: Boolean(campaign.qualificationConfig?.autoScreening),
     autoCalendly: Boolean(campaign.schedulingConfig?.enabled),
   };
 }

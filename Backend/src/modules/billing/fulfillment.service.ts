@@ -24,6 +24,7 @@ import {
 } from './payment-order.model.js';
 
 const PLAN_RANK: Record<string, number> = {
+  trial: 0,
   starter: 1,
   growth: 2,
   scale: 3,

@@ -1,19 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { CircleHelp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { NavList } from "@/components/layout/nav-list";
 import { useSidebar } from "@/components/layout/sidebar-context";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
+import { HelpMenu } from "@/components/product-tour/HelpMenu";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +54,7 @@ export function AppSidebar() {
         <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="scrollbar-none min-h-0 flex-1">
         <NavList collapsed={collapsed} />
       </ScrollArea>
 
@@ -74,31 +70,10 @@ export function AppSidebar() {
             >
               <PanelLeftOpen aria-hidden />
             </Button>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-foreground"
-                    aria-label="Help & support"
-                  />
-                }
-              >
-                <CircleHelp aria-hidden />
-              </TooltipTrigger>
-              <TooltipContent side="right">Help & support</TooltipContent>
-            </Tooltip>
+            <HelpMenu variant="sidebar-collapsed" />
           </div>
         ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-full justify-start px-2 text-[13px] text-muted-foreground hover:text-foreground"
-          >
-            <CircleHelp aria-hidden />
-            Help & support
-          </Button>
+          <HelpMenu variant="sidebar" />
         )}
       </div>
     </aside>

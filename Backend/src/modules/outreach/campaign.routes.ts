@@ -9,16 +9,25 @@ import {
 import { getRequestId } from '../../middleware/request-id.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { successResponse } from '../../shared/http/response.js';
+import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { builderService } from './builder.service.js';
+import { campaignActionsService } from './campaign-actions.service.js';
+import { campaignTrackingService } from './campaign-tracking.service.js';
 import { campaignsService } from './campaigns.service.js';
 import { listLegacyOutreachModuleCampaigns } from './legacy-compat.js';
 import {
   audienceBodySchema,
+  builderStepParamSchema,
   campaignIdParamSchema,
+  candidateActionSchema,
+  candidateIdParamSchema,
   createCampaignSchema,
+  draftCampaignSchema,
   listCampaignsQuerySchema,
   listEnrollmentsQuerySchema,
   removeAudienceBodySchema,
   scheduleCampaignSchema,
+  sendSchedulingLinkSchema,
   updateCampaignSchema,
 } from './campaign.validation.js';
 
@@ -64,6 +73,24 @@ campaignRoutes.post(
   })
 );
 
+campaignRoutes.post(
+  '/drafts',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const body = draftCampaignSchema.parse(req.body ?? {});
+    const data = await builderService.createDraft(
+      req.organizationId!,
+      req.userId!,
+      body
+    );
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+
 campaignRoutes.get(
   '/legacy',
   ...orgAuth,
@@ -81,6 +108,80 @@ campaignRoutes.get(
   asyncHandler(async (req, res) => {
     const data = await campaignsService.overview(req.organizationId!);
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/** Alias of /overview for the canonical `/outreach-campaigns/stats` contract. */
+campaignRoutes.get(
+  '/stats',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const data = await campaignsService.overview(req.organizationId!);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.get(
+  '/candidates/pool',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+    const skip = (page - 1) * limit;
+    const filter = { organizationId: req.organizationId!, deletedAt: null };
+    const [items, total] = await Promise.all([
+      SavedCandidateModel.find(filter)
+        .select('name email phone currentTitle currentCompany location tags')
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      SavedCandidateModel.countDocuments(filter),
+    ]);
+    successResponse(
+      res,
+      items.map((c) => ({
+        id: String(c._id),
+        name: c.name,
+        email: c.email || null,
+        phone: c.phone || null,
+        title: c.currentTitle || null,
+        company: c.currentCompany || null,
+        location: c.location || null,
+        tags: c.tags || [],
+      })),
+      {
+        meta: {
+          requestId: getRequestId(req),
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+          },
+        },
+      }
+    );
+  })
+);
+
+campaignRoutes.post(
+  '/candidates/import-csv',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    successResponse(
+      res,
+      {
+        redirected: true,
+        message:
+          'Use /api/v1/candidate-imports for CSV import, then attach resulting candidate IDs via audience APIs.',
+        importPath: '/api/v1/candidate-imports',
+      },
+      { meta: { requestId: getRequestId(req) } }
+    );
   })
 );
 
@@ -112,6 +213,23 @@ campaignRoutes.patch(
   })
 );
 
+campaignRoutes.put(
+  '/:id',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const { id } = campaignIdParamSchema.parse(req.params);
+    const body = updateCampaignSchema.parse(req.body ?? {});
+    const data = await campaignsService.update(
+      req.organizationId!,
+      req.userId!,
+      id,
+      body
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
 campaignRoutes.delete(
   '/:id',
   ...orgAuth,
@@ -122,6 +240,34 @@ campaignRoutes.delete(
       req.organizationId!,
       req.userId!,
       id
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.get(
+  '/:id/builder',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = campaignIdParamSchema.parse(req.params);
+    const data = await builderService.getBuilder(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.patch(
+  '/:id/steps/:stepKey',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const { id, stepKey } = builderStepParamSchema.parse(req.params);
+    const data = await builderService.saveBuilderStep(
+      req.organizationId!,
+      req.userId!,
+      id,
+      stepKey,
+      req.body ?? {}
     );
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
@@ -316,12 +462,118 @@ campaignRoutes.get(
 );
 
 campaignRoutes.get(
+  '/:id/tracking',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = campaignIdParamSchema.parse(req.params);
+    const data = await campaignTrackingService.tracking(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.get(
   '/:id/activity',
   ...orgAuth,
   readPerm,
   asyncHandler(async (req, res) => {
     const { id } = campaignIdParamSchema.parse(req.params);
     const data = await campaignsService.activity(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.get(
+  '/:id/candidates/:candidateId/interactions',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id, candidateId } = candidateIdParamSchema.parse(req.params);
+    const data = await campaignTrackingService.candidateInteractions(
+      req.organizationId!,
+      id,
+      candidateId
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.get(
+  '/:id/candidates/:candidateId/conversation',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id, candidateId } = candidateIdParamSchema.parse(req.params);
+    const data = await campaignTrackingService.candidateConversation(
+      req.organizationId!,
+      id,
+      candidateId
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.post(
+  '/:id/candidates/:candidateId/actions',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const { id, candidateId } = candidateIdParamSchema.parse(req.params);
+    const body = candidateActionSchema.parse(req.body ?? {});
+    const data = await campaignActionsService.recordAction(
+      req.organizationId!,
+      req.userId!,
+      id,
+      candidateId,
+      body
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.post(
+  '/:id/candidates/:candidateId/send-scheduling-link',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const { id, candidateId } = candidateIdParamSchema.parse(req.params);
+    const body = sendSchedulingLinkSchema.parse(req.body ?? {});
+    const data = await campaignActionsService.sendSchedulingLink(
+      req.organizationId!,
+      req.userId!,
+      id,
+      candidateId,
+      body
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.get(
+  '/:id/scheduled-interviews',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = campaignIdParamSchema.parse(req.params);
+    const data = await campaignActionsService.listScheduledInterviews(
+      req.organizationId!,
+      id
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+campaignRoutes.post(
+  '/:id/scheduled-interviews/sync',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const { id } = campaignIdParamSchema.parse(req.params);
+    const data = await campaignActionsService.syncScheduledInterviews(
+      req.organizationId!,
+      req.userId!,
+      id
+    );
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );

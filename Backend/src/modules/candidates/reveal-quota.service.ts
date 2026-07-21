@@ -13,6 +13,7 @@ export const MOBILE_REVEAL_COST = METRIC_DEFAULT_COST.mobile_reveal;
 
 /** Monthly email reveal credit limits by organization plan. */
 export const PLAN_EMAIL_REVEAL_LIMITS: Record<OrganizationPlan, number> = {
+  Trial: 50,
   Starter: 500,
   Growth: 2500,
   Scale: 10_000,
@@ -21,6 +22,7 @@ export const PLAN_EMAIL_REVEAL_LIMITS: Record<OrganizationPlan, number> = {
 
 /** Monthly mobile reveal credit limits by organization plan. */
 export const PLAN_MOBILE_REVEAL_LIMITS: Record<OrganizationPlan, number> = {
+  Trial: 25,
   Starter: 200,
   Growth: 1200,
   Scale: 5000,

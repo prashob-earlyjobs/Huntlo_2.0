@@ -85,6 +85,173 @@ describe('Organization & Team API', () => {
     expect(response.body.data.metrics.activeMembers).toBe(1);
   });
 
+  it('creates an active team account and returns temporary credentials once', async () => {
+    const register = await registerOrg(agentA, 'owner-create@huntlo.ai', 'Create Corp');
+    const token = register.body.data.accessToken as string;
+
+    const created = await agentA
+      .post('/api/v1/team/members')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Riya Recruiter',
+        email: 'riya@huntlo.ai',
+        role: 'recruiter',
+        allowedModules: ['sourcing', 'candidates', 'outreach'],
+      })
+      .expect(201);
+
+    expect(created.body.data.member.name).toBe('Riya Recruiter');
+    expect(created.body.data.member.status).toBe('active');
+    expect(created.body.data.member.allowedModules).toEqual([
+      'sourcing',
+      'candidates',
+      'outreach',
+    ]);
+    expect(created.body.data.member.permissions).toContain('sourcing:view');
+    expect(created.body.data.member.permissions).toContain('outreach:launch');
+    expect(created.body.data.member.permissions).not.toContain('jobs:view');
+    expect(created.body.data.credentials.email).toBe('riya@huntlo.ai');
+    expect(created.body.data.credentials.temporaryPassword).toBeTruthy();
+
+    const login = await agentB
+      .post('/api/v1/auth/login')
+      .send({
+        email: created.body.data.credentials.email,
+        password: created.body.data.credentials.temporaryPassword,
+      })
+      .expect(200);
+
+    expect(login.body.data.user.email).toBe('riya@huntlo.ai');
+    expect(login.body.data.permissions).toContain('sourcing:view');
+    expect(login.body.data.permissions).not.toContain('jobs:view');
+
+    const me = await agentB
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${login.body.data.accessToken}`)
+      .expect(200);
+
+    expect(me.body.data.permissions).toEqual(login.body.data.permissions);
+
+    const denied = await agentB
+      .get('/api/v1/jobs')
+      .set('Authorization', `Bearer ${login.body.data.accessToken}`)
+      .expect(403);
+
+    expect(denied.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('restricts admins with an explicit module allow-list', async () => {
+    const register = await registerOrg(agentA, 'owner-admin-limit@huntlo.ai', 'Admin Limit Corp');
+    const token = register.body.data.accessToken as string;
+
+    const created = await agentA
+      .post('/api/v1/team/members')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Limited Admin',
+        email: 'limited-admin@huntlo.ai',
+        role: 'admin',
+        allowedModules: ['team', 'settings'],
+      })
+      .expect(201);
+
+    expect(created.body.data.member.permissions).toContain('team:manage');
+    expect(created.body.data.member.permissions).not.toContain('jobs:view');
+
+    const login = await agentB
+      .post('/api/v1/auth/login')
+      .send({
+        email: created.body.data.credentials.email,
+        password: created.body.data.credentials.temporaryPassword,
+      })
+      .expect(200);
+
+    expect(login.body.data.permissions).toContain('team:view');
+    expect(login.body.data.permissions).not.toContain('candidates:view');
+  });
+
+  it('resets passwords and enforces suspend, activate, and deactivate actions', async () => {
+    const register = await registerOrg(agentA, 'owner-actions@huntlo.ai', 'Actions Corp');
+    const token = register.body.data.accessToken as string;
+
+    const created = await agentA
+      .post('/api/v1/team/members')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Action Member',
+        email: 'action-member@huntlo.ai',
+        role: 'recruiter',
+        allowedModules: ['candidates'],
+      })
+      .expect(201);
+
+    const memberId = created.body.data.member.id as string;
+    const originalPassword = created.body.data.credentials.temporaryPassword as string;
+
+    const reset = await agentA
+      .post(`/api/v1/team/members/${memberId}/reset-password`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(reset.body.data.email).toBe('action-member@huntlo.ai');
+    expect(reset.body.data.temporaryPassword).toBeTruthy();
+    expect(reset.body.data.temporaryPassword).not.toBe(originalPassword);
+
+    await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'action-member@huntlo.ai', password: originalPassword })
+      .expect(401);
+
+    await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'action-member@huntlo.ai',
+        password: reset.body.data.temporaryPassword,
+      })
+      .expect(200);
+
+    await agentA
+      .patch(`/api/v1/team/members/${memberId}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'suspended' })
+      .expect(200);
+
+    await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'action-member@huntlo.ai',
+        password: reset.body.data.temporaryPassword,
+      })
+      .expect(403);
+
+    await agentA
+      .patch(`/api/v1/team/members/${memberId}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'active' })
+      .expect(200);
+
+    await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'action-member@huntlo.ai',
+        password: reset.body.data.temporaryPassword,
+      })
+      .expect(200);
+
+    await agentA
+      .delete(`/api/v1/team/members/${memberId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'action-member@huntlo.ai',
+        password: reset.body.data.temporaryPassword,
+      })
+      .expect(403);
+  });
+
   it('creates and accepts invitations within seat limits', async () => {
     const register = await registerOrg(agentA, 'owner-c@huntlo.ai', 'Gamma Corp');
     const token = register.body.data.accessToken as string;

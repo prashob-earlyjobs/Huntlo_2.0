@@ -414,7 +414,13 @@ const mockHuntlo360Api: Huntlo360Api = {
   async updateWorkflow(id, input) {
     const existing = await this.getWorkflowRaw(id);
     if (!existing) throw new Error("Workflow not found");
-    return { ...existing, ...input, name: input.name ?? existing.name };
+    return {
+      ...existing,
+      ...input,
+      name: input.name ?? existing.name,
+      ownerUserId: input.ownerUserId ?? existing.ownerUserId,
+      jobId: input.jobId !== undefined ? input.jobId : existing.jobId,
+    };
   },
   async deleteWorkflow() {
     await simulateMockLatency();

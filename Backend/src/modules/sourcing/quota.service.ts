@@ -13,6 +13,7 @@ export const SOURCING_QUOTA_COST = METRIC_DEFAULT_COST.candidate_search;
 
 /** Monthly search limits by organization plan. Enterprise uses a large finite cap. */
 export const PLAN_SEARCH_LIMITS: Record<OrganizationPlan, number> = {
+  Trial: 20,
   Starter: 50,
   Growth: 200,
   Scale: 1000,

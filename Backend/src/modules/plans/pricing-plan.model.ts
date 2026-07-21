@@ -29,6 +29,12 @@ export type PricingPlanDocument = Document & {
   public: boolean;
   sortOrder: number;
   description: string | null;
+  /** When true, new workspace signups are assigned this plan. */
+  isDefaultSignup: boolean;
+  /** When true, new subscriptions are created as trialing. */
+  isTrialPlan: boolean;
+  /** Trial length in days when isTrialPlan is true. */
+  trialDays: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -64,11 +70,18 @@ const pricingPlanSchema = new Schema<PricingPlanDocument>(
     public: { type: Boolean, default: true, index: true },
     sortOrder: { type: Number, default: 0, index: true },
     description: { type: String, default: null, trim: true },
+    isDefaultSignup: { type: Boolean, default: false },
+    isTrialPlan: { type: Boolean, default: false, index: true },
+    trialDays: { type: Number, default: 14, min: 1, max: 365 },
   },
   { timestamps: true }
 );
 
 pricingPlanSchema.index({ active: 1, public: 1, sortOrder: 1 });
+pricingPlanSchema.index(
+  { isDefaultSignup: 1 },
+  { unique: true, partialFilterExpression: { isDefaultSignup: true } }
+);
 
 export const PricingPlanModel: Model<PricingPlanDocument> =
   mongoose.models.PricingPlan ??

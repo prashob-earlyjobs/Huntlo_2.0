@@ -7,8 +7,10 @@ import {
   getZohoOAuthConfig,
   getZohoOAuthRedirectUri,
   normalizeZohoDataCenter,
+  refreshZohoAccessToken,
   ZOHO_MAIL_SCOPES,
 } from '../../../providers/zoho/zoho.oauth.js';
+import { resolveZohoAccountId } from '../../../providers/zoho/zoho.fetch.js';
 import type { EmailProvider } from './types.js';
 
 function tokenExpiry(expiresIn: unknown): Date | null {
@@ -45,6 +47,8 @@ export const zohoMailProvider: EmailProvider = {
             smtpHost: config.smtpHost,
             smtpPort: config.smtpPort,
             smtpSecurity: config.security,
+            imapHost: String(body.imapHost || dc.imapHost || '').trim() || dc.imapHost,
+            imapPort: Number(body.imapPort) || 993,
           },
           credentials: {
             username: config.username,
@@ -100,19 +104,42 @@ export const zohoMailProvider: EmailProvider = {
           : undefined,
     });
     const accessToken = String(tokens.access_token || '');
+    let email: string | null = null;
+    let accountId: string | null = null;
+    try {
+      const resolved = await resolveZohoAccountId(accessToken, tokens.dataCenter);
+      email = resolved.email;
+      accountId = resolved.accountId || null;
+    } catch {
+      // Account lookup is best-effort at connect time; send/sync resolve later.
+    }
     return {
       accessToken,
       refreshToken: typeof tokens.refresh_token === 'string' ? tokens.refresh_token : null,
       expiresAt: tokenExpiry(tokens.expires_in),
-      email: null,
-      displayName: null,
-      providerAccountId: null,
+      email,
+      displayName: email,
+      providerAccountId: accountId,
       scopes: [...ZOHO_MAIL_SCOPES],
       config: {
         zohoAuthMode: 'oauth',
         zohoDataCenter: tokens.dataCenter,
         apiDomain: tokens.api_domain ?? null,
+        zohoAccountId: accountId,
       },
+    };
+  },
+
+  async refresh(ctx) {
+    if (!ctx.refreshToken) {
+      throw Object.assign(new Error('Zoho refresh token missing'), { statusCode: 400 });
+    }
+    const dataCenter =
+      typeof ctx.config?.zohoDataCenter === 'string' ? ctx.config.zohoDataCenter : undefined;
+    const tokens = await refreshZohoAccessToken(ctx.refreshToken, dataCenter);
+    return {
+      accessToken: String(tokens.access_token || ''),
+      expiresAt: tokenExpiry(tokens.expires_in),
     };
   },
 

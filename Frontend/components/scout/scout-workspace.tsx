@@ -162,7 +162,7 @@ function MultipleMatchesPanel({
             key={option.id}
             className="flex flex-wrap items-center gap-3 px-4 py-3"
           >
-            <CandidateAvatar name={option.name} className="size-9" />
+            <CandidateAvatar name={option.name} src={option.avatarUrl} className="size-9" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground">{option.name}</p>
               <p className="truncate text-xs text-muted-foreground">

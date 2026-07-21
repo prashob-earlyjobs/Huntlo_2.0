@@ -11,6 +11,7 @@ import {
 import {
   acceptInvitation,
   createInvitation,
+  createTeamAccount,
   createRole,
   deleteRole,
   getMember,
@@ -18,6 +19,7 @@ import {
   listRoles,
   listTeam,
   removeMember,
+  resetMemberPassword,
   resendInvitation,
   revokeInvitation,
   updateMember,
@@ -41,6 +43,8 @@ organizationRouter.patch(
 
 export const teamRouter = Router();
 teamRouter.get('/', ...orgAuth, requirePermission('team:view'), listTeam);
+
+teamRouter.post('/members', ...orgAuth, requireMemberManager(), createTeamAccount);
 
 teamRouter.post(
   '/invitations',
@@ -72,6 +76,12 @@ teamRouter.patch(
   updateMemberPermissions
 );
 teamRouter.patch('/members/:id/status', ...orgAuth, requireMemberManager(), updateMemberStatus);
+teamRouter.post(
+  '/members/:id/reset-password',
+  ...orgAuth,
+  requireMemberManager(),
+  resetMemberPassword
+);
 teamRouter.delete('/members/:id', ...orgAuth, requireMemberManager(), removeMember);
 
 export const rolesRouter = Router();

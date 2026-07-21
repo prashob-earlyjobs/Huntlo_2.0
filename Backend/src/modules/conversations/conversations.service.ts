@@ -5,9 +5,19 @@ import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { deriveEnrollmentPipelineStatus } from '../outreach/enrollment-pipeline-status.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
+import { enrollQualifiedCandidateInCampaignScreening } from '../outreach/outreach-auto-screening.service.js';
 import { JobModel } from '../jobs/job.model.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
+import {
+  buildCandidateMergeContext,
+  mergeMessageTemplate,
+} from '../outreach/variables.js';
+import {
+  isColdOutboundWhatsAppTemplate,
+  renderWhatsAppTemplatePreview,
+} from '../outreach/whatsapp-template-catalogue.js';
 import {
   emitCampaignThreadUpdated,
   emitConversationMessageCreated,
@@ -17,6 +27,7 @@ import { recordAuditEvent } from '../../shared/audit/audit.service.js';
 import {
   draftConversationReply,
 } from '../../providers/gemini/gemini.conversations.js';
+import { stripEmailQuotedReply } from '../../providers/email/strip-quoted-reply.js';
 import {
   ConversationMessageModel,
   type ConversationMessageDocument,
@@ -96,7 +107,12 @@ async function loadThread(organizationId: string, id: string) {
   return thread;
 }
 
-function messageToEvent(msg: ConversationMessageDocument, authorName: string) {
+function messageToEvent(
+  msg: ConversationMessageDocument,
+  authorName: string,
+  mergeContext?: Record<string, string> | null,
+  templateId?: string | null
+) {
   const author =
     msg.messageType === 'note'
       ? 'recruiter'
@@ -117,19 +133,42 @@ function messageToEvent(msg: ConversationMessageDocument, authorName: string) {
     queued: 'Sent',
   };
 
+  let text = resolveDisplayBody(msg.bodyText, mergeContext, templateId);
+  // Inbound email replies often include the full Gmail/Outlook quote chain —
+  // show only the candidate's new text in the conversation bubble.
+  if (msg.channel === 'email' && msg.direction === 'inbound') {
+    text = stripEmailQuotedReply(text);
+  }
+  // Legacy outbound voice rows stored the full agent prompt — never show that in the inbox.
+  if (
+    msg.channel === 'ai_voice' &&
+    msg.messageType !== 'voice_summary' &&
+    isAgentPromptDump(text)
+  ) {
+    text = 'AI voice call started';
+  }
+
+  const voiceSummary =
+    msg.messageType === 'voice_summary'
+      ? parseVoiceSummaryMeta(msg.bodyHtml, text)
+      : undefined;
+
   return {
     id: String(msg._id),
     channel: CHANNEL_DISPLAY[msg.channel] || 'System',
     author,
-    authorName,
+    authorName:
+      msg.messageType === 'voice_summary' ? 'Huntlo Voice AI' : authorName,
     subject: msg.subject || undefined,
-    text: msg.bodyText,
+    text,
     time: relativeTime(msg.receivedAt || msg.sentAt || msg.createdAt),
     delivery: deliveryMap[msg.deliveryStatus] || undefined,
+    error: msg.error?.message || undefined,
     attachments: (msg.attachments || []).map((a) => ({
       name: a.name,
       size: a.size || '',
     })),
+    voiceSummary,
     sentAt: (msg.sentAt || msg.receivedAt || msg.createdAt).toISOString(),
     direction: msg.direction,
     messageType: msg.messageType,
@@ -139,6 +178,70 @@ function messageToEvent(msg: ConversationMessageDocument, authorName: string) {
   };
 }
 
+function isAgentPromptDump(text: string): boolean {
+  const raw = String(text || '');
+  if (raw.length < 400) return false;
+  return /Recruitment Screening Agent Prompt|#\s*Roshni|Call objective|jd_role_screening/i.test(
+    raw
+  );
+}
+
+function parseVoiceSummaryMeta(
+  bodyHtml: string | null | undefined,
+  bodyText: string
+): {
+  duration: string;
+  outcome: string;
+  highlights: string[];
+  transcript?: string;
+} {
+  let duration = '—';
+  let outcome = 'AI voice call';
+  let highlights: string[] = [];
+  try {
+    const meta = bodyHtml ? (JSON.parse(bodyHtml) as Record<string, unknown>) : null;
+    if (meta) {
+      if (typeof meta.duration === 'string' && meta.duration.trim()) {
+        duration = meta.duration.trim();
+      }
+      if (typeof meta.outcome === 'string' && meta.outcome.trim()) {
+        outcome = meta.outcome.trim();
+      }
+      if (Array.isArray(meta.highlights)) {
+        highlights = meta.highlights
+          .map((h) => (typeof h === 'string' ? h.trim() : ''))
+          .filter(Boolean)
+          .slice(0, 8);
+      }
+    }
+  } catch {
+    // bodyHtml may be plain text in older rows
+  }
+  const transcript = String(bodyText || '').trim();
+  return {
+    duration,
+    outcome,
+    highlights,
+    ...(transcript ? { transcript } : {}),
+  };
+}
+
+/** Fill leftover WhatsApp {{1}}/{{2}} tokens for inbox display. */
+function resolveDisplayBody(
+  bodyText: string,
+  mergeContext?: Record<string, string> | null,
+  templateId?: string | null
+): string {
+  const raw = String(bodyText || '');
+  if (!/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(raw)) return raw;
+  const ctx = mergeContext || {};
+  if (templateId && isColdOutboundWhatsAppTemplate(templateId)) {
+    const preview = renderWhatsAppTemplatePreview(templateId, ctx);
+    if (preview && !/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(preview)) return preview;
+  }
+  return mergeMessageTemplate(raw, ctx);
+}
+
 async function toDisplayConversation(thread: ConversationThreadDocument) {
   const [candidate, campaign, job, assignee, latestClass, messages, notes] =
     await Promise.all([
@@ -146,7 +249,9 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
         .select('name email phone currentTitle currentCompany location headline')
         .lean(),
       thread.campaignId
-        ? OutreachCampaignModel.findById(thread.campaignId).select('name sequenceSteps').lean()
+        ? OutreachCampaignModel.findById(thread.campaignId)
+            .select('name sequenceSteps qualificationConfig.autoScreening')
+            .lean()
         : null,
       thread.jobId ? JobModel.findById(thread.jobId).select('title').lean() : null,
       thread.assignedUserId
@@ -189,6 +294,14 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     ? `${assignee.firstName} ${assignee.lastName}`.trim()
     : 'Unassigned';
 
+  const mergeContext = buildCandidateMergeContext(candidate, {
+    jobTitle: job?.title || null,
+  });
+  const openingTemplateId =
+    campaign?.sequenceSteps?.find((s) => s.type === 'whatsapp' && s.templateId)?.templateId ||
+    campaign?.sequenceSteps?.find((s) => s.templateId)?.templateId ||
+    null;
+
   const events = await Promise.all(
     messages.map(async (msg) => {
       let authorName = candidate?.name || 'Candidate';
@@ -202,7 +315,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
         } else authorName = 'Recruiter';
       }
       if (msg.messageType === 'system') authorName = 'System';
-      return messageToEvent(msg, authorName);
+      return messageToEvent(msg, authorName, mergeContext, openingTemplateId);
     })
   );
 
@@ -229,6 +342,12 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     candidate?.currentCompany,
   ].filter(Boolean);
 
+  const autoScreening = Boolean(campaign?.qualificationConfig?.autoScreening);
+  const pipelineStatus = deriveEnrollmentPipelineStatus(enrollment, {
+    autoScreening,
+    threadQualificationStatus: thread.qualificationStatus,
+  });
+
   return {
     id: String(thread._id),
     candidateId: String(thread.candidateId),
@@ -248,9 +367,12 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     unread: (thread.unreadCount || 0) > 0,
     unreadCount: thread.unreadCount || 0,
     replyStatus,
+    pipelineStatus,
     qualification: QUAL_DISPLAY[thread.qualificationStatus] || 'Pending',
     qualificationStatus: thread.qualificationStatus,
     screeningStatus: enrollment?.screeningState?.status || 'not_started',
+    screeningId: enrollment?.screeningState?.screeningId ?? null,
+    autoScreening,
     sequenceStep,
     nextAction:
       thread.automationStatus === 'stopped'
@@ -585,20 +707,40 @@ export const conversationsService = {
       .select('name')
       .lean();
     const job = thread.jobId
-      ? await JobModel.findById(thread.jobId).select('title').lean()
+      ? await JobModel.findById(thread.jobId)
+          .select(
+            'title descriptionHtml locations workplaceType requirements requiredSkills salaryMin salaryMax salaryCurrency salaryVisibility'
+          )
+          .lean()
       : null;
-    const lastInbound = await ConversationMessageModel.findOne({
+    const threadMessages = await ConversationMessageModel.find({
       threadId: thread._id,
-      direction: 'inbound',
+      direction: { $in: ['inbound', 'outbound'] },
     })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1 })
+      .select('direction bodyText')
       .lean();
+
+    const conversation = threadMessages.map((m) => ({
+      direction: (m.direction === 'inbound' ? 'inbound' : 'outbound') as
+        | 'inbound'
+        | 'outbound',
+      bodyText: String(m.bodyText || ''),
+    }));
+    const lastInbound = [...conversation].reverse().find((m) => m.direction === 'inbound');
+
+    const description = String(job?.descriptionHtml || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
     const draft = await draftConversationReply({
       tone: input.tone,
       channel: input.channel,
       candidateName: candidate?.name,
       jobTitle: job?.title || null,
+      jobDescription: description || null,
+      conversation,
       lastCandidateMessage: lastInbound?.bodyText || null,
       instructions: input.instructions,
     });
@@ -731,6 +873,10 @@ export const conversationsService = {
       campaignId: thread.campaignId ? String(thread.campaignId) : null,
       enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
       userId,
+      channel:
+        message.channel === 'email' || message.channel === 'whatsapp'
+          ? message.channel
+          : null,
     });
 
     const refreshed = await loadThread(organizationId, id);
@@ -782,22 +928,72 @@ export const conversationsService = {
       await thread.save();
     }
 
-    // Recruiter-sourced answers may finalize when campaign questions are complete —
-    // but AI-sourced never auto-finalizes.
-    if (input.source === 'recruiter' && thread.campaignId) {
-      const campaign = await OutreachCampaignModel.findById(thread.campaignId)
-        .select('qualificationConfig')
-        .lean();
+    if (thread.campaignId) {
+      const campaign = await OutreachCampaignModel.findById(thread.campaignId);
       const required = campaign?.qualificationConfig?.questions || [];
-      if (required.length > 0) {
-        const answered = required.every(
-          (q) => enrollment.qualificationState.answers[q.id] !== undefined
+      const current = required.find((q) => q.id === input.questionId);
+      if (current) {
+        const { evaluateKnockout } = await import(
+          '../outreach/qualification-qa.service.js'
         );
-        if (answered && campaign?.qualificationConfig?.enabled) {
-          // Still require explicit classify override for qualified/rejected.
-          thread.qualificationStatus = 'handed_off';
-          thread.status = 'handed_off';
+        const knockout = evaluateKnockout(
+          {
+            id: current.id,
+            prompt: current.prompt,
+            answerType: current.answerType,
+            knockout: current.knockout,
+            knockoutCondition: current.knockoutCondition,
+          },
+          input.answer
+        );
+        if (knockout === 'fail') {
+          enrollment.qualificationState = {
+            status: 'rejected',
+            answers: enrollment.qualificationState.answers,
+          };
+          await enrollment.save();
+          thread.qualificationStatus = 'rejected';
+          thread.status = 'closed';
           await thread.save();
+        } else if (
+          input.source === 'recruiter' &&
+          required.length > 0 &&
+          campaign?.qualificationConfig?.enabled
+        ) {
+          const answered = required.every(
+            (q) => enrollment.qualificationState.answers[q.id] !== undefined
+          );
+          if (answered) {
+            const handoff = String(
+              campaign.qualificationConfig.takeoverCondition || ''
+            ).includes('After qualification');
+            enrollment.qualificationState = {
+              status: handoff ? 'in_progress' : 'qualified',
+              answers: enrollment.qualificationState.answers,
+            };
+            if (campaign.qualificationConfig.autoScreening && !handoff) {
+              try {
+                const { screeningId } = await enrollQualifiedCandidateInCampaignScreening({
+                  campaign,
+                  enrollment,
+                });
+                enrollment.screeningState = {
+                  status: 'scheduled',
+                  screeningId,
+                };
+              } catch {
+                enrollment.screeningState = {
+                  ...enrollment.screeningState,
+                  status: 'scheduled',
+                  screeningId: enrollment.screeningState?.screeningId ?? null,
+                };
+              }
+            }
+            await enrollment.save();
+            thread.qualificationStatus = handoff ? 'handed_off' : 'qualified';
+            thread.status = 'handed_off';
+            await thread.save();
+          }
         }
       }
     }
@@ -824,6 +1020,41 @@ export const conversationsService = {
     return toDisplayConversation(thread);
   },
 
+  /** Close older open threads for this candidate so each outreach starts fresh. */
+  async closePriorThreadsForCandidate(input: {
+    organizationId: string;
+    candidateId: string;
+    keepCampaignId: string;
+  }): Promise<number> {
+    const prior = await ConversationThreadModel.find({
+      organizationId: input.organizationId,
+      candidateId: input.candidateId,
+      campaignId: { $ne: input.keepCampaignId },
+      status: { $nin: ['closed', 'opted_out'] },
+    });
+    if (!prior.length) return 0;
+
+    const now = new Date();
+    for (const thread of prior) {
+      thread.status = 'closed';
+      thread.automationStatus = 'stopped';
+      thread.lastMessageAt = thread.lastMessageAt || now;
+      if (!thread.lastMessagePreview) {
+        thread.lastMessagePreview = 'Closed — new outreach started';
+      }
+      await thread.save();
+      emitCampaignThreadUpdated({
+        organizationId: input.organizationId,
+        campaignId: thread.campaignId ? String(thread.campaignId) : null,
+        threadId: String(thread._id),
+        status: thread.status,
+        unreadCount: thread.unreadCount || 0,
+        qualificationStatus: thread.qualificationStatus,
+      });
+    }
+    return prior.length;
+  },
+
   /** Ensure a thread exists for an enrollment (outbound send hook). */
   async ensureThreadForEnrollment(input: {
     organizationId: string;
@@ -833,12 +1064,59 @@ export const conversationsService = {
     jobId?: string | null;
     channel: ConversationChannel;
   }) {
+    // Newer outreach deactivates prior open chats for this candidate.
+    await this.closePriorThreadsForCandidate({
+      organizationId: input.organizationId,
+      candidateId: input.candidateId,
+      keepCampaignId: input.campaignId,
+    });
+
+    // Email and WhatsApp are separate inbox threads — never merge channels.
+    const otherChannel =
+      input.channel === 'email'
+        ? 'whatsapp'
+        : input.channel === 'whatsapp'
+          ? 'email'
+          : null;
+    const channelFilter =
+      otherChannel == null
+        ? { channels: input.channel }
+        : {
+            $and: [
+              { channels: input.channel },
+              { channels: { $nin: [otherChannel] } },
+            ],
+          };
+
     let thread = await ConversationThreadModel.findOne({
       organizationId: input.organizationId,
       candidateId: input.candidateId,
       campaignId: input.campaignId,
-    });
-    if (thread) return thread;
+      ...channelFilter,
+    }).sort({ updatedAt: -1 });
+
+    if (thread) {
+      // Re-open this campaign+channel thread if a prior run left it closed.
+      if (thread.status === 'closed') {
+        thread.status = 'awaiting_reply';
+        thread.automationStatus = 'active';
+        thread.enrollmentId = new mongoose.Types.ObjectId(input.enrollmentId);
+        if (input.jobId) {
+          thread.jobId = new mongoose.Types.ObjectId(input.jobId);
+        }
+        await thread.save();
+      } else if (
+        input.enrollmentId &&
+        String(thread.enrollmentId || '') !== input.enrollmentId
+      ) {
+        thread.enrollmentId = new mongoose.Types.ObjectId(input.enrollmentId);
+        if (input.jobId) {
+          thread.jobId = new mongoose.Types.ObjectId(input.jobId);
+        }
+        await thread.save();
+      }
+      return thread;
+    }
     return ConversationThreadModel.create({
       organizationId: input.organizationId,
       candidateId: input.candidateId,

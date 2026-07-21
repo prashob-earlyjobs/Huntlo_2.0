@@ -24,6 +24,7 @@ import {
 import { UserModel, toPublicUser, type UserDocument } from '../auth/user.model.js';
 import { UserSessionModel } from '../auth/session.model.js';
 import { authService } from '../auth/auth.service.js';
+import { integrationsService } from '../integrations/integration.service.js';
 import {
   OrganizationModel,
   toPublicOrganization,
@@ -43,6 +44,7 @@ import { PaymentOrderModel } from '../billing/payment-order.model.js';
 import { maskAdminEmail, maskAdminName, maskAdminPhone, formatCount } from './admin-mask.js';
 import {
   BlogArticleModel,
+  computeReadTimeMinutes,
   toPublicBlog,
   type BlogArticleDocument,
 } from './blog.model.js';
@@ -141,7 +143,7 @@ export const adminConsoleService = {
       OrganizationModel.countDocuments({
         status: 'active',
         deletedAt: null,
-        plan: { $nin: ['Starter'] },
+        plan: { $nin: ['Trial', 'Starter'] },
       }),
       SourcingSessionModel.countDocuments({ createdAt: { $gte: startOfDay } }),
       OutreachCampaignModel.countDocuments({ status: { $in: ['running', 'active'] } }),
@@ -386,6 +388,11 @@ export const adminConsoleService = {
         { $set: { ownerUserId: user._id } }
       );
     }
+
+    await integrationsService.provisionDefaultsForUser(
+      String(organizationId),
+      user._id.toHexString()
+    );
 
     return this.getUser(user._id.toHexString());
   },
@@ -773,6 +780,14 @@ export const adminConsoleService = {
 
   async getPlatformSettings() {
     const doc = await this.ensurePlatformSettings();
+    const {
+      getActiveRoshniPromptDefaults,
+      getBundledRoshniPromptTemplate,
+      ROSHNI_INTRODUCTION,
+    } = await import('../voice/roshni-prompt.js');
+    const active = await getActiveRoshniPromptDefaults();
+    const storedIntro = String(doc.roshniPrompt?.introduction ?? '').trim() || null;
+    const storedAgent = String(doc.roshniPrompt?.agentPrompt ?? '').trim() || null;
     return {
       maintenanceMode: Boolean(doc.maintenanceMode),
       featureFlags: doc.featureFlags || {},
@@ -786,6 +801,17 @@ export const adminConsoleService = {
         errorSummary: p.errorSummary,
         publicConfig: p.publicConfig || {},
       })),
+      roshniPrompt: {
+        introduction: storedIntro,
+        agentPrompt: storedAgent,
+        version: Number(doc.roshniPrompt?.version || 0),
+        effectiveIntroduction: active.introduction,
+        effectiveAgentPrompt: active.agentPrompt,
+        introductionSource: active.introductionSource,
+        agentPromptSource: active.agentPromptSource,
+        bundledIntroduction: ROSHNI_INTRODUCTION,
+        bundledAgentPrompt: getBundledRoshniPromptTemplate(),
+      },
       updatedAt: doc.updatedAt.toISOString(),
     };
   },
@@ -794,6 +820,10 @@ export const adminConsoleService = {
     input: {
       maintenanceMode?: boolean;
       featureFlags?: Record<string, unknown>;
+      roshniPrompt?: {
+        introduction?: string | null;
+        agentPrompt?: string | null;
+      };
       providers?: Array<{
         provider: PlatformProviderId;
         configured?: boolean;
@@ -810,6 +840,61 @@ export const adminConsoleService = {
     if (input.maintenanceMode !== undefined) doc.maintenanceMode = input.maintenanceMode;
     if (input.featureFlags) {
       doc.featureFlags = { ...(doc.featureFlags as object), ...input.featureFlags };
+    }
+    let roshniPromptChanged = false;
+    if (input.roshniPrompt) {
+      const { missingRoshniPlaceholders } = await import('../voice/roshni-prompt.js');
+      if (!doc.roshniPrompt) {
+        doc.roshniPrompt = {
+          introduction: null,
+          agentPrompt: null,
+          version: 0,
+        } as typeof doc.roshniPrompt;
+      }
+      if (input.roshniPrompt.introduction !== undefined) {
+        const nextIntro =
+          input.roshniPrompt.introduction === null
+            ? null
+            : String(input.roshniPrompt.introduction).trim() || null;
+        if (nextIntro && !nextIntro.includes('{callee_name}')) {
+          throw AppError.validation(
+            'Introduction must include the {callee_name} placeholder',
+            [{ path: 'roshniPrompt.introduction', message: 'Missing {callee_name}' }]
+          );
+        }
+        const prevIntro = String(doc.roshniPrompt.introduction ?? '').trim() || null;
+        if (prevIntro !== nextIntro) {
+          doc.roshniPrompt.introduction = nextIntro;
+          roshniPromptChanged = true;
+        }
+      }
+      if (input.roshniPrompt.agentPrompt !== undefined) {
+        const nextAgent =
+          input.roshniPrompt.agentPrompt === null
+            ? null
+            : String(input.roshniPrompt.agentPrompt).trim() || null;
+        if (nextAgent) {
+          const missing = missingRoshniPlaceholders(nextAgent);
+          if (missing.length > 0) {
+            throw AppError.validation(
+              `Agent prompt is missing required placeholders: ${missing.join(', ')}`,
+              missing.map((token) => ({
+                path: 'roshniPrompt.agentPrompt',
+                message: `Missing ${token}`,
+              }))
+            );
+          }
+        }
+        const prevAgent = String(doc.roshniPrompt.agentPrompt ?? '').trim() || null;
+        if (prevAgent !== nextAgent) {
+          doc.roshniPrompt.agentPrompt = nextAgent;
+          roshniPromptChanged = true;
+        }
+      }
+      if (roshniPromptChanged) {
+        doc.roshniPrompt.version = Number(doc.roshniPrompt.version || 0) + 1;
+        doc.markModified('roshniPrompt');
+      }
     }
     if (input.providers) {
       for (const patch of input.providers) {
@@ -849,6 +934,10 @@ export const adminConsoleService = {
     }
     doc.updatedByUserId = new mongoose.Types.ObjectId(actorUserId);
     await doc.save();
+    if (roshniPromptChanged) {
+      const { invalidateRoshniPromptCache } = await import('../voice/roshni-prompt.js');
+      invalidateRoshniPromptCache();
+    }
     return this.getPlatformSettings();
   },
 
@@ -877,6 +966,13 @@ export const adminConsoleService = {
       author?: string;
       excerpt?: string;
       body?: string;
+      coverImageUrl?: string;
+      authorAvatarUrl?: string;
+      tags?: string[];
+      seoTitle?: string;
+      seoDescription?: string;
+      ogImageUrl?: string;
+      featured?: boolean;
       seoStatus?: string;
     },
     actorUserId: string
@@ -884,9 +980,12 @@ export const adminConsoleService = {
     const slug = input.slug?.trim() || slugify(input.title);
     const existing = await BlogArticleModel.findOne({ slug, deletedAt: null });
     if (existing) throw AppError.conflict('Slug already exists');
+    const body = input.body ?? '';
     const doc = await BlogArticleModel.create({
       ...input,
       slug,
+      body,
+      readTimeMinutes: computeReadTimeMinutes(body),
       createdByUserId: actorUserId,
       updatedByUserId: actorUserId,
     });
@@ -903,12 +1002,22 @@ export const adminConsoleService = {
       'author',
       'excerpt',
       'body',
+      'coverImageUrl',
+      'authorAvatarUrl',
+      'tags',
+      'seoTitle',
+      'seoDescription',
+      'ogImageUrl',
+      'featured',
       'seoStatus',
       'status',
     ] as const) {
       if (input[key] !== undefined) {
         (doc as unknown as Record<string, unknown>)[key] = input[key];
       }
+    }
+    if (input.body !== undefined) {
+      doc.readTimeMinutes = computeReadTimeMinutes(String(input.body || ''));
     }
     doc.updatedByUserId = new mongoose.Types.ObjectId(actorUserId);
     await doc.save();

@@ -2,6 +2,8 @@
 
 import {
   AudioLines,
+  ChevronLeft,
+  ChevronRight,
   Download,
   ListPlus,
   Search,
@@ -112,6 +114,8 @@ export function PoolWorkspace() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   async function refreshPool() {
     setLoading(true);
@@ -263,6 +267,35 @@ export function PoolWorkspace() {
     removed,
   ]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageCandidates = useMemo(
+    () => filtered.slice(pageStart, pageStart + pageSize),
+    [filtered, pageStart, pageSize]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    query,
+    savedView,
+    jobFilter,
+    listFilter,
+    statusFilter,
+    locationFilter,
+    experience,
+    skillFilter,
+    sourceFilter,
+    contactFilter,
+    ownerFilter,
+    pageSize,
+  ]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   const primaryFilterCount =
     jobFilter.length + statusFilter.length + listFilter.length + locationFilter.length;
   const moreFilterCount =
@@ -297,9 +330,9 @@ export function PoolWorkspace() {
 
   function toggleSelectAll() {
     setSelected((previous) =>
-      filtered.every((candidate) => previous.has(candidate.id))
+      pageCandidates.every((candidate) => previous.has(candidate.id))
         ? new Set()
-        : new Set(filtered.map((candidate) => candidate.id))
+        : new Set(pageCandidates.map((candidate) => candidate.id))
     );
   }
 
@@ -722,15 +755,84 @@ export function PoolWorkspace() {
           </p>
         </div>
         {filtered.length > 0 ? (
-          <PoolTable
-            candidates={filtered}
-            selected={selected}
-            onToggleSelect={toggleSelect}
-            onToggleSelectAll={toggleSelectAll}
-            onRemove={(id) => {
-              setRemoved((previous) => new Set(previous).add(id));
-            }}
-          />
+          <>
+            <PoolTable
+              candidates={pageCandidates}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+              onToggleSelectAll={toggleSelectAll}
+              onRemove={(id) => {
+                setRemoved((previous) => new Set(previous).add(id));
+              }}
+            />
+            <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Showing{" "}
+                <span className="font-medium text-foreground">
+                  {pageStart + 1}
+                </span>
+                {"–"}
+                <span className="font-medium text-foreground">
+                  {Math.min(pageStart + pageSize, filtered.length)}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium text-foreground">
+                  {filtered.length}
+                </span>
+              </p>
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  Rows
+                  <select
+                    value={pageSize}
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value));
+                      setPage(1);
+                      setSelected(new Set());
+                    }}
+                    className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    {[10, 20, 50, 100].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label="Previous page"
+                    disabled={currentPage <= 1}
+                    onClick={() => {
+                      setPage((value) => Math.max(1, value - 1));
+                      setSelected(new Set());
+                    }}
+                  >
+                    <ChevronLeft aria-hidden />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="outline"
+                    aria-label="Next page"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => {
+                      setPage((value) => Math.min(totalPages, value + 1));
+                      setSelected(new Set());
+                    }}
+                  >
+                    <ChevronRight aria-hidden />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
         ) : (
           <EmptyState
             icon={Users}

@@ -68,12 +68,18 @@ export type InterviewDocument = Document & {
   status: InterviewStatus;
   bookingStatus: BookingStatus;
   reminderStatus: InterviewReminderStatus;
+  reminderHours: number[];
+  reminderMessages: Array<{
+    hours: number;
+    message: string;
+    templateId: string | null;
+  }>;
   sourceModule: string;
   campaignId: mongoose.Types.ObjectId | null;
   screeningId: mongoose.Types.ObjectId | null;
   workflowId: mongoose.Types.ObjectId | null;
   scheduleCandidateId: mongoose.Types.ObjectId | null;
-  inviteChannel: 'email' | 'whatsapp' | null;
+  inviteChannel: 'email' | 'whatsapp' | 'both' | null;
   linkExpiresAt: Date | null;
   inviteeEmail: string | null;
   inviteeName: string | null;
@@ -140,6 +146,17 @@ const interviewSchema = new Schema<InterviewDocument>(
       default: 'not_sent',
       index: true,
     },
+    reminderHours: { type: [Number], default: [24, 2] },
+    reminderMessages: {
+      type: [
+        {
+          hours: { type: Number, required: true },
+          message: { type: String, required: true, maxlength: 5000 },
+          templateId: { type: String, default: null },
+        },
+      ],
+      default: [],
+    },
     sourceModule: { type: String, default: 'scheduling', index: true },
     campaignId: {
       type: Schema.Types.ObjectId,
@@ -154,7 +171,11 @@ const interviewSchema = new Schema<InterviewDocument>(
       ref: 'ScheduleCandidate',
       default: null,
     },
-    inviteChannel: { type: String, enum: ['email', 'whatsapp', null], default: null },
+    inviteChannel: {
+      type: String,
+      enum: ['email', 'whatsapp', 'both', null],
+      default: null,
+    },
     linkExpiresAt: { type: Date, default: null, index: true },
     inviteeEmail: { type: String, default: null, index: true },
     inviteeName: { type: String, default: null },

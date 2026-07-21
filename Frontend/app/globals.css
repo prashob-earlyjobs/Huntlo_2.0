@@ -149,6 +149,23 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 35%, transparent)
+      transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
   }
   body {
     @apply bg-background text-foreground text-sm antialiased;
@@ -169,11 +186,149 @@
   }
 }
 
+@property --ai-beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes ai-beam-spin {
+  to {
+    --ai-beam-angle: 360deg;
+  }
+}
+
 @layer utilities {
   .text-metric {
     @apply tabular-nums tracking-tight;
   }
+  /* Hide scrollbar while keeping the element scrollable */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .ai-beam-border {
+    position: relative;
+    border-radius: var(--radius-md);
+  }
+  .ai-beam-border::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: -2px;
+    border-radius: calc(var(--radius-md) + 2px);
+    padding: 2px;
+    background: conic-gradient(
+      from var(--ai-beam-angle),
+      #0866fc,
+      #38bdf8,
+      #1e40af,
+      #60a5fa,
+      #0866fc
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 400ms ease;
+  }
+  .ai-beam-border[data-processing="true"]::before {
+    opacity: 1;
+    animation: ai-beam-spin 2s linear infinite;
+  }
+  /* While the beam runs, hide the textarea's own focus ring/border so they don't stack */
+  .ai-beam-border[data-processing="true"] textarea {
+    border-color: var(--input) !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
   .transition-ui {
     @apply transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-150 ease-out;
+  }
+}
+
+/* Huntlo product tour — driver.js themed with semantic tokens */
+.huntlo-driver-popover.driver-popover,
+.driver-popover.huntlo-driver-popover {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 12%, transparent);
+  max-width: min(22rem, calc(100vw - 1.5rem));
+}
+
+.huntlo-driver-popover .driver-popover-title {
+  color: var(--popover-foreground);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.huntlo-driver-popover .driver-popover-description {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.huntlo-driver-popover .driver-popover-progress-text {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.huntlo-driver-popover .driver-popover-navigation-btns {
+  gap: 0.5rem;
+}
+
+.huntlo-driver-popover .driver-popover-prev-btn,
+.huntlo-driver-popover .driver-popover-next-btn,
+.huntlo-driver-popover .driver-popover-close-btn {
+  border-radius: var(--radius-md);
+  text-shadow: none;
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  text-decoration: none;
+}
+
+.huntlo-driver-popover .driver-popover-next-btn {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.huntlo-driver-popover .driver-popover-close-btn {
+  color: var(--muted-foreground);
+}
+
+.huntlo-driver-popover .driver-popover-arrow-side-left,
+.huntlo-driver-popover .driver-popover-arrow-side-right,
+.huntlo-driver-popover .driver-popover-arrow-side-top,
+.huntlo-driver-popover .driver-popover-arrow-side-bottom {
+  border-color: var(--popover);
+}
+
+.driver-active .driver-overlay {
+  /* Soften default overlay; actual colour set via config when possible */
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-popover,
+  .driver-overlay,
+  .driver-active-element {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .huntlo-driver-popover.driver-popover {
+    max-width: calc(100vw - 1rem);
   }
 }

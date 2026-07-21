@@ -11,6 +11,7 @@ const idListMax200 = z.array(objectIdSchema).min(1).max(200);
 export const listPoolQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(20),
+  view: z.enum(['all', 'recent', 'revealed']).optional().default('all'),
   sort: z.string().optional(),
   search: z.string().trim().max(200).optional(),
   status: z
@@ -95,6 +96,11 @@ export const bulkAddToListSchema = z.object({
   listId: objectIdSchema,
 });
 
+export const bulkSaveSourcedToListSchema = z.object({
+  sourcedCandidateIds: idListMax200,
+  listId: objectIdSchema,
+});
+
 export const bulkRemoveFromListSchema = z.object({
   ids: idListMax200,
   listId: objectIdSchema,
@@ -157,12 +163,17 @@ export const importCommitSchema = z.object({
   skipDuplicates: z.boolean().optional().default(true),
 });
 
+export const importRevalidateSchema = z.object({
+  columnMapping: z.record(z.string().trim().min(1).max(200)),
+});
+
 export type ListPoolQuery = z.infer<typeof listPoolQuerySchema>;
 export type CreatePoolCandidateInput = z.infer<typeof createPoolCandidateSchema>;
 export type UpdatePoolCandidateInput = z.infer<typeof updatePoolCandidateSchema>;
 export type BulkStatusInput = z.infer<typeof bulkStatusSchema>;
 export type BulkAssignInput = z.infer<typeof bulkAssignSchema>;
 export type BulkAddToListInput = z.infer<typeof bulkAddToListSchema>;
+export type BulkSaveSourcedToListInput = z.infer<typeof bulkSaveSourcedToListSchema>;
 export type BulkRemoveFromListInput = z.infer<typeof bulkRemoveFromListSchema>;
 export type BulkArchiveInput = z.infer<typeof bulkArchiveSchema>;
 export type BulkExportInput = z.infer<typeof bulkExportSchema>;
@@ -172,3 +183,4 @@ export type CreateListInput = z.infer<typeof createListSchema>;
 export type UpdateListInput = z.infer<typeof updateListSchema>;
 export type ListListsQuery = z.infer<typeof listListsQuerySchema>;
 export type ImportCommitInput = z.infer<typeof importCommitSchema>;
+export type ImportRevalidateInput = z.infer<typeof importRevalidateSchema>;

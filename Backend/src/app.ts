@@ -26,11 +26,14 @@ import {
   usageRouter,
 } from './modules/plans/index.js';
 import { integrationsRouter } from './modules/integrations/index.js';
-import { outreachRouter } from './modules/outreach/index.js';
+import { outreachRouter, campaignRoutes } from './modules/outreach/index.js';
 import { conversationsRouter } from './modules/conversations/index.js';
 import { huntlo360Router } from './modules/huntlo-360/index.js';
 import { screeningRouter } from './modules/screening/index.js';
-import { hunarWebhookRouter } from './modules/screening/hunar-webhook.routes.js';
+import {
+  hunarVoiceWebhookRouter,
+  voiceDefaultsRouter,
+} from './modules/voice/index.js';
 import {
   assessmentsRouter,
   assessmentWebhookRouter,
@@ -65,6 +68,7 @@ import {
   preferencesRouter,
   profileRouter,
   settingsRouter,
+  usersMeRouter,
 } from './modules/users/index.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -74,6 +78,7 @@ import { requestTimingMiddleware } from './middleware/request-timing.js';
 import {
   healthRouter,
   openApiRouter,
+  publicBlogRouter,
   webhookRouter,
 } from './modules/public/index.js';
 
@@ -97,8 +102,10 @@ export function createApp(): Express {
   // Webhook routes require raw body capture before JSON parsing.
   app.use('/api/v1/webhooks', webhooksRouter);
   app.use('/api/v1/public/webhooks', webhookRouter);
-  app.use('/api/v1/webhooks/hunar', hunarWebhookRouter);
-  app.use('/api/v1/public/webhooks/hunar', hunarWebhookRouter);
+  // Spec-primary Hunar voice callbacks + legacy aliases.
+  app.use('/api/integrations/voice/hunar', hunarVoiceWebhookRouter);
+  app.use('/api/v1/webhooks/hunar', hunarVoiceWebhookRouter);
+  app.use('/api/v1/public/webhooks/hunar', hunarVoiceWebhookRouter);
   app.use('/api/v1/webhooks/calendly', calendlyWebhookRouter);
   app.use('/api/v1/public/webhooks/calendly', calendlyWebhookRouter);
   app.use('/api/v1/webhooks/dodo', dodoWebhookRouter);
@@ -115,6 +122,7 @@ export function createApp(): Express {
   app.use('/api/v1/public/webhooks/assessments', assessmentWebhookRouter);
 
   app.use('/api', healthRouter);
+  app.use('/api/blog', publicBlogRouter);
   app.use('/api/v1', openApiRouter);
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/onboarding', onboardingRouter);
@@ -136,9 +144,12 @@ export function createApp(): Express {
   app.use('/api/v1/admin', adminConsoleRouter);
   app.use('/api/v1/integrations', integrationsRouter);
   app.use('/api/v1/outreach', outreachRouter);
+  // Canonical campaign execution surface — same handlers as /api/v1/outreach/campaigns
+  app.use('/api/v1/outreach-campaigns', campaignRoutes);
   app.use('/api/v1/conversations', conversationsRouter);
   app.use('/api/v1/huntlo-360', huntlo360Router);
   app.use('/api/v1/screenings', screeningRouter);
+  app.use('/api/v1/voice', voiceDefaultsRouter);
   app.use('/api/v1/assessments', assessmentsRouter);
   app.use('/api/v1/interviews', interviewsRouter);
   app.use('/api/v1/availability', availabilityRouter);
@@ -151,6 +162,7 @@ export function createApp(): Express {
   app.use('/api/v1/realtime', realtimeRouter);
   app.use('/api/v1/profile', profileRouter);
   app.use('/api/v1/preferences', preferencesRouter);
+  app.use('/api/v1/users', usersMeRouter);
   app.use('/api/v1/settings', settingsRouter);
   app.use('/api/v1/audit-logs', auditLogsRouter);
 

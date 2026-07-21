@@ -6,6 +6,8 @@ export const smtpProvider: EmailProvider = {
 
   async connect(_ctx, body) {
     const config = await verifySmtpCredentials(body);
+    const imapHost = String(body.imapHost || '').trim();
+    const imapPort = Number(body.imapPort) || 993;
     return {
       mode: 'connected',
       message: 'SMTP connected',
@@ -20,6 +22,7 @@ export const smtpProvider: EmailProvider = {
           smtpHost: config.smtpHost,
           smtpPort: config.smtpPort,
           smtpSecurity: config.security,
+          ...(imapHost ? { imapHost, imapPort } : {}),
         },
         credentials: {
           username: config.username,

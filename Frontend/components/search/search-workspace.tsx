@@ -2,20 +2,19 @@
 
 import Link from "next/link";
 import {
-  Bookmark,
   Briefcase,
   Check,
   Coins,
   Eraser,
-  FileText,
+  LoaderCircle,
   PenLine,
   Search,
   SlidersHorizontal,
   Users,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { FilterPanel } from "@/components/search/filter-panel";
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,6 @@ import {
 } from "@/components/ui/select";
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetFooter,
@@ -38,15 +36,28 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
 import {
   annotateCandidateSearch,
   applyCandidateSearch,
-  type CandidateFilterForm,
 } from "@/lib/api/candidate-search";
 import type { JobListItem } from "@/lib/api/contracts";
+import {
+  clearEditSearchDraft,
+  loadEditSearchDraft,
+  type EditSearchDraft,
+} from "@/lib/edit-search-draft";
 import {
   EXAMPLE_QUERY,
   FILTER_FIELD_INDEX,
@@ -59,61 +70,18 @@ import {
   type SavedSearch,
   type SearchFilterState,
 } from "@/lib/mock-search";
+import {
+  filtersToProviderPayload,
+  providerPayloadToFilters,
+} from "@/lib/search-filter-adapters";
 import { ROUTES, sessionDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-/** Map UI filter state into Future Jobs filter-form keys the backend accepts. */
-function filtersToProviderPayload(filters: SearchFilterState): CandidateFilterForm {
-  const payload: CandidateFilterForm = { ...filters };
-
-  const currentTitle = filters.currentTitle;
-  if (Array.isArray(currentTitle) && currentTitle.length > 0) {
-    payload.currentTitle = currentTitle.join(", ");
-  } else if (typeof currentTitle === "string" && currentTitle.trim()) {
-    payload.currentTitle = currentTitle.trim();
-  }
-
-  const skills = filters.requiredSkills ?? filters.keywordSkills;
-  if (Array.isArray(skills) && skills.length > 0) {
-    payload.keywordSkills = skills.join(", ");
-  } else if (typeof skills === "string" && skills.trim()) {
-    payload.keywordSkills = skills.trim();
-  }
-
-  const city = filters.city ?? filters.location;
-  if (Array.isArray(city) && city.length > 0) {
-    payload.location = city;
-  }
-
-  const experience = filters.totalExperience;
-  if (experience && typeof experience === "object" && !Array.isArray(experience)) {
-    if (experience.min != null) payload.yearsExpMin = String(experience.min);
-    if (experience.max != null) payload.yearsExpMax = String(experience.max);
-  }
-
-  const industry = filters.industry;
-  if (Array.isArray(industry) && industry.length > 0) {
-    payload.industry = industry.join(", ");
-  } else if (typeof industry === "string" && industry.trim()) {
-    payload.industry = industry.trim();
-  }
-
-  if (filters.seniorityLevel && typeof filters.seniorityLevel === "string") {
-    payload.seniorityLevel = filters.seniorityLevel;
-  }
-  if (filters.openToWork === true) payload.openToWork = true;
-
-  return payload;
-}
-
 const NUMBER_FORMAT = new Intl.NumberFormat("en-IN");
 
-const EXCLUSION_FIELD_IDS = [
-  "excludeTitles",
-  "excludeLocations",
-  "excludedEmployers",
-  "excludeKeywords",
-];
+function buildPromptFromJob(job: JobListItem): string {
+  return `Find ${job.title.toLowerCase()}s in ${job.location} with ${job.experienceMin}–${job.experienceMax} years of experience for the ${job.department} team.`;
+}
 
 function formatFilterValue(value: FilterValue): string {
   if (typeof value === "boolean") return "Yes";
@@ -279,14 +247,17 @@ function GettingStarted({
   onUseExample,
   onUseSaved,
   recentSearches,
+  loading = false,
 }: {
   onUseExample: () => void;
   onUseSaved: (search: SavedSearch) => void;
   recentSearches: SavedSearch[];
+  loading?: boolean;
 }) {
   return (
     <section
       aria-label="Getting started"
+      aria-busy={loading || undefined}
       className="rounded-lg border border-border bg-card p-4"
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -294,31 +265,48 @@ function GettingStarted({
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Try an example
           </h3>
-          <button
-            type="button"
-            onClick={onUseExample}
-            className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {EXAMPLE_QUERY}
-          </button>
+          {loading ? (
+            <Skeleton className="mt-2 h-[4.25rem] w-full rounded-md" />
+          ) : (
+            <button
+              type="button"
+              onClick={onUseExample}
+              className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {EXAMPLE_QUERY}
+            </button>
+          )}
         </div>
         <div>
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Recent searches
+              Saved searches
             </h3>
-            <Button
-              size="xs"
-              variant="ghost"
-              nativeButton={false}
-              render={<Link href={ROUTES.searchHistory} />}
-            >
-              Browse search history
-            </Button>
+            {loading ? (
+              <Skeleton className="h-6 w-36 rounded-md" />
+            ) : (
+              <Button
+                size="xs"
+                variant="ghost"
+                nativeButton={false}
+                render={<Link href={ROUTES.searchHistory} />}
+              >
+                Browse search history
+              </Button>
+            )}
           </div>
-          {recentSearches.length === 0 ? (
+          {loading ? (
+            <ul className="mt-2 space-y-2" aria-hidden>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <li key={index} className="flex items-center justify-between gap-2 px-2">
+                  <Skeleton className="h-4 w-[70%] max-w-56" />
+                  <Skeleton className="h-3 w-14 shrink-0" />
+                </li>
+              ))}
+            </ul>
+          ) : recentSearches.length === 0 ? (
             <p className="mt-2 px-2 text-sm text-muted-foreground">
-              No recent searches yet.
+              No saved searches yet. Use Save Search on a results page.
             </p>
           ) : (
             <ul className="mt-1 space-y-0.5">
@@ -352,8 +340,15 @@ function GettingStarted({
 
 export function SearchWorkspace() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const jobIdFromUrl = searchParams.get("jobId");
+  const editSessionIdFromUrl = searchParams.get("editSessionId");
+  const appliedJobFromUrl = useRef(false);
+  const appliedEditDraft = useRef(false);
   const [query, setQuery] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(jobIdFromUrl);
+  const [editDraft, setEditDraft] = useState<EditSearchDraft | null>(null);
+  const [saveModeOpen, setSaveModeOpen] = useState(false);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [filters, setFilters] = useState<SearchFilterState>({});
   const [criteria, setCriteria] = useState<InterpretedCriterion[] | null>(null);
@@ -362,13 +357,13 @@ export function SearchWorkspace() {
   );
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [criteriaApplied, setCriteriaApplied] = useState(false);
-  const [saveSearch, setSaveSearch] = useState(false);
   const [searching, setSearching] = useState(false);
   const [interpreting, setInterpreting] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchRemaining, setSearchRemaining] = useState<number | null>(null);
   const [recentSearches, setRecentSearches] = useState<SavedSearch[]>([]);
+  const [recentSearchesLoading, setRecentSearchesLoading] = useState(true);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
@@ -394,6 +389,7 @@ export function SearchWorkspace() {
       }
     })();
     void (async () => {
+      setRecentSearchesLoading(true);
       try {
         const { getRecentSearches } = await import("@/lib/api/candidate-search");
         const result = await getRecentSearches({ limit: 5 });
@@ -410,12 +406,62 @@ export function SearchWorkspace() {
         );
       } catch {
         if (!cancelled) setRecentSearches([]);
+      } finally {
+        if (!cancelled) setRecentSearchesLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (appliedJobFromUrl.current || !jobIdFromUrl) return;
+    let cancelled = false;
+
+    void (async () => {
+      let job = jobs.find((item) => item.id === jobIdFromUrl) ?? null;
+      if (!job) {
+        try {
+          const detail = await jobsApi.getById(jobIdFromUrl);
+          if (cancelled || !detail) return;
+          job = detail;
+          setJobs((previous) =>
+            previous.some((item) => item.id === detail.id)
+              ? previous
+              : [detail, ...previous]
+          );
+        } catch {
+          return;
+        }
+      }
+      if (cancelled || !job) return;
+      appliedJobFromUrl.current = true;
+      setSelectedJobId(job.id);
+      setQuery(buildPromptFromJob(job));
+      setCriteria(null);
+      setCriteriaApplied(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobIdFromUrl, jobs]);
+
+  useEffect(() => {
+    if (appliedEditDraft.current) return;
+    const draft = loadEditSearchDraft(editSessionIdFromUrl);
+    if (!draft) return;
+    appliedEditDraft.current = true;
+    setEditDraft(draft);
+    setQuery(draft.prompt);
+    setFilters(draft.filters ?? {});
+    setInterpretedFilters(draft.filters ?? null);
+    setCriteriaApplied(Object.keys(draft.filters ?? {}).length > 0);
+    setSelectedJobId(draft.jobId);
+    setCriteria(null);
+    setFilterDrawerOpen(true);
+  }, [editSessionIdFromUrl]);
 
   const jobOptions = jobs;
   const selectedJob = jobOptions.find((job) => job.id === selectedJobId);
@@ -457,14 +503,6 @@ export function SearchWorkspace() {
     [activeCount, query]
   );
 
-  const exclusionSummary = useMemo(() => {
-    return EXCLUSION_FIELD_IDS.map((fieldId) => {
-      const value = filters[fieldId];
-      if (!isFieldActive(value)) return null;
-      return `${FILTER_FIELD_INDEX[fieldId].field.label}: ${formatFilterValue(value)}`;
-    }).filter((entry): entry is string => entry !== null);
-  }, [filters]);
-
   const isFresh =
     !query.trim() && activeCount === 0 && criteria === null && !searched;
 
@@ -501,27 +539,34 @@ export function SearchWorkspace() {
     setError(null);
     try {
       const result = await annotateCandidateSearch({ prompt: query.trim() });
-      const filterForm = result.filterForm as SearchFilterState;
+      const filterForm = providerPayloadToFilters(result.filterForm);
       setInterpretedFilters(filterForm);
       setFilters({ ...filters, ...filterForm });
       setCriteriaApplied(true);
       setFilterDrawerOpen(true);
       // Build lightweight criteria rows from filter form for the interpretation panel
       const nextCriteria: InterpretedCriterion[] = [];
-      if (typeof filterForm.currentTitle === "string" && filterForm.currentTitle.trim()) {
+      if (Array.isArray(filterForm.currentTitle) && filterForm.currentTitle.length > 0) {
         nextCriteria.push({
           id: "ic-titles",
           fieldId: "currentTitle",
           label: "Role",
-          value: filterForm.currentTitle.trim(),
+          value: filterForm.currentTitle.join(", "),
         });
       }
-      if (typeof filterForm.keywordSkills === "string" && filterForm.keywordSkills.trim()) {
+      const skillParts = [
+        ...(Array.isArray(filterForm.mandatorySkills) ? filterForm.mandatorySkills : []),
+        ...(Array.isArray(filterForm.coreSkills) ? filterForm.coreSkills : []),
+        ...(Array.isArray(filterForm.secondarySkills)
+          ? filterForm.secondarySkills
+          : []),
+      ];
+      if (skillParts.length > 0) {
         nextCriteria.push({
           id: "ic-skills",
-          fieldId: "keywordSkills",
+          fieldId: "coreSkills",
           label: "Skills",
-          value: filterForm.keywordSkills.trim(),
+          value: skillParts.join(", "),
         });
       }
       if (Array.isArray(filterForm.location) && filterForm.location.length > 0) {
@@ -561,31 +606,17 @@ export function SearchWorkspace() {
     setCriteriaApplied(false);
     setSearched(false);
     setError(null);
+    setPendingMessage(null);
+    if (editDraft) {
+      clearEditSearchDraft();
+      setEditDraft(null);
+    }
   }
 
-  function useJobDescription() {
-    const job = selectedJob ?? jobOptions[0];
+  function fillPromptFromJob(jobId: string) {
+    const job = jobOptions.find((item) => item.id === jobId);
     if (!job) return;
-    if (!selectedJobId) setSelectedJobId(job.id);
-    const location =
-      "location" in job && typeof job.location === "string"
-        ? job.location
-        : "Bengaluru";
-    const experienceMin =
-      "experienceMin" in job && typeof job.experienceMin === "number"
-        ? job.experienceMin
-        : 4;
-    const experienceMax =
-      "experienceMax" in job && typeof job.experienceMax === "number"
-        ? job.experienceMax
-        : 7;
-    const department =
-      "department" in job && typeof job.department === "string"
-        ? job.department
-        : "Engineering";
-    setQuery(
-      `Find ${job.title.toLowerCase()}s in ${location} with ${experienceMin}–${experienceMax} years of experience for the ${department} team.`
-    );
+    setQuery(buildPromptFromJob(job));
     setCriteria(null);
     setCriteriaApplied(false);
   }
@@ -596,47 +627,39 @@ export function SearchWorkspace() {
     setCriteriaApplied(false);
   }
 
-  async function runSearch() {
+  async function handleSearchClick() {
+    const hasPreparedFilters = criteriaApplied || activeCount > 0;
+    if (!hasPreparedFilters && query.trim()) {
+      await generateFilters();
+      return;
+    }
+    if (editDraft) {
+      setSaveModeOpen(true);
+      return;
+    }
+    await runSearch("new");
+  }
+
+  async function runSearch(mode: "new" | "update") {
     if (!canSearch || searching) return;
     setSearching(true);
+    setSaveModeOpen(false);
     setError(null);
     setPendingMessage(null);
     try {
-      let nextFilters = filters;
-      const hasCriteria =
-        Object.keys(filters).some((key) => {
-          const value = filters[key];
-          if (value == null || value === "") return false;
-          if (Array.isArray(value)) return value.length > 0;
-          if (typeof value === "object") {
-            return Object.values(value as Record<string, unknown>).some(
-              (entry) => entry != null && entry !== ""
-            );
-          }
-          return true;
-        }) || Boolean(interpretedFilters);
-
-      // Mirror backend auto-annotate so the drawer reflects structured filters.
-      if (!hasCriteria && query.trim()) {
-        try {
-          const annotated = await annotateCandidateSearch({ prompt: query.trim() });
-          const filterForm = annotated.filterForm as SearchFilterState;
-          setInterpretedFilters(filterForm);
-          nextFilters = { ...filters, ...filterForm };
-          setFilters(nextFilters);
-          setCriteriaApplied(true);
-        } catch {
-          // Backend apply also auto-annotates; continue with empty filters.
-        }
-      }
-
+      const nextFilters = filters;
       const providerFilters = filtersToProviderPayload(nextFilters);
+      const updateSessionId =
+        mode === "update"
+          ? editDraft?.sessionId || editDraft?.savedSessionId || undefined
+          : undefined;
       const result = await applyCandidateSearch({
         prompt: query.trim() || EXAMPLE_QUERY,
         filterForm: providerFilters,
         jobId: selectedJobId,
+        sessionId: updateSessionId,
         page: 1,
-        limit: 20,
+        limit: 300,
       });
 
       if ("sessionPending" in result && result.sessionPending) {
@@ -645,6 +668,19 @@ export function SearchWorkspace() {
         );
         if (result.savedSessionId) {
           setSearched(true);
+          clearEditSearchDraft();
+          setEditDraft(null);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem(
+              `huntlo:search:${result.savedSessionId}`,
+              JSON.stringify({
+                sessionId: result.sessionId,
+                savedSessionId: result.savedSessionId,
+                prompt: query.trim() || EXAMPLE_QUERY,
+                filters: nextFilters,
+              })
+            );
+          }
           router.push(sessionDetailPath(result.savedSessionId));
           return;
         }
@@ -654,12 +690,16 @@ export function SearchWorkspace() {
 
       if (result.success && result.savedSessionId) {
         setSearched(true);
+        clearEditSearchDraft();
+        setEditDraft(null);
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
             `huntlo:search:${result.savedSessionId}`,
             JSON.stringify({
               sessionId: result.sessionId,
               savedSessionId: result.savedSessionId,
+              prompt: query.trim() || EXAMPLE_QUERY,
+              filters: nextFilters,
             })
           );
         }
@@ -695,6 +735,29 @@ export function SearchWorkspace() {
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_310px]">
       <div className="min-w-0 space-y-4">
+        {editDraft ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground"
+          >
+            <span className="inline-flex items-center gap-2">
+              <PenLine aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+              Editing an existing search. Adjust the prompt or filters, then search.
+            </span>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                clearEditSearchDraft();
+                setEditDraft(null);
+              }}
+            >
+              Discard edit
+            </Button>
+          </div>
+        ) : null}
+
         {/* Natural-language search composer */}
         <section
           aria-label="Search candidates"
@@ -715,30 +778,44 @@ export function SearchWorkspace() {
             ) : null}
           </div>
 
-          <Textarea
-            id="nl-query"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
-            className="mt-2 min-h-20 resize-none bg-background text-sm"
-          />
+          <div
+            className="ai-beam-border mt-2 rounded-md border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/50"
+            data-processing={interpreting || searching}
+          >
+            <Textarea
+              id="nl-query"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
+              className="min-h-48 resize-none rounded-b-none border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
+              aria-busy={interpreting || searching}
+            />
 
-          <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* Composer toolbar */}
+            <div className="flex flex-wrap items-center gap-1.5 rounded-b-md bg-muted/50 px-2 py-1.5">
               <Select
                 value={selectedJobId}
-                onValueChange={(value) => setSelectedJobId(value)}
+                onValueChange={(value) => {
+                  if (!value) {
+                    setSelectedJobId(null);
+                    return;
+                  }
+                  setSelectedJobId(value);
+                  fillPromptFromJob(value);
+                }}
               >
                 <SelectTrigger
                   size="sm"
-                  className="max-w-56"
+                  className="max-w-48 border-0 bg-transparent shadow-none hover:bg-muted"
                   aria-label="Select job"
                 >
                   <Briefcase
                     aria-hidden
                     className="size-3.5 shrink-0 text-muted-foreground"
                   />
-                  <SelectValue placeholder="Select Job" />
+                  <SelectValue placeholder="Select Job">
+                    {selectedJob?.title}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {jobOptions.map((job) => (
@@ -748,24 +825,22 @@ export function SearchWorkspace() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={useJobDescription}
-              >
-                <FileText aria-hidden />
-                Use Job Description
-              </Button>
 
               {/* Advanced filters toggle — mobile / narrow screens only */}
               <div className="lg:hidden">
                 <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
                   <SheetTrigger
-                    render={<Button type="button" size="sm" variant="outline" />}
+                    render={
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-foreground"
+                      />
+                    }
                   >
                     <SlidersHorizontal aria-hidden />
-                    Advanced Filters
+                    Filters
                     {activeCount > 0 ? (
                       <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
                         {activeCount}
@@ -780,51 +855,99 @@ export function SearchWorkspace() {
                       </SheetDescription>
                     </SheetHeader>
                     <div className="min-h-0 flex-1 overflow-y-auto">{filterPanel}</div>
-                    <SheetFooter className="mt-0 flex-row items-center justify-between gap-3 border-t border-border p-3">
-                      <span className="text-xs text-muted-foreground">
+                    <SheetFooter className="mt-0 flex-row items-center justify-end gap-3 border-t border-border p-3">
+                      {/* <span className="text-xs text-muted-foreground">
                         Est. reach{" "}
                         <span className="font-medium tabular-nums text-foreground">
                           {NUMBER_FORMAT.format(reach.low)}–{NUMBER_FORMAT.format(reach.high)}
                         </span>
-                      </span>
-                      <SheetClose render={<Button type="button" size="sm" />}>
-                        Show results
-                      </SheetClose>
+                      </span> */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!canSearch || searching || interpreting}
+                        aria-busy={searching}
+                        onClick={() => {
+                          setFilterDrawerOpen(false);
+                          void handleSearchClick();
+                        }}
+                      >
+                        {searching ? "Searching…" : "Show results"}
+                      </Button>
                     </SheetFooter>
                   </SheetContent>
                 </Sheet>
               </div>
-            </div>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={clearSearch}
-                disabled={!query && !criteria}
-              >
-                <Eraser aria-hidden />
-                Clear Search
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void generateFilters()}
-                disabled={!query.trim() || interpreting}
-              >
-                {interpreting ? "Interpreting…" : "Generate filters"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => void runSearch()}
-                disabled={!canSearch || searching}
-              >
-                <Search aria-hidden />
-                {searching ? "Searching…" : "Search Candidates"}
-              </Button>
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                {query || criteria ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          aria-label="Clear search"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={clearSearch}
+                        />
+                      }
+                    >
+                      <Eraser aria-hidden />
+                    </TooltipTrigger>
+                    <TooltipContent>Clear search</TooltipContent>
+                  </Tooltip>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="relative"
+                  onClick={() => void generateFilters()}
+                  disabled={!query.trim() || interpreting || searching}
+                  aria-busy={interpreting}
+                  aria-label={interpreting ? "Generating filters" : undefined}
+                >
+                  {interpreting ? (
+                    <LoaderCircle
+                      aria-hidden
+                      className="absolute left-1/2 -translate-x-1/2 animate-spin"
+                    />
+                  ) : null}
+                  <span className={interpreting ? "invisible" : undefined}>
+                    Generate filters
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="relative"
+                  onClick={() => void handleSearchClick()}
+                  disabled={!canSearch || searching || interpreting}
+                  aria-busy={searching || interpreting}
+                  aria-label={
+                    searching
+                      ? "Searching candidates"
+                      : !criteriaApplied && activeCount === 0 && query.trim()
+                        ? "Generate filters from search"
+                        : undefined
+                  }
+                >
+                  {searching ? (
+                    <>
+                      <Search aria-hidden className="invisible" />
+                      <LoaderCircle
+                        aria-hidden
+                        className="absolute left-1/2 -translate-x-1/2 animate-spin"
+                      />
+                    </>
+                  ) : (
+                    <Search aria-hidden />
+                  )}
+                  <span className={searching ? "invisible" : undefined}>Search</span>
+                </Button>
+              </div>
             </div>
           </div>
           {error ? (
@@ -844,6 +967,7 @@ export function SearchWorkspace() {
             onUseExample={() => setQuery(EXAMPLE_QUERY)}
             onUseSaved={useSavedSearch}
             recentSearches={recentSearches}
+            loading={recentSearchesLoading}
           />
         ) : (
           <>
@@ -905,7 +1029,7 @@ export function SearchWorkspace() {
                     {activeCount}
                   </span>
                 </h2>
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="hidden items-center gap-1 text-xs text-muted-foreground">
                   <Users aria-hidden className="size-3.5" />
                   Est. reach{" "}
                   <span className="font-medium tabular-nums text-foreground">
@@ -958,146 +1082,43 @@ export function SearchWorkspace() {
               )}
             </section>
 
-            {/* Search summary */}
-            <section
-              aria-labelledby="search-preview-heading"
-              className="rounded-lg border border-border bg-card p-4"
-            >
-              <h2
-                id="search-preview-heading"
-                className="text-sm font-semibold text-foreground"
-              >
-                Search summary
-              </h2>
-              <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Query
-                  </dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {query.trim()
-                      ? query.trim()
-                      : activeCount > 0
-                        ? `Structured search with ${activeCount} filter${activeCount === 1 ? "" : "s"}`
-                        : "Describe candidates above or apply filters to build a search."}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Expected results
-                  </dt>
-                  <dd className="mt-0.5 font-medium tabular-nums text-foreground">
-                    {canSearch
-                      ? `${NUMBER_FORMAT.format(reach.low)} – ${NUMBER_FORMAT.format(reach.high)} candidates`
-                      : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Quota cost
-                  </dt>
-                  <dd className="mt-0.5 font-medium tabular-nums text-foreground">
-                    {searchRemaining !== null
-                      ? `1 search · ${NUMBER_FORMAT.format(Math.max(0, searchRemaining - 1))} remaining after search`
-                      : "1 search"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Selected job
-                  </dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {selectedJob ? (
-                      <>
-                        {selectedJob.title}
-                        <span className="text-muted-foreground">
-                          {" "}
-                          · {selectedJob.location}
-                        </span>
-                      </>
-                    ) : (
-                      "No job linked"
-                    )}
-                  </dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Important exclusions
-                  </dt>
-                  <dd className="mt-0.5 text-foreground">
-                    {exclusionSummary.length > 0 ? exclusionSummary.join(" · ") : "None"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">
-                    Save search
-                  </dt>
-                  <dd className="mt-0.5">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={saveSearch}
-                      onClick={() => setSaveSearch((previous) => !previous)}
-                      className="inline-flex items-center gap-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      <span
-                        className={cn(
-                          "relative h-5 w-9 rounded-full transition-colors",
-                          saveSearch ? "bg-primary" : "bg-muted"
-                        )}
-                      >
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "absolute top-0.5 left-0.5 size-4 rounded-full bg-background shadow transition-transform",
-                            saveSearch && "translate-x-4"
-                          )}
-                        />
-                      </span>
-                      <Bookmark aria-hidden className="size-3.5 text-muted-foreground" />
-                      Save this search for reuse
-                    </button>
-                  </dd>
-                </div>
-              </dl>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-                {searched ? (
-                  <p className="text-sm text-success">
-                    Search complete —{" "}
-                    <Link
-                      href={sessionDetailPath("s1")}
-                      className="font-medium underline underline-offset-4"
-                    >
-                      view results
-                    </Link>
-                    .
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Searches run against the live candidate graph. UI preview uses
-                    mock data only.
-                  </p>
-                )}
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={runSearch}
-                  disabled={!canSearch || searching}
-                >
-                  <Search aria-hidden />
-                  {searching ? "Searching…" : "Search Candidates"}
-                </Button>
-              </div>
-            </section>
           </>
         )}
       </div>
 
       {/* Desktop filter sidebar — fixed height so FilterPanel's overflow-y-auto can scroll */}
-      <aside className="sticky top-20 hidden h-[calc(100svh-6rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
+      <aside className="sticky top-20 hidden h-[calc(100svh-5.25rem)] overflow-hidden rounded-lg border border-border bg-card lg:flex lg:flex-col">
         {filterPanel}
       </aside>
+
+      <Dialog open={saveModeOpen} onOpenChange={setSaveModeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>How should we save this search?</DialogTitle>
+            <DialogDescription>
+              Update the search you were editing, or keep that one and create a new
+              search with these filters.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
+            <Button
+              type="button"
+              disabled={searching}
+              onClick={() => void runSearch("update")}
+            >
+              Update existing search
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={searching}
+              onClick={() => void runSearch("new")}
+            >
+              Save as new search
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

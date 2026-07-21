@@ -1,5 +1,7 @@
 import type { SourcedCandidateDocument } from '../../sourcing/sourced-candidate.model.js';
 import type { SourcingSessionDocument } from '../../sourcing/sourcing-session.model.js';
+import { labelListFromUnknown } from '../../../shared/strings/label-list.js';
+import { profileSignalsFromFjDoc } from '../../../shared/sourcing/profile-signals.js';
 
 export type SearchPaginationDto = {
   totalDocs: number;
@@ -31,8 +33,34 @@ export type CandidateSummaryDto = {
   contactStatus: string;
   linkedinProfileUrl: string | null;
   linkedinUrl: string | null;
+  profilePictureUrl: string | null;
   profileSignals: string[];
   rank: number;
+  saved?: boolean;
+};
+
+export type CandidateExperienceDto = {
+  company: string;
+  role: string;
+  duration: string;
+  description: string;
+  current: boolean;
+};
+
+export type CandidateEducationDto = {
+  school: string;
+  degree: string;
+  field: string;
+  years: string;
+};
+
+export type CandidateMatchBreakdownDto = {
+  skills: number;
+  role: number;
+  experience: number;
+  location: number;
+  industry: number;
+  education: number;
 };
 
 export type CandidateDetailsDto = CandidateSummaryDto & {
@@ -40,6 +68,12 @@ export type CandidateDetailsDto = CandidateSummaryDto & {
   rawDoc: unknown;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
+  summary: string | null;
+  recommendation: string | null;
+  experience: CandidateExperienceDto[];
+  education: CandidateEducationDto[];
+  profileAnalysis: unknown;
+  matchBreakdown: CandidateMatchBreakdownDto | null;
 };
 
 export type SourcingSessionDto = {
@@ -66,6 +100,8 @@ export type SourcingSessionDto = {
   lastPolledAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  saved: boolean;
+  savedAt: string | null;
 };
 
 export type SourcingSessionSummaryDto = {
@@ -80,8 +116,11 @@ export type SourcingSessionSummaryDto = {
   savedCandidateCount: number;
   owner: string | null;
   status: string;
+  quotaUsed: number;
   createdAt: string | null;
   lastActivity: string | null;
+  saved: boolean;
+  savedAt: string | null;
 };
 
 export type CandidateSearchPollEvent = {
@@ -122,7 +161,8 @@ export function buildPaginationDto(input: {
 
 export function toCandidateSummaryDto(
   candidate: SourcedCandidateDocument,
-  futureJobsSessionId?: string | null
+  futureJobsSessionId?: string | null,
+  saved = false
 ): CandidateSummaryDto {
   const candidateId = String(
     candidate.candidateId || candidate.externalCandidateId || candidate._id.toHexString()
@@ -131,6 +171,18 @@ export function toCandidateSummaryDto(
     candidate.linkedinProfileUrl ||
     candidate.basicProfile?.linkedinUrl ||
     null;
+  const profilePictureUrl =
+    candidate.profilePictureUrl ||
+    candidate.basicProfile?.profilePictureUrl ||
+    null;
+  const storedSignals = labelListFromUnknown(candidate.profileSignals, 12);
+  const rawSignals = profileSignalsFromFjDoc(
+    candidate.rawDoc ?? candidate.rawProviderReference ?? null
+  );
+  const profileSignals = labelListFromUnknown(
+    [...storedSignals, ...rawSignals],
+    12
+  );
   return {
     id: candidate._id.toHexString(),
     candidateId,
@@ -144,7 +196,7 @@ export function toCandidateSummaryDto(
     currentCompany: candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
     location: candidate.location ?? '',
     experienceYears: candidate.experienceYears ?? null,
-    skills: candidate.skills ?? [],
+    skills: labelListFromUnknown(candidate.skills, 24),
     educationPreview: candidate.educationPreview ?? [],
     finalScore: candidate.finalScore ?? candidate.matchScore ?? null,
     matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
@@ -152,8 +204,157 @@ export function toCandidateSummaryDto(
     contactStatus: candidate.contactStatus ?? 'Not contacted',
     linkedinProfileUrl: linkedin,
     linkedinUrl: linkedin,
-    profileSignals: candidate.profileSignals ?? [],
+    profilePictureUrl,
+    profileSignals,
     rank: candidate.rank ?? 0,
+    saved,
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function yearLabel(start: unknown, end?: unknown): string {
+  const startYear = asString(start).slice(0, 4);
+  const endYear = asString(end).slice(0, 4);
+  if (startYear && endYear) return `${startYear}–${endYear}`;
+  if (startYear && !endYear) return `${startYear}–Present`;
+  return '';
+}
+
+function employerToExperience(entry: unknown, current: boolean): CandidateExperienceDto | null {
+  const job = asRecord(entry);
+  if (!job) return null;
+  const company = asString(job.name) || asString(job.company_name);
+  const role = asString(job.title) || asString(job.job_title);
+  if (!company && !role) return null;
+  return {
+    company: company || '—',
+    role: role || '—',
+    duration: yearLabel(job.start_date, job.end_date) || asString(job.years_at_company) || '—',
+    description: asString(job.description),
+    current,
+  };
+}
+
+function extractFjDetailsCandidate(rawDoc: unknown): Record<string, unknown> | null {
+  const root = asRecord(rawDoc);
+  if (!root) return null;
+  const nested = asRecord(root.data);
+  const candidate =
+    asRecord(root.candidate) ||
+    asRecord(nested?.candidate) ||
+    (Array.isArray(root.all_employers) || Array.isArray(root.past_employers) ? root : null);
+  return candidate;
+}
+
+function extractFjProfileAnalysis(rawDoc: unknown): Record<string, unknown> | null {
+  const root = asRecord(rawDoc);
+  if (!root) return null;
+  const nested = asRecord(root.data);
+  return (
+    asRecord(root.profileAnalysis) ||
+    asRecord(nested?.profileAnalysis) ||
+    asRecord(asRecord(root.candidate)?.profileAnalysis) ||
+    null
+  );
+}
+
+/** True when rawDoc is the full Future Jobs candidate-details payload (not list profile doc). */
+export function hasFullFjCandidateDetails(rawDoc: unknown): boolean {
+  const candidate = extractFjDetailsCandidate(rawDoc);
+  if (!candidate) return false;
+  return (
+    Array.isArray(candidate.all_employers) ||
+    Array.isArray(candidate.past_employers) ||
+    Array.isArray(candidate.education_background) ||
+    Boolean(asString(candidate.summary))
+  );
+}
+
+function experienceFromFjDetails(rawDoc: unknown): CandidateExperienceDto[] {
+  const candidate = extractFjDetailsCandidate(rawDoc);
+  if (!candidate) return [];
+  const current = Array.isArray(candidate.current_employers)
+    ? candidate.current_employers
+    : [];
+  const past = Array.isArray(candidate.past_employers) ? candidate.past_employers : [];
+  const all = Array.isArray(candidate.all_employers) ? candidate.all_employers : [];
+  const source = current.length || past.length ? [...current, ...past] : all;
+  const currentNames = new Set(
+    current
+      .map((entry) => {
+        const job = asRecord(entry);
+        return `${asString(job?.name)}|${asString(job?.title)}`.toLowerCase();
+      })
+      .filter(Boolean)
+  );
+  const out: CandidateExperienceDto[] = [];
+  for (const entry of source) {
+    const job = asRecord(entry);
+    const key = `${asString(job?.name)}|${asString(job?.title)}`.toLowerCase();
+    const isCurrent = currentNames.has(key) || !asString(job?.end_date);
+    const mapped = employerToExperience(entry, isCurrent && Boolean(asString(job?.name)));
+    if (mapped) out.push(mapped);
+  }
+  return out;
+}
+
+function educationFromFjDetails(rawDoc: unknown): CandidateEducationDto[] {
+  const candidate = extractFjDetailsCandidate(rawDoc);
+  if (!candidate) return [];
+  const rows = Array.isArray(candidate.education_background)
+    ? candidate.education_background
+    : [];
+  return rows
+    .map((entry) => {
+      const edu = asRecord(entry);
+      if (!edu) return null;
+      return {
+        school: asString(edu.institute_name) || '—',
+        degree: asString(edu.degree_name) || '—',
+        field: asString(edu.field_of_study) || '—',
+        years: yearLabel(edu.start_date, edu.end_date) || '—',
+      };
+    })
+    .filter((entry): entry is CandidateEducationDto => Boolean(entry));
+}
+
+function matchBreakdownFromFjDetails(
+  rawDoc: unknown
+): CandidateMatchBreakdownDto | null {
+  const analysis = asRecord(extractFjProfileAnalysis(rawDoc)?.analysis);
+  const breakdown = Array.isArray(analysis?.scoreBreakdown)
+    ? analysis.scoreBreakdown
+    : [];
+  if (!breakdown.length) return null;
+
+  const pick = (predicates: string[]): number => {
+    for (const row of breakdown) {
+      const item = asRecord(row);
+      if (!item) continue;
+      const label = `${asString(item.label)} ${asString(item.code)}`.toLowerCase();
+      if (!predicates.some((p) => label.includes(p))) continue;
+      const weight = Number(item.weight);
+      const awarded = Number(item.awarded);
+      if (!Number.isFinite(weight) || weight <= 0 || !Number.isFinite(awarded)) continue;
+      return Math.round(Math.min(100, Math.max(0, (awarded / weight) * 100)));
+    }
+    return 70;
+  };
+
+  return {
+    role: pick(['job title', 'jt']),
+    skills: pick(['mandatory', 'core', 'mand', 'skill']),
+    experience: pick(['experience', 'years']),
+    location: pick(['region', 'location']),
+    industry: pick(['industry', 'ind']),
+    education: pick(['education', 'edu']),
   };
 }
 
@@ -161,12 +362,41 @@ export function toCandidateDetailsDto(
   candidate: SourcedCandidateDocument,
   futureJobsSessionId?: string | null
 ): CandidateDetailsDto {
+  const rawDoc = candidate.rawDoc ?? candidate.rawProviderReference ?? null;
+  const fjCandidate = extractFjDetailsCandidate(rawDoc);
+  const analysisRoot = extractFjProfileAnalysis(rawDoc);
+  const summary =
+    asString(fjCandidate?.summary) ||
+    asString(fjCandidate?.headline) ||
+    candidate.candidateSummary ||
+    null;
+  const recommendation =
+    asString(asRecord(analysisRoot)?.recommendation) ||
+    asString(asRecord(asRecord(analysisRoot)?.analysis)?.recommendation) ||
+    null;
+
+  const base = toCandidateSummaryDto(candidate, futureJobsSessionId);
+  if (fjCandidate) {
+    const picture =
+      asString(fjCandidate.profile_picture_permalink) ||
+      asString(fjCandidate.profile_picture_url);
+    if (picture) base.profilePictureUrl = picture;
+    const headline = asString(fjCandidate.headline);
+    if (headline) base.headline = headline;
+  }
+
   return {
-    ...toCandidateSummaryDto(candidate, futureJobsSessionId),
+    ...base,
     mappedCandidate: candidate.mappedCandidate ?? null,
-    rawDoc: candidate.rawDoc ?? candidate.rawProviderReference ?? null,
+    rawDoc,
     firstSeenAt: candidate.firstSeenAt?.toISOString?.() ?? null,
     lastSeenAt: candidate.lastSeenAt?.toISOString?.() ?? null,
+    summary,
+    recommendation,
+    experience: experienceFromFjDetails(rawDoc),
+    education: educationFromFjDetails(rawDoc),
+    profileAnalysis: analysisRoot,
+    matchBreakdown: matchBreakdownFromFjDetails(rawDoc),
   };
 }
 
@@ -205,6 +435,8 @@ export function toSourcingSessionDto(session: SourcingSessionDocument): Sourcing
     lastPolledAt: session.lastPolledAt?.toISOString?.() ?? null,
     createdAt: session.createdAt?.toISOString?.() ?? null,
     updatedAt: session.updatedAt?.toISOString?.() ?? null,
+    saved: Boolean(session.savedAt),
+    savedAt: session.savedAt?.toISOString?.() ?? null,
   };
 }
 

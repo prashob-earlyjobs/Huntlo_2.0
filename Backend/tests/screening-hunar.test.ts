@@ -122,18 +122,48 @@ describe('AI voice screening (Hunar)', () => {
       .set('Authorization', `Bearer ${auth.token}`)
       .send({
         name: 'Backend voice screen',
+        ownerUserId: auth.userId,
+        description: 'Internal screening notes',
         objective: 'Assess backend fit',
         language: 'ENGLISH',
         voice: 'NEHA',
         introductionScript: 'Hi, this is a screening call.',
-        questions: [{ id: 'q1', prompt: 'Tell me about your Node experience' }],
+        questions: [
+          {
+            id: 'q1',
+            prompt: 'Tell me about your Node experience',
+            type: 'Experience',
+            required: true,
+            followUp: 'Probe for production scale if vague',
+            expectedVariable: 'node_experience',
+            evaluationEnabled: true,
+          },
+        ],
         evaluationCriteria: [
           { id: 'communication', label: 'Communication', weight: 1 },
+          {
+            id: 'node_experience',
+            label: 'Node experience',
+            weight: 2,
+            description: 'Score based on Node answer',
+          },
         ],
         candidateIds: [candidateId],
         callSettings: { maxAttempts: 2, maxRetryCount: 2, retryIntervalHours: 6 },
       });
     expect(created.status).toBe(201);
+    expect(created.body.data.ownerUserId).toBe(auth.userId);
+    expect(created.body.data.owner).toBe('Screen Tester');
+    expect(created.body.data.description).toBe('Internal screening notes');
+    expect(created.body.data.questions?.[0]).toMatchObject({
+      id: 'q1',
+      prompt: 'Tell me about your Node experience',
+      type: 'Experience',
+      required: true,
+      followUp: 'Probe for production scale if vague',
+      expectedVariable: 'node_experience',
+      evaluationEnabled: true,
+    });
     const screeningId = created.body.data.id as string;
 
     const validated = await agent
@@ -147,6 +177,22 @@ describe('AI voice screening (Hunar)', () => {
       .set('Authorization', `Bearer ${auth.token}`);
     expect(launched.status).toBe(200);
     expect(launched.body.data.status).toBe('Running');
+
+    expect(hunarClient.createHunarVoiceAgent).toHaveBeenCalled();
+    const agentArg = vi.mocked(hunarClient.createHunarVoiceAgent).mock.calls[0]![0] as {
+      agentPrompt: string;
+      introduction: string;
+      resultPrompt: string;
+      resultSchema?: { properties?: Record<string, unknown> };
+    };
+    expect(agentArg.agentPrompt).toContain('You are Roshni');
+    expect(agentArg.agentPrompt).toContain('Tell me about your Node experience');
+    expect(agentArg.agentPrompt).toContain('Probe for production scale if vague');
+    expect(agentArg.agentPrompt).toContain('node_experience');
+    expect(agentArg.introduction).toBe('Hi, this is a screening call.');
+    expect(agentArg.resultPrompt).toContain('experience');
+    expect(agentArg.resultPrompt).toContain('node_experience_answer');
+    expect(agentArg.resultSchema?.properties).toHaveProperty('node_experience_answer');
     expect(launched.body.data.providerAgentId).toBe('agent-test-1');
     expect(hunarClient.createHunarVoiceAgent).toHaveBeenCalled();
     expect(hunarClient.createHunarBulkCalls).toHaveBeenCalled();
