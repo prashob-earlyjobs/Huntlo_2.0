@@ -71,6 +71,13 @@ export const createBlogSchema = z.object({
   author: z.string().trim().max(120).optional(),
   excerpt: z.string().trim().max(500).optional(),
   body: z.string().max(100_000).optional(),
+  coverImageUrl: z.string().trim().max(2000).optional(),
+  authorAvatarUrl: z.string().trim().max(2000).optional(),
+  tags: z.array(z.string().trim().max(60)).max(12).optional(),
+  seoTitle: z.string().trim().max(200).optional(),
+  seoDescription: z.string().trim().max(320).optional(),
+  ogImageUrl: z.string().trim().max(2000).optional(),
+  featured: z.boolean().optional(),
   seoStatus: z.string().trim().max(40).optional(),
 });
 

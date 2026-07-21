@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SearchHistoryTable } from "@/components/sessions/search-history-table";
 import {
@@ -16,6 +16,19 @@ import { getSourcingSessions } from "@/lib/api/candidate-search";
 import type { SearchHistoryEntry } from "@/lib/mock-sessions";
 import { mapSessionState } from "@/lib/api/sourcing";
 import { ROUTES } from "@/lib/routes";
+
+function formatHistoryDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export function SearchHistoryPageClient() {
   const [entries, setEntries] = useState<SearchHistoryEntry[]>([]);
@@ -34,22 +47,28 @@ export function SearchHistoryPageClient() {
           result.sessions.map((session) => ({
             id: session.savedSessionId,
             sessionId: session.savedSessionId,
-            name: session.title,
+            name: session.title || session.prompt || "Untitled search",
             query: session.prompt,
             relatedJob: session.jobTitle,
             results: session.resultCount,
             saved: session.savedCandidateCount,
             owner: session.owner ?? "You",
-            date: session.createdAt ?? "",
-            usage: 0,
+            date: formatHistoryDate(session.createdAt),
+            usage: session.quotaUsed ?? 0,
             state: mapSessionState(session.status),
           }))
         );
       } catch (err) {
-        // Fallback to legacy sourcing list
         try {
           const history = await sourcingApi.listHistory();
-          if (!cancelled) setEntries(history);
+          if (!cancelled) {
+            setEntries(
+              history.map((entry) => ({
+                ...entry,
+                date: formatHistoryDate(entry.date),
+              }))
+            );
+          }
         } catch {
           if (!cancelled) setError(getApiErrorMessage(err));
         }
@@ -62,12 +81,19 @@ export function SearchHistoryPageClient() {
     };
   }, []);
 
+  const metrics = useMemo(() => {
+    const totalSearches = entries.length;
+    const candidatesFound = entries.reduce((sum, entry) => sum + entry.results, 0);
+    const creditsUsed = entries.reduce((sum, entry) => sum + entry.usage, 0);
+    return { totalSearches, candidatesFound, creditsUsed };
+  }, [entries]);
+
   if (loading && entries.length === 0 && !error) {
     return <SearchHistoryPageSkeleton />;
   }
 
   return (
-    <>
+    <div className="space-y-4">
       <PageHeader
         title="Search History"
         description="Revisit, refine and rerun your previous candidate searches."
@@ -86,23 +112,29 @@ export function SearchHistoryPageClient() {
       {loading ? (
         <SearchHistoryMetricsSkeleton />
       ) : (
-        <div className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card">
-          <div className="px-4 py-2.5">
-            <p className="text-xs text-muted-foreground">Total searches</p>
-            <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-              {entries.length}
+        <div className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-border">
+          <div className="border-b border-border px-4 py-3 sm:border-b-0">
+            <p className="text-xs font-medium text-muted-foreground">
+              Total searches
+            </p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+              {metrics.totalSearches.toLocaleString("en-IN")}
             </p>
           </div>
-          <div className="px-4 py-2.5">
-            <p className="text-xs text-muted-foreground">Candidates saved</p>
-            <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-              {entries.reduce((sum, entry) => sum + entry.saved, 0)}
+          <div className="border-b border-border px-4 py-3 sm:border-b-0">
+            <p className="text-xs font-medium text-muted-foreground">
+              Candidates found
+            </p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+              {metrics.candidatesFound.toLocaleString("en-IN")}
             </p>
           </div>
-          <div className="px-4 py-2.5">
-            <p className="text-xs text-muted-foreground">Credits used</p>
-            <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-              {entries.reduce((sum, entry) => sum + entry.usage, 0)}
+          <div className="px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              Credits used
+            </p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+              {metrics.creditsUsed.toLocaleString("en-IN")}
             </p>
           </div>
         </div>
@@ -128,6 +160,6 @@ export function SearchHistoryPageClient() {
           }
         }}
       />
-    </>
+    </div>
   );
 }

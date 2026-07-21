@@ -101,6 +101,14 @@ const sourcingSessionSchema = new mongoose.Schema(
     startedAt: { type: Date, default: null },
     completedAt: { type: Date, default: null },
     lastPolledAt: { type: Date, default: null },
+    /** When set, session appears in Saved searches (user bookmarked via Save Search). */
+    savedAt: { type: Date, default: null, index: true },
+    /** Candidate list created when the search was saved (if any). */
+    savedListId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CandidateList',
+      default: null,
+    },
     deletedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }
@@ -112,6 +120,14 @@ sourcingSessionSchema.index({ userId: 1, createdAt: -1 });
 sourcingSessionSchema.index({ ownerUserId: 1, createdAt: -1 });
 sourcingSessionSchema.index({ futureJobsSessionId: 1 });
 sourcingSessionSchema.index({ externalSessionId: 1 });
+sourcingSessionSchema.index(
+  { organizationId: 1, savedAt: -1 },
+  {
+    partialFilterExpression: {
+      savedAt: { $type: 'date' },
+    },
+  }
+);
 sourcingSessionSchema.index(
   { organizationId: 1, futureJobsSessionId: 1 },
   {

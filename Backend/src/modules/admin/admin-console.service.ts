@@ -44,6 +44,7 @@ import { PaymentOrderModel } from '../billing/payment-order.model.js';
 import { maskAdminEmail, maskAdminName, maskAdminPhone, formatCount } from './admin-mask.js';
 import {
   BlogArticleModel,
+  computeReadTimeMinutes,
   toPublicBlog,
   type BlogArticleDocument,
 } from './blog.model.js';
@@ -965,6 +966,13 @@ export const adminConsoleService = {
       author?: string;
       excerpt?: string;
       body?: string;
+      coverImageUrl?: string;
+      authorAvatarUrl?: string;
+      tags?: string[];
+      seoTitle?: string;
+      seoDescription?: string;
+      ogImageUrl?: string;
+      featured?: boolean;
       seoStatus?: string;
     },
     actorUserId: string
@@ -972,9 +980,12 @@ export const adminConsoleService = {
     const slug = input.slug?.trim() || slugify(input.title);
     const existing = await BlogArticleModel.findOne({ slug, deletedAt: null });
     if (existing) throw AppError.conflict('Slug already exists');
+    const body = input.body ?? '';
     const doc = await BlogArticleModel.create({
       ...input,
       slug,
+      body,
+      readTimeMinutes: computeReadTimeMinutes(body),
       createdByUserId: actorUserId,
       updatedByUserId: actorUserId,
     });
@@ -991,12 +1002,22 @@ export const adminConsoleService = {
       'author',
       'excerpt',
       'body',
+      'coverImageUrl',
+      'authorAvatarUrl',
+      'tags',
+      'seoTitle',
+      'seoDescription',
+      'ogImageUrl',
+      'featured',
       'seoStatus',
       'status',
     ] as const) {
       if (input[key] !== undefined) {
         (doc as unknown as Record<string, unknown>)[key] = input[key];
       }
+    }
+    if (input.body !== undefined) {
+      doc.readTimeMinutes = computeReadTimeMinutes(String(input.body || ''));
     }
     doc.updatedByUserId = new mongoose.Types.ObjectId(actorUserId);
     await doc.save();

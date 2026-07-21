@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type { SearchHistoryEntry, SessionCandidate, SourcingSession } from "./contracts";
+import { normalizeLabelList } from "@/lib/normalize-label-list";
 import { createDomainService, simulateMockLatency } from "./service";
 import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
@@ -42,6 +43,10 @@ export type SourcingSessionApi = SourcingSession & {
   requiresConfirmation?: boolean;
   message?: string;
   coverage?: number;
+  externalSessionId?: string | null;
+  saved?: boolean;
+  savedAt?: string | null;
+  savedListId?: string | null;
 };
 
 export type SourcedCandidateApi = {
@@ -111,6 +116,8 @@ export function mapApiSessionToUi(session: SourcingSessionApi): SourcingSession 
     candidateIds: session.candidateIds ?? [],
     coverage: session.coverage ?? session.progress,
     failureReason: session.failureReason ?? undefined,
+    isSavedSearch: Boolean(session.saved ?? session.isSavedSearch ?? session.savedAt),
+    savedListId: session.savedListId ?? null,
   };
 }
 
@@ -135,7 +142,7 @@ export function mapApiCandidateToSessionCandidate(
     previousCompany: "—",
     location: candidate.location || "—",
     experienceYears: candidate.experienceYears ?? 0,
-    skills: candidate.skills ?? [],
+    skills: normalizeLabelList(candidate.skills, 24),
     matchScore: score,
     matchBreakdown: {
       skills: score,
@@ -167,8 +174,8 @@ export function mapApiCandidateToSessionCandidate(
           },
         ]
       : [],
-    summary: (candidate.profileSignals ?? []).join(" · ") || "",
-    signals: candidate.profileSignals ?? [],
+    summary: normalizeLabelList(candidate.profileSignals, 12).join(" · ") || "",
+    signals: normalizeLabelList(candidate.profileSignals, 12),
     status: "Active",
     updated: "Just now",
     activity: [

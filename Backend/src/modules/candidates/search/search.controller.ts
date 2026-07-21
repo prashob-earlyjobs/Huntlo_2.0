@@ -119,6 +119,22 @@ export const getRecentSearches = asyncHandler(async (req: Request, res: Response
   res.status(200).json(result);
 });
 
+export const saveSearchSession = asyncHandler(async (req: Request, res: Response) => {
+  const result = await candidateSearchService.saveSearch(
+    actorFrom(req),
+    String(req.params.sessionId)
+  );
+  res.status(200).json(result);
+});
+
+export const unsaveSearchSession = asyncHandler(async (req: Request, res: Response) => {
+  const result = await candidateSearchService.unsaveSearch(
+    actorFrom(req),
+    String(req.params.sessionId)
+  );
+  res.status(200).json(result);
+});
+
 export const claimPublicSearch = asyncHandler(async (req: Request, res: Response) => {
   const input = claimPublicSearchSchema.parse(req.body);
   const result = await candidateSearchService.claimPublicSearch(actorFrom(req), input);

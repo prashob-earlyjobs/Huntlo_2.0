@@ -13,10 +13,11 @@ import {
 } from "lucide-react";
 
 import { ContactReveal, type RevealState } from "@/components/sessions/contact-reveal";
-import { MatchScoreDetail } from "@/components/sessions/match-score";
+import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import type { SessionCandidate } from "@/lib/mock-sessions";
+import { isOpenToWork } from "@/lib/candidate-signals";
 import { cn } from "@/lib/utils";
 
 export function CandidateCard({
@@ -71,12 +72,13 @@ export function CandidateCard({
               {candidate.linkedin ? (
                 <Link2 aria-hidden className="size-3 shrink-0 text-info" />
               ) : null}
+              {isOpenToWork(candidate.signals) ? (
+                <span className="shrink-0 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                  Open to work
+                </span>
+              ) : null}
             </div>
-            <MatchScoreDetail
-              score={candidate.matchScore}
-              breakdown={candidate.matchBreakdown}
-              name={candidate.name}
-            />
+            <MatchScoreCompact score={candidate.matchScore} />
           </div>
           <p className="truncate text-sm text-muted-foreground">
             {candidate.currentRole} · {candidate.currentCompany}
@@ -95,9 +97,9 @@ export function CandidateCard({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {candidate.skills.slice(0, 4).map((skill) => (
+        {candidate.skills.slice(0, 4).map((skill, index) => (
           <span
-            key={skill}
+            key={`${skill}-${index}`}
             className="rounded-md bg-brand-subtle px-1.5 py-0.5 text-xs font-medium text-primary"
           >
             {skill}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Bookmark, History, Upload } from "lucide-react";
 
 import { SearchWorkspace } from "@/components/search/search-workspace";
@@ -48,7 +49,9 @@ export default function SearchPage() {
         }
       />
 
-      <SearchWorkspace />
+      <Suspense fallback={null}>
+        <SearchWorkspace />
+      </Suspense>
     </>
   );
 }

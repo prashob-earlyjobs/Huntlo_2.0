@@ -23,7 +23,7 @@ import {
   ContactReveal,
   type RevealState,
 } from "@/components/sessions/contact-reveal";
-import { MatchScoreDetail } from "@/components/sessions/match-score";
+import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { ActivityTimeline } from "@/components/shared/activity-timeline";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { SectionHeader } from "@/components/shared/section-header";
@@ -366,11 +366,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 {candidate.currentRole} · {candidate.currentCompany}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <MatchScoreDetail
-                  score={candidate.matchScore}
-                  breakdown={candidate.matchBreakdown}
-                  name={candidate.name}
-                />
+                <MatchScoreCompact score={candidate.matchScore} />
                 <span className="inline-flex items-center gap-1">
                   <MapPin aria-hidden className="size-3" />
                   {candidate.location}

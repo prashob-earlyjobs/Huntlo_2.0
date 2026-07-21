@@ -116,9 +116,20 @@ export type BlogArticle = {
   author: string;
   excerpt: string;
   body?: string;
+  coverImageUrl?: string;
+  authorAvatarUrl?: string;
+  tags?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  ogImageUrl?: string;
+  readTimeMinutes?: number;
+  featured?: boolean;
+  viewCount?: number;
   status: string;
   seoStatus: string;
   publishedAt: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type AdminPendingTask = {

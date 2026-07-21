@@ -459,6 +459,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         session={session}
         candidates={candidates}
         initialFilters={sessionFilters}
+        futureJobsSessionId={fjSessionId}
       />
     </>
   );

@@ -6,6 +6,8 @@ import {
 import { emitCandidateSearchPoll } from '../../realtime/events.js';
 import { createChildLogger } from '../../config/logger.js';
 import { upsertCandidatesFromDocs as upsertSearchCandidates } from '../candidates/search/search.persist.js';
+import { labelListFromUnknown } from '../../shared/strings/label-list.js';
+import { profileSignalsFromFjDoc } from '../../shared/sourcing/profile-signals.js';
 import { quotaService } from './quota.service.js';
 import { SourcedCandidateModel } from './sourced-candidate.model.js';
 import {
@@ -33,24 +35,6 @@ function educationPreviewFromProfile(profile: Record<string, unknown>): unknown[
     return profile.education.slice(0, 5);
   }
   return [];
-}
-
-function profileSignalsFromDoc(doc: FutureJobsProfileDoc, profile: Record<string, unknown>): string[] {
-  const signals: string[] = [];
-  if (profile.open_to_work === true || profile.openToWork === true) {
-    signals.push('Open to work');
-  }
-  const mapped = mapFjDocToCandidate(doc);
-  if (mapped?.status && mapped.status !== 'Available') {
-    signals.push(mapped.status);
-  }
-  if (Array.isArray(profile.nuances)) {
-    for (const n of profile.nuances.slice(0, 5)) {
-      const label = String(n ?? '').trim();
-      if (label) signals.push(label);
-    }
-  }
-  return signals;
 }
 
 function experienceYearsFromProfile(profile: Record<string, unknown>): number | null {
@@ -90,11 +74,18 @@ async function upsertCandidatesFromDocsLegacy(
         ? (employers[0] as Record<string, unknown>)
         : {};
 
-    const skillsRaw = Array.isArray(profile.skills)
-      ? profile.skills.map((s) => String(s ?? '').trim()).filter(Boolean)
-      : typeof mapped.skills === 'string' && mapped.skills !== '—'
-        ? mapped.skills.split(',').map((s) => s.trim()).filter(Boolean)
-        : [];
+    let skillsRaw = labelListFromUnknown(profile.skills, 24);
+    if (
+      skillsRaw.length === 0 &&
+      typeof mapped.skills === 'string' &&
+      mapped.skills !== '—'
+    ) {
+      skillsRaw = mapped.skills
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s && s !== '[object Object]')
+        .slice(0, 24);
+    }
 
     const matchScore =
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
@@ -161,7 +152,7 @@ async function upsertCandidatesFromDocsLegacy(
           experienceYears: experienceYearsFromProfile(profile),
           skills: skillsRaw.slice(0, 24),
           educationPreview: educationPreviewFromProfile(profile),
-          profileSignals: profileSignalsFromDoc(doc, profile),
+          profileSignals: profileSignalsFromFjDoc(doc, profile),
           rawProviderReference: {
             id: externalId,
             sourcingSessionId: doc.sourcingSessionId

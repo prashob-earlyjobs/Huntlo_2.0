@@ -48,6 +48,8 @@ import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-detai
 import {
   applyCandidateSearch,
   getCandidateDetails,
+  saveSearch,
+  unsaveSearch,
 } from "@/lib/api/candidate-search";
 import {
   FILTER_SECTIONS,
@@ -64,7 +66,8 @@ import {
   type SortOptionId,
   type SourcingSession,
 } from "@/lib/mock-sessions";
-import { ROUTES, jobDetailPath, sessionDetailPath } from "@/lib/routes";
+import { jobDetailPath, ROUTES, sessionDetailPath } from "@/lib/routes";
+import { saveEditSearchDraft, searchEditPath } from "@/lib/edit-search-draft";
 import { filtersToProviderPayload } from "@/lib/search-filter-adapters";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +83,58 @@ function matchesResultQuery(candidate: SessionCandidate, query: string): boolean
     .join(" ")
     .toLowerCase();
   return haystack.includes(query.trim().toLowerCase());
+}
+
+function csvEscape(value: string | number | null | undefined): string {
+  const text = value == null ? "" : String(value);
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function downloadSessionCandidatesCsv(
+  candidates: SessionCandidate[],
+  sessionName: string
+) {
+  const headers = [
+    "Name",
+    "Headline",
+    "Current role",
+    "Current company",
+    "Location",
+    "Experience years",
+    "Skills",
+    "Match score",
+    "Email",
+    "Phone",
+  ];
+  const rows = candidates.map((candidate) => [
+    candidate.name,
+    candidate.headline,
+    candidate.currentRole,
+    candidate.currentCompany,
+    candidate.location,
+    candidate.experienceYears,
+    candidate.skills.join("; "),
+    candidate.matchScore,
+    candidate.emailRevealed ? candidate.email : "",
+    candidate.phoneRevealed ? candidate.phone : "",
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map(csvEscape).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  const safeName =
+    sessionName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "search-results";
+  anchor.href = url;
+  anchor.download = `${safeName}-export.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function loadSessionFilters(sessionId: string): SearchFilterState {
@@ -184,10 +239,12 @@ export function SessionResults({
   session,
   candidates,
   initialFilters,
+  futureJobsSessionId = null,
 }: {
   session: SourcingSession;
   candidates: SessionCandidate[];
   initialFilters?: SearchFilterState | null;
+  futureJobsSessionId?: string | null;
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<SortOptionId>("best-match");
@@ -200,6 +257,15 @@ export function SessionResults({
   );
   const [rerunningSearch, setRerunningSearch] = useState(false);
   const [rerunError, setRerunError] = useState<string | null>(null);
+  const [searchSaved, setSearchSaved] = useState(
+    Boolean(session.isSavedSearch && session.savedListId)
+  );
+  const [savingSearch, setSavingSearch] = useState(false);
+  const [savedListId, setSavedListId] = useState<string | null>(
+    session.savedListId ?? null
+  );
+  const [saveSearchMessage, setSaveSearchMessage] = useState<string | null>(null);
+  const [saveSearchError, setSaveSearchError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(candidates.map((c) => [c.id, c.saved]))
@@ -214,6 +280,78 @@ export function SessionResults({
   const [addToListCandidateIds, setAddToListCandidateIds] = useState<string[]>([]);
   const [addToListMessage, setAddToListMessage] = useState<string | null>(null);
   const detailsFetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (initialFilters && Object.keys(initialFilters).length > 0) {
+      setSearchFilters(initialFilters);
+    }
+  }, [initialFilters]);
+
+  useEffect(() => {
+    setSearchSaved(Boolean(session.isSavedSearch && session.savedListId));
+    setSavedListId(session.savedListId ?? null);
+  }, [session.id, session.isSavedSearch, session.savedListId]);
+
+  async function toggleSaveSearch() {
+    if (savingSearch) return;
+    setSavingSearch(true);
+    setSaveSearchError(null);
+    setSaveSearchMessage(null);
+    try {
+      if (searchSaved) {
+        await unsaveSearch(session.id);
+        setSearchSaved(false);
+        setSavedListId(null);
+        setSaveSearchMessage(
+          "Removed from saved searches. Your candidate list was kept."
+        );
+      } else {
+        const result = await saveSearch(session.id);
+        setSearchSaved(true);
+        setSavedListId(result.listId ?? null);
+        const added = result.candidatesAdded ?? 0;
+        const listName = result.listName || "Saved search";
+        if (result.listCreated) {
+          setSaveSearchMessage(
+            added > 0
+              ? `Created list “${listName}” with ${added} candidate${added === 1 ? "" : "s"}.`
+              : `Created list “${listName}”. No candidates to add yet.`
+          );
+        } else {
+          setSaveSearchMessage(
+            added > 0
+              ? `Added ${added} candidate${added === 1 ? "" : "s"} to “${listName}”.`
+              : `Saved. List “${listName}” is up to date.`
+          );
+        }
+      }
+    } catch (err) {
+      setSaveSearchError(getApiErrorMessage(err));
+    } finally {
+      setSavingSearch(false);
+    }
+  }
+
+  function startEditSearch() {
+    let storedSessionId: string | null = futureJobsSessionId;
+    try {
+      const stored = sessionStorage.getItem(`huntlo:search:${session.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { sessionId?: string | null };
+        if (parsed.sessionId) storedSessionId = parsed.sessionId;
+      }
+    } catch {
+      // ignore
+    }
+    saveEditSearchDraft({
+      savedSessionId: session.id,
+      sessionId: storedSessionId,
+      prompt: session.query,
+      filters: searchFilters,
+      jobId: session.relatedJobId,
+    });
+    router.push(searchEditPath(session.id));
+  }
 
   useEffect(() => {
     setLocalCandidates((prev) => {
@@ -560,17 +698,54 @@ export function SessionResults({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={ROUTES.search} />}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={startEditSearch}
+            >
               <Pencil aria-hidden />
               Edit Search
             </Button>
-            <Button size="sm" variant="outline">
-              <Bookmark aria-hidden />
-              Save Search
+            <Button
+              size="sm"
+              variant={searchSaved ? "secondary" : "outline"}
+              disabled={savingSearch}
+              aria-pressed={searchSaved}
+              aria-busy={savingSearch}
+              onClick={() => void toggleSaveSearch()}
+            >
+              {savingSearch ? (
+                <Loader2 aria-hidden className="animate-spin" />
+              ) : (
+                <Bookmark
+                  aria-hidden
+                  className={searchSaved ? "fill-current" : undefined}
+                />
+              )}
+              {searchSaved ? "Saved" : "Save Search"}
             </Button>
           </div>
         </div>
       </header>
+
+      {saveSearchError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {saveSearchError}
+        </p>
+      ) : null}
+      {saveSearchMessage ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {saveSearchMessage}{" "}
+          {savedListId || searchSaved ? (
+            <Link
+              href={ROUTES.saved}
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Open Saved Lists
+            </Link>
+          ) : null}
+        </p>
+      ) : null}
 
       <SessionStateBanner
         state={session.state}
@@ -762,7 +937,17 @@ export function SessionResults({
                 </Button>
               </>
             ) : (
-              <Button size="sm" variant="ghost">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={visibleCandidates.length === 0}
+                onClick={() =>
+                  downloadSessionCandidatesCsv(
+                    visibleCandidates,
+                    session.name || session.query || "search-results"
+                  )
+                }
+              >
                 <Download aria-hidden />
                 Export
               </Button>
@@ -783,7 +968,7 @@ export function SessionResults({
             "The search could not be completed. Your quota was not charged."
           }
           actionLabel="Edit Search"
-          actionHref={ROUTES.search}
+          onAction={startEditSearch}
         />
       ) : isEmpty ? (
         <EmptyState
@@ -791,7 +976,7 @@ export function SessionResults({
           title="No candidates found"
           description="Try broadening your location, skills or experience filters and run the search again."
           actionLabel="Edit Search"
-          actionHref={ROUTES.search}
+          onAction={startEditSearch}
         />
       ) : showNoResults ? (
         <EmptyState
