@@ -813,13 +813,17 @@ export function AudienceStep({
 
         {state.source === "Candidate Pool" || state.source === "Manual Add" ? (
           <div className="space-y-3">
-            <Field label="Search pool" htmlFor="audience-pool-search">
+            <Field
+              label="Search pool"
+              htmlFor="audience-pool-search"
+              className="flex flex-row flex-wrap items-center gap-3 space-y-0"
+            >
               <Input
                 id="audience-pool-search"
                 value={state.poolSearch}
                 onChange={(event) => update("poolSearch", event.target.value)}
                 placeholder="Search by name, company, skill…"
-                className="sm:max-w-sm"
+                className="min-w-[12rem] flex-1 sm:max-w-sm"
               />
             </Field>
             <CandidatePicker

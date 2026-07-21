@@ -1,5 +1,7 @@
+import { startBullOutreach, stopBullOutreach } from './bull-outreach/index.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { getLogger } from './config/logger.js';
+import { attachWorkerRealtimeBridge, stopRealtimeRedisBridge } from './realtime/redis-bridge.js';
 import { getWorkerRuntimeConfig } from './workers/config.js';
 import { createWorkerRunner } from './workers/runner.js';
 import { registerProcessHandlers, shutdownGracefully } from './shared/process/handlers.js';
@@ -20,9 +22,11 @@ async function startWorker(): Promise<void> {
   );
 
   await connectDatabase();
+  attachWorkerRealtimeBridge();
 
   const runner = createWorkerRunner();
   await runner.start();
+  await startBullOutreach();
 
   logger.info(
     { workerId: runner.workerId, metrics: runner.getMetrics() },
@@ -53,6 +57,8 @@ async function startWorker(): Promise<void> {
         'huntlo-worker',
         async () => {
           clearInterval(metricsTimer);
+          await stopBullOutreach();
+          await stopRealtimeRedisBridge();
           await runner.stop();
           await disconnectDatabase();
         },

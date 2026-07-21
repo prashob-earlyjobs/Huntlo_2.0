@@ -58,7 +58,7 @@ function TabsTrigger({ className, value, ...props }: React.ComponentProps<"butto
       aria-selected={active}
       onClick={() => ctx.onValueChange(value)}
       className={cn(
-        "inline-flex h-7 items-center justify-center rounded-md px-2.5 text-sm font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+        "inline-flex h-7 cursor-pointer items-center justify-center rounded-md px-2.5 text-sm font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
         active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
         className
       )}

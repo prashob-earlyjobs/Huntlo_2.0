@@ -6,7 +6,6 @@ import mongoose from 'mongoose';
 
 import { AppError } from '../../shared/errors/app-error.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
-import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import { interviewsService } from '../scheduling/interview.service.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
 import { OutreachCampaignModel } from './campaign.model.js';
@@ -54,25 +53,15 @@ async function ensureThread(
   enrollmentId: string,
   jobId: mongoose.Types.ObjectId | null
 ) {
-  let thread = await ConversationThreadModel.findOne({
+  const { conversationsService } = await import('../conversations/conversations.service.js');
+  return conversationsService.ensureThreadForEnrollment({
     organizationId,
-    campaignId,
     candidateId,
-  });
-  if (thread) return thread;
-  thread = await ConversationThreadModel.create({
-    organizationId,
     campaignId,
-    candidateId,
     enrollmentId,
-    jobId,
-    channels: ['note'],
-    status: 'open',
-    unreadCount: 0,
-    qualificationStatus: 'pending',
-    automationStatus: 'active',
+    jobId: jobId ? String(jobId) : null,
+    channel: 'note',
   });
-  return thread;
 }
 
 export const campaignActionsService = {

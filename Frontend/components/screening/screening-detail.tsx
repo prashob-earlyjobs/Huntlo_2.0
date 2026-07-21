@@ -15,11 +15,12 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { ResultsWorkspace } from "@/components/screening/results-workspace";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,12 +38,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+import { getApiErrorMessage, screeningApi } from "@/lib/api";
 import {
-  BATCH_CANDIDATES,
   BATCH_SETTINGS,
   type CallStatus,
   type ScreeningBatch,
   type ScreeningBatchStatus,
+  type ScreeningResult,
 } from "@/lib/mock-screening";
 import {
   candidateDetailPath,
@@ -117,7 +120,79 @@ function OverviewTab({ batch }: { batch: ScreeningBatch }) {
   );
 }
 
-function CandidatesTab() {
+function CandidatesTab({ screeningId }: { screeningId: string }) {
+  const [results, setResults] = useState<ScreeningResult[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const next = await screeningApi.listResults({
+      limit: 100,
+      screeningId,
+    });
+    setResults(next);
+    setError(null);
+  }, [screeningId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        await refresh();
+      } catch (err) {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, "Unable to load screening candidates."));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
+
+  useRealtimeRefresh("screening.result.updated", () => {
+    void refresh().catch(() => undefined);
+  });
+
+  if (loading) {
+    return (
+      <section className="rounded-xl border border-border bg-card px-4 py-8 text-sm text-muted-foreground">
+        Loading candidates…
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="rounded-xl border border-border bg-card px-4 py-8">
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-3"
+          onClick={() => void refresh().catch(() => undefined)}
+        >
+          Retry
+        </Button>
+      </section>
+    );
+  }
+
+  if (results.length === 0) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No candidates in this screening yet"
+        description="Add candidates and launch the batch — call results will appear here."
+        className="rounded-xl border border-border bg-card"
+      />
+    );
+  }
+
   return (
     <section className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
@@ -138,54 +213,62 @@ function CandidatesTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {BATCH_CANDIDATES.map((candidate) => (
-            <TableRow key={candidate.id}>
+          {results.map((result) => (
+            <TableRow key={result.id}>
               <TableCell className="py-2.5">
                 <div className="flex items-center gap-2.5">
-                  <CandidateAvatar name={candidate.name} className="size-7" />
-                  {candidate.candidateId ? (
+                  <CandidateAvatar
+                    name={result.candidateName}
+                    className="size-7"
+                  />
+                  {result.candidateId ? (
                     <Link
-                      href={candidateDetailPath(candidate.candidateId)}
+                      href={candidateDetailPath(result.candidateId)}
                       className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
                     >
-                      {candidate.name}
+                      {result.candidateName}
                     </Link>
                   ) : (
                     <span className="text-sm font-medium text-foreground">
-                      {candidate.name}
+                      {result.candidateName}
                     </span>
                   )}
                 </div>
               </TableCell>
               <TableCell className="py-2.5">
                 <Badge
-                  text={candidate.callStatus}
-                  className={CALL_CLASSES[candidate.callStatus]}
+                  text={result.callStatus}
+                  className={
+                    CALL_CLASSES[result.callStatus] ??
+                    "bg-muted text-muted-foreground"
+                  }
                 />
               </TableCell>
               <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
-                {candidate.attemptsUsed}/{candidate.attemptsMax}
+                {result.attemptsUsed}/{result.attemptsMax}
               </TableCell>
               <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
-                {candidate.duration ?? "—"}
+                {result.duration || "—"}
               </TableCell>
               <TableCell className="py-2.5 text-right text-sm font-medium tabular-nums">
-                {candidate.score !== null ? (
+                {result.overallScore > 0 ? (
                   <Link
-                    href={screeningResultPath(candidate.resultId!)}
+                    href={screeningResultPath(result.id)}
                     className={cn(
                       "underline-offset-4 hover:underline",
-                      candidate.score >= 75 ? "text-success" : "text-foreground"
+                      result.overallScore >= 75
+                        ? "text-success"
+                        : "text-foreground"
                     )}
                   >
-                    {candidate.score}
+                    {result.overallScore}
                   </Link>
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
               <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                {candidate.lastActivity}
+                {result.completedDate || "—"}
               </TableCell>
               <TableCell className="py-2.5 text-right">
                 <DropdownMenu>
@@ -194,28 +277,24 @@ function CandidatesTab() {
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={`Actions for ${candidate.name}`}
+                        aria-label={`Actions for ${result.candidateName}`}
                       />
                     }
                   >
                     <MoreHorizontal aria-hidden />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    {candidate.resultId ? (
-                      <DropdownMenuItem
-                        render={
-                          <Link href={screeningResultPath(candidate.resultId)} />
-                        }
-                      >
-                        <Eye aria-hidden />
-                        View result
-                      </DropdownMenuItem>
-                    ) : null}
-                    {candidate.candidateId ? (
+                    <DropdownMenuItem
+                      render={<Link href={screeningResultPath(result.id)} />}
+                    >
+                      <Eye aria-hidden />
+                      View result
+                    </DropdownMenuItem>
+                    {result.candidateId ? (
                       <DropdownMenuItem
                         render={
                           <Link
-                            href={candidateDetailPath(candidate.candidateId)}
+                            href={candidateDetailPath(result.candidateId)}
                           />
                         }
                       >
@@ -226,10 +305,6 @@ function CandidatesTab() {
                     <DropdownMenuItem>
                       <Phone aria-hidden />
                       Call again
-                    </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive">
-                      <Trash2 aria-hidden />
-                      Remove
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -430,7 +505,7 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
           <OverviewTab batch={batch} />
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
-          <CandidatesTab />
+          <CandidatesTab screeningId={batch.id} />
         </TabsContent>
         <TabsContent value="settings" className="pt-3">
           <SettingsTab />

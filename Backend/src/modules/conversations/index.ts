@@ -4,6 +4,7 @@ export {
   ingestInboundMessage,
   classifyAndAttach,
   updateDeliveryStatus,
+  campaignSupportsChannel,
 } from './inbound-sync.service.js';
 export {
   handleProviderWebhook,

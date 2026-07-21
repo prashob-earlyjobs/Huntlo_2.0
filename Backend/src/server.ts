@@ -5,6 +5,7 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { getEnv } from './config/env.js';
 import { getLogger } from './config/logger.js';
 import { attachWebSocketServer } from './realtime/server.js';
+import { stopRealtimeRedisBridge } from './realtime/redis-bridge.js';
 import { registerProcessHandlers, shutdownGracefully } from './shared/process/handlers.js';
 
 async function startServer(): Promise<void> {
@@ -41,6 +42,7 @@ async function startServer(): Promise<void> {
           await realtime.close();
         }
 
+        await stopRealtimeRedisBridge();
         await disconnectDatabase();
       });
     });

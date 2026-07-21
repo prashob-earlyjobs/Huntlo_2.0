@@ -98,6 +98,24 @@ webhookRouter.post(
 webhookRouter.post(
   '/gmail',
   asyncHandler(async (req, res) => {
+    // Pub/Sub push envelope → ingest pipeline
+    if (req.body && typeof req.body === 'object' && (req.body as { message?: unknown }).message) {
+      const { ingestWebhook } = await import('../webhooks/ingest.service.js');
+      const rawBody =
+        req.rawBody ||
+        Buffer.from(JSON.stringify(req.body), 'utf8');
+      const result = await ingestWebhook({
+        provider: 'gmail',
+        rawBody,
+        body: req.body as Record<string, unknown>,
+        headers: req.headers as Record<string, string | string[] | undefined>,
+        query: req.query as Record<string, unknown>,
+      });
+      res.status(result.statusCode).json(result.body);
+      return;
+    }
+
+    // Legacy stub: pre-normalized message payload
     const organizationId =
       (req.headers['x-organization-id'] as string | undefined) ||
       (req.query.organizationId as string | undefined) ||

@@ -15,11 +15,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { JobListItem } from "@/lib/api/contracts";
 import { teamApi, type ApiTeamMember } from "@/lib/api/team";
-import {
-  CAMPAIGN_OBJECTIVES,
-  CAMPAIGN_TYPES,
-  TIMEZONE_OPTIONS,
-} from "@/lib/mock-outreach";
+import { CAMPAIGN_TYPES, TIMEZONE_OPTIONS } from "@/lib/mock-outreach";
 import { useAuth } from "@/providers";
 
 export function SetupStep({
@@ -207,24 +203,6 @@ export function SetupStep({
               Related job is required.
             </p>
           ) : null}
-        </Field>
-
-        <Field label="Campaign objective" htmlFor="campaign-objective" required>
-          <Select
-            value={state.objective}
-            onValueChange={(value) => value && update("objective", value)}
-          >
-            <SelectTrigger id="campaign-objective" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CAMPAIGN_OBJECTIVES.map((objective) => (
-                <SelectItem key={objective} value={objective}>
-                  {objective}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </Field>
 
         <Field label="Campaign owner" htmlFor="campaign-owner" required>

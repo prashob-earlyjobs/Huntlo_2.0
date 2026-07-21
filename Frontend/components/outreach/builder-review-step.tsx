@@ -185,7 +185,6 @@ export function ReviewStep({
           <dl className="divide-y divide-border rounded-lg border border-border">
             <SummaryRow label="Campaign" value={state.name.trim() || "Untitled campaign"} />
             <SummaryRow label="Related job" value={job ? job.title : "None"} />
-            <SummaryRow label="Objective" value={state.objective} />
             <SummaryRow
               label="Owner"
               value={state.owner.trim() || "Unassigned"}
