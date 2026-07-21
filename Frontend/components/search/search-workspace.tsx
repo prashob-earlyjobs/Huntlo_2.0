@@ -424,7 +424,7 @@ export function SearchWorkspace() {
       if (!job) {
         try {
           const detail = await jobsApi.getById(jobIdFromUrl);
-          if (cancelled) return;
+          if (cancelled || !detail) return;
           job = detail;
           setJobs((previous) =>
             previous.some((item) => item.id === detail.id)
