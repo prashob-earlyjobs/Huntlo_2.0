@@ -1,12 +1,25 @@
 import { apiClient } from "./client";
 import type { OutreachCampaign } from "./contracts";
 import { createDomainService, simulateMockLatency } from "./service";
+import type { PaginationMeta } from "./contracts/envelopes";
 import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
 import type {
   CampaignStatus,
   OutreachChannel,
 } from "@/lib/mock-outreach";
+
+export type PaginatedOutreachCampaigns = {
+  items: OutreachCampaign[];
+  pagination: PaginationMeta;
+};
+
+const DEFAULT_CAMPAIGN_PAGINATION: PaginationMeta = {
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 1,
+};
 
 /* ------------------------------------------------------------------ */
 /* Backend DTOs                                                         */
@@ -345,6 +358,9 @@ export type CampaignBuilderState = {
 
 export interface OutreachApi {
   listCampaigns(params?: ApiQueryParams): Promise<OutreachCampaign[]>;
+  listCampaignsPage(
+    params?: ApiQueryParams
+  ): Promise<PaginatedOutreachCampaigns>;
   listCampaignsRaw(params?: ApiQueryParams): Promise<ApiOutreachCampaign[]>;
   getCampaign(id: string): Promise<OutreachCampaign | null>;
   getCampaignRaw(id: string): Promise<ApiOutreachCampaign | null>;
@@ -443,10 +459,46 @@ export type OutreachOverview = {
 };
 
 const mockOutreachApi: OutreachApi = {
-  async listCampaigns() {
+  async listCampaigns(params) {
+    const page = await this.listCampaignsPage(params);
+    return page.items;
+  },
+  async listCampaignsPage(params) {
     await simulateMockLatency();
     const { OUTREACH_CAMPAIGNS } = await import("@/lib/mock-outreach");
-    return OUTREACH_CAMPAIGNS;
+    const page = Math.max(1, Number(params?.page ?? 1) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit ?? 10) || 10));
+    const q =
+      typeof params?.q === "string" ? params.q.trim().toLowerCase() : "";
+    const status =
+      typeof params?.status === "string" ? params.status.toLowerCase() : "";
+    const jobId = typeof params?.jobId === "string" ? params.jobId : "";
+
+    let rows = OUTREACH_CAMPAIGNS;
+    if (q) {
+      rows = rows.filter((campaign) =>
+        `${campaign.name} ${campaign.relatedJobTitle ?? ""}`
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    if (status) {
+      rows = rows.filter(
+        (campaign) => toApiStatus(campaign.status) === status
+      );
+    }
+    if (jobId) {
+      rows = rows.filter((campaign) => campaign.relatedJobId === jobId);
+    }
+
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
+    return {
+      items: rows.slice(start, start + limit),
+      pagination: { page: safePage, limit, total, totalPages },
+    };
   },
   async listCampaignsRaw() {
     const campaigns = await this.listCampaigns();
@@ -765,7 +817,8 @@ const mockOutreachApi: OutreachApi = {
   },
   async getOverview() {
     await simulateMockLatency();
-    const campaigns = await this.listCampaigns();
+    const { OUTREACH_CAMPAIGNS } = await import("@/lib/mock-outreach");
+    const campaigns = OUTREACH_CAMPAIGNS;
     const activeCampaigns = campaigns.filter(
       (c) => c.status === "Running" || c.status === "Scheduled"
     ).length;
@@ -845,10 +898,31 @@ const mockOutreachApi: OutreachApi = {
 
 const liveOutreachApi: OutreachApi = {
   async listCampaigns(params) {
+    const page = await this.listCampaignsPage(params);
+    return page.items;
+  },
+  async listCampaignsPage(params) {
     const result = await apiClient.get<ApiOutreachCampaign[]>(
       `/outreach-campaigns${buildQueryString({ ...params, sourceModule: "outreach" })}`
     );
-    return result.data.map(toDisplayCampaign);
+    const pagination = result.meta?.pagination;
+    return {
+      items: result.data.map(toDisplayCampaign),
+      pagination: pagination
+        ? {
+            page: pagination.page,
+            limit: pagination.limit,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+          }
+        : {
+            ...DEFAULT_CAMPAIGN_PAGINATION,
+            limit: Number(params?.limit ?? 10) || 10,
+            page: Number(params?.page ?? 1) || 1,
+            total: result.data.length,
+            totalPages: 1,
+          },
+    };
   },
   async listCampaignsRaw(params) {
     const result = await apiClient.get<ApiOutreachCampaign[]>(
@@ -1113,6 +1187,8 @@ export const outreachApi = createDomainService({
 export const getOutreachStats = () => outreachApi.getOutreachStats();
 export const getOutreachCampaigns = (params?: ApiQueryParams) =>
   outreachApi.listCampaigns(params);
+export const getOutreachCampaignsPage = (params?: ApiQueryParams) =>
+  outreachApi.listCampaignsPage(params);
 export const getOutreachCampaign = (id: string) => outreachApi.getCampaign(id);
 export const createOutreachDraft = (
   input?: Parameters<OutreachApi["createOutreachDraft"]>[0]

@@ -25,10 +25,20 @@ import {
   getApiErrorMessage,
   outreachApi,
   type OutreachOverview,
+  type PaginationMeta,
 } from "@/lib/api";
 import type { OutreachCampaign, OutreachMetric } from "@/lib/mock-outreach";
 import { ROUTES } from "@/lib/routes";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+
+const DEFAULT_PAGE_SIZE = 10;
+
+const EMPTY_PAGINATION: PaginationMeta = {
+  page: 1,
+  limit: DEFAULT_PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+};
 
 function formatCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -107,9 +117,25 @@ function toOutreachMetrics(overview: OutreachOverview): OutreachMetric[] {
 export function OutreachPageClient() {
   const [campaigns, setCampaigns] = useState<OutreachCampaign[]>([]);
   const [metrics, setMetrics] = useState<OutreachMetric[]>([]);
+  const [pagination, setPagination] =
+    useState<PaginationMeta>(EMPTY_PAGINATION);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = search.trim();
+      setDebouncedSearch((prev) => {
+        if (prev !== next) setPage(1);
+        return next;
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,11 +143,19 @@ export function OutreachPageClient() {
       setLoading(true);
       try {
         const [next, overview] = await Promise.all([
-          outreachApi.listCampaigns({ limit: 100 }),
+          outreachApi.listCampaignsPage({
+            page,
+            limit: DEFAULT_PAGE_SIZE,
+            ...(debouncedSearch ? { q: debouncedSearch } : {}),
+          }),
           outreachApi.getOverview(),
         ]);
         if (cancelled) return;
-        setCampaigns(next);
+        setCampaigns(next.items);
+        setPagination(next.pagination);
+        if (next.pagination.page !== page) {
+          setPage(next.pagination.page);
+        }
         setMetrics(toOutreachMetrics(overview));
         setError(null);
       } catch (err) {
@@ -129,6 +163,7 @@ export function OutreachPageClient() {
         setError(getApiErrorMessage(err, "Unable to load outreach campaigns."));
         setMetrics([]);
         setCampaigns([]);
+        setPagination(EMPTY_PAGINATION);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -136,7 +171,7 @@ export function OutreachPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [reloadToken]);
+  }, [page, debouncedSearch, reloadToken]);
 
   useRealtimeRefresh(
     ["campaign.updated", "campaign.status.changed", "conversation.message.created"],
@@ -178,6 +213,10 @@ export function OutreachPageClient() {
       ) : (
         <OutreachWorkspace
           campaigns={campaigns}
+          pagination={pagination}
+          search={search}
+          onSearchChange={setSearch}
+          onPageChange={setPage}
           onCampaignsChange={setCampaigns}
         />
       )}

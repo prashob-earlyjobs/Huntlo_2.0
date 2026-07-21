@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import {
@@ -31,9 +31,12 @@ import { conversationsApi } from "@/lib/api";
 import type {
   Conversation,
   ConversationEvent,
-  QualificationState,
-  ReplyStatus,
 } from "@/lib/mock-conversations";
+import {
+  conversationPipelineStatus,
+  pipelineStatusBadgeClass,
+  type CandidatePipelineStatus,
+} from "@/lib/conversation-pipeline-status";
 import { CHANNEL_ICONS, type OutreachChannel } from "@/lib/mock-outreach";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -71,20 +74,6 @@ function stripEmailQuotedReply(raw: string): string {
 /* ------------------------------------------------------------------ */
 /* Badges                                                               */
 /* ------------------------------------------------------------------ */
-
-const REPLY_CLASSES: Record<ReplyStatus, string> = {
-  "Awaiting reply": "bg-muted text-muted-foreground",
-  Replied: "bg-info/10 text-info",
-  Interested: "bg-success/10 text-success",
-  "Not interested": "bg-destructive/10 text-destructive",
-};
-
-const QUAL_CLASSES: Record<QualificationState, string> = {
-  Pending: "bg-muted text-muted-foreground",
-  "In progress": "bg-info/10 text-info",
-  Qualified: "bg-success/10 text-success",
-  Rejected: "bg-destructive/10 text-destructive",
-};
 
 function MiniBadge({
   text,
@@ -320,18 +309,14 @@ function ProfilePanel({
           </dd>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <dt className="text-muted-foreground">Qualification</dt>
+          <dt className="text-muted-foreground">Status</dt>
           <dd>
             <MiniBadge
-              text={conversation.qualification}
-              className={QUAL_CLASSES[conversation.qualification]}
+              text={conversationPipelineStatus(conversation)}
+              className={pipelineStatusBadgeClass(
+                conversationPipelineStatus(conversation)
+              )}
             />
-          </dd>
-        </div>
-        <div className="flex items-start justify-between gap-2">
-          <dt className="text-muted-foreground">Screening</dt>
-          <dd className="text-right font-medium text-foreground">
-            {conversation.screeningStatus}
           </dd>
         </div>
         <div className="flex items-start justify-between gap-2">
@@ -410,12 +395,16 @@ function ProfilePanel({
 /* Inbox                                                                */
 /* ------------------------------------------------------------------ */
 
-const REPLY_FILTER_OPTIONS: FilterOption[] = (
-  ["Awaiting reply", "Replied", "Interested", "Not interested"] as const
-).map((value) => ({ id: value, label: value }));
-
-const QUAL_FILTER_OPTIONS: FilterOption[] = (
-  ["Pending", "In progress", "Qualified", "Rejected"] as const
+const PIPELINE_FILTER_OPTIONS: FilterOption[] = (
+  [
+    "Awaiting reply",
+    "Interested",
+    "Not interested",
+    "In qualification",
+    "Qualified",
+    "Not qualified",
+    "In screening",
+  ] as const satisfies CandidatePipelineStatus[]
 ).map((value) => ({ id: value, label: value }));
 
 const CHANNEL_FILTER_OPTIONS: FilterOption[] = (
@@ -425,9 +414,12 @@ const CHANNEL_FILTER_OPTIONS: FilterOption[] = (
 export function ConversationInbox({
   conversations,
   className,
+  focusThreadId,
 }: {
   conversations: Conversation[];
   className?: string;
+  /** When realtime delivers a new message, parent can focus that thread. */
+  focusThreadId?: string | null;
 }) {
   const { user } = useAuth();
   const noteAuthor =
@@ -438,18 +430,38 @@ export function ConversationInbox({
   );
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<string[]>([]);
-  const [replyFilter, setReplyFilter] = useState<string[]>([]);
-  const [qualFilter, setQualFilter] = useState<string[]>([]);
+  const [pipelineFilter, setPipelineFilter] = useState<string[]>([]);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [addedNotes, setAddedNotes] = useState<Record<string, Conversation["notes"]>>({});
+  const timelineEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setItems(conversations);
+    setItems((previous) => {
+      const prevById = new Map(previous.map((row) => [row.id, row]));
+      return conversations.map((row) => {
+        const prior = prevById.get(row.id);
+        // Keep the longer timeline if a concurrent mark-read response is staler.
+        if (
+          prior?.events?.length &&
+          (row.events?.length ?? 0) < prior.events.length
+        ) {
+          return { ...row, events: prior.events };
+        }
+        return row;
+      });
+    });
     if (!selectedId && conversations[0]?.id) {
       setSelectedId(conversations[0].id);
     }
   }, [conversations, selectedId]);
+
+  useEffect(() => {
+    if (!focusThreadId) return;
+    if (conversations.some((row) => row.id === focusThreadId)) {
+      setSelectedId(focusThreadId);
+    }
+  }, [focusThreadId, conversations]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -466,15 +478,16 @@ export function ConversationInbox({
         !conversation.channels.some((channel) => channelFilter.includes(channel))
       )
         return false;
-      if (replyFilter.length > 0 && !replyFilter.includes(conversation.replyStatus))
-        return false;
-      if (qualFilter.length > 0 && !qualFilter.includes(conversation.qualification))
+      if (
+        pipelineFilter.length > 0 &&
+        !pipelineFilter.includes(conversationPipelineStatus(conversation))
+      )
         return false;
       if (unreadOnly && (!conversation.unread || readIds.has(conversation.id)))
         return false;
       return true;
     });
-  }, [items, query, channelFilter, replyFilter, qualFilter, unreadOnly, readIds]);
+  }, [items, query, channelFilter, pipelineFilter, unreadOnly, readIds]);
 
   const selected =
     items.find((conversation) => conversation.id === selectedId) ?? null;
@@ -483,6 +496,11 @@ export function ConversationInbox({
   const notes = selected
     ? [...selected.notes, ...(addedNotes[selected.id] ?? [])]
     : [];
+
+  useEffect(() => {
+    if (!selectedId || events.length === 0) return;
+    timelineEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [selectedId, events.length, events[events.length - 1]?.id]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
     return (id: string) =>
@@ -505,17 +523,21 @@ export function ConversationInbox({
     void conversationsApi.markRead(conversation.id).then((updated) => {
       if (updated && typeof updated === "object" && "id" in updated) {
         setItems((previous) =>
-          previous.map((row) =>
-            row.id === updated.id
-              ? {
-                  ...row,
-                  ...updated,
-                  // Never drop the timeline if the read response omits events.
-                  events: updated.events?.length ? updated.events : row.events,
-                  unread: false,
-                }
-              : row
-          )
+          previous.map((row) => {
+            if (row.id !== updated.id) return row;
+            const nextEvents =
+              (updated.events?.length ?? 0) >= (row.events?.length ?? 0)
+                ? updated.events?.length
+                  ? updated.events
+                  : row.events
+                : row.events;
+            return {
+              ...row,
+              ...updated,
+              events: nextEvents,
+              unread: false,
+            };
+          })
         );
       } else {
         setItems((previous) =>
@@ -582,16 +604,10 @@ export function ConversationInbox({
               onToggle={toggle(setChannelFilter)}
             />
             <FilterPopover
-              label="Reply"
-              options={REPLY_FILTER_OPTIONS}
-              selected={replyFilter}
-              onToggle={toggle(setReplyFilter)}
-            />
-            <FilterPopover
-              label="Qualification"
-              options={QUAL_FILTER_OPTIONS}
-              selected={qualFilter}
-              onToggle={toggle(setQualFilter)}
+              label="Status"
+              options={PIPELINE_FILTER_OPTIONS}
+              selected={pipelineFilter}
+              onToggle={toggle(setPipelineFilter)}
             />
             <Button
               type="button"
@@ -616,6 +632,7 @@ export function ConversationInbox({
                 const isUnread =
                   conversation.unread && !readIds.has(conversation.id);
                 const isActive = conversation.id === selectedId;
+                const pipeline = conversationPipelineStatus(conversation);
                 return (
                   <li key={conversation.id}>
                     <button
@@ -670,8 +687,8 @@ export function ConversationInbox({
                         </span>
                         <span className="mt-1 flex items-center gap-1">
                           <MiniBadge
-                            text={conversation.replyStatus}
-                            className={REPLY_CLASSES[conversation.replyStatus]}
+                            text={pipeline}
+                            className={pipelineStatusBadgeClass(pipeline)}
                           />
                           {isUnread ? (
                             <span
@@ -708,8 +725,10 @@ export function ConversationInbox({
                 </p>
               </div>
               <MiniBadge
-                text={selected.replyStatus}
-                className={REPLY_CLASSES[selected.replyStatus]}
+                text={conversationPipelineStatus(selected)}
+                className={pipelineStatusBadgeClass(
+                  conversationPipelineStatus(selected)
+                )}
               />
             </div>
 
@@ -718,6 +737,7 @@ export function ConversationInbox({
                 {events.map((event) => (
                   <EventBubble key={event.id} event={event} />
                 ))}
+                <div ref={timelineEndRef} aria-hidden className="h-px w-full" />
               </div>
             </ScrollArea>
           </>

@@ -10,7 +10,6 @@ import { UserModel } from '../auth/user.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
   CampaignJobModel,
-  type CampaignJobType,
 } from './campaign-job.model.js';
 import {
   OutreachCampaignModel,
@@ -28,6 +27,11 @@ import {
 import { recordCampaignActivity, CampaignActivityModel } from './campaign-activity.model.js';
 import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } from './campaign-validate.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
+import {
+  cancelJobsForCampaign,
+  cancelJobsForEnrollment,
+  scheduleFirstSends,
+} from '../../bull-outreach/index.js';
 import type {
   audienceBodySchema,
   createCampaignSchema,
@@ -82,27 +86,6 @@ function normalizeSteps(steps?: CreateInput['sequenceSteps']): CampaignSequenceS
       : null,
     config: step.config || {},
   }));
-}
-
-function jobTypeForStep(type: CampaignSequenceStep['type']): CampaignJobType {
-  switch (type) {
-    case 'email':
-      return 'send_email';
-    case 'whatsapp':
-      return 'send_whatsapp';
-    case 'ai_voice':
-      return 'launch_voice';
-    case 'wait':
-      return 'wait';
-    case 'conditional':
-      return 'evaluate_conditional';
-    case 'recruiter_task':
-      return 'create_recruiter_task';
-    case 'scheduling_link':
-      return 'send_scheduling_link';
-    default:
-      return 'advance_sequence';
-  }
 }
 
 async function ownerName(userId: string): Promise<string> {
@@ -328,18 +311,22 @@ async function enqueueFirstJobs(campaign: OutreachCampaignDocument, enrollmentId
   if (!campaign.sequenceSteps.length) return;
   const first = [...campaign.sequenceSteps].sort((a, b) => a.order - b.order)[0];
   if (!first) return;
-  const now = new Date();
-  const docs = enrollmentIds.map((enrollmentId) => ({
-    organizationId: campaign.organizationId,
-    campaignId: campaign._id,
-    enrollmentId,
+  const channel =
+    first.type === 'email' || first.type === 'scheduling_link'
+      ? 'email'
+      : first.type === 'whatsapp'
+        ? 'whatsapp'
+        : first.type === 'ai_voice'
+          ? 'ai_voice'
+          : null;
+  await scheduleFirstSends({
+    organizationId: String(campaign.organizationId),
+    campaignId: String(campaign._id),
+    enrollmentIds,
     stepId: first.id,
-    jobType: jobTypeForStep(first.type),
-    scheduledAt: now,
-    status: 'queued_v2' as const,
-    attempts: 0,
-  }));
-  if (docs.length) await CampaignJobModel.insertMany(docs, { ordered: false });
+    channel,
+    runAt: new Date(),
+  });
 }
 
 export const campaignsService = {
@@ -352,7 +339,7 @@ export const campaignsService = {
 
     const skip = (query.page - 1) * query.limit;
     const [docs, total] = await Promise.all([
-      OutreachCampaignModel.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(query.limit),
+      OutreachCampaignModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(query.limit),
       OutreachCampaignModel.countDocuments(filter),
     ]);
 
@@ -573,6 +560,7 @@ export const campaignsService = {
       { campaignId: doc._id, status: { $in: ['queued', 'queued_v2', 'leased', 'running'] } },
       { $set: { status: 'cancelled' } }
     );
+    await cancelJobsForCampaign(String(doc._id));
     await recordCampaignActivity({
       organizationId,
       campaignId: id,
@@ -997,6 +985,7 @@ export const campaignsService = {
       { campaignId: doc._id, status: { $in: ['queued', 'queued_v2'] } },
       { $set: { status: 'cancelled' } }
     );
+    await cancelJobsForCampaign(String(doc._id));
     await OutreachEnrollmentModel.updateMany(
       { campaignId: doc._id, status: { $in: ['active', 'waiting', 'pending'] } },
       { $set: { status: 'paused', pausedReason: 'campaign_paused' } }
@@ -1092,6 +1081,7 @@ export const campaignsService = {
       { campaignId: doc._id, status: { $in: ['queued', 'queued_v2', 'leased', 'running'] } },
       { $set: { status: 'cancelled' } }
     );
+    await cancelJobsForCampaign(String(doc._id));
     await OutreachEnrollmentModel.updateMany(
       {
         campaignId: doc._id,
@@ -1408,6 +1398,7 @@ export const campaignsService = {
       { enrollmentId: enrollment._id, status: { $in: ['queued', 'queued_v2', 'leased'] } },
       { $set: { status: 'cancelled' } }
     );
+    await cancelJobsForEnrollment(String(enrollment._id));
     await refreshCampaignStats(String(enrollment.campaignId));
     return enrollment;
   },

@@ -603,6 +603,8 @@ export interface QualificationQuestion {
   knockoutCondition: string;
 }
 
+export const MAX_QUALIFICATION_QUESTIONS = 10;
+
 export const DEFAULT_QUESTIONS: QualificationQuestion[] = [
   {
     id: "q-1",

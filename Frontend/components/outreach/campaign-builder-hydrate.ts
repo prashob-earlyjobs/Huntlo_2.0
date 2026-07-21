@@ -3,6 +3,7 @@ import {
   ANSWER_TYPES,
   CAMPAIGN_OBJECTIVES,
   CHANNEL_CONFIGS,
+  MAX_QUALIFICATION_QUESTIONS,
   RETRY_OPTIONS,
   SEND_WINDOWS,
   TAKEOVER_CONDITIONS,
@@ -132,6 +133,7 @@ export function builderStateFromCampaign(
       knockout: Boolean(question.knockout),
       knockoutCondition: question.knockoutCondition || "",
     })) ?? base.questions;
+  const cappedQuestions = questions.slice(0, MAX_QUALIFICATION_QUESTIONS);
 
   return {
     ...base,
@@ -169,7 +171,7 @@ export function builderStateFromCampaign(
     ) as Record<OutreachChannel, ChannelConnection>,
     steps: steps.length > 0 ? steps : base.steps,
     classificationEnabled: true,
-    questions,
+    questions: cappedQuestions,
     aiReplyEnabled: true,
     takeoverCondition:
       campaign.qualificationConfig?.takeoverCondition &&

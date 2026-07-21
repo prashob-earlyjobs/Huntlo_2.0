@@ -109,7 +109,7 @@ export const createCampaignSchema = z.object({
           knockout: z.boolean().optional(),
           knockoutCondition: z.string().max(500).nullable().optional(),
         })
-      ),
+      ).max(10),
       aiReplyEnabled: z.boolean().optional(),
       takeoverCondition: z.string().max(200).nullable().optional(),
       autoScreening: z.boolean().optional(),

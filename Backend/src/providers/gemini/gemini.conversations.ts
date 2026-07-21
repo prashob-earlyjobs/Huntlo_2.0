@@ -727,6 +727,11 @@ export type EvaluateScreeningAnswerInput = {
   extractedVariables?: Record<string, unknown>;
   intent?: string | null;
   channel?: 'email' | 'whatsapp';
+  /** Full JD + role context for assessment. */
+  jobContext?: string | null;
+  campaignName?: string | null;
+  /** All configured screening questions (helps map numbered replies). */
+  allQuestions?: Array<{ id: string; prompt: string }>;
 };
 
 export type EvaluateScreeningAnswerResult = {
@@ -798,6 +803,7 @@ Return JSON only:
 }
 
 Rules:
+- Use the job description and role context below when judging knockout rules and whether an answer fits the role (do not invent JD facts).
 - Judge by meaning in conversation context, NOT by format. Soft / informal / approximate answers that address the open question count as answers.
 - answerType is only a storage hint for answerValue shape. NEVER set answersQuestion=false only because the reply is not a number, not yes/no, missing units (e.g. "days"), or not in a preferred format.
 - If the open question asks about notice period, availability, or joining timeline, any clear availability signal answers it. Normalize answerValue to a short phrase that preserves their meaning.
@@ -805,14 +811,23 @@ Rules:
 - isCandidateQuestion=true when the candidate is mainly asking us something (they may also answer — set answersQuestion independently).
 - answersQuestion and isNotAnAnswer must agree: if they addressed this question, answersQuestion=true and isNotAnAnswer=false.
 - answerValue: concise normalized value when answersQuestion is true (keep their meaning; do not invent). null when answersQuestion is false.
-- knockout: if a knockout rule is provided, evaluate against it (fail only when clearly matched). Otherwise "unknown".
+- knockout: if a knockout rule is provided, evaluate against it using the answer AND job context (fail only when clearly matched). Otherwise "unknown".
 - Prefer conversation context: the last recruiter message is usually the open question.
 - If the recruiter's last message listed multiple numbered screening questions and the candidate replied with numbered lines (1., 2., 3.), map each line to the matching question by position and meaning.
 - If Classifier extractedVariables already contains a value for id "${input.question.id}", treat it as a strong signal the candidate answered that question (still verify against the reply).
 
+Campaign: ${input.campaignName || '(none)'}
 Channel: ${input.channel || 'email'}
 Classifier intent hint: ${input.intent || '(none)'}
 Classifier extractedVariables: ${JSON.stringify(input.extractedVariables || {}).slice(0, 1500)}
+
+All screening questions (for numbered-reply mapping):
+${(input.allQuestions || [])
+  .map((q, i) => `${i + 1}. [${q.id}] ${q.prompt}`)
+  .join('\n') || '(single question)'}
+
+Job & role context:
+${String(input.jobContext || '').slice(0, 9000) || '(none)'}
 
 Open screening question:
 - id: ${input.question.id}
@@ -856,6 +871,111 @@ ${reply.slice(0, 2000)}
         : null,
       knockout,
       reason: String(parsed.reason || '').slice(0, 400),
+      model: GEMINI_CONVERSATIONS_MODEL,
+    };
+  } catch {
+    return offline;
+  }
+}
+
+export type AssessQualificationCompleteInput = {
+  jobContext: string;
+  campaignName?: string | null;
+  questions: Array<{
+    id: string;
+    prompt: string;
+    answerType?: string | null;
+    knockout?: boolean;
+    knockoutCondition?: string | null;
+    answer: string;
+  }>;
+  conversation?: Array<{ direction: 'inbound' | 'outbound'; bodyText: string }>;
+  channel?: 'email' | 'whatsapp';
+};
+
+export type AssessQualificationCompleteResult = {
+  outcome: 'qualified' | 'rejected';
+  reason: string;
+  failedQuestionId: string | null;
+  model: string;
+};
+
+/**
+ * Final Gemini pass: all screening answers + full JD → qualified vs rejected.
+ */
+export async function assessQualificationComplete(
+  input: AssessQualificationCompleteInput
+): Promise<AssessQualificationCompleteResult> {
+  const offline: AssessQualificationCompleteResult = {
+    outcome: 'qualified',
+    reason: 'offline-fallback-all-answers-present',
+    failedQuestionId: null,
+    model: `${GEMINI_CONVERSATIONS_MODEL}-offline`,
+  };
+
+  const qaBlock = input.questions
+    .map((q, i) => {
+      const ko = q.knockout
+        ? `knockout: ${String(q.knockoutCondition || 'enabled').slice(0, 200)}`
+        : 'knockout: none';
+      return `${i + 1}. [${q.id}] ${q.prompt}\n   answerType: ${q.answerType || '(unspecified)'}\n   ${ko}\n   candidateAnswer: ${q.answer.slice(0, 800)}`;
+    })
+    .join('\n\n');
+
+  const historyLines = (input.conversation || [])
+    .slice(-12)
+    .map(
+      (m) =>
+        `${m.direction === 'inbound' ? 'Candidate' : 'Recruiter'}: ${String(
+          m.bodyText || ''
+        ).slice(0, 500)}`
+    )
+    .join('\n');
+
+  const prompt = `You are a recruiting qualification assessor. Decide if the candidate PASSES screening for this role.
+Return JSON only:
+{
+  "outcome": "qualified" | "rejected",
+  "reason": string,
+  "failedQuestionId": string | null
+}
+
+Rules:
+- Use ONLY the job description / role context below plus the screening Q&A — do not invent requirements.
+- outcome="rejected" ONLY when a knockout rule clearly fails OR an answer is clearly incompatible with stated JD must-haves.
+- If answers are vague but not failing knockouts, outcome="qualified".
+- failedQuestionId: id of the question that caused rejection, or null if qualified.
+- reason: one short sentence for recruiters.
+
+Campaign: ${input.campaignName || '(none)'}
+Channel: ${input.channel || 'email'}
+
+Job & role context:
+${input.jobContext.slice(0, 9000)}
+
+Screening questions and candidate answers:
+${qaBlock || '(none)'}
+
+Recent conversation (oldest first):
+${historyLines || '(none)'}
+`;
+
+  try {
+    const parsed = await callGeminiJson(
+      prompt,
+      (input.channel || 'email') === 'email' ? 'ASSESS QUALIFICATION COMPLETE' : undefined
+    );
+    if (!parsed) return offline;
+    const outcomeRaw = String(parsed.outcome || 'qualified').toLowerCase();
+    const outcome: 'qualified' | 'rejected' =
+      outcomeRaw === 'rejected' ? 'rejected' : 'qualified';
+    const failedQuestionId = parsed.failedQuestionId
+      ? String(parsed.failedQuestionId).trim() || null
+      : null;
+    return {
+      outcome,
+      reason: String(parsed.reason || '').slice(0, 500) || offline.reason,
+      failedQuestionId,
       model: GEMINI_CONVERSATIONS_MODEL,
     };
   } catch {

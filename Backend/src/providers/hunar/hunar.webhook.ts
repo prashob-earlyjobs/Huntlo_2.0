@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
-import { getHunarWebhookSecret } from './hunar.config.js';
+import { getHunarApiKey, getHunarWebhookSecret } from './hunar.config.js';
 
 /**
  * Payload field names taken from EJHunterLanding campaignVoiceCommsService.js
@@ -189,8 +189,16 @@ export function verifyHunarWebhookAuthenticity(input: {
 
   const bearer = asString(header('authorization')).replace(/^Bearer\s+/i, '');
   const shared = asString(header('x-webhook-secret') || header('x-hunar-webhook-secret'));
+  const apiKeyHeader = asString(header('x-api-key') || header('X-API-Key'));
+  const voiceApiKey = getHunarApiKey();
+
   if (bearer && safeEqual(bearer, secret)) return { ok: true };
   if (shared && safeEqual(shared, secret)) return { ok: true };
+  if (apiKeyHeader && safeEqual(apiKeyHeader, secret)) return { ok: true };
+  if (voiceApiKey && apiKeyHeader && safeEqual(apiKeyHeader, voiceApiKey)) {
+    return { ok: true };
+  }
+  if (voiceApiKey && bearer && safeEqual(bearer, voiceApiKey)) return { ok: true };
 
   const signature = asString(
     header('x-hunar-signature') || header('x-webhook-signature')

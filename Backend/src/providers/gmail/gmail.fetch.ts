@@ -135,6 +135,46 @@ export async function fetchRecentInboxReplies(
   return items;
 }
 
+/** Fetch full messages by id (used after history.list from a Pub/Sub push). */
+export async function fetchGmailMessagesByIds(
+  accessToken: string,
+  ids: string[]
+): Promise<GmailReplyItem[]> {
+  const items: GmailReplyItem[] = [];
+  for (const id of ids) {
+    const msgRes = await fetch(`${GMAIL_API_BASE}/messages/${encodeURIComponent(id)}?format=full`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!msgRes.ok) continue;
+
+    const msg = (await msgRes.json()) as {
+      id: string;
+      threadId?: string;
+      internalDate?: string;
+      snippet?: string;
+      labelIds?: string[];
+      payload?: GmailMessagePart & { headers?: GmailHeader[] };
+    };
+
+    // Skip outbound / non-inbox noise when possible
+    if (msg.labelIds?.includes('SENT') && !msg.labelIds.includes('INBOX')) continue;
+
+    const headers = msg.payload?.headers;
+    const { text, html } = extractBody(msg.payload);
+    items.push({
+      providerMessageId: msg.id,
+      providerThreadId: msg.threadId || null,
+      from: headerValue(headers, 'From') || '',
+      to: headerValue(headers, 'To'),
+      subject: headerValue(headers, 'Subject'),
+      bodyText: stripEmailQuotedReply(text || msg.snippet || ''),
+      bodyHtml: html,
+      receivedAt: msg.internalDate ? new Date(Number(msg.internalDate)) : new Date(),
+    });
+  }
+  return items;
+}
+
 export type GmailThreadingMeta = {
   threadId: string | null;
   /** RFC 2822 Message-ID header value, e.g. `<abc@mail.gmail.com>`. */

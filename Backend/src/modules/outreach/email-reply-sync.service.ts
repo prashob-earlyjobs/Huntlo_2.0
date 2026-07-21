@@ -1,12 +1,7 @@
 /**
- * Polls connected email providers for candidate replies and ingests them
- * through the shared conversations inbound pipeline.
- *
- * Supported:
- *  - Gmail (API poll)
- *  - Outlook (Microsoft Graph poll)
- *  - Zoho Mail OAuth (API poll)
- *  - Zoho SMTP / custom SMTP (IMAP poll when host is configured or inferable)
+ * Syncs candidate email replies.
+ * Gmail: Pub/Sub push (history.list) when GMAIL_PUBSUB_TOPIC is set; otherwise poll.
+ * Outlook / Zoho / SMTP: still polled.
  */
 
 import { getLogger } from '../../config/logger.js';
@@ -14,7 +9,15 @@ import { UserIntegrationModel } from '../integrations/user-integration.model.js'
 import { integrationsService } from '../integrations/integration.service.js';
 import { handleProviderWebhook } from '../conversations/provider-sync.js';
 import type { MessageProvider } from '../conversations/conversation-message.model.js';
-import { fetchRecentInboxReplies } from '../../providers/gmail/gmail.fetch.js';
+import {
+  fetchGmailMessagesByIds,
+  fetchRecentInboxReplies,
+} from '../../providers/gmail/gmail.fetch.js';
+import {
+  isGmailPushConfigured,
+  listGmailHistoryMessageIds,
+  startGmailWatch,
+} from '../../providers/gmail/gmail.watch.js';
 import { fetchRecentOutlookInboxReplies } from '../../providers/outlook/outlook.fetch.js';
 import {
   fetchRecentZohoInboxReplies,
@@ -119,6 +122,8 @@ async function syncGmailIntegration(input: {
   integrationId: string;
   secrets: IntegrationSecrets;
   limit: number;
+  /** When true, always poll (safety net). When false and push is on, use history if possible. */
+  forcePoll?: boolean;
 }): Promise<number> {
   const accessToken = await withFreshEmailToken(input.secrets, input.organizationId);
   if (!accessToken) {
@@ -129,17 +134,183 @@ async function syncGmailIntegration(input: {
     return 0;
   }
 
-  const replies = await fetchRecentInboxReplies(accessToken, {
-    maxResults: input.limit,
-    newerThanDays: 2,
-  });
-  logger().debug({ fetched: replies.length }, 'Gmail inbox poll');
-  return ingestReplies({
+  const config = (input.secrets.config || {}) as {
+    gmailHistoryId?: string;
+    gmailWatchExpiration?: string;
+  };
+  const storedHistoryId = String(config.gmailHistoryId || '').trim();
+  const useHistory = !input.forcePoll && isGmailPushConfigured() && Boolean(storedHistoryId);
+
+  let replies: InboxReplyItem[] = [];
+  let nextHistoryId = storedHistoryId;
+
+  if (useHistory) {
+    try {
+      const history = await listGmailHistoryMessageIds(accessToken, storedHistoryId);
+      nextHistoryId = history.historyId || storedHistoryId;
+      if (history.messageIds.length) {
+        replies = await fetchGmailMessagesByIds(
+          accessToken,
+          history.messageIds.slice(0, input.limit)
+        );
+      }
+      logger().debug(
+        { fetched: replies.length, via: 'history' },
+        'Gmail inbox sync'
+      );
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      // history too old / invalid → fall back to poll once
+      if (status === 404 || status === 400) {
+        logger().info(
+          { integrationId: input.integrationId },
+          'Gmail history expired — falling back to poll'
+        );
+        replies = await fetchRecentInboxReplies(accessToken, {
+          maxResults: input.limit,
+          newerThanDays: 2,
+        });
+      } else {
+        throw error;
+      }
+    }
+  } else {
+    replies = await fetchRecentInboxReplies(accessToken, {
+      maxResults: input.limit,
+      newerThanDays: 2,
+    });
+    logger().debug({ fetched: replies.length, via: 'poll' }, 'Gmail inbox sync');
+  }
+
+  const synced = await ingestReplies({
     provider: 'gmail',
     organizationId: input.organizationId,
     mailboxEmail: input.secrets.email,
     replies,
   });
+
+  // Keep history cursor fresh when push is configured
+  if (isGmailPushConfigured()) {
+    const patch: Record<string, unknown> = {
+      ...(input.secrets.config || {}),
+    };
+    if (nextHistoryId) patch.gmailHistoryId = nextHistoryId;
+    // If we polled without a history id, start watch to seed one
+    if (!storedHistoryId) {
+      const watch = await startGmailWatch(accessToken).catch((error) => {
+        logger().warn({ err: error, integrationId: input.integrationId }, 'Gmail watch start failed');
+        return null;
+      });
+      if (watch?.historyId) {
+        patch.gmailHistoryId = watch.historyId;
+        if (watch.expiration) patch.gmailWatchExpiration = watch.expiration;
+      }
+    }
+    await UserIntegrationModel.updateOne(
+      { _id: input.integrationId },
+      { $set: { config: patch, lastSyncAt: new Date() } }
+    );
+  }
+
+  return synced;
+}
+
+/** Start/renew Gmail Pub/Sub watch and save historyId on the integration. */
+export async function ensureGmailWatch(
+  organizationId: string,
+  integrationId: string
+): Promise<boolean> {
+  if (!isGmailPushConfigured()) return false;
+
+  const secrets = await integrationsService.getDecryptedSecrets(organizationId, integrationId);
+  if (!secrets || secrets.provider !== 'gmail') return false;
+
+  const accessToken = await withFreshEmailToken(secrets, organizationId);
+  if (!accessToken) return false;
+
+  const watch = await startGmailWatch(accessToken);
+  if (!watch?.historyId) return false;
+
+  const prev = (secrets.config || {}) as Record<string, unknown>;
+  await UserIntegrationModel.updateOne(
+    { _id: integrationId },
+    {
+      $set: {
+        config: {
+          ...prev,
+          gmailHistoryId: watch.historyId,
+          gmailWatchExpiration: watch.expiration,
+        },
+      },
+    }
+  );
+  logger().info({ integrationId, historyId: watch.historyId }, 'Gmail watch started');
+  return true;
+}
+
+/** Called from Gmail Pub/Sub webhook — sync every connected mailbox for this email. */
+export async function syncGmailRepliesForEmail(emailAddress: string): Promise<number> {
+  const email = String(emailAddress || '').trim().toLowerCase();
+  if (!email) return 0;
+
+  const integrations = await UserIntegrationModel.find({
+    provider: 'gmail',
+    status: { $in: ['connected', 'needs_attention'] },
+    $or: [
+      { email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+      {
+        providerAccountId: {
+          $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        },
+      },
+    ],
+  })
+    .select('_id organizationId')
+    .limit(10)
+    .lean();
+
+  let synced = 0;
+  for (const row of integrations) {
+    try {
+      synced += await syncOneIntegration({
+        organizationId: String(row.organizationId),
+        integrationId: String(row._id),
+        limit: replySyncBatchSize(),
+        fromPush: true,
+      });
+    } catch (error) {
+      logger().warn(
+        { err: error, integrationId: String(row._id), email },
+        'Gmail push sync failed'
+      );
+    }
+  }
+  return synced;
+}
+
+/** Renew watches that expire within 24h (Gmail watch lasts ~7 days). */
+export async function renewExpiringGmailWatches(): Promise<number> {
+  if (!isGmailPushConfigured()) return 0;
+
+  const soon = Date.now() + 24 * 60 * 60 * 1000;
+  const integrations = await UserIntegrationModel.find({
+    provider: 'gmail',
+    status: { $in: ['connected', 'needs_attention'] },
+  })
+    .select('_id organizationId config')
+    .limit(50)
+    .lean();
+
+  let renewed = 0;
+  for (const row of integrations) {
+    const exp = String((row.config as { gmailWatchExpiration?: string } | null)?.gmailWatchExpiration || '');
+    const expMs = exp ? Number(exp) : 0;
+    const needsRenew = !expMs || expMs <= soon || !(row.config as { gmailHistoryId?: string })?.gmailHistoryId;
+    if (!needsRenew) continue;
+    const ok = await ensureGmailWatch(String(row.organizationId), String(row._id)).catch(() => false);
+    if (ok) renewed += 1;
+  }
+  return renewed;
 }
 
 async function syncOutlookIntegration(input: {
@@ -264,6 +435,9 @@ async function syncOneIntegration(input: {
   organizationId: string;
   integrationId: string;
   limit: number;
+  forceGmailPoll?: boolean;
+  /** True when triggered by Pub/Sub — must run history sync. */
+  fromPush?: boolean;
 }): Promise<number> {
   const secrets = await integrationsService.getDecryptedSecrets(
     input.organizationId,
@@ -272,7 +446,18 @@ async function syncOneIntegration(input: {
   if (!secrets) return 0;
 
   if (secrets.provider === 'gmail') {
-    return syncGmailIntegration({ ...input, secrets });
+    // Minute cron skips Gmail when Pub/Sub push is live (webhook handles it).
+    if (isGmailPushConfigured() && !input.forceGmailPoll && !input.fromPush) {
+      const historyId = String(
+        (secrets.config as { gmailHistoryId?: string } | null)?.gmailHistoryId || ''
+      ).trim();
+      if (historyId) return 0;
+    }
+    return syncGmailIntegration({
+      ...input,
+      secrets,
+      forcePoll: Boolean(input.forceGmailPoll),
+    });
   }
   if (secrets.provider === 'outlook') {
     return syncOutlookIntegration({ ...input, secrets });
@@ -350,6 +535,13 @@ export async function syncEmailReplies(limit?: number): Promise<number> {
     status: { $in: ['running', 'paused'] },
     'channelConfig.email.enabled': true,
   });
+
+  // Keep Gmail watches alive when push is enabled
+  if (isGmailPushConfigured()) {
+    await renewExpiringGmailWatches().catch((error) => {
+      logger().warn({ err: error }, 'Gmail watch renew failed');
+    });
+  }
 
   let synced = 0;
   for (const orgId of orgIds.slice(0, 25)) {

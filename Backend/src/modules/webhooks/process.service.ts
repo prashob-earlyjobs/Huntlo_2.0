@@ -29,6 +29,17 @@ async function processMetaOrGupshup(
     organizationId: event.organizationId ? String(event.organizationId) : null,
     payload: event.payload,
   });
+  getLogger()
+    .child({ component: 'webhooks', provider })
+    .info(
+      {
+        ingested: result.ingested,
+        duplicates: result.duplicates,
+        statuses: result.statuses,
+        providerEventId: event.providerEventId,
+      },
+      'WhatsApp webhook ingest result'
+    );
   return { result };
 }
 
@@ -314,6 +325,22 @@ export async function processWebhookEvent(webhookEventId: string): Promise<{
       case 'dodo':
         outcome = await processDodo(claimed);
         break;
+      case 'gmail': {
+        const { decodeGmailPubSubPush } = await import('../../providers/gmail/gmail.watch.js');
+        const { syncGmailRepliesForEmail } = await import(
+          '../outreach/email-reply-sync.service.js'
+        );
+        const decoded = decodeGmailPubSubPush(claimed.payload);
+        if (!decoded) {
+          outcome = { result: { ignored: true, reason: 'invalid_pubsub_payload' }, ignored: true };
+          break;
+        }
+        const synced = await syncGmailRepliesForEmail(decoded.emailAddress);
+        outcome = {
+          result: { synced, emailAddress: decoded.emailAddress, historyId: decoded.historyId },
+        };
+        break;
+      }
       default:
         throw new Error(`Unsupported provider ${claimed.provider}`);
     }

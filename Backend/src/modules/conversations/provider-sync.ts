@@ -1,11 +1,16 @@
 import type { Request } from 'express';
 
+import { getLogger } from '../../config/logger.js';
+import { getHuntloWhatsAppCredentials } from '../../providers/meta-whatsapp/meta.config.js';
+import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { UserIntegrationModel } from '../integrations/user-integration.model.js';
+import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import {
   ingestInboundMessage,
   updateDeliveryStatus,
   type NormalizedInboundMessage,
 } from './inbound-sync.service.js';
+import { ConversationThreadModel } from './conversation-thread.model.js';
 import type { MessageProvider } from './conversation-message.model.js';
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -14,6 +19,15 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function webhookIdempotencyKey(provider: string, rawId: string): string {
   return `${provider}:${rawId}`;
+}
+
+function phoneDigits(value: string | null | undefined): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function phonesMatch(a: string, b: string): boolean {
+  if (!a || !b || a.length < 8 || b.length < 8) return false;
+  return a.endsWith(b) || b.endsWith(a);
 }
 
 /**
@@ -40,6 +54,12 @@ export function parseMetaWhatsAppWebhook(payload: unknown): {
       : [];
     for (const change of changes) {
       const value = asRecord(asRecord(change).value);
+      const metadata = asRecord(value.metadata);
+      // Business WhatsApp line that received the inbound — used for org lookup.
+      const phoneNumberId = String(
+        metadata.phone_number_id || value.phone_number_id || ''
+      ).trim();
+      const displayPhone = String(metadata.display_phone_number || '').trim();
       const orgHint = String(value.organizationId || '');
       const inbound = Array.isArray(value.messages) ? value.messages : [];
       for (const msg of inbound) {
@@ -60,7 +80,7 @@ export function parseMetaWhatsAppWebhook(payload: unknown): {
           providerMessageId: webhookIdempotencyKey('meta-whatsapp', id),
           providerThreadId: String(m.from || ''),
           from: String(m.from || ''),
-          to: null,
+          to: phoneNumberId || displayPhone || null,
           bodyText: text,
           receivedAt: m.timestamp
             ? new Date(Number(m.timestamp) * 1000)
@@ -183,21 +203,133 @@ export function normalizeEmailReply(item: EmailReplyItem): NormalizedInboundMess
   };
 }
 
+/**
+ * Resolve org from the business WhatsApp line (Meta phone_number_id).
+ * Only exact integration config matches — never pick a random org's Huntlo WA.
+ */
 export async function resolveOrganizationForWhatsAppPhone(
   phoneNumberIdOrDisplay: string
 ): Promise<string | null> {
+  const key = String(phoneNumberIdOrDisplay || '').trim();
+  if (!key) return null;
+
   const integration = await UserIntegrationModel.findOne({
     provider: { $in: ['meta-whatsapp', 'gupshup', 'huntlo-whatsapp'] },
     status: { $in: ['connected', 'needs_attention'] },
     $or: [
-      { 'config.metaPhoneNumberId': phoneNumberIdOrDisplay },
-      { phone: phoneNumberIdOrDisplay },
-      { email: phoneNumberIdOrDisplay },
+      { 'config.metaPhoneNumberId': key },
+      { 'config.phoneNumberId': key },
+      { phone: key },
+      { email: key },
     ],
   })
     .select('organizationId')
+    .sort({ updatedAt: -1 })
     .lean();
-  return integration ? String(integration.organizationId) : null;
+  if (integration) return String(integration.organizationId);
+
+  // Shared Huntlo WA line (env): optional explicit org override for single-tenant.
+  const huntlo = getHuntloWhatsAppCredentials();
+  if (huntlo?.phoneNumberId && huntlo.phoneNumberId === key) {
+    const envOrg = String(process.env.HUNTLO_WHATSAPP_ORGANIZATION_ID || '').trim();
+    if (envOrg) return envOrg;
+  }
+
+  return null;
+}
+
+/**
+ * Resolve org from the candidate phone. When the same number exists in multiple
+ * orgs, prefer the one with the most recent open WhatsApp / outreach activity.
+ */
+async function resolveOrganizationBySenderPhone(
+  fromPhone: string
+): Promise<string | null> {
+  const digits = phoneDigits(fromPhone);
+  if (digits.length < 8) return null;
+
+  const candidates = await SavedCandidateModel.find({
+    deletedAt: null,
+    phone: { $ne: null },
+  })
+    .select('_id organizationId phone')
+    .limit(800)
+    .lean();
+
+  const matches = candidates.filter((c) =>
+    phonesMatch(digits, phoneDigits(String(c.phone || '')))
+  );
+  if (!matches.length) return null;
+  if (matches.length === 1) return String(matches[0].organizationId);
+
+  const candidateIds = matches.map((c) => c._id);
+
+  const recentThread = await ConversationThreadModel.findOne({
+    candidateId: { $in: candidateIds },
+    channels: 'whatsapp',
+    status: { $nin: ['closed', 'opted_out'] },
+  })
+    .select('organizationId')
+    .sort({ lastMessageAt: -1, updatedAt: -1 })
+    .lean();
+  if (recentThread) return String(recentThread.organizationId);
+
+  const anyThread = await ConversationThreadModel.findOne({
+    candidateId: { $in: candidateIds },
+  })
+    .select('organizationId')
+    .sort({ lastMessageAt: -1, updatedAt: -1 })
+    .lean();
+  if (anyThread) return String(anyThread.organizationId);
+
+  const enrollment = await OutreachEnrollmentModel.findOne({
+    candidateId: { $in: candidateIds },
+    status: { $in: ['active', 'waiting', 'pending', 'replied', 'stopped'] },
+  })
+    .select('organizationId')
+    .sort({ updatedAt: -1 })
+    .lean();
+  if (enrollment) return String(enrollment.organizationId);
+
+  return String(matches[0].organizationId);
+}
+
+async function resolveInboundWhatsAppOrganization(message: {
+  organizationId?: string | null;
+  from?: string | null;
+  to?: string | null;
+}): Promise<string | null> {
+  if (message.organizationId) return String(message.organizationId);
+
+  const huntlo = getHuntloWhatsAppCredentials();
+  const toKey = String(message.to || '').trim();
+  const isSharedHuntloLine = Boolean(
+    huntlo?.phoneNumberId && toKey && huntlo.phoneNumberId === toKey
+  );
+
+  // Shared Huntlo Cloud line is used by many orgs — never pick a random
+  // huntlo-whatsapp integration. Resolve by sender candidate (or env pin).
+  if (isSharedHuntloLine) {
+    const envOrg = String(process.env.HUNTLO_WHATSAPP_ORGANIZATION_ID || '').trim();
+    if (envOrg) return envOrg;
+    if (message.from) {
+      const bySender = await resolveOrganizationBySenderPhone(message.from);
+      if (bySender) return bySender;
+    }
+    return null;
+  }
+
+  // Customer-owned Meta / Gupshup line: match integration by phone_number_id.
+  if (toKey) {
+    const byLine = await resolveOrganizationForWhatsAppPhone(toKey);
+    if (byLine) return byLine;
+  }
+
+  if (message.from) {
+    return resolveOrganizationBySenderPhone(message.from);
+  }
+
+  return null;
 }
 
 export async function handleProviderWebhook(input: {
@@ -252,29 +384,95 @@ export async function handleProviderWebhook(input: {
     });
   }
 
+  const logger = getLogger().child({ component: 'provider-sync', provider: input.provider });
   let ingested = 0;
   let duplicates = 0;
   for (const message of messages) {
-    let organizationId = message.organizationId || input.organizationId || '';
-    if (!organizationId && message.from) {
+    let organizationId =
+      message.organizationId || input.organizationId || '';
+    if (!organizationId && (message.channel === 'whatsapp' || input.provider === 'meta-whatsapp' || input.provider === 'gupshup')) {
+      organizationId = (await resolveInboundWhatsAppOrganization({
+        organizationId: message.organizationId || input.organizationId,
+        from: message.from,
+        to: message.to,
+      })) || '';
+    } else if (!organizationId && message.to) {
       organizationId =
-        (await resolveOrganizationForWhatsAppPhone(message.from)) || '';
+        (await resolveOrganizationForWhatsAppPhone(message.to)) || '';
     }
-    if (!organizationId || !message.providerMessageId || !message.from) continue;
+    if (!organizationId && message.from) {
+      organizationId = (await resolveOrganizationBySenderPhone(message.from)) || '';
+    }
+    if (!organizationId || !message.providerMessageId || !message.from) {
+      logger.warn(
+        {
+          from: message.from,
+          to: message.to,
+          providerMessageId: message.providerMessageId,
+          hasOrg: Boolean(organizationId),
+        },
+        'Skipping inbound WhatsApp — could not resolve organization or sender'
+      );
+      continue;
+    }
     const result = await ingestInboundMessage({
       ...message,
       organizationId,
     });
-    if (result.duplicate) duplicates += 1;
-    else if (result.messageId) ingested += 1;
+    if (result.duplicate) {
+      duplicates += 1;
+      logger.info(
+        {
+          from: message.from,
+          organizationId,
+          threadId: result.threadId,
+          messageId: result.messageId,
+          providerMessageId: message.providerMessageId,
+        },
+        'Inbound WhatsApp duplicate (already stored)'
+      );
+    } else if (result.messageId) {
+      ingested += 1;
+      logger.info(
+        {
+          from: message.from,
+          organizationId,
+          threadId: result.threadId,
+          messageId: result.messageId,
+          providerMessageId: message.providerMessageId,
+          bodyPreview: message.bodyText.slice(0, 80),
+        },
+        'Inbound WhatsApp message stored'
+      );
+    } else {
+      logger.warn(
+        {
+          from: message.from,
+          organizationId,
+          providerMessageId: message.providerMessageId,
+        },
+        'Inbound WhatsApp ingested without message (likely unmatched candidate)'
+      );
+    }
   }
 
   let statusUpdates = 0;
+  let statusOrganizationId = input.organizationId || '';
+  if (!statusOrganizationId && messages[0]) {
+    statusOrganizationId =
+      (await resolveInboundWhatsAppOrganization({
+        from: messages[0].from,
+        to: messages[0].to,
+      })) || '';
+  }
+  if (!statusOrganizationId && messages[0]?.to) {
+    statusOrganizationId =
+      (await resolveOrganizationForWhatsAppPhone(messages[0].to)) || '';
+  }
   for (const status of statuses) {
-    const organizationId = input.organizationId;
-    if (!organizationId) continue;
+    if (!statusOrganizationId) continue;
     const updated = await updateDeliveryStatus({
-      organizationId,
+      organizationId: statusOrganizationId,
       provider: input.provider,
       providerMessageId: status.providerMessageId,
       deliveryStatus: status.deliveryStatus,

@@ -106,6 +106,17 @@ export function extractEventMeta(input: {
         eventType: type,
       };
     }
+    case 'gmail': {
+      const message =
+        input.body.message && typeof input.body.message === 'object'
+          ? (input.body.message as { messageId?: string; message_id?: string })
+          : null;
+      const messageId = String(message?.messageId || message?.message_id || shortHash);
+      return {
+        providerEventId: `gmail-push:${messageId}`,
+        eventType: 'gmail.mailbox.change',
+      };
+    }
     default:
       return { providerEventId: shortHash, eventType: 'unknown' };
   }

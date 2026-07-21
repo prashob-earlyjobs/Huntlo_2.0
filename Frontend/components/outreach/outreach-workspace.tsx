@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Eye,
   MoreHorizontal,
@@ -12,7 +14,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -59,6 +62,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { PaginationMeta } from "@/lib/api";
 import { DATE_RANGE_OPTIONS } from "@/lib/mock-jobs";
 import {
   CAMPAIGN_OWNERS,
@@ -82,6 +86,25 @@ const DATE_RANGE_DAYS: Record<string, number> = {
 
 function toOptions(values: readonly string[]): FilterOption[] {
   return values.map((value) => ({ id: value, label: value }));
+}
+
+function getPageItems(
+  current: number,
+  total: number
+): Array<number | "ellipsis"> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, index) => index + 1);
+  }
+
+  const items: Array<number | "ellipsis"> = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+
+  if (start > 2) items.push("ellipsis");
+  for (let page = start; page <= end; page += 1) items.push(page);
+  if (end < total - 1) items.push("ellipsis");
+  items.push(total);
+  return items;
 }
 
 function ChannelIcons({ channels }: { channels: OutreachCampaign["channels"] }) {
@@ -242,23 +265,71 @@ function CampaignRowActions({
 
 export function OutreachWorkspace({
   campaigns: initialCampaigns,
+  pagination,
+  search,
+  onSearchChange,
+  onPageChange,
   onCampaignsChange,
 }: {
   campaigns: OutreachCampaign[];
+  pagination: PaginationMeta;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onPageChange: (page: number) => void;
   onCampaignsChange?: (campaigns: OutreachCampaign[]) => void;
 }) {
   const [campaigns, setCampaigns] = useState(initialCampaigns);
-  const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [jobFilter, setJobFilter] = useState<string[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState("any");
   const [message, setMessage] = useState<string | null>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollIdleTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setCampaigns(initialCampaigns);
   }, [initialCampaigns]);
+
+  useEffect(() => {
+    if (pagination.totalPages <= 1) return;
+
+    function getScrollParent(node: HTMLElement | null): HTMLElement | Window {
+      let current = node;
+      while (current) {
+        const { overflowY } = window.getComputedStyle(current);
+        if (
+          (overflowY === "auto" || overflowY === "scroll") &&
+          current.scrollHeight > current.clientHeight
+        ) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return window;
+    }
+
+    const target = getScrollParent(document.querySelector("main"));
+    const onScroll = () => {
+      setIsScrolling(true);
+      if (scrollIdleTimer.current != null) {
+        window.clearTimeout(scrollIdleTimer.current);
+      }
+      scrollIdleTimer.current = window.setTimeout(() => {
+        setIsScrolling(false);
+        scrollIdleTimer.current = null;
+      }, 180);
+    };
+
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      target.removeEventListener("scroll", onScroll);
+      if (scrollIdleTimer.current != null) {
+        window.clearTimeout(scrollIdleTimer.current);
+      }
+    };
+  }, [pagination.totalPages]);
 
   function setAll(next: OutreachCampaign[]) {
     setCampaigns(next);
@@ -290,16 +361,8 @@ export function OutreachWorkspace({
   }
 
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
     const maxDays = DATE_RANGE_DAYS[dateRange] ?? Infinity;
     return campaigns.filter((campaign) => {
-      if (
-        normalized &&
-        !`${campaign.name} ${campaign.relatedJobTitle ?? ""}`
-          .toLowerCase()
-          .includes(normalized)
-      )
-        return false;
       if (
         channelFilter.length > 0 &&
         !campaign.channels.some((channel) => channelFilter.includes(channel))
@@ -319,7 +382,6 @@ export function OutreachWorkspace({
     });
   }, [
     campaigns,
-    query,
     channelFilter,
     statusFilter,
     jobFilter,
@@ -328,7 +390,14 @@ export function OutreachWorkspace({
   ]);
 
   const hasFilters =
-    Boolean(query) ||
+    Boolean(search) ||
+    channelFilter.length > 0 ||
+    statusFilter.length > 0 ||
+    jobFilter.length > 0 ||
+    ownerFilter.length > 0 ||
+    dateRange !== "any";
+
+  const hasClientFilters =
     channelFilter.length > 0 ||
     statusFilter.length > 0 ||
     jobFilter.length > 0 ||
@@ -336,7 +405,7 @@ export function OutreachWorkspace({
     dateRange !== "any";
 
   function resetFilters() {
-    setQuery("");
+    onSearchChange("");
     setChannelFilter([]);
     setStatusFilter([]);
     setJobFilter([]);
@@ -360,8 +429,8 @@ export function OutreachWorkspace({
               className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Search campaigns…"
               aria-label="Search campaigns"
               className="pl-8"
@@ -431,114 +500,182 @@ export function OutreachWorkspace({
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium tabular-nums text-foreground">
-              {filtered.length}
+              {hasClientFilters ? filtered.length : pagination.total}
             </span>{" "}
-            campaigns
+            {hasClientFilters ? "matching on this page" : "campaigns"}
           </p>
         </div>
 
         {filtered.length > 0 ? (
-          <div className="min-w-0 overflow-x-auto">
-            <Table>
-              <caption className="sr-only">
-                Outreach campaigns with delivery and reply performance
-              </caption>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className={HEAD}>Campaign</TableHead>
-                  <TableHead className={HEAD}>Related job</TableHead>
-                  <TableHead className={HEAD}>Channels</TableHead>
-                  <TableHead className={`${HEAD} text-right`}>Candidates</TableHead>
-                  <TableHead className={`${HEAD} text-right`}>Sent</TableHead>
-                  <TableHead className={`${HEAD} text-right`}>Delivered</TableHead>
-                  <TableHead className={`${HEAD} text-right`}>Replies</TableHead>
-                  <TableHead className={`${HEAD} text-right`}>Interested</TableHead>
-                  <TableHead className={`${HEAD} text-right`}>Qualified</TableHead>
-                  <TableHead className={HEAD}>Status</TableHead>
-                  <TableHead className={HEAD}>Owner</TableHead>
-                  <TableHead className={HEAD}>Last activity</TableHead>
-                  <TableHead className={`${HEAD} w-10 text-right`}>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((campaign) => (
-                  <TableRow key={campaign.id}>
-                    <TableCell className="py-2.5">
-                      <Link
-                        href={campaignDetailPath(campaign.id)}
-                        className="block max-w-52 truncate text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                      >
-                        {campaign.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="py-2.5 whitespace-nowrap">
-                      {campaign.relatedJobId && campaign.relatedJobTitle ? (
-                        <Link
-                          href={jobDetailPath(campaign.relatedJobId)}
-                          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-                        >
-                          {campaign.relatedJobTitle}
-                        </Link>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-2.5">
-                      <ChannelIcons channels={campaign.channels} />
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right text-sm tabular-nums">
-                      {campaign.candidates.toLocaleString("en-IN")}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right text-sm tabular-nums">
-                      {campaign.sent.toLocaleString("en-IN")}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right text-sm tabular-nums text-muted-foreground">
-                      {campaign.sent > 0
-                        ? `${campaign.delivered.toLocaleString("en-IN")} (${percent(campaign.delivered, campaign.sent)})`
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right text-sm tabular-nums">
-                      {campaign.replies > 0 ? campaign.replies : "—"}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right text-sm tabular-nums text-success">
-                      {campaign.interested > 0 ? campaign.interested : "—"}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right text-sm font-medium tabular-nums text-primary">
-                      {campaign.qualified > 0 ? campaign.qualified : "—"}
-                    </TableCell>
-                    <TableCell className="py-2.5">
-                      <CampaignStatusBadge status={campaign.status} />
-                    </TableCell>
-                    <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                      {campaign.owner}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                      {campaign.lastActivity}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right">
-                      <CampaignRowActions
-                        campaign={campaign}
-                        onAction={flash}
-                        onUpdated={(next) => {
-                          const exists = campaigns.some((c) => c.id === next.id);
-                          setAll(
-                            exists
-                              ? campaigns.map((c) => (c.id === next.id ? next : c))
-                              : [next, ...campaigns]
-                          );
-                        }}
-                        onDeleted={(id) =>
-                          setAll(campaigns.filter((c) => c.id !== id))
-                        }
-                      />
-                    </TableCell>
+          <>
+            <div className="min-w-0 overflow-x-auto">
+              <Table>
+                <caption className="sr-only">
+                  Outreach campaigns with delivery and reply performance
+                </caption>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className={HEAD}>Campaign</TableHead>
+                    <TableHead className={HEAD}>Related job</TableHead>
+                    <TableHead className={HEAD}>Channels</TableHead>
+                    <TableHead className={`${HEAD} text-right`}>Candidates</TableHead>
+                    <TableHead className={`${HEAD} text-right`}>Sent</TableHead>
+                    <TableHead className={`${HEAD} text-right`}>Delivered</TableHead>
+                    <TableHead className={`${HEAD} text-right`}>Replies</TableHead>
+                    <TableHead className={`${HEAD} text-right`}>Interested</TableHead>
+                    <TableHead className={`${HEAD} text-right`}>Qualified</TableHead>
+                    <TableHead className={HEAD}>Status</TableHead>
+                    <TableHead className={HEAD}>Owner</TableHead>
+                    <TableHead className={HEAD}>Last activity</TableHead>
+                    <TableHead className={`${HEAD} w-10 text-right`}>
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((campaign) => (
+                    <TableRow key={campaign.id}>
+                      <TableCell className="py-2.5">
+                        <Link
+                          href={campaignDetailPath(campaign.id)}
+                          className="block max-w-52 truncate text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                        >
+                          {campaign.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="py-2.5 whitespace-nowrap">
+                        {campaign.relatedJobId && campaign.relatedJobTitle ? (
+                          <Link
+                            href={jobDetailPath(campaign.relatedJobId)}
+                            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                          >
+                            {campaign.relatedJobTitle}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <ChannelIcons channels={campaign.channels} />
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right text-sm tabular-nums">
+                        {campaign.candidates.toLocaleString("en-IN")}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right text-sm tabular-nums">
+                        {campaign.sent.toLocaleString("en-IN")}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right text-sm tabular-nums text-muted-foreground">
+                        {campaign.sent > 0
+                          ? `${campaign.delivered.toLocaleString("en-IN")} (${percent(campaign.delivered, campaign.sent)})`
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right text-sm tabular-nums">
+                        {campaign.replies > 0 ? campaign.replies : "—"}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right text-sm tabular-nums text-success">
+                        {campaign.interested > 0 ? campaign.interested : "—"}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right text-sm font-medium tabular-nums text-primary">
+                        {campaign.qualified > 0 ? campaign.qualified : "—"}
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <CampaignStatusBadge status={campaign.status} />
+                      </TableCell>
+                      <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                        {campaign.owner}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                        {campaign.lastActivity}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right">
+                        <CampaignRowActions
+                          campaign={campaign}
+                          onAction={flash}
+                          onUpdated={(next) => {
+                            const exists = campaigns.some((c) => c.id === next.id);
+                            setAll(
+                              exists
+                                ? campaigns.map((c) => (c.id === next.id ? next : c))
+                                : [next, ...campaigns]
+                            );
+                          }}
+                          onDeleted={(id) =>
+                            setAll(campaigns.filter((c) => c.id !== id))
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {pagination.totalPages > 1 ? (
+              <div
+                className={cn(
+                  "fixed bottom-5 right-5 z-40 transition-opacity duration-200 sm:bottom-6 sm:right-6",
+                  isScrolling ? "opacity-40" : "opacity-100"
+                )}
+                role="navigation"
+                aria-label="Campaign pages"
+              >
+                <div className="flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-md backdrop-blur-sm">
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Previous page"
+                    disabled={pagination.page <= 1}
+                    onClick={() =>
+                      onPageChange(Math.max(1, pagination.page - 1))
+                    }
+                  >
+                    <ChevronLeft aria-hidden />
+                  </Button>
+                  {getPageItems(pagination.page, pagination.totalPages).map(
+                    (item, index) =>
+                      item === "ellipsis" ? (
+                        <span
+                          key={`ellipsis-${index}`}
+                          className="px-1.5 text-xs text-muted-foreground"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <Button
+                          key={item}
+                          type="button"
+                          size="icon-sm"
+                          variant={
+                            item === pagination.page ? "secondary" : "ghost"
+                          }
+                          aria-label={`Page ${item}`}
+                          aria-current={
+                            item === pagination.page ? "page" : undefined
+                          }
+                          onClick={() => onPageChange(item)}
+                        >
+                          {item}
+                        </Button>
+                      )
+                  )}
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Next page"
+                    disabled={pagination.page >= pagination.totalPages}
+                    onClick={() =>
+                      onPageChange(
+                        Math.min(pagination.totalPages, pagination.page + 1)
+                      )
+                    }
+                  >
+                    <ChevronRight aria-hidden />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </>
         ) : (
           <EmptyState
             icon={Send}
