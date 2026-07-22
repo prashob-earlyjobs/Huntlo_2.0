@@ -1,22 +1,23 @@
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   METRIC_DEFAULT_COST,
+  getMetricCost,
   quotaService as sharedQuotaService,
   type QuotaUsageView,
 } from '../../shared/usage/index.js';
 
 /**
  * People Scout lookups use the dedicated `people_scout` metric.
- * Cost matches one search credit by default.
+ * Cost matches one search credit by default (overridable in platform settings).
  */
 export const PEOPLE_SCOUT_LOOKUP_COST = METRIC_DEFAULT_COST.people_scout;
 
 export class PeopleScoutQuotaService {
   async getStatus(organizationId: string) {
-    const status = (await sharedQuotaService.getUsage(
-      organizationId,
-      'people_scout'
-    )) as QuotaUsageView;
+    const [status, costPerLookup] = await Promise.all([
+      sharedQuotaService.getUsage(organizationId, 'people_scout') as Promise<QuotaUsageView>,
+      getMetricCost('people_scout'),
+    ]);
     return {
       organizationId,
       periodKey: status.periodKey,
@@ -25,7 +26,7 @@ export class PeopleScoutQuotaService {
       used: status.used,
       reserved: status.reserved,
       remaining: status.remaining,
-      costPerLookup: PEOPLE_SCOUT_LOOKUP_COST,
+      costPerLookup,
     };
   }
 
@@ -34,7 +35,7 @@ export class PeopleScoutQuotaService {
       return await sharedQuotaService.reserveUsage({
         organizationId,
         metric: 'people_scout',
-        quantity: PEOPLE_SCOUT_LOOKUP_COST,
+        quantity: await getMetricCost('people_scout'),
         idempotencyKey: `people-scout:${lookupId}`,
         relatedEntityType: 'people_scout_lookup',
         relatedEntityId: lookupId,

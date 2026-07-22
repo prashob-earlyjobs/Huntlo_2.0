@@ -169,6 +169,7 @@ export type PlanFeatureValue = string | boolean | "Unlimited";
 export interface PlanTier {
   id: string;
   name: string;
+  currency: "INR" | "USD";
   price: string;
   priceNote: string;
   description: string;
@@ -194,6 +195,7 @@ export const PLAN_TIERS: PlanTier[] = [
   {
     id: "trial",
     name: "Trial",
+    currency: "INR",
     price: "Free",
     priceNote: " · 14-day trial",
     description: "Free trial for new workspaces — explore Huntlo before upgrading.",
@@ -215,6 +217,7 @@ export const PLAN_TIERS: PlanTier[] = [
   {
     id: "starter",
     name: "Starter",
+    currency: "INR",
     price: "₹9,999",
     priceNote: "/ month",
     description: "For solo recruiters getting started with AI sourcing.",
@@ -235,6 +238,7 @@ export const PLAN_TIERS: PlanTier[] = [
   {
     id: "growth",
     name: "Growth",
+    currency: "INR",
     price: "₹24,999",
     priceNote: "/ month",
     description: "For growing teams running multi-channel outreach.",
@@ -255,6 +259,7 @@ export const PLAN_TIERS: PlanTier[] = [
   {
     id: "scale",
     name: "Scale",
+    currency: "INR",
     price: "₹59,999",
     priceNote: "/ month",
     description: "For agencies and multi-brand hiring teams.",
@@ -275,6 +280,7 @@ export const PLAN_TIERS: PlanTier[] = [
   {
     id: "enterprise",
     name: "Enterprise",
+    currency: "USD",
     price: "Custom",
     priceNote: "Talk to sales",
     description: "SSO, custom limits, dedicated success and SLAs.",

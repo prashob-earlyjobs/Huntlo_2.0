@@ -48,6 +48,11 @@ const platformSettingsSchema = new mongoose.Schema(
     providers: { type: [providerSettingSchema], default: [] },
     featureFlags: { type: mongoose.Schema.Types.Mixed, default: {} },
     maintenanceMode: { type: Boolean, default: false },
+    /**
+     * Credits charged per usage action (candidate_search, email_reveal, …).
+     * Missing keys fall back to METRIC_DEFAULT_COST in shared/usage/metrics.
+     */
+    metricCosts: { type: mongoose.Schema.Types.Mixed, default: {} },
     /** Global Roshni voice defaults. Null/empty fields fall back to the bundled markdown template. */
     roshniPrompt: {
       type: {

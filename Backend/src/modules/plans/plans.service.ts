@@ -21,6 +21,12 @@ function formatInr(amount: number | null): string {
   return `₹${amount.toLocaleString('en-IN')}`;
 }
 
+function formatUsd(amount: number | null): string {
+  if (amount == null) return 'Custom';
+  if (amount === 0) return 'Free';
+  return `$${amount.toLocaleString('en-US')}`;
+}
+
 const DEFAULT_TRIAL_DAYS = 14;
 
 function toPublicPlan(plan: PricingPlanDocument) {
@@ -31,6 +37,7 @@ function toPublicPlan(plan: PricingPlanDocument) {
     description: plan.description,
     billingCycles: plan.billingCycles,
     prices: plan.prices,
+    usdPrices: plan.usdPrices ?? { monthly: null, yearly: null },
     currency: plan.currency,
     featureAccess: plan.featureAccess ?? {},
     limits: plan.limits ?? {},
@@ -43,6 +50,10 @@ function toPublicPlan(plan: PricingPlanDocument) {
     priceLabel: {
       monthly: formatInr(plan.prices?.monthly ?? null),
       yearly: formatInr(plan.prices?.yearly ?? null),
+    },
+    usdPriceLabel: {
+      monthly: formatUsd(plan.usdPrices?.monthly ?? null),
+      yearly: formatUsd(plan.usdPrices?.yearly ?? null),
     },
   };
 }
@@ -274,6 +285,7 @@ export class PlansService {
     description?: string | null;
     billingCycles?: BillingCycle[];
     prices?: { monthly?: number | null; yearly?: number | null };
+    usdPrices?: { monthly?: number | null; yearly?: number | null };
     currency?: string;
     featureAccess?: Record<string, boolean>;
     limits?: PlanLimits;
@@ -300,6 +312,10 @@ export class PlansService {
       prices: {
         monthly: input.prices?.monthly ?? null,
         yearly: input.prices?.yearly ?? null,
+      },
+      usdPrices: {
+        monthly: input.usdPrices?.monthly ?? null,
+        yearly: input.usdPrices?.yearly ?? null,
       },
       currency: input.currency ?? 'INR',
       featureAccess: input.featureAccess ?? {},
@@ -330,6 +346,12 @@ export class PlansService {
       const prices = input.prices as { monthly?: number | null; yearly?: number | null };
       if ('monthly' in prices) plan.prices.monthly = prices.monthly ?? null;
       if ('yearly' in prices) plan.prices.yearly = prices.yearly ?? null;
+    }
+    if (input.usdPrices && typeof input.usdPrices === 'object') {
+      const usdPrices = input.usdPrices as { monthly?: number | null; yearly?: number | null };
+      plan.usdPrices = plan.usdPrices ?? { monthly: null, yearly: null };
+      if ('monthly' in usdPrices) plan.usdPrices.monthly = usdPrices.monthly ?? null;
+      if ('yearly' in usdPrices) plan.usdPrices.yearly = usdPrices.yearly ?? null;
     }
     if (typeof input.currency === 'string') plan.currency = input.currency.toUpperCase();
     if (input.featureAccess && typeof input.featureAccess === 'object') {

@@ -740,8 +740,10 @@ export const adminConsoleService = {
   async ensurePlatformSettings() {
     let doc = await PlatformSettingsModel.findOne({ singletonKey: 'platform' });
     if (!doc) {
+      const { defaultMetricCosts } = await import('../../shared/usage/index.js');
       doc = await PlatformSettingsModel.create({
         singletonKey: 'platform',
+        metricCosts: defaultMetricCosts(),
         providers: PLATFORM_PROVIDERS.map((provider) => {
           const fromEnv = providerConfiguredFromEnv(provider);
           return {
@@ -756,6 +758,16 @@ export const adminConsoleService = {
         }),
       });
     } else {
+      // Seed metric costs if the document predates this field.
+      const existingCosts =
+        doc.metricCosts && typeof doc.metricCosts === 'object'
+          ? (doc.metricCosts as Record<string, unknown>)
+          : {};
+      if (Object.keys(existingCosts).length === 0) {
+        const { defaultMetricCosts } = await import('../../shared/usage/index.js');
+        doc.metricCosts = defaultMetricCosts();
+        doc.markModified('metricCosts');
+      }
       // Merge any missing providers from env snapshot
       const existing = new Set(doc.providers.map((p) => p.provider));
       for (const provider of PLATFORM_PROVIDERS) {
@@ -785,12 +797,19 @@ export const adminConsoleService = {
       getBundledRoshniPromptTemplate,
       ROSHNI_INTRODUCTION,
     } = await import('../voice/roshni-prompt.js');
+    const { getMetricCosts, defaultMetricCosts, METRIC_LABELS } = await import(
+      '../../shared/usage/index.js'
+    );
     const active = await getActiveRoshniPromptDefaults();
     const storedIntro = String(doc.roshniPrompt?.introduction ?? '').trim() || null;
     const storedAgent = String(doc.roshniPrompt?.agentPrompt ?? '').trim() || null;
+    const metricCosts = await getMetricCosts();
     return {
       maintenanceMode: Boolean(doc.maintenanceMode),
       featureFlags: doc.featureFlags || {},
+      metricCosts,
+      metricCostDefaults: defaultMetricCosts(),
+      metricCostLabels: METRIC_LABELS,
       providers: doc.providers.map((p) => ({
         id: p.provider,
         name: p.provider,
@@ -820,6 +839,7 @@ export const adminConsoleService = {
     input: {
       maintenanceMode?: boolean;
       featureFlags?: Record<string, unknown>;
+      metricCosts?: Partial<Record<string, number>>;
       roshniPrompt?: {
         introduction?: string | null;
         agentPrompt?: string | null;
@@ -840,6 +860,14 @@ export const adminConsoleService = {
     if (input.maintenanceMode !== undefined) doc.maintenanceMode = input.maintenanceMode;
     if (input.featureFlags) {
       doc.featureFlags = { ...(doc.featureFlags as object), ...input.featureFlags };
+    }
+    let metricCostsChanged = false;
+    if (input.metricCosts) {
+      const { getMetricCosts } = await import('../../shared/usage/index.js');
+      const current = await getMetricCosts();
+      doc.metricCosts = { ...current, ...input.metricCosts };
+      doc.markModified('metricCosts');
+      metricCostsChanged = true;
     }
     let roshniPromptChanged = false;
     if (input.roshniPrompt) {
@@ -934,6 +962,10 @@ export const adminConsoleService = {
     }
     doc.updatedByUserId = new mongoose.Types.ObjectId(actorUserId);
     await doc.save();
+    if (metricCostsChanged) {
+      const { invalidateMetricCostCache } = await import('../../shared/usage/index.js');
+      invalidateMetricCostCache();
+    }
     if (roshniPromptChanged) {
       const { invalidateRoshniPromptCache } = await import('../voice/roshni-prompt.js');
       invalidateRoshniPromptCache();

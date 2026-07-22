@@ -4,7 +4,6 @@ import Link from "next/link";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { NavList } from "@/components/layout/nav-list";
 import { useSidebar } from "@/components/layout/sidebar-context";
@@ -20,7 +19,7 @@ export function AppSidebar() {
     <aside
       data-collapsed={collapsed}
       className={cn(
-        "sticky top-0 z-40 hidden h-svh shrink-0 flex-col bg-sidebar transition-[width] duration-200 lg:flex",
+        "z-40 hidden h-full min-h-0 shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-200 lg:flex",
         collapsed ? "w-[60px]" : "w-[248px]"
       )}
     >
@@ -54,27 +53,26 @@ export function AppSidebar() {
         <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
-      <ScrollArea className="scrollbar-none min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
         <NavList collapsed={collapsed} />
-      </ScrollArea>
-
-      <div className="shrink-0 px-2 py-2">
-        {collapsed ? (
-          <div className="flex flex-col items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={toggle}
-              aria-label="Expand sidebar"
-            >
-              <PanelLeftOpen aria-hidden />
-            </Button>
-            <HelpMenu variant="sidebar-collapsed" />
-          </div>
-        ) : (
-          <HelpMenu variant="sidebar" />
-        )}
+        <div className={cn("px-2 py-2", collapsed && "px-1.5")}>
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={toggle}
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen aria-hidden />
+              </Button>
+              <HelpMenu variant="sidebar-collapsed" />
+            </div>
+          ) : (
+            <HelpMenu variant="sidebar" />
+          )}
+        </div>
       </div>
     </aside>
   );

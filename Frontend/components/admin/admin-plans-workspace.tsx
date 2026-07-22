@@ -68,6 +68,32 @@ function parsePrice(value: string): number | null {
   return Number(digits);
 }
 
+function amountToInput(value: number | null | undefined): string {
+  if (value == null) return "";
+  return String(value);
+}
+
+function formatAdminPriceSummary(plan: AdminPlan): string {
+  const inrMonthly = plan.priceInrMonthly.trim();
+  const usdMonthly = plan.priceUsdMonthly.trim();
+  const parts: string[] = [];
+  if (inrMonthly) {
+    parts.push(
+      inrMonthly === "0"
+        ? "INR Free"
+        : `INR ₹${Number(inrMonthly).toLocaleString("en-IN")}/mo`
+    );
+  }
+  if (usdMonthly) {
+    parts.push(
+      usdMonthly === "0"
+        ? "USD Free"
+        : `USD $${Number(usdMonthly).toLocaleString("en-US")}/mo`
+    );
+  }
+  return parts.length > 0 ? parts.join(" · ") : "Custom";
+}
+
 function slugifyCode(name: string): string {
   return name
     .trim()
@@ -94,13 +120,11 @@ function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
     name: plan.name,
     code: plan.code,
     description: plan.description ?? "",
-    price:
-      plan.priceLabel?.monthly ||
-      (plan.prices?.monthly != null
-        ? plan.prices.monthly === 0
-          ? "Free"
-          : `₹${plan.prices.monthly.toLocaleString("en-IN")}`
-        : "—"),
+    currency: plan.currency === "USD" ? "USD" : "INR",
+    priceInrMonthly: amountToInput(plan.prices?.monthly),
+    priceInrYearly: amountToInput(plan.prices?.yearly),
+    priceUsdMonthly: amountToInput(plan.usdPrices?.monthly),
+    priceUsdYearly: amountToInput(plan.usdPrices?.yearly),
     billingCycle: "Monthly",
     searchLimit: limitValue(limits, "candidate_search"),
     emailRevealLimit: limitValue(limits, "email_reveal"),
@@ -121,7 +145,10 @@ function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
 }
 
 function toPlanPayload(draft: AdminPlan, { includeCode }: { includeCode: boolean }) {
-  const monthly = parsePrice(draft.price);
+  const priceInrMonthly = parsePrice(draft.priceInrMonthly);
+  const priceInrYearly = parsePrice(draft.priceInrYearly);
+  const priceUsdMonthly = parsePrice(draft.priceUsdMonthly);
+  const priceUsdYearly = parsePrice(draft.priceUsdYearly);
   const featureAccess: Record<string, boolean> = {};
   for (const label of ADMIN_MODULES) {
     const key = FEATURE_KEY_BY_LABEL[label];
@@ -135,9 +162,14 @@ function toPlanPayload(draft: AdminPlan, { includeCode }: { includeCode: boolean
       ? { code: (draft.code.trim() || slugifyCode(draft.name)).toLowerCase() }
       : {}),
     description: draft.description.trim() || null,
+    currency: draft.currency,
     prices: {
-      monthly,
-      yearly: monthly == null ? null : monthly === 0 ? 0 : monthly * 10,
+      monthly: priceInrMonthly,
+      yearly: priceInrYearly,
+    },
+    usdPrices: {
+      monthly: priceUsdMonthly,
+      yearly: priceUsdYearly,
     },
     billingCycles: draft.billingCycle === "Annual" ? ["yearly"] : ["monthly", "yearly"],
     limits: {
@@ -212,8 +244,16 @@ export function AdminPlansWorkspace() {
       setToast("Plan name is required.");
       return;
     }
-    if (!draft.price.trim()) {
-      setToast("Price is required (use Free, Custom, or an amount).");
+    if (!draft.priceInrMonthly.trim() && !draft.priceUsdMonthly.trim()) {
+      setToast("Enter at least one monthly price (INR or USD). Use 0 for free.");
+      return;
+    }
+    if (draft.currency === "INR" && !draft.priceInrMonthly.trim()) {
+      setToast("INR monthly price is required when billing currency is INR.");
+      return;
+    }
+    if (draft.currency === "USD" && !draft.priceUsdMonthly.trim()) {
+      setToast("USD monthly price is required when billing currency is USD.");
       return;
     }
     const payload = toPlanPayload(draft, { includeCode: !editingId });
@@ -276,7 +316,8 @@ export function AdminPlansWorkspace() {
           <TableHeader>
             <TableRow>
               <TableHead className={HEAD}>Plan</TableHead>
-              <TableHead className={HEAD}>Price</TableHead>
+              <TableHead className={HEAD}>Currency</TableHead>
+              <TableHead className={HEAD}>Pricing</TableHead>
               <TableHead className={HEAD}>Flags</TableHead>
               <TableHead className={HEAD}>Searches</TableHead>
               <TableHead className={HEAD}>Reveals</TableHead>
@@ -292,7 +333,12 @@ export function AdminPlansWorkspace() {
                   <div className="font-medium">{plan.name}</div>
                   <div className="text-xs text-muted-foreground">{plan.code}</div>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-sm">{plan.price}</TableCell>
+                <TableCell className="whitespace-nowrap text-sm font-medium">
+                  {plan.currency}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-sm">
+                  {formatAdminPriceSummary(plan)}
+                </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {plan.isDefaultSignup ? (
@@ -391,17 +437,100 @@ export function AdminPlansWorkspace() {
                 placeholder="trial"
               />
             </Field>
-            <Field label="Price" htmlFor="pl-price" required>
+            <Field label="Billing currency" htmlFor="pl-currency" required>
+              <Select
+                value={draft.currency}
+                onValueChange={(value) =>
+                  value &&
+                  setDraft((previous) => ({
+                    ...previous,
+                    currency: value as AdminPlan["currency"],
+                  }))
+                }
+              >
+                <SelectTrigger id="pl-currency" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="INR">INR (₹) — Razorpay</SelectItem>
+                  <SelectItem value="USD">USD ($) — Dodo Payments</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="sm:col-span-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">INR pricing</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Shown when workspaces view plans in INR. Leave empty for custom-only plans.
+              </p>
+            </div>
+            <Field
+              label="INR monthly"
+              htmlFor="pl-price-inr-m"
+              required={draft.currency === "INR"}
+            >
               <Input
-                id="pl-price"
-                value={draft.price}
+                id="pl-price-inr-m"
+                inputMode="decimal"
+                value={draft.priceInrMonthly}
                 onChange={(event) =>
                   setDraft((previous) => ({
                     ...previous,
-                    price: event.target.value,
+                    priceInrMonthly: event.target.value,
                   }))
                 }
-                placeholder="Free, ₹9,999 or Custom"
+                placeholder="0 for free, 9999, or leave empty"
+              />
+            </Field>
+            <Field label="INR yearly" htmlFor="pl-price-inr-y">
+              <Input
+                id="pl-price-inr-y"
+                inputMode="decimal"
+                value={draft.priceInrYearly}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    priceInrYearly: event.target.value,
+                  }))
+                }
+                placeholder="Optional annual INR amount"
+              />
+            </Field>
+            <div className="sm:col-span-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">USD pricing</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Shown when workspaces view plans in USD. Leave empty for custom-only plans.
+              </p>
+            </div>
+            <Field
+              label="USD monthly"
+              htmlFor="pl-price-usd-m"
+              required={draft.currency === "USD"}
+            >
+              <Input
+                id="pl-price-usd-m"
+                inputMode="decimal"
+                value={draft.priceUsdMonthly}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    priceUsdMonthly: event.target.value,
+                  }))
+                }
+                placeholder="0 for free, 99, or leave empty"
+              />
+            </Field>
+            <Field label="USD yearly" htmlFor="pl-price-usd-y">
+              <Input
+                id="pl-price-usd-y"
+                inputMode="decimal"
+                value={draft.priceUsdYearly}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    priceUsdYearly: event.target.value,
+                  }))
+                }
+                placeholder="Optional annual USD amount"
               />
             </Field>
             <Field label="Billing cycle" htmlFor="pl-cycle">

@@ -9,13 +9,13 @@ import {
 } from '../../modules/plans/pricing-plan.model.js';
 import { WorkspaceSubscriptionModel } from '../../modules/plans/subscription.model.js';
 import {
-  METRIC_DEFAULT_COST,
   METRIC_LABELS,
   USAGE_METRICS,
   currentPeriodKey,
   periodResetAt,
   type UsageMetric,
 } from './metrics.js';
+import { getMetricCost } from './metric-costs.js';
 import { QuotaCounterModel, type QuotaCounterDocument } from './quota-counter.model.js';
 import { UsageLedgerModel } from './usage-ledger.model.js';
 import { UsageReservationModel } from './usage-reservation.model.js';
@@ -347,7 +347,7 @@ export class QuotaService {
     reservationId: string;
     usage: QuotaUsageView;
   }> {
-    const quantity = input.quantity ?? METRIC_DEFAULT_COST[input.metric];
+    const quantity = input.quantity ?? (await getMetricCost(input.metric));
     if (!Number.isFinite(quantity) || quantity < 1) {
       throw AppError.badRequest('Invalid quota quantity');
     }
@@ -727,7 +727,7 @@ export class QuotaService {
     relatedEntityId?: string | null;
     requireAvailable?: boolean;
   }): Promise<QuotaUsageView> {
-    const quantity = input.quantity ?? METRIC_DEFAULT_COST[input.metric];
+    const quantity = input.quantity ?? (await getMetricCost(input.metric));
     if (input.idempotencyKey) {
       await this.reserveUsage({
         organizationId: input.organizationId,

@@ -369,6 +369,8 @@ adminConsoleRouter.patch(
       metadata: {
         providers: body.providers?.map((p) => p.provider) ?? [],
         hasSecrets: Boolean(body.providers?.some((p) => p.secretValue)),
+        metricCostsUpdated: Boolean(body.metricCosts),
+        metricCosts: body.metricCosts ?? undefined,
         ...promptMeta,
       },
     });

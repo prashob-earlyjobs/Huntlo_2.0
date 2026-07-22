@@ -337,7 +337,11 @@ export interface AdminPlan {
   name: string;
   code: string;
   description: string;
-  price: string;
+  currency: "INR" | "USD";
+  priceInrMonthly: string;
+  priceInrYearly: string;
+  priceUsdMonthly: string;
+  priceUsdYearly: string;
   billingCycle: "Monthly" | "Annual";
   searchLimit: string;
   emailRevealLimit: string;
@@ -375,7 +379,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     name: "Trial",
     code: "trial",
     description: "Free trial for new workspaces.",
-    price: "Free",
+    currency: "INR",
+    priceInrMonthly: "0",
+    priceInrYearly: "0",
+    priceUsdMonthly: "0",
+    priceUsdYearly: "0",
     billingCycle: "Monthly",
     searchLimit: "20",
     emailRevealLimit: "50",
@@ -398,7 +406,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     name: "Starter",
     code: "starter",
     description: "For small recruiting teams getting started.",
-    price: "₹4,999",
+    currency: "INR",
+    priceInrMonthly: "4999",
+    priceInrYearly: "49990",
+    priceUsdMonthly: "99",
+    priceUsdYearly: "990",
     billingCycle: "Monthly",
     searchLimit: "1,000",
     emailRevealLimit: "250",
@@ -421,7 +433,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     name: "Growth",
     code: "growth",
     description: "For growing teams.",
-    price: "₹14,999",
+    currency: "INR",
+    priceInrMonthly: "14999",
+    priceInrYearly: "149990",
+    priceUsdMonthly: "249",
+    priceUsdYearly: "2490",
     billingCycle: "Monthly",
     searchLimit: "10,000",
     emailRevealLimit: "2,500",
@@ -444,7 +460,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     name: "Scale",
     code: "scale",
     description: "For high-volume hiring.",
-    price: "₹39,999",
+    currency: "INR",
+    priceInrMonthly: "39999",
+    priceInrYearly: "399990",
+    priceUsdMonthly: "499",
+    priceUsdYearly: "4990",
     billingCycle: "Monthly",
     searchLimit: "40,000",
     emailRevealLimit: "10,000",
@@ -467,7 +487,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     name: "Enterprise",
     code: "enterprise",
     description: "Custom limits and dedicated support.",
-    price: "Custom",
+    currency: "USD",
+    priceInrMonthly: "",
+    priceInrYearly: "",
+    priceUsdMonthly: "",
+    priceUsdYearly: "",
     billingCycle: "Annual",
     searchLimit: "Unlimited",
     emailRevealLimit: "Unlimited",
@@ -493,7 +517,11 @@ export function emptyPlanDraft(): AdminPlan {
     name: "",
     code: "",
     description: "",
-    price: "",
+    currency: "INR",
+    priceInrMonthly: "",
+    priceInrYearly: "",
+    priceUsdMonthly: "",
+    priceUsdYearly: "",
     billingCycle: "Monthly",
     searchLimit: "",
     emailRevealLimit: "",
