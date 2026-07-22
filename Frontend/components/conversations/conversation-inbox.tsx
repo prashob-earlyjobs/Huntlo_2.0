@@ -588,7 +588,7 @@ export function ConversationInbox({
   return (
     <div
       className={cn(
-        "grid h-full min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)]",
+        "grid h-full min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
         profileOpen && selected
           ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
           : "xl:grid-cols-[300px_minmax(0,1fr)]",
@@ -596,8 +596,8 @@ export function ConversationInbox({
       )}
     >
       {/* Left — list */}
-      <div className="flex min-h-0 min-w-0 flex-col border-b border-border lg:border-r lg:border-b-0">
-        <div className="space-y-2 border-b border-border p-3">
+      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border lg:border-r lg:border-b-0">
+        <div className="shrink-0 space-y-2 border-b border-border p-3">
           <div className="relative">
             <Search
               aria-hidden
@@ -636,7 +636,7 @@ export function ConversationInbox({
           </div>
         </div>
 
-        <ScrollArea className="scrollbar-slim min-h-0 flex-1 max-lg:max-h-64">
+        <ScrollArea className="scrollbar-slim min-h-0 flex-1">
           <ul className="divide-y divide-border">
             {filtered.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -725,7 +725,7 @@ export function ConversationInbox({
       {/* Centre — timeline */}
       <div
         id="conversation-detail"
-        className="flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-b border-border xl:border-r xl:border-b-0"
+        className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-b border-border xl:border-r xl:border-b-0"
       >
         {selected ? (
           <>
@@ -758,8 +758,8 @@ export function ConversationInbox({
               ) : null}
             </div>
 
-            <ScrollArea className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden">
-              <div className="@container/thread box-border w-full max-w-full space-y-3 p-4 lg:min-h-80">
+            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden">
+              <div className="@container/thread box-border w-full max-w-full space-y-3 p-4">
                 {events.map((event) => (
                   <EventBubble key={event.id} event={event} />
                 ))}
@@ -779,8 +779,8 @@ export function ConversationInbox({
 
       {/* Right — profile */}
       {profileOpen && selected ? (
-        <div className="min-h-0 min-w-0 max-xl:border-t max-xl:border-border">
-          <ScrollArea className="h-full min-h-0">
+        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
+          <ScrollArea className="scrollbar-slim min-h-0 flex-1">
             <ProfilePanel
               conversation={selected}
               notes={notes}
