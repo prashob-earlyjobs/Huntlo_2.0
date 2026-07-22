@@ -17,7 +17,6 @@ export function ConversationsPageClient() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [focusThreadId, setFocusThreadId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -50,14 +49,7 @@ export function ConversationsPageClient() {
       "campaign.thread.updated",
       "conversation.qualification.updated",
     ],
-    (event) => {
-      const data =
-        event?.data && typeof event.data === "object"
-          ? (event.data as { threadId?: string; campaignId?: string | null })
-          : null;
-      if (data?.threadId) {
-        setFocusThreadId(String(data.threadId));
-      }
+    () => {
       void refresh();
     }
   );
@@ -90,7 +82,6 @@ export function ConversationsPageClient() {
       ) : (
         <ConversationInbox
           conversations={conversations}
-          focusThreadId={focusThreadId}
           className="min-h-[28rem] flex-1 overflow-hidden lg:min-h-0"
         />
       )}
