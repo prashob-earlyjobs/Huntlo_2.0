@@ -89,3 +89,26 @@ export async function loadOutreachJobContext(
     salaryRange,
   };
 }
+
+/** Plain-text block for Gemini qualification / screening prompts. */
+export function formatOutreachJobContextForPrompt(
+  ctx: OutreachJobContext,
+  campaignName?: string | null
+): string {
+  const parts = [
+    campaignName ? `Campaign: ${campaignName}` : '',
+    ctx.title ? `Role title: ${ctx.title}` : '',
+    ctx.workplaceType ? `Workplace: ${ctx.workplaceType}` : '',
+    ctx.locations.length ? `Locations: ${ctx.locations.join(', ')}` : '',
+    ctx.experienceRange ? `Experience range: ${ctx.experienceRange}` : '',
+    ctx.salaryRange ? `Compensation (from JD): ${ctx.salaryRange}` : '',
+    ctx.requiredSkills.length
+      ? `Required skills: ${ctx.requiredSkills.slice(0, 25).join(', ')}`
+      : '',
+    ctx.requirements.length
+      ? `Requirements: ${ctx.requirements.slice(0, 20).join('; ')}`
+      : '',
+    ctx.description ? `Job description:\n${ctx.description.slice(0, 8000)}` : '',
+  ].filter(Boolean);
+  return parts.join('\n\n') || '(No job description linked — judge only from screening questions and answers.)';
+}

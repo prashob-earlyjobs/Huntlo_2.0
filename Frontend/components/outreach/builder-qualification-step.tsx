@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { getApiErrorMessage, outreachApi } from "@/lib/api";
 import {
-  ANSWER_TYPES,
+  MAX_QUALIFICATION_QUESTIONS,
   TAKEOVER_CONDITIONS,
   type AnswerType,
   type QualificationQuestion,
@@ -50,7 +50,7 @@ export function QualificationStep({
   const [generateError, setGenerateError] = useState<string | null>(null);
 
   function setQuestions(questions: QualificationQuestion[]) {
-    update("questions", questions);
+    update("questions", questions.slice(0, MAX_QUALIFICATION_QUESTIONS));
   }
 
   function updateQuestion(id: string, patch: Partial<QualificationQuestion>) {
@@ -61,7 +61,13 @@ export function QualificationStep({
     );
   }
 
+  const atQuestionLimit = state.questions.length >= MAX_QUALIFICATION_QUESTIONS;
+
   async function generateFromJd() {
+    if (atQuestionLimit) {
+      setGenerateError(`Maximum ${MAX_QUALIFICATION_QUESTIONS} questions allowed.`);
+      return;
+    }
     if (!state.jobId) {
       setGenerateError("Select a related job in Campaign Setup first.");
       return;
@@ -85,7 +91,7 @@ export function QualificationStep({
         setGenerateError("AI returned no questions. Try again.");
         return;
       }
-      setQuestions(mapped);
+      setQuestions(mapped.slice(0, MAX_QUALIFICATION_QUESTIONS));
     } catch (error) {
       setGenerateError(
         getApiErrorMessage(error, "Unable to generate questions from the job description.")
@@ -147,7 +153,7 @@ export function QualificationStep({
                 type="button"
                 size="xs"
                 variant="outline"
-                disabled={generating || !state.jobId}
+                disabled={generating || !state.jobId || atQuestionLimit}
                 onClick={() => void generateFromJd()}
               >
                 {generating ? (
@@ -161,24 +167,33 @@ export function QualificationStep({
                 type="button"
                 size="xs"
                 variant="outline"
-                onClick={() =>
+                disabled={atQuestionLimit}
+                onClick={() => {
+                  if (atQuestionLimit) return;
                   setQuestions([
                     ...state.questions,
                     {
                       id: `q-${Date.now()}`,
                       text: "",
-                      answerType: "Yes / No",
+                      answerType: "Short text",
                       knockout: false,
                       knockoutCondition: "",
                     },
-                  ])
-                }
+                  ]);
+                }}
               >
                 <Plus aria-hidden />
                 Add question
               </Button>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Up to {MAX_QUALIFICATION_QUESTIONS} screening questions per campaign
+            {state.questions.length > 0
+              ? ` (${state.questions.length}/${MAX_QUALIFICATION_QUESTIONS})`
+              : ""}
+            .
+          </p>
           {!state.jobId ? (
             <p className="text-xs text-muted-foreground">
               Link a job in Setup to generate questions from the job description.
@@ -196,7 +211,7 @@ export function QualificationStep({
                   key={question.id}
                   className="rounded-lg border border-border px-3 py-3"
                 >
-                  <div className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                     <Field
                       label={`Question ${index + 1}`}
                       htmlFor={`${question.id}-text`}
@@ -211,28 +226,6 @@ export function QualificationStep({
                         }
                         placeholder="Ask a screening question…"
                       />
-                    </Field>
-                    <Field label="Answer type" htmlFor={`${question.id}-type`}>
-                      <Select
-                        value={question.answerType}
-                        onValueChange={(value) =>
-                          value &&
-                          updateQuestion(question.id, {
-                            answerType: value as AnswerType,
-                          })
-                        }
-                      >
-                        <SelectTrigger id={`${question.id}-type`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ANSWER_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </Field>
                     <div className="flex items-end pb-0.5">
                       <Button

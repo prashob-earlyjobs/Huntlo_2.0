@@ -576,9 +576,14 @@ export const screeningService = {
     return { ok, issues };
   },
 
-  async launch(organizationId: string, userId: string, id: string) {
+  async launch(
+    organizationId: string,
+    userId: string,
+    id: string,
+    options?: { candidateIds?: string[] }
+  ) {
     const doc = await loadScreening(organizationId, id);
-    if (!['draft', 'paused', 'scheduled'].includes(doc.status)) {
+    if (!['draft', 'paused', 'scheduled', 'running'].includes(doc.status)) {
       throw new AppError(400, 'INVALID_STATUS', `Cannot launch from status ${doc.status}.`);
     }
 
@@ -705,9 +710,20 @@ export const screeningService = {
       doc.providerAgentId = created.agentId;
     }
 
+    const candidateIds =
+      options?.candidateIds?.filter((candidateId) =>
+        mongoose.Types.ObjectId.isValid(candidateId)
+      ) ?? [];
     const rows = await ScreeningCandidateModel.find({
       screeningId: id,
       callStatus: { $in: ['queued', 'no_answer', 'failed', 'busy'] },
+      ...(candidateIds.length > 0
+        ? {
+            candidateId: {
+              $in: candidateIds.map((candidateId) => new mongoose.Types.ObjectId(candidateId)),
+            },
+          }
+        : {}),
     });
     const candidates = await SavedCandidateModel.find({
       _id: { $in: rows.map((r) => r.candidateId) },

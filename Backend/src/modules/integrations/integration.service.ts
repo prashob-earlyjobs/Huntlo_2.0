@@ -549,6 +549,10 @@ export const integrationsService = {
         email: result.tokens.email,
       });
       await persistTokens(doc, result.tokens);
+      if (provider === 'gmail') {
+        const { ensureGmailWatch } = await import('../outreach/email-reply-sync.service.js');
+        await ensureGmailWatch(organizationId, String(doc._id)).catch(() => undefined);
+      }
       await audit('integration.connect', organizationId, userId, {
         provider,
         integrationId: String(doc._id),
@@ -707,6 +711,10 @@ export const integrationsService = {
         email: tokens.email,
       });
       await persistTokens(doc, tokens);
+      if (provider === 'gmail') {
+        const { ensureGmailWatch } = await import('../outreach/email-reply-sync.service.js');
+        await ensureGmailWatch(ownerOrgId, String(doc._id)).catch(() => undefined);
+      }
       await audit('integration.oauth_callback', ownerOrgId, ownerUserId, {
         provider,
         integrationId: String(doc._id),

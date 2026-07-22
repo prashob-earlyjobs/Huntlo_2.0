@@ -5,6 +5,7 @@ import {
   DEFAULT_QUESTIONS,
   DEFAULT_SEQUENCE,
   makeStep,
+  MAX_QUALIFICATION_QUESTIONS,
   reachableCount,
   STEP_CHANNELS,
   TAKEOVER_CONDITIONS,
@@ -248,7 +249,7 @@ export function initialBuilderState(): BuilderState {
     aiReplyEnabled: true,
     takeoverCondition: TAKEOVER_CONDITIONS[1],
     autoScreening: false,
-    autoCalendly: true,
+    autoCalendly: false,
   };
 }
 
@@ -294,7 +295,6 @@ export function stepErrors(step: number, state: BuilderState): string[] {
     case 0: {
       if (!state.name.trim()) errors.push("Campaign name is required.");
       if (!state.jobId) errors.push("Select a related job.");
-      if (!state.objective) errors.push("Pick a campaign objective.");
       if (!state.ownerUserId) errors.push("Assign a campaign owner.");
       break;
     }
@@ -372,6 +372,11 @@ export function stepErrors(step: number, state: BuilderState): string[] {
       break;
     }
     case 4: {
+      if (state.questions.length > MAX_QUALIFICATION_QUESTIONS) {
+        errors.push(
+          `Maximum ${MAX_QUALIFICATION_QUESTIONS} qualification questions allowed.`
+        );
+      }
       state.questions.forEach((question, index) => {
         if (!question.text.trim())
           errors.push(`Qualification question ${index + 1} is empty.`);

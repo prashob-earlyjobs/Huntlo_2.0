@@ -42,6 +42,8 @@ import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { JobModel } from '../jobs/job.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
+import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
+import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import { buildCandidateMergeContext, mergeMessageTemplate } from './variables.js';
 import type {
   CampaignSequenceStep,
@@ -59,6 +61,83 @@ import {
   renderWhatsAppTemplatePreview,
   resolveGupshupTemplateId,
 } from './whatsapp-template-catalogue.js';
+
+/** Keep sequence follow-ups in the same Gmail thread as the first send. */
+async function resolveSequenceEmailThreading(input: {
+  organizationId: string;
+  enrollmentId: string;
+  fallbackSubject: string;
+}): Promise<{
+  subject: string;
+  providerThreadId: string | null;
+  inReplyTo: string | null;
+  references: string | null;
+  gmailMessageIdHint: string | null;
+}> {
+  const thread = await ConversationThreadModel.findOne({
+    organizationId: input.organizationId,
+    enrollmentId: input.enrollmentId,
+  })
+    .select('_id providerThreadIds')
+    .lean();
+
+  if (!thread) {
+    return {
+      subject: input.fallbackSubject,
+      providerThreadId: null,
+      inReplyTo: null,
+      references: null,
+      gmailMessageIdHint: null,
+    };
+  }
+
+  const recentEmails = await ConversationMessageModel.find({
+    threadId: thread._id,
+    channel: 'email',
+    deliveryStatus: { $ne: 'failed' },
+  })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .select('subject providerMessageId providerThreadId direction')
+    .lean();
+
+  const firstOutbound =
+    [...recentEmails].reverse().find((m) => m.direction === 'outbound') || null;
+  const lastAny = recentEmails[0] || null;
+
+  const fromThread =
+    thread.providerThreadIds?.find((p) => p.provider === 'gmail')?.threadId ||
+    thread.providerThreadIds?.[0]?.threadId ||
+    null;
+
+  const providerThreadId =
+    recentEmails.map((m) => m.providerThreadId).find((id) => Boolean(id)) ||
+    fromThread ||
+    null;
+
+  const rfcId = String(lastAny?.providerMessageId || '');
+  const inReplyTo = rfcId.startsWith('<') && rfcId.includes('@') ? rfcId : null;
+
+  let gmailMessageIdHint: string | null = null;
+  for (const msg of recentEmails) {
+    const pid = String(msg.providerMessageId || '').trim();
+    if (pid && !pid.startsWith('<') && !pid.includes(':') && !pid.startsWith('bull-job')) {
+      gmailMessageIdHint = pid;
+      break;
+    }
+  }
+
+  const subjectBase = String(firstOutbound?.subject || input.fallbackSubject).trim();
+  const subject = /^re\s*:/i.test(subjectBase) ? subjectBase : `Re: ${subjectBase}`;
+
+  return {
+    subject: recentEmails.length ? subject : input.fallbackSubject,
+    providerThreadId: providerThreadId ? String(providerThreadId) : null,
+    inReplyTo,
+    references: inReplyTo,
+    gmailMessageIdHint,
+  };
+}
 
 export type DeliverySkipReason = 'missing_email' | 'missing_phone' | 'non_message';
 
@@ -836,14 +915,25 @@ export async function executeCampaignMessageStep(input: {
 
     const renderedSubject = mergeMessageTemplate(step.subject || campaign.name, mergeContext);
     const renderedBody = mergeMessageTemplate(step.body || step.note || '', mergeContext);
+    const threading = await resolveSequenceEmailThreading({
+      organizationId,
+      enrollmentId: String(enrollment._id),
+      fallbackSubject: renderedSubject,
+    });
 
     try {
       const sent = await sendEmailViaIntegration({
         secrets: integration.secrets,
         to: email,
-        subject: renderedSubject,
+        subject: threading.providerThreadId || threading.gmailMessageIdHint
+          ? threading.subject
+          : renderedSubject,
         body: renderedBody,
         fromOverride: campaign.channelConfig.email?.senderEmail,
+        providerThreadId: threading.providerThreadId,
+        inReplyTo: threading.inReplyTo,
+        references: threading.references,
+        gmailMessageIdHint: threading.gmailMessageIdHint,
       });
       await quotaService.commitUsage({
         organizationId,
@@ -856,7 +946,9 @@ export async function executeCampaignMessageStep(input: {
         providerMessageId: sent.messageId,
         providerThreadId: sent.providerThreadId,
         provider: sent.provider,
-        renderedSubject,
+        renderedSubject: threading.providerThreadId || threading.gmailMessageIdHint
+          ? threading.subject
+          : renderedSubject,
         renderedBody,
       };
     } catch (error) {
@@ -941,6 +1033,8 @@ export async function executeCampaignMessageStep(input: {
         channel: 'whatsapp',
         providerMessageId: sent.messageId,
         provider: sent.provider,
+        // Same key inbound webhooks use (candidate phone) so replies map to this outreach.
+        providerThreadId: String(phone || '').replace(/\D/g, '') || phone,
         renderedBody: conversationBody,
       };
     } catch (error) {

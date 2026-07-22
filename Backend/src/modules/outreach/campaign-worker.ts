@@ -211,16 +211,25 @@ async function recordOutboundConversationMessage(input: {
   if (!convThread.channels.includes(input.channel)) {
     convThread.channels.push(input.channel);
   }
+  let providerThreadId = input.providerThreadId ?? null;
+  if (!providerThreadId && input.channel === 'whatsapp') {
+    const { SavedCandidateModel } = await import('../candidates/saved-candidate.model.js');
+    const candidate = await SavedCandidateModel.findById(input.candidateId)
+      .select('phone')
+      .lean();
+    const digits = String(candidate?.phone || '').replace(/\D/g, '');
+    if (digits) providerThreadId = digits;
+  }
   if (
-    input.providerThreadId &&
+    providerThreadId &&
     input.provider &&
     !convThread.providerThreadIds.some(
-      (p) => p.provider === input.provider && p.threadId === input.providerThreadId
+      (p) => p.provider === input.provider && p.threadId === providerThreadId
     )
   ) {
     convThread.providerThreadIds.push({
       provider: input.provider,
-      threadId: input.providerThreadId,
+      threadId: providerThreadId,
     });
   }
   await convThread.save();

@@ -77,7 +77,16 @@ import {
   type CampaignStatus,
   type OutreachCampaign,
 } from "@/lib/mock-outreach";
-import { candidateDetailPath, campaignDetailPath, campaignEditPath, jobDetailPath } from "@/lib/routes";
+import {
+  deriveCandidatePipelineStatus,
+  pipelineStatusBadgeClass,
+} from "@/lib/enrollment-pipeline-status";
+import {
+  campaignDetailPath,
+  campaignEditPath,
+  candidateDetailPath,
+  jobDetailPath,
+} from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /** Map server validation issue ids to builder step indexes (0–5). */
@@ -309,11 +318,13 @@ function CandidatesTab({
   state,
   message,
   onRetry,
+  autoScreening,
 }: {
   enrollments: ApiCampaignEnrollment[];
   state: ApiUiState;
   message: string | null;
   onRetry: () => void;
+  autoScreening?: boolean;
 }) {
   if (state !== "success") {
     return (
@@ -341,9 +352,6 @@ function CandidatesTab({
             <TableHead className={HEAD}>Mobile</TableHead>
             <TableHead className={HEAD}>Sequence step</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
-            <TableHead className={HEAD}>Reply</TableHead>
-            <TableHead className={HEAD}>Qualification</TableHead>
-            <TableHead className={HEAD}>Screening</TableHead>
             <TableHead className={HEAD}>Interview</TableHead>
             <TableHead className={HEAD}>Last activity</TableHead>
             <TableHead className={`${HEAD} w-10 text-right`}>
@@ -353,13 +361,9 @@ function CandidatesTab({
         </TableHeader>
         <TableBody>
           {enrollments.map((candidate) => {
-            const replyLabel = candidate.replyState?.disposition
-              ? titleCase(candidate.replyState.disposition)
-              : candidate.replyState?.hasReply
-                ? "Replied"
-                : "Awaiting reply";
-            const qualification = candidate.qualificationState?.status ?? "pending";
-            const screening = candidate.screeningState?.status ?? "not_started";
+            const pipelineStatus = deriveCandidatePipelineStatus(candidate, {
+              autoScreening,
+            });
             const scheduling = candidate.schedulingState?.status ?? "not_started";
             return (
               <TableRow key={candidate.id}>
@@ -412,21 +416,9 @@ function CandidatesTab({
                 </TableCell>
                 <TableCell className="py-2.5">
                   <Badge
-                    text={titleCase(candidate.status)}
-                    className={stateBadgeClass(candidate.status)}
+                    text={pipelineStatus}
+                    className={pipelineStatusBadgeClass(pipelineStatus)}
                   />
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <Badge text={replyLabel} className={stateBadgeClass(replyLabel)} />
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <Badge
-                    text={titleCase(qualification)}
-                    className={stateBadgeClass(qualification)}
-                  />
-                </TableCell>
-                <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                  {titleCase(screening)}
                 </TableCell>
                 <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
                   {titleCase(scheduling)}
@@ -1104,6 +1096,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             state={enrollmentsState}
             message={enrollmentsMessage}
             onRetry={() => setReloadKey((k) => k + 1)}
+            autoScreening={Boolean(raw?.qualificationConfig?.autoScreening)}
           />
         </TabsContent>
         <TabsContent value="conversations" className="pt-3">

@@ -40,6 +40,7 @@ function kindFromType(
   ) {
     return 'usage';
   }
+  if (type === 'candidate_reply') return 'campaign';
   return 'system';
 }
 

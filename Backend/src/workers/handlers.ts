@@ -4,7 +4,6 @@ import {
   processQueuedBulkRevealJobs,
   processQueuedImportJobs,
 } from '../modules/candidates/index.js';
-import { processDueCampaignJobs } from '../modules/outreach/index.js';
 import { processDueSchedulingJobs } from '../modules/scheduling/index.js';
 import { pollSourcingSessions } from '../modules/sourcing/index.js';
 import { reportsService } from '../modules/analytics/reports.service.js';
@@ -110,30 +109,31 @@ const HANDLERS: Record<BackgroundJobType, JobHandler> = {
   },
 
   async 'outreach.execute_step'(ctx) {
-    const processed = await processDueCampaignJobs(Number(ctx.payload.limit ?? 25));
+    // Old Mongo campaign queue disconnected — BullMQ cron/worker handles outreach sends.
     const assessments = await processDueAssessmentJobs(
       Number(ctx.payload.assessmentLimit ?? 50)
     );
     return {
-      result: { processed, assessments },
+      result: { processed: 0, assessments },
       rescheduleInMs: Number(ctx.payload.intervalMs ?? 5_000),
     };
   },
 
   async 'outreach.sync_email_replies'(ctx) {
-    const { syncEmailReplies } = await import('../modules/outreach/email-reply-sync.service.js');
-    const synced = await syncEmailReplies(Number(ctx.payload.limit ?? 15));
+    // Reply sync moved to bull-outreach cron (every minute).
+    void ctx;
     return {
-      result: { synced },
-      rescheduleInMs: Number(ctx.payload.intervalMs ?? 30_000),
+      result: { synced: 0 },
+      rescheduleInMs: Number(ctx.payload.intervalMs ?? 60_000),
     };
   },
 
   async 'outreach.retry_delivery'(ctx) {
-    const processed = await processDueCampaignJobs(Number(ctx.payload.limit ?? 25));
+    // Old Mongo campaign queue disconnected — BullMQ handles retries via pending jobs.
+    void ctx;
     return {
-      result: { processed },
-      rescheduleInMs: Number(ctx.payload.intervalMs ?? 15_000),
+      result: { processed: 0 },
+      rescheduleInMs: Number(ctx.payload.intervalMs ?? 60_000),
     };
   },
 

@@ -5,7 +5,9 @@ import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { deriveEnrollmentPipelineStatus } from '../outreach/enrollment-pipeline-status.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
+import { enrollQualifiedCandidateInCampaignScreening } from '../outreach/outreach-auto-screening.service.js';
 import { JobModel } from '../jobs/job.model.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
 import {
@@ -247,7 +249,9 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
         .select('name email phone currentTitle currentCompany location headline')
         .lean(),
       thread.campaignId
-        ? OutreachCampaignModel.findById(thread.campaignId).select('name sequenceSteps').lean()
+        ? OutreachCampaignModel.findById(thread.campaignId)
+            .select('name sequenceSteps qualificationConfig.autoScreening')
+            .lean()
         : null,
       thread.jobId ? JobModel.findById(thread.jobId).select('title').lean() : null,
       thread.assignedUserId
@@ -338,6 +342,12 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     candidate?.currentCompany,
   ].filter(Boolean);
 
+  const autoScreening = Boolean(campaign?.qualificationConfig?.autoScreening);
+  const pipelineStatus = deriveEnrollmentPipelineStatus(enrollment, {
+    autoScreening,
+    threadQualificationStatus: thread.qualificationStatus,
+  });
+
   return {
     id: String(thread._id),
     candidateId: String(thread.candidateId),
@@ -357,9 +367,12 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     unread: (thread.unreadCount || 0) > 0,
     unreadCount: thread.unreadCount || 0,
     replyStatus,
+    pipelineStatus,
     qualification: QUAL_DISPLAY[thread.qualificationStatus] || 'Pending',
     qualificationStatus: thread.qualificationStatus,
     screeningStatus: enrollment?.screeningState?.status || 'not_started',
+    screeningId: enrollment?.screeningState?.screeningId ?? null,
+    autoScreening,
     sequenceStep,
     nextAction:
       thread.automationStatus === 'stopped'
@@ -959,10 +972,22 @@ export const conversationsService = {
               answers: enrollment.qualificationState.answers,
             };
             if (campaign.qualificationConfig.autoScreening && !handoff) {
-              enrollment.screeningState = {
-                ...enrollment.screeningState,
-                status: 'scheduled',
-              };
+              try {
+                const { screeningId } = await enrollQualifiedCandidateInCampaignScreening({
+                  campaign,
+                  enrollment,
+                });
+                enrollment.screeningState = {
+                  status: 'scheduled',
+                  screeningId,
+                };
+              } catch {
+                enrollment.screeningState = {
+                  ...enrollment.screeningState,
+                  status: 'scheduled',
+                  screeningId: enrollment.screeningState?.screeningId ?? null,
+                };
+              }
             }
             await enrollment.save();
             thread.qualificationStatus = handoff ? 'handed_off' : 'qualified';
@@ -995,6 +1020,41 @@ export const conversationsService = {
     return toDisplayConversation(thread);
   },
 
+  /** Close older open threads for this candidate so each outreach starts fresh. */
+  async closePriorThreadsForCandidate(input: {
+    organizationId: string;
+    candidateId: string;
+    keepCampaignId: string;
+  }): Promise<number> {
+    const prior = await ConversationThreadModel.find({
+      organizationId: input.organizationId,
+      candidateId: input.candidateId,
+      campaignId: { $ne: input.keepCampaignId },
+      status: { $nin: ['closed', 'opted_out'] },
+    });
+    if (!prior.length) return 0;
+
+    const now = new Date();
+    for (const thread of prior) {
+      thread.status = 'closed';
+      thread.automationStatus = 'stopped';
+      thread.lastMessageAt = thread.lastMessageAt || now;
+      if (!thread.lastMessagePreview) {
+        thread.lastMessagePreview = 'Closed — new outreach started';
+      }
+      await thread.save();
+      emitCampaignThreadUpdated({
+        organizationId: input.organizationId,
+        campaignId: thread.campaignId ? String(thread.campaignId) : null,
+        threadId: String(thread._id),
+        status: thread.status,
+        unreadCount: thread.unreadCount || 0,
+        qualificationStatus: thread.qualificationStatus,
+      });
+    }
+    return prior.length;
+  },
+
   /** Ensure a thread exists for an enrollment (outbound send hook). */
   async ensureThreadForEnrollment(input: {
     organizationId: string;
@@ -1004,12 +1064,59 @@ export const conversationsService = {
     jobId?: string | null;
     channel: ConversationChannel;
   }) {
+    // Newer outreach deactivates prior open chats for this candidate.
+    await this.closePriorThreadsForCandidate({
+      organizationId: input.organizationId,
+      candidateId: input.candidateId,
+      keepCampaignId: input.campaignId,
+    });
+
+    // Email and WhatsApp are separate inbox threads — never merge channels.
+    const otherChannel =
+      input.channel === 'email'
+        ? 'whatsapp'
+        : input.channel === 'whatsapp'
+          ? 'email'
+          : null;
+    const channelFilter =
+      otherChannel == null
+        ? { channels: input.channel }
+        : {
+            $and: [
+              { channels: input.channel },
+              { channels: { $nin: [otherChannel] } },
+            ],
+          };
+
     let thread = await ConversationThreadModel.findOne({
       organizationId: input.organizationId,
       candidateId: input.candidateId,
       campaignId: input.campaignId,
-    });
-    if (thread) return thread;
+      ...channelFilter,
+    }).sort({ updatedAt: -1 });
+
+    if (thread) {
+      // Re-open this campaign+channel thread if a prior run left it closed.
+      if (thread.status === 'closed') {
+        thread.status = 'awaiting_reply';
+        thread.automationStatus = 'active';
+        thread.enrollmentId = new mongoose.Types.ObjectId(input.enrollmentId);
+        if (input.jobId) {
+          thread.jobId = new mongoose.Types.ObjectId(input.jobId);
+        }
+        await thread.save();
+      } else if (
+        input.enrollmentId &&
+        String(thread.enrollmentId || '') !== input.enrollmentId
+      ) {
+        thread.enrollmentId = new mongoose.Types.ObjectId(input.enrollmentId);
+        if (input.jobId) {
+          thread.jobId = new mongoose.Types.ObjectId(input.jobId);
+        }
+        await thread.save();
+      }
+      return thread;
+    }
     return ConversationThreadModel.create({
       organizationId: input.organizationId,
       candidateId: input.candidateId,

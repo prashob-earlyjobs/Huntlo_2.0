@@ -14,10 +14,15 @@ export function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li
 export function BreadcrumbLink({
   className,
   render,
+  children,
   ...props
 }: React.ComponentProps<"a"> & { render?: React.ReactNode }) {
   if (render) return <>{render}</>
-  return <a className={cn(className)} {...props} />
+  return (
+    <a className={cn(className)} {...props}>
+      {children}
+    </a>
+  )
 }
 export function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   return <span aria-current="page" className={cn(className)} {...props} />

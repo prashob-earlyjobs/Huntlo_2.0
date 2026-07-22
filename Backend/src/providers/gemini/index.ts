@@ -18,6 +18,7 @@ export {
   composeQualificationMessage,
   composeQualificationEmailBatch,
   evaluateScreeningAnswer,
+  assessQualificationComplete,
   GEMINI_CONVERSATIONS_MODEL,
   CONVERSATION_AI_GUARDRAILS,
   DEFAULT_CLASSIFY_CONFIDENCE_THRESHOLD,
@@ -31,6 +32,8 @@ export type {
   AnswerFromJdResult,
   EvaluateScreeningAnswerInput,
   EvaluateScreeningAnswerResult,
+  AssessQualificationCompleteInput,
+  AssessQualificationCompleteResult,
 } from './gemini.conversations.js';
 export { parseJobDescription, GEMINI_JOBS_MODEL } from './gemini.jobs.js';
 export type { ParsedJobDescription } from './gemini.jobs.js';

@@ -666,7 +666,7 @@ export function SequenceStepBuilder({
                       type="button"
                       onClick={() => setExpanded(isOpen ? null : step.id)}
                       aria-expanded={isOpen}
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
                       <span className="text-sm font-medium text-foreground">
                         {index + 1}. {step.type}
@@ -695,7 +695,7 @@ export function SequenceStepBuilder({
                         )}
                       />
                     </button>
-                    <div className="flex shrink-0 items-center gap-0.5">
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         type="button"
                         size="icon-xs"
