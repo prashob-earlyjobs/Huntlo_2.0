@@ -375,16 +375,6 @@ export function AudienceStep({
   }, [state.source, state.sourceDetail]);
 
   useEffect(() => {
-    if (state.source !== "Manual Add") return;
-    update("source", null);
-    update("sourceDetail", "");
-    update("selectedCandidateIds", []);
-    update("poolSearch", "");
-    update("audiencePreview", null);
-    setPickerRows([]);
-  }, [state.source, update]);
-
-  useEffect(() => {
     if (!state.source) {
       update("audiencePreview", null);
       setPickerRows([]);
@@ -409,12 +399,12 @@ export function AudienceStep({
               search: state.poolSearch.trim() || undefined,
             });
             if (cancelled) return;
-            setPickerRows(browse);
 
             if (state.selectedCandidateIds.length > 0) {
               const wanted = new Set(state.selectedCandidateIds);
               const selectedRows = browse.filter((row) => wanted.has(row.id));
               if (selectedRows.length === state.selectedCandidateIds.length) {
+                setPickerRows(browse);
                 update("audiencePreview", statsFromPoolRows(selectedRows));
               } else {
                 const rows = await loadAudiencePoolRows({
@@ -424,11 +414,20 @@ export function AudienceStep({
                   poolSearch: state.poolSearch,
                 });
                 if (cancelled) return;
+                const byId = new Map(browse.map((row) => [row.id, row]));
+                for (const row of rows) byId.set(row.id, row);
+                // Keep selected people visible even when they fall outside the browse page.
+                setPickerRows([
+                  ...rows,
+                  ...browse.filter((row) => !wanted.has(row.id)),
+                ]);
                 update("audiencePreview", statsFromPoolRows(rows));
               }
             } else if (state.source === "Candidate Pool") {
+              setPickerRows(browse);
               update("audiencePreview", statsFromPoolRows(browse));
             } else {
+              setPickerRows(browse);
               update("audiencePreview", {
                 selected: 0,
                 withEmail: 0,
@@ -481,8 +480,14 @@ export function AudienceStep({
       cancelled = true;
       window.clearTimeout(handle);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- selection changes update preview locally to avoid list reload flash
-  }, [state.source, state.sourceDetail, state.poolSearch]);
+    // `update` is recreated each render; selection is tracked via joined ids.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.source,
+    state.sourceDetail,
+    state.poolSearch,
+    state.selectedCandidateIds.join(","),
+  ]);
 
   function handleCandidateSelectionChange(ids: string[]) {
     update("selectedCandidateIds", ids);
@@ -813,6 +818,13 @@ export function AudienceStep({
 
         {state.source === "Candidate Pool" || state.source === "Manual Add" ? (
           <div className="space-y-3">
+            {state.selectedCandidateIds.length > 0 ? (
+              <p className="rounded-lg border border-primary/20 bg-brand-subtle px-3 py-2 text-sm text-foreground">
+                {state.selectedCandidateIds.length.toLocaleString("en-IN")} candidate
+                {state.selectedCandidateIds.length === 1 ? "" : "s"} selected for this
+                campaign. Confirm the selection below, then continue.
+              </p>
+            ) : null}
             <Field
               label="Search pool"
               htmlFor="audience-pool-search"

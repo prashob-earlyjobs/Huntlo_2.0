@@ -53,6 +53,7 @@ export function CandidateTable({
   onToggleSelect,
   onToggleSelectAll,
   savedMap,
+  savedListMap,
   onToggleSave,
   revealedMap,
   onReveal,
@@ -65,6 +66,7 @@ export function CandidateTable({
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
   savedMap: Record<string, boolean>;
+  savedListMap?: Record<string, string>;
   onToggleSave: (id: string) => void;
   revealedMap: Record<string, RevealState>;
   onReveal: (id: string, kind: "email" | "phone") => void;
@@ -108,6 +110,8 @@ export function CandidateTable({
         <TableBody>
           {candidates.map((candidate) => {
             const isSaved = savedMap[candidate.id] ?? candidate.saved;
+            const listName =
+              savedListMap?.[candidate.id] ?? candidate.lists[0] ?? null;
             const revealed = revealedMap[candidate.id] ?? {
               email: false,
               phone: false,
@@ -259,8 +263,13 @@ export function CandidateTable({
                       size="icon-xs"
                       variant="ghost"
                       className={isSaved ? "text-primary hover:text-primary" : undefined}
-                      aria-label={`Add ${candidate.name} to a list`}
+                      aria-label={
+                        listName
+                          ? `${candidate.name} is in ${listName}`
+                          : `Add ${candidate.name} to a list`
+                      }
                       aria-pressed={isSaved}
+                      title={listName ?? "Add to list"}
                       onClick={() => onToggleSave(candidate.id)}
                     >
                       {isSaved ? (

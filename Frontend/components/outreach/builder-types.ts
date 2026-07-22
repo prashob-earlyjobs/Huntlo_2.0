@@ -24,6 +24,10 @@ import {
   type WhatsAppTemplateSlot,
 } from "@/lib/whatsapp-outreach";
 
+/** Keep in sync with Backend METRIC_DEFAULT_COST / Frontend REVEAL_COSTS. */
+const EMAIL_UNLOCK_CREDIT_COST = 2;
+const MOBILE_UNLOCK_CREDIT_COST = 5;
+
 export interface BuilderState {
   /* Step 1 — setup */
   name: string;
@@ -387,9 +391,41 @@ export function stepErrors(step: number, state: BuilderState): string[] {
   return errors;
 }
 
+export function estimatedUnlockCredits(state: BuilderState): {
+  emailUnlocks: number;
+  phoneUnlocks: number;
+  emailCredits: number;
+  phoneCredits: number;
+  totalCredits: number;
+} {
+  const stats = audienceStats(state);
+  const selected = stats?.selected ?? 0;
+  const missingEmail = Math.max(0, selected - (stats?.withEmail ?? 0));
+  const missingPhone = Math.max(0, selected - (stats?.withPhone ?? 0));
+  const emailUnlocks = state.enabledChannels.includes("Email") ? missingEmail : 0;
+  const phoneUnlocks =
+    state.enabledChannels.includes("WhatsApp") ||
+    state.enabledChannels.includes("AI Voice")
+      ? missingPhone
+      : 0;
+  const emailCredits = emailUnlocks * EMAIL_UNLOCK_CREDIT_COST;
+  const phoneCredits = phoneUnlocks * MOBILE_UNLOCK_CREDIT_COST;
+  return {
+    emailUnlocks,
+    phoneUnlocks,
+    emailCredits,
+    phoneCredits,
+    totalCredits: emailCredits + phoneCredits,
+  };
+}
+
 export function launchWarnings(
   state: BuilderState,
-  creditsAvailable: number | null = null
+  creditsAvailable: number | null = null,
+  revealCredits: {
+    emailRemaining: number;
+    mobileRemaining: number;
+  } | null = null
 ): LaunchWarning[] {
   const warnings: LaunchWarning[] = [];
   for (let step = 0; step <= 4; step += 1) {
@@ -398,26 +434,34 @@ export function launchWarnings(
     );
   }
 
-  const stats = state.audiencePreview;
-  if (stats) {
-    const missingEmail = stats.selected - stats.withEmail;
-    const missingPhone = stats.selected - stats.withPhone;
-    if (state.enabledChannels.includes("Email") && missingEmail > 0) {
+  const unlock = estimatedUnlockCredits(state);
+  if (unlock.emailUnlocks > 0) {
+    warnings.push({
+      id: "unlock-email",
+      severity: "warning",
+      text: `On launch, ${unlock.emailUnlocks} email${unlock.emailUnlocks === 1 ? "" : "s"} will be unlocked for the Email channel (~${unlock.emailCredits} reveal credits).`,
+    });
+  }
+  if (unlock.phoneUnlocks > 0) {
+    warnings.push({
+      id: "unlock-phone",
+      severity: "warning",
+      text: `On launch, ${unlock.phoneUnlocks} mobile number${unlock.phoneUnlocks === 1 ? "" : "s"} will be unlocked for WhatsApp / voice (~${unlock.phoneCredits} reveal credits).`,
+    });
+  }
+  if (revealCredits) {
+    if (unlock.emailCredits > revealCredits.emailRemaining) {
       warnings.push({
-        id: "missing-email",
-        severity: "warning",
-        text: `${missingEmail} candidates have no email address and will skip email steps.`,
+        id: "email-reveal-quota",
+        severity: "error",
+        text: `Not enough email reveal credits: need ~${unlock.emailCredits}, have ${revealCredits.emailRemaining}.`,
       });
     }
-    if (
-      (state.enabledChannels.includes("WhatsApp") ||
-        state.enabledChannels.includes("AI Voice")) &&
-      missingPhone > 0
-    ) {
+    if (unlock.phoneCredits > revealCredits.mobileRemaining) {
       warnings.push({
-        id: "missing-phone",
-        severity: "warning",
-        text: `${missingPhone} candidates have no phone number and will skip WhatsApp / voice steps.`,
+        id: "mobile-reveal-quota",
+        severity: "error",
+        text: `Not enough mobile reveal credits: need ~${unlock.phoneCredits}, have ${revealCredits.mobileRemaining}.`,
       });
     }
   }

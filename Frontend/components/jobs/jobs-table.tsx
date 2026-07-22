@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Archive,
   Briefcase,
@@ -74,6 +75,8 @@ export function JobsTable({
   jobs: JobListItem[];
   className?: string;
 }) {
+  const router = useRouter();
+
   if (jobs.length === 0) {
     return (
       <EmptyState
@@ -106,39 +109,53 @@ export function JobsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {jobs.map((job) => (
-            <TableRow key={job.id}>
-              <TableCell className="py-2">
-                <Link
-                  href={jobDetailPath(job.id)}
-                  className="font-medium text-foreground underline-offset-4 hover:underline"
+          {jobs.map((job) => {
+            const href = jobDetailPath(job.id);
+            return (
+              <TableRow
+                key={job.id}
+                role="link"
+                tabIndex={0}
+                className="cursor-pointer"
+                onClick={() => router.push(href)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    router.push(href);
+                  }
+                }}
+              >
+                <TableCell className="py-2">
+                  <span className="font-medium text-foreground">{job.title}</span>
+                  <p className="mt-0.5 text-xs whitespace-nowrap text-muted-foreground">
+                    {job.department} · {job.location} · {experienceLabel(job)}
+                  </p>
+                </TableCell>
+                <TableCell className="py-2">
+                  <PipelineCell job={job} />
+                </TableCell>
+                <TableCell className="py-2">
+                  <p className="text-sm whitespace-nowrap text-foreground">{job.recruiter}</p>
+                  <p className="mt-0.5 text-xs whitespace-nowrap text-muted-foreground">
+                    Hiring manager: {job.hiringManager}
+                  </p>
+                </TableCell>
+                <TableCell className="py-2 text-sm whitespace-nowrap text-muted-foreground">
+                  {job.createdAt}
+                </TableCell>
+                <TableCell className="py-2">
+                  <StatusBadge status={job.status} />
+                </TableCell>
+                <TableCell
+                  className="py-2 text-right"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                 >
-                  {job.title}
-                </Link>
-                <p className="mt-0.5 text-xs whitespace-nowrap text-muted-foreground">
-                  {job.department} · {job.location} · {experienceLabel(job)}
-                </p>
-              </TableCell>
-              <TableCell className="py-2">
-                <PipelineCell job={job} />
-              </TableCell>
-              <TableCell className="py-2">
-                <p className="text-sm whitespace-nowrap text-foreground">{job.recruiter}</p>
-                <p className="mt-0.5 text-xs whitespace-nowrap text-muted-foreground">
-                  Hiring manager: {job.hiringManager}
-                </p>
-              </TableCell>
-              <TableCell className="py-2 text-sm whitespace-nowrap text-muted-foreground">
-                {job.createdAt}
-              </TableCell>
-              <TableCell className="py-2">
-                <StatusBadge status={job.status} />
-              </TableCell>
-              <TableCell className="py-2 text-right">
-                <JobRowActions job={job} />
-              </TableCell>
-            </TableRow>
-          ))}
+                  <JobRowActions job={job} />
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

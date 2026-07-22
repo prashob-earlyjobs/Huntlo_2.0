@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { Suspense } from "react";
 
 import { CampaignBuilder } from "@/components/outreach/campaign-builder";
+import { CampaignDetailSkeleton } from "@/components/outreach/campaign-detail-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { campaignDetailPath, ROUTES } from "@/lib/routes";
@@ -49,7 +51,9 @@ export default async function EditCampaignPage({
           </div>
         }
       />
-      <CampaignBuilder campaignId={id} initialStep={initialStep} />
+      <Suspense fallback={<CampaignDetailSkeleton />}>
+        <CampaignBuilder campaignId={id} initialStep={initialStep} />
+      </Suspense>
     </>
   );
 }

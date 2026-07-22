@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Camera,
   LogOut,
   Monitor,
   Moon,
@@ -112,36 +111,6 @@ function useSimulatedSave() {
   }
 
   return { status, errorMessage, runSave, clearStatus };
-}
-
-/* ------------------------------------------------------------------ */
-/* Profile photo                                                        */
-/* ------------------------------------------------------------------ */
-
-function ProfilePhoto({ initials }: { initials: string }) {
-  return (
-    <div className="flex items-center gap-4">
-      <span
-        aria-hidden
-        className="relative flex size-20 items-center justify-center rounded-full border border-border bg-brand-subtle text-xl font-semibold text-primary"
-      >
-        {initials}
-        <span className="absolute inset-x-0 bottom-0 flex justify-center">
-          <span className="rounded-t-md bg-background/90 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            <Camera aria-hidden className="inline size-3" />
-          </span>
-        </span>
-      </span>
-      <div className="space-y-1.5">
-        <Button type="button" size="sm" variant="outline" disabled>
-          Upload photo
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          JPG or PNG · max 2 MB · placeholder only
-        </p>
-      </div>
-    </div>
-  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -482,9 +451,6 @@ export function ProfileWorkspace() {
         title="Personal Information"
         description="How you appear across Huntlo and candidate communications"
       >
-        <ProfilePhoto
-          initials={`${personal.firstName[0] ?? ""}${personal.lastName[0] ?? ""}`.toUpperCase() || personal.initials}
-        />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="First name" htmlFor="first-name" required>
             <Input

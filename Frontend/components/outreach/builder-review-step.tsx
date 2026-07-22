@@ -11,10 +11,12 @@ import type {
 import {
   audienceStats,
   estimatedCredits,
+  estimatedUnlockCredits,
   messageSteps,
 } from "@/components/outreach/builder-types";
 import type { JobListItem } from "@/lib/api/contracts";
 import { integrationsApi } from "@/lib/api";
+import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import {
   CHANNEL_CONFIGS,
   delayAmountToMinutes,
@@ -52,15 +54,21 @@ export function ReviewStep({
   warnings,
   jobs,
   creditsAvailable = null,
+  revealCredits = null,
 }: {
   state: BuilderState;
   warnings: LaunchWarning[];
   jobs: JobListItem[];
   creditsAvailable?: number | null;
+  revealCredits?: {
+    emailRemaining: number;
+    mobileRemaining: number;
+  } | null;
 }) {
   const stats = audienceStats(state);
   const reachable = stats ? reachableCount(stats) : 0;
   const credits = estimatedCredits(state);
+  const unlock = estimatedUnlockCredits(state);
   const job = jobs.find((entry) => entry.id === state.jobId);
   const sends = messageSteps(state).length;
   const totalDelayMinutes = state.steps.reduce(
@@ -224,6 +232,39 @@ export function ReviewStep({
                       ? ` of ${creditsAvailable.toLocaleString("en-IN")} available`
                       : " estimated"}
                   </span>
+                }
+              />
+              <SummaryRow
+                label="Contact unlock on launch"
+                value={
+                  unlock.totalCredits > 0 ? (
+                    <span
+                      className={cn(
+                        "tabular-nums",
+                        revealCredits &&
+                          (unlock.emailCredits > revealCredits.emailRemaining ||
+                            unlock.phoneCredits > revealCredits.mobileRemaining)
+                          ? "font-semibold text-destructive"
+                          : "text-foreground"
+                      )}
+                    >
+                      {unlock.emailUnlocks > 0
+                        ? `${unlock.emailUnlocks} email × ${REVEAL_COSTS.email}`
+                        : null}
+                      {unlock.emailUnlocks > 0 && unlock.phoneUnlocks > 0
+                        ? " · "
+                        : null}
+                      {unlock.phoneUnlocks > 0
+                        ? `${unlock.phoneUnlocks} mobile × ${REVEAL_COSTS.mobile}`
+                        : null}
+                      {` = ${unlock.totalCredits} reveal credits`}
+                      {revealCredits
+                        ? ` (${revealCredits.emailRemaining} email / ${revealCredits.mobileRemaining} mobile left)`
+                        : ""}
+                    </span>
+                  ) : (
+                    "No unlocks needed for selected channels"
+                  )
                 }
               />
               <SummaryRow

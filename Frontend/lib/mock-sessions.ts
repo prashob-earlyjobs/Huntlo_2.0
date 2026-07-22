@@ -91,6 +91,8 @@ export interface SessionCandidate {
   matchBreakdown: MatchBreakdown;
   contactStatus: ContactStatus;
   saved: boolean;
+  /** Candidate list names this profile belongs to (when known). */
+  lists: string[];
   linkedin: boolean;
   /** Future Jobs profile_picture_permalink */
   avatarUrl?: string | null;
@@ -143,6 +145,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "Not contacted",
     saved: true,
+    lists: [],
     linkedin: true,
     email: "priya.nair@finovatelabs.in",
     emailVerified: true,
@@ -234,6 +237,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "Contacted",
     saved: false,
+    lists: [],
     linkedin: true,
     email: "karthik.iyer@loopworks.io",
     emailVerified: true,
@@ -306,6 +310,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "Not contacted",
     saved: false,
+    lists: [],
     linkedin: true,
     email: "sneha.k@swiggy.in",
     emailVerified: false,
@@ -369,6 +374,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "Replied",
     saved: true,
+    lists: [],
     linkedin: false,
     email: "divya.rao@paystream.in",
     emailVerified: true,
@@ -452,6 +458,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "In outreach",
     saved: false,
+    lists: [],
     linkedin: true,
     email: "arjun.verma@zenlytic.com",
     emailVerified: true,
@@ -523,6 +530,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "Not contacted",
     saved: false,
+    lists: [],
     linkedin: true,
     email: "nikhil.bose@cred.club",
     emailVerified: false,
@@ -585,6 +593,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "Not contacted",
     saved: false,
+    lists: [],
     linkedin: false,
     email: "meera.pillai@muralhealth.com",
     emailVerified: true,
@@ -647,6 +656,7 @@ export const SESSION_CANDIDATES: SessionCandidate[] = [
     },
     contactStatus: "Replied",
     saved: true,
+    lists: [],
     linkedin: true,
     email: "rohan.mehta@cartwheel.in",
     emailVerified: true,
