@@ -335,7 +335,6 @@ export function ProfileWorkspace() {
         };
         setAppearance(appearanceNext);
         setSavedAppearance(appearanceNext);
-        setTheme(appearanceNext.theme);
         if (prefs.notificationPreferences) {
           setNotifications(cloneNotifications(prefs.notificationPreferences));
           setSavedNotifications(cloneNotifications(prefs.notificationPreferences));
@@ -353,7 +352,7 @@ export function ProfileWorkspace() {
       .catch(() => {
         // Keep defaults when preferences are unavailable.
       });
-  }, [isMockMode, setTheme]);
+  }, [isMockMode]);
 
   useEffect(() => {
     if (!toast) return;

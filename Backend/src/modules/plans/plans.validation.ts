@@ -25,7 +25,13 @@ export const createPlanSchema = z.object({
       yearly: z.number().min(0).nullable().optional(),
     })
     .optional(),
-  currency: z.string().trim().length(3).optional(),
+  usdPrices: z
+    .object({
+      monthly: z.number().min(0).nullable().optional(),
+      yearly: z.number().min(0).nullable().optional(),
+    })
+    .optional(),
+  currency: z.enum(['INR', 'USD']).optional(),
   featureAccess: z.record(z.boolean()).optional(),
   limits: z.record(z.union([z.number(), z.boolean()])).optional(),
   public: z.boolean().optional(),

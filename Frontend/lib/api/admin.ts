@@ -72,10 +72,13 @@ export type AdminPlan = {
   isDefaultSignup?: boolean;
   isTrialPlan?: boolean;
   trialDays?: number;
+  currency?: string;
   prices?: { monthly?: number | null; yearly?: number | null };
+  usdPrices?: { monthly?: number | null; yearly?: number | null };
   limits?: Record<string, unknown>;
   featureAccess?: Record<string, unknown>;
   priceLabel?: { monthly: string; yearly: string };
+  usdPriceLabel?: { monthly: string; yearly: string };
 };
 
 export type ProviderHealth = {
@@ -104,6 +107,9 @@ export type AdminPlatformSettings = {
   maintenanceMode: boolean;
   featureFlags: Record<string, unknown>;
   providers: ProviderHealth[];
+  metricCosts?: Record<string, number>;
+  metricCostDefaults?: Record<string, number>;
+  metricCostLabels?: Record<string, string>;
   roshniPrompt?: AdminRoshniPromptSettings;
   updatedAt?: string;
 };
@@ -571,8 +577,43 @@ const mockAdminApi: AdminApi = {
       isDefaultSignup: plan.isDefaultSignup,
       isTrialPlan: plan.isTrialPlan,
       trialDays: plan.trialDays,
-      priceLabel: { monthly: plan.price, yearly: plan.price },
-      prices: { monthly: plan.price === "Free" || plan.price === "Custom" ? 0 : null, yearly: null },
+      currency: plan.currency,
+      prices: {
+        monthly: plan.priceInrMonthly === "" ? null : Number(plan.priceInrMonthly),
+        yearly: plan.priceInrYearly === "" ? null : Number(plan.priceInrYearly),
+      },
+      usdPrices: {
+        monthly: plan.priceUsdMonthly === "" ? null : Number(plan.priceUsdMonthly),
+        yearly: plan.priceUsdYearly === "" ? null : Number(plan.priceUsdYearly),
+      },
+      priceLabel: {
+        monthly:
+          plan.priceInrMonthly === ""
+            ? "Custom"
+            : plan.priceInrMonthly === "0"
+              ? "Free"
+              : `₹${Number(plan.priceInrMonthly).toLocaleString("en-IN")}`,
+        yearly:
+          plan.priceInrYearly === ""
+            ? "Custom"
+            : plan.priceInrYearly === "0"
+              ? "Free"
+              : `₹${Number(plan.priceInrYearly).toLocaleString("en-IN")}`,
+      },
+      usdPriceLabel: {
+        monthly:
+          plan.priceUsdMonthly === ""
+            ? "Custom"
+            : plan.priceUsdMonthly === "0"
+              ? "Free"
+              : `$${Number(plan.priceUsdMonthly).toLocaleString("en-US")}`,
+        yearly:
+          plan.priceUsdYearly === ""
+            ? "Custom"
+            : plan.priceUsdYearly === "0"
+              ? "Free"
+              : `$${Number(plan.priceUsdYearly).toLocaleString("en-US")}`,
+      },
       limits: {},
       featureAccess: {},
     }));
@@ -779,10 +820,34 @@ const mockAdminApi: AdminApi = {
       ROSHNI_INTRODUCTION,
       ROSHNI_AGENT_PROMPT_TEMPLATE,
     } = await import("@/lib/roshni-agent-prompt");
+    const metricCosts = {
+      candidate_search: 1,
+      email_reveal: 2,
+      mobile_reveal: 5,
+      people_scout: 1,
+      email_outreach: 1,
+      whatsapp_outreach: 2,
+      ai_voice_minutes: 1,
+      assessment_invites: 1,
+      team_seats: 1,
+    };
     return {
       maintenanceMode: false,
       featureFlags: {},
       providers: health.providers,
+      metricCosts,
+      metricCostDefaults: { ...metricCosts },
+      metricCostLabels: {
+        candidate_search: "Candidate searches",
+        email_reveal: "Email reveals",
+        mobile_reveal: "Mobile reveals",
+        people_scout: "People Scout lookups",
+        email_outreach: "Email outreach",
+        whatsapp_outreach: "WhatsApp outreach",
+        ai_voice_minutes: "AI voice minutes",
+        assessment_invites: "Assessment invites",
+        team_seats: "Team seats",
+      },
       roshniPrompt: {
         introduction: null,
         agentPrompt: null,
@@ -799,8 +864,16 @@ const mockAdminApi: AdminApi = {
   async updatePlatformSettings(input) {
     const current = await this.getPlatformSettings();
     const patch = input as {
+      metricCosts?: Record<string, number>;
       roshniPrompt?: { introduction?: string | null; agentPrompt?: string | null };
     };
+    if (patch.metricCosts) {
+      return {
+        ...current,
+        ...input,
+        metricCosts: { ...current.metricCosts, ...patch.metricCosts },
+      } as AdminPlatformSettings;
+    }
     if (!patch.roshniPrompt) return { ...current, ...input } as AdminPlatformSettings;
     const nextIntro =
       patch.roshniPrompt.introduction === undefined

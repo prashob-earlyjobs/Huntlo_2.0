@@ -829,7 +829,6 @@ export async function executeCampaignMessageStep(input: {
     await quotaService.reserveUsage({
       organizationId,
       metric: 'email_outreach',
-      quantity: 1,
       idempotencyKey: key,
       relatedEntityType: 'campaign_job',
       relatedEntityId: jobId,
@@ -889,7 +888,6 @@ export async function executeCampaignMessageStep(input: {
     await quotaService.reserveUsage({
       organizationId,
       metric: 'whatsapp_outreach',
-      quantity: 1,
       idempotencyKey: key,
       relatedEntityType: 'campaign_job',
       relatedEntityId: jobId,
