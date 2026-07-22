@@ -254,10 +254,12 @@ function ProfilePanel({
   conversation,
   notes,
   onAddNote,
+  onClose,
 }: {
   conversation: Conversation;
   notes: Conversation["notes"];
   onAddNote: (text: string) => void;
+  onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -265,7 +267,7 @@ function ProfilePanel({
     <div className="space-y-4 p-4">
       <div className="flex items-start gap-3">
         <CandidateAvatar name={conversation.candidateName} className="size-10" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           {conversation.candidateId ? (
             <Link
               href={candidateDetailPath(conversation.candidateId)}
@@ -281,6 +283,15 @@ function ProfilePanel({
           <p className="text-xs text-muted-foreground">{conversation.headline}</p>
           <p className="text-xs text-muted-foreground">{conversation.location}</p>
         </div>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Close profile"
+          onClick={onClose}
+        >
+          <X aria-hidden />
+        </Button>
       </div>
 
       <dl className="space-y-2.5 text-xs">
@@ -414,12 +425,9 @@ const CHANNEL_FILTER_OPTIONS: FilterOption[] = (
 export function ConversationInbox({
   conversations,
   className,
-  focusThreadId,
 }: {
   conversations: Conversation[];
   className?: string;
-  /** When realtime delivers a new message, parent can focus that thread. */
-  focusThreadId?: string | null;
 }) {
   const { user } = useAuth();
   const noteAuthor =
@@ -434,6 +442,7 @@ export function ConversationInbox({
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [addedNotes, setAddedNotes] = useState<Record<string, Conversation["notes"]>>({});
+  const [profileOpen, setProfileOpen] = useState(true);
   const timelineEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -441,14 +450,16 @@ export function ConversationInbox({
       const prevById = new Map(previous.map((row) => [row.id, row]));
       return conversations.map((row) => {
         const prior = prevById.get(row.id);
-        // Keep the longer timeline if a concurrent mark-read response is staler.
-        if (
+        const merged =
           prior?.events?.length &&
           (row.events?.length ?? 0) < prior.events.length
-        ) {
-          return { ...row, events: prior.events };
+            ? { ...row, events: prior.events }
+            : row;
+        // Keep the open thread clear of unread badges while viewing it.
+        if (selectedId && merged.id === selectedId) {
+          return { ...merged, unread: false, unreadCount: 0 };
         }
-        return row;
+        return merged;
       });
     });
     if (!selectedId && conversations[0]?.id) {
@@ -456,12 +467,16 @@ export function ConversationInbox({
     }
   }, [conversations, selectedId]);
 
+  // If a new message arrives on the open thread, mark it read without switching.
   useEffect(() => {
-    if (!focusThreadId) return;
-    if (conversations.some((row) => row.id === focusThreadId)) {
-      setSelectedId(focusThreadId);
+    if (!selectedId) return;
+    const openRow = conversations.find((row) => row.id === selectedId);
+    if (!openRow) return;
+    if (!openRow.unread && !(openRow.unreadCount && openRow.unreadCount > 0)) {
+      return;
     }
-  }, [focusThreadId, conversations]);
+    void conversationsApi.markRead(selectedId).catch(() => undefined);
+  }, [conversations, selectedId]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -520,6 +535,13 @@ export function ConversationInbox({
   function open(conversation: Conversation) {
     setSelectedId(conversation.id);
     setReadIds((previous) => new Set(previous).add(conversation.id));
+    setItems((previous) =>
+      previous.map((row) =>
+        row.id === conversation.id
+          ? { ...row, unread: false, unreadCount: 0 }
+          : row
+      )
+    );
     // On stacked (mobile) layout the timeline sits below the list — scroll it into view.
     window.requestAnimationFrame(() => {
       document
@@ -542,14 +564,9 @@ export function ConversationInbox({
               ...updated,
               events: nextEvents,
               unread: false,
+              unreadCount: 0,
             };
           })
-        );
-      } else {
-        setItems((previous) =>
-          previous.map((row) =>
-            row.id === conversation.id ? { ...row, unread: false } : row
-          )
         );
       }
     }).catch(() => undefined);
@@ -584,7 +601,9 @@ export function ConversationInbox({
       className={cn(
         "grid min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card",
         "lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
-        "xl:grid-cols-[300px_minmax(0,1fr)_300px]",
+        profileOpen && selected
+          ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
+          : "xl:grid-cols-[300px_minmax(0,1fr)]",
         className
       )}
     >
@@ -629,7 +648,7 @@ export function ConversationInbox({
           </div>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1 max-lg:max-h-64">
+        <ScrollArea className="scrollbar-slim min-h-0 flex-1">
           <ul className="divide-y divide-border">
             {filtered.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -637,9 +656,15 @@ export function ConversationInbox({
               </li>
             ) : (
               filtered.map((conversation) => {
-                const isUnread =
-                  conversation.unread && !readIds.has(conversation.id);
                 const isActive = conversation.id === selectedId;
+                const unreadCount = isActive
+                  ? 0
+                  : Math.max(
+                      0,
+                      conversation.unreadCount ??
+                        (conversation.unread ? 1 : 0)
+                    );
+                const isUnread = unreadCount > 0;
                 const pipeline = conversationPipelineStatus(conversation);
                 return (
                   <li key={conversation.id}>
@@ -648,7 +673,7 @@ export function ConversationInbox({
                       onClick={() => open(conversation)}
                       aria-current={isActive ? "true" : undefined}
                       className={cn(
-                        "flex w-full items-start gap-2.5 px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                        "flex w-full cursor-pointer items-start gap-2.5 px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                         isActive ? "bg-brand-subtle/50" : "hover:bg-muted/50"
                       )}
                     >
@@ -700,9 +725,11 @@ export function ConversationInbox({
                           />
                           {isUnread ? (
                             <span
-                              aria-label="Unread"
-                              className="ml-auto size-2 shrink-0 rounded-full bg-primary"
-                            />
+                              aria-label={`${unreadCount} unread`}
+                              className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
+                            >
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
                           ) : null}
                         </span>
                       </span>
@@ -718,7 +745,7 @@ export function ConversationInbox({
       {/* Centre — timeline */}
       <div
         id="conversation-detail"
-        className="flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-b border-border xl:border-r xl:border-b-0"
+        className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-b border-border xl:border-r xl:border-b-0"
       >
         {selected ? (
           <>
@@ -738,9 +765,20 @@ export function ConversationInbox({
                   conversationPipelineStatus(selected)
                 )}
               />
+              {!profileOpen ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Open profile"
+                  onClick={() => setProfileOpen(true)}
+                >
+                  <User aria-hidden />
+                </Button>
+              ) : null}
             </div>
 
-            <ScrollArea className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden">
+            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden">
               <div className="@container/thread box-border w-full max-w-full space-y-3 p-4">
                 {events.map((event) => (
                   <EventBubble key={event.id} event={event} />
@@ -760,17 +798,18 @@ export function ConversationInbox({
       </div>
 
       {/* Right — profile */}
-      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
-        {selected ? (
-          <ScrollArea className="min-h-0 flex-1 max-xl:max-h-80">
+      {profileOpen && selected ? (
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
+          <ScrollArea className="scrollbar-slim min-h-0 flex-1 max-xl:max-h-80">
             <ProfilePanel
               conversation={selected}
               notes={notes}
               onAddNote={(text) => persistNote(selected.id, text)}
+              onClose={() => setProfileOpen(false)}
             />
           </ScrollArea>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
