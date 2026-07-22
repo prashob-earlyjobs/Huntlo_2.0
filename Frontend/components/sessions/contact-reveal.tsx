@@ -1,13 +1,11 @@
 "use client";
 
 import {
-  BadgeCheck,
   Check,
   Copy,
   Loader2,
   Mail,
   Phone,
-  ShieldQuestion,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -46,38 +44,15 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-function VerificationBadge({ verified }: { verified: boolean }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        aria-label={verified ? "Verified contact" : "Unverified contact"}
-        className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-      >
-        {verified ? (
-          <BadgeCheck aria-hidden className="size-3.5 text-success" />
-        ) : (
-          <ShieldQuestion aria-hidden className="size-3.5 text-warning" />
-        )}
-      </TooltipTrigger>
-      <TooltipContent>
-        {verified
-          ? "Verified in the last 30 days"
-          : "Unverified — deliverability not guaranteed"}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function RevealedValue({
   icon: Icon,
   value,
-  verified,
   label,
   previouslyRevealed,
 }: {
   icon: typeof Mail;
   value: string;
-  verified: boolean;
+  verified?: boolean;
   label: string;
   previouslyRevealed: boolean;
 }) {
@@ -87,7 +62,6 @@ export function RevealedValue({
       <span className="min-w-0 truncate text-xs font-medium text-foreground">
         {value}
       </span>
-      <VerificationBadge verified={verified} />
       <CopyButton value={value} label={label} />
       {previouslyRevealed ? (
         <Tooltip>
@@ -139,11 +113,13 @@ function RevealButton({
   candidate,
   status,
   onReveal,
+  className,
 }: {
   kind: "email" | "phone";
   candidate: SessionCandidate;
   status: RevealRequestStatus;
   onReveal: (kind: "email" | "phone") => void;
+  className?: string;
 }) {
   const quota = useRevealQuota();
   const Icon = kind === "email" ? Mail : Phone;
@@ -161,6 +137,7 @@ function RevealButton({
       size="xs"
       variant="outline"
       disabled={isLoading || isUnavailable}
+      className={className}
     >
       {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
       {isLoading ? "Fetching…" : isUnavailable ? "Unavailable" : label}
@@ -178,6 +155,7 @@ function RevealButton({
         variant="outline"
         disabled={isLoading || isUnavailable}
         onClick={() => onReveal(kind)}
+        className={className}
       >
         {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
         {isLoading ? "Fetching…" : isUnavailable ? "Unavailable" : label}
@@ -278,17 +256,22 @@ export function ContactReveal({
   onReveal,
   layout = "row",
   compact = false,
+  fill = false,
 }: {
   candidate: SessionCandidate;
   revealed: RevealState;
   onReveal: (kind: "email" | "phone") => void;
   layout?: "row" | "stack";
   compact?: boolean;
+  /** Stretch controls to fill the parent width (equal columns when side by side). */
+  fill?: boolean;
 }) {
   const emailVisible = revealed.email || candidate.emailRevealed;
   const phoneVisible = revealed.phone || candidate.phoneRevealed;
   const emailStatus = revealed.emailStatus ?? "idle";
   const phoneStatus = revealed.phoneStatus ?? "idle";
+  const itemClass = fill ? "min-w-0 flex-1" : undefined;
+  const buttonClass = fill ? "w-full" : undefined;
 
   if (compact) {
     return (
@@ -315,41 +298,52 @@ export function ContactReveal({
     <div
       className={cn(
         "flex gap-1.5",
-        layout === "stack" ? "flex-col" : "flex-wrap items-center"
+        fill && "w-full",
+        layout === "stack" ? "flex-col" : fill ? "items-stretch" : "flex-wrap items-center"
       )}
     >
       {emailVisible ? (
-        <RevealedValue
-          icon={Mail}
-          value={candidate.email}
-          verified={candidate.emailVerified}
-          label="email"
-          previouslyRevealed={candidate.emailRevealed && !revealed.email}
-        />
+        <div className={itemClass}>
+          <RevealedValue
+            icon={Mail}
+            value={candidate.email}
+            verified={candidate.emailVerified}
+            label="email"
+            previouslyRevealed={candidate.emailRevealed && !revealed.email}
+          />
+        </div>
       ) : (
-        <RevealButton
-          kind="email"
-          candidate={candidate}
-          status={emailStatus}
-          onReveal={onReveal}
-        />
+        <div className={itemClass}>
+          <RevealButton
+            kind="email"
+            candidate={candidate}
+            status={emailStatus}
+            onReveal={onReveal}
+            className={buttonClass}
+          />
+        </div>
       )}
 
       {phoneVisible ? (
-        <RevealedValue
-          icon={Phone}
-          value={candidate.phone}
-          verified={candidate.phoneVerified}
-          label="phone number"
-          previouslyRevealed={candidate.phoneRevealed && !revealed.phone}
-        />
+        <div className={itemClass}>
+          <RevealedValue
+            icon={Phone}
+            value={candidate.phone}
+            verified={candidate.phoneVerified}
+            label="phone number"
+            previouslyRevealed={candidate.phoneRevealed && !revealed.phone}
+          />
+        </div>
       ) : (
-        <RevealButton
-          kind="phone"
-          candidate={candidate}
-          status={phoneStatus}
-          onReveal={onReveal}
-        />
+        <div className={itemClass}>
+          <RevealButton
+            kind="phone"
+            candidate={candidate}
+            status={phoneStatus}
+            onReveal={onReveal}
+            className={buttonClass}
+          />
+        </div>
       )}
     </div>
   );

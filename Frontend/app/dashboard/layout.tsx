@@ -19,7 +19,7 @@ export default function DashboardLayout({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <TopHeader />
               <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-3 py-4 sm:px-5 sm:py-4">
-                <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-4">
+                <div className="mx-auto flex w-full min-h-0 min-w-0 max-w-7xl flex-1 flex-col gap-4">
                   {children}
                 </div>
               </main>

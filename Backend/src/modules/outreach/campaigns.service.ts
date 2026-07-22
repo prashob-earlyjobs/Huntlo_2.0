@@ -26,11 +26,13 @@ import {
 } from './enrollment.model.js';
 import { recordCampaignActivity, CampaignActivityModel } from './campaign-activity.model.js';
 import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } from './campaign-validate.js';
+import { enrichCampaignContactsForLaunch } from './campaign-launch-reveal.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
 import {
   cancelJobsForCampaign,
   cancelJobsForEnrollment,
   scheduleFirstSends,
+  scheduleJob,
 } from '../../bull-outreach/index.js';
 import type {
   audienceBodySchema,
@@ -327,6 +329,51 @@ async function enqueueFirstJobs(campaign: OutreachCampaignDocument, enrollmentId
     channel,
     runAt: new Date(),
   });
+}
+
+function channelFromStepType(
+  type: string
+): 'email' | 'whatsapp' | 'ai_voice' | null {
+  if (type === 'email' || type === 'scheduling_link') return 'email';
+  if (type === 'whatsapp') return 'whatsapp';
+  if (type === 'ai_voice') return 'ai_voice';
+  return null;
+}
+
+/** Re-queue each enrollment at its current sequence step (not always step 0). */
+async function enqueueResumeJobs(
+  campaign: OutreachCampaignDocument,
+  enrollments: Array<{
+    _id: { toHexString(): string };
+    currentStepIndex: number;
+    nextActionAt?: Date | null;
+  }>
+) {
+  const ordered = [...campaign.sequenceSteps].sort((a, b) => a.order - b.order);
+  if (!ordered.length) return;
+
+  const now = new Date();
+  for (const enrollment of enrollments) {
+    const index = Math.min(
+      Math.max(0, enrollment.currentStepIndex || 0),
+      ordered.length - 1
+    );
+    const step = ordered[index];
+    if (!step) continue;
+    const runAt =
+      enrollment.nextActionAt && enrollment.nextActionAt > now
+        ? enrollment.nextActionAt
+        : now;
+    await scheduleJob({
+      kind: runAt > now ? 'followup' : 'send',
+      channel: channelFromStepType(step.type),
+      organizationId: String(campaign.organizationId),
+      campaignId: String(campaign._id),
+      enrollmentId: enrollment._id.toHexString(),
+      stepId: step.id,
+      runAt,
+    });
+  }
 }
 
 export const campaignsService = {
@@ -785,6 +832,13 @@ export const campaignsService = {
       }
     }
 
+    // Unlock email/mobile for enabled channels (charges reveal credits) before validation.
+    const contactUnlock = await enrichCampaignContactsForLaunch({
+      organizationId,
+      userId,
+      campaign: await loadCampaign(organizationId, id),
+    });
+
     const doc = await loadCampaign(organizationId, id);
     const validation = await validateCampaignLaunch(doc, userId);
     doc.lastValidation = {
@@ -794,9 +848,19 @@ export const campaignsService = {
     };
     if (!validation.ok) {
       await doc.save();
-      throw new AppError(422, 'LAUNCH_VALIDATION_FAILED', 'Campaign failed launch validation.', {
-        meta: { issues: validation.issues },
-      });
+      const blockers = validation.issues
+        .filter((issue) => issue.severity === 'error')
+        .map((issue) => issue.message);
+      throw new AppError(
+        422,
+        'LAUNCH_VALIDATION_FAILED',
+        blockers.length
+          ? `Cannot launch: ${blockers.join(' · ')}`
+          : 'Campaign failed launch validation.',
+        {
+          meta: { issues: validation.issues },
+        }
+      );
     }
 
     // Atomic launch lock — reject concurrent launches.
@@ -901,6 +965,7 @@ export const campaignsService = {
         ownerName: await ownerName(String(locked.ownerUserId)),
         relatedJobTitle: await jobTitle(locked.jobId),
       }),
+      contactUnlock,
       totalCandidates: allEnrollments.length,
       enrolled: eligible.length,
       excluded: excluded.missingContact + excluded.duplicate + excluded.optedOut + excluded.other,
@@ -1043,10 +1108,7 @@ export const campaignsService = {
     doc.version += 1;
     await doc.save();
 
-    await enqueueFirstJobs(
-      doc,
-      enrollments.map((e) => String(e._id))
-    );
+    await enqueueResumeJobs(doc, enrollments);
     await refreshCampaignStats(id);
     await recordCampaignActivity({
       organizationId,

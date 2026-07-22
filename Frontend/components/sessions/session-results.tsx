@@ -43,6 +43,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { SessionResultsTableSkeleton } from "@/components/sessions/session-results-skeleton";
+import { ensureSourcedCandidatesInPool } from "@/components/outreach/audience-resolve";
 import { getApiErrorMessage, candidatesApi, uiRevealKindToType } from "@/lib/api";
 import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-details";
 import {
@@ -270,6 +271,13 @@ export function SessionResults({
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(candidates.map((c) => [c.id, c.saved]))
   );
+  const [savedListMap, setSavedListMap] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      candidates
+        .map((c) => [c.id, c.lists[0] ?? ""] as const)
+        .filter((entry) => entry[1])
+    )
+  );
   const [revealedMap, setRevealedMap] = useState<Record<string, RevealState>>({});
   const [localCandidates, setLocalCandidates] = useState(candidates);
   const [revealError, setRevealError] = useState<string | null>(null);
@@ -279,6 +287,8 @@ export function SessionResults({
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [addToListCandidateIds, setAddToListCandidateIds] = useState<string[]>([]);
   const [addToListMessage, setAddToListMessage] = useState<string | null>(null);
+  const [outreachStarting, setOutreachStarting] = useState(false);
+  const [outreachError, setOutreachError] = useState<string | null>(null);
   const detailsFetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -311,6 +321,20 @@ export function SessionResults({
         setSavedListId(result.listId ?? null);
         const added = result.candidatesAdded ?? 0;
         const listName = result.listName || "Saved search";
+        if (listName && added > 0) {
+          setSavedMap((previous) => ({
+            ...previous,
+            ...Object.fromEntries(
+              localCandidates.map((candidate) => [candidate.id, true])
+            ),
+          }));
+          setSavedListMap((previous) => ({
+            ...previous,
+            ...Object.fromEntries(
+              localCandidates.map((candidate) => [candidate.id, listName])
+            ),
+          }));
+        }
         if (result.listCreated) {
           setSaveSearchMessage(
             added > 0
@@ -385,6 +409,16 @@ export function SessionResults({
         ])
       ),
     }));
+    setSavedListMap((previous) => {
+      const next = { ...previous };
+      for (const candidate of candidates) {
+        const incoming = candidate.lists[0];
+        if (incoming && !next[candidate.id]) {
+          next[candidate.id] = incoming;
+        }
+      }
+      return next;
+    });
   }, [candidates]);
 
   const [progressCount, setProgressCount] = useState(
@@ -509,6 +543,45 @@ export function SessionResults({
     setAddToListCandidateIds(ids);
     setAddToListMessage(null);
     setAddToListOpen(true);
+  }
+
+  async function startOutreach(sourcedCandidateIds: string[]) {
+    const ids = [...new Set(sourcedCandidateIds.filter(Boolean))];
+    if (!ids.length || outreachStarting) return;
+    setOutreachStarting(true);
+    setOutreachError(null);
+    try {
+      const wanted = new Set(ids);
+      const fallbacks = localCandidates
+        .filter((candidate) => wanted.has(candidate.id))
+        .map((candidate) => ({
+          id: candidate.id,
+          name: candidate.name,
+          headline: candidate.headline,
+          currentRole: candidate.currentRole,
+          currentCompany: candidate.currentCompany,
+          location: candidate.location,
+          experienceYears: candidate.experienceYears,
+          skills: candidate.skills,
+        }));
+      const poolIds = await ensureSourcedCandidatesInPool(
+        session.id,
+        ids,
+        fallbacks
+      );
+      if (!poolIds.length) {
+        throw new Error("Unable to add candidates to the pool for outreach.");
+      }
+      const params = new URLSearchParams();
+      params.set("candidateIds", poolIds.join(","));
+      if (session.relatedJobId) params.set("jobId", session.relatedJobId);
+      router.push(`${ROUTES.outreachNew}?${params.toString()}`);
+    } catch (err) {
+      setOutreachError(
+        getApiErrorMessage(err, "Unable to start outreach for selected candidates.")
+      );
+      setOutreachStarting(false);
+    }
   }
 
   async function reveal(id: string, kind: "email" | "phone") {
@@ -760,6 +833,11 @@ export function SessionResults({
           {revealError}
         </p>
       ) : null}
+      {outreachError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {outreachError}
+        </p>
+      ) : null}
       {addToListMessage ? (
         <p
           role="status"
@@ -931,9 +1009,20 @@ export function SessionResults({
                     {selected.size}
                   </span>
                 </Button>
-                <Button size="sm">
-                  <Send aria-hidden />
-                  Start Outreach
+                <Button
+                  size="sm"
+                  disabled={outreachStarting}
+                  onClick={() => void startOutreach(Array.from(selected))}
+                >
+                  {outreachStarting ? (
+                    <Loader2 aria-hidden className="animate-spin" />
+                  ) : (
+                    <Send aria-hidden />
+                  )}
+                  {outreachStarting ? "Starting…" : "Start Outreach"}
+                  <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
+                    {selected.size}
+                  </span>
                 </Button>
               </>
             ) : (
@@ -994,11 +1083,12 @@ export function SessionResults({
               onToggleSelect={toggleSelect}
               onToggleSelectAll={toggleSelectAll}
               savedMap={savedMap}
+              savedListMap={savedListMap}
               onToggleSave={(id) => openAddToList([id])}
               revealedMap={revealedMap}
               onReveal={(id, kind) => void reveal(id, kind)}
               onOpenProfile={setDrawerId}
-              onAddToOutreach={() => undefined}
+              onAddToOutreach={(id) => void startOutreach([id])}
             />
           ) : (
             <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -1009,13 +1099,16 @@ export function SessionResults({
                   selected={selected.has(candidate.id)}
                   onToggleSelect={() => toggleSelect(candidate.id)}
                   saved={savedMap[candidate.id] ?? candidate.saved}
+                  listName={
+                    savedListMap[candidate.id] ?? candidate.lists[0] ?? null
+                  }
                   onToggleSave={() => openAddToList([candidate.id])}
                   revealed={
                     revealedMap[candidate.id] ?? { email: false, phone: false }
                   }
                   onReveal={(kind) => void reveal(candidate.id, kind)}
                   onOpenProfile={() => setDrawerId(candidate.id)}
-                  onAddToOutreach={() => undefined}
+                  onAddToOutreach={() => void startOutreach([candidate.id])}
                 />
               ))}
             </div>
@@ -1075,8 +1168,13 @@ export function SessionResults({
             ? (savedMap[drawerId] ?? drawerCandidate?.saved ?? false)
             : false
         }
+        listName={
+          drawerId
+            ? (savedListMap[drawerId] ?? drawerCandidate?.lists[0] ?? null)
+            : null
+        }
         onToggleSave={() => drawerId && openAddToList([drawerId])}
-        onAddToOutreach={() => undefined}
+        onAddToOutreach={() => drawerId && void startOutreach([drawerId])}
         detailsLoading={drawerDetailsLoading}
         detailsError={drawerDetailsError}
       />
@@ -1088,6 +1186,12 @@ export function SessionResults({
           setSavedMap((previous) => ({
             ...previous,
             ...Object.fromEntries(addToListCandidateIds.map((id) => [id, true])),
+          }));
+          setSavedListMap((previous) => ({
+            ...previous,
+            ...Object.fromEntries(
+              addToListCandidateIds.map((id) => [id, list.name])
+            ),
           }));
           setAddToListMessage(
             savedCount > 0

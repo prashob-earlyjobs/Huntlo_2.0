@@ -118,6 +118,7 @@ export type CandidateSearchSummary = {
   rank?: number;
   contactStatus?: string;
   saved?: boolean;
+  lists?: string[];
 };
 
 export type StoredCandidatesResponse = {
