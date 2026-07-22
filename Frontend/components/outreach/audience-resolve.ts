@@ -89,12 +89,47 @@ export async function loadAudiencePoolRows(
     state.selectedCandidateIds.length > 0 &&
     (state.source === "Manual Add" || state.source === "Candidate Pool")
   ) {
-    // Prefer fetching pages until we cover selected ids (best-effort).
-    const all = await listAllPoolPages({
-      search: state.poolSearch.trim() || undefined,
-    });
-    const wanted = new Set(state.selectedCandidateIds);
-    return all.filter((row) => wanted.has(row.id));
+    const wanted = [...new Set(state.selectedCandidateIds)];
+    const byId = new Map<string, ApiPoolCandidate>();
+
+    // Direct lookups first so freshly created pool rows are not missed by pagination.
+    await Promise.all(
+      wanted.map(async (id) => {
+        const ui = await candidatePoolApi.getById(id);
+        if (!ui) return;
+        byId.set(id, {
+          id: ui.id,
+          name: ui.name,
+          email: ui.email || null,
+          phone: ui.phone || null,
+          linkedinUrl: null,
+          headline: ui.headline || null,
+          currentTitle: ui.currentRole || null,
+          currentCompany: ui.currentCompany || null,
+          location: ui.location || null,
+          experienceYears: ui.experienceYears,
+          skills: ui.skills ?? [],
+          status: "saved",
+          pipelineStatus: ui.pipelineStatus,
+          emailRevealed: ui.emailRevealed,
+          phoneRevealed: ui.phoneRevealed,
+        });
+      })
+    );
+
+    const missing = wanted.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      const all = await listAllPoolPages({
+        search: state.poolSearch.trim() || undefined,
+      });
+      for (const row of all) {
+        if (missing.includes(row.id)) byId.set(row.id, row);
+      }
+    }
+
+    return wanted
+      .map((id) => byId.get(id))
+      .filter((row): row is ApiPoolCandidate => Boolean(row));
   }
 
   if (state.source === "Candidate Pool") {
@@ -178,28 +213,119 @@ export async function resolveAudienceCandidateIds(
 export async function ensureSourcingSessionInPool(
   sessionId: string
 ): Promise<string[]> {
-  const [results, existing] = await Promise.all([
-    sourcingApi.getSessionResults(sessionId),
-    listAllPoolPages({ sourceType: "sourcing" }),
-  ]);
+  return ensureSourcedCandidatesInPool(sessionId);
+}
+
+/**
+ * Upsert sourced session candidates into the org pool and return pool IDs.
+ * When `sourcedCandidateIds` is omitted, every result for the session is synced.
+ * Optional `fallbacks` cover candidates present in the UI but missing from the
+ * results endpoint (e.g. beyond the first page).
+ */
+export async function ensureSourcedCandidatesInPool(
+  sessionId: string,
+  sourcedCandidateIds?: string[],
+  fallbacks: Array<{
+    id: string;
+    name: string;
+    headline?: string | null;
+    currentRole?: string | null;
+    currentCompany?: string | null;
+    location?: string | null;
+    experienceYears?: number | null;
+    skills?: string[];
+    linkedinUrl?: string | null;
+    externalCandidateId?: string | null;
+  }> = []
+): Promise<string[]> {
+  const results = await sourcingApi.getSessionResults(sessionId);
+
+  const wanted =
+    sourcedCandidateIds && sourcedCandidateIds.length > 0
+      ? new Set(sourcedCandidateIds)
+      : null;
+
+  const bySourcedId = new Map(results.map((result) => [result.id, result]));
+  for (const fallback of fallbacks) {
+    if (wanted && !wanted.has(fallback.id)) continue;
+    if (bySourcedId.has(fallback.id)) continue;
+    bySourcedId.set(fallback.id, {
+      id: fallback.id,
+      sourcingSessionId: sessionId,
+      externalCandidateId: fallback.externalCandidateId || fallback.id,
+      name: fallback.name,
+      headline: fallback.headline ?? null,
+      linkedinUrl: fallback.linkedinUrl ?? null,
+      title: fallback.currentRole ?? null,
+      company: fallback.currentCompany ?? null,
+      location: fallback.location || "",
+      experienceYears: fallback.experienceYears ?? null,
+      skills: fallback.skills ?? [],
+      educationPreview: [],
+      profileSignals: [],
+      rank: 0,
+      matchScore: null,
+    });
+  }
+
+  const selected = wanted
+    ? [...bySourcedId.values()].filter((result) => wanted.has(result.id))
+    : [...bySourcedId.values()];
 
   const byExternal = new Map<string, string>();
   const byLinkedin = new Map<string, string>();
-  for (const row of existing) {
-    if (row.externalCandidateId) {
-      byExternal.set(row.externalCandidateId, row.id);
+
+  // Full-session sync: preload pool once. Targeted sync: look up per candidate.
+  if (!wanted) {
+    const existing = await listAllPoolPages({});
+    for (const row of existing) {
+      if (row.externalCandidateId) {
+        byExternal.set(row.externalCandidateId, row.id);
+      }
+      const linkedin = normalizeLinkedin(row.linkedinUrl);
+      if (linkedin) byLinkedin.set(linkedin, row.id);
     }
-    const linkedin = normalizeLinkedin(row.linkedinUrl);
-    if (linkedin) byLinkedin.set(linkedin, row.id);
   }
 
-  const ids: string[] = [];
-  for (const result of results) {
+  async function resolveExistingId(result: {
+    name: string;
+    externalCandidateId: string;
+    linkedinUrl: string | null;
+  }): Promise<string | undefined> {
     const linkedin = normalizeLinkedin(result.linkedinUrl);
-    const existingId =
+    const cached =
       (result.externalCandidateId
         ? byExternal.get(result.externalCandidateId)
         : undefined) ?? (linkedin ? byLinkedin.get(linkedin) : undefined);
+    if (cached) return cached;
+
+    if (!wanted) return undefined;
+
+    const hits = await candidatePoolApi.listRaw({
+      limit: 50,
+      search: result.name.trim() || undefined,
+    });
+    for (const row of hits) {
+      if (
+        result.externalCandidateId &&
+        row.externalCandidateId === result.externalCandidateId
+      ) {
+        byExternal.set(result.externalCandidateId, row.id);
+        return row.id;
+      }
+      const rowLinkedin = normalizeLinkedin(row.linkedinUrl);
+      if (linkedin && rowLinkedin === linkedin) {
+        byLinkedin.set(linkedin, row.id);
+        return row.id;
+      }
+    }
+    return undefined;
+  }
+
+  const ids: string[] = [];
+  for (const result of selected) {
+    const linkedin = normalizeLinkedin(result.linkedinUrl);
+    const existingId = await resolveExistingId(result);
 
     if (existingId) {
       ids.push(existingId);

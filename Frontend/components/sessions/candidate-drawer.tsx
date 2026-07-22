@@ -15,16 +15,11 @@ import {
   Timer,
 } from "lucide-react";
 
-import { ContactReveal, RevealedValue, type RevealState } from "@/components/sessions/contact-reveal";
+import { ContactReveal, type RevealState } from "@/components/sessions/contact-reveal";
 import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
@@ -91,6 +86,7 @@ export function CandidateDrawer({
   revealed,
   onReveal,
   saved,
+  listName = null,
   onToggleSave,
   onAddToOutreach,
   detailsLoading = false,
@@ -102,6 +98,7 @@ export function CandidateDrawer({
   revealed: RevealState;
   onReveal: (kind: "email" | "phone") => void;
   saved: boolean;
+  listName?: string | null;
   onToggleSave: () => void;
   onAddToOutreach: () => void;
   detailsLoading?: boolean;
@@ -111,9 +108,6 @@ export function CandidateDrawer({
 
   if (!candidate) return null;
 
-  const emailVisible = revealed.email || candidate.emailRevealed;
-  const phoneVisible = revealed.phone || candidate.phoneRevealed;
-  const hasRevealedContact = emailVisible || phoneVisible;
   const experience = [...candidate.experience].sort((a, b) => {
     const byCurrent = Number(b.current) - Number(a.current);
     if (byCurrent) return byCurrent;
@@ -185,32 +179,25 @@ export function CandidateDrawer({
               ) : null}
               <div className="space-y-2">
                 <SectionTitle>Contact</SectionTitle>
-                {hasRevealedContact ? (
-                  <div className="flex flex-col gap-1.5">
-                    {emailVisible ? (
-                      <RevealedValue
-                        icon={Mail}
-                        value={candidate.email}
-                        verified={candidate.emailVerified}
-                        label="email"
-                        previouslyRevealed={candidate.emailRevealed && !revealed.email}
-                      />
-                    ) : null}
-                    {phoneVisible ? (
-                      <RevealedValue
-                        icon={Phone}
-                        value={candidate.phone}
-                        verified={candidate.phoneVerified}
-                        label="phone number"
-                        previouslyRevealed={candidate.phoneRevealed && !revealed.phone}
-                      />
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Not revealed yet — use Reveal in the action bar below.
+                <div className="w-full rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-xs font-semibold text-foreground">
+                    Reveal contact details
                   </p>
-                )}
+                  <div className="mt-2">
+                    <ContactReveal
+                      candidate={candidate}
+                      revealed={revealed}
+                      onReveal={onReveal}
+                      layout="row"
+                      fill
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {revealQuota.emailRemaining.toLocaleString("en-IN")} email ·{" "}
+                    {revealQuota.mobileRemaining.toLocaleString("en-IN")} mobile
+                    reveals remaining this cycle.
+                  </p>
+                </div>
               </div>
               <div className="space-y-2">
                 <SectionTitle>Summary</SectionTitle>
@@ -364,35 +351,13 @@ export function CandidateDrawer({
             variant={saved ? "secondary" : "outline"}
             onClick={onToggleSave}
             aria-pressed={saved}
+            title={listName ?? undefined}
           >
             {saved ? <BookmarkCheck aria-hidden /> : <Bookmark aria-hidden />}
-            Add to list
+            <span className="max-w-[12rem] truncate">
+              {listName ? listName : "Add to list"}
+            </span>
           </Button>
-
-          <Popover>
-            <PopoverTrigger render={<Button type="button" size="sm" variant="outline" />}>
-              <Mail aria-hidden />
-              Reveal
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64">
-              <p className="text-xs font-semibold text-foreground">
-                Reveal contact details
-              </p>
-              <div className="mt-2">
-                <ContactReveal
-                  candidate={candidate}
-                  revealed={revealed}
-                  onReveal={onReveal}
-                  layout="stack"
-                />
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {revealQuota.emailRemaining.toLocaleString("en-IN")} email ·{" "}
-                {revealQuota.mobileRemaining.toLocaleString("en-IN")} mobile reveals
-                remaining this cycle.
-              </p>
-            </PopoverContent>
-          </Popover>
 
           <Button type="button" size="sm" onClick={onAddToOutreach}>
             <Send aria-hidden />

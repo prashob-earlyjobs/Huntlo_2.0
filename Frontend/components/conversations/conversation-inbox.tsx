@@ -499,7 +499,13 @@ export function ConversationInbox({
 
   useEffect(() => {
     if (!selectedId || events.length === 0) return;
-    timelineEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const end = timelineEndRef.current;
+    if (!end) return;
+    // Scroll only the thread pane — never the page / inbox shell.
+    const scroller = end.closest(".overflow-auto");
+    if (scroller instanceof HTMLElement) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+    }
   }, [selectedId, events.length, events[events.length - 1]?.id]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
@@ -576,13 +582,15 @@ export function ConversationInbox({
   return (
     <div
       className={cn(
-        "grid h-full min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:grid-rows-[minmax(0,1fr)]",
+        "grid min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card",
+        "lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
+        "xl:grid-cols-[300px_minmax(0,1fr)_300px]",
         className
       )}
     >
       {/* Left — list */}
-      <div className="flex min-h-0 min-w-0 flex-col border-b border-border lg:border-r lg:border-b-0">
-        <div className="space-y-2 border-b border-border p-3">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border lg:border-r lg:border-b-0">
+        <div className="shrink-0 space-y-2 border-b border-border p-3">
           <div className="relative">
             <Search
               aria-hidden
@@ -733,7 +741,7 @@ export function ConversationInbox({
             </div>
 
             <ScrollArea className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden">
-              <div className="@container/thread box-border w-full max-w-full space-y-3 p-4 lg:min-h-80">
+              <div className="@container/thread box-border w-full max-w-full space-y-3 p-4">
                 {events.map((event) => (
                   <EventBubble key={event.id} event={event} />
                 ))}
@@ -752,9 +760,9 @@ export function ConversationInbox({
       </div>
 
       {/* Right — profile */}
-      <div className="min-h-0 min-w-0 max-xl:border-t max-xl:border-border">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
         {selected ? (
-          <ScrollArea className="h-full min-h-0">
+          <ScrollArea className="min-h-0 flex-1 max-xl:max-h-80">
             <ProfilePanel
               conversation={selected}
               notes={notes}

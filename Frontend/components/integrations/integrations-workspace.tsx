@@ -2,7 +2,6 @@
 
 import {
   AlertTriangle,
-  BookOpen,
   CheckCircle2,
   ExternalLink,
   Loader2,
@@ -141,13 +140,7 @@ function ProviderCard({
         >
           {provider.initials}
         </span>
-        {inactive ? (
-          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Soon
-          </span>
-        ) : (
-          <ConnectionStatusBadge status={provider.status} />
-        )}
+        <ConnectionStatusBadge status={provider.status} />
       </div>
 
       <h3 className="mt-3 text-sm font-semibold text-foreground">
@@ -185,16 +178,6 @@ function ProviderCard({
             <Settings2 aria-hidden />
           )}
           {actionLabel}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={inactive}
-          onClick={() => onOpen(provider)}
-          className="text-muted-foreground"
-        >
-          <BookOpen aria-hidden />
-          Docs
         </Button>
       </div>
     </article>

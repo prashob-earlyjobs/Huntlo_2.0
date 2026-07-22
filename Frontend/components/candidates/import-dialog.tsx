@@ -50,6 +50,25 @@ const TARGET_FIELDS = [
   { id: "linkedinUrl", label: "LinkedIn URL", required: false },
 ] as const;
 
+const SAMPLE_CSV = [
+  "name,email,phone,current title,current company,location,experience years,skills,linkedin url",
+  'Priya Nair,priya.nair@example.com,+919845012345,Senior Backend Engineer,Finovate Labs,Bengaluru,6,"Node.js, TypeScript, AWS",https://www.linkedin.com/in/priya-nair-example',
+  'Arjun Mehta,arjun.mehta@example.com,+919876543210,Product Designer,Nova Studio,Mumbai,4,"Figma, UX Research, Prototyping",https://www.linkedin.com/in/arjun-mehta-example',
+  'Sara Khan,sara.khan@example.com,+971501234567,Frontend Engineer,Gulf Tech,Dubai,5,"React, TypeScript, CSS",https://www.linkedin.com/in/sara-khan-example',
+].join("\n");
+
+function downloadSampleCsv() {
+  const blob = new Blob([SAMPLE_CSV], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "huntlo-candidate-import-sample.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 const STEPS = [
   { id: "upload", title: "Upload" },
   { id: "preview", title: "Preview" },
@@ -336,6 +355,16 @@ export function ImportCandidatesDialog({
                   }}
                 />
               </label>
+              <p className="text-center text-xs text-muted-foreground">
+                Need a template?{" "}
+                <button
+                  type="button"
+                  className="font-medium text-foreground underline-offset-2 hover:underline"
+                  onClick={downloadSampleCsv}
+                >
+                  Download sample CSV
+                </button>
+              </p>
             </div>
           ) : null}
 
