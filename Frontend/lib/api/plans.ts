@@ -172,8 +172,11 @@ const livePlansApi: PlansApi = {
         id: string;
         name: string;
         code: string;
+        currency?: string;
         description?: string | null;
         priceLabel?: { monthly: string; yearly: string };
+        usdPriceLabel?: { monthly: string; yearly: string };
+        usdPrices?: { monthly?: number | null; yearly?: number | null };
         featureAccess?: Record<string, boolean>;
         limits?: Record<string, number | boolean>;
       }>
@@ -198,16 +201,25 @@ const livePlansApi: PlansApi = {
       };
       const isEnterprise = plan.code === "enterprise";
       const isTrial = plan.code === "trial";
-      const monthlyLabel = plan.priceLabel?.monthly ?? "Custom";
+      const currency = plan.currency === "USD" ? "USD" : "INR";
+      const monthlyInr = plan.priceLabel?.monthly ?? "Custom";
+      const monthlyUsd = plan.usdPriceLabel?.monthly ?? "Custom";
+      const inrPrice =
+        isTrial || monthlyInr === "Free" || monthlyInr === "₹0" ? "Free" : monthlyInr;
+      const usdPrice =
+        isTrial || monthlyUsd === "Free" || monthlyUsd === "$0" ? "Free" : monthlyUsd;
+      const priceNote = isEnterprise
+        ? " · talk to sales"
+        : isTrial
+          ? " · 14-day trial"
+          : " / month";
+      const displayPrice = currency === "USD" ? usdPrice : inrPrice;
       return {
         id: plan.id,
         name: plan.name,
-        price: isTrial || monthlyLabel === "Free" || monthlyLabel === "₹0" ? "Free" : monthlyLabel,
-        priceNote: isEnterprise
-          ? " · talk to sales"
-          : isTrial
-            ? " · 14-day trial"
-            : " / month",
+        currency,
+        price: displayPrice,
+        priceNote,
         description: plan.description ?? "",
         highlighted: false,
         cta: isEnterprise ? "Contact Sales" : isTrial ? "Start free" : "Choose plan",

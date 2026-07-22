@@ -44,6 +44,15 @@ export function AdminSettingsWorkspace() {
   const [agentPrompt, setAgentPrompt] = useState(ROSHNI_AGENT_PROMPT_TEMPLATE);
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [metricCosts, setMetricCosts] = useState<Record<string, string>>({});
+  const [metricCostLabels, setMetricCostLabels] = useState<Record<string, string>>(
+    {}
+  );
+  const [metricCostDefaults, setMetricCostDefaults] = useState<
+    Record<string, number>
+  >({});
+  const [costsSaving, setCostsSaving] = useState(false);
+  const [costsError, setCostsError] = useState<string | null>(null);
 
   useEffect(() => {
     void adminApi
@@ -81,6 +90,14 @@ export function AdminSettingsWorkspace() {
           setIntroduction(data.roshniPrompt.effectiveIntroduction);
           setAgentPrompt(data.roshniPrompt.effectiveAgentPrompt);
         }
+        const costs = data.metricCosts ?? data.metricCostDefaults ?? {};
+        setMetricCosts(
+          Object.fromEntries(
+            Object.entries(costs).map(([key, value]) => [key, String(value)])
+          )
+        );
+        setMetricCostLabels(data.metricCostLabels ?? {});
+        setMetricCostDefaults(data.metricCostDefaults ?? {});
       })
       .catch((error) => {
         setProviders([]);
@@ -190,6 +207,50 @@ export function AdminSettingsWorkspace() {
     }
   }
 
+  async function saveMetricCosts() {
+    const parsed: Record<string, number> = {};
+    for (const [metric, raw] of Object.entries(metricCosts)) {
+      const value = Number(raw);
+      if (!Number.isInteger(value) || value < 1 || value > 1000) {
+        setCostsError(
+          `${metricCostLabels[metric] ?? metric} must be a whole number between 1 and 1000.`
+        );
+        return;
+      }
+      parsed[metric] = value;
+    }
+    setCostsSaving(true);
+    setCostsError(null);
+    try {
+      const data = await adminApi.updatePlatformSettings({ metricCosts: parsed });
+      const costs = data.metricCosts ?? parsed;
+      setMetricCosts(
+        Object.fromEntries(
+          Object.entries(costs).map(([key, value]) => [key, String(value)])
+        )
+      );
+      if (data.metricCostLabels) setMetricCostLabels(data.metricCostLabels);
+      if (data.metricCostDefaults) setMetricCostDefaults(data.metricCostDefaults);
+      setToast("Saved credit costs.");
+    } catch (error) {
+      setCostsError(getApiErrorMessage(error, "Unable to save credit costs."));
+    } finally {
+      setCostsSaving(false);
+    }
+  }
+
+  function resetMetricCostsToDefaults() {
+    setCostsError(null);
+    setMetricCosts(
+      Object.fromEntries(
+        Object.entries(metricCostDefaults).map(([key, value]) => [
+          key,
+          String(value),
+        ])
+      )
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -205,6 +266,62 @@ export function AdminSettingsWorkspace() {
           {toast}
         </div>
       ) : null}
+
+      <FormSection
+        title="Credit costs"
+        description="Credits charged per action against each usage metric. These are platform-wide and apply to every workspace."
+      >
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            disabled={costsSaving || Object.keys(metricCostDefaults).length === 0}
+            onClick={resetMetricCostsToDefaults}
+          >
+            <RotateCcw aria-hidden />
+            Reset to defaults
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            disabled={costsSaving || Object.keys(metricCosts).length === 0}
+            onClick={() => void saveMetricCosts()}
+          >
+            <Save aria-hidden />
+            Save costs
+          </Button>
+        </div>
+
+        {costsError ? (
+          <p className="mb-3 text-sm text-destructive" role="alert">
+            {costsError}
+          </p>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Object.keys(metricCosts).map((metric) => (
+            <Field
+              key={metric}
+              label={metricCostLabels[metric] ?? metric}
+              htmlFor={`metric-cost-${metric}`}
+              hint={`Default ${metricCostDefaults[metric] ?? "—"}`}
+            >
+              <Input
+                id={`metric-cost-${metric}`}
+                inputMode="numeric"
+                value={metricCosts[metric] ?? ""}
+                onChange={(event) =>
+                  setMetricCosts((previous) => ({
+                    ...previous,
+                    [metric]: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+          ))}
+        </div>
+      </FormSection>
 
       <FormSection
         title="Roshni voice defaults"

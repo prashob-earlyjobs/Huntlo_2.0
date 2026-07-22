@@ -801,12 +801,13 @@ export function PlansWorkspace() {
         tiers[0];
       const planId = target?.id;
       if (!planId) throw new Error("No upgrade plan available");
+      const checkoutCurrency = target.currency ?? "INR";
 
       const result = await plansApi.upgrade({
         planId,
         billingCycle: "monthly",
-        currency: "INR",
-        provider: "razorpay",
+        currency: checkoutCurrency,
+        provider: checkoutCurrency === "USD" ? "dodo" : "razorpay",
       });
 
       if ("_mockPaid" in result && result._mockPaid) {

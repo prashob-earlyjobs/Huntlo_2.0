@@ -1,6 +1,7 @@
 import {
   METRIC_DEFAULT_COST,
   UsageReservationModel,
+  getMetricCost,
   quotaService as sharedQuotaService,
   type QuotaUsageView,
   type UsageMetric,
@@ -8,6 +9,7 @@ import {
 import { OrganizationModel, type OrganizationPlan } from '../organizations/organization.model.js';
 import type { RevealQuotaContactType } from './reveal-quota.model.js';
 
+/** Hardcoded fallbacks — prefer getMetricCost() at runtime. */
 export const EMAIL_REVEAL_COST = METRIC_DEFAULT_COST.email_reveal;
 export const MOBILE_REVEAL_COST = METRIC_DEFAULT_COST.mobile_reveal;
 
@@ -53,14 +55,16 @@ function metricFor(contactType: RevealQuotaContactType): UsageMetric {
   return contactType === 'email' ? 'email_reveal' : 'mobile_reveal';
 }
 
-function costFor(contactType: RevealQuotaContactType): number {
-  return contactType === 'email' ? EMAIL_REVEAL_COST : MOBILE_REVEAL_COST;
+async function costFor(contactType: RevealQuotaContactType): Promise<number> {
+  return getMetricCost(metricFor(contactType));
 }
 
 async function toStatus(organizationId: string): Promise<RevealQuotaStatus> {
-  const [email, mobile] = await Promise.all([
+  const [email, mobile, emailCost, mobileCost] = await Promise.all([
     sharedQuotaService.getUsage(organizationId, 'email_reveal') as Promise<QuotaUsageView>,
     sharedQuotaService.getUsage(organizationId, 'mobile_reveal') as Promise<QuotaUsageView>,
+    getMetricCost('email_reveal'),
+    getMetricCost('mobile_reveal'),
   ]);
   const org = await OrganizationModel.findById(organizationId).select('plan');
   return {
@@ -72,14 +76,14 @@ async function toStatus(organizationId: string): Promise<RevealQuotaStatus> {
       used: email.used,
       reserved: email.reserved,
       remaining: email.remaining,
-      costPerReveal: EMAIL_REVEAL_COST,
+      costPerReveal: emailCost,
     },
     mobile: {
       limit: mobile.limit,
       used: mobile.used,
       reserved: mobile.reserved,
       remaining: mobile.remaining,
-      costPerReveal: MOBILE_REVEAL_COST,
+      costPerReveal: mobileCost,
     },
   };
 }
@@ -111,7 +115,7 @@ export class RevealQuotaService {
     await sharedQuotaService.reserveUsage({
       organizationId,
       metric: metricFor(contactType),
-      quantity: amount ?? costFor(contactType),
+      quantity: amount ?? (await costFor(contactType)),
       idempotencyKey: `reveal:${reservationId}`,
       relatedEntityType: 'reveal',
       relatedEntityId: reservationId,

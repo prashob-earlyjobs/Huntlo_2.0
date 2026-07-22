@@ -4,6 +4,17 @@ import { ADMIN_PERMISSIONS } from './require-admin.js';
 import { PLATFORM_PROVIDERS, PROVIDER_STATUSES } from './platform-settings.model.js';
 import { BLOG_STATUSES } from './blog.model.js';
 import { passwordSchema } from '../../shared/validation/password.js';
+import { USAGE_METRICS } from '../../shared/usage/metrics.js';
+
+const metricCostValueSchema = z.number().int().min(1).max(1000);
+
+export const metricCostsSchema = z
+  .object(
+    Object.fromEntries(
+      USAGE_METRICS.map((metric) => [metric, metricCostValueSchema.optional()])
+    ) as Record<(typeof USAGE_METRICS)[number], z.ZodOptional<typeof metricCostValueSchema>>
+  )
+  .strict();
 
 export const adminListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -88,6 +99,7 @@ export const updateBlogSchema = createBlogSchema.partial().extend({
 export const patchPlatformSettingsSchema = z.object({
   maintenanceMode: z.boolean().optional(),
   featureFlags: z.record(z.string(), z.unknown()).optional(),
+  metricCosts: metricCostsSchema.optional(),
   roshniPrompt: z
     .object({
       /** Null clears to bundled file default. */

@@ -1,13 +1,14 @@
 import {
   METRIC_DEFAULT_COST,
+  getMetricCost,
   quotaService as sharedQuotaService,
   type QuotaUsageView,
 } from '../../shared/usage/index.js';
 import { OrganizationModel, type OrganizationPlan } from '../organizations/organization.model.js';
 
 /**
- * Cost charged per sourcing search run.
- * Product mock uses 25; backend uses 1 for simplicity until plans meter differently.
+ * Cost charged per sourcing search run (fallback).
+ * Runtime cost comes from platform settings via getMetricCost().
  */
 export const SOURCING_QUOTA_COST = METRIC_DEFAULT_COST.candidate_search;
 
@@ -32,7 +33,10 @@ export type QuotaStatus = {
 };
 
 async function toLegacyStatus(organizationId: string, view: QuotaUsageView): Promise<QuotaStatus> {
-  const org = await OrganizationModel.findById(organizationId).select('plan');
+  const [org, costPerSearch] = await Promise.all([
+    OrganizationModel.findById(organizationId).select('plan'),
+    getMetricCost('candidate_search'),
+  ]);
   return {
     organizationId,
     periodKey: view.periodKey,
@@ -41,7 +45,7 @@ async function toLegacyStatus(organizationId: string, view: QuotaUsageView): Pro
     used: view.used,
     reserved: view.reserved,
     remaining: view.remaining,
-    costPerSearch: SOURCING_QUOTA_COST,
+    costPerSearch,
   };
 }
 
@@ -61,12 +65,13 @@ export class QuotaService {
   async reserve(
     organizationId: string,
     sessionId: string,
-    amount: number = SOURCING_QUOTA_COST
+    amount?: number
   ): Promise<QuotaStatus> {
+    const quantity = amount ?? (await getMetricCost('candidate_search'));
     const result = await sharedQuotaService.reserveUsage({
       organizationId,
       metric: 'candidate_search',
-      quantity: amount,
+      quantity,
       idempotencyKey: `sourcing:${sessionId}`,
       relatedEntityType: 'sourcing_session',
       relatedEntityId: sessionId,
