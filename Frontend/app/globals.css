@@ -210,6 +210,19 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+  .scrollbar-slim {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 28%, transparent)
+      transparent;
+  }
+  .scrollbar-slim::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  .scrollbar-slim::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--muted-foreground) 28%, transparent);
+  }
   .ai-beam-border {
     position: relative;
     border-radius: var(--radius-md);
