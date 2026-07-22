@@ -425,12 +425,9 @@ const CHANNEL_FILTER_OPTIONS: FilterOption[] = (
 export function ConversationInbox({
   conversations,
   className,
-  focusThreadId,
 }: {
   conversations: Conversation[];
   className?: string;
-  /** When realtime delivers a new message, parent can focus that thread. */
-  focusThreadId?: string | null;
 }) {
   const { user } = useAuth();
   const noteAuthor =
@@ -453,14 +450,16 @@ export function ConversationInbox({
       const prevById = new Map(previous.map((row) => [row.id, row]));
       return conversations.map((row) => {
         const prior = prevById.get(row.id);
-        // Keep the longer timeline if a concurrent mark-read response is staler.
-        if (
+        const merged =
           prior?.events?.length &&
           (row.events?.length ?? 0) < prior.events.length
-        ) {
-          return { ...row, events: prior.events };
+            ? { ...row, events: prior.events }
+            : row;
+        // Keep the open thread clear of unread badges while viewing it.
+        if (selectedId && merged.id === selectedId) {
+          return { ...merged, unread: false, unreadCount: 0 };
         }
-        return row;
+        return merged;
       });
     });
     if (!selectedId && conversations[0]?.id) {
@@ -468,12 +467,16 @@ export function ConversationInbox({
     }
   }, [conversations, selectedId]);
 
+  // If a new message arrives on the open thread, mark it read without switching.
   useEffect(() => {
-    if (!focusThreadId) return;
-    if (conversations.some((row) => row.id === focusThreadId)) {
-      setSelectedId(focusThreadId);
+    if (!selectedId) return;
+    const openRow = conversations.find((row) => row.id === selectedId);
+    if (!openRow) return;
+    if (!openRow.unread && !(openRow.unreadCount && openRow.unreadCount > 0)) {
+      return;
     }
-  }, [focusThreadId, conversations]);
+    void conversationsApi.markRead(selectedId).catch(() => undefined);
+  }, [conversations, selectedId]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -526,6 +529,13 @@ export function ConversationInbox({
   function open(conversation: Conversation) {
     setSelectedId(conversation.id);
     setReadIds((previous) => new Set(previous).add(conversation.id));
+    setItems((previous) =>
+      previous.map((row) =>
+        row.id === conversation.id
+          ? { ...row, unread: false, unreadCount: 0 }
+          : row
+      )
+    );
     // On stacked (mobile) layout the timeline sits below the list — scroll it into view.
     window.requestAnimationFrame(() => {
       document
@@ -548,14 +558,9 @@ export function ConversationInbox({
               ...updated,
               events: nextEvents,
               unread: false,
+              unreadCount: 0,
             };
           })
-        );
-      } else {
-        setItems((previous) =>
-          previous.map((row) =>
-            row.id === conversation.id ? { ...row, unread: false } : row
-          )
         );
       }
     }).catch(() => undefined);
@@ -644,9 +649,15 @@ export function ConversationInbox({
               </li>
             ) : (
               filtered.map((conversation) => {
-                const isUnread =
-                  conversation.unread && !readIds.has(conversation.id);
                 const isActive = conversation.id === selectedId;
+                const unreadCount = isActive
+                  ? 0
+                  : Math.max(
+                      0,
+                      conversation.unreadCount ??
+                        (conversation.unread ? 1 : 0)
+                    );
+                const isUnread = unreadCount > 0;
                 const pipeline = conversationPipelineStatus(conversation);
                 return (
                   <li key={conversation.id}>
@@ -707,9 +718,11 @@ export function ConversationInbox({
                           />
                           {isUnread ? (
                             <span
-                              aria-label="Unread"
-                              className="ml-auto size-2 shrink-0 rounded-full bg-primary"
-                            />
+                              aria-label={`${unreadCount} unread`}
+                              className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
+                            >
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
                           ) : null}
                         </span>
                       </span>
