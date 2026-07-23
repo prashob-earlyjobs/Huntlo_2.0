@@ -54,6 +54,8 @@ export type ScreeningStats = {
   failed: number;
   shortlisted: number;
   rejected: number;
+  /** Sum of dial attempts across enrolled candidates. */
+  totalAttempts: number;
   averageScore: number | null;
 };
 
@@ -67,6 +69,7 @@ export function defaultScreeningStats(): ScreeningStats {
     failed: 0,
     shortlisted: 0,
     rejected: 0,
+    totalAttempts: 0,
     averageScore: null,
   };
 }
@@ -208,6 +211,7 @@ const screeningSchema = new Schema<ScreeningDocument>(
         failed: { type: Number, default: 0 },
         shortlisted: { type: Number, default: 0 },
         rejected: { type: Number, default: 0 },
+        totalAttempts: { type: Number, default: 0 },
         averageScore: { type: Number, default: null },
       },
       default: () => defaultScreeningStats(),

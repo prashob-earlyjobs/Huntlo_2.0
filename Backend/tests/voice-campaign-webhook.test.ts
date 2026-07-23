@@ -18,7 +18,31 @@ import {
   VoiceCallModel,
 } from '../src/modules/voice/voice-call.model.js';
 import { AuditLogModel } from '../src/shared/audit/audit.service.js';
+import { computeHunarWebhookSignature } from '../src/providers/hunar/hunar.webhook.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
+
+const HUNAR_TEST_API_KEY = 'test-hunar-key';
+
+function postSignedHunarWebhook(
+  agent: ReturnType<typeof request.agent>,
+  path: string,
+  payload: Record<string, unknown>,
+  apiKey = HUNAR_TEST_API_KEY
+) {
+  const body = JSON.stringify(payload);
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = computeHunarWebhookSignature({
+    apiKey,
+    requestBody: Buffer.from(body, 'utf8'),
+    timestamp,
+  });
+  return agent
+    .post(path)
+    .set('Content-Type', 'application/json')
+    .set('x-hunar-timestamp', timestamp)
+    .set('x-hunar-signature', signature)
+    .send(body);
+}
 
 async function registerAndAuth(agent: ReturnType<typeof request.agent>) {
   const response = await agent.post('/api/v1/auth/register').send({
@@ -41,9 +65,10 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
 
   beforeAll(async () => {
     await startMemoryMongo();
-    resetEnvCache();
-    process.env.HUNAR_WEBHOOK_SECRET = 'whsec_test_secret';
+    process.env.HUNAR_VOICE_API_KEY = HUNAR_TEST_API_KEY;
+    delete process.env.HUNAR_WEBHOOK_SECRET;
     process.env.PUBLIC_API_BASE_URL = 'http://localhost:4000';
+    resetEnvCache();
     await connectDatabase();
   });
 
@@ -121,12 +146,10 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
       quotaReservationKey: `voice:${requestId}:${digits}`,
     });
 
-    const res = await agent
-      .post(
-        `/api/integrations/voice/hunar/call-status?campaignId=${String(campaign._id)}`
-      )
-      .set('x-webhook-secret', 'whsec_test_secret')
-      .send({
+    const res = await postSignedHunarWebhook(
+      agent,
+      `/api/integrations/voice/hunar/call-status?campaignId=${String(campaign._id)}`,
+      {
         call_id: 'hunar-call-99',
         request_id: requestId,
         agent_id: 'agent-1',
@@ -138,7 +161,8 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
           summary: 'Strong fit',
           final_outcome: 'shortlist',
         },
-      });
+      }
+    );
 
     expect(res.status).toBe(200);
     expect(res.body.data.callId).toBe('hunar-call-99');

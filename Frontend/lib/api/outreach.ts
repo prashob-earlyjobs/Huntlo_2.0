@@ -237,7 +237,11 @@ export type ApiCampaignEnrollment = {
   contactAvailability: { email: boolean; phone: boolean; optedOut: boolean } | null;
   replyState: { hasReply: boolean; disposition: string | null; repliedAt: string | null } | null;
   qualificationState: { status: string; answers?: Record<string, unknown> } | null;
-  screeningState: { status: string; screeningId: string | null } | null;
+  screeningState: {
+    status: string;
+    screeningId: string | null;
+    decision?: 'shortlisted' | 'rejected' | 'pending' | null;
+  } | null;
   schedulingState: { status: string; bookingUrl: string | null } | null;
   nextActionAt: string | null;
   lastActionAt: string | null;

@@ -107,10 +107,13 @@ export function verifyProviderSignature(input: {
       return verifyGupshupSignature(input.rawBody, input.headers);
     case 'hunar': {
       const screeningId = String(input.query?.screeningId || '').trim() || null;
+      const campaignId = String(input.query?.campaignId || '').trim() || null;
       const auth = verifyHunarWebhookAuthenticity({
         headers: input.headers,
         rawBody: input.rawBody,
         screeningId,
+        campaignId,
+        entityId: screeningId || campaignId,
       });
       return { valid: auth.ok, reason: auth.reason };
     }

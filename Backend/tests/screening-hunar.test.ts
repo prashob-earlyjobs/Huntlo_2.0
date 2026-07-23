@@ -19,7 +19,31 @@ import {
 } from '../src/modules/screening/index.js';
 import { AuditLogModel } from '../src/shared/audit/audit.service.js';
 import * as hunarClient from '../src/providers/hunar/hunar.client.js';
+import { computeHunarWebhookSignature } from '../src/providers/hunar/hunar.webhook.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
+
+const HUNAR_TEST_API_KEY = 'test-hunar-key';
+
+function postSignedHunarWebhook(
+  agent: ReturnType<typeof request.agent>,
+  path: string,
+  payload: Record<string, unknown>,
+  apiKey = HUNAR_TEST_API_KEY
+) {
+  const body = JSON.stringify(payload);
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = computeHunarWebhookSignature({
+    apiKey,
+    requestBody: Buffer.from(body, 'utf8'),
+    timestamp,
+  });
+  return agent
+    .post(path)
+    .set('Content-Type', 'application/json')
+    .set('x-hunar-timestamp', timestamp)
+    .set('x-hunar-signature', signature)
+    .send(body);
+}
 
 vi.mock('../src/providers/hunar/hunar.client.js', async () => {
   const actual = await vi.importActual<typeof import('../src/providers/hunar/hunar.client.js')>(
@@ -66,8 +90,8 @@ describe('AI voice screening (Hunar)', () => {
   let agent: ReturnType<typeof request.agent>;
 
   beforeAll(async () => {
-    process.env.HUNAR_VOICE_API_KEY = 'test-hunar-key';
-    process.env.HUNAR_WEBHOOK_SECRET = 'whsec_test_secret';
+    process.env.HUNAR_VOICE_API_KEY = HUNAR_TEST_API_KEY;
+    delete process.env.HUNAR_WEBHOOK_SECRET;
     process.env.PUBLIC_API_BASE_URL = 'http://localhost:4000';
     await startMemoryMongo();
     resetEnvCache();
@@ -205,7 +229,7 @@ describe('AI voice screening (Hunar)', () => {
 
   it('processes Hunar webhook fixtures idempotently and maps scores', async () => {
     const auth = await registerAndAuth(agent);
-    process.env.HUNAR_VOICE_API_KEY = 'test-hunar-key';
+    process.env.HUNAR_VOICE_API_KEY = HUNAR_TEST_API_KEY;
 
     const candidate = await agent
       .post('/api/v1/candidate-pool')
@@ -245,18 +269,20 @@ describe('AI voice screening (Hunar)', () => {
       answered_by: 'human',
     };
 
-    const first = await agent
-      .post(`/api/v1/webhooks/hunar/call-status?screeningId=${screeningId}`)
-      .set('X-Webhook-Secret', 'whsec_test_secret')
-      .send(statusBody);
+    const first = await postSignedHunarWebhook(
+      agent,
+      `/api/v1/webhooks/hunar/call-status?screeningId=${screeningId}`,
+      statusBody
+    );
     expect(first.status).toBe(200);
     expect(first.body.data.duplicate).toBe(false);
     expect(first.body.data.callStatus).toBe('completed');
 
-    const dup = await agent
-      .post(`/api/v1/webhooks/hunar/call-status?screeningId=${screeningId}`)
-      .set('X-Webhook-Secret', 'whsec_test_secret')
-      .send(statusBody);
+    const dup = await postSignedHunarWebhook(
+      agent,
+      `/api/v1/webhooks/hunar/call-status?screeningId=${screeningId}`,
+      statusBody
+    );
     expect(dup.status).toBe(200);
     expect(dup.body.data.duplicate).toBe(true);
 
@@ -275,21 +301,23 @@ describe('AI voice screening (Hunar)', () => {
       recording_url: 'https://recordings.example/call-fixture-1.mp3',
     };
 
-    const result = await agent
-      .post(`/api/v1/webhooks/hunar/call-result?screeningId=${screeningId}`)
-      .set('X-Webhook-Secret', 'whsec_test_secret')
-      .send(resultBody);
+    const result = await postSignedHunarWebhook(
+      agent,
+      `/api/v1/webhooks/hunar/call-result?screeningId=${screeningId}`,
+      resultBody
+    );
     expect(result.status).toBe(200);
 
-    const recording = await agent
-      .post(`/api/v1/webhooks/hunar/call-recording?screeningId=${screeningId}`)
-      .set('X-Webhook-Secret', 'whsec_test_secret')
-      .send({
+    const recording = await postSignedHunarWebhook(
+      agent,
+      `/api/v1/webhooks/hunar/call-recording?screeningId=${screeningId}`,
+      {
         call_id: 'call-fixture-1',
         to_number: '919988776655',
         event_type: 'call_recording_done',
         recording_url: 'https://recordings.example/call-fixture-1.mp3',
-      });
+      }
+    );
     expect(recording.status).toBe(200);
 
     const row = await ScreeningCandidateModel.findOne({ providerCallId: 'call-fixture-1' });

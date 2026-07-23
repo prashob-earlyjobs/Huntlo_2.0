@@ -966,10 +966,10 @@ async function processEmailQualificationReply(input: {
 }
 
 function shouldSendQualificationWrapUp(campaign: OutreachCampaignDocument): boolean {
-  const config = (campaign.qualificationConfig || {}) as QualificationConfig;
-  const schedulingOn = Boolean(campaign.schedulingConfig?.enabled);
-  // Default end: thank-you note when no auto screening / Calendly follow-up is enabled.
-  return !config.autoScreening && !schedulingOn;
+  // Always close the qualification thread with a thank-you wrap-up when the
+  // candidate finishes answering. Auto-screening / Calendly can still run after.
+  void campaign;
+  return true;
 }
 
 /**
@@ -1072,9 +1072,16 @@ async function sendQualificationCompletionWrapUp(input: {
 
   const firstName =
     String(candidate?.name || 'there').trim().split(/\s+/)[0] || 'there';
+  const config = (campaign.qualificationConfig || {}) as QualificationConfig;
+  const nextStep =
+    config.autoScreening
+      ? `Our team may give you a quick screening call next — please keep an eye on your phone.`
+      : campaign.schedulingConfig?.enabled
+        ? `A recruiter will share next steps for scheduling shortly.`
+        : `A recruiter will be in touch with you soon.`;
   const body =
     `Hi ${firstName},\n\n` +
-    `We've shared your responses with our recruiting team, and a recruiter will be in touch with you soon.\n\n` +
+    `We've shared your responses with our recruiting team. ${nextStep}\n\n` +
     `We appreciate your interest!\n\n` +
     `Best regards`;
 

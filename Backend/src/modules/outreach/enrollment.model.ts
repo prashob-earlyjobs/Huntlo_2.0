@@ -72,6 +72,8 @@ export type OutreachEnrollmentDocument = Document & {
   screeningState: {
     status: 'not_started' | 'scheduled' | 'completed' | 'skipped';
     screeningId: string | null;
+    /** Final screening outcome when status is completed. */
+    decision: 'shortlisted' | 'rejected' | 'pending' | null;
   };
   schedulingState: {
     status: 'not_started' | 'link_sent' | 'booked' | 'skipped';
@@ -188,10 +190,15 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
             default: 'not_started',
           },
           screeningId: { type: String, default: null },
+          decision: {
+            type: String,
+            enum: ['shortlisted', 'rejected', 'pending'],
+            default: null,
+          },
         },
         { _id: false }
       ),
-      default: () => ({ status: 'not_started', screeningId: null }),
+      default: () => ({ status: 'not_started', screeningId: null, decision: null }),
     },
     schedulingState: {
       type: new Schema(
