@@ -1276,6 +1276,7 @@ async function completeQualification(input: {
       enrollment.screeningState = {
         status: 'scheduled',
         screeningId,
+        decision: null,
       };
       await enrollment.save();
       emitOutreachEnrollmentUpdated({
@@ -1296,6 +1297,7 @@ async function completeQualification(input: {
         ...enrollment.screeningState,
         status: 'scheduled',
         screeningId: enrollment.screeningState?.screeningId ?? null,
+        decision: enrollment.screeningState?.decision ?? null,
       };
       await enrollment.save();
     }

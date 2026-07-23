@@ -1058,12 +1058,14 @@ export const conversationsService = {
                 enrollment.screeningState = {
                   status: 'scheduled',
                   screeningId,
+                  decision: null,
                 };
               } catch {
                 enrollment.screeningState = {
                   ...enrollment.screeningState,
                   status: 'scheduled',
                   screeningId: enrollment.screeningState?.screeningId ?? null,
+                  decision: enrollment.screeningState?.decision ?? null,
                 };
               }
             }
