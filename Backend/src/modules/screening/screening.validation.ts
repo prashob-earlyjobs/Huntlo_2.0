@@ -66,6 +66,9 @@ export const createScreeningSchema = z.object({
       maxRetryCount: z.number().int().min(0).max(10).optional(),
       retryIntervalHours: z.number().int().min(0).max(168).optional(),
       consentRequired: z.boolean().optional(),
+      callWindow: z.string().trim().min(1).max(80).optional(),
+      timezone: z.string().trim().min(1).max(80).optional(),
+      voicemailBehaviour: z.string().trim().min(1).max(120).optional(),
     })
     .optional(),
   candidateIds: z.array(objectId).max(500).optional(),

@@ -368,6 +368,7 @@ async function syncOutreachEnrollment(row: VoiceCallDocument, parsed: ParsedHuna
 
   if (interest.includes('interest') || interest === 'yes' || interest === 'true' || interest === 'high') {
     enrollment.replyState = {
+      ...enrollment.replyState,
       hasReply: true,
       disposition: 'interested',
       repliedAt: enrollment.replyState?.repliedAt || new Date(),
@@ -382,12 +383,14 @@ async function syncOutreachEnrollment(row: VoiceCallDocument, parsed: ParsedHuna
     interest === 'no'
   ) {
     enrollment.replyState = {
+      ...enrollment.replyState,
       hasReply: true,
       disposition: 'not_interested',
       repliedAt: enrollment.replyState?.repliedAt || new Date(),
     };
   } else if (isVoiceCallTerminal(row) && !enrollment.replyState?.hasReply) {
     enrollment.replyState = {
+      ...enrollment.replyState,
       hasReply: true,
       disposition: enrollment.replyState?.disposition || null,
       repliedAt: new Date(),

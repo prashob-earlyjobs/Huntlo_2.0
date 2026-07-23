@@ -54,6 +54,8 @@ export type OutreachEnrollmentDocument = Document & {
     hasReply: boolean;
     disposition: string | null;
     repliedAt: Date | null;
+    /** First-reply winner channel — locks multi-channel outreach to this channel. */
+    channel: 'email' | 'whatsapp' | null;
   };
   /** Mirrors replyState.hasReply, kept in sync on save. */
   hasReply: boolean;
@@ -142,10 +144,20 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
           hasReply: { type: Boolean, default: false },
           disposition: { type: String, default: null },
           repliedAt: { type: Date, default: null },
+          channel: {
+            type: String,
+            enum: ['email', 'whatsapp'],
+            default: null,
+          },
         },
         { _id: false }
       ),
-      default: () => ({ hasReply: false, disposition: null, repliedAt: null }),
+      default: () => ({
+        hasReply: false,
+        disposition: null,
+        repliedAt: null,
+        channel: null,
+      }),
     },
     hasReply: { type: Boolean, default: false },
     replyDisposition: { type: String, default: null },

@@ -1297,6 +1297,9 @@ function toCreateInput(
       maxRetryCount: 2,
       retryIntervalHours: 6,
       consentRequired: true,
+      callWindow: state.callWindow,
+      timezone: state.timezone,
+      voicemailBehaviour: state.voicemail,
     },
     candidateIds,
   };

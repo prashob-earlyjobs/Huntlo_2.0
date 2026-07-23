@@ -991,12 +991,64 @@ async function sendQualificationCompletionWrapUp(input: {
     .lean();
   if (!thread) return;
 
-  const alreadySent = await ConversationMessageModel.exists({
+  const lastOutreach = await ConversationMessageModel.findOne({
     threadId: input.threadId,
     direction: 'outbound',
-    providerMessageId: { $regex: /^qualification-wrapup:/ },
+    channel: { $in: ['email', 'whatsapp'] },
+    messageType: { $nin: ['qualification', 'note', 'system', 'voice_summary'] },
+    bodyText: {
+      $not: /shared your responses with our recruiting team/i,
+    },
+  })
+    .sort({ createdAt: -1 })
+    .select('createdAt')
+    .lean();
+
+  const wrapUpOr = [
+    { providerMessageId: { $regex: /^qualification-wrapup:/ } },
+    {
+      bodyText: {
+        $regex: /shared your responses with our recruiting team/i,
+      },
+    },
+  ];
+
+  // Block duplicates on this thread after the latest outreach.
+  const alreadySentOnThread = await ConversationMessageModel.exists({
+    threadId: input.threadId,
+    direction: 'outbound',
+    $or: wrapUpOr,
+    ...(lastOutreach?.createdAt
+      ? { createdAt: { $gt: lastOutreach.createdAt } }
+      : {}),
   });
-  if (alreadySent) return;
+  if (alreadySentOnThread) return;
+
+  // Never spam the same candidate again within 24h across their threads.
+  const candidateThreadIds = await ConversationThreadModel.find({
+    organizationId: campaign.organizationId,
+    candidateId: enrollment.candidateId,
+  })
+    .select('_id')
+    .lean();
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const alreadySentRecently = await ConversationMessageModel.exists({
+    organizationId: new mongoose.Types.ObjectId(organizationId),
+    threadId: { $in: candidateThreadIds.map((t) => t._id) },
+    direction: 'outbound',
+    createdAt: { $gte: dayAgo },
+    $or: wrapUpOr,
+  });
+  if (alreadySentRecently) {
+    log().info(
+      {
+        enrollmentId: String(enrollment._id),
+        threadId: input.threadId,
+      },
+      'Skipping qualification wrap-up — already sent to this candidate recently'
+    );
+    return;
+  }
 
   const candidate = await SavedCandidateModel.findOne({
     _id: enrollment.candidateId,
@@ -1578,6 +1630,81 @@ export async function processQualificationAfterReply(input: {
   const enrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
   if (!enrollment) return { action: 'missing_enrollment' };
 
+  /**
+   * Fresh outreach cycle detection:
+   * If the latest campaign send on this thread has no screening question after it,
+   * wipe stale answers/completion state and start Q1 — never re-send an old wrap-up.
+   */
+  const latestOutreach = await ConversationMessageModel.findOne({
+    threadId: input.threadId,
+    direction: 'outbound',
+    channel: { $in: ['email', 'whatsapp'] },
+    messageType: { $nin: ['qualification', 'note', 'system', 'voice_summary'] },
+    bodyText: {
+      $not: /shared your responses with our recruiting team/i,
+    },
+  })
+    .sort({ sentAt: -1, createdAt: -1 })
+    .select('_id createdAt sentAt')
+    .lean();
+
+  const outreachAt = latestOutreach?.sentAt || latestOutreach?.createdAt || null;
+  const qualAfterOutreach = outreachAt
+    ? await ConversationMessageModel.exists({
+        threadId: input.threadId,
+        direction: 'outbound',
+        messageType: 'qualification',
+        createdAt: { $gt: outreachAt },
+      })
+    : await ConversationMessageModel.exists({
+        threadId: input.threadId,
+        direction: 'outbound',
+        messageType: 'qualification',
+      });
+
+  const qualStatus = String(enrollment.qualificationState?.status || '');
+  // Any reply after a fresh campaign send (before screening Qs) starts a new cycle.
+  const needsFreshCycle = Boolean(latestOutreach) && !qualAfterOutreach;
+
+  if (needsFreshCycle) {
+    const hadStaleProgress =
+      ['qualified', 'rejected', 'in_progress'].includes(qualStatus) ||
+      (typeof enrollment.replyQuestionIndex === 'number' &&
+        enrollment.replyQuestionIndex >= 0) ||
+      Object.keys(enrollment.qualificationState?.answers || {}).length > 0;
+
+    log().info(
+      {
+        enrollmentId: input.enrollmentId,
+        qualificationStatus: qualStatus,
+        latestOutreachId: String(latestOutreach?._id),
+        outreachAt,
+        hadStaleProgress,
+      },
+      'Starting fresh qualification cycle after newer outreach'
+    );
+    enrollment.qualificationState = { status: 'pending', answers: {} };
+    enrollment.replyQuestionIndex = -1;
+    enrollment.autoReplyCount = 0;
+    if (
+      ['completed', 'stopped', 'qualified', 'replied'].includes(
+        String(enrollment.status)
+      )
+    ) {
+      enrollment.status = 'replied';
+    }
+    await enrollment.save();
+  } else if (qualStatus === 'qualified' || qualStatus === 'rejected') {
+    log().info(
+      {
+        enrollmentId: input.enrollmentId,
+        qualificationStatus: qualStatus,
+      },
+      'Qualification skipped — enrollment already complete for this outreach cycle'
+    );
+    return { action: 'skipped_already_complete' };
+  }
+
   // Never block Q&A sends on a missing/false aiReplyEnabled flag (legacy campaigns).
   // Classification-only mode is no longer exposed in the builder.
 
@@ -1804,6 +1931,7 @@ export async function processQualificationAfterReply(input: {
       threadId: input.threadId,
       direction: 'outbound',
       messageType: 'qualification',
+      ...(outreachAt ? { createdAt: { $gt: outreachAt } } : {}),
     });
     if (!stillNoQual && questions[0]) {
       enrollment.replyQuestionIndex = -1;
@@ -1824,6 +1952,14 @@ export async function processQualificationAfterReply(input: {
       return {
         action: result.sent ? 'asked_first_recovered' : `ask_failed:${result.error}`,
       };
+    }
+    // Refuse to complete/wrap-up when this outreach cycle never asked screening Qs.
+    if (!stillNoQual) {
+      log().warn(
+        { enrollmentId: input.enrollmentId, threadId: input.threadId },
+        'Refusing qualification wrap-up — no screening questions in current outreach cycle'
+      );
+      return { action: 'skipped_no_cycle_questions' };
     }
     const finalizedEarly = await completeQualificationWhenAllAnswered({
       campaign: input.campaign,
