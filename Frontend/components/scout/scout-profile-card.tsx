@@ -83,11 +83,16 @@ export function ScoutProfileCard({
   lookupId,
   initiallySaved = false,
   onSaved,
+  className,
+  embedded = false,
 }: {
   profile: ScoutProfile;
   lookupId?: string;
   initiallySaved?: boolean;
   onSaved?: () => void;
+  className?: string;
+  /** Flatten chrome when nested inside a sheet/drawer. */
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState({ email: false, phone: false });
@@ -174,22 +179,34 @@ export function ScoutProfileCard({
   const revealCount = Number(revealed.email) + Number(revealed.phone);
 
   return (
-    <article className="overflow-hidden rounded-xl border border-border bg-card">
+    <article
+      className={cn(
+        "overflow-hidden bg-card",
+        embedded
+          ? "rounded-none border-0"
+          : "rounded-xl border border-border",
+        className
+      )}
+    >
       {/* Header band — identity full width, actions below so buttons never squeeze text */}
-      <div className="border-b border-border p-5">
+      <div className={cn("border-b border-border", embedded ? "px-4 py-4" : "p-5")}>
         <div className="space-y-4">
           <div className="flex w-full min-w-0 items-start gap-4">
-            <CandidateAvatar
-              name={profile.name}
-              src={profile.avatarUrl}
-              preview
-              className="size-16 shrink-0 text-lg"
-            />
+            {embedded ? null : (
+              <CandidateAvatar
+                name={profile.name}
+                src={profile.avatarUrl}
+                preview
+                className="size-16 shrink-0 text-lg"
+              />
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {profile.name}
-                </h2>
+                {embedded ? null : (
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                    {profile.name}
+                  </h2>
+                )}
                 <span className="inline-flex h-5 items-center rounded-md bg-muted px-2 text-xs font-medium text-muted-foreground">
                   {profile.enrichment.status}
                 </span>
@@ -317,7 +334,7 @@ export function ScoutProfileCard({
       </div>
 
       {/* Body */}
-      <div className="grid gap-6 p-5 lg:grid-cols-3">
+      <div className={cn("grid gap-6 lg:grid-cols-3", embedded ? "p-4" : "p-5")}>
         <div className="space-y-6 lg:col-span-2">
           <section className="space-y-2">
             <SectionTitle>About</SectionTitle>
