@@ -3,7 +3,6 @@ import {
   AudioLines,
   Bookmark,
   CheckCircle2,
-  PhoneCall,
   PhoneIncoming,
   Target,
   Users,
@@ -105,7 +104,10 @@ export interface ScreeningBatch {
   jobTitle: string | null;
   candidates: number;
   language: string;
+  /** Total dial attempts across candidates (live) or configured max (mock). */
   attempts: number;
+  /** Configured max attempts per candidate when available. */
+  maxAttempts?: number;
   completed: number;
   averageScore: number | null;
   shortlisted: number;
@@ -674,9 +676,18 @@ export interface ExtractedField {
   confidence: "High" | "Medium" | "Low";
 }
 
+export type ResultActivityIcon =
+  | "phone"
+  | "check"
+  | "bookmark"
+  | "note"
+  | "recording"
+  | "score"
+  | "failed";
+
 export interface ResultActivityEntry {
   id: string;
-  icon: LucideIcon;
+  icon: ResultActivityIcon;
   title: string;
   detail: string;
   time: string;
@@ -699,6 +710,7 @@ export interface ScreeningResultDetail {
     durationSeconds: number;
     label: string;
     size: string;
+    url: string | null;
   };
   extracted: ExtractedField[];
   activity: ResultActivityEntry[];
@@ -888,6 +900,7 @@ export const RESULT_DETAILS: Record<string, ScreeningResultDetail> = {
       durationSeconds: 460,
       label: "priya-nair-scr-1.mp3",
       size: "2.4 MB",
+      url: null,
     },
     extracted: [
       { id: "e1", label: "Current company", value: "Razorpay", confidence: "High" },
@@ -902,21 +915,21 @@ export const RESULT_DETAILS: Record<string, ScreeningResultDetail> = {
     activity: [
       {
         id: "a1",
-        icon: PhoneCall,
+        icon: "phone",
         title: "Call completed",
         detail: "7m 40s · score 92 · AI recommendation: Shortlist",
         time: "Jul 14, 11:42 AM",
       },
       {
         id: "a2",
-        icon: CheckCircle2,
+        icon: "check",
         title: "AI scorecard generated",
         detail: "All category scores and knockout checks passed",
         time: "Jul 14, 11:43 AM",
       },
       {
         id: "a3",
-        icon: Bookmark,
+        icon: "bookmark",
         title: "Recruiter shortlisted Priya Nair",
         detail: "Decision by Ananya Sharma",
         time: "Jul 14, 2:10 PM",
@@ -1064,6 +1077,7 @@ export function getResultDetail(id: string): ScreeningResultDetail | undefined {
       durationSeconds: parseDuration(result.duration),
       label: `${result.candidateName.toLowerCase().replace(/\s+/g, "-")}-${result.screeningId}.mp3`,
       size: "1.8 MB",
+      url: null,
     },
     extracted: result.keyVariables.map((value, index) => ({
       id: `ex-${index}`,
@@ -1074,14 +1088,14 @@ export function getResultDetail(id: string): ScreeningResultDetail | undefined {
     activity: [
       {
         id: "af1",
-        icon: PhoneCall,
+        icon: "phone",
         title: "Call completed",
         detail: `${result.duration} · score ${result.overallScore} · ${result.recommendation}`,
         time: result.completedDate,
       },
       {
         id: "af2",
-        icon: CheckCircle2,
+        icon: "check",
         title: "AI scorecard generated",
         detail: "Category scores and knockout checks ready for review",
         time: result.completedDate,

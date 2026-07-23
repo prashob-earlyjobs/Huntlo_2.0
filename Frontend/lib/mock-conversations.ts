@@ -23,7 +23,9 @@ export type CandidatePipelineStatus =
   | "In qualification"
   | "Qualified"
   | "Not qualified"
-  | "In screening";
+  | "In screening"
+  | "Shortlisted"
+  | "Rejected";
 
 export type DeliveryState = "Sent" | "Delivered" | "Read" | "Failed";
 
@@ -40,6 +42,12 @@ export interface VoiceSummary {
   highlights: string[];
   /** Full call transcript when available from the voice provider. */
   transcript?: string;
+  /** Provider recording URL when available. */
+  recordingUrl?: string | null;
+  /** Screening batch id when this voice card came from auto-screening. */
+  screeningId?: string | null;
+  /** Screening candidate/result id for deep-linking to results. */
+  resultId?: string | null;
 }
 
 export interface ConversationEvent {
@@ -92,6 +100,8 @@ export interface Conversation {
   qualificationStatus?: string;
   screeningStatus: string;
   screeningId?: string | null;
+  /** Final screening outcome when screening is completed. */
+  screeningDecision?: "shortlisted" | "rejected" | "pending" | null;
   autoScreening?: boolean;
   enrollmentId?: string | null;
   sequenceStep: string;

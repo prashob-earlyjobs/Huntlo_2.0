@@ -6,13 +6,16 @@ import {
   Briefcase,
   Check,
   CheckCheck,
+  ChevronRight,
   FileText,
   Mail,
   MessageCircle,
   MessageSquare,
   MessagesSquare,
   Paperclip,
+  Pause,
   Phone,
+  Play,
   Search,
   StickyNote,
   User,
@@ -40,7 +43,7 @@ import {
   type CandidatePipelineStatus,
 } from "@/lib/conversation-pipeline-status";
 import { CHANNEL_ICONS, type OutreachChannel } from "@/lib/mock-outreach";
-import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
+import { candidateDetailPath, jobDetailPath, screeningResultPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -211,6 +214,150 @@ function DeliveryIndicator({ state }: { state: NonNullable<ConversationEvent["de
   );
 }
 
+function formatAudioClock(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function ChatRecordingPlayer({
+  url,
+  durationLabel,
+}: {
+  url: string;
+  durationLabel: string;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const waveformRef = useRef<HTMLDivElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // Deterministic fake waveform so the same recording always looks the same.
+  const bars = useMemo(
+    () =>
+      Array.from({ length: 56 }, (_, index) => {
+        const a = Math.sin(index * 0.55) * 0.5 + 0.5;
+        const b = Math.sin(index * 1.3 + 1.7) * 0.5 + 0.5;
+        const c = Math.cos(index * 0.21 + 0.4) * 0.5 + 0.5;
+        return Math.max(0.18, Math.min(1, a * 0.45 + b * 0.35 + c * 0.2));
+      }),
+    []
+  );
+
+  const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+
+  async function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+      return;
+    }
+    try {
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+    }
+  }
+
+  function scrub(next: number) {
+    const audio = audioRef.current;
+    const max = duration > 0 ? duration : next;
+    const clamped = Math.max(0, Math.min(max, next));
+    setPosition(clamped);
+    if (audio) audio.currentTime = clamped;
+  }
+
+  function scrubFromPointer(clientX: number) {
+    const el = waveformRef.current;
+    if (!el || duration <= 0) return;
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    scrub(ratio * duration);
+  }
+
+  return (
+    <div className="mt-2 flex w-full items-center gap-2.5">
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        className="sr-only"
+        onLoadedMetadata={(event) => {
+          const next = event.currentTarget.duration;
+          if (Number.isFinite(next) && next > 0) setDuration(next);
+        }}
+        onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+        onEnded={() => setPlaying(false)}
+        onPause={() => setPlaying(false)}
+        onPlay={() => setPlaying(true)}
+      />
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="secondary"
+        className="size-8 shrink-0 rounded-full"
+        aria-label={playing ? "Pause recording" : "Play recording"}
+        onClick={() => void togglePlay()}
+      >
+        {playing ? (
+          <Pause aria-hidden className="size-3.5" />
+        ) : (
+          <Play aria-hidden className="size-3.5 pl-0.5" />
+        )}
+      </Button>
+
+      <div className="min-w-0 flex-1">
+        <div
+          ref={waveformRef}
+          role="slider"
+          tabIndex={0}
+          aria-label="Recording waveform"
+          aria-valuemin={0}
+          aria-valuemax={Math.max(1, Math.round(duration))}
+          aria-valuenow={Math.round(position)}
+          className="relative flex h-7 cursor-pointer items-center gap-px outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          onClick={(event) => scrubFromPointer(event.clientX)}
+          onKeyDown={(event) => {
+            if (duration <= 0) return;
+            if (event.key === "ArrowRight") scrub(position + 2);
+            if (event.key === "ArrowLeft") scrub(position - 2);
+          }}
+        >
+          {bars.map((amp, index) => {
+            const filled = index / bars.length <= progress;
+            return (
+              <span
+                key={index}
+                aria-hidden
+                className={cn(
+                  "inline-block w-full max-w-[3px] rounded-full transition-colors",
+                  filled ? "bg-primary" : "bg-muted-foreground/25"
+                )}
+                style={{ height: `${22 + amp * 78}%` }}
+              />
+            );
+          })}
+        </div>
+        <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+          <span>{formatAudioClock(position)}</span>
+          <span>
+            {duration > 0
+              ? formatAudioClock(duration)
+              : durationLabel !== "—"
+                ? durationLabel
+                : "0:00"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EventBubble({ event }: { event: ConversationEvent }) {
   if (event.channel === "System") {
     return (
@@ -223,39 +370,37 @@ function EventBubble({ event }: { event: ConversationEvent }) {
   }
 
   if (event.voiceSummary) {
+    const recordingUrl = event.voiceSummary.recordingUrl || null;
+    const resultId = event.voiceSummary.resultId || null;
     return (
-      <div className="mx-auto w-full max-w-md rounded-xl border border-border bg-muted/30 p-3">
-        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <AudioLines aria-hidden className="size-4 text-primary" />
-          AI voice call · {event.voiceSummary.duration}
-        </p>
-        <p className="mt-1 text-xs font-medium text-success">
-          {event.voiceSummary.outcome}
-        </p>
-        {event.voiceSummary.highlights.length > 0 ? (
-          <ul className="mt-2 space-y-1">
-            {event.voiceSummary.highlights.map((highlight) => (
-              <li
-                key={highlight}
-                className="flex items-start gap-1.5 text-xs text-muted-foreground"
-              >
-                <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-primary" />
-                {highlight}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {(event.voiceSummary.transcript || event.text) ? (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Transcription
+      <div className="mr-auto w-[min(100%,22rem)] max-w-[85cqw] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <AudioLines aria-hidden className="size-3.5 shrink-0 text-primary" />
+              <span className="truncate">Screening call</span>
             </p>
-            <p className="mt-1 text-xs leading-relaxed whitespace-pre-wrap text-foreground">
-              {event.voiceSummary.transcript || event.text}
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {event.voiceSummary.duration}
+              {event.time ? ` · ${event.time}` : ""}
             </p>
           </div>
+          {resultId ? (
+            <Link
+              href={screeningResultPath(resultId)}
+              className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Results
+              <ChevronRight aria-hidden className="size-3.5" />
+            </Link>
+          ) : null}
+        </div>
+        {recordingUrl ? (
+          <ChatRecordingPlayer
+            url={recordingUrl}
+            durationLabel={event.voiceSummary.duration}
+          />
         ) : null}
-        <p className="mt-2 text-[11px] text-muted-foreground">{event.time}</p>
       </div>
     );
   }
@@ -512,6 +657,8 @@ const PIPELINE_FILTER_OPTIONS: FilterOption[] = (
     "Qualified",
     "Not qualified",
     "In screening",
+    "Shortlisted",
+    "Rejected",
   ] as const satisfies CandidatePipelineStatus[]
 ).map((value) => ({ id: value, label: value }));
 

@@ -141,6 +141,16 @@ export function hashWebhookPayload(rawBody: string | Buffer): string {
   return createHash('sha256').update(rawBody).digest('hex');
 }
 
+const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 300;
+
+function headerValue(
+  headers: Record<string, string | string[] | undefined>,
+  name: string
+): string {
+  const value = headers[name] ?? headers[name.toLowerCase()];
+  return Array.isArray(value) ? String(value[0] || '').trim() : String(value || '').trim();
+}
+
 function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
@@ -148,12 +158,94 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
+/** Trusted keys used to verify X-Hunar-Signature (official Hunar docs). */
+export function getHunarWebhookTrustedApiKeys(): string[] {
+  const keys = new Set<string>();
+  const primary = getHunarApiKey();
+  if (primary) keys.add(primary);
+  // Optional extra keys (rotation / multi-key orgs), comma-separated.
+  for (const part of String(process.env.HUNAR_WEBHOOK_API_KEYS || '').split(',')) {
+    const key = part.trim();
+    if (key) keys.add(key);
+  }
+  // Legacy env — treat as an additional HMAC key if set.
+  const legacy = getHunarWebhookSecret();
+  if (legacy) keys.add(legacy);
+  return [...keys];
+}
+
 /**
- * Authenticity per Huntlo Hunar integration:
+ * Official Hunar webhook signature:
+ * message = `{X-Hunar-Timestamp}.` + rawBodyBytes
+ * digest  = base64(HMAC-SHA256(api_key, message))
+ * @see https://api.voice.hunar.ai/docs/external/#webhook_signature_validation
+ */
+export function computeHunarWebhookSignature(input: {
+  apiKey: string;
+  requestBody: Buffer;
+  timestamp: string;
+}): string {
+  const message = Buffer.concat([
+    Buffer.from(`${String(input.timestamp || '').trim()}.`, 'utf8'),
+    input.requestBody,
+  ]);
+  return createHmac('sha256', input.apiKey).update(message).digest('base64');
+}
+
+export function verifyHunarWebhookSignature(input: {
+  signatureHeader: string | null | undefined;
+  timestampHeader: string | null | undefined;
+  requestBody: Buffer;
+  trustedApiKeys: string[];
+  nowSeconds?: number;
+  toleranceSeconds?: number;
+}): { ok: boolean; reason?: string } {
+  const signatureHeader = String(input.signatureHeader || '').trim();
+  if (!signatureHeader) {
+    return { ok: false, reason: 'Missing X-Hunar-Signature header' };
+  }
+
+  const timestamp = String(input.timestampHeader || '').trim();
+  if (!timestamp || !/^\d+$/.test(timestamp)) {
+    return { ok: false, reason: 'Missing or invalid X-Hunar-Timestamp header' };
+  }
+
+  const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const skew = Math.abs(now - Number(timestamp));
+  const tolerance = input.toleranceSeconds ?? WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS;
+  if (skew > tolerance) {
+    return { ok: false, reason: 'X-Hunar-Timestamp outside allowed window' };
+  }
+
+  const keys = input.trustedApiKeys.map((k) => String(k || '').trim()).filter(Boolean);
+  if (!keys.length) {
+    return { ok: false, reason: 'No trusted Hunar API keys configured' };
+  }
+
+  const signatures = signatureHeader
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  for (const apiKey of keys) {
+    const expected = computeHunarWebhookSignature({
+      apiKey,
+      requestBody: input.requestBody,
+      timestamp,
+    });
+    for (const signature of signatures) {
+      if (safeEqual(signature, expected)) return { ok: true };
+    }
+  }
+
+  return { ok: false, reason: 'Invalid Hunar webhook signature' };
+}
+
+/**
+ * Authenticity per Hunar Voice Agents docs:
  * - Callback URLs embed screeningId or campaignId.
- * - When HUNAR_WEBHOOK_SECRET is set, require a matching shared secret
- *   (ARCHITECTURE "Webhook secret") via Authorization Bearer or x-webhook-secret.
- *   HMAC of the raw body is also accepted on x-hunar-signature / x-webhook-signature.
+ * - Verify X-Hunar-Signature (base64 HMAC-SHA256 of `{timestamp}.{rawBody}`)
+ *   using HUNAR_VOICE_API_KEY (and optional HUNAR_WEBHOOK_API_KEYS).
  */
 export function verifyHunarWebhookAuthenticity(input: {
   headers: Record<string, string | string[] | undefined>;
@@ -172,45 +264,30 @@ export function verifyHunarWebhookAuthenticity(input: {
     };
   }
 
-  const secret = getHunarWebhookSecret();
-  if (!secret) {
-    // Fail closed in production; optional only in local/dev/test.
-    const env = String(process.env.APP_ENV || process.env.NODE_ENV || '').toLowerCase();
-    if (env === 'production' || env === 'staging') {
-      return { ok: false, reason: 'HUNAR_WEBHOOK_SECRET not configured' };
+  const trustedKeys = getHunarWebhookTrustedApiKeys();
+  const env = String(process.env.APP_ENV || process.env.NODE_ENV || '').toLowerCase();
+  const failClosed = env === 'production' || env === 'staging';
+
+  if (!trustedKeys.length) {
+    if (failClosed) {
+      return { ok: false, reason: 'HUNAR_VOICE_API_KEY not configured' };
     }
-    return { ok: true, reason: 'hunar_secret_optional' };
+    // Local/test without a key — allow so unit fixtures still work.
+    return { ok: true, reason: 'hunar_signature_optional_no_api_key' };
   }
 
-  const header = (name: string) => {
-    const value = input.headers[name] ?? input.headers[name.toLowerCase()];
-    return Array.isArray(value) ? value[0] : value;
-  };
-
-  const bearer = asString(header('authorization')).replace(/^Bearer\s+/i, '');
-  const shared = asString(header('x-webhook-secret') || header('x-hunar-webhook-secret'));
-  const apiKeyHeader = asString(header('x-api-key') || header('X-API-Key'));
-  const voiceApiKey = getHunarApiKey();
-
-  if (bearer && safeEqual(bearer, secret)) return { ok: true };
-  if (shared && safeEqual(shared, secret)) return { ok: true };
-  if (apiKeyHeader && safeEqual(apiKeyHeader, secret)) return { ok: true };
-  if (voiceApiKey && apiKeyHeader && safeEqual(apiKeyHeader, voiceApiKey)) {
-    return { ok: true };
+  const rawBody = input.rawBody;
+  if (rawBody == null) {
+    return { ok: false, reason: 'Missing raw webhook body for signature verification' };
   }
-  if (voiceApiKey && bearer && safeEqual(bearer, voiceApiKey)) return { ok: true };
+  const bodyBuf = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody), 'utf8');
 
-  const signature = asString(
-    header('x-hunar-signature') || header('x-webhook-signature')
-  );
-  if (signature && input.rawBody) {
-    const raw =
-      typeof input.rawBody === 'string' ? input.rawBody : input.rawBody.toString('utf8');
-    const expected = createHmac('sha256', secret).update(raw).digest('hex');
-    if (safeEqual(signature.replace(/^sha256=/i, ''), expected)) return { ok: true };
-  }
-
-  return { ok: false, reason: 'Invalid Hunar webhook secret or signature' };
+  return verifyHunarWebhookSignature({
+    signatureHeader: headerValue(input.headers, 'x-hunar-signature'),
+    timestampHeader: headerValue(input.headers, 'x-hunar-timestamp'),
+    requestBody: bodyBuf,
+    trustedApiKeys: trustedKeys,
+  });
 }
 
 /** Map provider status strings used by EJHunterLanding normalizeCallStatus. */
