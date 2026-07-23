@@ -23,10 +23,8 @@ import {
   EMPLOYMENT_TYPES,
   EVALUATION_FIELD_OPTIONS,
   JOB_DEPARTMENTS,
-  JOB_HIRING_MANAGERS,
   JOB_LOCATIONS,
   JOB_PRIORITIES,
-  JOB_RECRUITERS,
   SALARY_CURRENCIES,
   SALARY_VISIBILITY,
   SENIORITY_LEVELS,
@@ -906,66 +904,6 @@ export function JobForm() {
                 </SelectContent>
               </Select>
             </Field>
-          </div>
-        </FormSection>
-
-        <FormSection
-          title="Hiring team"
-          description="Owners who drive sourcing, decisions and interviews."
-          bordered={false}
-          className="border-t border-border pt-7"
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="recruiter" label="Recruiter">
-              <Select
-                value={form.recruiter}
-                onValueChange={(value) => value && update("recruiter", value)}
-              >
-                <SelectTrigger id="recruiter" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {JOB_RECRUITERS.map((recruiter) => (
-                    <SelectItem key={recruiter} value={recruiter}>
-                      {recruiter}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field id="hiringManager" label="Hiring manager">
-              <Select
-                value={form.hiringManager || null}
-                onValueChange={(value) => update("hiringManager", value ?? "")}
-              >
-                <SelectTrigger id="hiringManager" className="w-full">
-                  <SelectValue placeholder="Select hiring manager" />
-                </SelectTrigger>
-                <SelectContent>
-                  {JOB_HIRING_MANAGERS.map((manager) => (
-                    <SelectItem key={manager} value={manager}>
-                      {manager}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="sm:col-span-2">
-              <Field
-                id="interviewPanel"
-                label="Interview panel"
-                hint="Comma-separated names of panel members."
-              >
-                <Input
-                  id="interviewPanel"
-                  value={form.interviewPanel}
-                  onChange={(event) =>
-                    update("interviewPanel", event.target.value)
-                  }
-                  placeholder="Vikram Shah, Aditya Rao"
-                />
-              </Field>
-            </div>
           </div>
         </FormSection>
 

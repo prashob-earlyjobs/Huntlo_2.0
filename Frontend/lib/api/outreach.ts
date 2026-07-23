@@ -198,6 +198,17 @@ export type CampaignValidationResult = {
   issues: Array<{ id: string; severity: string; code: string; message: string }>;
 };
 
+export type LaunchContactUnlock = {
+  emailNeeded: number;
+  phoneNeeded: number;
+  emailUnlocked: number;
+  phoneUnlocked: number;
+  emailCreditsCharged: number;
+  phoneCreditsCharged: number;
+  skipped: number;
+  failed: number;
+};
+
 export type CampaignAudiencePreview = {
   total: number;
   withEmail: number;
@@ -385,7 +396,10 @@ export interface OutreachApi {
   ): Promise<{ removed: number }>;
   audiencePreview(id: string): Promise<CampaignAudiencePreview>;
   validateCampaign(id: string): Promise<CampaignValidationResult>;
-  launchCampaign(id: string): Promise<OutreachCampaign>;
+  launchCampaign(id: string): Promise<{
+    campaign: OutreachCampaign;
+    contactUnlock: LaunchContactUnlock | null;
+  }>;
   scheduleCampaign(id: string, scheduledAt: string): Promise<OutreachCampaign>;
   pauseCampaign(id: string): Promise<OutreachCampaign>;
   resumeCampaign(id: string): Promise<OutreachCampaign>;
@@ -767,7 +781,19 @@ const mockOutreachApi: OutreachApi = {
     const { getCampaign } = await import("@/lib/mock-campaign-detail");
     const campaign = getCampaign(id);
     if (!campaign) throw new Error("Campaign not found");
-    return { ...campaign, status: "Running" };
+    return {
+      campaign: { ...campaign, status: "Running" },
+      contactUnlock: {
+        emailNeeded: 0,
+        phoneNeeded: 0,
+        emailUnlocked: 0,
+        phoneUnlocked: 0,
+        emailCreditsCharged: 0,
+        phoneCreditsCharged: 0,
+        skipped: 0,
+        failed: 0,
+      },
+    };
   },
   async scheduleCampaign(id) {
     const campaign = await this.getCampaign(id);
@@ -999,12 +1025,13 @@ const liveOutreachApi: OutreachApi = {
     return result.data;
   },
   async launchCampaign(id) {
-    const result = await apiClient.post<ApiOutreachCampaign>(
-      `/outreach-campaigns/${id}/launch`,
-      undefined,
-      { sensitive: true }
-    );
-    return toDisplayCampaign(result.data);
+    const result = await apiClient.post<
+      ApiOutreachCampaign & { contactUnlock?: LaunchContactUnlock | null }
+    >(`/outreach-campaigns/${id}/launch`, undefined, { sensitive: true });
+    return {
+      campaign: toDisplayCampaign(result.data),
+      contactUnlock: result.data.contactUnlock ?? null,
+    };
   },
   async scheduleCampaign(id, scheduledAt) {
     const result = await apiClient.post<ApiOutreachCampaign>(

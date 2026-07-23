@@ -36,6 +36,11 @@ import { useRouter } from "next/navigation";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
+import {
+  LaunchUnlockDialog,
+  type LaunchUnlockPhase,
+  type LaunchUnlockResult,
+} from "@/components/outreach/launch-unlock-dialog";
 import { ConversationsPanel } from "@/components/conversations/conversations-panel";
 import { ApiFeedback } from "@/components/shared/api-feedback";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
@@ -773,6 +778,12 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
   const [rawMessage, setRawMessage] = useState<string | null>(null);
 
   const [reloadKey, setReloadKey] = useState(0);
+  const [unlockDialogOpen, setUnlockDialogOpen] = useState(false);
+  const [unlockPhase, setUnlockPhase] = useState<LaunchUnlockPhase>("confirm");
+  const [unlockResult, setUnlockResult] = useState<LaunchUnlockResult | null>(
+    null
+  );
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   useRealtimeRefresh(["campaign.updated", "campaign.thread.updated"], () => {
     setReloadKey((key) => key + 1);
@@ -846,6 +857,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
     try {
       const next = await action();
       setStatus(next.status);
+      setReloadKey((key) => key + 1);
       flash(successMessage);
     } catch (err) {
       flash(getApiErrorMessage(err, "Action failed."));
@@ -855,23 +867,29 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
   }
 
   async function handleLaunchDraft() {
+    const needsEmail = campaign.channels.includes("Email");
+    const needsPhone =
+      campaign.channels.includes("WhatsApp") ||
+      campaign.channels.includes("AI Voice");
+    const emailUnlocks = needsEmail
+      ? enrollments.filter((row) => !row.contactAvailability?.email).length
+      : 0;
+    const phoneUnlocks = needsPhone
+      ? enrollments.filter((row) => !row.contactAvailability?.phone).length
+      : 0;
+
+    if (emailUnlocks > 0 || phoneUnlocks > 0) {
+      setUnlockPhase("confirm");
+      setUnlockResult(null);
+      setUnlockError(null);
+      setUnlockDialogOpen(true);
+      return;
+    }
+
     setBusy(true);
     try {
-      const validation = await outreachApi.validateCampaign(campaign.id);
-      const errorIssues = (validation.issues || []).filter(
-        (issue) => issue.severity === "error"
-      );
-      if (!validation.ok || errorIssues.length > 0) {
-        const step = firstIncompleteBuilderStep(validation.issues || []);
-        const message =
-          errorIssues[0]?.message ||
-          "Finish the required fields before launching.";
-        flash(message);
-        router.push(campaignEditPath(campaign.id, { step }));
-        return;
-      }
-      const next = await outreachApi.launchCampaign(campaign.id);
-      setStatus(next.status);
+      const launched = await outreachApi.launchCampaign(campaign.id);
+      setStatus(launched.campaign.status);
       setReloadKey((key) => key + 1);
       flash("Campaign launched.");
     } catch (err) {
@@ -880,6 +898,44 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
       setBusy(false);
     }
   }
+
+  async function confirmUnlockAndLaunch() {
+    setUnlockPhase("running");
+    setUnlockError(null);
+    setBusy(true);
+    try {
+      const launched = await outreachApi.launchCampaign(campaign.id);
+      setStatus(launched.campaign.status);
+      setUnlockResult(launched.contactUnlock);
+      setUnlockPhase("success");
+      setReloadKey((key) => key + 1);
+    } catch (err) {
+      setUnlockError(getApiErrorMessage(err, "Unable to unlock contacts and launch."));
+      setUnlockPhase("error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const unlockEstimate = (() => {
+    const needsEmail = campaign.channels.includes("Email");
+    const needsPhone =
+      campaign.channels.includes("WhatsApp") ||
+      campaign.channels.includes("AI Voice");
+    const emailUnlocks = needsEmail
+      ? enrollments.filter((row) => !row.contactAvailability?.email).length
+      : 0;
+    const phoneUnlocks = needsPhone
+      ? enrollments.filter((row) => !row.contactAvailability?.phone).length
+      : 0;
+    return {
+      emailUnlocks,
+      phoneUnlocks,
+      emailCredits: emailUnlocks * 2,
+      phoneCredits: phoneUnlocks * 5,
+      totalCredits: emailUnlocks * 2 + phoneUnlocks * 5,
+    };
+  })();
 
   return (
     <div className="space-y-4">
@@ -1125,6 +1181,20 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
           />
         </TabsContent>
       </Tabs>
+
+      <LaunchUnlockDialog
+        open={unlockDialogOpen}
+        onOpenChange={setUnlockDialogOpen}
+        phase={unlockPhase}
+        estimate={unlockEstimate}
+        result={unlockResult}
+        error={unlockError}
+        onConfirm={() => void confirmUnlockAndLaunch()}
+        onDone={() => {
+          setUnlockDialogOpen(false);
+          if (unlockPhase === "success") flash("Campaign launched.");
+        }}
+      />
     </div>
   );
 }

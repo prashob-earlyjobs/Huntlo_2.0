@@ -286,6 +286,56 @@ async function resolveSession(
   throw sourcingSessionNotFound();
 }
 
+/** Map external candidate ids → list names for profiles already in candidate lists. */
+async function listNamesByExternalCandidateId(
+  organizationId: string,
+  externalCandidateIds: string[]
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  const ids = externalCandidateIds.filter(Boolean);
+  if (ids.length === 0) return result;
+
+  const savedCandidates = await SavedCandidateModel.find({
+    organizationId: new mongoose.Types.ObjectId(organizationId),
+    externalCandidateId: { $in: ids },
+    deletedAt: null,
+    'listIds.0': { $exists: true },
+  })
+    .select('externalCandidateId listIds')
+    .lean();
+
+  const listIdSet = new Set<string>();
+  for (const row of savedCandidates) {
+    for (const listId of row.listIds ?? []) {
+      listIdSet.add(String(listId));
+    }
+  }
+  if (listIdSet.size === 0) return result;
+
+  const lists = await CandidateListModel.find({
+    _id: { $in: [...listIdSet] },
+    organizationId: new mongoose.Types.ObjectId(organizationId),
+    deletedAt: null,
+  })
+    .select('name')
+    .lean();
+  const nameById = new Map(
+    lists.map((list) => [list._id.toHexString(), String(list.name || '').trim()])
+  );
+
+  for (const row of savedCandidates) {
+    const externalId = row.externalCandidateId;
+    if (!externalId) continue;
+    const names = (row.listIds ?? [])
+      .map((listId) => nameById.get(String(listId)) ?? '')
+      .filter(Boolean);
+    if (names.length > 0) {
+      result.set(externalId, [...new Set(names)]);
+    }
+  }
+  return result;
+}
+
 function assertCanUpdateSession(session: SourcingSessionDocument, actor: SearchActor): void {
   const ownerId = String(session.userId ?? session.ownerUserId);
   if (actor.role === 'owner' || actor.role === 'admin') return;
@@ -1284,18 +1334,9 @@ export class CandidateSearchService {
         candidate.externalCandidateId ||
         candidate._id.toHexString()
     );
-    const savedCandidates = await SavedCandidateModel.find({
-      organizationId: new mongoose.Types.ObjectId(actor.organizationId),
-      externalCandidateId: { $in: externalCandidateIds },
-      deletedAt: null,
-      'listIds.0': { $exists: true },
-    })
-      .select('externalCandidateId')
-      .lean();
-    const savedExternalIds = new Set(
-      savedCandidates
-        .map((candidate) => candidate.externalCandidateId)
-        .filter((id): id is string => Boolean(id))
+    const listsByExternalId = await listNamesByExternalCandidateId(
+      actor.organizationId,
+      externalCandidateIds
     );
 
     return {
@@ -1308,10 +1349,12 @@ export class CandidateSearchService {
           candidate.candidateId ||
           candidate.externalCandidateId ||
           candidate._id.toHexString();
+        const lists = listsByExternalId.get(externalCandidateId) ?? [];
         return toCandidateSummaryDto(
           candidate,
           fjId,
-          savedExternalIds.has(externalCandidateId)
+          lists.length > 0,
+          lists
         );
       }),
       profilesPagination: buildPaginationDto({

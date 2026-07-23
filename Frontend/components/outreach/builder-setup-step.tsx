@@ -15,7 +15,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { JobListItem } from "@/lib/api/contracts";
 import { teamApi, type ApiTeamMember } from "@/lib/api/team";
-import { CAMPAIGN_TYPES, TIMEZONE_OPTIONS } from "@/lib/mock-outreach";
+import { CAMPAIGN_TYPES } from "@/lib/mock-outreach";
 import { useAuth } from "@/providers";
 
 export function SetupStep({
@@ -269,6 +269,8 @@ export function SetupStep({
           </Select>
         </Field>
 
+        {/* Timezone handling is not wired to per-candidate local time yet —
+            backend falls back to Asia/Kolkata — hide until implemented.
         <Field label="Timezone handling" htmlFor="campaign-timezone">
           <Select
             value={state.timezone}
@@ -286,6 +288,7 @@ export function SetupStep({
             </SelectContent>
           </Select>
         </Field>
+        */}
       </div>
     </StepCard>
   );

@@ -627,7 +627,13 @@ export function ConversationInbox({
 
   useEffect(() => {
     if (!selectedId || events.length === 0) return;
-    timelineEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const end = timelineEndRef.current;
+    if (!end) return;
+    // Scroll only the thread pane — never the page / inbox shell.
+    const scroller = end.closest(".overflow-auto");
+    if (scroller instanceof HTMLElement) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+    }
   }, [selectedId, events.length, events[events.length - 1]?.id]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
@@ -716,7 +722,8 @@ export function ConversationInbox({
   return (
     <div
       className={cn(
-        "grid h-full min-h-0 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
+        "grid min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card",
+        "lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
         profileOpen && selected
           ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
           : "xl:grid-cols-[300px_minmax(0,1fr)]",
@@ -724,7 +731,7 @@ export function ConversationInbox({
       )}
     >
       {/* Left — list */}
-      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border lg:border-r lg:border-b-0">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border lg:border-r lg:border-b-0">
         <div className="shrink-0 space-y-2 border-b border-border p-3">
           <div className="relative">
             <Search
@@ -937,8 +944,8 @@ export function ConversationInbox({
 
       {/* Right — profile */}
       {profileOpen && selected ? (
-        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
-          <ScrollArea className="scrollbar-slim min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
+          <ScrollArea className="scrollbar-slim min-h-0 flex-1 max-xl:max-h-80">
             <ProfilePanel
               conversation={selected}
               notes={notes}

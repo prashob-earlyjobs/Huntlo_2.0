@@ -105,17 +105,6 @@ const COUNTRY_OPTIONS = [
   "UAE",
 ] as const;
 
-const REGION_OPTIONS = [
-  "Pune, Maharashtra, India",
-  "Bengaluru, Karnataka, India",
-  "Mumbai, Maharashtra, India",
-  "Hyderabad, Telangana, India",
-  "Chennai, Tamil Nadu, India",
-  "Gurugram, Haryana, India",
-  "Noida, Uttar Pradesh, India",
-  "Kolkata, West Bengal, India",
-] as const;
-
 const COMPANY_OPTIONS = [
   "Tech Mahindra",
   "Infosys",
@@ -358,7 +347,8 @@ export const FILTER_SECTIONS: FilterSection[] = [
         id: "location",
         label: "Region",
         type: "multi",
-        options: REGION_OPTIONS,
+        autocompleteFilterType: "region",
+        options: [],
         placeholder: "Search regions…",
       },
       {

@@ -25,6 +25,7 @@ export function CandidateCard({
   selected,
   onToggleSelect,
   saved,
+  listName = null,
   onToggleSave,
   revealed,
   onReveal,
@@ -35,6 +36,7 @@ export function CandidateCard({
   selected: boolean;
   onToggleSelect: () => void;
   saved: boolean;
+  listName?: string | null;
   onToggleSave: () => void;
   revealed: RevealState;
   onReveal: (kind: "email" | "phone") => void;
@@ -144,9 +146,12 @@ export function CandidateCard({
           variant={saved ? "secondary" : "outline"}
           onClick={onToggleSave}
           aria-pressed={saved}
+          title={listName ?? undefined}
         >
           {saved ? <BookmarkCheck aria-hidden /> : <Bookmark aria-hidden />}
-          Add to list
+          <span className="max-w-[8rem] truncate">
+            {listName ? listName : "Add to list"}
+          </span>
         </Button>
         <Button type="button" size="xs" variant="outline" onClick={onOpenProfile}>
           <Eye aria-hidden />

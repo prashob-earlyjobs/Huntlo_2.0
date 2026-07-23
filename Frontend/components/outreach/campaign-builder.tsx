@@ -9,6 +9,7 @@ import {
   Rocket,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AudienceStep } from "@/components/outreach/builder-audience-step";
@@ -20,6 +21,7 @@ import { SetupStep } from "@/components/outreach/builder-setup-step";
 import {
   applyCampaignType,
   applyEnabledChannels,
+  estimatedUnlockCredits,
   initialBuilderState,
   launchWarnings,
   stepErrors,
@@ -27,6 +29,17 @@ import {
 } from "@/components/outreach/builder-types";
 import { builderStateFromCampaign } from "@/components/outreach/campaign-builder-hydrate";
 import { CampaignDetailSkeleton } from "@/components/outreach/campaign-detail-skeleton";
+import {
+  LaunchUnlockDialog,
+  type LaunchUnlockPhase,
+  type LaunchUnlockResult,
+} from "@/components/outreach/launch-unlock-dialog";
+import {
+  candidateSourceType,
+  loadAudiencePoolRows,
+  resolveAudienceCandidateIds,
+  statsFromPoolRows,
+} from "@/components/outreach/audience-resolve";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,12 +51,9 @@ import {
   type CampaignCreateInput,
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
+import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import type { SequenceStepType } from "@/lib/mock-outreach";
 import { campaignDetailPath, ROUTES } from "@/lib/routes";
-import {
-  candidateSourceType,
-  resolveAudienceCandidateIds,
-} from "@/components/outreach/audience-resolve";
 
 const BUILDER_STEPS = [
   { id: "setup", title: "Campaign Setup" },
@@ -60,6 +70,41 @@ function maxReachableStep(state: BuilderState): number {
     if (stepErrors(index, state).length > 0) return index;
   }
   return BUILDER_STEPS.length - 1;
+}
+
+function parseCandidateIdsParam(raw: string | null): string[] {
+  if (!raw) return [];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+    ),
+  ];
+}
+
+function builderStateFromQuery(
+  searchParams: Pick<URLSearchParams, "get">
+): BuilderState {
+  const base = initialBuilderState();
+  const candidateIds = parseCandidateIdsParam(searchParams.get("candidateIds"));
+  if (!candidateIds.length) return base;
+  const jobId = searchParams.get("jobId")?.trim() || null;
+  return {
+    ...base,
+    ...(jobId ? { jobId } : {}),
+    source: "Candidate Pool",
+    sourceDetail: "",
+    selectedCandidateIds: candidateIds,
+    audiencePreview: {
+      selected: candidateIds.length,
+      withEmail: 0,
+      withPhone: 0,
+      duplicates: 0,
+      invalid: candidateIds.length,
+    },
+  };
 }
 
 type Outcome = "draft" | "scheduled" | "launched";
@@ -161,7 +206,10 @@ export function CampaignBuilder({
   /** Jump to a builder step (0-based) after load — e.g. from Launch validation. */
   initialStep?: number;
 } = {}) {
-  const [state, setState] = useState<BuilderState>(initialBuilderState);
+  const searchParams = useSearchParams();
+  const [state, setState] = useState<BuilderState>(() =>
+    editCampaignId ? initialBuilderState() : builderStateFromQuery(searchParams)
+  );
   const [current, setCurrent] = useState(() => {
     if (initialStep == null || !Number.isFinite(initialStep)) return 0;
     return Math.min(Math.max(0, Math.floor(initialStep)), BUILDER_STEPS.length - 1);
@@ -184,6 +232,18 @@ export function CampaignBuilder({
   const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
+  const [revealCredits, setRevealCredits] = useState<{
+    emailRemaining: number;
+    mobileRemaining: number;
+    emailCost: number;
+    mobileCost: number;
+  } | null>(null);
+  const [unlockDialogOpen, setUnlockDialogOpen] = useState(false);
+  const [unlockPhase, setUnlockPhase] = useState<LaunchUnlockPhase>("confirm");
+  const [unlockResult, setUnlockResult] = useState<LaunchUnlockResult | null>(
+    null
+  );
+  const [unlockError, setUnlockError] = useState<string | null>(null);
   const campaignIdRef = useRef<string | null>(editCampaignId ?? null);
   const autosaveVersionRef = useRef(0);
   const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -212,6 +272,16 @@ export function CampaignBuilder({
         if (outreachRow && outreachRow.limit != null) {
           setCreditsAvailable(Math.max(0, outreachRow.limit - outreachRow.used));
         }
+        const email = usage.find((row) => row.id === "email-reveals");
+        const mobile = usage.find((row) => row.id === "mobile-reveals");
+        const remaining = (row?: { used: number; limit: number | null }) =>
+          row && row.limit != null ? Math.max(0, row.limit - row.used) : 0;
+        setRevealCredits({
+          emailRemaining: remaining(email),
+          mobileRemaining: remaining(mobile),
+          emailCost: REVEAL_COSTS.email,
+          mobileCost: REVEAL_COSTS.mobile,
+        });
       })
       .catch(() => {
         // Leave credits unknown when usage is unavailable.
@@ -258,6 +328,50 @@ export function CampaignBuilder({
       cancelled = true;
     };
   }, [editCampaignId]);
+
+  useEffect(() => {
+    if (editCampaignId) return;
+    const candidateIds = parseCandidateIdsParam(searchParams.get("candidateIds"));
+    if (!candidateIds.length) return;
+
+    const jobId = searchParams.get("jobId")?.trim() || null;
+    let cancelled = false;
+
+    void (async () => {
+      const rows = await loadAudiencePoolRows({
+        source: "Candidate Pool",
+        sourceDetail: "",
+        selectedCandidateIds: candidateIds,
+        poolSearch: "",
+      });
+      if (cancelled) return;
+      setState((previous) => ({
+        ...previous,
+        ...(jobId ? { jobId } : {}),
+        source: "Candidate Pool",
+        sourceDetail: "",
+        selectedCandidateIds: candidateIds,
+        audiencePreview: statsFromPoolRows(
+          rows.length > 0
+            ? rows
+            : candidateIds.map((id) => ({
+                id,
+                name: "Candidate",
+                email: null,
+                phone: null,
+                status: "saved",
+                pipelineStatus: "New",
+                emailRevealed: false,
+                phoneRevealed: false,
+              }))
+        ),
+      }));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editCampaignId, searchParams]);
 
   const queueAutosave = useCallback(
     (snapshot: BuilderState, version: number) => {
@@ -333,8 +447,14 @@ export function CampaignBuilder({
   }
 
   const warnings = useMemo(
-    () => launchWarnings(state, creditsAvailable),
-    [state, creditsAvailable]
+    () =>
+      launchWarnings(state, creditsAvailable, revealCredits
+        ? {
+            emailRemaining: revealCredits.emailRemaining,
+            mobileRemaining: revealCredits.mobileRemaining,
+          }
+        : null),
+    [state, creditsAvailable, revealCredits]
   );
   const blockingErrors = warnings.filter((w) => w.severity === "error");
 
@@ -365,7 +485,10 @@ export function CampaignBuilder({
     goTo(Math.min(current + 1, BUILDER_STEPS.length - 1));
   }
 
-  async function submit(mode: Outcome) {
+  async function submit(
+    mode: Outcome,
+    options: { deferOutcome?: boolean } = {}
+  ) {
     setSubmitting(true);
     setSubmittingMode(mode);
     setSubmitError(null);
@@ -400,18 +523,12 @@ export function CampaignBuilder({
       }
 
       if (mode === "launched") {
-        const validation = await outreachApi.validateCampaign(id);
-        if (!validation.ok) {
-          const blockers = (validation.issues || [])
-            .filter((issue) => issue.severity === "error")
-            .map((issue) => issue.message);
-          throw new Error(
-            blockers.length
-              ? `Cannot launch: ${blockers.join(" · ")}`
-              : "Campaign failed server validation."
-          );
-        }
-        await outreachApi.launchCampaign(id);
+        const launched = await outreachApi.launchCampaign(id);
+        setUnlockResult(launched.contactUnlock);
+        setCampaignId(launched.campaign.id);
+        campaignIdRef.current = launched.campaign.id;
+        if (!options.deferOutcome) setOutcome(mode);
+        return launched.contactUnlock;
       } else if (mode === "scheduled") {
         const scheduledAt = new Date(
           Date.now() + 24 * 60 * 60 * 1000
@@ -421,12 +538,42 @@ export function CampaignBuilder({
 
       setCampaignId(id);
       campaignIdRef.current = id;
-      setOutcome(mode);
+      if (!options.deferOutcome) setOutcome(mode);
+      return null;
     } catch (err) {
       setSubmitError(getApiErrorMessage(err, "Unable to save campaign."));
+      throw err;
     } finally {
       setSubmitting(false);
       setSubmittingMode(null);
+    }
+  }
+
+  function requestLaunch() {
+    if (blockingErrors.length > 0 || submitting) return;
+    const unlock = estimatedUnlockCredits(state);
+    if (unlock.emailUnlocks > 0 || unlock.phoneUnlocks > 0) {
+      setUnlockPhase("confirm");
+      setUnlockResult(null);
+      setUnlockError(null);
+      setUnlockDialogOpen(true);
+      return;
+    }
+    void submit("launched").catch(() => undefined);
+  }
+
+  async function confirmUnlockAndLaunch() {
+    setUnlockPhase("running");
+    setUnlockError(null);
+    try {
+      const result = await submit("launched", { deferOutcome: true });
+      setUnlockResult(result);
+      setUnlockPhase("success");
+    } catch (err) {
+      setUnlockError(
+        getApiErrorMessage(err, "Unable to unlock contacts and launch.")
+      );
+      setUnlockPhase("error");
     }
   }
 
@@ -503,7 +650,7 @@ export function CampaignBuilder({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-[calc(100svh-5.5rem)] flex-col gap-4">
       <nav
         aria-label="Campaign builder steps"
         className="rounded-xl border border-border bg-card p-4"
@@ -540,6 +687,14 @@ export function CampaignBuilder({
           warnings={warnings}
           jobs={jobs}
           creditsAvailable={creditsAvailable}
+          revealCredits={
+            revealCredits
+              ? {
+                  emailRemaining: revealCredits.emailRemaining,
+                  mobileRemaining: revealCredits.mobileRemaining,
+                }
+              : null
+          }
         />
       )}
 
@@ -549,7 +704,7 @@ export function CampaignBuilder({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">
+      <div className="sticky bottom-0 z-20 mt-auto flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/95 p-4 backdrop-blur supports-backdrop-filter:bg-card/90">
         <Button
           type="button"
           size="sm"
@@ -615,7 +770,7 @@ export function CampaignBuilder({
                 type="button"
                 size="sm"
                 disabled={blockingErrors.length > 0 || submitting}
-                onClick={() => void submit("launched")}
+                onClick={requestLaunch}
               >
                 {submittingMode === "launched" ? (
                   <Loader2 aria-hidden className="animate-spin" />
@@ -640,6 +795,28 @@ export function CampaignBuilder({
           </p>
         ) : null}
       </div>
+
+      <LaunchUnlockDialog
+        open={unlockDialogOpen}
+        onOpenChange={setUnlockDialogOpen}
+        phase={unlockPhase}
+        estimate={estimatedUnlockCredits(state)}
+        result={unlockResult}
+        error={unlockError}
+        revealRemaining={
+          revealCredits
+            ? {
+                emailRemaining: revealCredits.emailRemaining,
+                mobileRemaining: revealCredits.mobileRemaining,
+              }
+            : null
+        }
+        onConfirm={() => void confirmUnlockAndLaunch()}
+        onDone={() => {
+          setUnlockDialogOpen(false);
+          if (unlockPhase === "success") setOutcome("launched");
+        }}
+      />
     </div>
   );
 }

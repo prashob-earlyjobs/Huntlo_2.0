@@ -94,7 +94,6 @@ export interface CandidateNote {
 
 export interface PoolCandidate extends SessionCandidate {
   pipelineStatus: CandidateStatus;
-  lists: string[];
   owner: string;
   source: CandidateSource;
   lastActivity: string;
@@ -117,10 +116,12 @@ export interface PoolCandidate extends SessionCandidate {
   customFields?: Record<string, unknown>;
 }
 
-const POOL_EXTRAS: Record<
-  string,
-  Omit<PoolCandidate, keyof SessionCandidate>
-> = {
+/** Pool-only fields, plus optional `lists` overrides for mock pool membership. */
+type PoolExtras = Omit<PoolCandidate, keyof SessionCandidate> & {
+  lists?: string[];
+};
+
+const POOL_EXTRAS: Record<string, PoolExtras> = {
   "cand-1": {
     pipelineStatus: "Interview Scheduled",
     lists: ["Bengaluru React Developers", "AI Engineering Pipeline"],

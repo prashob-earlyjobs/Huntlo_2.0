@@ -67,6 +67,7 @@ export type SourcedCandidateApi = {
   rank: number;
   matchScore: number | null;
   saved?: boolean;
+  lists?: string[];
 };
 
 export type CreateSourcingSessionInput = {
@@ -154,6 +155,9 @@ export function mapApiCandidateToSessionCandidate(
     },
     contactStatus: "Not contacted",
     saved: Boolean(candidate.saved),
+    lists: Array.isArray(candidate.lists)
+      ? candidate.lists.filter((name): name is string => typeof name === "string" && name.trim().length > 0)
+      : [],
     linkedin: Boolean(candidate.linkedinUrl),
     avatarUrl: candidate.profilePictureUrl ?? null,
     email: "",

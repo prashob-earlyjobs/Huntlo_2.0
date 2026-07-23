@@ -859,7 +859,6 @@ export const JOB_FORM_SECTIONS = [
   { id: "profile", title: "Candidate requirements", description: "Skills and seniority" },
   { id: "description", title: "Job description", description: "Scope and narrative" },
   { id: "compensation", title: "Compensation", description: "Pay range and visibility" },
-  { id: "team", title: "Hiring team", description: "Owners and interview panel" },
   { id: "screening", title: "Screening preferences", description: "AI and knockout rules" },
   { id: "internal", title: "Internal settings", description: "Priority and notes" },
 ] as const;
