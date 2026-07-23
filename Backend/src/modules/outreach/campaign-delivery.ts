@@ -16,6 +16,7 @@ import {
   sendMetaWhatsAppTemplate,
   sendMetaWhatsAppText,
 } from '../../providers/meta-whatsapp/meta.send.js';
+import { stampWhatsAppOutboundRoute } from '../webhooks/whatsapp-outbound-route.service.js';
 import { sendOutlookMail } from '../../providers/outlook/outlook.send.js';
 import { refreshOutlookAccessToken } from '../../providers/outlook/outlook.oauth.js';
 import {
@@ -480,6 +481,9 @@ async function sendWhatsAppViaIntegration(input: {
   body: string;
   templateId?: string | null;
   mergeContext?: Record<string, string>;
+  organizationId?: string | null;
+  campaignId?: string | null;
+  enrollmentId?: string | null;
 }): Promise<{ messageId?: string; provider: string; mode: 'template' | 'text' }> {
   const { secrets } = input;
   const body = input.body || '';
@@ -508,6 +512,24 @@ async function sendWhatsAppViaIntegration(input: {
     : [];
 
   const logger = getLogger().child({ component: 'whatsapp-send' });
+
+  const finish = async (result: {
+    messageId?: string;
+    provider: string;
+    mode: 'template' | 'text';
+  }) => {
+    await stampWhatsAppOutboundRoute({
+      providerMessageId: result.messageId,
+      toPhone: input.to,
+      provider: result.provider,
+      organizationId: input.organizationId,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+    }).catch((error) => {
+      logger.warn({ err: error, to: input.to }, 'Failed to stamp WhatsApp outbound route');
+    });
+    return result;
+  };
 
   if (secrets.provider === 'huntlo-whatsapp' || secrets.provider === 'meta-whatsapp') {
     let phoneNumberId = '';
@@ -567,11 +589,11 @@ async function sendWhatsAppViaIntegration(input: {
         languageCode,
         bodyParameters,
       });
-      return {
+      return finish({
         messageId: result.messageId,
         provider: secrets.provider,
         mode: 'template',
-      };
+      });
     }
 
     if (!body.trim()) {
@@ -602,7 +624,7 @@ async function sendWhatsAppViaIntegration(input: {
       to: input.to,
       body,
     });
-    return { messageId: result.messageId, provider: secrets.provider, mode: 'text' };
+    return finish({ messageId: result.messageId, provider: secrets.provider, mode: 'text' });
   }
 
   if (secrets.provider === 'gupshup') {
@@ -618,7 +640,7 @@ async function sendWhatsAppViaIntegration(input: {
         templateId: gupshupTemplateId,
         bodyParameters,
       });
-      return { messageId: result.messageId, provider: 'gupshup', mode: 'template' };
+      return finish({ messageId: result.messageId, provider: 'gupshup', mode: 'template' });
     }
 
     if (/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(body)) {
@@ -629,7 +651,7 @@ async function sendWhatsAppViaIntegration(input: {
     }
 
     const result = await sendGupshupText({ to: input.to, body, mode: 'reply' });
-    return { messageId: result.messageId, provider: 'gupshup', mode: 'text' };
+    return finish({ messageId: result.messageId, provider: 'gupshup', mode: 'text' });
   }
 
   throw Object.assign(
@@ -842,6 +864,7 @@ export async function sendAdHocMessage(input: {
     secrets: integration.secrets,
     to: input.to,
     body: input.body,
+    organizationId: input.organizationId,
   });
   return { providerMessageId: sent.messageId, provider: sent.provider };
 }
@@ -1022,6 +1045,9 @@ export async function executeCampaignMessageStep(input: {
         body: conversationBody,
         templateId: isColdTemplate ? templateId : null,
         mergeContext,
+        organizationId,
+        campaignId: String(campaign._id),
+        enrollmentId: String(enrollment._id),
       });
       await quotaService.commitUsage({
         organizationId,

@@ -4,7 +4,10 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
-import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import {
+  mapModeToCampaignType,
+  OutreachCampaignModel,
+} from '../outreach/campaign.model.js';
 import { deriveEnrollmentPipelineStatus } from '../outreach/enrollment-pipeline-status.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { enrollQualifiedCandidateInCampaignScreening } from '../outreach/outreach-auto-screening.service.js';
@@ -250,7 +253,9 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
         .lean(),
       thread.campaignId
         ? OutreachCampaignModel.findById(thread.campaignId)
-            .select('name sequenceSteps qualificationConfig.autoScreening')
+            .select(
+              'name campaignType mode sequenceSteps qualificationConfig.autoScreening'
+            )
             .lean()
         : null,
       thread.jobId ? JobModel.findById(thread.jobId).select('title').lean() : null,
@@ -360,6 +365,9 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       .filter(Boolean),
     campaignId: thread.campaignId ? String(thread.campaignId) : '',
     campaignName: campaign?.name || '—',
+    campaignType: campaign
+      ? campaign.campaignType || mapModeToCampaignType(campaign.mode)
+      : 'single_channel',
     jobId: thread.jobId ? String(thread.jobId) : null,
     jobTitle: job?.title || null,
     lastMessage: thread.lastMessagePreview || '',
@@ -1039,9 +1047,7 @@ export const conversationsService = {
       thread.status = 'closed';
       thread.automationStatus = 'stopped';
       thread.lastMessageAt = thread.lastMessageAt || now;
-      if (!thread.lastMessagePreview) {
-        thread.lastMessagePreview = 'Closed — new outreach started';
-      }
+      thread.lastMessagePreview = 'Idle — newer outreach started';
       await thread.save();
       emitCampaignThreadUpdated({
         organizationId: input.organizationId,
@@ -1053,6 +1059,61 @@ export const conversationsService = {
       });
     }
     return prior.length;
+  },
+
+  /**
+   * After first multi-channel reply, close sibling email/whatsapp threads so
+   * only the winner channel stays active for Q&A.
+   */
+  async orphanSiblingThreads(input: {
+    organizationId: string;
+    candidateId: string;
+    campaignId: string;
+    keepThreadId: string;
+    winnerChannel: 'email' | 'whatsapp';
+  }): Promise<number> {
+    const winnerLabel = input.winnerChannel === 'whatsapp' ? 'WhatsApp' : 'Email';
+    const siblings = await ConversationThreadModel.find({
+      organizationId: input.organizationId,
+      candidateId: input.candidateId,
+      campaignId: input.campaignId,
+      _id: { $ne: input.keepThreadId },
+      status: { $nin: ['closed', 'opted_out'] },
+      channels: { $in: ['email', 'whatsapp'] },
+    });
+    if (!siblings.length) return 0;
+
+    const now = new Date();
+    for (const sibling of siblings) {
+      sibling.status = 'closed';
+      sibling.automationStatus = 'stopped';
+      sibling.lastMessageAt = sibling.lastMessageAt || now;
+      sibling.lastMessagePreview = `Superseded — continued on ${winnerLabel}`;
+      await sibling.save();
+
+      await ConversationMessageModel.create({
+        organizationId: input.organizationId,
+        threadId: sibling._id,
+        provider: 'system',
+        channel: 'note',
+        direction: 'internal',
+        bodyText: `This channel is no longer active. Conversation continued on ${winnerLabel}.`,
+        providerMessageId: `sys-orphan-${String(sibling._id)}-${Date.now()}`,
+        deliveryStatus: 'delivered',
+        messageType: 'system',
+        sentAt: now,
+      });
+
+      emitCampaignThreadUpdated({
+        organizationId: input.organizationId,
+        campaignId: input.campaignId,
+        threadId: String(sibling._id),
+        status: sibling.status,
+        unreadCount: sibling.unreadCount || 0,
+        qualificationStatus: sibling.qualificationStatus,
+      });
+    }
+    return siblings.length;
   },
 
   /** Ensure a thread exists for an enrollment (outbound send hook). */

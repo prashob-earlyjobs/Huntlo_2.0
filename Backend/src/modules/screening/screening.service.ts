@@ -376,6 +376,12 @@ export const screeningService = {
         maxRetryCount: input.callSettings?.maxRetryCount ?? 2,
         retryIntervalHours: input.callSettings?.retryIntervalHours ?? 6,
         consentRequired: input.callSettings?.consentRequired ?? true,
+        callWindow: input.callSettings?.callWindow ?? '10 AM – 7 PM',
+        timezone:
+          input.callSettings?.timezone ?? "Candidate's local timezone",
+        voicemailBehaviour:
+          input.callSettings?.voicemailBehaviour ??
+          'Leave a short callback message',
       },
       candidateIds: input.candidateIds || [],
       status: 'draft',
@@ -1071,6 +1077,9 @@ export const screeningService = {
           maxRetryCount: Math.max(0, input.attempts - 1),
           retryIntervalHours: 6,
           consentRequired: true,
+          callWindow: '10 AM – 7 PM',
+          timezone: "Candidate's local timezone",
+          voicemailBehaviour: 'Leave a short callback message',
         },
         candidateIds: [input.candidateId],
         status: 'draft',

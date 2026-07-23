@@ -60,7 +60,6 @@ import {
   DELAY_UNIT_OPTIONS,
   formatStepDelay,
   PERSONALIZATION_VARIABLES,
-  SEND_WINDOWS,
   STEP_CHANNELS,
   STEP_TYPE_ICONS,
   STEP_TYPES,
@@ -147,8 +146,7 @@ function StepEditor({
               className="bg-muted/40 text-muted-foreground"
             />
             <p className="pt-1 text-xs text-muted-foreground">
-              Opening message sends as soon as the campaign launches (within the
-              send window).
+              Opening message sends as soon as the campaign launches.
             </p>
           </Field>
         ) : (
@@ -403,29 +401,6 @@ function StepEditor({
         </Field>
       )}
 
-      {isMessage ? (
-        <div className="max-w-sm">
-          <Field label="Send window" htmlFor={`${step.id}-window`}>
-            <Select
-              value={step.sendWindow}
-              onValueChange={(value) =>
-                value && onChange({ ...step, sendWindow: value })
-              }
-            >
-              <SelectTrigger id={`${step.id}-window`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SEND_WINDOWS.map((window) => (
-                  <SelectItem key={window} value={window}>
-                    {window}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-      ) : null}
     </div>
   );
 }

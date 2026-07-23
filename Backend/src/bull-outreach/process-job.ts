@@ -7,7 +7,6 @@ import {
 import { ScreeningModel, screeningService } from '../modules/screening/index.js';
 import { OutreachEnrollmentModel } from '../modules/outreach/enrollment.model.js';
 import { campaignsService } from '../modules/outreach/campaigns.service.js';
-import { nextSendAtWithinWindow } from '../modules/outreach/send-window.util.js';
 import { conversationsService } from '../modules/conversations/conversations.service.js';
 import { ConversationMessageModel } from '../modules/conversations/conversation-message.model.js';
 import type { ConversationChannel } from '../modules/conversations/conversation-thread.model.js';
@@ -243,13 +242,10 @@ async function runSendOrFollowup(mongoJobId: string) {
     return;
   }
 
+  // Message/follow-up timing uses step delay only — no send window.
+  // Call windows apply only to screening calls.
   const delayMs = Math.max(0, sequenceDelayToMs(next.delayDays || 0, next.delayUnit));
-  const sendWindow = next.sendWindow || campaign.channelConfig.sendWindow || null;
-  const when = nextSendAtWithinWindow(
-    new Date(Date.now() + delayMs),
-    sendWindow,
-    campaign.channelConfig.timezone
-  );
+  const when = new Date(Date.now() + delayMs);
 
   enrollment.currentStepIndex = idx + 1;
   enrollment.status = delayMs > 0 ? 'waiting' : 'active';

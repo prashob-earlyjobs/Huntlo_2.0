@@ -338,8 +338,8 @@ export const DELAY_OPTIONS = [
   "48 hours",
 ] as const;
 export const CALL_WINDOWS = [
-  "9 AM – 6 PM",
   "10 AM – 7 PM",
+  "9 AM – 6 PM",
   "Weekdays only · 9 AM – 6 PM",
   "Any time",
 ] as const;

@@ -39,6 +39,10 @@ export type ScreeningCallSettings = {
   maxRetryCount: number;
   retryIntervalHours: number;
   consentRequired: boolean;
+  /** Human-readable dial window, e.g. "10 AM – 7 PM". */
+  callWindow: string;
+  timezone: string;
+  voicemailBehaviour: string;
 };
 
 export type ScreeningStats = {
@@ -168,6 +172,12 @@ const screeningSchema = new Schema<ScreeningDocument>(
         maxRetryCount: { type: Number, default: 2 },
         retryIntervalHours: { type: Number, default: 6 },
         consentRequired: { type: Boolean, default: true },
+        callWindow: { type: String, default: '10 AM – 7 PM' },
+        timezone: { type: String, default: "Candidate's local timezone" },
+        voicemailBehaviour: {
+          type: String,
+          default: 'Leave a short callback message',
+        },
       },
       default: () => ({
         maxAttempts: 2,
@@ -175,6 +185,9 @@ const screeningSchema = new Schema<ScreeningDocument>(
         maxRetryCount: 2,
         retryIntervalHours: 6,
         consentRequired: true,
+        callWindow: '10 AM – 7 PM',
+        timezone: "Candidate's local timezone",
+        voicemailBehaviour: 'Leave a short callback message',
       }),
     },
     candidateIds: { type: [String], default: [] },

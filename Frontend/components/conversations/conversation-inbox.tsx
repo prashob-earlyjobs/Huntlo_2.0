@@ -9,6 +9,8 @@ import {
   FileText,
   Mail,
   MessageCircle,
+  MessageSquare,
+  MessagesSquare,
   Paperclip,
   Phone,
   Search,
@@ -41,6 +43,95 @@ import { CHANNEL_ICONS, type OutreachChannel } from "@/lib/mock-outreach";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+
+const CHANNEL_ORDER: OutreachChannel[] = ["Email", "WhatsApp", "AI Voice"];
+
+/** One inbox row — multi-channel campaigns collapse same contact+campaign into a single row. */
+type InboxRow = Conversation & {
+  threadIds: string[];
+};
+
+function conversationGroupKey(conversation: Conversation): string {
+  if (conversation.candidateId && conversation.campaignId) {
+    return `${conversation.candidateId}::${conversation.campaignId}`;
+  }
+  return conversation.id;
+}
+
+function mergeChannels(rows: Conversation[]): OutreachChannel[] {
+  const seen = new Set<OutreachChannel>();
+  for (const row of rows) {
+    for (const channel of row.channels) {
+      seen.add(channel);
+    }
+  }
+  return CHANNEL_ORDER.filter((channel) => seen.has(channel));
+}
+
+function mergeEvents(rows: Conversation[]): ConversationEvent[] {
+  const byId = new Map<string, ConversationEvent>();
+  const hasActiveSibling = rows.some((row) => row.status !== "closed");
+  for (const row of rows) {
+    const superseded = hasActiveSibling && row.status === "closed";
+    for (const event of row.events ?? []) {
+      const existing = byId.get(event.id);
+      byId.set(event.id, {
+        ...event,
+        superseded: Boolean(existing?.superseded || event.superseded || superseded),
+      });
+    }
+  }
+  return [...byId.values()].sort((a, b) => {
+    const aAt = a.sentAt ? Date.parse(a.sentAt) : NaN;
+    const bAt = b.sentAt ? Date.parse(b.sentAt) : NaN;
+    if (!Number.isNaN(aAt) && !Number.isNaN(bAt)) return aAt - bAt;
+    if (!Number.isNaN(aAt)) return -1;
+    if (!Number.isNaN(bAt)) return 1;
+    return 0;
+  });
+}
+
+function groupConversations(conversations: Conversation[]): InboxRow[] {
+  const groups = new Map<string, Conversation[]>();
+  const order: string[] = [];
+
+  for (const conversation of conversations) {
+    const key = conversationGroupKey(conversation);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(conversation);
+    } else {
+      groups.set(key, [conversation]);
+      order.push(key);
+    }
+  }
+
+  return order.map((key) => {
+    const rows = groups.get(key) ?? [];
+    const primary = rows[0]!;
+    if (rows.length === 1) {
+      return { ...primary, threadIds: [primary.id] };
+    }
+
+    const unreadCount = rows.reduce(
+      (sum, row) =>
+        sum + Math.max(0, row.unreadCount ?? (row.unread ? 1 : 0)),
+      0
+    );
+
+    return {
+      ...primary,
+      channels: mergeChannels(rows),
+      campaignType:
+        primary.campaignType ??
+        (rows.length > 1 ? "multi_channel" : "single_channel"),
+      unread: unreadCount > 0,
+      unreadCount,
+      events: mergeEvents(rows),
+      threadIds: rows.map((row) => row.id),
+    };
+  });
+}
 
 /** Show only the new reply — drop Gmail/Outlook quoted history. */
 function stripEmailQuotedReply(raw: string): string {
@@ -197,7 +288,8 @@ function EventBubble({ event }: { event: ConversationEvent }) {
         "w-fit max-w-[85cqw] overflow-hidden break-words rounded-xl px-3 py-2 [overflow-wrap:anywhere]",
         inbound
           ? "mr-auto rounded-bl-sm border border-border bg-card"
-          : "ml-auto rounded-br-sm bg-brand-subtle"
+          : "ml-auto rounded-br-sm bg-brand-subtle",
+        event.superseded && "opacity-70"
       )}
     >
       <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
@@ -205,6 +297,11 @@ function EventBubble({ event }: { event: ConversationEvent }) {
         <span className="truncate">{event.authorName}</span>
         {AuthorIcon ? (
           <AuthorIcon aria-hidden className="size-3 shrink-0" />
+        ) : null}
+        {event.superseded ? (
+          <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+            {event.channel} · inactive
+          </span>
         ) : null}
       </p>
       {event.subject ? (
@@ -442,7 +539,7 @@ export function ConversationInbox({
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [addedNotes, setAddedNotes] = useState<Record<string, Conversation["notes"]>>({});
-  const [profileOpen, setProfileOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
   const timelineEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -467,20 +564,26 @@ export function ConversationInbox({
     }
   }, [conversations, selectedId]);
 
-  // If a new message arrives on the open thread, mark it read without switching.
+  // If a new message arrives on the open thread (or its sibling channels), mark read.
   useEffect(() => {
     if (!selectedId) return;
-    const openRow = conversations.find((row) => row.id === selectedId);
-    if (!openRow) return;
-    if (!openRow.unread && !(openRow.unreadCount && openRow.unreadCount > 0)) {
-      return;
+    const openGroup = groupConversations(items).find((row) =>
+      row.threadIds.includes(selectedId)
+    );
+    if (!openGroup) return;
+    const dirty = openGroup.threadIds.filter((id) => {
+      const row = items.find((item) => item.id === id);
+      return Boolean(row?.unread || (row?.unreadCount && row.unreadCount > 0));
+    });
+    if (dirty.length === 0) return;
+    for (const id of dirty) {
+      void conversationsApi.markRead(id).catch(() => undefined);
     }
-    void conversationsApi.markRead(selectedId).catch(() => undefined);
-  }, [conversations, selectedId]);
+  }, [conversations, selectedId, items]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return items.filter((conversation) => {
+    const matched = items.filter((conversation) => {
       if (
         normalized &&
         !`${conversation.candidateName} ${conversation.campaignName} ${conversation.lastMessage}`
@@ -502,14 +605,24 @@ export function ConversationInbox({
         return false;
       return true;
     });
+    return groupConversations(matched);
   }, [items, query, channelFilter, pipelineFilter, unreadOnly, readIds]);
 
-  const selected =
-    items.find((conversation) => conversation.id === selectedId) ?? null;
+  const selected = useMemo(() => {
+    if (!selectedId) return null;
+    return (
+      groupConversations(items).find((row) =>
+        row.threadIds.includes(selectedId)
+      ) ?? null
+    );
+  }, [items, selectedId]);
 
   const events = selected ? selected.events : [];
   const notes = selected
-    ? [...selected.notes, ...(addedNotes[selected.id] ?? [])]
+    ? [
+        ...selected.notes,
+        ...selected.threadIds.flatMap((id) => addedNotes[id] ?? []),
+      ]
     : [];
 
   useEffect(() => {
@@ -526,12 +639,17 @@ export function ConversationInbox({
       );
   }
 
-  function open(conversation: Conversation) {
+  function open(conversation: InboxRow) {
+    const threadIds = conversation.threadIds;
     setSelectedId(conversation.id);
-    setReadIds((previous) => new Set(previous).add(conversation.id));
+    setReadIds((previous) => {
+      const next = new Set(previous);
+      for (const id of threadIds) next.add(id);
+      return next;
+    });
     setItems((previous) =>
       previous.map((row) =>
-        row.id === conversation.id
+        threadIds.includes(row.id)
           ? { ...row, unread: false, unreadCount: 0 }
           : row
       )
@@ -542,28 +660,33 @@ export function ConversationInbox({
         .getElementById("conversation-detail")
         ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
-    void conversationsApi.markRead(conversation.id).then((updated) => {
-      if (updated && typeof updated === "object" && "id" in updated) {
-        setItems((previous) =>
-          previous.map((row) => {
-            if (row.id !== updated.id) return row;
-            const nextEvents =
-              (updated.events?.length ?? 0) >= (row.events?.length ?? 0)
-                ? updated.events?.length
-                  ? updated.events
-                  : row.events
-                : row.events;
-            return {
-              ...row,
-              ...updated,
-              events: nextEvents,
-              unread: false,
-              unreadCount: 0,
-            };
-          })
-        );
-      }
-    }).catch(() => undefined);
+    for (const threadId of threadIds) {
+      void conversationsApi
+        .markRead(threadId)
+        .then((updated) => {
+          if (updated && typeof updated === "object" && "id" in updated) {
+            setItems((previous) =>
+              previous.map((row) => {
+                if (row.id !== updated.id) return row;
+                const nextEvents =
+                  (updated.events?.length ?? 0) >= (row.events?.length ?? 0)
+                    ? updated.events?.length
+                      ? updated.events
+                      : row.events
+                    : row.events;
+                return {
+                  ...row,
+                  ...updated,
+                  events: nextEvents,
+                  unread: false,
+                  unreadCount: 0,
+                };
+              })
+            );
+          }
+        })
+        .catch(() => undefined);
+    }
   }
 
   function persistNote(conversationId: string, text: string) {
@@ -649,7 +772,9 @@ export function ConversationInbox({
               </li>
             ) : (
               filtered.map((conversation) => {
-                const isActive = conversation.id === selectedId;
+                const isActive = conversation.threadIds.includes(
+                  selectedId ?? ""
+                );
                 const unreadCount = isActive
                   ? 0
                   : Math.max(
@@ -660,7 +785,7 @@ export function ConversationInbox({
                 const isUnread = unreadCount > 0;
                 const pipeline = conversationPipelineStatus(conversation);
                 return (
-                  <li key={conversation.id}>
+                  <li key={conversation.threadIds.join("-")}>
                     <button
                       type="button"
                       onClick={() => open(conversation)}
@@ -697,8 +822,25 @@ export function ConversationInbox({
                               />
                             );
                           })}
-                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-                            {conversation.lastTime}
+                          <span className="ml-auto flex shrink-0 items-center gap-1">
+                            {conversation.campaignType === "multi_channel" ? (
+                              <span title="Multi-channel campaign">
+                                <MessagesSquare
+                                  aria-label="Multi-channel campaign"
+                                  className="size-3.5 text-muted-foreground"
+                                />
+                              </span>
+                            ) : (
+                              <span title="Single-channel campaign">
+                                <MessageSquare
+                                  aria-label="Single-channel campaign"
+                                  className="size-3.5 text-muted-foreground"
+                                />
+                              </span>
+                            )}
+                            <span className="text-[11px] text-muted-foreground">
+                              {conversation.lastTime}
+                            </span>
                           </span>
                         </span>
                         <span
@@ -750,6 +892,9 @@ export function ConversationInbox({
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {selected.campaignName} · {selected.sequenceStep}
+                  {selected.channels.length > 1
+                    ? ` · ${selected.channels.join(" + ")}`
+                    : ""}
                 </p>
               </div>
               <MiniBadge

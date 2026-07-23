@@ -693,16 +693,8 @@ function SettingsTab({
   }
 
   const cfg = raw.channelConfig;
-  const sendWindow = cfg?.sendWindow;
   const settings: { id: string; label: string; value: string }[] = [
     { id: "timezone", label: "Timezone", value: cfg?.timezone || "—" },
-    {
-      id: "window",
-      label: "Send window",
-      value: sendWindow
-        ? `${sendWindow.startHour}:00 – ${sendWindow.endHour}:00`
-        : "—",
-    },
     {
       id: "stop",
       label: "Stop on reply",
