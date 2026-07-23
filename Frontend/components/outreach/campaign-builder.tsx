@@ -126,7 +126,7 @@ const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
   launched: {
     title: "Campaign launched",
     description:
-      "Candidates will start receiving the first step within the configured send window.",
+      "Candidates will start receiving the first step right away. Follow-ups use each step’s delay.",
   },
 };
 

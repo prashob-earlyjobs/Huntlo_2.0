@@ -4,7 +4,10 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
-import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import {
+  mapModeToCampaignType,
+  OutreachCampaignModel,
+} from '../outreach/campaign.model.js';
 import { deriveEnrollmentPipelineStatus } from '../outreach/enrollment-pipeline-status.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { enrollQualifiedCandidateInCampaignScreening } from '../outreach/outreach-auto-screening.service.js';
@@ -194,10 +197,16 @@ function parseVoiceSummaryMeta(
   outcome: string;
   highlights: string[];
   transcript?: string;
+  recordingUrl?: string | null;
+  screeningId?: string | null;
+  resultId?: string | null;
 } {
   let duration = '—';
   let outcome = 'AI voice call';
   let highlights: string[] = [];
+  let recordingUrl: string | null = null;
+  let screeningId: string | null = null;
+  let resultId: string | null = null;
   try {
     const meta = bodyHtml ? (JSON.parse(bodyHtml) as Record<string, unknown>) : null;
     if (meta) {
@@ -213,6 +222,20 @@ function parseVoiceSummaryMeta(
           .filter(Boolean)
           .slice(0, 8);
       }
+      if (typeof meta.recordingUrl === 'string' && meta.recordingUrl.trim()) {
+        recordingUrl = meta.recordingUrl.trim();
+      } else if (
+        typeof meta.recording_url === 'string' &&
+        meta.recording_url.trim()
+      ) {
+        recordingUrl = meta.recording_url.trim();
+      }
+      if (typeof meta.screeningId === 'string' && meta.screeningId.trim()) {
+        screeningId = meta.screeningId.trim();
+      }
+      if (typeof meta.resultId === 'string' && meta.resultId.trim()) {
+        resultId = meta.resultId.trim();
+      }
     }
   } catch {
     // bodyHtml may be plain text in older rows
@@ -223,6 +246,9 @@ function parseVoiceSummaryMeta(
     outcome,
     highlights,
     ...(transcript ? { transcript } : {}),
+    ...(recordingUrl ? { recordingUrl } : {}),
+    ...(screeningId ? { screeningId } : {}),
+    ...(resultId ? { resultId } : {}),
   };
 }
 
@@ -243,6 +269,52 @@ function resolveDisplayBody(
 }
 
 async function toDisplayConversation(thread: ConversationThreadDocument) {
+  const enrollmentEarly = thread.enrollmentId
+    ? await OutreachEnrollmentModel.findById(thread.enrollmentId)
+        .select('screeningState candidateId')
+        .lean()
+    : null;
+
+  // Backfill screening voice summary/recording onto this outreach chat when available.
+  if (enrollmentEarly?.screeningState?.screeningId) {
+    try {
+      const { ScreeningCandidateModel } = await import(
+        '../screening/screening-candidate.model.js'
+      );
+      const { ScreeningModel } = await import('../screening/screening.model.js');
+      const {
+        syncScreeningCandidateToConversation,
+        syncEnrollmentScreeningDecision,
+      } = await import('../screening/screening-conversation-sync.js');
+      const screeningId = String(enrollmentEarly.screeningState.screeningId);
+      const [screening, row] = await Promise.all([
+        ScreeningModel.findById(screeningId)
+          .select('_id organizationId campaignId jobId name')
+          .lean(),
+        ScreeningCandidateModel.findOne({
+          screeningId,
+          candidateId: thread.candidateId,
+        }),
+      ]);
+      if (screening && row) {
+        await syncScreeningCandidateToConversation({
+          row,
+          screening,
+        });
+        await syncEnrollmentScreeningDecision({
+          organizationId: String(row.organizationId),
+          candidateId: String(row.candidateId),
+          enrollmentId: row.enrollmentId ? String(row.enrollmentId) : String(enrollmentEarly._id),
+          screeningId,
+          recommendation: row.recommendation,
+          recruiterDecision: row.recruiterDecision,
+        });
+      }
+    } catch {
+      // Never block conversation load on screening sync.
+    }
+  }
+
   const [candidate, campaign, job, assignee, latestClass, messages, notes] =
     await Promise.all([
       SavedCandidateModel.findById(thread.candidateId)
@@ -250,7 +322,9 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
         .lean(),
       thread.campaignId
         ? OutreachCampaignModel.findById(thread.campaignId)
-            .select('name sequenceSteps qualificationConfig.autoScreening')
+            .select(
+              'name campaignType mode sequenceSteps qualificationConfig.autoScreening'
+            )
             .lean()
         : null,
       thread.jobId ? JobModel.findById(thread.jobId).select('title').lean() : null,
@@ -360,6 +434,9 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       .filter(Boolean),
     campaignId: thread.campaignId ? String(thread.campaignId) : '',
     campaignName: campaign?.name || '—',
+    campaignType: campaign
+      ? campaign.campaignType || mapModeToCampaignType(campaign.mode)
+      : 'single_channel',
     jobId: thread.jobId ? String(thread.jobId) : null,
     jobTitle: job?.title || null,
     lastMessage: thread.lastMessagePreview || '',
@@ -372,6 +449,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     qualificationStatus: thread.qualificationStatus,
     screeningStatus: enrollment?.screeningState?.status || 'not_started',
     screeningId: enrollment?.screeningState?.screeningId ?? null,
+    screeningDecision: enrollment?.screeningState?.decision ?? null,
     autoScreening,
     sequenceStep,
     nextAction:
@@ -980,12 +1058,14 @@ export const conversationsService = {
                 enrollment.screeningState = {
                   status: 'scheduled',
                   screeningId,
+                  decision: null,
                 };
               } catch {
                 enrollment.screeningState = {
                   ...enrollment.screeningState,
                   status: 'scheduled',
                   screeningId: enrollment.screeningState?.screeningId ?? null,
+                  decision: enrollment.screeningState?.decision ?? null,
                 };
               }
             }
@@ -1039,9 +1119,7 @@ export const conversationsService = {
       thread.status = 'closed';
       thread.automationStatus = 'stopped';
       thread.lastMessageAt = thread.lastMessageAt || now;
-      if (!thread.lastMessagePreview) {
-        thread.lastMessagePreview = 'Closed — new outreach started';
-      }
+      thread.lastMessagePreview = 'Idle — newer outreach started';
       await thread.save();
       emitCampaignThreadUpdated({
         organizationId: input.organizationId,
@@ -1053,6 +1131,61 @@ export const conversationsService = {
       });
     }
     return prior.length;
+  },
+
+  /**
+   * After first multi-channel reply, close sibling email/whatsapp threads so
+   * only the winner channel stays active for Q&A.
+   */
+  async orphanSiblingThreads(input: {
+    organizationId: string;
+    candidateId: string;
+    campaignId: string;
+    keepThreadId: string;
+    winnerChannel: 'email' | 'whatsapp';
+  }): Promise<number> {
+    const winnerLabel = input.winnerChannel === 'whatsapp' ? 'WhatsApp' : 'Email';
+    const siblings = await ConversationThreadModel.find({
+      organizationId: input.organizationId,
+      candidateId: input.candidateId,
+      campaignId: input.campaignId,
+      _id: { $ne: input.keepThreadId },
+      status: { $nin: ['closed', 'opted_out'] },
+      channels: { $in: ['email', 'whatsapp'] },
+    });
+    if (!siblings.length) return 0;
+
+    const now = new Date();
+    for (const sibling of siblings) {
+      sibling.status = 'closed';
+      sibling.automationStatus = 'stopped';
+      sibling.lastMessageAt = sibling.lastMessageAt || now;
+      sibling.lastMessagePreview = `Superseded — continued on ${winnerLabel}`;
+      await sibling.save();
+
+      await ConversationMessageModel.create({
+        organizationId: input.organizationId,
+        threadId: sibling._id,
+        provider: 'system',
+        channel: 'note',
+        direction: 'internal',
+        bodyText: `This channel is no longer active. Conversation continued on ${winnerLabel}.`,
+        providerMessageId: `sys-orphan-${String(sibling._id)}-${Date.now()}`,
+        deliveryStatus: 'delivered',
+        messageType: 'system',
+        sentAt: now,
+      });
+
+      emitCampaignThreadUpdated({
+        organizationId: input.organizationId,
+        campaignId: input.campaignId,
+        threadId: String(sibling._id),
+        status: sibling.status,
+        unreadCount: sibling.unreadCount || 0,
+        qualificationStatus: sibling.qualificationStatus,
+      });
+    }
+    return siblings.length;
   },
 
   /** Ensure a thread exists for an enrollment (outbound send hook). */

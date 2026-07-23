@@ -97,7 +97,9 @@ export function buildHunarAgentWritePayload(input: {
 }): HunarAgentWritePayload {
   const stripEmptyVars = (value: string) => String(value || '').replace(/\{\}/g, '').trim();
   return {
-    name: String(input.name || '').trim() || 'Screening Voice Agent',
+    name: String(input.name || '')
+      .trim()
+      .slice(0, 64) || 'Screening Voice Agent',
     voice_persona: String(input.voicePersona || getHunarVoicePersona()).trim(),
     objective: stripEmptyVars(String(input.objective || '')),
     result_prompt: stripEmptyVars(String(input.resultPrompt || '')),

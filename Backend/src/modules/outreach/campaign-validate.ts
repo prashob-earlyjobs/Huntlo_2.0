@@ -425,20 +425,10 @@ export async function validateCampaignLaunch(
     }
   }
 
-  // Send windows / timezone
-  const sw = campaign.channelConfig.sendWindow;
+  // Send window is unused for message/follow-up scheduling (delay only).
+  // Call windows apply to screening calls separately.
   if (!campaign.channelConfig.timezone) {
     issues.push(issue('timezone', 'error', 'TIMEZONE_MISSING', 'Campaign timezone is required.'));
-  }
-  if (sw && sw.startHour >= sw.endHour) {
-    issues.push(
-      issue('send_window', 'error', 'SEND_WINDOW_INVALID', 'Send window start must be before end.')
-    );
-  }
-  if (sw && (!sw.daysOfWeek || sw.daysOfWeek.length === 0)) {
-    issues.push(
-      issue('send_window', 'error', 'SEND_DAYS_MISSING', 'Select at least one send day.')
-    );
   }
 
   // Advisory only: foreign/old workers still connected to shared QA Mongo.

@@ -6,11 +6,16 @@ import {
   Briefcase,
   Check,
   CheckCheck,
+  ChevronRight,
   FileText,
   Mail,
   MessageCircle,
+  MessageSquare,
+  MessagesSquare,
   Paperclip,
+  Pause,
   Phone,
+  Play,
   Search,
   StickyNote,
   User,
@@ -38,9 +43,98 @@ import {
   type CandidatePipelineStatus,
 } from "@/lib/conversation-pipeline-status";
 import { CHANNEL_ICONS, type OutreachChannel } from "@/lib/mock-outreach";
-import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
+import { candidateDetailPath, jobDetailPath, screeningResultPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+
+const CHANNEL_ORDER: OutreachChannel[] = ["Email", "WhatsApp", "AI Voice"];
+
+/** One inbox row — multi-channel campaigns collapse same contact+campaign into a single row. */
+type InboxRow = Conversation & {
+  threadIds: string[];
+};
+
+function conversationGroupKey(conversation: Conversation): string {
+  if (conversation.candidateId && conversation.campaignId) {
+    return `${conversation.candidateId}::${conversation.campaignId}`;
+  }
+  return conversation.id;
+}
+
+function mergeChannels(rows: Conversation[]): OutreachChannel[] {
+  const seen = new Set<OutreachChannel>();
+  for (const row of rows) {
+    for (const channel of row.channels) {
+      seen.add(channel);
+    }
+  }
+  return CHANNEL_ORDER.filter((channel) => seen.has(channel));
+}
+
+function mergeEvents(rows: Conversation[]): ConversationEvent[] {
+  const byId = new Map<string, ConversationEvent>();
+  const hasActiveSibling = rows.some((row) => row.status !== "closed");
+  for (const row of rows) {
+    const superseded = hasActiveSibling && row.status === "closed";
+    for (const event of row.events ?? []) {
+      const existing = byId.get(event.id);
+      byId.set(event.id, {
+        ...event,
+        superseded: Boolean(existing?.superseded || event.superseded || superseded),
+      });
+    }
+  }
+  return [...byId.values()].sort((a, b) => {
+    const aAt = a.sentAt ? Date.parse(a.sentAt) : NaN;
+    const bAt = b.sentAt ? Date.parse(b.sentAt) : NaN;
+    if (!Number.isNaN(aAt) && !Number.isNaN(bAt)) return aAt - bAt;
+    if (!Number.isNaN(aAt)) return -1;
+    if (!Number.isNaN(bAt)) return 1;
+    return 0;
+  });
+}
+
+function groupConversations(conversations: Conversation[]): InboxRow[] {
+  const groups = new Map<string, Conversation[]>();
+  const order: string[] = [];
+
+  for (const conversation of conversations) {
+    const key = conversationGroupKey(conversation);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(conversation);
+    } else {
+      groups.set(key, [conversation]);
+      order.push(key);
+    }
+  }
+
+  return order.map((key) => {
+    const rows = groups.get(key) ?? [];
+    const primary = rows[0]!;
+    if (rows.length === 1) {
+      return { ...primary, threadIds: [primary.id] };
+    }
+
+    const unreadCount = rows.reduce(
+      (sum, row) =>
+        sum + Math.max(0, row.unreadCount ?? (row.unread ? 1 : 0)),
+      0
+    );
+
+    return {
+      ...primary,
+      channels: mergeChannels(rows),
+      campaignType:
+        primary.campaignType ??
+        (rows.length > 1 ? "multi_channel" : "single_channel"),
+      unread: unreadCount > 0,
+      unreadCount,
+      events: mergeEvents(rows),
+      threadIds: rows.map((row) => row.id),
+    };
+  });
+}
 
 /** Show only the new reply — drop Gmail/Outlook quoted history. */
 function stripEmailQuotedReply(raw: string): string {
@@ -120,6 +214,150 @@ function DeliveryIndicator({ state }: { state: NonNullable<ConversationEvent["de
   );
 }
 
+function formatAudioClock(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function ChatRecordingPlayer({
+  url,
+  durationLabel,
+}: {
+  url: string;
+  durationLabel: string;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const waveformRef = useRef<HTMLDivElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // Deterministic fake waveform so the same recording always looks the same.
+  const bars = useMemo(
+    () =>
+      Array.from({ length: 56 }, (_, index) => {
+        const a = Math.sin(index * 0.55) * 0.5 + 0.5;
+        const b = Math.sin(index * 1.3 + 1.7) * 0.5 + 0.5;
+        const c = Math.cos(index * 0.21 + 0.4) * 0.5 + 0.5;
+        return Math.max(0.18, Math.min(1, a * 0.45 + b * 0.35 + c * 0.2));
+      }),
+    []
+  );
+
+  const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+
+  async function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+      return;
+    }
+    try {
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+    }
+  }
+
+  function scrub(next: number) {
+    const audio = audioRef.current;
+    const max = duration > 0 ? duration : next;
+    const clamped = Math.max(0, Math.min(max, next));
+    setPosition(clamped);
+    if (audio) audio.currentTime = clamped;
+  }
+
+  function scrubFromPointer(clientX: number) {
+    const el = waveformRef.current;
+    if (!el || duration <= 0) return;
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    scrub(ratio * duration);
+  }
+
+  return (
+    <div className="mt-2 flex w-full items-center gap-2.5">
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        className="sr-only"
+        onLoadedMetadata={(event) => {
+          const next = event.currentTarget.duration;
+          if (Number.isFinite(next) && next > 0) setDuration(next);
+        }}
+        onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+        onEnded={() => setPlaying(false)}
+        onPause={() => setPlaying(false)}
+        onPlay={() => setPlaying(true)}
+      />
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="secondary"
+        className="size-8 shrink-0 rounded-full"
+        aria-label={playing ? "Pause recording" : "Play recording"}
+        onClick={() => void togglePlay()}
+      >
+        {playing ? (
+          <Pause aria-hidden className="size-3.5" />
+        ) : (
+          <Play aria-hidden className="size-3.5 pl-0.5" />
+        )}
+      </Button>
+
+      <div className="min-w-0 flex-1">
+        <div
+          ref={waveformRef}
+          role="slider"
+          tabIndex={0}
+          aria-label="Recording waveform"
+          aria-valuemin={0}
+          aria-valuemax={Math.max(1, Math.round(duration))}
+          aria-valuenow={Math.round(position)}
+          className="relative flex h-7 cursor-pointer items-center gap-px outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          onClick={(event) => scrubFromPointer(event.clientX)}
+          onKeyDown={(event) => {
+            if (duration <= 0) return;
+            if (event.key === "ArrowRight") scrub(position + 2);
+            if (event.key === "ArrowLeft") scrub(position - 2);
+          }}
+        >
+          {bars.map((amp, index) => {
+            const filled = index / bars.length <= progress;
+            return (
+              <span
+                key={index}
+                aria-hidden
+                className={cn(
+                  "inline-block w-full max-w-[3px] rounded-full transition-colors",
+                  filled ? "bg-primary" : "bg-muted-foreground/25"
+                )}
+                style={{ height: `${22 + amp * 78}%` }}
+              />
+            );
+          })}
+        </div>
+        <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+          <span>{formatAudioClock(position)}</span>
+          <span>
+            {duration > 0
+              ? formatAudioClock(duration)
+              : durationLabel !== "—"
+                ? durationLabel
+                : "0:00"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EventBubble({ event }: { event: ConversationEvent }) {
   if (event.channel === "System") {
     return (
@@ -132,39 +370,37 @@ function EventBubble({ event }: { event: ConversationEvent }) {
   }
 
   if (event.voiceSummary) {
+    const recordingUrl = event.voiceSummary.recordingUrl || null;
+    const resultId = event.voiceSummary.resultId || null;
     return (
-      <div className="mx-auto w-full max-w-md rounded-xl border border-border bg-muted/30 p-3">
-        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <AudioLines aria-hidden className="size-4 text-primary" />
-          AI voice call · {event.voiceSummary.duration}
-        </p>
-        <p className="mt-1 text-xs font-medium text-success">
-          {event.voiceSummary.outcome}
-        </p>
-        {event.voiceSummary.highlights.length > 0 ? (
-          <ul className="mt-2 space-y-1">
-            {event.voiceSummary.highlights.map((highlight) => (
-              <li
-                key={highlight}
-                className="flex items-start gap-1.5 text-xs text-muted-foreground"
-              >
-                <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-primary" />
-                {highlight}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {(event.voiceSummary.transcript || event.text) ? (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Transcription
+      <div className="mr-auto w-[min(100%,22rem)] max-w-[85cqw] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <AudioLines aria-hidden className="size-3.5 shrink-0 text-primary" />
+              <span className="truncate">Screening call</span>
             </p>
-            <p className="mt-1 text-xs leading-relaxed whitespace-pre-wrap text-foreground">
-              {event.voiceSummary.transcript || event.text}
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {event.voiceSummary.duration}
+              {event.time ? ` · ${event.time}` : ""}
             </p>
           </div>
+          {resultId ? (
+            <Link
+              href={screeningResultPath(resultId)}
+              className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Results
+              <ChevronRight aria-hidden className="size-3.5" />
+            </Link>
+          ) : null}
+        </div>
+        {recordingUrl ? (
+          <ChatRecordingPlayer
+            url={recordingUrl}
+            durationLabel={event.voiceSummary.duration}
+          />
         ) : null}
-        <p className="mt-2 text-[11px] text-muted-foreground">{event.time}</p>
       </div>
     );
   }
@@ -197,7 +433,8 @@ function EventBubble({ event }: { event: ConversationEvent }) {
         "w-fit max-w-[85cqw] overflow-hidden break-words rounded-xl px-3 py-2 [overflow-wrap:anywhere]",
         inbound
           ? "mr-auto rounded-bl-sm border border-border bg-card"
-          : "ml-auto rounded-br-sm bg-brand-subtle"
+          : "ml-auto rounded-br-sm bg-brand-subtle",
+        event.superseded && "opacity-70"
       )}
     >
       <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
@@ -205,6 +442,11 @@ function EventBubble({ event }: { event: ConversationEvent }) {
         <span className="truncate">{event.authorName}</span>
         {AuthorIcon ? (
           <AuthorIcon aria-hidden className="size-3 shrink-0" />
+        ) : null}
+        {event.superseded ? (
+          <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+            {event.channel} · inactive
+          </span>
         ) : null}
       </p>
       {event.subject ? (
@@ -415,6 +657,8 @@ const PIPELINE_FILTER_OPTIONS: FilterOption[] = (
     "Qualified",
     "Not qualified",
     "In screening",
+    "Shortlisted",
+    "Rejected",
   ] as const satisfies CandidatePipelineStatus[]
 ).map((value) => ({ id: value, label: value }));
 
@@ -442,7 +686,7 @@ export function ConversationInbox({
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [addedNotes, setAddedNotes] = useState<Record<string, Conversation["notes"]>>({});
-  const [profileOpen, setProfileOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
   const timelineEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -467,20 +711,26 @@ export function ConversationInbox({
     }
   }, [conversations, selectedId]);
 
-  // If a new message arrives on the open thread, mark it read without switching.
+  // If a new message arrives on the open thread (or its sibling channels), mark read.
   useEffect(() => {
     if (!selectedId) return;
-    const openRow = conversations.find((row) => row.id === selectedId);
-    if (!openRow) return;
-    if (!openRow.unread && !(openRow.unreadCount && openRow.unreadCount > 0)) {
-      return;
+    const openGroup = groupConversations(items).find((row) =>
+      row.threadIds.includes(selectedId)
+    );
+    if (!openGroup) return;
+    const dirty = openGroup.threadIds.filter((id) => {
+      const row = items.find((item) => item.id === id);
+      return Boolean(row?.unread || (row?.unreadCount && row.unreadCount > 0));
+    });
+    if (dirty.length === 0) return;
+    for (const id of dirty) {
+      void conversationsApi.markRead(id).catch(() => undefined);
     }
-    void conversationsApi.markRead(selectedId).catch(() => undefined);
-  }, [conversations, selectedId]);
+  }, [conversations, selectedId, items]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return items.filter((conversation) => {
+    const matched = items.filter((conversation) => {
       if (
         normalized &&
         !`${conversation.candidateName} ${conversation.campaignName} ${conversation.lastMessage}`
@@ -502,14 +752,24 @@ export function ConversationInbox({
         return false;
       return true;
     });
+    return groupConversations(matched);
   }, [items, query, channelFilter, pipelineFilter, unreadOnly, readIds]);
 
-  const selected =
-    items.find((conversation) => conversation.id === selectedId) ?? null;
+  const selected = useMemo(() => {
+    if (!selectedId) return null;
+    return (
+      groupConversations(items).find((row) =>
+        row.threadIds.includes(selectedId)
+      ) ?? null
+    );
+  }, [items, selectedId]);
 
   const events = selected ? selected.events : [];
   const notes = selected
-    ? [...selected.notes, ...(addedNotes[selected.id] ?? [])]
+    ? [
+        ...selected.notes,
+        ...selected.threadIds.flatMap((id) => addedNotes[id] ?? []),
+      ]
     : [];
 
   useEffect(() => {
@@ -532,12 +792,17 @@ export function ConversationInbox({
       );
   }
 
-  function open(conversation: Conversation) {
+  function open(conversation: InboxRow) {
+    const threadIds = conversation.threadIds;
     setSelectedId(conversation.id);
-    setReadIds((previous) => new Set(previous).add(conversation.id));
+    setReadIds((previous) => {
+      const next = new Set(previous);
+      for (const id of threadIds) next.add(id);
+      return next;
+    });
     setItems((previous) =>
       previous.map((row) =>
-        row.id === conversation.id
+        threadIds.includes(row.id)
           ? { ...row, unread: false, unreadCount: 0 }
           : row
       )
@@ -548,28 +813,33 @@ export function ConversationInbox({
         .getElementById("conversation-detail")
         ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
-    void conversationsApi.markRead(conversation.id).then((updated) => {
-      if (updated && typeof updated === "object" && "id" in updated) {
-        setItems((previous) =>
-          previous.map((row) => {
-            if (row.id !== updated.id) return row;
-            const nextEvents =
-              (updated.events?.length ?? 0) >= (row.events?.length ?? 0)
-                ? updated.events?.length
-                  ? updated.events
-                  : row.events
-                : row.events;
-            return {
-              ...row,
-              ...updated,
-              events: nextEvents,
-              unread: false,
-              unreadCount: 0,
-            };
-          })
-        );
-      }
-    }).catch(() => undefined);
+    for (const threadId of threadIds) {
+      void conversationsApi
+        .markRead(threadId)
+        .then((updated) => {
+          if (updated && typeof updated === "object" && "id" in updated) {
+            setItems((previous) =>
+              previous.map((row) => {
+                if (row.id !== updated.id) return row;
+                const nextEvents =
+                  (updated.events?.length ?? 0) >= (row.events?.length ?? 0)
+                    ? updated.events?.length
+                      ? updated.events
+                      : row.events
+                    : row.events;
+                return {
+                  ...row,
+                  ...updated,
+                  events: nextEvents,
+                  unread: false,
+                  unreadCount: 0,
+                };
+              })
+            );
+          }
+        })
+        .catch(() => undefined);
+    }
   }
 
   function persistNote(conversationId: string, text: string) {
@@ -656,7 +926,9 @@ export function ConversationInbox({
               </li>
             ) : (
               filtered.map((conversation) => {
-                const isActive = conversation.id === selectedId;
+                const isActive = conversation.threadIds.includes(
+                  selectedId ?? ""
+                );
                 const unreadCount = isActive
                   ? 0
                   : Math.max(
@@ -667,7 +939,7 @@ export function ConversationInbox({
                 const isUnread = unreadCount > 0;
                 const pipeline = conversationPipelineStatus(conversation);
                 return (
-                  <li key={conversation.id}>
+                  <li key={conversation.threadIds.join("-")}>
                     <button
                       type="button"
                       onClick={() => open(conversation)}
@@ -704,8 +976,25 @@ export function ConversationInbox({
                               />
                             );
                           })}
-                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-                            {conversation.lastTime}
+                          <span className="ml-auto flex shrink-0 items-center gap-1">
+                            {conversation.campaignType === "multi_channel" ? (
+                              <span title="Multi-channel campaign">
+                                <MessagesSquare
+                                  aria-label="Multi-channel campaign"
+                                  className="size-3.5 text-muted-foreground"
+                                />
+                              </span>
+                            ) : (
+                              <span title="Single-channel campaign">
+                                <MessageSquare
+                                  aria-label="Single-channel campaign"
+                                  className="size-3.5 text-muted-foreground"
+                                />
+                              </span>
+                            )}
+                            <span className="text-[11px] text-muted-foreground">
+                              {conversation.lastTime}
+                            </span>
                           </span>
                         </span>
                         <span
@@ -757,6 +1046,9 @@ export function ConversationInbox({
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {selected.campaignName} · {selected.sequenceStep}
+                  {selected.channels.length > 1
+                    ? ` · ${selected.channels.join(" + ")}`
+                    : ""}
                 </p>
               </div>
               <MiniBadge

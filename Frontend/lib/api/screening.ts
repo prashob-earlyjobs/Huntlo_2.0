@@ -12,6 +12,7 @@ import type {
   CallStatus,
   KnockoutResult,
   RecruiterDecision,
+  ScreeningResultDetail,
 } from "@/lib/mock-screening";
 
 export type ScreeningCreateInput = {
@@ -51,6 +52,9 @@ export type ScreeningCreateInput = {
     maxRetryCount?: number;
     retryIntervalHours?: number;
     consentRequired?: boolean;
+    callWindow?: string;
+    timezone?: string;
+    voicemailBehaviour?: string;
   };
   candidateIds?: string[];
 };
@@ -114,6 +118,13 @@ function formatDuration(seconds: number | null | undefined): string {
 
 function mapBatch(row: Record<string, unknown>): ScreeningBatch {
   const callSettings = (row.callSettings as { maxAttempts?: number } | undefined) || {};
+  const stats = (row.stats as { totalAttempts?: number } | undefined) || {};
+  const maxAttempts = Number(
+    row.maxAttempts ?? callSettings.maxAttempts ?? 2
+  );
+  const totalAttempts = Number(
+    row.totalAttempts ?? stats.totalAttempts ?? 0
+  );
   return {
     id: String(row.id),
     name: String(row.name || ""),
@@ -121,7 +132,9 @@ function mapBatch(row: Record<string, unknown>): ScreeningBatch {
     jobTitle: (row.jobTitle as string | null) ?? null,
     candidates: Number(row.candidates ?? 0),
     language: String(row.language || "English"),
-    attempts: Number(callSettings.maxAttempts ?? 2),
+    // Prefer live dial-attempt total; fall back to configured max for drafts.
+    attempts: totalAttempts > 0 ? totalAttempts : maxAttempts,
+    maxAttempts,
     completed: Number(row.completed ?? 0),
     averageScore:
       row.averageScore == null ? null : Number(row.averageScore),
@@ -146,7 +159,7 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
     screeningName: String(row.screeningName || ""),
     callStatus: titleCallStatus(String(row.callStatus || "queued")),
     attemptsUsed: Number(row.attempts ?? 0),
-    attemptsMax: 3,
+    attemptsMax: Number(row.attemptsMax ?? 3),
     duration: formatDuration(row.durationSeconds as number | null),
     overallScore: Number(row.overallScore ?? 0),
     recommendation: mapRecommendation(row.recommendation as string | null),
@@ -169,31 +182,220 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
   };
 }
 
+function asStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split(/\n|;|\|/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function humanizeLabel(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function parseTranscriptTurns(raw: unknown): ScreeningResultDetail["transcript"] {
+  if (raw == null) return [];
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item, index) => {
+        const entry = (item || {}) as Record<string, unknown>;
+        const speakerRaw = String(entry.speaker || entry.role || entry.actor || "")
+          .toLowerCase();
+        const speaker: "AI" | "Candidate" =
+          speakerRaw.includes("candidate") ||
+          speakerRaw.includes("user") ||
+          speakerRaw.includes("human")
+            ? "Candidate"
+            : "AI";
+        const text = String(entry.text || entry.content || entry.message || "").trim();
+        if (!text) return null;
+        return {
+          id: String(entry.id || `t-${index + 1}`),
+          speaker,
+          text,
+          time: String(entry.time || entry.timestamp || entry.start || "—"),
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }
+
+  const text = String(raw).trim();
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (Array.isArray(parsed)) return parseTranscriptTurns(parsed);
+  } catch {
+    // plain text transcript
+  }
+
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const turns: ScreeningResultDetail["transcript"] = [];
+  let sawSpeakerLabels = false;
+  for (const [index, line] of lines.entries()) {
+    const match = line.match(/^(AI|Agent|Assistant|Candidate|User|Human)\s*[:\-]\s*(.+)$/i);
+    if (match) {
+      sawSpeakerLabels = true;
+      const speaker: "AI" | "Candidate" = /candidate|user|human/i.test(match[1])
+        ? "Candidate"
+        : "AI";
+      turns.push({
+        id: `t-${index + 1}`,
+        speaker,
+        text: match[2].trim(),
+        time: "—",
+      });
+    }
+  }
+  if (sawSpeakerLabels && turns.length > 0) return turns;
+
+  // Unstructured transcript — keep as one block so we don't invent speakers.
+  return [
+    {
+      id: "t-1",
+      speaker: "AI",
+      text,
+      time: "—",
+    },
+  ];
+}
+
+function mapActivityIcon(
+  value: unknown
+): ScreeningResultDetail["activity"][number]["icon"] {
+  const raw = String(value || "").toLowerCase();
+  if (raw.includes("bookmark") || raw.includes("shortlist")) return "bookmark";
+  if (raw.includes("note") || raw.includes("sticky")) return "note";
+  if (raw.includes("record") || raw.includes("audio")) return "recording";
+  if (raw.includes("score") || raw.includes("result") || raw.includes("summary")) {
+    return "score";
+  }
+  if (raw.includes("fail") || raw.includes("reject")) return "failed";
+  if (raw.includes("check") || raw.includes("complete")) return "check";
+  return "phone";
+}
+
 function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
   const breakdown = (row.scoreBreakdown as Record<string, number>) || {};
   const extracted = (row.extractedVariables as Record<string, unknown>) || {};
-  const communicationEntries = Object.entries(breakdown).filter(([key]) =>
-    key.toLowerCase().includes("communication")
-  );
-  const scoreEntries =
-    communicationEntries.length > 0
-      ? communicationEntries
-      : Object.entries(breakdown).slice(0, 1);
+  const criteria = Array.isArray(row.evaluationCriteria)
+    ? (row.evaluationCriteria as Array<Record<string, unknown>>)
+    : [];
+  const questions = Array.isArray(row.questions)
+    ? (row.questions as Array<Record<string, unknown>>)
+    : [];
+
+  const criteriaCategories = criteria
+    .map((criterion, index) => {
+      const id = String(criterion.id || `cat-${index}`);
+      const label = String(criterion.label || humanizeLabel(id));
+      const score =
+        typeof breakdown[id] === "number"
+          ? Number(breakdown[id])
+          : typeof breakdown[label] === "number"
+            ? Number(breakdown[label])
+            : typeof breakdown[label.toLowerCase().replace(/\s+/g, "_")] === "number"
+              ? Number(breakdown[label.toLowerCase().replace(/\s+/g, "_")])
+              : null;
+      if (score == null) return null;
+      return {
+        id,
+        label,
+        score,
+        evidence: String(criterion.description || "").trim(),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  const breakdownCategories =
+    criteriaCategories.length > 0
+      ? criteriaCategories
+      : Object.entries(breakdown)
+          .filter(([, score]) => typeof score === "number")
+          .map(([label, score], index) => ({
+            id: `cat-${index}`,
+            label: humanizeLabel(label),
+            score: Number(score),
+            evidence: "",
+          }));
 
   const extractedForDisplay = Object.entries(extracted).filter(
     ([key]) =>
-      !["knockouts_triggered", "knockoutsTriggered", "failed_knockouts"].includes(
-        key
-      )
+      ![
+        "knockouts_triggered",
+        "knockoutsTriggered",
+        "failed_knockouts",
+        "strengths",
+        "concerns",
+        "summary",
+      ].includes(key)
   );
+
+  const keyAnswersFromQuestions = questions
+    .map((question) => {
+      const prompt = String(question.prompt || "").trim();
+      const expected = String(question.expectedVariable || "").trim();
+      const answerKey =
+        expected ||
+        Object.keys(extracted).find((key) =>
+          key.toLowerCase().includes(String(question.id || "").toLowerCase())
+        ) ||
+        "";
+      const answer = answerKey ? formatExtractedValue(extracted[answerKey]) : "";
+      if (!prompt || !answer) return null;
+      return { question: prompt, answer };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  const keyAnswersFromExtracted =
+    keyAnswersFromQuestions.length > 0
+      ? keyAnswersFromQuestions
+      : extractedForDisplay
+          .filter(([key]) => /_answer$|answer/i.test(key))
+          .map(([key, value]) => ({
+            question: humanizeLabel(key.replace(/_answer$/i, "")),
+            answer: formatExtractedValue(value),
+          }));
+
+  const recordingUrl = row.recordingReference
+    ? String(row.recordingReference)
+    : null;
+
+  const activityRaw = Array.isArray(row.activity) ? row.activity : [];
+  const activity = activityRaw
+    .map((item, index) => {
+      const entry = (item || {}) as Record<string, unknown>;
+      const title = String(entry.title || "").trim();
+      if (!title) return null;
+      return {
+        id: String(entry.id || `a-${index + 1}`),
+        icon: mapActivityIcon(entry.icon),
+        title,
+        detail: String(entry.detail || ""),
+        time: String(entry.time || ""),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   return {
     resultId: String(row.id),
     summary: String(row.summary || "No summary yet."),
-    strengths: [],
-    concerns: [],
-    keyAnswers: [],
-    salaryExpectation: String(extracted.salary || extracted.salary_expectation || "—"),
+    strengths: asStringList(extracted.strengths),
+    concerns: asStringList(extracted.concerns),
+    keyAnswers: keyAnswersFromExtracted,
+    salaryExpectation: String(
+      extracted.salary || extracted.salary_expectation || extracted.ctc || "—"
+    ),
     noticePeriod: String(
       extracted.notice_period || extracted.notice_period_answer || "—"
     ),
@@ -206,35 +408,24 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
     candidateInterest: String(
       extracted.interest_level || extracted.final_outcome || "—"
     ),
-    categories: scoreEntries.map(([label, score], index) => ({
-      id: `cat-${index}`,
-      label: label.toLowerCase() === "communication" ? "Communication" : label,
-      score: Number(score),
-      evidence: "",
-    })),
+    categories: breakdownCategories,
     knockouts: mapKnockoutResults(row),
-    transcript: row.transcript
-      ? [
-          {
-            id: "t-1",
-            speaker: "AI" as const,
-            text: String(row.transcript),
-            time: "0:00",
-          },
-        ]
-      : [],
+    transcript: parseTranscriptTurns(row.transcript),
     recording: {
       durationSeconds: Number(row.durationSeconds ?? 0),
-      label: row.recordingReference ? "Call recording" : "No recording",
-      size: "—",
+      label: recordingUrl
+        ? recordingUrl.split("/").pop() || "Call recording"
+        : "No recording",
+      size: recordingUrl ? "External" : "—",
+      url: recordingUrl,
     },
     extracted: extractedForDisplay.map(([label, value], index) => ({
       id: `ex-${index}`,
-      label,
+      label: humanizeLabel(label),
       value: formatExtractedValue(value),
       confidence: "Medium" as const,
     })),
-    activity: [],
+    activity,
   };
 }
 

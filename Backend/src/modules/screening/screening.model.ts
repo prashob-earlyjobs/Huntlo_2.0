@@ -39,6 +39,10 @@ export type ScreeningCallSettings = {
   maxRetryCount: number;
   retryIntervalHours: number;
   consentRequired: boolean;
+  /** Human-readable dial window, e.g. "10 AM – 7 PM". */
+  callWindow: string;
+  timezone: string;
+  voicemailBehaviour: string;
 };
 
 export type ScreeningStats = {
@@ -50,6 +54,8 @@ export type ScreeningStats = {
   failed: number;
   shortlisted: number;
   rejected: number;
+  /** Sum of dial attempts across enrolled candidates. */
+  totalAttempts: number;
   averageScore: number | null;
 };
 
@@ -63,6 +69,7 @@ export function defaultScreeningStats(): ScreeningStats {
     failed: 0,
     shortlisted: 0,
     rejected: 0,
+    totalAttempts: 0,
     averageScore: null,
   };
 }
@@ -168,6 +175,12 @@ const screeningSchema = new Schema<ScreeningDocument>(
         maxRetryCount: { type: Number, default: 2 },
         retryIntervalHours: { type: Number, default: 6 },
         consentRequired: { type: Boolean, default: true },
+        callWindow: { type: String, default: '10 AM – 7 PM' },
+        timezone: { type: String, default: "Candidate's local timezone" },
+        voicemailBehaviour: {
+          type: String,
+          default: 'Leave a short callback message',
+        },
       },
       default: () => ({
         maxAttempts: 2,
@@ -175,6 +188,9 @@ const screeningSchema = new Schema<ScreeningDocument>(
         maxRetryCount: 2,
         retryIntervalHours: 6,
         consentRequired: true,
+        callWindow: '10 AM – 7 PM',
+        timezone: "Candidate's local timezone",
+        voicemailBehaviour: 'Leave a short callback message',
       }),
     },
     candidateIds: { type: [String], default: [] },
@@ -195,6 +211,7 @@ const screeningSchema = new Schema<ScreeningDocument>(
         failed: { type: Number, default: 0 },
         shortlisted: { type: Number, default: 0 },
         rejected: { type: Number, default: 0 },
+        totalAttempts: { type: Number, default: 0 },
         averageScore: { type: Number, default: null },
       },
       default: () => defaultScreeningStats(),

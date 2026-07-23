@@ -8,7 +8,9 @@ export type CandidatePipelineStatus =
   | "In qualification"
   | "Qualified"
   | "Not qualified"
-  | "In screening";
+  | "In screening"
+  | "Shortlisted"
+  | "Rejected";
 
 export function deriveCandidatePipelineStatus(
   enrollment: ApiCampaignEnrollment,
@@ -16,6 +18,7 @@ export function deriveCandidatePipelineStatus(
 ): CandidatePipelineStatus {
   const qual = enrollment.qualificationState?.status ?? "pending";
   const screening = enrollment.screeningState?.status ?? "not_started";
+  const screeningDecision = enrollment.screeningState?.decision ?? null;
   const disposition = enrollment.replyState?.disposition?.toLowerCase() ?? null;
   const hasReply = Boolean(enrollment.replyState?.hasReply);
 
@@ -32,15 +35,17 @@ export function deriveCandidatePipelineStatus(
   }
 
   if (qual === "qualified") {
+    if (screening === "completed") {
+      if (screeningDecision === "shortlisted") return "Shortlisted";
+      if (screeningDecision === "rejected") return "Rejected";
+      return "Qualified";
+    }
     const screeningId = enrollment.screeningState?.screeningId;
     const inScreening =
       screening === "scheduled" &&
       (options?.autoScreening || Boolean(screeningId));
     if (inScreening) {
       return "In screening";
-    }
-    if (screening === "completed") {
-      return "Qualified";
     }
     return "Qualified";
   }
@@ -66,9 +71,11 @@ export function pipelineStatusBadgeClass(status: CandidatePipelineStatus): strin
   switch (status) {
     case "Qualified":
     case "Interested":
+    case "Shortlisted":
       return "bg-success/10 text-success";
     case "Not interested":
     case "Not qualified":
+    case "Rejected":
       return "bg-destructive/10 text-destructive";
     case "In qualification":
     case "In screening":

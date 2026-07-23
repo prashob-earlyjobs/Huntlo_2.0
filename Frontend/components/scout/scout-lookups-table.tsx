@@ -5,14 +5,16 @@ import {
   Copy,
   Eye,
   Link as LinkIcon,
+  Loader2,
   Mail,
   MoreHorizontal,
   Phone,
   RotateCcw,
   User,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { ScoutProfileCard } from "@/components/scout/scout-profile-card";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +39,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  getApiErrorMessage,
+  peopleScoutApi,
+  type ScoutLookupResponse,
+} from "@/lib/api";
 import type {
   LookupResult,
   LookupType,
@@ -98,21 +105,62 @@ function LookupDrawer({
   open,
   onOpenChange,
   onRerun,
+  onProfileSaved,
 }: {
   lookup: RecentLookup | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRerun: (lookup: RecentLookup) => void;
+  onProfileSaved?: () => void;
 }) {
+  const [detail, setDetail] = useState<ScoutLookupResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !lookup) {
+      setDetail(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setDetail(null);
+
+    void peopleScoutApi
+      .getLookup(lookup.id)
+      .then((row) => {
+        if (cancelled) return;
+        setDetail(row);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, "Unable to load candidate details."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, lookup?.id]);
+
   if (!lookup) return null;
   const TypeIcon = TYPE_ICONS[lookup.type];
+  const profile = detail?.profile ?? null;
+  const displayName = profile?.name ?? lookup.candidateName;
+  const displayAvatar = profile?.avatarUrl ?? lookup.avatarUrl;
 
-  const rows: [string, React.ReactNode][] = [
+  const metaRows: [string, React.ReactNode][] = [
     ["Lookup input", <span key="i" className="break-all">{lookup.input}</span>],
     ["Lookup type", lookup.type],
     ["Result", <ResultBadge key="r" result={lookup.result} />],
     ["Contact revealed", lookup.contactRevealed],
-    ["Saved to pool", lookup.saved ? "Yes" : "No"],
+    ["Saved to pool", lookup.saved || Boolean(detail?.saved) ? "Yes" : "No"],
     ["Credits used", `${lookup.creditsUsed} credits`],
     ["Performed by", lookup.performedBy],
     ["Date", lookup.date],
@@ -122,12 +170,16 @@ function LookupDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full gap-0 bg-card p-0 max-sm:max-w-full sm:max-w-md"
+        className="flex w-full flex-col gap-0 bg-card p-0 max-sm:max-w-full data-[side=right]:sm:max-w-xl"
       >
         <SheetHeader className="border-b border-border pb-3">
           <div className="flex items-start gap-3 pr-8">
-            {lookup.candidateName ? (
-              <CandidateAvatar name={lookup.candidateName} src={lookup.avatarUrl} className="size-10" />
+            {displayName ? (
+              <CandidateAvatar
+                name={displayName}
+                src={displayAvatar}
+                className="size-10"
+              />
             ) : (
               <span className="flex size-10 items-center justify-center rounded-full border border-border bg-muted">
                 <TypeIcon aria-hidden className="size-4 text-muted-foreground" />
@@ -135,10 +187,12 @@ function LookupDrawer({
             )}
             <div className="min-w-0 flex-1">
               <SheetTitle className="truncate">
-                {lookup.candidateName ?? "No profile matched"}
+                {displayName ?? "No profile matched"}
               </SheetTitle>
               <SheetDescription className="truncate">
-                {lookup.type} lookup · {lookup.date}
+                {profile?.currentTitle && profile.currentCompany
+                  ? `${profile.currentTitle} · ${profile.currentCompany}`
+                  : `${lookup.type} lookup · ${lookup.date}`}
               </SheetDescription>
             </div>
           </div>
@@ -146,8 +200,39 @@ function LookupDrawer({
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-4 p-4">
+            {loading ? (
+              <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-6 text-sm text-muted-foreground">
+                <Loader2 aria-hidden className="size-4 animate-spin" />
+                Loading candidate details…
+              </div>
+            ) : null}
+
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+
+            {!loading && profile ? (
+              <ScoutProfileCard
+                embedded
+                profile={profile}
+                lookupId={lookup.id}
+                initiallySaved={lookup.saved || Boolean(detail?.saved)}
+                onSaved={onProfileSaved}
+              />
+            ) : null}
+
+            {!loading && !error && !profile ? (
+              <p className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+                {lookup.result === "Found"
+                  ? "Candidate profile details are unavailable for this lookup."
+                  : "No candidate profile was matched for this lookup."}
+              </p>
+            ) : null}
+
             <dl className="divide-y divide-border rounded-lg border border-border">
-              {rows.map(([label, value]) => (
+              {metaRows.map(([label, value]) => (
                 <div
                   key={label}
                   className="flex items-start justify-between gap-4 px-3 py-2"
@@ -155,19 +240,19 @@ function LookupDrawer({
                   <dt className="shrink-0 text-xs text-muted-foreground">
                     {label}
                   </dt>
-                  <dd className="text-right text-sm text-foreground">
-                    {value}
-                  </dd>
+                  <dd className="text-right text-sm text-foreground">{value}</dd>
                 </div>
               ))}
             </dl>
 
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
-              <p className="text-xs font-medium text-muted-foreground">Notes</p>
-              <p className="mt-1 text-sm leading-relaxed text-foreground">
-                {lookup.note}
-              </p>
-            </div>
+            {lookup.note ? (
+              <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                <p className="text-xs font-medium text-muted-foreground">Notes</p>
+                <p className="mt-1 text-sm leading-relaxed text-foreground">
+                  {lookup.note}
+                </p>
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               <Button
@@ -199,9 +284,11 @@ function LookupDrawer({
 export function ScoutLookupsTable({
   lookups,
   onRerun,
+  onLookupUpdated,
 }: {
   lookups: RecentLookup[];
   onRerun: (lookup: RecentLookup) => void;
+  onLookupUpdated?: () => void;
 }) {
   const [active, setActive] = useState<RecentLookup | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -349,6 +436,7 @@ export function ScoutLookupsTable({
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onRerun={onRerun}
+        onProfileSaved={onLookupUpdated}
       />
     </section>
   );

@@ -40,7 +40,8 @@ import {
   ScreeningCandidateModel,
   type ScreeningCandidateDocument,
 } from './screening-candidate.model.js';
-import { mapEvaluationScores, minutesFromDuration } from './scoring.js';
+import { VoiceWebhookEventModel } from './voice-webhook-event.model.js';
+import { mapEvaluationScores, minutesFromDuration, decisionFromAiRecommendation } from './scoring.js';
 import type {
   createScreeningSchema,
   listCandidatesQuerySchema,
@@ -147,6 +148,8 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     completed: doc.stats.completed,
     averageScore: doc.stats.averageScore,
     shortlisted: doc.stats.shortlisted,
+    totalAttempts: doc.stats.totalAttempts ?? 0,
+    maxAttempts: doc.callSettings?.maxAttempts ?? 2,
     providerAgentId: doc.providerAgentId,
     stats: doc.stats,
     lastValidation: doc.lastValidation,
@@ -164,8 +167,19 @@ function toResultDisplay(
   extras: {
     name: string;
     jobId: string | null;
+    jobTitle?: string | null;
     screeningName: string;
     knockouts?: string[];
+    evaluationCriteria?: Array<{ id: string; label: string; weight?: number; description?: string | null }>;
+    questions?: Array<{ id: string; prompt: string; expectedVariable?: string | null }>;
+    attemptsMax?: number;
+    activity?: Array<{
+      id: string;
+      icon: string;
+      title: string;
+      detail: string;
+      time: string;
+    }>;
   }
 ) {
   const configuredKnockouts = (extras.knockouts || [])
@@ -184,9 +198,11 @@ function toResultDisplay(
     candidateId: String(row.candidateId),
     name: extras.name,
     jobId: extras.jobId,
+    jobTitle: extras.jobTitle ?? null,
     callStatus: row.callStatus,
     providerCallId: row.providerCallId,
     attempts: row.attempts,
+    attemptsMax: extras.attemptsMax ?? null,
     durationSeconds: row.durationSeconds,
     transcript: row.transcript,
     recordingReference: row.recordingReference,
@@ -198,6 +214,9 @@ function toResultDisplay(
     decision: row.recruiterDecision,
     recruiterDecision: row.recruiterDecision,
     notes: row.notes,
+    evaluationCriteria: extras.evaluationCriteria || [],
+    questions: extras.questions || [],
+    activity: extras.activity || [],
     completedAt: row.completedAt?.toISOString() ?? null,
     error: row.error,
     lastActivity: row.updatedAt.toISOString(),
@@ -264,6 +283,7 @@ export async function refreshScreeningStats(screeningId: string) {
     }
     if (row.recruiterDecision === 'shortlisted') stats.shortlisted += 1;
     if (row.recruiterDecision === 'rejected') stats.rejected += 1;
+    stats.totalAttempts += Math.max(0, Number(row.attempts) || 0);
     if (typeof row.overallScore === 'number') {
       scoreSum += row.overallScore;
       scoreCount += 1;
@@ -290,6 +310,156 @@ export async function refreshScreeningStats(screeningId: string) {
 
   await screening.save();
   return stats;
+}
+
+function formatActivityTime(value: Date | string | null | undefined): string {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toISOString();
+}
+
+function humanizeWebhookKind(kind: string): string {
+  switch (kind) {
+    case 'call-status':
+      return 'Call status update';
+    case 'call-recording':
+      return 'Recording ready';
+    case 'call-result':
+      return 'Call result received';
+    case 'call-summary':
+      return 'Summary received';
+    default:
+      return kind.replace(/-/g, ' ');
+  }
+}
+
+function iconForWebhookKind(kind: string): string {
+  if (kind === 'call-recording') return 'recording';
+  if (kind === 'call-result' || kind === 'call-summary') return 'score';
+  if (kind.includes('fail')) return 'failed';
+  return 'phone';
+}
+
+async function buildResultActivity(
+  row: ScreeningCandidateDocument
+): Promise<
+  Array<{ id: string; icon: string; title: string; detail: string; time: string }>
+> {
+  const callFilters: Record<string, unknown>[] = [];
+  if (row.providerCallId) callFilters.push({ 'payload.call_id': row.providerCallId });
+  if (row.providerRequestId) {
+    callFilters.push({ 'payload.request_id': row.providerRequestId });
+  }
+
+  const events = callFilters.length
+    ? await VoiceWebhookEventModel.find({
+        screeningId: row.screeningId,
+        $or: callFilters,
+      })
+        .sort({ createdAt: 1 })
+        .limit(40)
+        .lean()
+    : await VoiceWebhookEventModel.find({ screeningId: row.screeningId })
+        .sort({ createdAt: 1 })
+        .limit(40)
+        .lean();
+
+  const activity: Array<{
+    id: string;
+    icon: string;
+    title: string;
+    detail: string;
+    time: string;
+  }> = [];
+
+  for (const event of events) {
+    const payload = (event.payload || {}) as Record<string, unknown>;
+    const status = String(payload.status || payload.lifecycle_status || '').trim();
+    const detailParts = [
+      status ? `Status: ${status}` : null,
+      payload.recording_url || payload.call_recording_url ? 'Recording URL included' : null,
+      payload.result ? 'Result payload included' : null,
+      event.status === 'duplicate' ? 'Duplicate event' : null,
+    ].filter(Boolean);
+    activity.push({
+      id: `wh-${String(event._id)}`,
+      icon: iconForWebhookKind(String(event.kind || '')),
+      title: humanizeWebhookKind(String(event.kind || 'webhook')),
+      detail: detailParts.join(' · ') || `Webhook ${event.status}`,
+      time: formatActivityTime(event.createdAt),
+    });
+  }
+
+  if (row.completedAt) {
+    activity.push({
+      id: `completed-${String(row._id)}`,
+      icon: 'check',
+      title: 'Call marked completed',
+      detail: [
+        row.durationSeconds != null ? `${Math.round(row.durationSeconds)}s` : null,
+        row.overallScore != null ? `Score ${row.overallScore}` : null,
+        row.recommendation ? `AI: ${row.recommendation}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      time: formatActivityTime(row.completedAt),
+    });
+  }
+
+  if (row.recruiterDecision && row.recruiterDecision !== 'pending') {
+    activity.push({
+      id: `decision-${String(row._id)}`,
+      icon: row.recruiterDecision === 'shortlisted' ? 'bookmark' : 'check',
+      title: `Decision: ${row.recruiterDecision.replace(/_/g, ' ')}`,
+      detail: 'Applied from AI screening recommendation',
+      time: formatActivityTime(row.updatedAt),
+    });
+  }
+
+  for (const note of row.notes || []) {
+    activity.push({
+      id: `note-${note.id}`,
+      icon: 'note',
+      title: 'Recruiter note added',
+      detail: String(note.text || '').slice(0, 240),
+      time: formatActivityTime(note.createdAt),
+    });
+  }
+
+  return activity.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+}
+
+async function applyPendingAiDecisions(
+  rows: ScreeningCandidateDocument[]
+): Promise<void> {
+  const touchedScreenings = new Set<string>();
+  for (const row of rows) {
+    if (row.recruiterDecision !== 'pending') continue;
+    const autoDecision = decisionFromAiRecommendation(row.recommendation);
+    if (!autoDecision) continue;
+    row.recruiterDecision = autoDecision;
+    await row.save();
+    touchedScreenings.add(String(row.screeningId));
+    try {
+      const { syncEnrollmentScreeningDecision } = await import(
+        './screening-conversation-sync.js'
+      );
+      await syncEnrollmentScreeningDecision({
+        organizationId: String(row.organizationId),
+        candidateId: String(row.candidateId),
+        enrollmentId: row.enrollmentId ? String(row.enrollmentId) : null,
+        screeningId: String(row.screeningId),
+        recommendation: row.recommendation,
+        recruiterDecision: row.recruiterDecision,
+      });
+    } catch {
+      // best-effort
+    }
+  }
+  for (const screeningId of touchedScreenings) {
+    await refreshScreeningStats(screeningId);
+  }
 }
 
 export const screeningService = {
@@ -326,6 +496,7 @@ export const screeningService = {
   },
 
   async get(organizationId: string, id: string) {
+    await refreshScreeningStats(id);
     const doc = await loadScreening(organizationId, id);
     return toDisplay(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
@@ -376,6 +547,12 @@ export const screeningService = {
         maxRetryCount: input.callSettings?.maxRetryCount ?? 2,
         retryIntervalHours: input.callSettings?.retryIntervalHours ?? 6,
         consentRequired: input.callSettings?.consentRequired ?? true,
+        callWindow: input.callSettings?.callWindow ?? '10 AM – 7 PM',
+        timezone:
+          input.callSettings?.timezone ?? "Candidate's local timezone",
+        voicemailBehaviour:
+          input.callSettings?.voicemailBehaviour ??
+          'Leave a short callback message',
       },
       candidateIds: input.candidateIds || [],
       status: 'draft',
@@ -926,6 +1103,7 @@ export const screeningService = {
         .limit(query.limit),
       ScreeningCandidateModel.countDocuments(filter),
     ]);
+    await applyPendingAiDecisions(rows);
 
     const candidates = await SavedCandidateModel.find({
       _id: { $in: rows.map((r) => r.candidateId) },
@@ -969,15 +1147,52 @@ export const screeningService = {
   async getResult(organizationId: string, id: string) {
     const row = await ScreeningCandidateModel.findOne({ _id: id, organizationId });
     if (!row) throw new AppError(404, 'RESULT_NOT_FOUND', 'Screening result not found.');
+
+    // Backfill: treat AI recommendation as final for older completed rows still pending.
+    if (row.recruiterDecision === 'pending') {
+      const autoDecision = decisionFromAiRecommendation(row.recommendation);
+      if (autoDecision) {
+        row.recruiterDecision = autoDecision;
+        await row.save();
+        await refreshScreeningStats(String(row.screeningId));
+      }
+    }
+    try {
+      const { syncEnrollmentScreeningDecision } = await import(
+        './screening-conversation-sync.js'
+      );
+      await syncEnrollmentScreeningDecision({
+        organizationId: String(row.organizationId),
+        candidateId: String(row.candidateId),
+        enrollmentId: row.enrollmentId ? String(row.enrollmentId) : null,
+        screeningId: String(row.screeningId),
+        recommendation: row.recommendation,
+        recruiterDecision: row.recruiterDecision,
+      });
+    } catch {
+      // best-effort enrollment badge sync
+    }
+
     const candidate = await SavedCandidateModel.findById(row.candidateId).select('name').lean();
     const screening = await ScreeningModel.findById(row.screeningId)
-      .select('name jobId knockouts')
+      .select('name jobId knockouts evaluationCriteria questions callSettings')
       .lean();
+    const linkedJobTitle = screening?.jobId ? await jobTitle(screening.jobId) : null;
+    const activity = await buildResultActivity(row);
     return toResultDisplay(row, {
       name: candidate?.name || 'Unknown',
       jobId: screening?.jobId ? String(screening.jobId) : null,
+      jobTitle: linkedJobTitle,
       screeningName: screening?.name || '',
       knockouts: screening?.knockouts || [],
+      evaluationCriteria: screening?.evaluationCriteria || [],
+      questions: (screening?.questions || []).map((q) => ({
+        id: q.id,
+        prompt: q.prompt,
+        expectedVariable: q.expectedVariable ?? null,
+      })),
+      attemptsMax: screening?.callSettings?.maxAttempts ?? 2,
+      activity,
     });
   },
 
@@ -1071,6 +1286,9 @@ export const screeningService = {
           maxRetryCount: Math.max(0, input.attempts - 1),
           retryIntervalHours: 6,
           consentRequired: true,
+          callWindow: '10 AM – 7 PM',
+          timezone: "Candidate's local timezone",
+          voicemailBehaviour: 'Leave a short callback message',
         },
         candidateIds: [input.candidateId],
         status: 'draft',

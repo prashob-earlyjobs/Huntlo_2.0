@@ -69,6 +69,17 @@ function slugify(input: string): string {
     .slice(0, 200);
 }
 
+function deriveBlogSeoStatus(
+  seoTitle?: string | null,
+  seoDescription?: string | null
+): string {
+  const hasTitle = Boolean(String(seoTitle || '').trim());
+  const hasDescription = Boolean(String(seoDescription || '').trim());
+  if (hasTitle && hasDescription) return 'ok';
+  if (hasTitle || hasDescription) return 'needs_work';
+  return 'missing';
+}
+
 async function paginateQuery<T>(
   model: Pick<mongoose.Model<T>, 'find' | 'countDocuments'>,
   filter: Record<string, unknown>,
@@ -1005,6 +1016,7 @@ export const adminConsoleService = {
       seoDescription?: string;
       ogImageUrl?: string;
       featured?: boolean;
+      status?: 'draft' | 'published' | 'archived';
       seoStatus?: string;
     },
     actorUserId: string
@@ -1013,10 +1025,17 @@ export const adminConsoleService = {
     const existing = await BlogArticleModel.findOne({ slug, deletedAt: null });
     if (existing) throw AppError.conflict('Slug already exists');
     const body = input.body ?? '';
+    const status = input.status ?? 'draft';
+    const seoStatus =
+      input.seoStatus ??
+      deriveBlogSeoStatus(input.seoTitle, input.seoDescription);
     const doc = await BlogArticleModel.create({
       ...input,
       slug,
       body,
+      status,
+      seoStatus,
+      publishedAt: status === 'published' ? new Date() : null,
       readTimeMinutes: computeReadTimeMinutes(body),
       createdByUserId: actorUserId,
       updatedByUserId: actorUserId,
@@ -1050,6 +1069,22 @@ export const adminConsoleService = {
     }
     if (input.body !== undefined) {
       doc.readTimeMinutes = computeReadTimeMinutes(String(input.body || ''));
+    }
+    if (input.seoStatus === undefined && (input.seoTitle !== undefined || input.seoDescription !== undefined)) {
+      doc.seoStatus = deriveBlogSeoStatus(
+        input.seoTitle !== undefined ? String(input.seoTitle || '') : doc.seoTitle,
+        input.seoDescription !== undefined
+          ? String(input.seoDescription || '')
+          : doc.seoDescription
+      );
+    }
+    if (input.status !== undefined) {
+      const nextStatus = String(input.status);
+      if (nextStatus === 'published' && !doc.publishedAt) {
+        doc.publishedAt = new Date();
+      } else if (nextStatus !== 'published') {
+        doc.publishedAt = null;
+      }
     }
     doc.updatedByUserId = new mongoose.Types.ObjectId(actorUserId);
     await doc.save();

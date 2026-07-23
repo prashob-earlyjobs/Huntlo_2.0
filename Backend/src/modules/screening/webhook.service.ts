@@ -16,7 +16,7 @@ import { emitScreeningResultUpdated } from '../../realtime/events.js';
 import { ScreeningModel } from './screening.model.js';
 import { ScreeningCandidateModel } from './screening-candidate.model.js';
 import { VoiceWebhookEventModel } from './voice-webhook-event.model.js';
-import { mapEvaluationScores, minutesFromDuration } from './scoring.js';
+import { mapEvaluationScores, minutesFromDuration, decisionFromAiRecommendation } from './scoring.js';
 import { refreshScreeningStats } from './screening.service.js';
 
 function digitsOnly(value: string): string {
@@ -208,11 +208,20 @@ export async function processHunarWebhook(input: {
       if (parsed.result && typeof parsed.result.summary === 'string') {
         row.summary = String(parsed.result.summary);
       }
+      // AI recommendation is the final status — no manual shortlist/reject step.
+      if (row.recruiterDecision === 'pending') {
+        const autoDecision = decisionFromAiRecommendation(row.recommendation);
+        if (autoDecision) row.recruiterDecision = autoDecision;
+      }
     }
 
     const terminal = ['completed', 'no_answer', 'voicemail', 'busy', 'failed', 'cancelled'].includes(
       row.callStatus
     );
+    if (terminal && row.recruiterDecision === 'pending') {
+      const autoDecision = decisionFromAiRecommendation(row.recommendation);
+      if (autoDecision) row.recruiterDecision = autoDecision;
+    }
     if (terminal) {
       row.completedAt = row.completedAt || new Date();
       if (row.quotaReservationKey && row.quotaCommittedMinutes === 0) {
@@ -248,6 +257,24 @@ export async function processHunarWebhook(input: {
 
     await row.save();
     await refreshScreeningStats(String(screening._id));
+
+    try {
+      const {
+        syncScreeningCandidateToConversation,
+        syncEnrollmentScreeningDecision,
+      } = await import('./screening-conversation-sync.js');
+      await syncScreeningCandidateToConversation({ row, screening });
+      await syncEnrollmentScreeningDecision({
+        organizationId: String(screening.organizationId),
+        candidateId: String(row.candidateId),
+        enrollmentId: row.enrollmentId ? String(row.enrollmentId) : null,
+        screeningId: String(screening._id),
+        recommendation: row.recommendation,
+        recruiterDecision: row.recruiterDecision,
+      });
+    } catch {
+      // Conversation/enrollment sync must not fail webhook processing.
+    }
 
     emitScreeningResultUpdated({
       organizationId: String(screening.organizationId),

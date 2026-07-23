@@ -5,8 +5,10 @@ import {
   CalendarClock,
   CheckCircle2,
   Download,
+  FileAudio,
   Pause,
   Phone,
+  PhoneCall,
   Play,
   SkipBack,
   SkipForward,
@@ -15,7 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,7 @@ import { screeningApi, getApiErrorMessage } from "@/lib/api";
 import type {
   AiRecommendation,
   RecruiterDecision,
+  ResultActivityIcon,
   ScreeningResult,
   ScreeningResultDetail,
 } from "@/lib/mock-screening";
@@ -49,6 +52,19 @@ const DECISION_CLASSES: Record<RecruiterDecision, string> = {
   "Interview scheduled": "bg-info/10 text-info",
 };
 
+const ACTIVITY_ICONS: Record<
+  ResultActivityIcon,
+  typeof PhoneCall
+> = {
+  phone: PhoneCall,
+  check: CheckCircle2,
+  bookmark: Bookmark,
+  note: StickyNote,
+  recording: FileAudio,
+  score: CheckCircle2,
+  failed: XCircle,
+};
+
 function Badge({ text, className }: { text: string; className: string }) {
   return (
     <span
@@ -68,26 +84,75 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/** Visual-only audio player — no remote media is loaded or played. */
+function EmptyDetail({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
 function AudioPlayerUI({
   durationSeconds,
   label,
   size,
+  url,
 }: {
   durationSeconds: number;
   label: string;
   size: string;
+  url: string | null;
 }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
-  const progress = durationSeconds > 0 ? (position / durationSeconds) * 100 : 0;
+  const effectiveDuration = useMemo(() => {
+    const fromAudio = audioRef.current?.duration;
+    if (fromAudio && Number.isFinite(fromAudio) && fromAudio > 0) {
+      return fromAudio;
+    }
+    return durationSeconds > 0 ? durationSeconds : 0;
+  }, [durationSeconds, position, playing]);
+  const progress =
+    effectiveDuration > 0 ? (position / effectiveDuration) * 100 : 0;
 
-  function togglePlay() {
-    setPlaying((previous) => !previous);
+  async function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio || !url) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+      return;
+    }
+    try {
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+    }
   }
 
   function scrub(next: number) {
-    setPosition(Math.max(0, Math.min(durationSeconds, next)));
+    const audio = audioRef.current;
+    const clamped = Math.max(0, Math.min(effectiveDuration || next, next));
+    setPosition(clamped);
+    if (audio) audio.currentTime = clamped;
+  }
+
+  if (!url) {
+    return (
+      <EmptyDetail
+        title="No recording yet"
+        description="The recording URL will appear here when Hunar sends the call-recording webhook."
+      />
+    );
   }
 
   return (
@@ -96,18 +161,34 @@ function AudioPlayerUI({
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-foreground">Recording</h3>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {label} · {size} · UI preview only — no audio is streamed
+            {label} · {size}
           </p>
         </div>
-        <Badge
-          text={playing ? "Playing (preview)" : "Paused"}
-          className={
-            playing ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"
-          }
-        />
+        <div className="flex items-center gap-2">
+          <Badge
+            text={playing ? "Playing" : "Paused"}
+            className={
+              playing ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"
+            }
+          />
+          <Button size="sm" variant="outline" nativeButton={false} render={<a href={url} target="_blank" rel="noreferrer" />}>
+            <Download aria-hidden />
+            Open
+          </Button>
+        </div>
       </div>
 
-      {/* Waveform placeholder */}
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        className="sr-only"
+        onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+        onEnded={() => setPlaying(false)}
+        onPause={() => setPlaying(false)}
+        onPlay={() => setPlaying(true)}
+      />
+
       <div
         aria-hidden
         className="mt-4 flex h-16 items-end gap-0.5 overflow-hidden rounded-lg bg-muted/50 px-2 py-2"
@@ -132,15 +213,15 @@ function AudioPlayerUI({
         <input
           type="range"
           min={0}
-          max={durationSeconds}
-          value={position}
+          max={Math.max(1, Math.floor(effectiveDuration))}
+          value={Math.floor(position)}
           onChange={(event) => scrub(Number(event.target.value))}
           aria-label="Playback position"
           className="w-full accent-primary"
         />
         <div className="mt-1 flex justify-between text-[11px] tabular-nums text-muted-foreground">
           <span>{formatTime(position)}</span>
-          <span>{formatTime(durationSeconds)}</span>
+          <span>{formatTime(effectiveDuration)}</span>
         </div>
       </div>
 
@@ -156,7 +237,7 @@ function AudioPlayerUI({
         <Button
           size="icon"
           aria-label={playing ? "Pause" : "Play"}
-          onClick={togglePlay}
+          onClick={() => void togglePlay()}
         >
           {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
         </Button>
@@ -193,39 +274,51 @@ function SummaryTab({ detail }: { detail: ScreeningResultDetail }) {
             <h4 className="text-xs font-semibold tracking-wide text-success uppercase">
               Strengths
             </h4>
-            <ul className="mt-2 space-y-1.5">
-              {detail.strengths.map((item) => (
-                <li
-                  key={item}
-                  className="flex items-start gap-1.5 text-sm text-foreground"
-                >
-                  <CheckCircle2
-                    aria-hidden
-                    className="mt-0.5 size-3.5 shrink-0 text-success"
-                  />
-                  {item}
-                </li>
-              ))}
-            </ul>
+            {detail.strengths.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No strengths captured in the webhook payload.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-1.5">
+                {detail.strengths.map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-start gap-1.5 text-sm text-foreground"
+                  >
+                    <CheckCircle2
+                      aria-hidden
+                      className="mt-0.5 size-3.5 shrink-0 text-success"
+                    />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div>
             <h4 className="text-xs font-semibold tracking-wide text-warning uppercase">
               Concerns
             </h4>
-            <ul className="mt-2 space-y-1.5">
-              {detail.concerns.map((item) => (
-                <li
-                  key={item}
-                  className="flex items-start gap-1.5 text-sm text-foreground"
-                >
-                  <XCircle
-                    aria-hidden
-                    className="mt-0.5 size-3.5 shrink-0 text-warning"
-                  />
-                  {item}
-                </li>
-              ))}
-            </ul>
+            {detail.concerns.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No concerns captured in the webhook payload.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-1.5">
+                {detail.concerns.map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-start gap-1.5 text-sm text-foreground"
+                  >
+                    <XCircle
+                      aria-hidden
+                      className="mt-0.5 size-3.5 shrink-0 text-warning"
+                    />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
@@ -233,14 +326,20 @@ function SummaryTab({ detail }: { detail: ScreeningResultDetail }) {
           <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Key answers
           </h4>
-          <dl className="mt-2 space-y-3">
-            {detail.keyAnswers.map((item) => (
-              <div key={item.question}>
-                <dt className="text-xs text-muted-foreground">{item.question}</dt>
-                <dd className="mt-0.5 text-sm text-foreground">{item.answer}</dd>
-              </div>
-            ))}
-          </dl>
+          {detail.keyAnswers.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Answer fields will appear here when Hunar includes them in the call result.
+            </p>
+          ) : (
+            <dl className="mt-2 space-y-3">
+              {detail.keyAnswers.map((item) => (
+                <div key={item.question}>
+                  <dt className="text-xs text-muted-foreground">{item.question}</dt>
+                  <dd className="mt-0.5 text-sm text-foreground">{item.answer}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </div>
       </section>
 
@@ -267,11 +366,20 @@ function SummaryTab({ detail }: { detail: ScreeningResultDetail }) {
 }
 
 function TranscriptTab({ detail }: { detail: ScreeningResultDetail }) {
+  if (detail.transcript.length === 0) {
+    return (
+      <EmptyDetail
+        title="No transcript yet"
+        description="Transcript text is stored when Hunar includes it in call-summary or call-result webhooks."
+      />
+    );
+  }
+
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Call transcript</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        Speakers labelled as AI agent and candidate
+        Speakers labelled as AI agent and candidate when available
       </p>
       <ol className="mt-4 space-y-3">
         {detail.transcript.map((turn) => (
@@ -328,7 +436,7 @@ function ScorecardTab({
               Overall score
             </h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Based on communication score
+              Based on communication score from the call result
             </p>
           </div>
           <p
@@ -347,32 +455,41 @@ function ScorecardTab({
         </div>
       </section>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        {detail.categories.map((category) => (
-          <section
-            key={category.id}
-            className="rounded-xl border border-border bg-card p-4"
-          >
-            <div className="flex items-baseline justify-between gap-2">
-              <h4 className="text-sm font-medium text-foreground">
-                {category.label}
-              </h4>
-              <span className="text-sm font-semibold tabular-nums text-foreground">
-                {category.score}
-              </span>
-            </div>
-            <Progress
-              value={category.score}
-              aria-label={`${category.label}: ${category.score} out of 100`}
-              className="mt-2"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Evidence: </span>
-              {category.evidence}
-            </p>
-          </section>
-        ))}
-      </div>
+      {detail.categories.length === 0 ? (
+        <EmptyDetail
+          title="No score breakdown yet"
+          description="Category scores appear when Hunar sends numeric fields in the call-result webhook."
+        />
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {detail.categories.map((category) => (
+            <section
+              key={category.id}
+              className="rounded-xl border border-border bg-card p-4"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <h4 className="text-sm font-medium text-foreground">
+                  {category.label}
+                </h4>
+                <span className="text-sm font-semibold tabular-nums text-foreground">
+                  {category.score}
+                </span>
+              </div>
+              <Progress
+                value={category.score}
+                aria-label={`${category.label}: ${category.score} out of 100`}
+                className="mt-2"
+              />
+              {category.evidence ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Evidence: </span>
+                  {category.evidence}
+                </p>
+              ) : null}
+            </section>
+          ))}
+        </div>
+      )}
 
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -440,6 +557,15 @@ function ExtractedTab({ detail }: { detail: ScreeningResultDetail }) {
     Low: "bg-muted text-muted-foreground",
   } as const;
 
+  if (detail.extracted.length === 0) {
+    return (
+      <EmptyDetail
+        title="No extracted variables yet"
+        description="Variables from the Hunar result object will show here after the call-result webhook."
+      />
+    );
+  }
+
   return (
     <section className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-4 py-3">
@@ -472,29 +598,41 @@ function ExtractedTab({ detail }: { detail: ScreeningResultDetail }) {
 }
 
 function ActivityTab({ detail }: { detail: ScreeningResultDetail }) {
+  if (detail.activity.length === 0) {
+    return (
+      <EmptyDetail
+        title="No activity yet"
+        description="Webhook events, completion, decisions, and notes will appear in this timeline."
+      />
+    );
+  }
+
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <ol className="space-y-0">
-        {detail.activity.map((entry, index) => (
-          <li key={entry.id} className="relative flex gap-3 pb-5 last:pb-0">
-            {index < detail.activity.length - 1 ? (
-              <span
-                aria-hidden
-                className="absolute top-6 left-[11px] h-full w-px bg-border"
-              />
-            ) : null}
-            <span className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
-              <entry.icon aria-hidden className="size-3 text-muted-foreground" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">{entry.title}</p>
-              <p className="text-xs text-muted-foreground">{entry.detail}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {entry.time}
-              </p>
-            </div>
-          </li>
-        ))}
+        {detail.activity.map((entry, index) => {
+          const Icon = ACTIVITY_ICONS[entry.icon] || PhoneCall;
+          return (
+            <li key={entry.id} className="relative flex gap-3 pb-5 last:pb-0">
+              {index < detail.activity.length - 1 ? (
+                <span
+                  aria-hidden
+                  className="absolute top-6 left-[11px] h-full w-px bg-border"
+                />
+              ) : null}
+              <span className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
+                <Icon aria-hidden className="size-3 text-muted-foreground" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">{entry.title}</p>
+                <p className="text-xs text-muted-foreground">{entry.detail}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {formatResultWhen(entry.time)}
+                </p>
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
@@ -656,35 +794,6 @@ export function ResultDetail({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
-              disabled={busy}
-              onClick={() =>
-                void runMutation(
-                  () => screeningApi.shortlistResult(result.id),
-                  `Shortlisted ${result.candidateName}.`,
-                  "Shortlisted"
-                )
-              }
-            >
-              <Bookmark aria-hidden />
-              Shortlist
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                void runMutation(
-                  () => screeningApi.rejectResult(result.id),
-                  `Rejected ${result.candidateName}.`,
-                  "Rejected"
-                )
-              }
-            >
-              <XCircle aria-hidden />
-              Reject
-            </Button>
-            <Button
-              size="sm"
               variant="outline"
               disabled={busy}
               onClick={() => {
@@ -800,6 +909,7 @@ export function ResultDetail({
             durationSeconds={detail.recording.durationSeconds}
             label={detail.recording.label}
             size={detail.recording.size}
+            url={detail.recording.url}
           />
         </TabsContent>
         <TabsContent value="scorecard" className="pt-3">
