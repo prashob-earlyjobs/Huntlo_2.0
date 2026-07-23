@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarClock } from "lucide-react";
 
-import { AvailabilityWorkspace } from "@/components/schedule/availability-workspace";
+import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/lib/routes";
@@ -27,7 +27,13 @@ export default function AvailabilityPage() {
           </Button>
         }
       />
-      <AvailabilityWorkspace />
+      <EmptyState
+        icon={CalendarClock}
+        title="Availability is coming soon"
+        description="Set weekly hours, date overrides, and booking limits here once this workspace feature ships."
+        actionLabel="Back to interviews"
+        actionHref={ROUTES.interviews}
+      />
     </>
   );
 }

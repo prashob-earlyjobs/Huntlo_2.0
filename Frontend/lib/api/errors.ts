@@ -13,6 +13,7 @@ export type ApiErrorCode =
   | "QUOTA_EXCEEDED"
   | "RATE_LIMITED"
   | "PROVIDER_ERROR"
+  | "INVITE_DELIVERY_FAILED"
   | "INTERNAL_ERROR"
   | "NOT_IMPLEMENTED"
   | "UNKNOWN";
@@ -68,6 +69,9 @@ export function mapStatusToErrorCode(status: number, serverCode?: string): ApiEr
   }
   if (serverCode === "PROVIDER_ERROR" || serverCode === "FUTURE_JOBS_UNAVAILABLE") {
     return "PROVIDER_ERROR";
+  }
+  if (serverCode === "INVITE_DELIVERY_FAILED") {
+    return "INVITE_DELIVERY_FAILED";
   }
   if (serverCode === "VALIDATION_ERROR" || serverCode === "INVALID_SEARCH_PROMPT") {
     return "VALIDATION_ERROR";
@@ -131,6 +135,17 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return fallback;
+}
+
+/** Interview was created but the invite email/link could not be delivered. */
+export function isInviteDeliveryFailed(error: unknown): boolean {
+  if (error instanceof ApiError && error.code === "INVITE_DELIVERY_FAILED") {
+    return true;
+  }
+  const message = getApiErrorMessage(error, "");
+  return /invite.*(could not be sent|delivery failed)|INVITE_DELIVERY_FAILED/i.test(
+    message
+  );
 }
 
 export function isQuotaError(error: unknown): boolean {
