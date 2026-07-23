@@ -535,7 +535,7 @@ const liveJobsApi: JobsApi = {
           jobId: id,
           limit: 20,
         });
-        detail.upcomingInterviews = interviews.items.map((row) => ({
+        detail.upcomingInterviews = interviews.map((row) => ({
           id: row.id,
           candidate: row.candidateName,
           type: row.interviewType,
