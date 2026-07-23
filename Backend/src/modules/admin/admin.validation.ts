@@ -89,12 +89,11 @@ export const createBlogSchema = z.object({
   seoDescription: z.string().trim().max(320).optional(),
   ogImageUrl: z.string().trim().max(2000).optional(),
   featured: z.boolean().optional(),
+  status: z.enum(BLOG_STATUSES).optional(),
   seoStatus: z.string().trim().max(40).optional(),
 });
 
-export const updateBlogSchema = createBlogSchema.partial().extend({
-  status: z.enum(BLOG_STATUSES).optional(),
-});
+export const updateBlogSchema = createBlogSchema.partial();
 
 export const patchPlatformSettingsSchema = z.object({
   maintenanceMode: z.boolean().optional(),

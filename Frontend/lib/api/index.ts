@@ -29,7 +29,7 @@ export * from "./voice-defaults";
 export * from "./product-tour";
 
 export { apiClient, setTokenProvider, tokenStorage } from "./client";
-export { ApiError, mapApiErrorToUiState, getApiErrorMessage, isQuotaError } from "./errors";
+export { ApiError, mapApiErrorToUiState, getApiErrorMessage, isInviteDeliveryFailed, isQuotaError } from "./errors";
 export type { ApiUiState } from "./errors";
 export { isMockApiEnabled, getApiBaseUrl, getApiV1BaseUrl, getRealtimeUrl } from "./config";
 export * from "./types";

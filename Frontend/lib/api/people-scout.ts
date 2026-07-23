@@ -161,6 +161,86 @@ function mapMatches(
   });
 }
 
+function normalizeProfile(raw: unknown): ScoutProfile | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const name = typeof p.name === "string" ? p.name.trim() : "";
+  if (!name) return null;
+
+  const experience = Array.isArray(p.experience)
+    ? p.experience.map((entry) => {
+        const row = (entry ?? {}) as Record<string, unknown>;
+        return {
+          company: String(row.company ?? "—"),
+          role: String(row.role ?? "—"),
+          duration: String(row.duration ?? ""),
+          description: String(row.description ?? ""),
+          location: row.location ? String(row.location) : undefined,
+          current: Boolean(row.current),
+        };
+      })
+    : [];
+
+  const education = Array.isArray(p.education)
+    ? p.education.map((entry) => {
+        const row = (entry ?? {}) as Record<string, unknown>;
+        return {
+          school: String(row.school ?? "—"),
+          degree: String(row.degree ?? ""),
+          field: String(row.field ?? ""),
+          years: String(row.years ?? ""),
+        };
+      })
+    : [];
+
+  const enrichment =
+    p.enrichment && typeof p.enrichment === "object"
+      ? (p.enrichment as Record<string, unknown>)
+      : {};
+
+  return {
+    id: String(p.id ?? ""),
+    name,
+    currentTitle: String(p.currentTitle ?? "—"),
+    currentCompany: String(p.currentCompany ?? "—"),
+    location: String(p.location ?? "—"),
+    headline: String(p.headline ?? ""),
+    about: String(p.about ?? ""),
+    linkedinUrl: String(p.linkedinUrl ?? ""),
+    linkedinUsername: String(p.linkedinUsername ?? ""),
+    avatarUrl:
+      typeof p.avatarUrl === "string" && p.avatarUrl.trim()
+        ? p.avatarUrl
+        : null,
+    email: String(p.email ?? ""),
+    emailVerified: Boolean(p.emailVerified),
+    phone: String(p.phone ?? ""),
+    phoneVerified: Boolean(p.phoneVerified),
+    skills: Array.isArray(p.skills)
+      ? p.skills.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+      : [],
+    languages: Array.isArray(p.languages)
+      ? p.languages.filter(
+          (s): s is string => typeof s === "string" && s.trim().length > 0
+        )
+      : [],
+    experience,
+    education,
+    connections:
+      typeof p.connections === "number" && Number.isFinite(p.connections)
+        ? p.connections
+        : null,
+    enrichment: {
+      status:
+        enrichment.status === "Partially enriched"
+          ? "Partially enriched"
+          : "Enriched",
+      sources: Number(enrichment.sources ?? 1),
+      lastRefreshed: String(enrichment.lastRefreshed ?? "Just now"),
+    },
+  };
+}
+
 function normalizeLookupPayload(raw: Record<string, unknown>): ScoutLookupResponse {
   const matchesRaw = Array.isArray(raw.matches) ? raw.matches : [];
   const maskedInput = String(raw.maskedInput ?? "");
@@ -178,7 +258,7 @@ function normalizeLookupPayload(raw: Record<string, unknown>): ScoutLookupRespon
     contactRevealed: String(raw.contactRevealed ?? "none"),
     createdAt: String(raw.createdAt ?? new Date().toISOString()),
     performedBy: (raw.performedBy as string | null) ?? null,
-    profile: (raw.profile as ScoutProfile | null) ?? null,
+    profile: normalizeProfile(raw.profile),
     matches: mapMatches(matchesRaw as Parameters<typeof mapMatches>[0]),
     candidateSnapshot: (raw.candidateSnapshot as ScoutLookupResponse["candidateSnapshot"]) ?? null,
   };

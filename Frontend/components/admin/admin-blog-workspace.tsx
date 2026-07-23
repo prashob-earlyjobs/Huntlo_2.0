@@ -1,25 +1,23 @@
 "use client";
 
-import { Eye, MoreHorizontal, Pencil, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
+import { AdminBlogRichTextEditor } from "@/components/admin/admin-blog-rich-text-editor";
 import { Field } from "@/components/outreach/builder-ui";
 import { PageHeader } from "@/components/shared/page-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -28,96 +26,135 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BLOG_CATEGORIES,
-  type BlogArticle,
-  type BlogStatus,
-  type SeoStatus,
-} from "@/lib/mock-admin";
-import { adminApi } from "@/lib/api";
+  BLOG_CATEGORY_LABELS,
+  type BlogCategory,
+} from "@/lib/blog";
+import { adminApi, type BlogArticle } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
-const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
-
-const STATUS_CLASS: Record<BlogStatus, string> = {
-  Draft: "bg-muted text-muted-foreground",
-  Published: "bg-success/10 text-success",
-  Scheduled: "bg-info/10 text-info",
+type BlogFormState = {
+  title: string;
+  slug: string;
+  excerpt: string;
+  body: string;
+  coverImageUrl: string;
+  author: string;
+  category: BlogCategory;
+  tags: string;
+  status: "draft" | "published" | "archived";
+  seoTitle: string;
+  seoDescription: string;
+  ogImageUrl: string;
+  featured: boolean;
 };
 
-const SEO_CLASS: Record<SeoStatus, string> = {
-  Optimised: "bg-success/10 text-success",
-  "Needs work": "bg-warning/10 text-warning",
-  Missing: "bg-destructive/10 text-destructive",
+const EMPTY_FORM: BlogFormState = {
+  title: "",
+  slug: "",
+  excerpt: "",
+  body: "",
+  coverImageUrl: "",
+  author: "Huntlo Team",
+  category: "playbooks",
+  tags: "",
+  status: "draft",
+  seoTitle: "",
+  seoDescription: "",
+  ogImageUrl: "",
+  featured: false,
 };
 
-function emptyArticle(): BlogArticle {
+const STATUS_CLASS: Record<BlogFormState["status"], string> = {
+  draft: "bg-muted text-muted-foreground",
+  published: "bg-success/10 text-success",
+  archived: "bg-warning/10 text-warning",
+};
+
+function slugifyBlogTitle(title: string): string {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 200);
+}
+
+function deriveSeoStatus(seoTitle: string, seoDescription: string): string {
+  const hasTitle = Boolean(seoTitle.trim());
+  const hasDescription = Boolean(seoDescription.trim());
+  if (hasTitle && hasDescription) return "ok";
+  if (hasTitle || hasDescription) return "needs_work";
+  return "missing";
+}
+
+function articleToForm(article: BlogArticle): BlogFormState {
+  const status =
+    article.status === "published" || article.status === "archived"
+      ? article.status
+      : "draft";
+  const category = BLOG_CATEGORIES.includes(article.category as BlogCategory)
+    ? (article.category as BlogCategory)
+    : "playbooks";
   return {
-    id: "new",
-    title: "",
-    slug: "",
-    category: "Product",
-    author: "Platform Admin",
-    status: "Draft",
-    publishedAt: "—",
-    seoStatus: "Missing",
-    excerpt: "",
+    title: article.title || "",
+    slug: article.slug || "",
+    excerpt: article.excerpt || "",
+    body: article.body || "",
+    coverImageUrl: article.coverImageUrl || "",
+    author: article.author || "Huntlo Team",
+    category,
+    tags: Array.isArray(article.tags) ? article.tags.join(", ") : "",
+    status,
+    seoTitle: article.seoTitle || "",
+    seoDescription: article.seoDescription || "",
+    ogImageUrl: article.ogImageUrl || "",
+    featured: Boolean(article.featured),
   };
 }
 
 export function AdminBlogWorkspace() {
   const [articles, setArticles] = useState<BlogArticle[]>([]);
-  const [open, setOpen] = useState(false);
-  const [preview, setPreview] = useState<BlogArticle | null>(null);
-  const [draft, setDraft] = useState<BlogArticle>(emptyArticle());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState<BlogFormState>(EMPTY_FORM);
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const loadArticles = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await adminApi.listBlog({
+        limit: 100,
+        status: statusFilter === "all" ? undefined : statusFilter,
+      });
+      setArticles(result.items);
+    } catch (err) {
+      setArticles([]);
+      setError(getApiErrorMessage(err, "Unable to load blog articles."));
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
 
   useEffect(() => {
-    void adminApi
-      .listBlog({ limit: 100 })
-      .then((result) => {
-        setArticles(
-          result.items.map((article) => ({
-            id: article.id,
-            title: article.title,
-            slug: article.slug,
-            category: article.category,
-            author: article.author,
-            status:
-              article.status === "published"
-                ? ("Published" as const)
-                : article.status === "archived"
-                  ? ("Scheduled" as const)
-                  : ("Draft" as const),
-            publishedAt: article.publishedAt
-              ? new Date(article.publishedAt).toLocaleDateString("en-IN")
-              : "—",
-            seoStatus:
-              article.seoStatus === "ok"
-                ? ("Optimised" as const)
-                : article.seoStatus === "missing"
-                  ? ("Missing" as const)
-                  : ("Needs work" as const),
-            excerpt: article.excerpt,
-          }))
-        );
-      })
-      .catch((error) => {
-        setArticles([]);
-        setToast(getApiErrorMessage(error, "Unable to load blog articles."));
-      });
-  }, []);
+    void loadArticles();
+  }, [loadArticles]);
 
   useEffect(() => {
     if (!toast) return;
@@ -125,105 +162,127 @@ export function AdminBlogWorkspace() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  function openCreate() {
+  function resetForm() {
     setEditingId(null);
-    setDraft(emptyArticle());
-    setOpen(true);
+    setFormOpen(false);
+    setForm(EMPTY_FORM);
+    setSlugTouched(false);
   }
 
-  function openEdit(article: BlogArticle) {
+  function startCreate() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setSlugTouched(false);
+    setFormOpen(true);
+    setError(null);
+    setToast(null);
+  }
+
+  function startEdit(article: BlogArticle) {
     setEditingId(article.id);
-    setDraft({ ...article });
-    setOpen(true);
+    setSlugTouched(true);
+    setForm(articleToForm(article));
+    setFormOpen(true);
+    setError(null);
+    setToast(null);
   }
 
-  function saveArticle() {
-    if (!draft.title.trim()) {
-      setToast("Article title is required.");
+  async function handleSave() {
+    if (!form.title.trim()) {
+      setError("Title is required.");
       return;
     }
-    const slug =
-      draft.slug.trim() ||
-      draft.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
 
-    const payload = {
-      title: draft.title,
-      slug,
-      category: draft.category,
-      author: draft.author,
-      excerpt: draft.excerpt,
-      status:
-        draft.status === "Published"
-          ? "published"
-          : draft.status === "Scheduled"
-            ? "archived"
-            : "draft",
-      seoStatus:
-        draft.seoStatus === "Optimised"
-          ? "ok"
-          : draft.seoStatus === "Missing"
-            ? "missing"
-            : "needs_work",
-    };
+    setSaving(true);
+    setError(null);
+    try {
+      const tags = form.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      const slug = form.slug.trim() || slugifyBlogTitle(form.title);
+      const payload = {
+        title: form.title.trim(),
+        slug,
+        excerpt: form.excerpt,
+        body: form.body,
+        coverImageUrl: form.coverImageUrl,
+        author: form.author || "Huntlo Team",
+        category: form.category,
+        tags,
+        status: form.status,
+        seoTitle: form.seoTitle,
+        seoDescription: form.seoDescription,
+        ogImageUrl: form.ogImageUrl,
+        featured: form.featured,
+        seoStatus: deriveSeoStatus(form.seoTitle, form.seoDescription),
+      };
 
-    void (async () => {
-      try {
-        if (editingId && editingId !== "new") {
-          const updated = await adminApi.updateBlog(editingId, payload);
-          if (draft.status === "Published") {
-            await adminApi.publishBlog(editingId);
-          }
-          setArticles((previous) =>
-            previous.map((article) =>
-              article.id === editingId
-                ? {
-                    ...article,
-                    ...draft,
-                    id: updated.id,
-                    slug: updated.slug,
-                  }
-                : article
-            )
-          );
-          setToast(`Updated “${draft.title}”.`);
-        } else {
-          const created = await adminApi.createBlog(payload);
-          if (draft.status === "Published") {
-            await adminApi.publishBlog(created.id);
-          }
-          setArticles((previous) => [
-            {
-              ...draft,
-              id: created.id,
-              slug: created.slug,
-            },
-            ...previous,
-          ]);
-          setToast(`Created “${draft.title}”.`);
-        }
-        setOpen(false);
-      } catch (error) {
-        setToast(getApiErrorMessage(error, "Unable to save article."));
+      if (editingId) {
+        await adminApi.updateBlog(editingId, payload);
+        setToast("Post updated.");
+      } else {
+        await adminApi.createBlog(payload);
+        setToast("Post created.");
+        resetForm();
       }
-    })();
+      await loadArticles();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to save article."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await adminApi.deleteBlog(pendingDelete.id);
+      if (editingId === pendingDelete.id) resetForm();
+      setToast("Post deleted.");
+      setPendingDelete(null);
+      await loadArticles();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to delete article."));
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Blog management"
-        description="Draft, schedule and publish Huntlo content with SEO status tracking."
+        description="Create and publish Huntlo articles with rich text, SEO fields, and featured placement."
         actions={
-          <Button size="sm" onClick={openCreate}>
+          <Button size="sm" onClick={startCreate}>
             <Plus aria-hidden />
-            Create article
+            New post
           </Button>
         }
       />
 
+      <p className="text-sm text-muted-foreground">
+        Public index:{" "}
+        <Link
+          href="/blog"
+          target="_blank"
+          className="text-primary underline-offset-2 hover:underline"
+        >
+          /blog
+        </Link>
+      </p>
+      {error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {error}
+        </div>
+      ) : null}
       {toast ? (
         <div
           role="status"
@@ -233,170 +292,181 @@ export function AdminBlogWorkspace() {
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className={HEAD}>Article</TableHead>
-              <TableHead className={HEAD}>Category</TableHead>
-              <TableHead className={HEAD}>Author</TableHead>
-              <TableHead className={HEAD}>Status</TableHead>
-              <TableHead className={HEAD}>Published date</TableHead>
-              <TableHead className={HEAD}>SEO status</TableHead>
-              <TableHead className={HEAD}>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {articles.map((article) => (
-              <TableRow key={article.id}>
-                <TableCell className="min-w-[14rem]">
-                  <p className="font-medium">{article.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    /{article.slug}
-                  </p>
-                </TableCell>
-                <TableCell className="text-sm">{article.category}</TableCell>
-                <TableCell className="whitespace-nowrap text-sm">
-                  {article.author}
-                </TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
-                      STATUS_CLASS[article.status]
-                    )}
-                  >
-                    {article.status}
-                  </span>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {article.publishedAt}
-                </TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
-                      SEO_CLASS[article.seoStatus]
-                    )}
-                  >
-                    {article.seoStatus}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`Actions for ${article.title}`}
-                        />
-                      }
-                    >
-                      <MoreHorizontal aria-hidden />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(article)}>
-                        <Pencil aria-hidden />
-                        Edit article
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setPreview(article)}>
-                        <Eye aria-hidden />
-                        Preview
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <div className="grid gap-6">
+        {formOpen ? null : (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Filter
+            </span>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => value && setStatusFilter(value)}
+            >
+              <SelectTrigger className="w-42">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="published">Published</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Create / Edit */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {editingId ? "Edit article" : "Create article"}
-            </DialogTitle>
-            <DialogDescription>
-              Content is stored in this UI session only.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3">
+          <div className="rounded-lg border border-border bg-card">
+            {loading ? (
+              <p className="px-4 py-6 text-sm text-muted-foreground">
+                Loading posts…
+              </p>
+            ) : articles.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-muted-foreground">
+                No posts yet.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {articles.map((article) => {
+                  const status =
+                    article.status === "published" ||
+                    article.status === "archived"
+                      ? article.status
+                      : "draft";
+                  return (
+                    <li key={article.id} className="px-4 py-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium">{article.title}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            /blog/{article.slug}
+                            {article.featured ? " · featured" : ""}
+                          </p>
+                          <span
+                            className={cn(
+                              "mt-2 inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
+                              STATUS_CLASS[status]
+                            )}
+                          >
+                            {status}
+                          </span>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-1.5">
+                          {status === "published" ? (
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              render={
+                                <Link
+                                  href={`/blog/${encodeURIComponent(article.slug)}`}
+                                  target="_blank"
+                                />
+                              }
+                            >
+                              <ExternalLink aria-hidden />
+                              View
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => startEdit(article)}
+                          >
+                            <Pencil aria-hidden />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() =>
+                              setPendingDelete({
+                                id: article.id,
+                                title: article.title,
+                              })
+                            }
+                          >
+                            <Trash2 aria-hidden />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+        )}
+
+        {formOpen ? (
+        <div className="mx-auto w-full max-w-3xl rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {editingId ? "Edit post" : "New post"}
+          </p>
+          <div className="mt-3 space-y-3">
             <Field label="Title" htmlFor="blog-title" required>
               <Input
                 id="blog-title"
-                value={draft.title}
-                onChange={(event) =>
-                  setDraft((previous) => ({
+                value={form.title}
+                onChange={(event) => {
+                  const title = event.target.value;
+                  setForm((previous) => ({
                     ...previous,
-                    title: event.target.value,
-                  }))
-                }
+                    title,
+                    ...(!slugTouched
+                      ? { slug: slugifyBlogTitle(title) }
+                      : {}),
+                  }));
+                }}
               />
             </Field>
             <Field label="Slug" htmlFor="blog-slug">
               <Input
                 id="blog-slug"
-                value={draft.slug}
-                onChange={(event) =>
-                  setDraft((previous) => ({
+                value={form.slug}
+                onChange={(event) => {
+                  setSlugTouched(true);
+                  setForm((previous) => ({
                     ...previous,
                     slug: event.target.value,
-                  }))
-                }
+                  }));
+                }}
                 placeholder="auto-from-title"
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Category" htmlFor="blog-cat">
+              <Field label="Category" htmlFor="blog-category">
                 <Select
-                  value={draft.category}
+                  value={form.category}
                   onValueChange={(value) =>
                     value &&
-                    setDraft((previous) => ({ ...previous, category: value }))
+                    setForm((previous) => ({
+                      ...previous,
+                      category: value as BlogCategory,
+                    }))
                   }
                 >
-                  <SelectTrigger id="blog-cat" className="w-full">
+                  <SelectTrigger id="blog-category" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {BLOG_CATEGORIES.map((category) => (
                       <SelectItem key={category} value={category}>
-                        {category}
+                        {BLOG_CATEGORY_LABELS[category]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Author" htmlFor="blog-author">
-                <Input
-                  id="blog-author"
-                  value={draft.author}
-                  onChange={(event) =>
-                    setDraft((previous) => ({
-                      ...previous,
-                      author: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
               <Field label="Status" htmlFor="blog-status">
                 <Select
-                  value={draft.status}
+                  value={form.status}
                   onValueChange={(value) =>
                     value &&
-                    setDraft((previous) => ({
+                    setForm((previous) => ({
                       ...previous,
-                      status: value as BlogStatus,
-                      publishedAt:
-                        value === "Draft"
-                          ? "—"
-                          : previous.publishedAt === "—"
-                            ? "16 Jul 2026"
-                            : previous.publishedAt,
+                      status: value as BlogFormState["status"],
                     }))
                   }
                 >
@@ -404,38 +474,9 @@ export function AdminBlogWorkspace() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(["Draft", "Published", "Scheduled"] as BlogStatus[]).map(
-                      (status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      )
-                    )}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="SEO status" htmlFor="blog-seo">
-                <Select
-                  value={draft.seoStatus}
-                  onValueChange={(value) =>
-                    value &&
-                    setDraft((previous) => ({
-                      ...previous,
-                      seoStatus: value as SeoStatus,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="blog-seo" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(
-                      ["Optimised", "Needs work", "Missing"] as SeoStatus[]
-                    ).map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="published">Published</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -443,66 +484,162 @@ export function AdminBlogWorkspace() {
             <Field label="Excerpt" htmlFor="blog-excerpt">
               <Textarea
                 id="blog-excerpt"
-                rows={3}
-                value={draft.excerpt}
+                rows={2}
+                value={form.excerpt}
                 onChange={(event) =>
-                  setDraft((previous) => ({
+                  setForm((previous) => ({
                     ...previous,
                     excerpt: event.target.value,
                   }))
                 }
               />
             </Field>
+            <Field label="Content" htmlFor="blog-content">
+              <AdminBlogRichTextEditor
+                key={editingId || "new-post"}
+                editorKey={editingId || "new-post"}
+                value={form.body}
+                onChange={(html) =>
+                  setForm((previous) => ({ ...previous, body: html }))
+                }
+                placeholder="Write your article…"
+              />
+            </Field>
+            <Field label="Tags (comma-separated)" htmlFor="blog-tags">
+              <Input
+                id="blog-tags"
+                value={form.tags}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    tags: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Cover image URL" htmlFor="blog-cover">
+              <Input
+                id="blog-cover"
+                type="url"
+                value={form.coverImageUrl}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    coverImageUrl: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="SEO title" htmlFor="blog-seo-title">
+                <Input
+                  id="blog-seo-title"
+                  value={form.seoTitle}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      seoTitle: event.target.value,
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Author" htmlFor="blog-author">
+                <Input
+                  id="blog-author"
+                  value={form.author}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      author: event.target.value,
+                    }))
+                  }
+                />
+              </Field>
+            </div>
+            <Field label="SEO description" htmlFor="blog-seo-description">
+              <Textarea
+                id="blog-seo-description"
+                rows={2}
+                value={form.seoDescription}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    seoDescription: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="OG image URL" htmlFor="blog-og">
+              <Input
+                id="blog-og"
+                type="url"
+                value={form.ogImageUrl}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    ogImageUrl: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border"
+                checked={form.featured}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    featured: event.target.checked,
+                  }))
+                }
+              />
+              Featured on blog index
+            </label>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving
+                  ? "Saving…"
+                  : editingId
+                    ? "Update post"
+                    : "Create post"}
+              </Button>
+              <Button variant="outline" onClick={resetForm}>
+                Cancel
+              </Button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={saveArticle}>
-              {editingId ? "Save article" : "Create article"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+        ) : null}
+      </div>
 
-      {/* Preview */}
-      <Dialog
-        open={!!preview}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setPreview(null);
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setPendingDelete(null);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
-          {preview ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>{preview.title}</DialogTitle>
-                <DialogDescription>
-                  {preview.category} · {preview.author} · {preview.status}
-                </DialogDescription>
-              </DialogHeader>
-              <p className="text-sm text-muted-foreground">{preview.excerpt}</p>
-              <p className="text-xs text-muted-foreground">
-                Slug: /blog/{preview.slug} · SEO: {preview.seoStatus} ·{" "}
-                {preview.publishedAt}
-              </p>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setPreview(null)}>
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    openEdit(preview);
-                    setPreview(null);
-                  }}
-                >
-                  Edit article
-                </Button>
-              </DialogFooter>
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete
+                ? `“${pendingDelete.title}” will be permanently deleted. This cannot be undone.`
+                : "This post will be permanently deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => void confirmDelete()}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
