@@ -181,6 +181,7 @@ export const campaignActionsService = {
         enrollment.screeningState = {
           ...enrollment.screeningState,
           status: 'scheduled',
+          decision: enrollment.screeningState?.decision ?? null,
         };
         await enrollment.save();
         break;

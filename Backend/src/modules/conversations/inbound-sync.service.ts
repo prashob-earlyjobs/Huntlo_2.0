@@ -858,8 +858,10 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       const stated = await OutreachCampaignModel.findById(input.campaignId)
         .select('channelConfig sequenceSteps')
         .lean();
+      // In this branch channel is never WhatsApp (handled above).
+      // Email must be supported by the campaign; other channels keep the stated id.
       if (
-        (input.channel !== 'email' && input.channel !== 'whatsapp') ||
+        input.channel !== 'email' ||
         campaignSupportsChannel(stated, input.channel)
       ) {
         campaignId = input.campaignId;
