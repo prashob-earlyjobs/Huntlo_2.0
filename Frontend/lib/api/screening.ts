@@ -51,6 +51,9 @@ export type ScreeningCreateInput = {
     maxRetryCount?: number;
     retryIntervalHours?: number;
     consentRequired?: boolean;
+    callWindow?: string;
+    timezone?: string;
+    voicemailBehaviour?: string;
   };
   candidateIds?: string[];
 };

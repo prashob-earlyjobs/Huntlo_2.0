@@ -17,7 +17,6 @@ import {
 import { campaignsService } from './campaigns.service.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
 import { executeCampaignMessageStep, type DeliveryResult } from './campaign-delivery.js';
-import { nextSendAtWithinWindow } from './send-window.util.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import {
   conversationsService,
@@ -371,7 +370,7 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
         await leased.save();
         continue;
       }
-      if (enrollment.replyState?.hasReply) {
+      if (enrollment.replyState?.hasReply || enrollment.replyState?.channel) {
         await campaignsService.stopEnrollment(String(enrollment._id), 'candidate_replied');
         leased.status = 'cancelled';
         await leased.save();
@@ -576,16 +575,13 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           title: 'Sequence completed',
         });
       } else {
+        // Message/follow-up timing uses step delay only — no send window.
+        // Call windows apply only to screening calls.
         const delayMs = Math.max(
           0,
           sequenceDelayToMs(next.delayDays || 0, next.delayUnit)
         );
-        const sendWindow = next.sendWindow || campaign.channelConfig.sendWindow || null;
-        const when = nextSendAtWithinWindow(
-          new Date(Date.now() + delayMs),
-          sendWindow,
-          campaign.channelConfig.timezone
-        );
+        const when = new Date(Date.now() + delayMs);
         enrollment.currentStepIndex = idx + 1;
         enrollment.status = delayMs > 0 ? 'waiting' : 'active';
         enrollment.nextActionAt = when;

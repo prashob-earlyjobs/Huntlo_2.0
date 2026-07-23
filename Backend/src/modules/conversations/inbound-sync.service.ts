@@ -4,6 +4,7 @@ import { getLogger } from '../../config/logger.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
+import type { OutreachEnrollmentDocument } from '../outreach/enrollment.model.js';
 import { campaignsService, refreshCampaignStats } from '../outreach/campaigns.service.js';
 import {
   emitCampaignThreadUpdated,
@@ -37,6 +38,8 @@ export type NormalizedInboundMessage = {
   channel: ConversationChannel;
   providerMessageId: string;
   providerThreadId?: string | null;
+  /** Meta context.id — outbound wamid the user replied to (when present). */
+  contextProviderMessageId?: string | null;
   from: string;
   to?: string | null;
   subject?: string | null;
@@ -170,7 +173,11 @@ async function resolveEnrollment(
       // Explicit id but wrong channel — fall through to a compatible enrollment.
     }
   }
-  if (campaignId && mongoose.Types.ObjectId.isValid(campaignId)) {
+  if (
+    campaignId &&
+    mongoose.Types.ObjectId.isValid(campaignId) &&
+    channelFilter !== 'whatsapp'
+  ) {
     if (channelFilter) {
       const campaign = await OutreachCampaignModel.findById(campaignId)
         .select('channelConfig sequenceSteps')
@@ -207,15 +214,10 @@ async function resolveEnrollment(
     return enrollments[0] || null;
   }
 
-  // WhatsApp: always bind to the latest active outreach for this candidate
-  // (the campaign that most recently sent them WhatsApp). Older outreaches
-  // should already be closed when a newer one starts.
+  // WhatsApp: bind only to the latest outbound outreach for this candidate.
+  // Never fall through to older stopped/replied enrollments by updatedAt.
   if (channelFilter === 'whatsapp') {
-    const fromLatest = await resolveLatestActiveWhatsAppOutreach(
-      organizationId,
-      candidateId
-    );
-    if (fromLatest) return fromLatest;
+    return resolveLatestActiveWhatsAppOutreach(organizationId, candidateId);
   }
 
   if (!enrollments.length) return null;
@@ -237,58 +239,237 @@ async function resolveEnrollment(
   return null;
 }
 
+type LatestWhatsAppOutbound = {
+  threadId: string;
+  campaignId: string;
+  enrollmentId: string | null;
+  messageId: string;
+  sentAt: Date | null;
+};
+
+const WHATSAPP_WRAPUP_BODY_RE =
+  /shared your responses with our recruiting team/i;
+
+function isWhatsAppWrapUpMessage(msg: {
+  providerMessageId?: string | null;
+  bodyText?: string | null;
+  messageType?: string | null;
+}): boolean {
+  const providerId = String(msg.providerMessageId || '');
+  if (providerId.startsWith('qualification-wrapup:')) return true;
+  if (msg.messageType === 'qualification') return true;
+  if (WHATSAPP_WRAPUP_BODY_RE.test(String(msg.bodyText || ''))) return true;
+  return false;
+}
+
 /**
- * Active WhatsApp outreach = non-closed thread with the newest outbound message.
- * Loads that thread's enrollment even if status is completed/handed off.
+ * Most recent WhatsApp *outreach* outbound for this candidate (includes closed threads).
+ * Excludes qualification questions and completion wrap-ups so replies bind to the
+ * latest campaign send — not an older "recruiter will be in touch" note.
+ */
+async function findLatestWhatsAppOutboundForCandidate(
+  organizationId: string,
+  candidateId: string
+): Promise<LatestWhatsAppOutbound | null> {
+  const threads = await ConversationThreadModel.find({
+    organizationId,
+    candidateId,
+    channels: 'whatsapp',
+    campaignId: { $ne: null },
+  })
+    .select('_id campaignId enrollmentId')
+    .lean();
+
+  if (!threads.length) return null;
+
+  const threadById = new Map(threads.map((t) => [String(t._id), t]));
+  const recentOutbounds = await ConversationMessageModel.find({
+    organizationId,
+    threadId: { $in: threads.map((t) => t._id) },
+    channel: 'whatsapp',
+    direction: 'outbound',
+    messageType: { $nin: ['qualification', 'note', 'system', 'voice_summary'] },
+  })
+    .sort({ sentAt: -1, createdAt: -1 })
+    .select('threadId providerMessageId bodyText messageType sentAt createdAt')
+    .limit(40)
+    .lean();
+
+  for (const msg of recentOutbounds) {
+    if (isWhatsAppWrapUpMessage(msg)) continue;
+    const thread = threadById.get(String(msg.threadId));
+    if (!thread?.campaignId) continue;
+    return {
+      threadId: String(thread._id),
+      campaignId: String(thread.campaignId),
+      enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
+      messageId: String(msg._id),
+      sentAt: msg.sentAt || msg.createdAt || null,
+    };
+  }
+
+  return null;
+}
+
+async function isLatestWhatsAppOutboundOwner(
+  organizationId: string,
+  candidateId: string,
+  threadId: string,
+  campaignId: string | null | undefined
+): Promise<boolean> {
+  const latest = await findLatestWhatsAppOutboundForCandidate(
+    organizationId,
+    candidateId
+  );
+  if (!latest) return false;
+  if (String(threadId) === latest.threadId) return true;
+  if (campaignId && String(campaignId) === latest.campaignId) return true;
+  return false;
+}
+
+/**
+ * Latest WhatsApp outreach = enrollment that owns the newest WA campaign outbound
+ * (any thread status). If that enrollment already finished qualification but a
+ * newer live enrollment exists, prefer the live one. If no outbound exists, only
+ * an active/pending/waiting enrollment whose campaign supports WhatsApp.
  */
 async function resolveLatestActiveWhatsAppOutreach(
   organizationId: string,
   candidateId: string
 ) {
-  const activeThreads = await ConversationThreadModel.find({
+  const latest = await findLatestWhatsAppOutboundForCandidate(
     organizationId,
-    candidateId,
-    channels: 'whatsapp',
-    campaignId: { $ne: null },
-    status: { $nin: ['closed', 'opted_out'] },
-  })
-    .select('_id campaignId enrollmentId')
-    .lean();
+    candidateId
+  );
 
-  if (!activeThreads.length) return null;
-
-  const latestOutbound = await ConversationMessageModel.findOne({
-    organizationId,
-    threadId: { $in: activeThreads.map((t) => t._id) },
-    channel: 'whatsapp',
-    direction: 'outbound',
-  })
-    .sort({ sentAt: -1, createdAt: -1 })
-    .select('threadId')
-    .lean();
-
-  const thread = latestOutbound
-    ? activeThreads.find((t) => String(t._id) === String(latestOutbound.threadId))
-    : activeThreads.sort((a, b) => String(b._id).localeCompare(String(a._id)))[0];
-
-  if (!thread?.campaignId) return null;
-
-  if (thread.enrollmentId) {
-    const byId = await OutreachEnrollmentModel.findOne({
-      _id: thread.enrollmentId,
+  const loadEnrollment = async (id: string | null | undefined, campaignId?: string) => {
+    if (id) {
+      const byId = await OutreachEnrollmentModel.findOne({
+        _id: id,
+        organizationId,
+        candidateId,
+        status: { $ne: 'cancelled' },
+      });
+      if (byId) return byId;
+    }
+    if (!campaignId) return null;
+    return OutreachEnrollmentModel.findOne({
       organizationId,
       candidateId,
+      campaignId,
       status: { $ne: 'cancelled' },
-    });
-    if (byId) return byId;
+    }).sort({ updatedAt: -1 });
+  };
+
+  const isTerminalEnrollment = (enrollment: {
+    status?: string | null;
+    qualificationState?: { status?: string | null } | null;
+  }) => {
+    const status = String(enrollment.status || '');
+    const qual = String(enrollment.qualificationState?.status || '');
+    return (
+      ['completed', 'failed', 'opted_out'].includes(status) ||
+      ['qualified', 'rejected'].includes(qual)
+    );
+  };
+
+  if (latest) {
+    const fromLatest = await loadEnrollment(latest.enrollmentId, latest.campaignId);
+    if (fromLatest && !isTerminalEnrollment(fromLatest)) {
+      return fromLatest;
+    }
+
+    // Latest outreach belongs to a finished enrollment — prefer a still-live
+    // enrollment that has sent WhatsApp more recently, or any live WA enrollment.
+    const liveEnrollments = await OutreachEnrollmentModel.find({
+      organizationId,
+      candidateId,
+      status: { $in: ['active', 'pending', 'waiting', 'replied', 'stopped'] },
+    }).sort({ updatedAt: -1 });
+
+    if (liveEnrollments.length) {
+      const campaigns = await OutreachCampaignModel.find({
+        _id: { $in: liveEnrollments.map((e) => e.campaignId) },
+      })
+        .select('channelConfig sequenceSteps')
+        .lean();
+      const supportedIds = new Set(
+        campaigns
+          .filter((c) => campaignSupportsChannel(c, 'whatsapp'))
+          .map((c) => String(c._id))
+      );
+
+      const liveSupported = liveEnrollments.filter(
+        (e) => supportedIds.has(String(e.campaignId)) && !isTerminalEnrollment(e)
+      );
+
+      for (const live of liveSupported) {
+        if (String(live.campaignId) === latest.campaignId) {
+          // Same campaign finished qual — still the latest outreach owner; caller
+          // will reset Q&A if a newer outreach was sent after completion.
+          return fromLatest || live;
+        }
+      }
+
+      // Different live campaign exists — if it has any WA outbound, compare times.
+      for (const live of liveSupported) {
+        const liveThread = await ConversationThreadModel.findOne({
+          organizationId,
+          candidateId,
+          campaignId: live.campaignId,
+          channels: 'whatsapp',
+        })
+          .select('_id')
+          .lean();
+        if (!liveThread) continue;
+        const liveOutbound = await ConversationMessageModel.findOne({
+          organizationId,
+          threadId: liveThread._id,
+          channel: 'whatsapp',
+          direction: 'outbound',
+          messageType: { $nin: ['qualification', 'note', 'system', 'voice_summary'] },
+        })
+          .sort({ sentAt: -1, createdAt: -1 })
+          .select('providerMessageId bodyText messageType sentAt createdAt')
+          .lean();
+        if (!liveOutbound || isWhatsAppWrapUpMessage(liveOutbound)) continue;
+        const liveAt = liveOutbound.sentAt || liveOutbound.createdAt;
+        const latestAt = latest.sentAt;
+        if (liveAt && latestAt && liveAt >= latestAt) {
+          return live;
+        }
+        if (liveAt && !latestAt) return live;
+      }
+
+      // Live campaign with no outbound yet should not steal an older finished chat
+      // unless there is no usable latest enrollment.
+      if (!fromLatest && liveSupported[0]) return liveSupported[0];
+    }
+
+    if (fromLatest) return fromLatest;
   }
 
-  return OutreachEnrollmentModel.findOne({
+  // No WhatsApp outreach outbound yet — only currently running enrollments.
+  const liveEnrollments = await OutreachEnrollmentModel.find({
     organizationId,
     candidateId,
-    campaignId: thread.campaignId,
-    status: { $ne: 'cancelled' },
+    status: { $in: ['active', 'pending', 'waiting'] },
   }).sort({ updatedAt: -1 });
+
+  if (!liveEnrollments.length) return null;
+
+  const campaigns = await OutreachCampaignModel.find({
+    _id: { $in: liveEnrollments.map((e) => e.campaignId) },
+  })
+    .select('channelConfig sequenceSteps')
+    .lean();
+  const supportedIds = new Set(
+    campaigns
+      .filter((c) => campaignSupportsChannel(c, 'whatsapp'))
+      .map((c) => String(c._id))
+  );
+
+  return liveEnrollments.find((e) => supportedIds.has(String(e.campaignId))) || null;
 }
 
 /** Email and WhatsApp never share a timeline — separate outreaches in the inbox. */
@@ -341,12 +522,42 @@ async function findOrCreateThread(input: {
 
     if (existingForCampaign) {
       if (existingForCampaign.status === 'closed') {
+        const ownsLatestOutbound = await isLatestWhatsAppOutboundOwner(
+          input.organizationId,
+          input.candidateId,
+          String(existingForCampaign._id),
+          input.campaignId
+        );
+        const liveEnrollment = await OutreachEnrollmentModel.exists({
+          organizationId: input.organizationId,
+          candidateId: input.candidateId,
+          campaignId: input.campaignId,
+          status: { $in: ['active', 'pending', 'waiting'] },
+        });
+        const mayReopen = ownsLatestOutbound || Boolean(liveEnrollment);
+        if (!mayReopen) {
+          getLogger()
+            .child({ component: 'inbound-sync' })
+            .info(
+              {
+                threadId: String(existingForCampaign._id),
+                campaignId: input.campaignId,
+                candidateId: input.candidateId,
+              },
+              'WhatsApp inbound skipped reopen of idle prior-campaign thread'
+            );
+          throw Object.assign(
+            new Error('WhatsApp inbound requires the latest outreach campaign'),
+            { code: 'WHATSAPP_NO_ACTIVE_OUTREACH' }
+          );
+        }
         existingForCampaign.status = 'replied';
         existingForCampaign.automationStatus = 'active';
       }
       if (input.providerThreadId) {
         const has = existingForCampaign.providerThreadIds.some(
-          (p) => p.provider === input.provider && p.threadId === input.providerThreadId
+          (p) =>
+            p.provider === input.provider && p.threadId === input.providerThreadId
         );
         if (!has) {
           existingForCampaign.providerThreadIds.push({
@@ -359,7 +570,9 @@ async function findOrCreateThread(input: {
         existingForCampaign.channels.push(input.channel);
       }
       if (input.enrollmentId) {
-        existingForCampaign.enrollmentId = new mongoose.Types.ObjectId(input.enrollmentId);
+        existingForCampaign.enrollmentId = new mongoose.Types.ObjectId(
+          input.enrollmentId
+        );
       }
       if (input.jobId) {
         existingForCampaign.jobId = new mongoose.Types.ObjectId(input.jobId);
@@ -448,8 +661,34 @@ async function findOrCreateThread(input: {
         }).sort({ updatedAt: -1 });
 
   if (existing) {
-    // Same campaign+channel thread was closed when a later outreach ran; reopen.
+    // Same campaign+channel thread was closed when a later outreach ran; reopen
+    // only when this thread still owns the latest WhatsApp outbound (or non-WA).
     if (existing.status === 'closed') {
+      if (input.channel === 'whatsapp') {
+        const mayReopen = await isLatestWhatsAppOutboundOwner(
+          input.organizationId,
+          input.candidateId,
+          String(existing._id),
+          input.campaignId ||
+            (existing.campaignId ? String(existing.campaignId) : null)
+        );
+        if (!mayReopen) {
+          getLogger()
+            .child({ component: 'inbound-sync' })
+            .info(
+              {
+                threadId: String(existing._id),
+                campaignId: input.campaignId,
+                candidateId: input.candidateId,
+              },
+              'WhatsApp inbound skipped reopen of idle thread'
+            );
+          throw Object.assign(
+            new Error('WhatsApp inbound requires the latest outreach campaign'),
+            { code: 'WHATSAPP_NO_ACTIVE_OUTREACH' }
+          );
+        }
+      }
       existing.status = 'replied';
       existing.automationStatus = 'active';
     }
@@ -605,15 +844,26 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
   let enrollmentId = enrollment ? String(enrollment._id) : null;
 
   // Only keep an explicit campaignId from the webhook when it supports this channel.
+  // WhatsApp: never attach to a stated campaign that is not the latest outbound owner.
   if (!campaignId && input.campaignId) {
-    const stated = await OutreachCampaignModel.findById(input.campaignId)
-      .select('channelConfig sequenceSteps')
-      .lean();
-    if (
-      (input.channel !== 'email' && input.channel !== 'whatsapp') ||
-      campaignSupportsChannel(stated, input.channel)
-    ) {
-      campaignId = input.campaignId;
+    if (input.channel === 'whatsapp') {
+      const latest = await findLatestWhatsAppOutboundForCandidate(
+        input.organizationId,
+        String(candidate._id)
+      );
+      if (latest && latest.campaignId === input.campaignId) {
+        campaignId = input.campaignId;
+      }
+    } else {
+      const stated = await OutreachCampaignModel.findById(input.campaignId)
+        .select('channelConfig sequenceSteps')
+        .lean();
+      if (
+        (input.channel !== 'email' && input.channel !== 'whatsapp') ||
+        campaignSupportsChannel(stated, input.channel)
+      ) {
+        campaignId = input.campaignId;
+      }
     }
   }
 
@@ -626,9 +876,31 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
           organizationId: input.organizationId,
           candidateId: String(candidate._id),
         },
-        'WhatsApp inbound skipped — no active outreach for candidate'
+        'WhatsApp inbound skipped — no latest/active outreach for candidate'
       );
     return { duplicate: false, threadId: null, messageId: null };
+  }
+
+  let latestWhatsAppOutbound: LatestWhatsAppOutbound | null = null;
+  if (input.channel === 'whatsapp') {
+    latestWhatsAppOutbound = await findLatestWhatsAppOutboundForCandidate(
+      input.organizationId,
+      String(candidate._id)
+    );
+    getLogger()
+      .child({ component: 'inbound-sync' })
+      .info(
+        {
+          from: input.from,
+          candidateId: String(candidate._id),
+          campaignId,
+          enrollmentId,
+          latestOutboundThreadId: latestWhatsAppOutbound?.threadId || null,
+          latestOutboundCampaignId: latestWhatsAppOutbound?.campaignId || null,
+          latestOutboundMessageId: latestWhatsAppOutbound?.messageId || null,
+        },
+        'WhatsApp inbound bound to campaign'
+      );
   }
 
   let jobId: string | null = null;
@@ -641,16 +913,54 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
 
   let thread;
   try {
-    thread = await findOrCreateThread({
-      organizationId: input.organizationId,
-      candidateId: String(candidate._id),
-      campaignId,
-      enrollmentId,
-      jobId,
-      channel: input.channel,
-      provider: input.provider,
-      providerThreadId: input.providerThreadId || null,
-    });
+    // Pin WhatsApp replies to the exact thread that owns the latest outreach send.
+    if (
+      input.channel === 'whatsapp' &&
+      latestWhatsAppOutbound &&
+      campaignId &&
+      latestWhatsAppOutbound.campaignId === campaignId
+    ) {
+      const pinned = await ConversationThreadModel.findById(
+        latestWhatsAppOutbound.threadId
+      );
+      if (pinned) {
+        if (pinned.status === 'closed' || pinned.status === 'opted_out') {
+          pinned.status = 'replied';
+          pinned.automationStatus = 'active';
+        }
+        if (enrollmentId) {
+          pinned.enrollmentId = new mongoose.Types.ObjectId(enrollmentId);
+        }
+        if (input.providerThreadId) {
+          const has = pinned.providerThreadIds.some(
+            (p) =>
+              p.provider === input.provider &&
+              p.threadId === input.providerThreadId
+          );
+          if (!has) {
+            pinned.providerThreadIds.push({
+              provider: input.provider,
+              threadId: input.providerThreadId,
+            });
+          }
+        }
+        await pinned.save();
+        thread = pinned;
+      }
+    }
+
+    if (!thread) {
+      thread = await findOrCreateThread({
+        organizationId: input.organizationId,
+        candidateId: String(candidate._id),
+        campaignId,
+        enrollmentId,
+        jobId,
+        channel: input.channel,
+        provider: input.provider,
+        providerThreadId: input.providerThreadId || null,
+      });
+    }
   } catch (error) {
     if ((error as { code?: string }).code === 'WHATSAPP_NO_ACTIVE_OUTREACH') {
       getLogger()
@@ -662,6 +972,26 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       return { duplicate: false, threadId: null, messageId: null };
     }
     throw error;
+  }
+
+  if (input.channel === 'whatsapp') {
+    getLogger()
+      .child({ component: 'inbound-sync' })
+      .info(
+        {
+          from: input.from,
+          candidateId: String(candidate._id),
+          campaignId,
+          enrollmentId,
+          threadId: String(thread._id),
+          threadStatus: thread.status,
+          pinnedToLatestOutbound: Boolean(
+            latestWhatsAppOutbound &&
+              String(thread._id) === latestWhatsAppOutbound.threadId
+          ),
+        },
+        'WhatsApp inbound attached to thread'
+      );
   }
 
   // Prefer IDs from the resolved thread only when that campaign supports this
@@ -735,52 +1065,97 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
   if (!thread.channels.includes(input.channel)) thread.channels.push(input.channel);
   await thread.save();
 
-  if (enrollment) {
-    enrollment.replyState = {
+  const replyChannel: 'email' | 'whatsapp' | null =
+    input.channel === 'email' || input.channel === 'whatsapp' ? input.channel : null;
+  let skipClassify = Boolean(input.skipClassify);
+  let lockedWinner = false;
+
+  const applyWinnerLock = async (
+    target: OutreachEnrollmentDocument
+  ): Promise<{ lateLosing: boolean }> => {
+    const existingWinner = target.replyState?.channel ?? null;
+    const lateLosing = Boolean(
+      existingWinner && replyChannel && existingWinner !== replyChannel
+    );
+
+    if (lateLosing) {
+      const winnerLabel = existingWinner === 'whatsapp' ? 'WhatsApp' : 'Email';
+      await ConversationMessageModel.create({
+        organizationId: input.organizationId,
+        threadId: thread._id,
+        provider: 'system',
+        channel: 'note',
+        direction: 'internal',
+        bodyText: `Reply received on inactive channel. Active conversation is on ${winnerLabel}.`,
+        providerMessageId: `sys-late-${String(thread._id)}-${Date.now()}`,
+        deliveryStatus: 'delivered',
+        messageType: 'system',
+        sentAt: receivedAt,
+      });
+      thread.automationStatus = 'stopped';
+      if (thread.status !== 'opted_out') thread.status = 'closed';
+      await thread.save();
+      skipClassify = true;
+      return { lateLosing: true };
+    }
+
+    const isFirstWinner = !existingWinner && Boolean(replyChannel);
+    target.replyState = {
       hasReply: true,
-      disposition: looksLikeOptOut(input.bodyText) ? 'opt_out' : enrollment.replyState?.disposition || null,
-      repliedAt: receivedAt,
+      disposition: looksLikeOptOut(input.bodyText)
+        ? 'opt_out'
+        : target.replyState?.disposition || null,
+      repliedAt: target.replyState?.repliedAt || receivedAt,
+      channel: existingWinner || replyChannel,
     };
-    enrollment.status = looksLikeOptOut(input.bodyText) ? 'opted_out' : 'replied';
+    target.status = looksLikeOptOut(input.bodyText) ? 'opted_out' : 'replied';
     if (looksLikeOptOut(input.bodyText)) {
-      enrollment.contactAvailability = {
-        ...enrollment.contactAvailability,
+      target.contactAvailability = {
+        ...target.contactAvailability,
         optedOut: true,
       };
-      enrollment.stopReason = 'candidate_opted_out';
+      target.stopReason = 'candidate_opted_out';
     }
-    await enrollment.save();
+    await target.save();
 
-    const campaign = await OutreachCampaignModel.findById(enrollment.campaignId);
-    const currentStep = campaign?.sequenceSteps?.[enrollment.currentStepIndex];
+    const campaign = await OutreachCampaignModel.findById(target.campaignId);
+    const currentStep = campaign?.sequenceSteps?.[target.currentStepIndex];
     const shouldStop =
       looksLikeOptOut(input.bodyText) ||
+      isFirstWinner ||
       (currentStep?.stopOnReply !== false && thread.automationStatus === 'active');
 
     if (shouldStop) {
       await campaignsService.stopEnrollment(
-        String(enrollment._id),
+        String(target._id),
         looksLikeOptOut(input.bodyText) ? 'candidate_opted_out' : 'candidate_replied'
       );
       thread.automationStatus = 'stopped';
       await thread.save();
     }
+
+    if (isFirstWinner && replyChannel && target.campaignId) {
+      const { conversationsService } = await import('./conversations.service.js');
+      await conversationsService.orphanSiblingThreads({
+        organizationId: input.organizationId,
+        candidateId: String(candidate._id),
+        campaignId: String(target.campaignId),
+        keepThreadId: String(thread._id),
+        winnerChannel: replyChannel,
+      });
+      lockedWinner = true;
+    }
+
+    return { lateLosing: false };
+  };
+
+  if (enrollment) {
+    await applyWinnerLock(enrollment);
   } else if (enrollmentId) {
     // Thread was already linked; still mark reply + stop on the linked enrollment.
     const linked = await OutreachEnrollmentModel.findById(enrollmentId);
     if (linked) {
-      linked.replyState = {
-        hasReply: true,
-        disposition: looksLikeOptOut(input.bodyText) ? 'opt_out' : linked.replyState?.disposition || null,
-        repliedAt: receivedAt,
-      };
-      linked.status = looksLikeOptOut(input.bodyText) ? 'opted_out' : 'replied';
-      await linked.save();
-      if (!looksLikeOptOut(input.bodyText) && thread.automationStatus === 'active') {
-        await campaignsService.stopEnrollment(String(linked._id), 'candidate_replied');
-        thread.automationStatus = 'stopped';
-        await thread.save();
-      }
+      await applyWinnerLock(linked);
     }
   }
 
@@ -814,12 +1189,16 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     threadId: String(thread._id),
     campaignId,
     candidateName: candidate.name || 'Candidate',
-    channelLabel,
+    channelLabel: lockedWinner
+      ? channelLabel
+      : skipClassify
+        ? `${channelLabel} (inactive)`
+        : channelLabel,
     preview,
     assignedUserId: thread.assignedUserId ? String(thread.assignedUserId) : null,
   }).catch(() => undefined);
 
-  if (!input.skipClassify) {
+  if (!skipClassify) {
     await classifyAndAttach({
       organizationId: input.organizationId,
       threadId: String(thread._id),
@@ -828,7 +1207,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       subject: input.subject,
       campaignId,
       enrollmentId,
-      channel: input.channel === 'email' || input.channel === 'whatsapp' ? input.channel : null,
+      channel: replyChannel,
     });
   }
 
@@ -1019,6 +1398,9 @@ export async function classifyAndAttach(input: {
         hasReply: true,
         disposition: result.interest,
         repliedAt: enrollment.replyState.repliedAt || new Date(),
+        channel:
+          enrollment.replyState.channel ||
+          (channel === 'email' || channel === 'whatsapp' ? channel : null),
       };
       await enrollment.save();
       await refreshCampaignStats(String(enrollment.campaignId)).catch(() => undefined);
@@ -1027,7 +1409,21 @@ export async function classifyAndAttach(input: {
   }
 
   // Drive qualification Q&A (ask next question / knockout / qualify).
-  if (enrollmentId && campaignId) {
+  // Skip when this inbound is on a losing/orphaned channel after winner lock.
+  const winnerChannel =
+    enrollmentId
+      ? (
+          await OutreachEnrollmentModel.findById(enrollmentId)
+            .select('replyState.channel')
+            .lean()
+        )?.replyState?.channel
+      : null;
+  const isLosingChannel =
+    Boolean(winnerChannel) &&
+    Boolean(channel) &&
+    winnerChannel !== channel;
+
+  if (enrollmentId && campaignId && !isLosingChannel) {
     try {
       const campaign = await OutreachCampaignModel.findById(campaignId);
       if (campaign) {
@@ -1040,7 +1436,8 @@ export async function classifyAndAttach(input: {
           interest: result.interest,
           intent: result.intent,
           extractedVariables: result.extractedVariables as Record<string, unknown>,
-          preferredChannel: channel === 'whatsapp' ? 'whatsapp' : 'email',
+          preferredChannel:
+            (winnerChannel || channel) === 'whatsapp' ? 'whatsapp' : 'email',
         });
         getLogger()
           .child({ component: 'inbound-sync' })

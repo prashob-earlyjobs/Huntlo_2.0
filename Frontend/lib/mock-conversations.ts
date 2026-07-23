@@ -50,6 +50,10 @@ export interface ConversationEvent {
   subject?: string;
   text: string;
   time: string;
+  /** Absolute timestamp when provided by the API (used to merge multi-channel timelines). */
+  sentAt?: string;
+  /** True when this message belongs to a losing/orphaned channel after winner lock. */
+  superseded?: boolean;
   delivery?: DeliveryState;
   /** Provider / send failure detail when delivery is Failed. */
   error?: string;
@@ -73,6 +77,8 @@ export interface Conversation {
   channels: OutreachChannel[];
   campaignId: string;
   campaignName: string;
+  /** Campaign mode — drives single vs multi-channel inbox indicator. */
+  campaignType?: "single_channel" | "multi_channel";
   jobId: string | null;
   jobTitle: string | null;
   lastMessage: string;
@@ -94,6 +100,8 @@ export interface Conversation {
   phone: string | null;
   notes: ConversationNote[];
   events: ConversationEvent[];
+  /** Thread status from API (e.g. closed after sibling orphan). */
+  status?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,6 +118,7 @@ export const CONVERSATIONS: Conversation[] = [
     channels: ["Email", "WhatsApp"],
     campaignId: "camp-1",
     campaignName: "Backend Engineer — Sequence A",
+    campaignType: "multi_channel",
     jobId: "j1",
     jobTitle: "Senior Backend Engineer",
     lastMessage:
@@ -205,6 +214,7 @@ export const CONVERSATIONS: Conversation[] = [
     channels: ["WhatsApp", "AI Voice"],
     campaignId: "camp-3",
     campaignName: "Data Engineer — WhatsApp blast",
+    campaignType: "multi_channel",
     jobId: "j3",
     jobTitle: "Data Engineer",
     lastMessage: "Voice call completed · 6m 12s · Interested, notice 45 days",
