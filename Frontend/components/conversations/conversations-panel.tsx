@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { conversationsApi, getApiErrorMessage } from "@/lib/api";
 import type { Conversation } from "@/lib/mock-conversations";
+import { cn } from "@/lib/utils";
 
 export function ConversationsPanel({
   campaignId,
@@ -16,12 +17,14 @@ export function ConversationsPanel({
   jobId,
   emptyDescription = "Outbound messages (sent or failed) and candidate replies will appear here.",
   className,
+  variant = "full",
 }: {
   campaignId?: string;
   candidateId?: string;
   jobId?: string;
   emptyDescription?: string;
   className?: string;
+  variant?: "full" | "embedded";
 }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,12 +84,25 @@ export function ConversationsPanel({
   );
 
   if (loading) {
+    if (variant === "embedded") {
+      return (
+        <div
+          aria-busy
+          aria-label="Loading conversations"
+          className={cn("space-y-2 p-4", className)}
+        >
+          <div className="h-10 animate-pulse rounded-md bg-muted" />
+          <div className="h-10 animate-pulse rounded-md bg-muted" />
+          <div className="h-10 animate-pulse rounded-md bg-muted" />
+        </div>
+      );
+    }
     return <ConversationInboxSkeleton className={className} />;
   }
 
   if (error) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={cn("p-4 text-sm text-destructive", className)}>
         {error}
       </p>
     );
@@ -94,11 +110,13 @@ export function ConversationsPanel({
 
   if (conversations.length === 0) {
     return (
-      <EmptyState
-        icon={Users}
-        title="No conversations yet"
-        description={emptyDescription}
-      />
+      <div className={cn(variant === "embedded" && "p-4", className)}>
+        <EmptyState
+          icon={Users}
+          title="No conversations yet"
+          description={emptyDescription}
+        />
+      </div>
     );
   }
 
@@ -106,6 +124,7 @@ export function ConversationsPanel({
     <ConversationInbox
       conversations={conversations}
       className={className}
+      variant={variant}
     />
   );
 }

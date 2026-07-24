@@ -55,7 +55,10 @@ export function SolutionPageLayout({
           </div>
         </section>
       </main>
-      <LandingFooter />
+      <LandingFooter
+        aiAskPrompt={page?.geoAskPrompt}
+        aiAskTopic={page?.geoAskTopic}
+      />
     </div>
   );
 }

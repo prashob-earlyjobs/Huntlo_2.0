@@ -669,10 +669,14 @@ const CHANNEL_FILTER_OPTIONS: FilterOption[] = (
 export function ConversationInbox({
   conversations,
   className,
+  variant = "full",
 }: {
   conversations: Conversation[];
   className?: string;
+  /** Sidebar / profile embed — capped height, stacked list + thread. */
+  variant?: "full" | "embedded";
 }) {
+  const embedded = variant === "embedded";
   const { user } = useAuth();
   const noteAuthor =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "You";
@@ -869,54 +873,70 @@ export function ConversationInbox({
   return (
     <div
       className={cn(
-        "grid min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card",
-        "lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
-        profileOpen && selected
-          ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
-          : "xl:grid-cols-[300px_minmax(0,1fr)]",
+        "overflow-hidden bg-card",
+        embedded
+          ? cn(
+              "grid h-[32rem] max-h-[32rem] overflow-hidden rounded-lg border border-border",
+              "grid-cols-1 grid-rows-[minmax(0,11rem)_minmax(0,1fr)]",
+              "lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]"
+            )
+          : cn(
+              "grid min-h-0 flex-1 rounded-xl border border-border",
+              "lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
+              profileOpen && selected
+                ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
+                : "xl:grid-cols-[300px_minmax(0,1fr)]"
+            ),
         className
       )}
     >
       {/* Left — list */}
-      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border lg:border-r lg:border-b-0">
-        <div className="shrink-0 space-y-2 border-b border-border p-3">
-          <div className="relative">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search conversations…"
-              aria-label="Search conversations"
-              className="h-8 pl-8 text-xs"
-            />
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border",
+          embedded ? "lg:border-r lg:border-b-0" : "lg:border-r lg:border-b-0"
+        )}
+      >
+        {!embedded ? (
+          <div className="shrink-0 space-y-2 border-b border-border p-3">
+            <div className="relative">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search conversations…"
+                aria-label="Search conversations"
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <FilterPopover
+                label="Channel"
+                options={CHANNEL_FILTER_OPTIONS}
+                selected={channelFilter}
+                onToggle={toggle(setChannelFilter)}
+              />
+              <FilterPopover
+                label="Status"
+                options={PIPELINE_FILTER_OPTIONS}
+                selected={pipelineFilter}
+                onToggle={toggle(setPipelineFilter)}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant={unreadOnly ? "secondary" : "outline"}
+                aria-pressed={unreadOnly}
+                onClick={() => setUnreadOnly((previous) => !previous)}
+              >
+                Unread
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <FilterPopover
-              label="Channel"
-              options={CHANNEL_FILTER_OPTIONS}
-              selected={channelFilter}
-              onToggle={toggle(setChannelFilter)}
-            />
-            <FilterPopover
-              label="Status"
-              options={PIPELINE_FILTER_OPTIONS}
-              selected={pipelineFilter}
-              onToggle={toggle(setPipelineFilter)}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant={unreadOnly ? "secondary" : "outline"}
-              aria-pressed={unreadOnly}
-              onClick={() => setUnreadOnly((previous) => !previous)}
-            >
-              Unread
-            </Button>
-          </div>
-        </div>
+        ) : null}
 
         <ScrollArea className="scrollbar-slim min-h-0 flex-1">
           <ul className="divide-y divide-border">
@@ -938,6 +958,9 @@ export function ConversationInbox({
                     );
                 const isUnread = unreadCount > 0;
                 const pipeline = conversationPipelineStatus(conversation);
+                const primaryLabel = embedded
+                  ? conversation.campaignName
+                  : conversation.candidateName;
                 return (
                   <li key={conversation.threadIds.join("-")}>
                     <button
@@ -949,10 +972,12 @@ export function ConversationInbox({
                         isActive ? "bg-brand-subtle/50" : "hover:bg-muted/50"
                       )}
                     >
-                      <CandidateAvatar
-                        name={conversation.candidateName}
-                        className="size-8 shrink-0"
-                      />
+                      {!embedded ? (
+                        <CandidateAvatar
+                          name={conversation.candidateName}
+                          className="size-8 shrink-0"
+                        />
+                      ) : null}
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
                           <span
@@ -963,7 +988,7 @@ export function ConversationInbox({
                                 : "font-medium text-foreground"
                             )}
                           >
-                            {conversation.candidateName}
+                            {primaryLabel}
                           </span>
                           {conversation.channels.map((channel) => {
                             const Icon =
@@ -977,21 +1002,23 @@ export function ConversationInbox({
                             );
                           })}
                           <span className="ml-auto flex shrink-0 items-center gap-1">
-                            {conversation.campaignType === "multi_channel" ? (
-                              <span title="Multi-channel campaign">
-                                <MessagesSquare
-                                  aria-label="Multi-channel campaign"
-                                  className="size-3.5 text-muted-foreground"
-                                />
-                              </span>
-                            ) : (
-                              <span title="Single-channel campaign">
-                                <MessageSquare
-                                  aria-label="Single-channel campaign"
-                                  className="size-3.5 text-muted-foreground"
-                                />
-                              </span>
-                            )}
+                            {!embedded ? (
+                              conversation.campaignType === "multi_channel" ? (
+                                <span title="Multi-channel campaign">
+                                  <MessagesSquare
+                                    aria-label="Multi-channel campaign"
+                                    className="size-3.5 text-muted-foreground"
+                                  />
+                                </span>
+                              ) : (
+                                <span title="Single-channel campaign">
+                                  <MessageSquare
+                                    aria-label="Single-channel campaign"
+                                    className="size-3.5 text-muted-foreground"
+                                  />
+                                </span>
+                              )
+                            ) : null}
                             <span className="text-[11px] text-muted-foreground">
                               {conversation.lastTime}
                             </span>
@@ -1034,21 +1061,38 @@ export function ConversationInbox({
       {/* Centre — timeline */}
       <div
         id="conversation-detail"
-        className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-b border-border xl:border-r xl:border-b-0"
+        className={cn(
+          "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden",
+          !embedded && "border-b border-border xl:border-r xl:border-b-0"
+        )}
       >
         {selected ? (
           <>
-            <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-2.5">
-              <CandidateAvatar name={selected.candidateName} className="size-8" />
+            <div
+              className={cn(
+                "flex shrink-0 items-center gap-2.5 border-b border-border",
+                embedded ? "px-3 py-2" : "px-4 py-2.5"
+              )}
+            >
+              {!embedded ? (
+                <CandidateAvatar name={selected.candidateName} className="size-8" />
+              ) : null}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">
-                  {selected.candidateName}
+                  {embedded ? selected.campaignName : selected.candidateName}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {selected.campaignName} · {selected.sequenceStep}
-                  {selected.channels.length > 1
-                    ? ` · ${selected.channels.join(" + ")}`
-                    : ""}
+                  {embedded
+                    ? `${selected.sequenceStep}${
+                        selected.channels.length > 1
+                          ? ` · ${selected.channels.join(" + ")}`
+                          : ""
+                      }`
+                    : `${selected.campaignName} · ${selected.sequenceStep}${
+                        selected.channels.length > 1
+                          ? ` · ${selected.channels.join(" + ")}`
+                          : ""
+                      }`}
                 </p>
               </div>
               <MiniBadge
@@ -1057,7 +1101,7 @@ export function ConversationInbox({
                   conversationPipelineStatus(selected)
                 )}
               />
-              {!profileOpen ? (
+              {!embedded && !profileOpen ? (
                 <Button
                   type="button"
                   size="icon-sm"
@@ -1070,8 +1114,13 @@ export function ConversationInbox({
               ) : null}
             </div>
 
-            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden">
-              <div className="@container/thread box-border w-full max-w-full space-y-3 p-4">
+            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto">
+              <div
+                className={cn(
+                  "@container/thread box-border w-full max-w-full space-y-3",
+                  embedded ? "p-3" : "p-4"
+                )}
+              >
                 {events.map((event) => (
                   <EventBubble key={event.id} event={event} />
                 ))}
@@ -1080,7 +1129,12 @@ export function ConversationInbox({
             </ScrollArea>
           </>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
+          <div
+            className={cn(
+              "flex flex-1 flex-col items-center justify-center gap-2 text-center",
+              embedded ? "p-6" : "p-10"
+            )}
+          >
             <FileText aria-hidden className="size-6 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               Select a conversation to view the timeline.
@@ -1090,7 +1144,7 @@ export function ConversationInbox({
       </div>
 
       {/* Right — profile */}
-      {profileOpen && selected ? (
+      {!embedded && profileOpen && selected ? (
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
           <ScrollArea className="scrollbar-slim min-h-0 flex-1 max-xl:max-h-80">
             <ProfilePanel

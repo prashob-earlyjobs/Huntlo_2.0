@@ -1,7 +1,11 @@
 import Link from "next/link";
 
 import { COMPARISON_FOOTER_LINKS } from "@/lib/comparisons";
-import { FOOTER_PLATFORM_PARTNERS } from "@/lib/footerPlatformPartners";
+import {
+  buildFooterPlatformPartners,
+  FOOTER_PLATFORM_PARTNERS,
+  type FooterPlatformPartner,
+} from "@/lib/footerPlatformPartners";
 import { FOOTER_LEGAL_LINKS, legalPageHref } from "@/lib/legalPages";
 
 import { LandingLogo } from "./LandingLogo";
@@ -93,7 +97,24 @@ const FOOTER_COLUMNS: {
   },
 ];
 
-export function LandingFooter() {
+export function LandingFooter({
+  aiAskPrompt,
+  aiAskTopic,
+  platformPartners,
+}: {
+  /** Page-specific GEO prompt for AI platform deep links. */
+  aiAskPrompt?: string;
+  /** e.g. "Huntlo AI for Enterprise Hiring" for link titles. */
+  aiAskTopic?: string;
+  /** Fully custom partner list — overrides prompt/topic helpers. */
+  platformPartners?: FooterPlatformPartner[];
+} = {}) {
+  const partners =
+    platformPartners ??
+    (aiAskPrompt || aiAskTopic
+      ? buildFooterPlatformPartners({ prompt: aiAskPrompt, topic: aiAskTopic })
+      : FOOTER_PLATFORM_PARTNERS);
+
   return (
     <footer className="border-t border-[#c3c6d6]/25 bg-white">
       <div className="relative overflow-hidden bg-[#141b2b] px-4 py-10 md:px-8 lg:px-12">
@@ -109,7 +130,7 @@ export function LandingFooter() {
               className="flex flex-wrap items-center gap-3 sm:gap-3.5"
               aria-label="Ask AI assistants about Huntlo"
             >
-              {FOOTER_PLATFORM_PARTNERS.map((partner) => (
+              {partners.map((partner) => (
                 <a
                   key={partner.name}
                   href={partner.href}

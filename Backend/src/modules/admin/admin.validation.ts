@@ -22,6 +22,7 @@ export const adminListQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   status: z.string().trim().max(40).optional(),
   organizationId: z.string().trim().max(40).optional(),
+  userId: z.string().trim().max(40).optional(),
   plan: z.string().trim().max(40).optional(),
   provider: z.string().trim().max(40).optional(),
   type: z.string().trim().max(80).optional(),

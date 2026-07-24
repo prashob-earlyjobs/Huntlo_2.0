@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   ListTodo,
   Megaphone,
+  Search,
   Settings,
   Users,
   UsersRound,
@@ -52,6 +53,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         href: ADMIN_ROUTES.candidates,
         icon: UsersRound,
         description: "Platform candidate index",
+      },
+      {
+        title: "Searches",
+        href: ADMIN_ROUTES.searches,
+        icon: Search,
+        description: "AI search sessions by user",
       },
       {
         title: "Campaigns",

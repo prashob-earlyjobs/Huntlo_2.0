@@ -202,7 +202,9 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   organisation: string;
+  country?: string;
   plan: string;
   role: string;
   searchesUsed: number;
@@ -350,7 +352,9 @@ export interface AdminPlan {
   emailOutreachLimit: string;
   whatsappLimit: string;
   aiVoiceLimit: string;
+  assessmentInviteLimit: string;
   teamMemberLimit: string;
+  allowOverage: boolean;
   modules: string[];
   active: boolean;
   public: boolean;
@@ -361,8 +365,7 @@ export interface AdminPlan {
 }
 
 export const ADMIN_MODULES = [
-  "Candidate Search",
-  "Candidate Pool",
+  "Sourcing",
   "People Scout",
   "Outreach",
   "Huntlo 360",
@@ -391,9 +394,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     peopleScoutLimit: "10",
     emailOutreachLimit: "200",
     whatsappLimit: "50",
-    aiVoiceLimit: "30 min",
+    aiVoiceLimit: "30",
+    assessmentInviteLimit: "0",
     teamMemberLimit: "2",
-    modules: ["Candidate Search", "Candidate Pool", "Outreach"],
+    allowOverage: false,
+    modules: ["Sourcing", "Outreach"],
     active: true,
     public: true,
     sortOrder: 0,
@@ -418,9 +423,11 @@ export const ADMIN_PLANS: AdminPlan[] = [
     peopleScoutLimit: "50",
     emailOutreachLimit: "2,000",
     whatsappLimit: "500",
-    aiVoiceLimit: "60 min",
+    aiVoiceLimit: "60",
+    assessmentInviteLimit: "0",
     teamMemberLimit: "3",
-    modules: ["Candidate Search", "Candidate Pool", "Outreach", "Scheduling"],
+    allowOverage: false,
+    modules: ["Sourcing", "Outreach", "Scheduling"],
     active: true,
     public: true,
     sortOrder: 10,
@@ -445,8 +452,10 @@ export const ADMIN_PLANS: AdminPlan[] = [
     peopleScoutLimit: "500",
     emailOutreachLimit: "16,000",
     whatsappLimit: "5,000",
-    aiVoiceLimit: "600 min",
+    aiVoiceLimit: "600",
+    assessmentInviteLimit: "200",
     teamMemberLimit: "15",
+    allowOverage: false,
     modules: [...ADMIN_MODULES],
     active: true,
     public: true,
@@ -472,8 +481,10 @@ export const ADMIN_PLANS: AdminPlan[] = [
     peopleScoutLimit: "2,000",
     emailOutreachLimit: "60,000",
     whatsappLimit: "20,000",
-    aiVoiceLimit: "2,400 min",
+    aiVoiceLimit: "2,400",
+    assessmentInviteLimit: "1,000",
     teamMemberLimit: "50",
+    allowOverage: false,
     modules: [...ADMIN_MODULES],
     active: true,
     public: true,
@@ -499,8 +510,10 @@ export const ADMIN_PLANS: AdminPlan[] = [
     peopleScoutLimit: "Unlimited",
     emailOutreachLimit: "Unlimited",
     whatsappLimit: "Unlimited",
-    aiVoiceLimit: "Custom",
+    aiVoiceLimit: "Unlimited",
+    assessmentInviteLimit: "Unlimited",
     teamMemberLimit: "Unlimited",
+    allowOverage: true,
     modules: [...ADMIN_MODULES],
     active: true,
     public: true,
@@ -530,8 +543,10 @@ export function emptyPlanDraft(): AdminPlan {
     emailOutreachLimit: "",
     whatsappLimit: "",
     aiVoiceLimit: "",
+    assessmentInviteLimit: "",
     teamMemberLimit: "",
-    modules: ["Candidate Search", "Candidate Pool"],
+    allowOverage: false,
+    modules: ["Sourcing"],
     active: true,
     public: true,
     sortOrder: 100,
@@ -974,6 +989,18 @@ export const PLATFORM_SETTINGS: PlatformProviderSetting[] = [
     ],
   },
   {
+    id: "zoho",
+    name: "Zoho",
+    description: "Zoho Mail and CRM sync",
+    status: "Connected",
+    fields: [
+      { label: "Client ID", value: "••••••••••••", masked: true },
+      { label: "Client secret", value: "••••••••••••", masked: true },
+      { label: "Data centre", value: "IN" },
+      { label: "Redirect URI", value: "https://app.huntlo.example/oauth/zoho" },
+    ],
+  },
+  {
     id: "hunar",
     name: "Huntlo Voice AI",
     description: "AI voice screening and call orchestration",
@@ -983,78 +1010,6 @@ export const PLATFORM_SETTINGS: PlatformProviderSetting[] = [
       { label: "API token", value: "hnr_tok_••••••••••••b7", masked: true },
       { label: "Webhook secret", value: "whsec_••••••••••••", masked: true },
       { label: "Default voice", value: "en-IN · Professional" },
-    ],
-  },
-  {
-    id: "gmail",
-    name: "Gmail",
-    description: "OAuth send and reply sync for Google workspaces",
-    status: "Connected",
-    fields: [
-      { label: "Client ID", value: "••••••••.apps.googleusercontent.com", masked: true },
-      { label: "Client secret", value: "GOCSPX-••••••••••••", masked: true },
-      { label: "Redirect URI", value: "https://app.huntlo.example/oauth/gmail" },
-      { label: "Scopes", value: "gmail.send · gmail.readonly" },
-    ],
-  },
-  {
-    id: "outlook",
-    name: "Outlook",
-    description: "Microsoft Graph mail send and sync",
-    status: "Needs attention",
-    fields: [
-      { label: "Tenant ID", value: "••••••••-••••-••••-••••-••••••••91a2", masked: true },
-      { label: "Client ID", value: "••••••••-••••-••••-••••-••••••••44c1", masked: true },
-      { label: "Client secret", value: "••••••••••••••••••••", masked: true },
-      { label: "Status note", value: "Secret expires in 12 days" },
-    ],
-  },
-  {
-    id: "zoho",
-    name: "Zoho",
-    description: "Zoho Mail and CRM sync",
-    status: "Not configured",
-    fields: [
-      { label: "Client ID", value: "••••••••••••", masked: true },
-      { label: "Client secret", value: "••••••••••••", masked: true },
-      { label: "Data centre", value: "IN" },
-      { label: "Redirect URI", value: "https://app.huntlo.example/oauth/zoho" },
-    ],
-  },
-  {
-    id: "meta-whatsapp",
-    name: "Meta WhatsApp",
-    description: "WhatsApp Cloud API for business messaging",
-    status: "Connected",
-    fields: [
-      { label: "Phone number ID", value: "••••••••••••1024", masked: true },
-      { label: "WABA ID", value: "••••••••••••8831", masked: true },
-      { label: "Access token", value: "EAAG••••••••••••••••", masked: true },
-      { label: "Verify token", value: "huntlo_wa_••••••••", masked: true },
-    ],
-  },
-  {
-    id: "gupshup",
-    name: "Gupshup",
-    description: "WhatsApp BSP for template and session messages",
-    status: "Connected",
-    fields: [
-      { label: "App name", value: "HuntloProd" },
-      { label: "API key", value: "gs_••••••••••••••••c9", masked: true },
-      { label: "Source number", value: "+91••••••4321", masked: true },
-      { label: "Webhook URL", value: "https://hooks.huntlo.example/gupshup" },
-    ],
-  },
-  {
-    id: "calendly",
-    name: "Calendly",
-    description: "Interview scheduling and webhook events",
-    status: "Connected",
-    fields: [
-      { label: "Organisation URI", value: "https://api.calendly.com/organizations/••••", masked: true },
-      { label: "Personal access token", value: "eyJ••••••••••••••••", masked: true },
-      { label: "Webhook signing key", value: "••••••••••••••••", masked: true },
-      { label: "Default event", value: "30-min Screening Call" },
     ],
   },
   {
@@ -1073,24 +1028,12 @@ export const PLATFORM_SETTINGS: PlatformProviderSetting[] = [
     id: "dodo",
     name: "Dodo Payments",
     description: "Alternate payment rails for international plans",
-    status: "Not configured",
+    status: "Connected",
     fields: [
       { label: "Merchant ID", value: "••••••••••••", masked: true },
       { label: "API key", value: "dodo_••••••••••••", masked: true },
       { label: "Webhook secret", value: "••••••••••••••••", masked: true },
       { label: "Environment", value: "Sandbox" },
-    ],
-  },
-  {
-    id: "realtime",
-    name: "Realtime / WebSocket",
-    description: "Live inbox, screening progress and queue updates",
-    status: "Connected",
-    fields: [
-      { label: "Gateway URL", value: "wss://realtime.huntlo.example/v1" },
-      { label: "Auth secret", value: "rt_••••••••••••••••", masked: true },
-      { label: "Region", value: "ap-south-1" },
-      { label: "Max connections", value: "25,000" },
     ],
   },
 ];

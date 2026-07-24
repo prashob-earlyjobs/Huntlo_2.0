@@ -152,10 +152,17 @@ export function webSiteJsonLd() {
   };
 }
 
+const HUNTLO_ORG = {
+  "@type": "Organization" as const,
+  name: "Huntlo AI",
+  url: "https://huntlo.ai",
+};
+
 export function faqPageJsonLd(items: FaqSchemaItem[]) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
+    publisher: HUNTLO_ORG,
     mainEntity: items.map((item) => ({
       "@type": "Question",
       name: item.question,
@@ -165,6 +172,90 @@ export function faqPageJsonLd(items: FaqSchemaItem[]) {
       },
     })),
   };
+}
+
+export type ServiceJsonLdInput = {
+  name: string;
+  serviceType: string;
+  description: string;
+  url: string;
+  mainEntityName?: string;
+};
+
+export function serviceJsonLd({
+  name,
+  serviceType,
+  description,
+  url,
+  mainEntityName,
+}: ServiceJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name,
+    serviceType,
+    description,
+    provider: HUNTLO_ORG,
+    areaServed: "Worldwide",
+    url: pageUrl,
+    publisher: HUNTLO_ORG,
+    mainEntity: {
+      "@type": "Service",
+      name: mainEntityName ?? serviceType,
+    },
+  };
+}
+
+export type WebPageJsonLdInput = {
+  name: string;
+  url: string;
+  description: string;
+  primaryImageOfPage?: string;
+  aboutName?: string;
+  mainEntityName?: string;
+};
+
+export function webPageJsonLd({
+  name,
+  url,
+  description,
+  primaryImageOfPage,
+  aboutName,
+  mainEntityName,
+}: WebPageJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name,
+    url: pageUrl,
+    description,
+    ...(primaryImageOfPage
+      ? {
+          primaryImageOfPage: primaryImageOfPage.startsWith("http")
+            ? primaryImageOfPage
+            : absoluteOgImageFromPath(primaryImageOfPage),
+        }
+      : {}),
+    ...(aboutName
+      ? {
+          about: {
+            "@type": "Thing",
+            name: aboutName,
+          },
+        }
+      : {}),
+    publisher: HUNTLO_ORG,
+    mainEntity: {
+      "@type": "Service",
+      name: mainEntityName ?? aboutName ?? name,
+    },
+  };
+}
+
+function absoluteOgImageFromPath(path: string) {
+  return path.startsWith("http") ? path : `${SITE_URL}${path}`;
 }
 
 export function breadcrumbJsonLd(items: BreadcrumbSchemaItem[]) {

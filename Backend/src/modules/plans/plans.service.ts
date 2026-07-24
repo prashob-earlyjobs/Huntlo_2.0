@@ -101,6 +101,12 @@ export class PlansService {
       );
     }
 
+    // Clear inactive plans that are still marked as default signup.
+    await PricingPlanModel.updateMany(
+      { isDefaultSignup: true, active: false },
+      { $set: { isDefaultSignup: false } }
+    );
+
     // Ensure exactly one default signup plan exists when none is marked.
     const hasDefault = await PricingPlanModel.exists({ isDefaultSignup: true, active: true });
     if (!hasDefault) {
@@ -108,6 +114,7 @@ export class PlansService {
         (await PricingPlanModel.findOne({ code: 'trial', active: true })) ??
         (await PricingPlanModel.findOne({ active: true }).sort({ sortOrder: 1 }));
       if (preferred) {
+        await clearOtherDefaultSignup(preferred._id);
         preferred.isDefaultSignup = true;
         await preferred.save();
       }
@@ -355,20 +362,34 @@ export class PlansService {
     }
     if (typeof input.currency === 'string') plan.currency = input.currency.toUpperCase();
     if (input.featureAccess && typeof input.featureAccess === 'object') {
-      plan.featureAccess = input.featureAccess as Record<string, boolean>;
+      plan.featureAccess = {
+        ...(plan.featureAccess ?? {}),
+        ...(input.featureAccess as Record<string, boolean>),
+      };
     }
     if (input.limits && typeof input.limits === 'object') {
-      plan.limits = input.limits as PlanLimits;
+      plan.limits = {
+        ...(plan.limits ?? {}),
+        ...(input.limits as PlanLimits),
+      };
     }
     if (typeof input.public === 'boolean') plan.public = input.public;
     if (typeof input.sortOrder === 'number') plan.sortOrder = input.sortOrder;
-    if (typeof input.active === 'boolean') plan.active = input.active;
+    if (typeof input.active === 'boolean') {
+      plan.active = input.active;
+      if (!input.active) {
+        plan.isDefaultSignup = false;
+      }
+    }
     if (typeof input.isTrialPlan === 'boolean') plan.isTrialPlan = input.isTrialPlan;
     if (typeof input.trialDays === 'number' && input.trialDays > 0) {
       plan.trialDays = input.trialDays;
     }
     if (typeof input.isDefaultSignup === 'boolean') {
       if (input.isDefaultSignup) {
+        if (!plan.active) {
+          throw AppError.badRequest('Cannot set an inactive plan as the default signup plan');
+        }
         await clearOtherDefaultSignup(plan._id);
         plan.isDefaultSignup = true;
       } else {
