@@ -2,6 +2,13 @@
  * Shared placeholder rendering for interview invites and reminders.
  */
 
+/** Plain-text email/WhatsApp: strip markdown emphasis so **bold** does not leak. */
+export function stripMarkdownEmphasis(text: string): string {
+  return String(text || '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1');
+}
+
 export function renderInterviewMessage(
   template: string | null | undefined,
   values: {
@@ -13,10 +20,11 @@ export function renderInterviewMessage(
   const source =
     template ||
     'Hi {{first_name}}, we would like to schedule your next interview for {{job_title}}. {{scheduling_details}}';
-  return source
+  const rendered = source
     .replace(/\{\{\s*first_name\s*\}\}/gi, values.firstName)
     .replace(/\{\{\s*job_title\s*\}\}/gi, values.jobTitle)
     .replace(/\{\{\s*scheduling_details\s*\}\}/gi, values.schedulingDetails);
+  return stripMarkdownEmphasis(rendered);
 }
 
 export function defaultInterviewReminderMessage(hours?: number | null): string {

@@ -65,13 +65,28 @@ const TWO_VARS = [FIRST_NAME, JOB_TITLE];
 
 export const APPROVED_WHATSAPP_TEMPLATES: ApprovedWhatsAppTemplate[] = [
   {
+    id: 'opening_message_01',
+    metaName: 'opening_message_01',
+    name: 'Opening message',
+    slot: 'opening',
+    category: 'opening',
+    language: 'en',
+    isDefault: true,
+    body:
+      'Hi {{1}},\n' +
+      '\n' +
+      'Your profile has been shortlisted through our candidate matching process for the {{2}} position.\n' +
+      '\n' +
+      'To review the opportunity details and next steps, please reply to this message.',
+    variables: TWO_VARS,
+  },
+  {
     id: 'profile_review_reminder_v1',
     metaName: 'profile_review_reminder_v1',
     name: 'Profile review reminder',
     slot: 'opening',
     category: 'opening',
     language: 'en',
-    isDefault: true,
     body:
       'Hi {{1}},\n' +
       'This is a follow-up regarding the profile review communication shared earlier for the {{2}} requirement.\n' +
@@ -146,15 +161,14 @@ const SLOT_EXTRA: Partial<Record<WhatsAppTemplateSlot, string[]>> = {
 
 /** Legacy plan / campaign IDs → current catalogue IDs. */
 export const WHATSAPP_TEMPLATE_ALIASES: Record<string, string> = {
-  professional_intro: 'profile_review_reminder_v1',
-  opening_message_01: 'profile_review_reminder_v1',
+  professional_intro: 'opening_message_01',
   role_opportunity: 'role_alignment_review',
   no_reply_1_bump: 'profile_review_reminder_v1',
   no_reply_1_value: 'recruitment_update_reminder_v1',
   no_reply_2_final: 'final_profile_follow_up_v1',
   no_reply_2_door_open: 'profile_review_closure_v1',
   // Older Huntlo 2.0 placeholders
-  recruiter_opening_v1: 'profile_review_reminder_v1',
+  recruiter_opening_v1: 'opening_message_01',
   recruiter_opening_short_v1: 'role_alignment_review',
   follow_up_gentle_v1: 'recruitment_update_reminder_v1',
   no_reply_fallback_v1: 'final_profile_follow_up_v1',
@@ -162,6 +176,7 @@ export const WHATSAPP_TEMPLATE_ALIASES: Record<string, string> = {
 
 /** Meta body component parameter order for each template. */
 export const WHATSAPP_META_VARIABLE_MAP: Record<string, Array<'FirstName' | 'JobTitle'>> = {
+  opening_message_01: ['FirstName', 'JobTitle'],
   profile_review_reminder_v1: ['FirstName', 'JobTitle'],
   role_alignment_review: ['FirstName', 'JobTitle'],
   recruitment_update_reminder_v1: ['FirstName', 'JobTitle'],
@@ -276,6 +291,7 @@ export function renderWhatsAppTemplatePreview(
 
 /** Env override keys for Gupshup provider template IDs. */
 export const GUPSHUP_TEMPLATE_ENV_KEYS: Record<string, string> = {
+  opening_message_01: 'GUPSHUP_TEMPLATE_OPENING_MESSAGE_01',
   profile_review_reminder_v1: 'GUPSHUP_TEMPLATE_PROFILE_REVIEW_REMINDER_V1',
   role_alignment_review: 'GUPSHUP_TEMPLATE_ROLE_ALIGNMENT_REVIEW',
   recruitment_update_reminder_v1: 'GUPSHUP_TEMPLATE_RECRUITMENT_UPDATE_REMINDER_V1',

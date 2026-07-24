@@ -258,6 +258,7 @@ export const adminConsoleService = {
         { email: new RegExp(query.q, 'i') },
         { firstName: new RegExp(query.q, 'i') },
         { lastName: new RegExp(query.q, 'i') },
+        { phone: new RegExp(query.q, 'i') },
       ];
     }
 
@@ -275,6 +276,7 @@ export const adminConsoleService = {
         name: `${user.firstName} ${user.lastName}`.trim(),
         email: maskAdminEmail(user.email),
         emailHash: user.email,
+        phone: user.phone ? String(user.phone).trim() : '',
         organisation: org?.name || '—',
         organizationId: String(user.organizationId),
         plan: org?.plan || 'Starter',
@@ -312,7 +314,7 @@ export const adminConsoleService = {
     return {
       ...toPublicUser(user, org?.plan),
       email: maskAdminEmail(user.email),
-      phone: maskAdminPhone(user.phone),
+      phone: user.phone ? String(user.phone).trim() : '',
       platformAdmin: Boolean(user.platformAdmin),
       adminPermissions: user.adminPermissions || [],
       status:

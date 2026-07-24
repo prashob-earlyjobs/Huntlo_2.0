@@ -459,24 +459,6 @@ function DetailsStep({
           ) : null}
         </Field>
 
-        <Field label="Objective" htmlFor="scr-objective">
-          <Select
-            value={state.objective}
-            onValueChange={(value) => value && update("objective", value)}
-          >
-            <SelectTrigger id="scr-objective" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SCREENING_OBJECTIVES.map((objective) => (
-                <SelectItem key={objective} value={objective}>
-                  {objective}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-
         <Field
           label="Description"
           htmlFor="scr-description"

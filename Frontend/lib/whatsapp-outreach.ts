@@ -27,12 +27,26 @@ const TWO_VARS = [
 
 export const APPROVED_WHATSAPP_TEMPLATES: WhatsAppApprovedTemplate[] = [
   {
+    id: "opening_message_01",
+    metaName: "opening_message_01",
+    name: "Opening message",
+    slot: "opening",
+    language: "en",
+    isDefault: true,
+    body:
+      "Hi {{1}},\n" +
+      "\n" +
+      "Your profile has been shortlisted through our candidate matching process for the {{2}} position.\n" +
+      "\n" +
+      "To review the opportunity details and next steps, please reply to this message.",
+    variables: TWO_VARS,
+  },
+  {
     id: "profile_review_reminder_v1",
     metaName: "profile_review_reminder_v1",
     name: "Profile review reminder",
     slot: "opening",
     language: "en",
-    isDefault: true,
     body:
       "Hi {{1}},\n" +
       "This is a follow-up regarding the profile review communication shared earlier for the {{2}} requirement.\n" +

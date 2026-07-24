@@ -200,9 +200,11 @@ export interface Interview {
   candidateName: string;
   candidateTitle: string;
   candidateCompany: string;
+  candidateEmail?: string | null;
+  candidatePhone?: string | null;
   jobId: string | null;
   jobTitle: string;
-  interviewType: InterviewType;
+  interviewType: string;
   interviewers: string[];
   recruiter: string;
   /** ISO-like local display date for filtering / calendar, e.g. 2026-07-16 */
@@ -211,12 +213,13 @@ export interface Interview {
   timeLabel: string;
   duration: string;
   timezone: string;
-  platform: MeetingPlatform;
+  platform: string;
   meetingLink: string | null;
   location: string | null;
-  bookingSource: BookingSource;
-  reminderStatus: ReminderStatus;
-  status: InterviewStatus;
+  bookingSource: string;
+  reminderStatus: string;
+  reminderHours?: number[];
+  status: InterviewStatus | string;
   round: string;
   instructions: string;
 }

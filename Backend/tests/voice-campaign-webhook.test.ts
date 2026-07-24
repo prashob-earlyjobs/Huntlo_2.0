@@ -181,4 +181,113 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     });
     expect(pendingGone).toBeNull();
   });
+
+  it('writes Hunar call-result answers into enrollment qualificationState', async () => {
+    const auth = await registerAndAuth(agent);
+    const candidate = await SavedCandidateModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Gokul',
+      email: 'gokul@example.com',
+      phone: '+919876543211',
+      source: 'manual',
+      status: 'saved',
+    });
+
+    const campaign = await OutreachCampaignModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Voice Qualification Campaign',
+      status: 'running',
+      channelConfig: {
+        email: { enabled: false, integrationId: null, senderEmail: null },
+        whatsapp: { enabled: false, integrationId: null },
+        ai_voice: { enabled: true, integrationId: null },
+        timezone: 'Asia/Kolkata',
+        sendWindow: { startHour: 9, endHour: 18, daysOfWeek: [1, 2, 3, 4, 5] },
+      },
+      sequenceSteps: [{ id: 'v1', order: 0, type: 'ai_voice', body: 'Hello' }],
+      qualificationConfig: {
+        enabled: true,
+        questions: [
+          {
+            id: 'q-notice',
+            title: 'notice period',
+            prompt: 'What is your notice period?',
+            answerType: 'text',
+          },
+          {
+            id: 'q-location',
+            title: 'location / hybrid',
+            prompt: 'Are you open to hybrid work from Bangalore?',
+            answerType: 'text',
+          },
+          {
+            id: 'q-marriage',
+            title: 'marrage status',
+            prompt: 'What is your marital status?',
+            answerType: 'text',
+          },
+        ],
+      },
+    });
+
+    const enrollment = await OutreachEnrollmentModel.create({
+      organizationId: auth.organizationId,
+      campaignId: campaign._id,
+      candidateId: candidate._id,
+      status: 'active',
+      contactAvailability: { email: true, phone: true, optedOut: false },
+      qualificationState: { status: 'pending', answers: {} },
+    });
+
+    const requestId = `${String(campaign._id)}-req-qual`;
+    const digits = '919876543211';
+    await VoiceCallModel.create({
+      organizationId: auth.organizationId,
+      source: 'outreach',
+      campaignId: campaign._id,
+      enrollmentId: enrollment._id,
+      candidateId: candidate._id,
+      callId: pendingVoiceCallId(requestId, digits),
+      requestId,
+      agentId: 'agent-1',
+      contactName: 'Gokul',
+      toNumber: digits,
+      toNumberDigits: digits,
+      status: 'ringing',
+    });
+
+    const res = await postSignedHunarWebhook(
+      agent,
+      `/api/integrations/voice/hunar/call-result?campaignId=${String(campaign._id)}`,
+      {
+        call_id: 'hunar-call-qual-1',
+        request_id: requestId,
+        agent_id: 'agent-1',
+        to_number: '+919876543211',
+        status: 'COMPLETED',
+        duration_seconds: 120,
+        result: {
+          interest_level: 'Interested',
+          summary: 'Answered screening questions',
+          final_outcome: 'Interested',
+          notice_period: '30 days',
+          location: 'Bangalore, open to hybrid',
+          q_marriage_answer: 'Single',
+        },
+      }
+    );
+
+    expect(res.status).toBe(200);
+
+    const updated = await OutreachEnrollmentModel.findById(enrollment._id);
+    expect(updated).toBeTruthy();
+    expect(updated!.qualificationState.status).toBe('qualified');
+    expect(updated!.qualificationState.answers['q-notice']?.value).toBe('30 days');
+    expect(updated!.qualificationState.answers['q-location']?.value).toBe(
+      'Bangalore, open to hybrid'
+    );
+    expect(updated!.qualificationState.answers['q-marriage']?.value).toBe('Single');
+  });
 });

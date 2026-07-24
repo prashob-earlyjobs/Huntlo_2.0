@@ -32,6 +32,7 @@ import { ROUTES } from "@/lib/routes";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 const DEFAULT_PAGE_SIZE = 10;
+const REALTIME_RELOAD_DEBOUNCE_MS = 1500;
 
 const EMPTY_PAGINATION: PaginationMeta = {
   page: 1,
@@ -153,8 +154,9 @@ export function OutreachPageClient() {
         if (cancelled) return;
         setCampaigns(next.items);
         setPagination(next.pagination);
-        if (next.pagination.page !== page) {
-          setPage(next.pagination.page);
+        const nextPage = Number(next.pagination.page) || 1;
+        if (nextPage !== page) {
+          setPage(nextPage);
         }
         setMetrics(toOutreachMetrics(overview));
         setError(null);
@@ -174,8 +176,9 @@ export function OutreachPageClient() {
   }, [page, debouncedSearch, reloadToken]);
 
   useRealtimeRefresh(
-    ["campaign.updated", "campaign.status.changed", "conversation.message.created"],
-    () => setReloadToken((value) => value + 1)
+    ["campaign.updated", "campaign.status.changed"],
+    () => setReloadToken((value) => value + 1),
+    { debounceMs: REALTIME_RELOAD_DEBOUNCE_MS }
   );
 
   return (

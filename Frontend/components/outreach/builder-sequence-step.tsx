@@ -133,6 +133,35 @@ function StepEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when defaults or stub body changes
   }, [isAiVoice, step.id, step.body, voiceDefaults.agentPrompt]);
 
+  useEffect(() => {
+    if (!showLockedTemplate || !effectiveWhatsAppSlot) return;
+    const picked =
+      (step.templateId && getWhatsAppTemplateById(step.templateId)) ||
+      getDefaultWhatsAppTemplate(effectiveWhatsAppSlot);
+    if (!picked) return;
+    if (
+      step.templateId === picked.id &&
+      step.body === picked.body &&
+      step.template === picked.name
+    ) {
+      return;
+    }
+    // Keep approved Meta copy in sync (empty body, stale catalogue, or missing id).
+    if (
+      !step.templateId ||
+      !step.body.trim() ||
+      (step.templateId === picked.id && step.body !== picked.body)
+    ) {
+      onChange({
+        ...step,
+        templateId: picked.id,
+        template: picked.name,
+        body: picked.body,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed locked WhatsApp copy from catalogue
+  }, [showLockedTemplate, effectiveWhatsAppSlot, step.id, step.templateId, step.body]);
+
   return (
     <div className="space-y-4 border-t border-border px-4 py-4">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -239,7 +268,7 @@ function StepEditor({
                   <SelectContent>
                     {whatsappTemplates.map((template) => (
                       <SelectItem key={template.id} value={template.id}>
-                        {template.name}
+                        {template.metaName}
                       </SelectItem>
                     ))}
                   </SelectContent>

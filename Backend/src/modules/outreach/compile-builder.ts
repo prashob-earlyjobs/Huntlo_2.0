@@ -279,6 +279,7 @@ export function compileBuilderToCampaign(campaign: OutreachCampaignDocument): Co
             const q = asRecord(raw);
             return {
               id: pickString(q.id) || `q-${index + 1}`,
+              title: pickString(q.title) || null,
               prompt: pickString(q.prompt, q.text) || '',
               answerType: pickString(q.answerType, q.type) || 'Short text',
               knockout: Boolean(q.knockout),

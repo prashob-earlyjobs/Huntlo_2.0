@@ -405,22 +405,32 @@ export function ScheduleDashboard() {
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search candidates, jobs…"
-              aria-label="Search interviews"
-              className="pl-8"
-              disabled={loading}
-            />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search candidates, jobs…"
+                aria-label="Search interviews"
+                className="pl-8"
+                disabled={loading}
+              />
+            </div>
+            <Button
+              size="sm"
+              className="w-full shrink-0 sm:w-auto"
+              onClick={() => setFlowOpen(true)}
+            >
+              <Plus aria-hidden />
+              Schedule Interview
+            </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <FilterPopover
               label="Job"
               options={jobOptions}
@@ -455,7 +465,11 @@ export function ScheduleDashboard() {
               value={dateRange}
               onValueChange={(value) => value && setDateRange(value)}
             >
-              <SelectTrigger size="sm" aria-label="Date range">
+              <SelectTrigger
+                size="sm"
+                aria-label="Date range"
+                className="w-auto min-w-[7.5rem] shrink-0"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -472,10 +486,6 @@ export function ScheduleDashboard() {
                 Reset
               </Button>
             ) : null}
-            <Button size="sm" onClick={() => setFlowOpen(true)}>
-              <Plus aria-hidden />
-              Schedule Interview
-            </Button>
           </div>
         </div>
       </section>

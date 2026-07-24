@@ -23,10 +23,11 @@ export function InterviewStatusBadge({
   status,
   className,
 }: {
-  status: InterviewStatus;
+  status: InterviewStatus | string;
   className?: string;
 }) {
-  const tone = STATUS_TONES[status];
+  const tone =
+    STATUS_TONES[status as InterviewStatus] ?? ("neutral" as StatusTone);
   return (
     <span
       className={cn(

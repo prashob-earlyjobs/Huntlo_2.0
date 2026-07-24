@@ -95,6 +95,7 @@ export function AdminUsersWorkspace() {
             id: user.id,
             name: user.name,
             email: user.email,
+            phone: user.phone?.trim() ? user.phone : "—",
             organisation: user.organisation,
             plan: user.plan,
             role: user.role,
@@ -130,6 +131,7 @@ export function AdminUsersWorkspace() {
       (user) =>
         user.name.toLowerCase().includes(q) ||
         user.email.toLowerCase().includes(q) ||
+        user.phone.toLowerCase().includes(q) ||
         user.organisation.toLowerCase().includes(q)
     );
   }, [users, query]);
@@ -161,7 +163,7 @@ export function AdminUsersWorkspace() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search users or organisations…"
+            placeholder="Search users, mobile, or organisations…"
             className="w-56 sm:w-72"
           />
         }
@@ -181,6 +183,7 @@ export function AdminUsersWorkspace() {
           <TableHeader>
             <TableRow>
               <TableHead className={HEAD}>User</TableHead>
+              <TableHead className={HEAD}>Mobile</TableHead>
               <TableHead className={HEAD}>Organisation</TableHead>
               <TableHead className={HEAD}>Plan</TableHead>
               <TableHead className={HEAD}>Role</TableHead>
@@ -201,6 +204,9 @@ export function AdminUsersWorkspace() {
                     <p className="text-sm font-medium">{user.name}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">
+                  {user.phone}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm">
                   {user.organisation}
@@ -373,6 +379,7 @@ export function AdminUsersWorkspace() {
               <div className="mt-4 space-y-3 text-sm">
                 {[
                   ["Organisation", selected.organisation],
+                  ["Mobile", selected.phone],
                   ["Plan", selected.plan],
                   ["Role", selected.role],
                   ["Status", selected.status],

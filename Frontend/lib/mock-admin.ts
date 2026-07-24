@@ -202,6 +202,7 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
+  phone: string;
   organisation: string;
   plan: string;
   role: string;
@@ -218,6 +219,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u1",
     name: "Ananya Sharma",
     email: "ananya@acmetalent.in",
+    phone: "+91 98765 43210",
     organisation: "Acme Talent Partners",
     plan: "Growth",
     role: "Workspace Owner",
@@ -232,6 +234,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u2",
     name: "Rahul Verma",
     email: "rahul@northstar.hiring",
+    phone: "+91 90123 45441",
     organisation: "Northstar Hiring",
     plan: "Starter",
     role: "Admin",
@@ -246,6 +249,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u3",
     name: "Meera Iyer",
     email: "meera@brightpath.co",
+    phone: "+91 98234 56883",
     organisation: "BrightPath Recruiting",
     plan: "Scale",
     role: "Recruiter",
@@ -260,6 +264,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u4",
     name: "Karthik Rao",
     email: "karthik@helixstaff.io",
+    phone: "+91 80456 78112",
     organisation: "Helix Staffing",
     plan: "Growth",
     role: "Hiring Manager",
@@ -274,6 +279,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u5",
     name: "Priya Nair",
     email: "priya@acmetalent.in",
+    phone: "—",
     organisation: "Acme Talent Partners",
     plan: "Growth",
     role: "Recruiter",
@@ -288,6 +294,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u6",
     name: "Omar Hassan",
     email: "omar@gulfhire.ae",
+    phone: "+971 50 123 4907",
     organisation: "GulfHire",
     plan: "Enterprise",
     role: "Workspace Owner",
@@ -302,6 +309,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u7",
     name: "Sneha Kapoor",
     email: "sneha@talentloop.in",
+    phone: "+91 97654 32556",
     organisation: "TalentLoop",
     plan: "Starter",
     role: "Analyst",
@@ -316,6 +324,7 @@ export const ADMIN_USERS: AdminUser[] = [
     id: "u8",
     name: "James Okonkwo",
     email: "james@hirewave.com",
+    phone: "+1 415 555 0220",
     organisation: "HireWave",
     plan: "Growth",
     role: "Admin",

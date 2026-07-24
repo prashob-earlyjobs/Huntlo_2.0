@@ -45,6 +45,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
+import {
+  WHATSAPP_INTERVIEW_INVITE_TEMPLATE,
+  WHATSAPP_INTERVIEW_INVITE_TEMPLATE_NAME,
+  whatsappReminderTemplate,
+  whatsappReminderTemplateName,
+} from "@/lib/interview-whatsapp-templates";
 import {
   candidatePoolApi,
   getApiErrorMessage,
@@ -56,7 +63,6 @@ import {
 import type { OutreachTemplate } from "@/lib/mock-templates";
 import {
   INTERVIEW_TYPES,
-  MEETING_PLATFORMS,
   SCHEDULING_METHODS,
   TIMEZONE_OPTIONS,
   type SchedulingMethod,
@@ -91,10 +97,10 @@ interface FlowState {
   method: SchedulingMethod | null;
   calendlyEvent: string;
   manualAt: string;
-  duration: string;
   timezone: string;
-  platform: string;
+  platform: "Online" | "Offline";
   location: string;
+  meetingLink: string;
   instructions: string;
   reminderHours: number[];
   /** Per-reminder copy keyed by hours-before (e.g. "48"). */
@@ -107,15 +113,61 @@ interface FlowState {
   message: string;
 }
 
-function defaultManualAt(): string {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  date.setHours(10, 0, 0, 0);
+function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function defaultManualAt(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(10, 0, 0, 0);
+  return toDatetimeLocalValue(date);
+}
+
+/** Earliest selectable slot: current local minute (past dates/times disabled). */
+function minManualAt(): string {
+  return toDatetimeLocalValue(new Date());
+}
+
+function clampManualAt(value: string): string {
+  const min = minManualAt();
+  if (!value) return min;
+  return value < min ? min : value;
+}
+
+function parseManualAtDate(value: string): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const date = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    0,
+    0
+  );
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatManualAtDisplay(value: string): string {
+  const date = parseManualAtDate(value);
+  if (!date) return value.replace("T", " ");
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 function initialState(interviewerId?: string | null): FlowState {
+  const manualAt = defaultManualAt();
+  const reminderHours = defaultReminderHoursForSlot(manualAt);
   return {
     candidateIds: [],
     jobId: "",
@@ -123,17 +175,19 @@ function initialState(interviewerId?: string | null): FlowState {
     interviewers: interviewerId ? [interviewerId] : [],
     method: null,
     calendlyEvent: "",
-    manualAt: defaultManualAt(),
-    duration: "45 min",
+    manualAt,
     timezone: TIMEZONE_OPTIONS[0],
-    platform: MEETING_PLATFORMS[0],
+    platform: "Online",
     location: "",
+    meetingLink: "",
     instructions: "",
-    reminderHours: [24, 2],
-    reminderMessages: {
-      "24": { templateId: "", message: defaultReminderMessage(24) },
-      "2": { templateId: "", message: defaultReminderMessage(2) },
-    },
+    reminderHours,
+    reminderMessages: Object.fromEntries(
+      reminderHours.map((hours) => [
+        String(hours),
+        { templateId: "", message: defaultReminderMessage(hours) },
+      ])
+    ),
     inviteChannels: ["email"],
     messageTemplateId: "",
     message: DEFAULT_INVITE_MESSAGE,
@@ -164,9 +218,58 @@ function methodToApi(
   return "calendly_link";
 }
 
-function durationMinutes(value: string): number {
-  const match = value.match(/\d+/);
-  return match ? Number(match[0]) : 45;
+const MEETING_MODES = ["Online", "Offline"] as const;
+const INSTRUCTIONS_MAX_LENGTH = 900;
+
+/** Accepts http(s) URLs with a real-looking hostname (e.g. meet.google.com). */
+function isHttpUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || /\s/.test(trimmed)) return false;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    if (url.username || url.password) return false;
+    const host = url.hostname.toLowerCase();
+    if (!host) return false;
+    if (host === "localhost") return true;
+    // host.tld or sub.host.tld — TLD must be 2+ letters
+    if (
+      !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(host)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function meetingLinkError(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return "Meeting link is required.";
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return "URL must start with https:// or http://";
+  }
+  if (!isHttpUrl(trimmed)) {
+    return "Enter a valid meeting URL (e.g. https://meet.google.com/abc-defg-hij).";
+  }
+  return null;
+}
+
+function normalizeMeetingMode(value: unknown): "Online" | "Offline" {
+  if (value === "Offline" || value === "In person") return "Offline";
+  return "Online";
+}
+
+function formatMeetingSummary(state: FlowState): string {
+  if (state.platform === "Online") {
+    return state.meetingLink.trim()
+      ? `Online · ${state.meetingLink.trim()}`
+      : "Online";
+  }
+  return state.location.trim()
+    ? `Offline · ${state.location.trim()}`
+    : "Offline";
 }
 
 const REMINDER_OPTIONS = [
@@ -176,19 +279,120 @@ const REMINDER_OPTIONS = [
   { hours: 1, label: "1 hour before" },
 ] as const;
 
-const DEFAULT_INVITE_MESSAGE =
-  "Hi {{first_name}}, we'd love to schedule the next round for {{job_title}}. {{scheduling_details}}";
+function hoursUntilManualSlot(manualAt: string): number | null {
+  const ms = new Date(manualAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return ms / (1000 * 60 * 60);
+}
+
+/** Reminder can only fire if the interview is at least that far in the future. */
+function reminderFitsManualSlot(hours: number, manualAt: string): boolean {
+  const until = hoursUntilManualSlot(manualAt);
+  if (until == null) return true;
+  return until >= hours;
+}
+
+function pruneIncompatibleReminders(state: FlowState): FlowState {
+  if (state.method !== "Manual Time Selection" || !state.manualAt) {
+    return state;
+  }
+  const until = hoursUntilManualSlot(state.manualAt);
+  if (until == null) return state;
+  const nextHours = state.reminderHours.filter((hours) => until >= hours);
+  if (nextHours.length === state.reminderHours.length) return state;
+  const nextMessages = { ...state.reminderMessages };
+  for (const hours of state.reminderHours) {
+    if (!nextHours.includes(hours)) {
+      delete nextMessages[String(hours)];
+    }
+  }
+  return {
+    ...state,
+    reminderHours: nextHours,
+    reminderMessages: nextMessages,
+  };
+}
+
+function defaultReminderHoursForSlot(manualAt: string): number[] {
+  return [24, 2].filter((hours) => reminderFitsManualSlot(hours, manualAt));
+}
+
+const DEFAULT_INVITE_MESSAGE = `Hi {{first_name}},
+
+You are invited to attend the next interview round for the {{job_title}} role.
+
+Interview Details:
+{{scheduling_details}}
+
+Kindly confirm your availability at your earliest convenience.
+
+Regards,
+Hiring Team`;
 
 function defaultReminderMessage(hours: number): string {
-  const when =
-    hours === 1
-      ? "in about 1 hour"
-      : hours < 24
-        ? `in about ${hours} hours`
-        : hours === 24
-          ? "in 24 hours"
-          : `in ${hours} hours`;
-  return `Hi {{first_name}}, reminder that your interview for {{job_title}} is ${when}. {{scheduling_details}}`;
+  if (hours === 48) {
+    return `Hi {{first_name}},
+
+This is a reminder that your interview for the {{job_title}} role is scheduled in 48 hours.
+
+Interview Details:
+{{scheduling_details}}
+
+Kindly ensure you are available as scheduled. If you require any assistance, please let us know.
+
+Regards,
+Hiring Team`;
+  }
+  if (hours === 24) {
+    return `Hi {{first_name}},
+
+This is a reminder that your interview for the {{job_title}} role is scheduled for tomorrow.
+
+Interview Details:
+{{scheduling_details}}
+
+Please be prepared to join at the scheduled time. We look forward to speaking with you.
+
+Regards,
+Hiring Team`;
+  }
+  if (hours === 2) {
+    return `Hi {{first_name}},
+
+This is a reminder that your interview for the {{job_title}} role will begin in 2 hours.
+
+Interview Details:
+{{scheduling_details}}
+
+Please ensure you are ready to join on time.
+
+Regards,
+Hiring Team`;
+  }
+  if (hours === 1) {
+    return `Hi {{first_name}},
+
+Your interview for the {{job_title}} role is scheduled to begin in 1 hour.
+
+Interview Details:
+{{scheduling_details}}
+
+We look forward to speaking with you. Wishing you all the best.
+
+Regards,
+Hiring Team`;
+  }
+  return `Hi {{first_name}},
+
+This is a reminder that your interview for the {{job_title}} role is scheduled in ${hours} hours.
+
+Interview Details:
+{{scheduling_details}}
+
+Kindly ensure you are available as scheduled.
+
+Regards,
+Hiring Team`;
 }
 
 function formatReminderHours(hours: number[]): string {
@@ -408,6 +612,12 @@ const DISABLED_CANDIDATE_SOURCES = [
   },
 ] as const;
 
+function cleanField(value: string | null | undefined): string {
+  const trimmed = String(value || "").trim();
+  if (!trimmed || trimmed === "—") return "";
+  return trimmed;
+}
+
 function toFlowCandidate(row: {
   id: string;
   name: string;
@@ -420,8 +630,8 @@ function toFlowCandidate(row: {
   return {
     id: row.id,
     name: row.name,
-    title: row.currentRole || row.headline || "",
-    company: row.currentCompany || "",
+    title: cleanField(row.currentRole) || cleanField(row.headline),
+    company: cleanField(row.currentCompany),
     email: row.email || null,
     phone: row.phone || null,
   };
@@ -442,18 +652,36 @@ function stepErrors(step: number, state: FlowState): string[] {
       (!state.manualAt || new Date(state.manualAt).getTime() <= Date.now())
     ) {
       errors.push("Choose a future date and time.");
+    } else if (
+      state.method === "Manual Time Selection" &&
+      state.platform === "Online"
+    ) {
+      const linkError = meetingLinkError(state.meetingLink);
+      if (linkError) errors.push(linkError);
+    } else if (
+      state.method === "Manual Time Selection" &&
+      state.platform === "Offline" &&
+      !state.location.trim()
+    ) {
+      errors.push("Add the offline location or address.");
     }
   }
   if (step === 4) {
-    if (!state.inviteChannels.includes("email")) {
-      errors.push("Email channel is required.");
+    if (state.inviteChannels.length === 0) {
+      errors.push("Select at least one invite channel.");
     }
-    if (!state.message.trim()) {
+    if (
+      state.inviteChannels.includes("email") &&
+      !state.message.trim()
+    ) {
       errors.push("Invitation message cannot be empty.");
     }
     for (const hours of state.reminderHours) {
       const entry = state.reminderMessages[String(hours)];
-      if (!entry?.message.trim()) {
+      if (
+        state.inviteChannels.includes("email") &&
+        !entry?.message.trim()
+      ) {
         errors.push(`Reminder message for ${reminderLabel(hours)} cannot be empty.`);
       }
     }
@@ -530,7 +758,28 @@ export function ScheduleInterviewFlow({
     setState({
       ...initialState(user?.id),
       ...draft.state,
-      inviteChannels: ["email"],
+      platform: normalizeMeetingMode(draft.state.platform),
+      manualAt: clampManualAt(draft.state.manualAt || defaultManualAt()),
+      meetingLink:
+        typeof (draft.state as { meetingLink?: unknown }).meetingLink === "string"
+          ? (draft.state as { meetingLink: string }).meetingLink
+          : draft.state.platform !== "Offline" &&
+              draft.state.platform !== "In person" &&
+              isHttpUrl(draft.state.location)
+            ? draft.state.location
+            : "",
+      location:
+        normalizeMeetingMode(draft.state.platform) === "Offline"
+          ? draft.state.location || ""
+          : "",
+      inviteChannels:
+        Array.isArray(draft.state.inviteChannels) &&
+        draft.state.inviteChannels.length > 0
+          ? draft.state.inviteChannels.filter(
+              (channel): channel is "email" | "whatsapp" =>
+                channel === "email" || channel === "whatsapp"
+            )
+          : ["email"],
       interviewers:
         draft.state.interviewers.length > 0
           ? draft.state.interviewers
@@ -625,7 +874,6 @@ export function ScheduleInterviewFlow({
         setMessageTemplates(items);
         setState((previous) => ({
           ...previous,
-          inviteChannels: ["email"],
           messageTemplateId:
             previous.messageTemplateId &&
             items.some((item) => item.id === previous.messageTemplateId)
@@ -679,7 +927,13 @@ export function ScheduleInterviewFlow({
   }, [candidateSource, open, selectedListId]);
 
   function update<K extends keyof FlowState>(key: K, value: FlowState[K]) {
-    setState((previous) => ({ ...previous, [key]: value }));
+    setState((previous) => {
+      const next = { ...previous, [key]: value };
+      if (key === "manualAt" || key === "method") {
+        return pruneIncompatibleReminders(next);
+      }
+      return next;
+    });
   }
 
   function reset() {
@@ -799,23 +1053,31 @@ export function ScheduleInterviewFlow({
   }
 
   function toggleInviteChannel(channel: "email" | "whatsapp") {
-    if (channel === "whatsapp") return;
     setState((previous) => {
       const active = previous.inviteChannels.includes(channel);
-      // Email must stay selected while WhatsApp is disabled.
-      if (active && channel === "email") return previous;
-      const next = active
-        ? previous.inviteChannels.filter((value) => value !== channel)
-        : [...previous.inviteChannels.filter((value) => value !== "whatsapp"), channel];
+      if (active) {
+        const next = previous.inviteChannels.filter((value) => value !== channel);
+        return {
+          ...previous,
+          inviteChannels: next.length > 0 ? next : previous.inviteChannels,
+        };
+      }
       return {
         ...previous,
-        inviteChannels: next.length > 0 ? next : ["email"],
+        inviteChannels: [...previous.inviteChannels, channel],
       };
     });
   }
 
   function toggleReminderHour(hours: number) {
     setState((previous) => {
+      if (
+        previous.method === "Manual Time Selection" &&
+        previous.manualAt &&
+        !reminderFitsManualSlot(hours, previous.manualAt)
+      ) {
+        return previous;
+      }
       const key = String(hours);
       if (previous.reminderHours.includes(hours)) {
         const nextMessages = { ...previous.reminderMessages };
@@ -878,7 +1140,6 @@ export function ScheduleInterviewFlow({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const minutes = durationMinutes(state.duration);
       const timezone = state.timezone.split(" ")[0] || state.timezone;
       const selectedEvent = eventTypes.find(
         (event) =>
@@ -890,9 +1151,6 @@ export function ScheduleInterviewFlow({
         state.method === "Manual Time Selection" && state.manualAt
           ? new Date(state.manualAt).toISOString()
           : null;
-      const endAt = startAt
-        ? new Date(new Date(startAt).getTime() + minutes * 60_000).toISOString()
-        : null;
 
       const selected = state.candidateIds
         .map((id) => candidates.find((row) => row.id === id))
@@ -934,12 +1192,15 @@ export function ScheduleInterviewFlow({
           providerEventTypeId: selectedEvent?.uri || state.calendlyEvent || null,
           schedulingUrl: selectedEvent?.schedulingUrl || null,
           startAt,
-          endAt,
+          endAt: null,
           timezone,
-          location: state.location || state.platform || null,
+          location:
+            state.platform === "Offline"
+              ? state.location.trim() || "Offline"
+              : "Online",
           meetingUrl:
-            state.location && /^https?:\/\//i.test(state.location)
-              ? state.location
+            state.platform === "Online" && isHttpUrl(state.meetingLink)
+              ? state.meetingLink.trim()
               : null,
           instructions: state.instructions || null,
           reminderHours: state.reminderHours,
@@ -995,6 +1256,20 @@ export function ScheduleInterviewFlow({
     () => messageTemplates.filter((template) => !isWhatsAppTemplate(template)),
     [messageTemplates]
   );
+  const reminderConstrainedToSlot =
+    state.method === "Manual Time Selection" && Boolean(state.manualAt);
+  const meetingLinkValidationError =
+    state.method === "Manual Time Selection" && state.platform === "Online"
+      ? meetingLinkError(state.meetingLink)
+      : null;
+  const showMeetingLinkError =
+    Boolean(meetingLinkValidationError) &&
+    ((showErrors && current === 3) || state.meetingLink.trim().length > 0);
+
+  useEffect(() => {
+    if (!open) return;
+    setState((previous) => pruneIncompatibleReminders(previous));
+  }, [open, state.manualAt, state.method]);
 
   return (
     <Dialog
@@ -1035,7 +1310,7 @@ export function ScheduleInterviewFlow({
               </h3>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
                 {state.method === "Manual Time Selection"
-                  ? `${selectedCandidates.length} candidate${selectedCandidates.length === 1 ? "" : "s"} booked for ${state.manualAt.replace("T", " ")}.`
+                  ? `${selectedCandidates.length} candidate${selectedCandidates.length === 1 ? "" : "s"} booked for ${formatManualAtDisplay(state.manualAt)}.`
                   : state.method === "Calendly Link"
                     ? `Calendly links prepared for ${selectedCandidates.length} candidate${selectedCandidates.length === 1 ? "" : "s"}.`
                     : `Availability requests prepared for ${selectedCandidates.length} candidate${selectedCandidates.length === 1 ? "" : "s"}.`}
@@ -1357,8 +1632,9 @@ export function ScheduleInterviewFlow({
                               </span>
                               <span className="block truncate text-xs text-muted-foreground">
                                 {[person.title, person.company]
+                                  .map((value) => cleanField(value))
                                   .filter(Boolean)
-                                  .join(" · ") || "No title"}
+                                  .join(" · ") || "No title or company"}
                               </span>
                             </span>
                           </button>
@@ -1444,7 +1720,7 @@ export function ScheduleInterviewFlow({
               {current === 2 ? (
                 <StepCard
                   title="Select Interview Type"
-                  description="Sets the default duration and Calendly event mapping."
+                  description="Choose the interview round type for this booking."
                 >
                   <div
                     role="radiogroup"
@@ -1506,8 +1782,8 @@ export function ScheduleInterviewFlow({
                               disabled
                                 ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
                                 : active
-                                ? "border-primary/50 bg-brand-subtle/40"
-                                : "border-border hover:bg-muted/40"
+                                ? "cursor-pointer border-primary/50 bg-brand-subtle/40"
+                                : "cursor-pointer border-border hover:bg-muted/40"
                             )}
                           >
                             <meta.icon
@@ -1600,16 +1876,102 @@ export function ScheduleInterviewFlow({
                     ) : null}
 
                     {state.method === "Manual Time Selection" ? (
-                      <Field label="Date and time" htmlFor="flow-slot">
-                        <Input
-                          id="flow-slot"
-                          type="datetime-local"
-                          value={state.manualAt}
-                          onChange={(event) =>
-                            update("manualAt", event.target.value)
-                          }
-                        />
-                      </Field>
+                      <>
+                        <Field label="Date and time" htmlFor="flow-slot">
+                          <DateTimePicker
+                            id="flow-slot"
+                            value={parseManualAtDate(state.manualAt)}
+                            minDate={new Date()}
+                            onChange={(date) =>
+                              update(
+                                "manualAt",
+                                date
+                                  ? clampManualAt(toDatetimeLocalValue(date))
+                                  : defaultManualAt()
+                              )
+                            }
+                          />
+                        </Field>
+                        <Field label="Meeting format" htmlFor="flow-platform">
+                          <Select
+                            value={state.platform}
+                            onValueChange={(value) => {
+                              if (value === "Online" || value === "Offline") {
+                                update("platform", value);
+                              }
+                            }}
+                          >
+                            <SelectTrigger id="flow-platform" className="w-full">
+                              <SelectValue placeholder="Select format" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MEETING_MODES.map((mode) => (
+                                <SelectItem key={mode} value={mode}>
+                                  {mode}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        {state.platform === "Online" ? (
+                          <Field
+                            label="Meeting link"
+                            htmlFor="flow-meeting-link"
+                            required
+                          >
+                            <Input
+                              id="flow-meeting-link"
+                              type="url"
+                              inputMode="url"
+                              autoComplete="url"
+                              spellCheck={false}
+                              value={state.meetingLink}
+                              onChange={(event) =>
+                                update("meetingLink", event.target.value)
+                              }
+                              onBlur={(event) => {
+                                const trimmed = event.target.value.trim();
+                                if (trimmed !== event.target.value) {
+                                  update("meetingLink", trimmed);
+                                }
+                              }}
+                              placeholder="https://meet.google.com/…"
+                              aria-invalid={showMeetingLinkError}
+                            />
+                            <p
+                              className={
+                                showMeetingLinkError
+                                  ? "mt-1.5 text-xs text-destructive"
+                                  : "mt-1.5 text-xs text-muted-foreground"
+                              }
+                            >
+                              {showMeetingLinkError
+                                ? meetingLinkValidationError
+                                : "Required. Must be a full https:// link — included in the invitation."}
+                            </p>
+                          </Field>
+                        ) : (
+                          <Field
+                            label="Location / address"
+                            htmlFor="flow-location"
+                            required
+                          >
+                            <Input
+                              id="flow-location"
+                              value={state.location}
+                              onChange={(event) =>
+                                update("location", event.target.value)
+                              }
+                              placeholder="Office address or meeting room"
+                              aria-invalid={
+                                showErrors &&
+                                current === 3 &&
+                                !state.location.trim()
+                              }
+                            />
+                          </Field>
+                        )}
+                      </>
                     ) : null}
 
                     <Field
@@ -1620,58 +1982,87 @@ export function ScheduleInterviewFlow({
                         id="flow-instructions"
                         value={state.instructions}
                         onChange={(event) =>
-                          update("instructions", event.target.value)
+                          update(
+                            "instructions",
+                            event.target.value.slice(0, INSTRUCTIONS_MAX_LENGTH)
+                          )
                         }
+                        maxLength={INSTRUCTIONS_MAX_LENGTH}
                         placeholder="Visible to interviewers on the calendar invite…"
                         className="min-h-16"
                       />
-                    </Field>
-
-                    <Field label="Reminder configuration">
-                      <div
-                        role="group"
-                        aria-label="Reminder timings"
-                        className="grid gap-2 sm:grid-cols-2"
-                      >
-                        {REMINDER_OPTIONS.map((option) => {
-                          const active = state.reminderHours.includes(
-                            option.hours
-                          );
-                          return (
-                            <button
-                              key={option.hours}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() => toggleReminderHour(option.hours)}
-                              className={cn(
-                                "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                                active
-                                  ? "border-primary/50 bg-brand-subtle/40 text-primary"
-                                  : "border-border text-foreground hover:bg-muted/40"
-                              )}
-                            >
-                              <span
-                                aria-hidden
-                                className={cn(
-                                  "flex size-4 shrink-0 items-center justify-center rounded border",
-                                  active
-                                    ? "border-primary bg-primary text-primary-foreground"
-                                    : "border-border bg-background"
-                                )}
-                              >
-                                {active ? <Check className="size-3" /> : null}
-                              </span>
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
                       <p className="mt-1.5 text-xs text-muted-foreground">
-                        {state.reminderHours.length === 0
-                          ? "No reminders will be sent."
-                          : `Selected: ${formatReminderHours(state.reminderHours)}`}
+                        {state.instructions.length}/{INSTRUCTIONS_MAX_LENGTH}{" "}
+                        characters
                       </p>
                     </Field>
+
+                    {state.method ? (
+                      <Field label="Reminder configuration">
+                        <div
+                          role="group"
+                          aria-label="Reminder timings"
+                          className="grid gap-2 sm:grid-cols-2"
+                        >
+                          {REMINDER_OPTIONS.map((option) => {
+                            const active = state.reminderHours.includes(
+                              option.hours
+                            );
+                            const available =
+                              !reminderConstrainedToSlot ||
+                              reminderFitsManualSlot(
+                                option.hours,
+                                state.manualAt
+                              );
+                            return (
+                              <button
+                                key={option.hours}
+                                type="button"
+                                aria-pressed={active}
+                                disabled={!available}
+                                title={
+                                  available
+                                    ? undefined
+                                    : `Interview is sooner than ${option.hours} hours — this reminder cannot be sent.`
+                                }
+                                onClick={() => toggleReminderHour(option.hours)}
+                                className={cn(
+                                  "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                                  !available
+                                    ? "cursor-not-allowed border-border/60 bg-muted/30 text-muted-foreground opacity-60"
+                                    : active
+                                      ? "cursor-pointer border-primary/50 bg-brand-subtle/40 text-primary"
+                                      : "cursor-pointer border-border text-foreground hover:bg-muted/40"
+                                )}
+                              >
+                                <span
+                                  aria-hidden
+                                  className={cn(
+                                    "flex size-4 shrink-0 items-center justify-center rounded border",
+                                    !available
+                                      ? "border-border/60 bg-muted"
+                                      : active
+                                        ? "border-primary bg-primary text-primary-foreground"
+                                        : "border-border bg-background"
+                                  )}
+                                >
+                                  {active ? <Check className="size-3" /> : null}
+                                </span>
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          {state.reminderHours.length === 0
+                            ? "No reminders will be sent."
+                            : `Selected: ${formatReminderHours(state.reminderHours)}`}
+                          {reminderConstrainedToSlot
+                            ? " Timings that fall after the interview starts are unavailable."
+                            : null}
+                        </p>
+                      </Field>
+                    ) : null}
                   </div>
                 </StepCard>
               ) : null}
@@ -1689,9 +2080,7 @@ export function ScheduleInterviewFlow({
                     >
                       {(["email", "whatsapp"] as const).map((channel) => {
                         const active = state.inviteChannels.includes(channel);
-                        const channelDisabled = channel === "whatsapp";
                         const unavailable =
-                          channelDisabled ||
                           selectedCandidates.length === 0 ||
                           (channel === "email"
                             ? !canUseEmailInvite
@@ -1702,12 +2091,9 @@ export function ScheduleInterviewFlow({
                             type="button"
                             aria-pressed={active}
                             disabled={unavailable}
-                            onClick={() => {
-                              if (channelDisabled) return;
-                              toggleInviteChannel(channel);
-                            }}
+                            onClick={() => toggleInviteChannel(channel)}
                             className={cn(
-                              "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                              "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
                               unavailable
                                 ? "cursor-not-allowed bg-muted/30 opacity-60"
                                 : active
@@ -1719,51 +2105,61 @@ export function ScheduleInterviewFlow({
                               aria-hidden
                               className={cn(
                                 "flex size-4 shrink-0 items-center justify-center rounded border",
-                                active && !channelDisabled
+                                active
                                   ? "border-primary bg-primary text-primary-foreground"
                                   : "border-border bg-background"
                               )}
                             >
-                              {active && !channelDisabled ? (
-                                <Check className="size-3" />
-                              ) : null}
+                              {active ? <Check className="size-3" /> : null}
                             </span>
                             {channel === "whatsapp" ? "WhatsApp" : "Email"}
-                            {channelDisabled
-                              ? ""
-                              : unavailable && selectedCandidates.length > 0
-                                ? " — missing for some"
-                                : ""}
+                            {unavailable && selectedCandidates.length > 0
+                              ? " — missing for some"
+                              : ""}
                           </button>
                         );
                       })}
                     </div>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      Invitations are sent by email.
+                      Email copy is editable. WhatsApp uses fixed approved
+                      templates with the same wording.
                     </p>
                   </Field>
 
-                  <Field
-                    label="Invitation message"
-                    htmlFor="flow-message"
-                    required
-                    hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}. Requires a connected Email integration."
-                  >
-                    <Textarea
-                      id="flow-message"
-                      value={state.message}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setState((previous) => ({
-                          ...previous,
-                          message: value,
-                          messageTemplateId: "",
-                        }));
-                      }}
-                      className="min-h-28 font-mono text-xs"
-                      aria-invalid={showErrors && !state.message.trim()}
-                    />
-                  </Field>
+                  {state.inviteChannels.includes("email") ? (
+                    <Field
+                      label="Email invitation message"
+                      htmlFor="flow-message"
+                      required
+                      hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}. Requires a connected Email integration."
+                    >
+                      <Textarea
+                        id="flow-message"
+                        value={state.message}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setState((previous) => ({
+                            ...previous,
+                            message: value,
+                            messageTemplateId: "",
+                          }));
+                        }}
+                        className="min-h-28 font-mono text-xs"
+                        aria-invalid={showErrors && !state.message.trim()}
+                      />
+                    </Field>
+                  ) : null}
+
+                  {state.inviteChannels.includes("whatsapp") ? (
+                    <Field
+                      label="WhatsApp invitation template"
+                      hint={`Meta: ${WHATSAPP_INTERVIEW_INVITE_TEMPLATE_NAME} — {{1}} name, {{2}} role, {{3}} details`}
+                    >
+                      <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-xs text-foreground">
+                        {WHATSAPP_INTERVIEW_INVITE_TEMPLATE}
+                      </pre>
+                    </Field>
+                  ) : null}
 
                   {state.reminderHours.length > 0 ? (
                     <div className="space-y-4 border-t border-border pt-4">
@@ -1772,7 +2168,8 @@ export function ScheduleInterviewFlow({
                           Reminder messages
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          Choose a template for each selected reminder timing.
+                          Email reminders are editable. WhatsApp reminders use
+                          fixed templates.
                         </p>
                       </div>
                       {[...state.reminderHours]
@@ -1784,7 +2181,11 @@ export function ScheduleInterviewFlow({
                             message: defaultReminderMessage(hours),
                           };
                           const invalid =
-                            showErrors && !entry.message.trim();
+                            showErrors &&
+                            state.inviteChannels.includes("email") &&
+                            !entry.message.trim();
+                          const whatsappMetaName =
+                            whatsappReminderTemplateName(hours);
                           return (
                             <div
                               key={hours}
@@ -1793,62 +2194,81 @@ export function ScheduleInterviewFlow({
                               <p className="text-sm font-medium text-foreground">
                                 {reminderLabel(hours)}
                               </p>
-                              <Field label="Template">
-                                {templatesLoading ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    Loading templates…
-                                  </p>
-                                ) : selectableTemplates.length === 0 ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    No templates available — edit the custom
-                                    message below.
-                                  </p>
-                                ) : (
-                                  <MessageTemplatePicker
-                                    templates={selectableTemplates}
-                                    selectedId={entry.templateId}
-                                    allowCustom
-                                    onSelectCustom={() =>
-                                      setReminderMessage(hours, {
-                                        templateId: "",
-                                      })
-                                    }
-                                    onSelectTemplate={(template) =>
-                                      setReminderMessage(hours, {
-                                        templateId: template.id,
-                                        message: template.body,
-                                      })
-                                    }
-                                  />
-                                )}
-                              </Field>
-                              <Field
-                                label="Message"
-                                htmlFor={`flow-reminder-${hours}`}
-                                required
-                                hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}."
-                              >
-                                <Textarea
-                                  id={`flow-reminder-${hours}`}
-                                  value={entry.message}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    const matched =
-                                      entry.templateId &&
-                                      selectableTemplates.find(
-                                        (item) => item.id === entry.templateId
-                                      )?.body === value;
-                                    setReminderMessage(hours, {
-                                      message: value,
-                                      templateId: matched
-                                        ? entry.templateId
-                                        : "",
-                                    });
-                                  }}
-                                  className="min-h-24 font-mono text-xs"
-                                  aria-invalid={invalid}
-                                />
-                              </Field>
+                              {state.inviteChannels.includes("email") ? (
+                                <>
+                                  <Field label="Email template">
+                                    {templatesLoading ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        Loading templates…
+                                      </p>
+                                    ) : selectableTemplates.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        No saved templates — edit the message
+                                        below.
+                                      </p>
+                                    ) : (
+                                      <MessageTemplatePicker
+                                        templates={selectableTemplates}
+                                        selectedId={entry.templateId}
+                                        allowCustom
+                                        onSelectCustom={() =>
+                                          setReminderMessage(hours, {
+                                            templateId: "",
+                                          })
+                                        }
+                                        onSelectTemplate={(template) =>
+                                          setReminderMessage(hours, {
+                                            templateId: template.id,
+                                            message: template.body,
+                                          })
+                                        }
+                                      />
+                                    )}
+                                  </Field>
+                                  <Field
+                                    label="Email message"
+                                    htmlFor={`flow-reminder-${hours}`}
+                                    required
+                                    hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}."
+                                  >
+                                    <Textarea
+                                      id={`flow-reminder-${hours}`}
+                                      value={entry.message}
+                                      onChange={(event) => {
+                                        const value = event.target.value;
+                                        const matched =
+                                          entry.templateId &&
+                                          selectableTemplates.find(
+                                            (item) =>
+                                              item.id === entry.templateId
+                                          )?.body === value;
+                                        setReminderMessage(hours, {
+                                          message: value,
+                                          templateId: matched
+                                            ? entry.templateId
+                                            : "",
+                                        });
+                                      }}
+                                      className="min-h-24 font-mono text-xs"
+                                      aria-invalid={invalid}
+                                    />
+                                  </Field>
+                                </>
+                              ) : null}
+                              {state.inviteChannels.includes("whatsapp") ? (
+                                <Field
+                                  label="WhatsApp template"
+                                  hint={
+                                    whatsappMetaName
+                                      ? `Meta: ${whatsappMetaName} — {{1}} name, {{2}} role, {{3}} details`
+                                      : "{{1}} name, {{2}} role, {{3}} details"
+                                  }
+                                >
+                                  <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-xs text-foreground">
+                                    {whatsappReminderTemplate(hours)}
+                                  </pre>
+                                </Field>
+                              ) : null}
                             </div>
                           );
                         })}
@@ -1895,7 +2315,7 @@ export function ScheduleInterviewFlow({
                         [
                           "When",
                           state.method === "Manual Time Selection"
-                            ? state.manualAt.replace("T", " ")
+                            ? formatManualAtDisplay(state.manualAt)
                             : state.method === "Calendly Link"
                               ? eventTypes.find(
                                   (event) =>
@@ -1903,6 +2323,12 @@ export function ScheduleInterviewFlow({
                                     event.schedulingUrl === state.calendlyEvent
                                 )?.name || state.calendlyEvent || "Calendly link"
                               : "Awaiting candidate availability",
+                        ],
+                        [
+                          "Format",
+                          state.method === "Manual Time Selection"
+                            ? formatMeetingSummary(state)
+                            : "—",
                         ],
                         ["Reminders", formatReminderHours(state.reminderHours)],
                         [

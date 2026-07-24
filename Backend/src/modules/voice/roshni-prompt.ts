@@ -315,6 +315,7 @@ export function qualificationQuestionsForRoshni(
   config:
     | {
         questions?: Array<{
+          id?: string | null;
           prompt?: string | null;
           followUp?: string | null;
           required?: boolean;
@@ -330,7 +331,9 @@ export function qualificationQuestionsForRoshni(
     .map((q): RoshniQuestion | null => {
       const prompt = String(q.prompt || '').trim();
       if (!prompt) return null;
+      const id = String(q.id || '').trim();
       return {
+        ...(id ? { id } : {}),
         prompt,
         followUp: q.followUp ?? null,
         required: Boolean(q.required),

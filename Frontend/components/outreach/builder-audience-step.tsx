@@ -445,7 +445,19 @@ export function AudienceStep({
             });
             if (cancelled) return;
             setPickerRows(rows);
-            if (state.selectedCandidateIds.length > 0) {
+            if (
+              state.source === "CSV/Excel Import" &&
+              state.selectedCandidateIds.length === 0 &&
+              rows.length > 0
+            ) {
+              // List already has members (e.g. re-import / already-on-list) —
+              // treat them as the campaign audience so Continue is not blocked.
+              update(
+                "selectedCandidateIds",
+                rows.map((row) => row.id)
+              );
+              update("audiencePreview", statsFromPoolRows(rows));
+            } else if (state.selectedCandidateIds.length > 0) {
               const wanted = new Set(state.selectedCandidateIds);
               update(
                 "audiencePreview",
@@ -581,7 +593,7 @@ export function AudienceStep({
                 type="button"
                 onClick={() => selectSource(source)}
                 className={cn(
-                  "flex items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
+                  "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
                   selected
                     ? "border-primary bg-brand-subtle"
                     : "border-border bg-card hover:bg-muted/40"
@@ -776,6 +788,7 @@ export function AudienceStep({
               onImported={async ({ imported, listId }) => {
                 const id = listId || importListId;
                 if (!id) return;
+                setError(null);
                 update("sourceDetail", id);
                 setImportListId(id);
                 try {

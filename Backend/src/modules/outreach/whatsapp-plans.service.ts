@@ -100,7 +100,7 @@ function validateWhatsAppTouchpoints(touchpoints: TouchpointInput[]) {
       400,
       'OPENING_TEMPLATE_INVALID',
       `Opening template "${opening.templateId}" must be one of the approved opening templates ` +
-        '(profile_review_reminder_v1 or role_alignment_review).'
+        '(opening_message_01, profile_review_reminder_v1, or role_alignment_review).'
     );
   }
 

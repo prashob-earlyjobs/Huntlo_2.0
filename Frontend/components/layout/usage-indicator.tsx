@@ -116,7 +116,7 @@ export function UsageIndicator() {
                   size="sm"
                   data-tour="usage-indicator"
                   aria-label={`${remaining} searches remaining`}
-                  className="h-8 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+                  className="h-8 cursor-pointer gap-1.5 px-2 text-muted-foreground hover:text-foreground"
                 />
               }
             />
