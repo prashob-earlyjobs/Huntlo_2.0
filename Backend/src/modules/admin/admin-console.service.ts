@@ -109,17 +109,10 @@ function providerConfiguredFromEnv(provider: PlatformProviderId): {
   const map: Record<PlatformProviderId, string | undefined> = {
     'future-jobs': env.FUTURE_JOBS_API_KEY,
     gemini: env.GEMINI_API_KEY,
-    gmail: env.GMAIL_CLIENT_ID,
-    outlook: env.OUTLOOK_CLIENT_ID,
     zoho: env.ZOHO_CLIENT_ID,
-    smtp: env.SMTP_HOST,
-    'meta-whatsapp': env.META_APP_SECRET || env.META_ACCESS_TOKEN,
-    gupshup: env.GUPSHUP_API_KEY || env.GUPSHUP_WEBHOOK_SECRET,
     hunar: env.HUNAR_VOICE_API_KEY || env.HUNAR_WEBHOOK_SECRET,
-    calendly: env.CALENDLY_WEBHOOK_SIGNING_KEY || env.CALENDLY_API_KEY,
     razorpay: env.RAZORPAY_KEY_ID || env.RAZORPAY_WEBHOOK_SECRET,
     dodo: env.DODO_PAYMENTS_WEBHOOK_KEY || env.DODO_API_KEY,
-    realtime: env.REALTIME_ENABLED,
   };
   const raw = map[provider];
   const configured = Boolean(raw && String(raw).trim() && String(raw) !== 'false');
@@ -265,29 +258,73 @@ export const adminConsoleService = {
       filter.memberStatus = map[query.status] || query.status.toLowerCase();
     }
     if (query.q) {
+      const q = query.q.trim();
+      const orgMatches = await OrganizationModel.find({
+        name: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+      })
+        .select('_id')
+        .lean();
+      const orgIds = orgMatches.map((org) => org._id);
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$or = [
-        { email: new RegExp(query.q, 'i') },
-        { firstName: new RegExp(query.q, 'i') },
-        { lastName: new RegExp(query.q, 'i') },
+        { email: new RegExp(escaped, 'i') },
+        { firstName: new RegExp(escaped, 'i') },
+        { lastName: new RegExp(escaped, 'i') },
+        { phone: new RegExp(escaped, 'i') },
+        ...(orgIds.length ? [{ organizationId: { $in: orgIds } }] : []),
       ];
     }
 
     const result = await paginateQuery<UserDocument>(UserModel, filter, query.page, query.limit);
     const orgIds = [...new Set(result.items.map((u) => String(u.organizationId)))];
     const orgs = await OrganizationModel.find({ _id: { $in: orgIds } })
-      .select('name plan')
+      .select('name plan country')
       .lean();
     const orgMap = new Map(orgs.map((o) => [String(o._id), o]));
 
+    const periodKey = currentPeriodKey();
+    const usageDocs = orgIds.length
+      ? await QuotaCounterModel.find({
+          organizationId: { $in: orgIds },
+          periodKey,
+          metric: { $in: ['candidate_search', 'email_reveal', 'email_outreach'] },
+        })
+          .select('organizationId metric used')
+          .lean()
+      : [];
+    const usageByOrg = new Map<
+      string,
+      { searchesUsed: number; revealsUsed: number; outreachUsed: number }
+    >();
+    for (const doc of usageDocs) {
+      const key = String(doc.organizationId);
+      const row = usageByOrg.get(key) ?? {
+        searchesUsed: 0,
+        revealsUsed: 0,
+        outreachUsed: 0,
+      };
+      if (doc.metric === 'candidate_search') row.searchesUsed = Number(doc.used) || 0;
+      else if (doc.metric === 'email_reveal') row.revealsUsed = Number(doc.used) || 0;
+      else if (doc.metric === 'email_outreach') row.outreachUsed = Number(doc.used) || 0;
+      usageByOrg.set(key, row);
+    }
+
     const items = result.items.map((user) => {
       const org = orgMap.get(String(user.organizationId));
+      const usage = usageByOrg.get(String(user.organizationId)) ?? {
+        searchesUsed: 0,
+        revealsUsed: 0,
+        outreachUsed: 0,
+      };
       return {
         id: user._id.toHexString(),
         name: `${user.firstName} ${user.lastName}`.trim(),
-        email: maskAdminEmail(user.email),
+        email: user.email || '—',
         emailHash: user.email,
+        phone: user.phone?.trim() || '—',
         organisation: org?.name || '—',
         organizationId: String(user.organizationId),
+        country: org?.country?.trim() || '—',
         plan: org?.plan || 'Starter',
         role: user.role,
         status:
@@ -299,9 +336,9 @@ export const adminConsoleService = {
                 ? 'Invited'
                 : 'Deleted',
         platformAdmin: Boolean(user.platformAdmin),
-        searchesUsed: 0,
-        revealsUsed: 0,
-        outreachUsed: 0,
+        searchesUsed: usage.searchesUsed,
+        revealsUsed: usage.revealsUsed,
+        outreachUsed: usage.outreachUsed,
         createdAt: user.createdAt.toISOString(),
         lastActive: user.lastLoginAt?.toISOString() ?? null,
       };
@@ -322,8 +359,8 @@ export const adminConsoleService = {
       : [];
     return {
       ...toPublicUser(user, org?.plan),
-      email: maskAdminEmail(user.email),
-      phone: maskAdminPhone(user.phone),
+      email: user.email || '',
+      phone: user.phone || '',
       platformAdmin: Boolean(user.platformAdmin),
       adminPermissions: user.adminPermissions || [],
       status:
@@ -607,27 +644,167 @@ export const adminConsoleService = {
     };
   },
 
-  async listSourcingSessions(query: { page: number; limit: number; organizationId?: string }) {
-    const filter: Record<string, unknown> = {};
-    if (query.organizationId) filter.organizationId = query.organizationId;
-    const result = await paginateQuery(SourcingSessionModel, filter, query.page, query.limit);
+  async listSourcingSessions(query: {
+    page: number;
+    limit: number;
+    organizationId?: string;
+    q?: string;
+    status?: string;
+    userId?: string;
+  }) {
+    const andClauses: Record<string, unknown>[] = [{ deletedAt: null }];
+
+    if (query.organizationId && mongoose.isValidObjectId(query.organizationId)) {
+      andClauses.push({
+        organizationId: new mongoose.Types.ObjectId(query.organizationId),
+      });
+    }
+    if (query.userId && mongoose.isValidObjectId(query.userId)) {
+      const uid = new mongoose.Types.ObjectId(query.userId);
+      andClauses.push({ $or: [{ userId: uid }, { ownerUserId: uid }] });
+    }
+    if (query.status?.trim()) {
+      andClauses.push({ status: query.status.trim().toLowerCase() });
+    }
+    if (query.q?.trim()) {
+      const escaped = query.q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      andClauses.push({
+        $or: [
+          { name: new RegExp(escaped, 'i') },
+          { sessionTitle: new RegExp(escaped, 'i') },
+          { naturalLanguageQuery: new RegExp(escaped, 'i') },
+          { prompt: new RegExp(escaped, 'i') },
+        ],
+      });
+    }
+
+    const filter = andClauses.length === 1 ? andClauses[0]! : { $and: andClauses };
+    const result = await paginateQuery(
+      SourcingSessionModel,
+      filter,
+      query.page,
+      query.limit,
+      { createdAt: -1 }
+    );
+
+    const userIds = [
+      ...new Set(
+        result.items
+          .flatMap((session) => [
+            session.userId ? String(session.userId) : null,
+            session.ownerUserId ? String(session.ownerUserId) : null,
+          ])
+          .filter(Boolean) as string[]
+      ),
+    ];
+    const orgIds = [
+      ...new Set(result.items.map((session) => String(session.organizationId))),
+    ];
+
+    const [users, orgs] = await Promise.all([
+      userIds.length
+        ? UserModel.find({ _id: { $in: userIds } })
+            .select('firstName lastName email')
+            .lean()
+        : Promise.resolve([]),
+      orgIds.length
+        ? OrganizationModel.find({ _id: { $in: orgIds } }).select('name').lean()
+        : Promise.resolve([]),
+    ]);
+
+    const userMap = new Map(
+      users.map((user) => [
+        String(user._id),
+        {
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || '—',
+          email: user.email || '—',
+        },
+      ])
+    );
+    const orgMap = new Map(orgs.map((org) => [String(org._id), org.name || '—']));
+
     return {
-      items: result.items.map((s) => ({
-        id: s._id.toHexString(),
-        organizationId: String(s.organizationId),
-        status: s.status,
-        query: String(s.naturalLanguageQuery || '').slice(0, 120),
-        createdAt: s.createdAt.toISOString(),
-      })),
+      items: result.items.map((session) => {
+        const ownerId = session.userId
+          ? String(session.userId)
+          : session.ownerUserId
+            ? String(session.ownerUserId)
+            : null;
+        const owner = ownerId ? userMap.get(ownerId) : null;
+        const title =
+          String(session.sessionTitle || session.name || '').trim() || 'Untitled search';
+        const queryText = String(
+          session.naturalLanguageQuery || session.prompt || ''
+        ).trim();
+        return {
+          id: session._id.toHexString(),
+          title,
+          query: queryText.slice(0, 200),
+          status: session.status,
+          userId: ownerId,
+          userName: owner?.name ?? '—',
+          userEmail: owner?.email ?? '—',
+          organizationId: String(session.organizationId),
+          organisation: orgMap.get(String(session.organizationId)) || '—',
+          totalResults: Math.max(
+            0,
+            Number(session.totalResults) || Number(session.totalDocs) || 0
+          ),
+          quotaConsumed: Math.max(0, Number(session.quotaConsumed) || 0),
+          createdAt: session.createdAt.toISOString(),
+          completedAt: session.completedAt?.toISOString?.() ?? null,
+        };
+      }),
       ...buildPaginationMeta(result),
     };
   },
 
-  async listCampaigns(query: { page: number; limit: number; status?: string; q?: string }) {
-    const filter: Record<string, unknown> = {};
-    if (query.status) filter.status = query.status;
-    if (query.q) filter.name = new RegExp(query.q, 'i');
-    const result = await paginateQuery(OutreachCampaignModel, filter, query.page, query.limit);
+  async listCampaigns(query: {
+    page: number;
+    limit: number;
+    status?: string;
+    q?: string;
+    organizationId?: string;
+  }) {
+    const andClauses: Record<string, unknown>[] = [];
+    if (query.status?.trim()) {
+      andClauses.push({ status: query.status.trim() });
+    }
+    if (query.organizationId && mongoose.isValidObjectId(query.organizationId)) {
+      andClauses.push({
+        organizationId: new mongoose.Types.ObjectId(query.organizationId),
+      });
+    }
+    if (query.q?.trim()) {
+      const escaped = query.q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const orgMatches = await OrganizationModel.find({
+        name: new RegExp(escaped, 'i'),
+      })
+        .select('_id')
+        .lean();
+      const orgIds = orgMatches.map((org) => org._id);
+      andClauses.push({
+        $or: [
+          { name: new RegExp(escaped, 'i') },
+          ...(orgIds.length ? [{ organizationId: { $in: orgIds } }] : []),
+        ],
+      });
+    }
+
+    const filter =
+      andClauses.length === 0
+        ? {}
+        : andClauses.length === 1
+          ? andClauses[0]!
+          : { $and: andClauses };
+
+    const result = await paginateQuery(
+      OutreachCampaignModel,
+      filter,
+      query.page,
+      query.limit,
+      { updatedAt: -1 }
+    );
     const orgIds = [...new Set(result.items.map((c) => String(c.organizationId)))];
     const orgs = await OrganizationModel.find({ _id: { $in: orgIds } }).select('name').lean();
     const orgMap = new Map(orgs.map((o) => [String(o._id), o.name]));
@@ -735,16 +912,19 @@ export const adminConsoleService = {
 
   async getProviderHealth() {
     const settings = await this.ensurePlatformSettings();
+    const allowed = new Set<string>(PLATFORM_PROVIDERS);
     return {
-      providers: settings.providers.map((p) => ({
-        id: p.provider,
-        name: p.provider,
-        configured: Boolean(p.configured),
-        status: p.status,
-        lastTested: p.lastTestedAt?.toISOString?.() ?? null,
-        maskedIdentifier: p.maskedIdentifier,
-        errorSummary: p.errorSummary,
-      })),
+      providers: settings.providers
+        .filter((p) => allowed.has(String(p.provider)))
+        .map((p) => ({
+          id: p.provider,
+          name: p.provider,
+          configured: Boolean(p.configured),
+          status: p.status,
+          lastTested: p.lastTestedAt?.toISOString?.() ?? null,
+          maskedIdentifier: p.maskedIdentifier,
+          errorSummary: p.errorSummary,
+        })),
     };
   },
 
@@ -779,7 +959,15 @@ export const adminConsoleService = {
         doc.metricCosts = defaultMetricCosts();
         doc.markModified('metricCosts');
       }
-      // Merge any missing providers from env snapshot
+      // Drop retired providers, then merge any missing active ones from env
+      const allowed = new Set<string>(PLATFORM_PROVIDERS);
+      const beforeCount = doc.providers.length;
+      doc.providers = doc.providers.filter((p) =>
+        allowed.has(String(p.provider))
+      ) as typeof doc.providers;
+      if (doc.providers.length !== beforeCount) {
+        doc.markModified('providers');
+      }
       const existing = new Set(doc.providers.map((p) => p.provider));
       for (const provider of PLATFORM_PROVIDERS) {
         if (!existing.has(provider)) {
@@ -821,16 +1009,20 @@ export const adminConsoleService = {
       metricCosts,
       metricCostDefaults: defaultMetricCosts(),
       metricCostLabels: METRIC_LABELS,
-      providers: doc.providers.map((p) => ({
-        id: p.provider,
-        name: p.provider,
-        configured: Boolean(p.configured),
-        status: p.status,
-        lastTested: p.lastTestedAt?.toISOString?.() ?? null,
-        maskedIdentifier: p.maskedIdentifier,
-        errorSummary: p.errorSummary,
-        publicConfig: p.publicConfig || {},
-      })),
+      providers: doc.providers
+        .filter((p) =>
+          (PLATFORM_PROVIDERS as readonly string[]).includes(String(p.provider))
+        )
+        .map((p) => ({
+          id: p.provider,
+          name: p.provider,
+          configured: Boolean(p.configured),
+          status: p.status,
+          lastTested: p.lastTestedAt?.toISOString?.() ?? null,
+          maskedIdentifier: p.maskedIdentifier,
+          errorSummary: p.errorSummary,
+          publicConfig: p.publicConfig || {},
+        })),
       roshniPrompt: {
         introduction: storedIntro,
         agentPrompt: storedAgent,
