@@ -2,7 +2,6 @@ import { apiClient } from "./client";
 import type {
   ScreeningBatch,
   ScreeningResult,
-  ScreeningResultDetail,
 } from "./contracts";
 import { createDomainService, simulateMockLatency } from "./service";
 import type { ApiQueryParams } from "./types";

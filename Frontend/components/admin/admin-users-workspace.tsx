@@ -2,6 +2,8 @@
 
 import {
   Ban,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   Eye,
   KeyRound,
@@ -10,7 +12,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Field } from "@/components/outreach/builder-ui";
 import { PageHeader } from "@/components/shared/page-header";
@@ -59,9 +61,11 @@ import {
 } from "@/lib/mock-admin";
 import { adminApi } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api/errors";
+import { PHONE_COUNTRIES } from "@/lib/phone-countries";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 const STATUS_CLASS: Record<AdminAccountStatus, string> = {
   Active: "bg-success/10 text-success",
@@ -72,9 +76,66 @@ const STATUS_CLASS: Record<AdminAccountStatus, string> = {
 
 type DialogKind = "edit" | "plan" | "quota" | null;
 
+function formatCountry(value: string | null | undefined): string {
+  const raw = value?.trim();
+  if (!raw || raw === "—") return "—";
+  const byIso = PHONE_COUNTRIES.find(
+    (country) => country.iso.toLowerCase() === raw.toLowerCase()
+  );
+  if (byIso) return byIso.name;
+  const byName = PHONE_COUNTRIES.find(
+    (country) => country.name.toLowerCase() === raw.toLowerCase()
+  );
+  return byName?.name ?? raw;
+}
+
+function mapAdminUser(user: {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  organisation: string;
+  country?: string | null;
+  plan: string;
+  role: string;
+  searchesUsed?: number;
+  revealsUsed?: number;
+  outreachUsed?: number;
+  status: string;
+  createdAt?: string;
+  lastActive?: string | null;
+}): AdminUser {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone?.trim() || "—",
+    organisation: user.organisation,
+    country: formatCountry(user.country),
+    plan: user.plan,
+    role: user.role,
+    searchesUsed: user.searchesUsed ?? 0,
+    revealsUsed: user.revealsUsed ?? 0,
+    outreachUsed: user.outreachUsed ?? 0,
+    status: (user.status as AdminAccountStatus) || "Active",
+    createdAt: user.createdAt
+      ? new Date(user.createdAt).toLocaleDateString("en-IN")
+      : "—",
+    lastActive: user.lastActive
+      ? new Date(user.lastActive).toLocaleString("en-IN")
+      : "—",
+  };
+}
+
 export function AdminUsersWorkspace() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -87,54 +148,48 @@ export function AdminUsersWorkspace() {
   });
 
   useEffect(() => {
-    void adminApi
-      .listUsers({ limit: 100 })
-      .then((result) => {
-        setUsers(
-          result.items.map((user) => ({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone?.trim() ? user.phone : "—",
-            organisation: user.organisation,
-            plan: user.plan,
-            role: user.role,
-            searchesUsed: user.searchesUsed ?? 0,
-            revealsUsed: user.revealsUsed ?? 0,
-            outreachUsed: user.outreachUsed ?? 0,
-            status: (user.status as AdminAccountStatus) || "Active",
-            createdAt: user.createdAt
-              ? new Date(user.createdAt).toLocaleDateString("en-IN")
-              : "—",
-            lastActive: user.lastActive
-              ? new Date(user.lastActive).toLocaleString("en-IN")
-              : "—",
-          }))
-        );
-      })
-      .catch((error) => {
-        setUsers([]);
-        setToast(getApiErrorMessage(error, "Unable to load users."));
+    const id = window.setTimeout(() => {
+      setDebouncedQuery(query.trim());
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery, pageSize]);
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await adminApi.listUsers({
+        page,
+        limit: pageSize,
+        q: debouncedQuery || undefined,
       });
-  }, []);
+      setUsers(result.items.map(mapAdminUser));
+      setTotal(result.total);
+      setTotalPages(Math.max(1, result.totalPages));
+      if (result.page !== page) setPage(result.page);
+      setToast(null);
+    } catch (error) {
+      setUsers([]);
+      setTotal(0);
+      setTotalPages(1);
+      setToast(getApiErrorMessage(error, "Unable to load users."));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, debouncedQuery]);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 2800);
     return () => window.clearTimeout(id);
   }, [toast]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
-      (user) =>
-        user.name.toLowerCase().includes(q) ||
-        user.email.toLowerCase().includes(q) ||
-        user.phone.toLowerCase().includes(q) ||
-        user.organisation.toLowerCase().includes(q)
-    );
-  }, [users, query]);
 
   function openDialog(kind: DialogKind, user: AdminUser) {
     setSelected(user);
@@ -154,6 +209,9 @@ export function AdminUsersWorkspace() {
     );
   }
 
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -163,7 +221,7 @@ export function AdminUsersWorkspace() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search users, mobile, or organisations…"
+            placeholder="Search users or organisations…"
             className="w-56 sm:w-72"
           />
         }
@@ -185,6 +243,7 @@ export function AdminUsersWorkspace() {
               <TableHead className={HEAD}>User</TableHead>
               <TableHead className={HEAD}>Mobile</TableHead>
               <TableHead className={HEAD}>Organisation</TableHead>
+              <TableHead className={HEAD}>Country</TableHead>
               <TableHead className={HEAD}>Plan</TableHead>
               <TableHead className={HEAD}>Role</TableHead>
               <TableHead className={HEAD}>Searches used</TableHead>
@@ -197,169 +256,271 @@ export function AdminUsersWorkspace() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>
-                  <div className="min-w-[10rem]">
-                    <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
-                  </div>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">
-                  {user.phone}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-sm">
-                  {user.organisation}
-                </TableCell>
-                <TableCell className="text-sm">{user.plan}</TableCell>
-                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {user.role}
-                </TableCell>
-                <TableCell className="tabular-nums text-sm">
-                  {user.searchesUsed.toLocaleString()}
-                </TableCell>
-                <TableCell className="tabular-nums text-sm">
-                  {user.revealsUsed.toLocaleString()}
-                </TableCell>
-                <TableCell className="tabular-nums text-sm">
-                  {user.outreachUsed.toLocaleString()}
-                </TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
-                      STATUS_CLASS[user.status]
-                    )}
-                  >
-                    {user.status}
-                  </span>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {user.createdAt}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {user.lastActive}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`Actions for ${user.name}`}
-                        />
-                      }
-                    >
-                      <MoreHorizontal aria-hidden />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setSelected(user)}>
-                        <Eye aria-hidden />
-                        View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openDialog("edit", user)}>
-                        <Pencil aria-hidden />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openDialog("plan", user)}>
-                        <CreditCard aria-hidden />
-                        Assign Plan
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => openDialog("quota", user)}
-                      >
-                        <Search aria-hidden />
-                        Adjust Quota
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void adminApi
-                            .resetPassword(user.id)
-                            .then((result) => {
-                              setToast(
-                                result.temporaryPassword
-                                  ? `Temporary password issued for ${user.name}.`
-                                  : `Password reset for ${user.name}.`
-                              );
-                            })
-                            .catch((error) =>
-                              setToast(
-                                getApiErrorMessage(error, "Unable to reset password.")
-                              )
-                            );
-                        }}
-                      >
-                        <KeyRound aria-hidden />
-                        Reset Password
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void adminApi
-                            .suspendUser(user.id)
-                            .then((updated) => {
-                              patchUser(user.id, {
-                                status: (updated.status as AdminAccountStatus) || "Suspended",
-                              });
-                              setToast(`${user.name} suspended.`);
-                            })
-                            .catch((error) =>
-                              setToast(
-                                getApiErrorMessage(error, "Unable to suspend user.")
-                              )
-                            );
-                        }}
-                      >
-                        <Ban aria-hidden />
-                        Suspend
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void adminApi
-                            .activateUser(user.id)
-                            .then((updated) => {
-                              patchUser(user.id, {
-                                status: (updated.status as AdminAccountStatus) || "Active",
-                              });
-                              setToast(`${user.name} activated.`);
-                            })
-                            .catch((error) =>
-                              setToast(
-                                getApiErrorMessage(error, "Unable to activate user.")
-                              )
-                            );
-                        }}
-                      >
-                        <Eye aria-hidden />
-                        Activate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onClick={() => {
-                          void adminApi
-                            .suspendUser(user.id)
-                            .then(() => {
-                              patchUser(user.id, { status: "Suspended" });
-                              setToast(`${user.name} deactivated.`);
-                            })
-                            .catch((error) =>
-                              setToast(
-                                getApiErrorMessage(error, "Unable to deactivate user.")
-                              )
-                            );
-                        }}
-                      >
-                        <Trash2 aria-hidden />
-                        Deactivate
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {loading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={13}
+                  className="py-8 text-center text-sm text-muted-foreground"
+                >
+                  Loading users…
                 </TableCell>
               </TableRow>
-            ))}
+            ) : null}
+            {!loading && users.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={13}
+                  className="py-8 text-center text-sm text-muted-foreground"
+                >
+                  No users found.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {!loading
+              ? users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="min-w-40">
+                        <p className="text-sm font-medium">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user.email}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm tabular-nums">
+                      {user.phone || "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">
+                      {user.organisation}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">
+                      {user.country || "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">{user.plan}</TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {user.role}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-sm">
+                      {user.searchesUsed.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-sm">
+                      {user.revealsUsed.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-sm">
+                      {user.outreachUsed.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
+                          STATUS_CLASS[user.status]
+                        )}
+                      >
+                        {user.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {user.createdAt}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {user.lastActive}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              aria-label={`Actions for ${user.name}`}
+                            />
+                          }
+                        >
+                          <MoreHorizontal aria-hidden />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setSelected(user)}>
+                            <Eye aria-hidden />
+                            View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openDialog("edit", user)}
+                          >
+                            <Pencil aria-hidden />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openDialog("plan", user)}
+                          >
+                            <CreditCard aria-hidden />
+                            Assign Plan
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openDialog("quota", user)}
+                          >
+                            <Search aria-hidden />
+                            Adjust Quota
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              void adminApi
+                                .resetPassword(user.id)
+                                .then((result) => {
+                                  setToast(
+                                    result.temporaryPassword
+                                      ? `Temporary password issued for ${user.name}.`
+                                      : `Password reset for ${user.name}.`
+                                  );
+                                })
+                                .catch((error) =>
+                                  setToast(
+                                    getApiErrorMessage(
+                                      error,
+                                      "Unable to reset password."
+                                    )
+                                  )
+                                );
+                            }}
+                          >
+                            <KeyRound aria-hidden />
+                            Reset Password
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              void adminApi
+                                .suspendUser(user.id)
+                                .then((updated) => {
+                                  patchUser(user.id, {
+                                    status:
+                                      (updated.status as AdminAccountStatus) ||
+                                      "Suspended",
+                                  });
+                                  setToast(`${user.name} suspended.`);
+                                })
+                                .catch((error) =>
+                                  setToast(
+                                    getApiErrorMessage(
+                                      error,
+                                      "Unable to suspend user."
+                                    )
+                                  )
+                                );
+                            }}
+                          >
+                            <Ban aria-hidden />
+                            Suspend
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              void adminApi
+                                .activateUser(user.id)
+                                .then((updated) => {
+                                  patchUser(user.id, {
+                                    status:
+                                      (updated.status as AdminAccountStatus) ||
+                                      "Active",
+                                  });
+                                  setToast(`${user.name} activated.`);
+                                })
+                                .catch((error) =>
+                                  setToast(
+                                    getApiErrorMessage(
+                                      error,
+                                      "Unable to activate user."
+                                    )
+                                  )
+                                );
+                            }}
+                          >
+                            <Eye aria-hidden />
+                            Activate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => {
+                              void adminApi
+                                .suspendUser(user.id)
+                                .then(() => {
+                                  patchUser(user.id, { status: "Suspended" });
+                                  setToast(`${user.name} deactivated.`);
+                                })
+                                .catch((error) =>
+                                  setToast(
+                                    getApiErrorMessage(
+                                      error,
+                                      "Unable to deactivate user."
+                                    )
+                                  )
+                                );
+                            }}
+                          >
+                            <Trash2 aria-hidden />
+                            Deactivate
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              : null}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          {loading
+            ? "Loading…"
+            : total === 0
+              ? "No users"
+              : `Showing ${rangeStart}–${rangeEnd} of ${total.toLocaleString("en-IN")}`}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Rows
+            <select
+              value={pageSize}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+              }}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              aria-label="Previous page"
+              disabled={loading || page <= 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              <ChevronLeft aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              aria-label="Next page"
+              disabled={loading || page >= totalPages}
+              onClick={() =>
+                setPage((value) => Math.min(totalPages, value + 1))
+              }
+            >
+              <ChevronRight aria-hidden />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* View drawer */}
@@ -379,7 +540,8 @@ export function AdminUsersWorkspace() {
               <div className="mt-4 space-y-3 text-sm">
                 {[
                   ["Organisation", selected.organisation],
-                  ["Mobile", selected.phone],
+                  ["Country", selected.country || "—"],
+                  ["Mobile", selected.phone || "—"],
                   ["Plan", selected.plan],
                   ["Role", selected.role],
                   ["Status", selected.status],

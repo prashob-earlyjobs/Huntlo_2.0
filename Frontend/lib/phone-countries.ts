@@ -82,3 +82,36 @@ export function nationalNumberPlaceholder(iso: string): string {
       return "Phone number";
   }
 }
+
+/**
+ * Split a stored phone into country + national digits for the profile/signup inputs.
+ * Prefers the longest matching dial code; falls back to India.
+ */
+export function splitPhoneNumber(phone: string | null | undefined): {
+  countryIso: string;
+  nationalNumber: string;
+} {
+  const raw = String(phone || "").trim();
+  if (!raw) {
+    return { countryIso: DEFAULT_PHONE_COUNTRY_ISO, nationalNumber: "" };
+  }
+
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) {
+    return { countryIso: DEFAULT_PHONE_COUNTRY_ISO, nationalNumber: "" };
+  }
+
+  const sorted = [...PHONE_COUNTRIES].sort(
+    (a, b) => b.dialCode.length - a.dialCode.length
+  );
+  for (const country of sorted) {
+    if (digits.startsWith(country.dialCode) && digits.length > country.dialCode.length) {
+      return {
+        countryIso: country.iso,
+        nationalNumber: digits.slice(country.dialCode.length),
+      };
+    }
+  }
+
+  return { countryIso: DEFAULT_PHONE_COUNTRY_ISO, nationalNumber: digits };
+}

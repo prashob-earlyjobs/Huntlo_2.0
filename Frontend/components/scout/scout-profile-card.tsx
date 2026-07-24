@@ -83,11 +83,16 @@ export function ScoutProfileCard({
   lookupId,
   initiallySaved = false,
   onSaved,
+  className,
+  embedded = false,
 }: {
   profile: ScoutProfile;
   lookupId?: string;
   initiallySaved?: boolean;
   onSaved?: () => void;
+  className?: string;
+  /** Flatten chrome when nested inside a sheet/drawer. */
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState({ email: false, phone: false });
@@ -173,23 +178,132 @@ export function ScoutProfileCard({
 
   const revealCount = Number(revealed.email) + Number(revealed.phone);
 
+  const contactControls = (
+    <div className={cn("space-y-1.5", embedded ? "w-full" : undefined)}>
+      <div
+        className={cn(
+          embedded ? "grid w-full grid-cols-2 gap-2" : "space-y-1.5"
+        )}
+      >
+        {revealing === "email" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            disabled
+            aria-busy
+          >
+            <Loader2 aria-hidden className="animate-spin" />
+            Unlocking email…
+          </Button>
+        ) : revealed.email ? (
+          <RevealedRow icon={Mail} value={emailValue} label="email" />
+        ) : (
+          <ConfirmDialog
+            trigger={
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full justify-start"
+                disabled={revealing !== null}
+              >
+                <Mail aria-hidden />
+                Reveal Email
+                <span className="ml-auto tabular-nums text-muted-foreground">
+                  {REVEAL_COSTS.email} cr
+                </span>
+              </Button>
+            }
+            title={`Reveal ${profile.name.split(" ")[0]}’s email?`}
+            description={`This uses ${REVEAL_COSTS.email} email credits. You have ${revealQuota.emailRemaining.toLocaleString("en-IN")} of ${revealQuota.emailTotal.toLocaleString("en-IN")} email reveals remaining this cycle.`}
+            confirmLabel={`Reveal for ${REVEAL_COSTS.email} credits`}
+            onConfirm={() => void handleReveal("email")}
+          />
+        )}
+        {revealing === "mobile" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            disabled
+            aria-busy
+          >
+            <Loader2 aria-hidden className="animate-spin" />
+            Unlocking phone…
+          </Button>
+        ) : revealed.phone ? (
+          <RevealedRow
+            icon={Phone}
+            value={phoneValue}
+            label="phone number"
+          />
+        ) : (
+          <ConfirmDialog
+            trigger={
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full justify-start"
+                disabled={revealing !== null}
+              >
+                <Phone aria-hidden />
+                Reveal Phone
+                <span className="ml-auto tabular-nums text-muted-foreground">
+                  {REVEAL_COSTS.mobile} cr
+                </span>
+              </Button>
+            }
+            title={`Reveal ${profile.name.split(" ")[0]}’s phone?`}
+            description={`This uses ${REVEAL_COSTS.mobile} mobile credits. You have ${revealQuota.mobileRemaining.toLocaleString("en-IN")} of ${revealQuota.mobileTotal.toLocaleString("en-IN")} mobile reveals remaining this cycle.`}
+            confirmLabel={`Reveal for ${REVEAL_COSTS.mobile} credits`}
+            onConfirm={() => void handleReveal("mobile")}
+          />
+        )}
+      </div>
+      {revealError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {revealError}
+        </p>
+      ) : null}
+      <p className="text-[11px] text-muted-foreground">
+        Contacts already revealed are never charged again.
+      </p>
+    </div>
+  );
+
   return (
-    <article className="overflow-hidden rounded-xl border border-border bg-card">
+    <article
+      className={cn(
+        "overflow-hidden bg-card",
+        embedded
+          ? "rounded-none border-0"
+          : "rounded-xl border border-border",
+        className
+      )}
+    >
       {/* Header band — identity full width, actions below so buttons never squeeze text */}
-      <div className="border-b border-border p-5">
+      <div className={cn("border-b border-border", embedded ? "px-4 py-4" : "p-5")}>
         <div className="space-y-4">
           <div className="flex w-full min-w-0 items-start gap-4">
-            <CandidateAvatar
-              name={profile.name}
-              src={profile.avatarUrl}
-              preview
-              className="size-16 shrink-0 text-lg"
-            />
+            {embedded ? null : (
+              <CandidateAvatar
+                name={profile.name}
+                src={profile.avatarUrl}
+                preview
+                className="size-16 shrink-0 text-lg"
+              />
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {profile.name}
-                </h2>
+                {embedded ? null : (
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                    {profile.name}
+                  </h2>
+                )}
                 <span className="inline-flex h-5 items-center rounded-md bg-muted px-2 text-xs font-medium text-muted-foreground">
                   {profile.enrichment.status}
                 </span>
@@ -231,79 +345,90 @@ export function ScoutProfileCard({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant={saved ? "secondary" : "default"}
-              onClick={() => void handleSave()}
-            >
-              {saved ? <Check aria-hidden /> : <UserRoundPlus aria-hidden />}
-              {saved ? "Saved to Pool" : "Save to Candidate Pool"}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
-                <ListPlus aria-hidden />
-                Add to List
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuLabel>Add to list</DropdownMenuLabel>
-                {listNames.length === 0 ? (
-                  <DropdownMenuItem disabled>No lists yet</DropdownMenuItem>
+          {embedded ? (
+            <div className="space-y-2">
+              <SectionTitle>Contact</SectionTitle>
+              {contactControls}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant={saved ? "secondary" : "default"}
+                onClick={() => void handleSave()}
+              >
+                {saved ? <Check aria-hidden /> : <UserRoundPlus aria-hidden />}
+                {saved ? "Saved to Pool" : "Save to Candidate Pool"}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button size="sm" variant="outline" />}
+                >
+                  <ListPlus aria-hidden />
+                  Add to List
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuLabel>Add to list</DropdownMenuLabel>
+                  {listNames.length === 0 ? (
+                    <DropdownMenuItem disabled>No lists yet</DropdownMenuItem>
+                  ) : (
+                    listNames.map((list) => (
+                      <DropdownMenuItem
+                        key={list}
+                        onClick={() =>
+                          flash(`Added ${profile.name} to “${list}”.`)
+                        }
+                      >
+                        {list}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (lookupId) params.set("lookupId", lookupId);
+                  params.set("name", profile.name);
+                  router.push(`${ROUTES.outreachNew}?${params.toString()}`);
+                }}
+              >
+                <Send aria-hidden />
+                Start Outreach
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (lookupId) params.set("lookupId", lookupId);
+                  params.set("name", profile.name);
+                  router.push(`${ROUTES.screeningNew}?${params.toString()}`);
+                }}
+              >
+                <AudioLines aria-hidden />
+                Start Screening
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(profile.linkedinUrl);
+                  setLinkCopied(true);
+                  window.setTimeout(() => setLinkCopied(false), 1500);
+                }}
+              >
+                {linkCopied ? (
+                  <Check aria-hidden className="text-success" />
                 ) : (
-                  listNames.map((list) => (
-                    <DropdownMenuItem
-                      key={list}
-                      onClick={() => flash(`Added ${profile.name} to “${list}”.`)}
-                    >
-                      {list}
-                    </DropdownMenuItem>
-                  ))
+                  <Copy aria-hidden />
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const params = new URLSearchParams();
-                if (lookupId) params.set("lookupId", lookupId);
-                params.set("name", profile.name);
-                router.push(`${ROUTES.outreachNew}?${params.toString()}`);
-              }}
-            >
-              <Send aria-hidden />
-              Start Outreach
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const params = new URLSearchParams();
-                if (lookupId) params.set("lookupId", lookupId);
-                params.set("name", profile.name);
-                router.push(`${ROUTES.screeningNew}?${params.toString()}`);
-              }}
-            >
-              <AudioLines aria-hidden />
-              Start Screening
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                void navigator.clipboard?.writeText(profile.linkedinUrl);
-                setLinkCopied(true);
-                window.setTimeout(() => setLinkCopied(false), 1500);
-              }}
-            >
-              {linkCopied ? (
-                <Check aria-hidden className="text-success" />
-              ) : (
-                <Copy aria-hidden />
-              )}
-              {linkCopied ? "Link Copied" : "Copy Profile Link"}
-            </Button>
-          </div>
+                {linkCopied ? "Link Copied" : "Copy Profile Link"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {feedback ? (
@@ -317,7 +442,7 @@ export function ScoutProfileCard({
       </div>
 
       {/* Body */}
-      <div className="grid gap-6 p-5 lg:grid-cols-3">
+      <div className={cn("grid gap-6 lg:grid-cols-3", embedded ? "p-4" : "p-5")}>
         <div className="space-y-6 lg:col-span-2">
           <section className="space-y-2">
             <SectionTitle>About</SectionTitle>
@@ -405,101 +530,12 @@ export function ScoutProfileCard({
         </div>
 
         <div className="space-y-6">
-          <section className="space-y-2">
-            <SectionTitle>Contact</SectionTitle>
-            <div className="space-y-1.5">
-              {revealing === "email" ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled
-                  aria-busy
-                >
-                  <Loader2 aria-hidden className="animate-spin" />
-                  Unlocking email…
-                </Button>
-              ) : revealed.email ? (
-                <RevealedRow
-                  icon={Mail}
-                  value={emailValue}
-                  label="email"
-                />
-              ) : (
-                <ConfirmDialog
-                  trigger={
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="w-full justify-start"
-                      disabled={revealing !== null}
-                    >
-                      <Mail aria-hidden />
-                      Reveal Email
-                      <span className="ml-auto tabular-nums text-muted-foreground">
-                        {REVEAL_COSTS.email} cr
-                      </span>
-                    </Button>
-                  }
-                  title={`Reveal ${profile.name.split(" ")[0]}’s email?`}
-                  description={`This uses ${REVEAL_COSTS.email} email credits. You have ${revealQuota.emailRemaining.toLocaleString("en-IN")} of ${revealQuota.emailTotal.toLocaleString("en-IN")} email reveals remaining this cycle.`}
-                  confirmLabel={`Reveal for ${REVEAL_COSTS.email} credits`}
-                  onConfirm={() => void handleReveal("email")}
-                />
-              )}
-              {revealing === "mobile" ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled
-                  aria-busy
-                >
-                  <Loader2 aria-hidden className="animate-spin" />
-                  Unlocking phone…
-                </Button>
-              ) : revealed.phone ? (
-                <RevealedRow
-                  icon={Phone}
-                  value={phoneValue}
-                  label="phone number"
-                />
-              ) : (
-                <ConfirmDialog
-                  trigger={
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="w-full justify-start"
-                      disabled={revealing !== null}
-                    >
-                      <Phone aria-hidden />
-                      Reveal Phone
-                      <span className="ml-auto tabular-nums text-muted-foreground">
-                        {REVEAL_COSTS.mobile} cr
-                      </span>
-                    </Button>
-                  }
-                  title={`Reveal ${profile.name.split(" ")[0]}’s phone?`}
-                  description={`This uses ${REVEAL_COSTS.mobile} mobile credits. You have ${revealQuota.mobileRemaining.toLocaleString("en-IN")} of ${revealQuota.mobileTotal.toLocaleString("en-IN")} mobile reveals remaining this cycle.`}
-                  confirmLabel={`Reveal for ${REVEAL_COSTS.mobile} credits`}
-                  onConfirm={() => void handleReveal("mobile")}
-                />
-              )}
-              {revealError ? (
-                <p role="alert" className="text-xs text-destructive">
-                  {revealError}
-                </p>
-              ) : null}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Contacts already revealed are never charged again.
-            </p>
-          </section>
+          {embedded ? null : (
+            <section className="space-y-2">
+              <SectionTitle>Contact</SectionTitle>
+              {contactControls}
+            </section>
+          )}
 
           <section className="space-y-2">
             <SectionTitle>Skills</SectionTitle>

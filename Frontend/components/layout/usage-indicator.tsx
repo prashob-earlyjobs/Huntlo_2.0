@@ -115,17 +115,14 @@ export function UsageIndicator() {
                   variant="ghost"
                   size="sm"
                   data-tour="usage-indicator"
-                  aria-label={`${remaining} searches remaining`}
+                  aria-label={`${remaining} Credits remaining`}
                   className="h-8 cursor-pointer gap-1.5 px-2 text-muted-foreground hover:text-foreground"
                 />
               }
             />
           }
         >
-          <span className="text-xs tabular-nums">{remaining}</span>
-          <span className="hidden text-xs text-muted-foreground xl:inline">
-            searches
-          </span>
+          <span className="text-xs">Credits</span>
         </TooltipTrigger>
         <TooltipContent>Plan usage</TooltipContent>
       </Tooltip>

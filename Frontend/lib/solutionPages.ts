@@ -23,11 +23,28 @@ export type SolutionHeroPreview = {
   activeCampaigns: string;
 };
 
+export type SolutionFaqItem = {
+  question: string;
+  answer: string;
+};
+
 export type SolutionPageData = SolutionsNavItem & {
   /** SEO H1 — defaults to `title` when omitted. */
   h1?: string;
   metaTitle: string;
   metaDescription: string;
+  /** Open Graph description — defaults to `metaDescription` when omitted. */
+  ogDescription?: string;
+  /** Twitter card description — defaults to `metaDescription` when omitted. */
+  twitterDescription?: string;
+  /** Open Graph / Twitter site_name override (defaults to Huntlo). */
+  ogSiteName?: string;
+  /** Visible FAQ + FAQPage schema — answers must match verbatim. */
+  faq?: SolutionFaqItem[];
+  /** Pre-filled prompt for footer AI-platform GEO deep links. */
+  geoAskPrompt?: string;
+  /** e.g. "Huntlo AI for Enterprise Hiring" → "Ask ChatGPT about …". */
+  geoAskTopic?: string;
   heroAccent: string;
   heroLead: string;
   heroSupport: string;
@@ -376,20 +393,50 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     description:
       "Streamline sourcing, screening, and hiring operations across growing teams.",
     href: "/solutions/enterprise-hiring",
-    h1: "Agentic AI Recruiting Infrastructure for Enterprise Hiring Teams",
-    metaTitle: "Enterprise AI Recruiting Infrastructure — Automate Hiring at Scale | Huntlo",
+    h1: "Agentic AI Hiring Infrastructure for Enterprise Hiring",
+    metaTitle: "Agentic AI Hiring Infrastructure for Enterprise Hiring | Huntlo AI",
     metaDescription:
-      "Huntlo's agentic AI recruiting infrastructure streamlines enterprise sourcing, screening, and hiring operations across growing teams. Book a demo.",
-    heroAccent: "Standardize TA operations across business units and regions.",
+      "Huntlo AI is an Agentic AI Hiring Infrastructure for enterprise hiring teams. Automate candidate sourcing, outreach, AI voice screening, AI video interviews, and high-volume recruiter workflows across departments while keeping talent teams in control.",
+    ogDescription:
+      "Automate sourcing, outreach, AI interviews and high-volume recruiter workflows across departments with Huntlo AI's Agentic AI Hiring Infrastructure for enterprise hiring teams.",
+    twitterDescription:
+      "Modern Agentic AI Hiring Infrastructure helping enterprise talent teams automate sourcing, outreach, AI interviews and high-volume recruiter workflows.",
+    ogSiteName: "Huntlo AI",
+    geoAskTopic: "Huntlo AI for Enterprise Hiring",
+    geoAskPrompt:
+      "What is Huntlo AI Agentic AI Hiring Infrastructure for Enterprise Hiring (https://huntlo.ai/solutions/enterprise-hiring)? Explain how it helps enterprise talent teams automate candidate sourcing, outreach, AI voice screening, AI video interviews and high-volume recruiter workflows.",
+    faq: [
+      {
+        question: "What is Huntlo AI for enterprise hiring?",
+        answer:
+          "Huntlo AI is an Agentic AI Hiring Infrastructure designed for enterprise talent acquisition teams. It automates sourcing, outreach, AI voice screening, AI video interviews, cross-departmental recruiter collaboration and high-volume hiring workflows while keeping talent teams in control.",
+      },
+      {
+        question: "Is Huntlo AI recruitment software or an enterprise ATS?",
+        answer:
+          "Huntlo AI goes beyond traditional recruitment software and enterprise ATS platforms. Instead of simply managing requisitions, it coordinates AI agents that automate high-volume recruiting workflows while talent teams focus on hiring manager alignment and candidate experience.",
+      },
+      {
+        question: "How does Huntlo AI help enterprises hire at scale?",
+        answer:
+          "Huntlo AI automates candidate sourcing, multichannel outreach, AI screening, interview scheduling and cross-team recruiter coordination, helping enterprise talent acquisition teams manage high requisition volume without proportionally increasing headcount.",
+      },
+      {
+        question: "Can Huntlo AI integrate with existing enterprise ATS and HRIS systems?",
+        answer:
+          "Yes. Huntlo AI complements existing enterprise ATS, HRIS and recruitment CRM systems by adding AI-powered automation and agentic workflows without replacing established hiring processes or compliance requirements.",
+      },
+    ],
+    heroAccent: "Scale TA across departments without losing control.",
     heroLead:
-      "Enterprise talent acquisition coordinates across business units, regions, and hiring managers—while time-to-fill pressure never eases. Distributed recruiters often source and outreach differently, creating bottlenecks and inconsistent candidate experience. Huntlo centralizes AI sourcing, governed outreach, and campaign execution in one platform.",
+      "Huntlo AI is Agentic AI Hiring Infrastructure for enterprise talent acquisition teams—going beyond traditional Enterprise ATS, Recruitment CRM, HRIS, and Talent Acquisition Software. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, and high-volume recruiter workflows across departments while keeping talent teams in control.",
     heroSupport:
-      "Give TA leadership reporting on outreach activity and pipeline health, enforce approved templates across teams, and manage high-volume reqs with bulk contact and reveal workflows.",
+      "Standardize cross-departmental coordination, enforce approved messaging, integrate with your systems of record, and give TA leadership visibility into pipeline health and compliance posture at scale.",
     heroPills: [
-      "Team workspaces & sub-users",
-      "Governed WhatsApp templates",
-      "Bulk reveal & enrollment",
-      "TA leadership reporting",
+      "Cross-department TA workflows",
+      "ATS / HRIS complementary",
+      "AI voice & video screening",
+      "Governed outreach at scale",
     ],
     heroPreview: {
       label: "Enterprise TA",
@@ -402,14 +449,14 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       ],
       activeCampaigns: "47 open",
     },
-    overviewTitle: "Enterprise-grade TA operations in one platform",
+    overviewTitle: "Enterprise-grade Agentic AI Hiring Infrastructure",
     intro:
-      "Enterprise TA teams coordinate across business units, regions, and hiring managers—while pressure to reduce time-to-fill never lets up. Huntlo centralizes AI sourcing, recruiter-led outreach, and campaign execution so talent acquisition scales with organizational complexity.",
+      "Enterprise TA teams coordinate across business units, regions, and hiring managers—while pressure to reduce time-to-fill never lets up. Huntlo's Agentic AI Hiring Infrastructure centralizes AI sourcing, governed outreach, AI interviews, and campaign execution so talent acquisition scales with organizational complexity—without replacing your Enterprise ATS or HRIS.",
     highlights: [
       "Give distributed recruiters a consistent sourcing and outreach playbook",
       "Enforce approved WhatsApp and email templates across regions",
       "Manage high-volume reqs with bulk contact and reveal workflows",
-      "Give TA leadership reporting on outreach activity and pipeline health",
+      "Complement existing ATS, HRIS, and recruitment CRM stacks",
     ],
     metrics: [
       { value: "40%", label: "Shorter time-to-shortlist" },
@@ -434,21 +481,21 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       "Distributed recruiters use inconsistent sourcing and outreach methods",
       "High requisition volume creates bottlenecks in sourcing and scheduling",
       "Hard to enforce messaging standards across regions and brands",
-      "Legacy tools don't connect sourcing, outreach, and pipeline in one flow",
+      "Legacy ATS and HRIS tools don't connect sourcing, outreach, and pipeline in one flow",
     ],
     capabilities: [
       "Team workspaces with sub-users and role-based access on higher tiers",
       "Standardized outreach sequences with approved WhatsApp templates",
-      "Campaign-level job titles and descriptions for accurate role branding",
+      "AI voice screening and AI video interviews for high-volume pipelines",
       "High-volume contact management with reveal jobs and sync workflows",
       "Email campaign reporting and activity tracking for TA leadership",
-      "ATS-friendly workflows and integrations for enterprise stacks",
+      "ATS- and HRIS-friendly workflows that complement enterprise systems of record",
     ],
     outcomes: [
       "Reduce time-to-shortlist across high-volume requisitions",
       "Give TA leaders visibility into team outreach and pipeline health",
       "Improve candidate experience with timely, relevant follow-ups",
-      "Scale hiring operations without proportional tool sprawl",
+      "Scale hiring operations without proportional headcount or tool sprawl",
     ],
   },
   gccs: {
