@@ -837,7 +837,7 @@ function QualificationTab({
               size="icon-sm"
               variant="ghost"
               aria-label="Previous page"
-              disabled={pagination.page <= 1 || state === "loading"}
+              disabled={pagination.page <= 1}
               onClick={() => setPage((value) => Math.max(1, value - 1))}
             >
               <ChevronLeft aria-hidden />
@@ -847,9 +847,7 @@ function QualificationTab({
               size="icon-sm"
               variant="ghost"
               aria-label="Next page"
-              disabled={
-                pagination.page >= pagination.totalPages || state === "loading"
-              }
+              disabled={pagination.page >= pagination.totalPages}
               onClick={() =>
                 setPage((value) =>
                   Math.min(pagination.totalPages, value + 1)
