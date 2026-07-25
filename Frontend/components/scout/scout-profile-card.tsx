@@ -96,6 +96,10 @@ export function ScoutProfileCard({
 }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState({ email: false, phone: false });
+  const [unavailable, setUnavailable] = useState({
+    email: false,
+    phone: false,
+  });
   const [emailValue, setEmailValue] = useState(profile.email);
   const [phoneValue, setPhoneValue] = useState(profile.phone);
   const [saved, setSaved] = useState(initiallySaved);
@@ -137,11 +141,28 @@ export function ScoutProfileCard({
         type,
       });
       const value = result.value || result.values[0] || "";
+      // Provider can return 200 with found:false / empty values (no contact on file).
+      // Do not flip to RevealedRow with a blank string — mark unavailable instead.
+      if (!result.found || !value) {
+        if (type === "email") {
+          setUnavailable((previous) => ({ ...previous, email: true }));
+        } else {
+          setUnavailable((previous) => ({ ...previous, phone: true }));
+        }
+        flash(
+          type === "email"
+            ? "Email unavailable for this profile"
+            : "Phone unavailable for this profile"
+        );
+        return;
+      }
       if (type === "email") {
-        setEmailValue(value || emailValue);
+        setEmailValue(value);
+        setUnavailable((previous) => ({ ...previous, email: false }));
         setRevealed((previous) => ({ ...previous, email: true }));
       } else {
-        setPhoneValue(value || phoneValue);
+        setPhoneValue(value);
+        setUnavailable((previous) => ({ ...previous, phone: false }));
         setRevealed((previous) => ({ ...previous, phone: true }));
       }
       flash(
@@ -199,6 +220,17 @@ export function ScoutProfileCard({
           </Button>
         ) : revealed.email ? (
           <RevealedRow icon={Mail} value={emailValue} label="email" />
+        ) : unavailable.email ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            disabled
+          >
+            <Mail aria-hidden />
+            Email unavailable
+          </Button>
         ) : (
           <ConfirmDialog
             trigger={
@@ -240,6 +272,17 @@ export function ScoutProfileCard({
             value={phoneValue}
             label="phone number"
           />
+        ) : unavailable.phone ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            disabled
+          >
+            <Phone aria-hidden />
+            Phone unavailable
+          </Button>
         ) : (
           <ConfirmDialog
             trigger={
