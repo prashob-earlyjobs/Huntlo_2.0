@@ -159,7 +159,7 @@ export type BlogArticle = {
 
 export type AdminPendingTask = {
   id: string;
-  queue: "background" | "campaign";
+  queue: "background" | "outreach" | "campaign";
   type: string;
   status: string;
   dueAt: string;
@@ -178,8 +178,14 @@ export type AdminPendingTasksResult = {
   summary: {
     backgroundDue: number;
     backgroundScheduled: number;
-    campaignDue: number;
-    campaignScheduled: number;
+    outreachDue: number;
+    outreachScheduled: number;
+    outreachInFlight?: number;
+    outreachFailed24h?: number;
+    /** @deprecated Alias of outreachDue */
+    campaignDue?: number;
+    /** @deprecated Alias of outreachScheduled */
+    campaignScheduled?: number;
     inFlight: number;
     failed24h: number;
   };
@@ -306,7 +312,7 @@ export interface AdminApi {
   }): Promise<Paginated<AdminSourcingSession>>;
   listBackgroundJobs(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
   listPendingWorkerTasks(params?: {
-    queue?: "all" | "background" | "campaign";
+    queue?: "all" | "background" | "outreach" | "campaign";
     includeScheduled?: boolean;
     limit?: number;
     offset?: number;
@@ -939,6 +945,10 @@ const mockAdminApi: AdminApi = {
       summary: {
         backgroundDue: 0,
         backgroundScheduled: 0,
+        outreachDue: 0,
+        outreachScheduled: 0,
+        outreachInFlight: 0,
+        outreachFailed24h: 0,
         campaignDue: 0,
         campaignScheduled: 0,
         inFlight: 0,
