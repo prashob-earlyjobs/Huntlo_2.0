@@ -441,6 +441,7 @@ async function syncOutreachEnrollment(
     emitOutreachEnrollmentUpdated({
       organizationId: String(row.organizationId),
       campaignId: String(row.campaignId),
+      candidateId: String(enrollment.candidateId),
       enrollmentId: String(row.enrollmentId),
       status: enrollment.status,
     });
