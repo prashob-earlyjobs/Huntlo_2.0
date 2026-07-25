@@ -117,7 +117,7 @@ export function DateTimePicker({
         <DatePicker
           id={id}
           selected={parts.date}
-          onChange={(date) =>
+          onChange={(date: Date | null) =>
             emit(date, parts.hour12, parts.minute, parts.ampm)
           }
           dateFormat="MMM d, yyyy"
