@@ -47,6 +47,7 @@ const STATUS_CLASS: Record<string, string> = {
   queued_v2: "bg-info/10 text-info",
   leased: "bg-brand-subtle text-primary",
   running: "bg-success/10 text-success",
+  done: "bg-success/10 text-success",
   failed: "bg-destructive/10 text-destructive",
   dead: "bg-destructive/10 text-destructive",
   cancelled: "bg-muted text-muted-foreground",
@@ -64,9 +65,14 @@ function formatDue(iso: string) {
 }
 
 function formatType(type: string) {
-  if (type === "launch_voice") return "AI Voice dial";
-  if (type === "send_email") return "Send email";
-  if (type === "send_whatsapp") return "Send WhatsApp";
+  if (type === "launch_voice" || type === "send:ai_voice") return "AI Voice dial";
+  if (type === "send_email" || type === "send:email") return "Send email";
+  if (type === "send_whatsapp" || type === "send:whatsapp") return "Send WhatsApp";
+  if (type === "followup:email") return "Email follow-up";
+  if (type === "followup:whatsapp") return "WhatsApp follow-up";
+  if (type === "followup:ai_voice") return "Voice follow-up";
+  if (type === "sync_replies") return "Sync replies";
+  if (type === "launch_screening") return "Launch screening";
   return type;
 }
 
@@ -74,25 +80,13 @@ function SummaryCard({
   label,
   value,
   hint,
-  active,
-  onClick,
 }: {
   label: string;
   value: number;
   hint?: string;
-  active?: boolean;
-  onClick?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-lg border bg-card px-4 py-3 text-left transition-colors",
-        active ? "border-primary/50 bg-brand-subtle/20" : "border-border",
-        onClick && "hover:border-primary/40"
-      )}
-    >
+    <div className="rounded-lg border border-border bg-card px-4 py-3 text-left">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
         {value}
@@ -100,14 +94,11 @@ function SummaryCard({
       {hint ? (
         <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
       ) : null}
-    </button>
+    </div>
   );
 }
 
 export function AdminWorkerTasksWorkspace() {
-  const [queue, setQueue] = useState<"all" | "background" | "campaign">(
-    "campaign"
-  );
   const [includeScheduled, setIncludeScheduled] = useState("true");
   const [data, setData] = useState<AdminPendingTasksResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +109,7 @@ export function AdminWorkerTasksWorkspace() {
     setLoading(true);
     try {
       const result = await adminApi.listPendingWorkerTasks({
-        queue,
+        queue: "outreach",
         includeScheduled: includeScheduled === "true",
         limit: 100,
         offset: 0,
@@ -126,11 +117,11 @@ export function AdminWorkerTasksWorkspace() {
       setData(result);
     } catch (error) {
       setData(null);
-      setToast(getApiErrorMessage(error, "Unable to load pending worker tasks."));
+      setToast(getApiErrorMessage(error, "Unable to load BullMQ outreach jobs."));
     } finally {
       setLoading(false);
     }
-  }, [queue, includeScheduled]);
+  }, [includeScheduled]);
 
   useEffect(() => {
     void load();
@@ -176,13 +167,16 @@ export function AdminWorkerTasksWorkspace() {
   }
 
   const summary = data?.summary;
-  const items = data?.items ?? [];
+  const items = (data?.items ?? []).filter((task) => task.queue === "outreach");
+  const inFlight = items.filter((task) =>
+    ["queued", "running"].includes(task.status)
+  ).length;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Worker tasks"
-        description="Pending background queue jobs and outreach campaign delivery steps waiting on the worker. AI Voice dials show as campaign → launch_voice."
+        description="BullMQ outreach jobs — email, WhatsApp, AI Voice, follow-ups, and reply sync."
         actions={
           <Button
             type="button"
@@ -206,67 +200,30 @@ export function AdminWorkerTasksWorkspace() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
-          label="Background due"
-          value={summary?.backgroundDue ?? 0}
+          label="Due"
+          value={summary?.outreachDue ?? summary?.campaignDue ?? 0}
           hint="Ready to run"
-          active={queue === "background"}
-          onClick={() => setQueue("background")}
         />
         <SummaryCard
-          label="Background scheduled"
-          value={summary?.backgroundScheduled ?? 0}
-          hint="Future runAt"
-          active={queue === "background"}
-          onClick={() => setQueue("background")}
-        />
-        <SummaryCard
-          label="Campaign due"
-          value={summary?.campaignDue ?? 0}
-          hint="Voice / email / WA steps"
-          active={queue === "campaign"}
-          onClick={() => setQueue("campaign")}
-        />
-        <SummaryCard
-          label="Campaign scheduled"
-          value={summary?.campaignScheduled ?? 0}
+          label="Scheduled"
+          value={summary?.outreachScheduled ?? summary?.campaignScheduled ?? 0}
           hint="Future dials/sends"
-          active={queue === "campaign"}
-          onClick={() => setQueue("campaign")}
         />
         <SummaryCard
           label="In flight"
-          value={summary?.inFlight ?? 0}
-          hint="Leased / running"
-          onClick={() => setQueue("all")}
+          value={summary?.outreachInFlight ?? inFlight}
+          hint="Queued / running"
         />
         <SummaryCard
           label="Failed (24h)"
-          value={summary?.failed24h ?? 0}
-          hint="Background only"
+          value={summary?.outreachFailed24h ?? 0}
+          hint="BullMQ only"
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Select
-          value={queue}
-          onValueChange={(value) => {
-            if (value === "all" || value === "background" || value === "campaign") {
-              setQueue(value);
-            }
-          }}
-        >
-          <SelectTrigger className="w-44" aria-label="Queue filter">
-            <SelectValue placeholder="Queue" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All queues</SelectItem>
-            <SelectItem value="background">Background</SelectItem>
-            <SelectItem value="campaign">Campaign (AI Voice)</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select
           value={includeScheduled}
           onValueChange={(value) => {
@@ -283,7 +240,7 @@ export function AdminWorkerTasksWorkspace() {
         </Select>
 
         <p className="text-xs text-muted-foreground">
-          {loading ? "Loading…" : `${data?.total ?? 0} open task(s)`}
+          {loading ? "Loading…" : `${data?.total ?? 0} BullMQ job(s)`}
           {" · "}
           auto-refresh 8s
         </p>
@@ -313,17 +270,15 @@ export function AdminWorkerTasksWorkspace() {
                   className="h-24 text-center text-sm text-muted-foreground"
                 >
                   {loading
-                    ? "Loading worker tasks…"
-                    : queue === "campaign"
-                      ? "No open campaign jobs. If you just launched AI Voice, confirm the campaign enrolled candidates with phone numbers, then refresh."
-                      : "No pending worker tasks match these filters."}
+                    ? "Loading BullMQ jobs…"
+                    : "No open BullMQ outreach jobs. If you just launched a campaign, confirm enrollments have the right channel details, then refresh."}
                 </TableCell>
               </TableRow>
             ) : (
               items.map((task) => (
                 <TableRow key={`${task.queue}-${task.id}`}>
-                  <TableCell className="text-xs font-medium capitalize text-foreground">
-                    {task.queue}
+                  <TableCell className="text-xs font-medium text-foreground">
+                    BullMQ
                   </TableCell>
                   <TableCell className="text-xs text-foreground">
                     <span className="font-medium">{formatType(task.type)}</span>
