@@ -220,6 +220,77 @@ function qualificationStatusLabel(status: string | undefined): string {
   }
 }
 
+function csvEscape(value: string | number | null | undefined): string {
+  const text = value == null ? "" : String(value);
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildQualificationCsv(
+  questions: CampaignQuestion[],
+  enrollments: ApiCampaignEnrollment[]
+): string {
+  const headers = [
+    "Candidate",
+    "Email",
+    "Phone",
+    "Company",
+    "Title",
+    "Qualification status",
+    ...questions.map((question) => questionColumnTitle(question)),
+  ];
+  const rows = enrollments.map((candidate) => {
+    const status = candidate.qualificationState?.status ?? "pending";
+    const answers = candidate.qualificationState?.answers || {};
+    return [
+      candidate.name,
+      candidate.email ?? "",
+      candidate.phone ?? "",
+      candidate.company ?? "",
+      candidate.title ?? "",
+      qualificationStatusLabel(status),
+      ...questions.map((question) =>
+        formatQualificationAnswer(answers[question.id])
+      ),
+    ];
+  });
+  return [headers, ...rows]
+    .map((row) => row.map(csvEscape).join(","))
+    .join("\n");
+}
+
+async function fetchAllQualificationEnrollments(
+  campaignId: string
+): Promise<ApiCampaignEnrollment[]> {
+  const limit = 100;
+  const first = await outreachApi.listEnrollmentsPage(campaignId, {
+    page: 1,
+    limit,
+  });
+  const items = [...first.items];
+  const totalPages = Math.max(1, Number(first.pagination.totalPages) || 1);
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await outreachApi.listEnrollmentsPage(campaignId, {
+      page,
+      limit,
+    });
+    items.push(...next.items);
+  }
+  return items;
+}
+
 const STEP_ICONS: Record<string, LucideIcon> = {
   email: Mail,
   whatsapp: MessageCircle,
@@ -541,6 +612,7 @@ const EMPTY_QUAL_PAGINATION: PaginationMeta = {
 
 function QualificationTab({
   campaignId,
+  campaignName,
   questions,
   questionsState,
   questionsMessage,
@@ -548,6 +620,7 @@ function QualificationTab({
   reloadToken,
 }: {
   campaignId: string;
+  campaignName: string;
   questions: CampaignQuestion[];
   questionsState: ApiUiState;
   questionsMessage: string | null;
@@ -560,6 +633,8 @@ function QualificationTab({
   const [state, setState] = useState<ApiUiState>("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [fetchKey, setFetchKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -593,6 +668,26 @@ function QualificationTab({
       cancelled = true;
     };
   }, [campaignId, page, reloadToken, fetchKey]);
+
+  async function handleExportCsv() {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const enrollments = await fetchAllQualificationEnrollments(campaignId);
+      const csv = buildQualificationCsv(questions, enrollments);
+      const safeName =
+        campaignName
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "") || "campaign";
+      downloadCsv(`${safeName}-qualification.csv`, csv);
+    } catch (err) {
+      setExportError(getApiErrorMessage(err));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (questionsState === "loading" || questionsState === "error") {
     return (
@@ -630,6 +725,31 @@ function QualificationTab({
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {pagination.total.toLocaleString("en-IN")} candidate
+          {pagination.total === 1 ? "" : "s"} with qualification answers
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={exporting || rows.length === 0}
+          onClick={() => void handleExportCsv()}
+        >
+          {exporting ? (
+            <Loader2 aria-hidden className="animate-spin" />
+          ) : (
+            <Download aria-hidden />
+          )}
+          {exporting ? "Exporting…" : "Export CSV"}
+        </Button>
+      </div>
+      {exportError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {exportError}
+        </p>
+      ) : null}
       <section className="overflow-x-auto rounded-xl border border-border bg-card">
         <Table>
           <caption className="sr-only">
@@ -1458,6 +1578,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         <TabsContent value="qualification" className="pt-3">
           <QualificationTab
             campaignId={campaign.id}
+            campaignName={campaign.name}
             questions={raw?.qualificationConfig?.questions ?? []}
             questionsState={rawState}
             questionsMessage={rawMessage}
