@@ -52,6 +52,24 @@ type BlogFormState = {
   featured: boolean;
 };
 
+type BlogFieldKey = keyof BlogFormState;
+type BlogFieldErrors = Partial<Record<BlogFieldKey, string>>;
+
+const BLOG_LIMITS = {
+  title: 200,
+  slug: 220,
+  category: 80,
+  author: 120,
+  excerpt: 500,
+  body: 100_000,
+  coverImageUrl: 2000,
+  tagsMax: 12,
+  tagLength: 60,
+  seoTitle: 200,
+  seoDescription: 320,
+  ogImageUrl: 2000,
+} as const;
+
 const EMPTY_FORM: BlogFormState = {
   title: "",
   slug: "",
@@ -93,6 +111,89 @@ function deriveSeoStatus(seoTitle: string, seoDescription: string): string {
   return "missing";
 }
 
+function parseTags(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function validateBlogForm(form: BlogFormState): BlogFieldErrors {
+  const errors: BlogFieldErrors = {};
+  const title = form.title.trim();
+  const slug = form.slug.trim() || slugifyBlogTitle(form.title);
+  const author = form.author.trim();
+  const excerpt = form.excerpt.trim();
+  const coverImageUrl = form.coverImageUrl.trim();
+  const seoTitle = form.seoTitle.trim();
+  const seoDescription = form.seoDescription.trim();
+  const ogImageUrl = form.ogImageUrl.trim();
+  const tags = parseTags(form.tags);
+
+  if (!title) {
+    errors.title = "Title is required.";
+  } else if (title.length > BLOG_LIMITS.title) {
+    errors.title = `Title must be at most ${BLOG_LIMITS.title} characters.`;
+  }
+
+  if (!slug) {
+    errors.slug = "Slug is required (or enter a title to auto-generate).";
+  } else if (slug.length > BLOG_LIMITS.slug) {
+    errors.slug = `Slug must be at most ${BLOG_LIMITS.slug} characters.`;
+  }
+
+  if (form.category.length > BLOG_LIMITS.category) {
+    errors.category = `Category must be at most ${BLOG_LIMITS.category} characters.`;
+  }
+
+  if (author.length > BLOG_LIMITS.author) {
+    errors.author = `Author must be at most ${BLOG_LIMITS.author} characters.`;
+  }
+
+  if (excerpt.length > BLOG_LIMITS.excerpt) {
+    errors.excerpt = `Excerpt must be at most ${BLOG_LIMITS.excerpt} characters.`;
+  }
+
+  if (form.body.length > BLOG_LIMITS.body) {
+    errors.body = `Content must be at most ${BLOG_LIMITS.body.toLocaleString()} characters.`;
+  }
+
+  if (coverImageUrl.length > BLOG_LIMITS.coverImageUrl) {
+    errors.coverImageUrl = `Cover image URL must be at most ${BLOG_LIMITS.coverImageUrl} characters.`;
+  }
+
+  if (tags.length > BLOG_LIMITS.tagsMax) {
+    errors.tags = `At most ${BLOG_LIMITS.tagsMax} tags allowed.`;
+  } else {
+    const tooLong = tags.find((tag) => tag.length > BLOG_LIMITS.tagLength);
+    if (tooLong) {
+      errors.tags = `Each tag must be at most ${BLOG_LIMITS.tagLength} characters (“${tooLong.slice(0, 24)}${tooLong.length > 24 ? "…" : ""}”).`;
+    }
+  }
+
+  if (seoTitle.length > BLOG_LIMITS.seoTitle) {
+    errors.seoTitle = `SEO title must be at most ${BLOG_LIMITS.seoTitle} characters.`;
+  }
+
+  if (seoDescription.length > BLOG_LIMITS.seoDescription) {
+    errors.seoDescription = `SEO description must be at most ${BLOG_LIMITS.seoDescription} characters.`;
+  }
+
+  if (ogImageUrl.length > BLOG_LIMITS.ogImageUrl) {
+    errors.ogImageUrl = `OG image URL must be at most ${BLOG_LIMITS.ogImageUrl} characters.`;
+  }
+
+  if (
+    form.status !== "draft" &&
+    form.status !== "published" &&
+    form.status !== "archived"
+  ) {
+    errors.status = "Status must be draft, published, or archived.";
+  }
+
+  return errors;
+}
+
 function articleToForm(article: BlogArticle): BlogFormState {
   const status =
     article.status === "published" || article.status === "archived"
@@ -125,6 +226,7 @@ export function AdminBlogWorkspace() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<BlogFormState>(EMPTY_FORM);
+  const [fieldErrors, setFieldErrors] = useState<BlogFieldErrors>({});
   const [slugTouched, setSlugTouched] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [toast, setToast] = useState<string | null>(null);
@@ -166,12 +268,14 @@ export function AdminBlogWorkspace() {
     setEditingId(null);
     setFormOpen(false);
     setForm(EMPTY_FORM);
+    setFieldErrors({});
     setSlugTouched(false);
   }
 
   function startCreate() {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setFieldErrors({});
     setSlugTouched(false);
     setFormOpen(true);
     setError(null);
@@ -182,38 +286,49 @@ export function AdminBlogWorkspace() {
     setEditingId(article.id);
     setSlugTouched(true);
     setForm(articleToForm(article));
+    setFieldErrors({});
     setFormOpen(true);
     setError(null);
     setToast(null);
   }
 
+  function patchForm(patch: Partial<BlogFormState>, clearKeys?: BlogFieldKey[]) {
+    setForm((previous) => ({ ...previous, ...patch }));
+    if (clearKeys?.length) {
+      setFieldErrors((previous) => {
+        const next = { ...previous };
+        for (const key of clearKeys) delete next[key];
+        return next;
+      });
+    }
+  }
+
   async function handleSave() {
-    if (!form.title.trim()) {
-      setError("Title is required.");
+    const errors = validateBlogForm(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError("Fix the highlighted fields before saving.");
       return;
     }
 
     setSaving(true);
     setError(null);
     try {
-      const tags = form.tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean);
+      const tags = parseTags(form.tags);
       const slug = form.slug.trim() || slugifyBlogTitle(form.title);
       const payload = {
         title: form.title.trim(),
         slug,
-        excerpt: form.excerpt,
+        excerpt: form.excerpt.trim(),
         body: form.body,
-        coverImageUrl: form.coverImageUrl,
-        author: form.author || "Huntlo Team",
+        coverImageUrl: form.coverImageUrl.trim(),
+        author: form.author.trim() || "Huntlo Team",
         category: form.category,
         tags,
         status: form.status,
-        seoTitle: form.seoTitle,
-        seoDescription: form.seoDescription,
-        ogImageUrl: form.ogImageUrl,
+        seoTitle: form.seoTitle.trim(),
+        seoDescription: form.seoDescription.trim(),
+        ogImageUrl: form.ogImageUrl.trim(),
         featured: form.featured,
         seoStatus: deriveSeoStatus(form.seoTitle, form.seoDescription),
       };
@@ -405,49 +520,68 @@ export function AdminBlogWorkspace() {
             {editingId ? "Edit post" : "New post"}
           </p>
           <div className="mt-3 space-y-3">
-            <Field label="Title" htmlFor="blog-title" required>
+            <Field
+              label="Title"
+              htmlFor="blog-title"
+              required
+              error={fieldErrors.title}
+              hint={`Max ${BLOG_LIMITS.title} characters`}
+            >
               <Input
                 id="blog-title"
                 value={form.title}
+                maxLength={BLOG_LIMITS.title}
+                aria-invalid={Boolean(fieldErrors.title)}
                 onChange={(event) => {
                   const title = event.target.value;
-                  setForm((previous) => ({
-                    ...previous,
-                    title,
-                    ...(!slugTouched
-                      ? { slug: slugifyBlogTitle(title) }
-                      : {}),
-                  }));
+                  patchForm(
+                    {
+                      title,
+                      ...(!slugTouched
+                        ? { slug: slugifyBlogTitle(title) }
+                        : {}),
+                    },
+                    slugTouched ? ["title"] : ["title", "slug"]
+                  );
                 }}
               />
             </Field>
-            <Field label="Slug" htmlFor="blog-slug">
+            <Field
+              label="Slug"
+              htmlFor="blog-slug"
+              error={fieldErrors.slug}
+              hint={`Max ${BLOG_LIMITS.slug} characters · leave blank to auto-generate`}
+            >
               <Input
                 id="blog-slug"
                 value={form.slug}
+                maxLength={BLOG_LIMITS.slug}
+                aria-invalid={Boolean(fieldErrors.slug)}
                 onChange={(event) => {
                   setSlugTouched(true);
-                  setForm((previous) => ({
-                    ...previous,
-                    slug: event.target.value,
-                  }));
+                  patchForm({ slug: event.target.value }, ["slug"]);
                 }}
                 placeholder="auto-from-title"
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Category" htmlFor="blog-category">
+              <Field
+                label="Category"
+                htmlFor="blog-category"
+                error={fieldErrors.category}
+              >
                 <Select
                   value={form.category}
                   onValueChange={(value) =>
                     value &&
-                    setForm((previous) => ({
-                      ...previous,
-                      category: value as BlogCategory,
-                    }))
+                    patchForm({ category: value as BlogCategory }, ["category"])
                   }
                 >
-                  <SelectTrigger id="blog-category" className="w-full">
+                  <SelectTrigger
+                    id="blog-category"
+                    className="w-full"
+                    aria-invalid={Boolean(fieldErrors.category)}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -459,18 +593,26 @@ export function AdminBlogWorkspace() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Status" htmlFor="blog-status">
+              <Field
+                label="Status"
+                htmlFor="blog-status"
+                error={fieldErrors.status}
+              >
                 <Select
                   value={form.status}
                   onValueChange={(value) =>
                     value &&
-                    setForm((previous) => ({
-                      ...previous,
-                      status: value as BlogFormState["status"],
-                    }))
+                    patchForm(
+                      { status: value as BlogFormState["status"] },
+                      ["status"]
+                    )
                   }
                 >
-                  <SelectTrigger id="blog-status" className="w-full">
+                  <SelectTrigger
+                    id="blog-status"
+                    className="w-full"
+                    aria-invalid={Boolean(fieldErrors.status)}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -481,104 +623,140 @@ export function AdminBlogWorkspace() {
                 </Select>
               </Field>
             </div>
-            <Field label="Excerpt" htmlFor="blog-excerpt">
+            <Field
+              label="Excerpt"
+              htmlFor="blog-excerpt"
+              error={fieldErrors.excerpt}
+              hint={`${form.excerpt.trim().length}/${BLOG_LIMITS.excerpt}`}
+            >
               <Textarea
                 id="blog-excerpt"
                 rows={2}
                 value={form.excerpt}
+                maxLength={BLOG_LIMITS.excerpt}
+                aria-invalid={Boolean(fieldErrors.excerpt)}
                 onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    excerpt: event.target.value,
-                  }))
+                  patchForm({ excerpt: event.target.value }, ["excerpt"])
                 }
               />
             </Field>
-            <Field label="Content" htmlFor="blog-content">
+            <Field
+              label="Content"
+              htmlFor="blog-content"
+              error={fieldErrors.body}
+              hint={`Max ${BLOG_LIMITS.body.toLocaleString()} characters`}
+            >
               <AdminBlogRichTextEditor
                 key={editingId || "new-post"}
                 editorKey={editingId || "new-post"}
                 value={form.body}
-                onChange={(html) =>
-                  setForm((previous) => ({ ...previous, body: html }))
-                }
+                onChange={(html) => patchForm({ body: html }, ["body"])}
                 placeholder="Write your article…"
               />
             </Field>
-            <Field label="Tags (comma-separated)" htmlFor="blog-tags">
+            <Field
+              label="Tags (comma-separated)"
+              htmlFor="blog-tags"
+              error={fieldErrors.tags}
+              hint={`Up to ${BLOG_LIMITS.tagsMax} tags · ${BLOG_LIMITS.tagLength} chars each · ${parseTags(form.tags).length}/${BLOG_LIMITS.tagsMax}`}
+            >
               <Input
                 id="blog-tags"
                 value={form.tags}
+                aria-invalid={Boolean(fieldErrors.tags)}
                 onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    tags: event.target.value,
-                  }))
+                  patchForm({ tags: event.target.value }, ["tags"])
                 }
               />
             </Field>
-            <Field label="Cover image URL" htmlFor="blog-cover">
+            <Field
+              label="Cover image URL"
+              htmlFor="blog-cover"
+              error={fieldErrors.coverImageUrl}
+              hint={`Max ${BLOG_LIMITS.coverImageUrl} characters`}
+            >
               <Input
                 id="blog-cover"
-                type="url"
+                type="text"
+                inputMode="url"
                 value={form.coverImageUrl}
+                maxLength={BLOG_LIMITS.coverImageUrl}
+                aria-invalid={Boolean(fieldErrors.coverImageUrl)}
                 onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    coverImageUrl: event.target.value,
-                  }))
+                  patchForm({ coverImageUrl: event.target.value }, [
+                    "coverImageUrl",
+                  ])
                 }
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="SEO title" htmlFor="blog-seo-title">
+              <Field
+                label="SEO title"
+                htmlFor="blog-seo-title"
+                error={fieldErrors.seoTitle}
+                hint={`${form.seoTitle.trim().length}/${BLOG_LIMITS.seoTitle}`}
+              >
                 <Input
                   id="blog-seo-title"
                   value={form.seoTitle}
+                  maxLength={BLOG_LIMITS.seoTitle}
+                  aria-invalid={Boolean(fieldErrors.seoTitle)}
                   onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      seoTitle: event.target.value,
-                    }))
+                    patchForm({ seoTitle: event.target.value }, ["seoTitle"])
                   }
                 />
               </Field>
-              <Field label="Author" htmlFor="blog-author">
+              <Field
+                label="Author"
+                htmlFor="blog-author"
+                error={fieldErrors.author}
+                hint={`Max ${BLOG_LIMITS.author} characters`}
+              >
                 <Input
                   id="blog-author"
                   value={form.author}
+                  maxLength={BLOG_LIMITS.author}
+                  aria-invalid={Boolean(fieldErrors.author)}
                   onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      author: event.target.value,
-                    }))
+                    patchForm({ author: event.target.value }, ["author"])
                   }
                 />
               </Field>
             </div>
-            <Field label="SEO description" htmlFor="blog-seo-description">
+            <Field
+              label="SEO description"
+              htmlFor="blog-seo-description"
+              error={fieldErrors.seoDescription}
+              hint={`${form.seoDescription.trim().length}/${BLOG_LIMITS.seoDescription}`}
+            >
               <Textarea
                 id="blog-seo-description"
                 rows={2}
                 value={form.seoDescription}
+                maxLength={BLOG_LIMITS.seoDescription}
+                aria-invalid={Boolean(fieldErrors.seoDescription)}
                 onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    seoDescription: event.target.value,
-                  }))
+                  patchForm({ seoDescription: event.target.value }, [
+                    "seoDescription",
+                  ])
                 }
               />
             </Field>
-            <Field label="OG image URL" htmlFor="blog-og">
+            <Field
+              label="OG image URL"
+              htmlFor="blog-og"
+              error={fieldErrors.ogImageUrl}
+              hint={`Max ${BLOG_LIMITS.ogImageUrl} characters`}
+            >
               <Input
                 id="blog-og"
-                type="url"
+                type="text"
+                inputMode="url"
                 value={form.ogImageUrl}
+                maxLength={BLOG_LIMITS.ogImageUrl}
+                aria-invalid={Boolean(fieldErrors.ogImageUrl)}
                 onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    ogImageUrl: event.target.value,
-                  }))
+                  patchForm({ ogImageUrl: event.target.value }, ["ogImageUrl"])
                 }
               />
             </Field>
@@ -588,10 +766,7 @@ export function AdminBlogWorkspace() {
                 className="size-4 rounded border-border"
                 checked={form.featured}
                 onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    featured: event.target.checked,
-                  }))
+                  patchForm({ featured: event.target.checked })
                 }
               />
               Featured on blog index
