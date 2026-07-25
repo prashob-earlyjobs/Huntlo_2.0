@@ -763,8 +763,7 @@ export function ScheduleInterviewFlow({
       meetingLink:
         typeof (draft.state as { meetingLink?: unknown }).meetingLink === "string"
           ? (draft.state as { meetingLink: string }).meetingLink
-          : draft.state.platform !== "Offline" &&
-              draft.state.platform !== "In person" &&
+          : normalizeMeetingMode(draft.state.platform) === "Online" &&
               isHttpUrl(draft.state.location)
             ? draft.state.location
             : "",
