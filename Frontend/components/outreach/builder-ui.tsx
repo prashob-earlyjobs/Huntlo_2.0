@@ -10,6 +10,7 @@ export function Field({
   htmlFor,
   required = false,
   hint,
+  error,
   children,
   className,
 }: {
@@ -17,6 +18,7 @@ export function Field({
   htmlFor?: string;
   required?: boolean;
   hint?: string;
+  error?: string;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -27,7 +29,17 @@ export function Field({
         {required ? <span className="text-destructive"> *</span> : null}
       </Label>
       {children}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {error ? (
+        <p
+          id={htmlFor ? `${htmlFor}-error` : undefined}
+          className="text-xs text-destructive"
+          role="alert"
+        >
+          {error}
+        </p>
+      ) : hint ? (
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      ) : null}
     </div>
   );
 }

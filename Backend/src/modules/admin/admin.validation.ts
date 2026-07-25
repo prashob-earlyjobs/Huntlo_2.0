@@ -53,13 +53,41 @@ export const resetPasswordSchema = z.object({
 });
 
 export const createBlogSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  slug: z.string().trim().min(1).max(220).optional(),
-  category: z.string().trim().max(80).optional(),
-  author: z.string().trim().max(120).optional(),
-  excerpt: z.string().trim().max(500).optional(),
-  body: z.string().max(100_000).optional(),
-  seoStatus: z.string().trim().max(40).optional(),
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(200, 'Title must be 200 characters or fewer'),
+  slug: z
+    .string()
+    .trim()
+    .min(1, 'Slug is required')
+    .max(220, 'Slug must be 220 characters or fewer')
+    .optional(),
+  category: z
+    .string()
+    .trim()
+    .max(80, 'Category must be 80 characters or fewer')
+    .optional(),
+  author: z
+    .string()
+    .trim()
+    .max(120, 'Author must be 120 characters or fewer')
+    .optional(),
+  excerpt: z
+    .string()
+    .trim()
+    .max(500, 'Excerpt must be 500 characters or fewer')
+    .optional(),
+  body: z
+    .string()
+    .max(100_000, 'Body must be 100,000 characters or fewer')
+    .optional(),
+  seoStatus: z
+    .string()
+    .trim()
+    .max(40, 'SEO status must be 40 characters or fewer')
+    .optional(),
 });
 
 export const updateBlogSchema = createBlogSchema.partial().extend({

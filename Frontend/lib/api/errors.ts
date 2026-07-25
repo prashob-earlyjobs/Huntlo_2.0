@@ -133,6 +133,18 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
   return fallback;
 }
 
+/** Map API `error.details[].path` → first message per top-level field. */
+export function getApiFieldErrors(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiError) || !error.details?.length) return {};
+  const fields: Record<string, string> = {};
+  for (const detail of error.details) {
+    if (!detail.path) continue;
+    const key = detail.path.split(".")[0];
+    if (key && !fields[key]) fields[key] = detail.message;
+  }
+  return fields;
+}
+
 export function isQuotaError(error: unknown): boolean {
   return error instanceof ApiError && error.code === "QUOTA_EXCEEDED";
 }

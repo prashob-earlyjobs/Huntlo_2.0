@@ -883,7 +883,11 @@ export const adminConsoleService = {
   ) {
     const slug = input.slug?.trim() || slugify(input.title);
     const existing = await BlogArticleModel.findOne({ slug, deletedAt: null });
-    if (existing) throw AppError.conflict('Slug already exists');
+    if (existing) {
+      throw AppError.conflict('Slug already exists', [
+        { path: 'slug', message: 'Slug already exists' },
+      ]);
+    }
     const doc = await BlogArticleModel.create({
       ...input,
       slug,
@@ -896,6 +900,19 @@ export const adminConsoleService = {
   async updateBlog(id: string, input: Record<string, unknown>, actorUserId: string) {
     const doc = await BlogArticleModel.findOne({ _id: id, deletedAt: null });
     if (!doc) throw AppError.notFound('Article not found');
+    if (typeof input.slug === 'string' && input.slug.trim()) {
+      const nextSlug = input.slug.trim();
+      const existing = await BlogArticleModel.findOne({
+        slug: nextSlug,
+        deletedAt: null,
+        _id: { $ne: doc._id },
+      });
+      if (existing) {
+        throw AppError.conflict('Slug already exists', [
+          { path: 'slug', message: 'Slug already exists' },
+        ]);
+      }
+    }
     for (const key of [
       'title',
       'slug',

@@ -26,7 +26,7 @@ export * from "./profile";
 export * from "./settings";
 
 export { apiClient, setTokenProvider, tokenStorage } from "./client";
-export { ApiError, mapApiErrorToUiState, getApiErrorMessage, isQuotaError } from "./errors";
+export { ApiError, mapApiErrorToUiState, getApiErrorMessage, getApiFieldErrors, isQuotaError } from "./errors";
 export type { ApiUiState } from "./errors";
 export { isMockApiEnabled, getApiBaseUrl, getApiV1BaseUrl, getRealtimeUrl } from "./config";
 export * from "./types";

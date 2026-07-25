@@ -44,7 +44,7 @@ import {
   type SeoStatus,
 } from "@/lib/mock-admin";
 import { adminApi } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api/errors";
+import { ApiError, getApiErrorMessage, getApiFieldErrors } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -61,6 +61,10 @@ const SEO_CLASS: Record<SeoStatus, string> = {
   Missing: "bg-destructive/10 text-destructive",
 };
 
+type BlogFieldErrors = Partial<
+  Record<"title" | "slug" | "category" | "author" | "excerpt" | "seoStatus", string>
+>;
+
 function emptyArticle(): BlogArticle {
   return {
     id: "new",
@@ -75,12 +79,34 @@ function emptyArticle(): BlogArticle {
   };
 }
 
+function validateBlogDraft(draft: BlogArticle): BlogFieldErrors {
+  const errors: BlogFieldErrors = {};
+  const title = draft.title.trim();
+  if (!title) errors.title = "Title is required";
+  else if (title.length > 200) errors.title = "Title must be 200 characters or fewer";
+
+  const slug = draft.slug.trim();
+  if (slug.length > 220) errors.slug = "Slug must be 220 characters or fewer";
+
+  if (draft.category.trim().length > 80) {
+    errors.category = "Category must be 80 characters or fewer";
+  }
+  if (draft.author.trim().length > 120) {
+    errors.author = "Author must be 120 characters or fewer";
+  }
+  if (draft.excerpt.trim().length > 500) {
+    errors.excerpt = "Excerpt must be 500 characters or fewer";
+  }
+  return errors;
+}
+
 export function AdminBlogWorkspace() {
   const [articles, setArticles] = useState<BlogArticle[]>([]);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<BlogArticle | null>(null);
   const [draft, setDraft] = useState<BlogArticle>(emptyArticle());
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<BlogFieldErrors>({});
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -128,20 +154,35 @@ export function AdminBlogWorkspace() {
   function openCreate() {
     setEditingId(null);
     setDraft(emptyArticle());
+    setFieldErrors({});
     setOpen(true);
   }
 
   function openEdit(article: BlogArticle) {
     setEditingId(article.id);
     setDraft({ ...article });
+    setFieldErrors({});
     setOpen(true);
   }
 
+  function patchDraft(patch: Partial<BlogArticle>) {
+    setDraft((previous) => ({ ...previous, ...patch }));
+    setFieldErrors((previous) => {
+      const next = { ...previous };
+      for (const key of Object.keys(patch) as Array<keyof BlogFieldErrors>) {
+        delete next[key];
+      }
+      return next;
+    });
+  }
+
   function saveArticle() {
-    if (!draft.title.trim()) {
-      setToast("Article title is required.");
+    const localErrors = validateBlogDraft(draft);
+    if (Object.keys(localErrors).length > 0) {
+      setFieldErrors(localErrors);
       return;
     }
+
     const slug =
       draft.slug.trim() ||
       draft.title
@@ -171,6 +212,7 @@ export function AdminBlogWorkspace() {
 
     void (async () => {
       try {
+        setFieldErrors({});
         if (editingId && editingId !== "new") {
           const updated = await adminApi.updateBlog(editingId, payload);
           if (draft.status === "Published") {
@@ -206,6 +248,19 @@ export function AdminBlogWorkspace() {
         }
         setOpen(false);
       } catch (error) {
+        const apiFields = getApiFieldErrors(error);
+        if (
+          error instanceof ApiError &&
+          error.code === "CONFLICT" &&
+          /slug/i.test(error.message) &&
+          !apiFields.slug
+        ) {
+          apiFields.slug = error.message;
+        }
+        if (Object.keys(apiFields).length > 0) {
+          setFieldErrors(apiFields as BlogFieldErrors);
+          return;
+        }
         setToast(getApiErrorMessage(error, "Unable to save article."));
       }
     })();
@@ -314,7 +369,13 @@ export function AdminBlogWorkspace() {
       </div>
 
       {/* Create / Edit */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(isOpen) => {
+          setOpen(isOpen);
+          if (!isOpen) setFieldErrors({});
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
@@ -325,38 +386,44 @@ export function AdminBlogWorkspace() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <Field label="Title" htmlFor="blog-title" required>
+            <Field
+              label="Title"
+              htmlFor="blog-title"
+              required
+              error={fieldErrors.title}
+            >
               <Input
                 id="blog-title"
                 value={draft.title}
-                onChange={(event) =>
-                  setDraft((previous) => ({
-                    ...previous,
-                    title: event.target.value,
-                  }))
+                aria-invalid={Boolean(fieldErrors.title)}
+                aria-describedby={
+                  fieldErrors.title ? "blog-title-error" : undefined
                 }
+                onChange={(event) => patchDraft({ title: event.target.value })}
               />
             </Field>
-            <Field label="Slug" htmlFor="blog-slug">
+            <Field label="Slug" htmlFor="blog-slug" error={fieldErrors.slug}>
               <Input
                 id="blog-slug"
                 value={draft.slug}
-                onChange={(event) =>
-                  setDraft((previous) => ({
-                    ...previous,
-                    slug: event.target.value,
-                  }))
+                aria-invalid={Boolean(fieldErrors.slug)}
+                aria-describedby={
+                  fieldErrors.slug ? "blog-slug-error" : undefined
                 }
+                onChange={(event) => patchDraft({ slug: event.target.value })}
                 placeholder="auto-from-title"
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Category" htmlFor="blog-cat">
+              <Field
+                label="Category"
+                htmlFor="blog-cat"
+                error={fieldErrors.category}
+              >
                 <Select
                   value={draft.category}
                   onValueChange={(value) =>
-                    value &&
-                    setDraft((previous) => ({ ...previous, category: value }))
+                    value && patchDraft({ category: value })
                   }
                 >
                   <SelectTrigger id="blog-cat" className="w-full">
@@ -371,15 +438,20 @@ export function AdminBlogWorkspace() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Author" htmlFor="blog-author">
+              <Field
+                label="Author"
+                htmlFor="blog-author"
+                error={fieldErrors.author}
+              >
                 <Input
                   id="blog-author"
                   value={draft.author}
+                  aria-invalid={Boolean(fieldErrors.author)}
+                  aria-describedby={
+                    fieldErrors.author ? "blog-author-error" : undefined
+                  }
                   onChange={(event) =>
-                    setDraft((previous) => ({
-                      ...previous,
-                      author: event.target.value,
-                    }))
+                    patchDraft({ author: event.target.value })
                   }
                 />
               </Field>
@@ -388,16 +460,15 @@ export function AdminBlogWorkspace() {
                   value={draft.status}
                   onValueChange={(value) =>
                     value &&
-                    setDraft((previous) => ({
-                      ...previous,
+                    patchDraft({
                       status: value as BlogStatus,
                       publishedAt:
                         value === "Draft"
                           ? "—"
-                          : previous.publishedAt === "—"
+                          : draft.publishedAt === "—"
                             ? "16 Jul 2026"
-                            : previous.publishedAt,
-                    }))
+                            : draft.publishedAt,
+                    })
                   }
                 >
                   <SelectTrigger id="blog-status" className="w-full">
@@ -414,15 +485,15 @@ export function AdminBlogWorkspace() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="SEO status" htmlFor="blog-seo">
+              <Field
+                label="SEO status"
+                htmlFor="blog-seo"
+                error={fieldErrors.seoStatus}
+              >
                 <Select
                   value={draft.seoStatus}
                   onValueChange={(value) =>
-                    value &&
-                    setDraft((previous) => ({
-                      ...previous,
-                      seoStatus: value as SeoStatus,
-                    }))
+                    value && patchDraft({ seoStatus: value as SeoStatus })
                   }
                 >
                   <SelectTrigger id="blog-seo" className="w-full">
@@ -440,16 +511,21 @@ export function AdminBlogWorkspace() {
                 </Select>
               </Field>
             </div>
-            <Field label="Excerpt" htmlFor="blog-excerpt">
+            <Field
+              label="Excerpt"
+              htmlFor="blog-excerpt"
+              error={fieldErrors.excerpt}
+            >
               <Textarea
                 id="blog-excerpt"
                 rows={3}
                 value={draft.excerpt}
+                aria-invalid={Boolean(fieldErrors.excerpt)}
+                aria-describedby={
+                  fieldErrors.excerpt ? "blog-excerpt-error" : undefined
+                }
                 onChange={(event) =>
-                  setDraft((previous) => ({
-                    ...previous,
-                    excerpt: event.target.value,
-                  }))
+                  patchDraft({ excerpt: event.target.value })
                 }
               />
             </Field>
