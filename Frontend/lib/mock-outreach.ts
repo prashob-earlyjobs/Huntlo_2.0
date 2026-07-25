@@ -539,7 +539,7 @@ export function makeStep(type: SequenceStepType): SequenceStep {
       return {
         ...defaults,
         template: "Profile review reminder",
-        templateId: "profile_review_reminder_v1",
+        templateId: "opening_message_01",
         body:
           "Hi {{1}},\n" +
           "This is a follow-up regarding the profile review communication shared earlier for the {{2}} requirement.\n" +
@@ -597,6 +597,8 @@ export type AnswerType = (typeof ANSWER_TYPES)[number];
 
 export interface QualificationQuestion {
   id: string;
+  /** Short heading shown in lists / Q&A, e.g. "notice period". */
+  title: string;
   text: string;
   answerType: AnswerType;
   knockout: boolean;
@@ -605,9 +607,27 @@ export interface QualificationQuestion {
 
 export const MAX_QUALIFICATION_QUESTIONS = 10;
 
+/** Derive a short heading from a full question prompt. */
+export function suggestQuestionTitle(prompt: string): string {
+  let value = prompt.trim();
+  if (!value) return "";
+  value = value.replace(/[?!.]+$/g, "");
+  value = value.replace(/\([^)]*\)/g, " ");
+  value = value.replace(
+    /^(what(?:'s|s)?|how|are|do|does|did|is|can|could|when|where|which|who|please)\b[\s,]*/i,
+    ""
+  );
+  for (let i = 0; i < 3; i += 1) {
+    value = value.replace(/^(is|are|your|the|a|an|do|you|to)\b[\s,]*/i, "");
+  }
+  value = value.replace(/\s+/g, " ").trim().toLowerCase();
+  return value.slice(0, 80);
+}
+
 export const DEFAULT_QUESTIONS: QualificationQuestion[] = [
   {
     id: "q-1",
+    title: "notice period",
     text: "What is your notice period (in days)?",
     answerType: "Number",
     knockout: true,
@@ -615,6 +635,7 @@ export const DEFAULT_QUESTIONS: QualificationQuestion[] = [
   },
   {
     id: "q-2",
+    title: "location / hybrid",
     text: "Are you open to working from Bengaluru (hybrid, 2 days a week)?",
     answerType: "Yes / No",
     knockout: true,
@@ -622,6 +643,7 @@ export const DEFAULT_QUESTIONS: QualificationQuestion[] = [
   },
   {
     id: "q-3",
+    title: "expected compensation",
     text: "What is your expected annual compensation?",
     answerType: "Short text",
     knockout: false,

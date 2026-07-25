@@ -29,6 +29,7 @@ import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } fro
 import { enrichCampaignContactsForLaunch } from './campaign-launch-reveal.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
 import {
+  BullOutreachJobModel,
   cancelJobsForCampaign,
   cancelJobsForEnrollment,
   scheduleFirstSends,
@@ -213,11 +214,29 @@ export async function refreshCampaignStats(campaignId: string) {
 
   // Succeeded send jobs are the source of truth for Contacted/Delivered.
   // (Nested Mixed `stats.sent++` was often not persisted by Mongoose.)
-  const sentCount = await CampaignJobModel.countDocuments({
-    campaignId: oid,
-    status: 'succeeded',
-    'result.delivery': 'sent',
-  });
+  // Count both legacy CampaignJob rows and BullMQ outreach jobs — get() refreshes
+  // from this, so Bull-only voice/email sends were previously wiped back to 0.
+  const [legacySent, bullSent] = await Promise.all([
+    CampaignJobModel.countDocuments({
+      campaignId: oid,
+      status: 'succeeded',
+      'result.delivery': 'sent',
+    }),
+    BullOutreachJobModel.countDocuments({
+      campaignId: oid,
+      status: 'done',
+      kind: { $in: ['send', 'followup'] },
+      $or: [
+        { 'details.delivery': 'sent' },
+        // Backfill: jobs completed before details.delivery was stamped.
+        {
+          channel: { $in: ['email', 'whatsapp', 'ai_voice'] },
+          'details.delivery': { $exists: false },
+        },
+      ],
+    }),
+  ]);
+  const sentCount = legacySent + bullSent;
   stats.sent = sentCount;
   stats.delivered = sentCount;
 

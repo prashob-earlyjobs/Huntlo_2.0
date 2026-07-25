@@ -11,17 +11,10 @@ import type {
 import { stepErrors } from "@/components/outreach/builder-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { getApiErrorMessage, outreachApi } from "@/lib/api";
 import {
   MAX_QUALIFICATION_QUESTIONS,
-  TAKEOVER_CONDITIONS,
+  suggestQuestionTitle,
   type AnswerType,
   type QualificationQuestion,
 } from "@/lib/mock-outreach";
@@ -80,13 +73,17 @@ export function QualificationStep({
         instructions:
           "Generate knockout screening questions from the job description for outreach.",
       });
-      const mapped: QualificationQuestion[] = result.questions.map((question, index) => ({
-        id: question.id || `q-${index + 1}`,
-        text: question.prompt,
-        answerType: mapAnswerType(question.answerType),
-        knockout: Boolean(question.knockout),
-        knockoutCondition: question.knockoutCondition || "",
-      }));
+      const mapped: QualificationQuestion[] = result.questions.map((question, index) => {
+        const text = question.prompt;
+        return {
+          id: question.id || `q-${index + 1}`,
+          title: suggestQuestionTitle(text),
+          text,
+          answerType: mapAnswerType(question.answerType),
+          knockout: Boolean(question.knockout),
+          knockoutCondition: question.knockoutCondition || "",
+        };
+      });
       if (!mapped.length) {
         setGenerateError("AI returned no questions. Try again.");
         return;
@@ -113,35 +110,6 @@ export function QualificationStep({
             {generateError}
           </p>
         ) : null}
-
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Reply handling
-          </h3>
-          <Field
-            label="Recruiter takeover condition"
-            htmlFor="qual-takeover"
-            hint="When this condition is met, the conversation is handed to the campaign owner."
-          >
-            <Select
-              value={state.takeoverCondition}
-              onValueChange={(value) =>
-                value && update("takeoverCondition", value)
-              }
-            >
-              <SelectTrigger id="qual-takeover" className="w-full sm:w-96">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TAKEOVER_CONDITIONS.map((condition) => (
-                  <SelectItem key={condition} value={condition}>
-                    {condition}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </section>
 
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -174,6 +142,7 @@ export function QualificationStep({
                     ...state.questions,
                     {
                       id: `q-${Date.now()}`,
+                      title: "",
                       text: "",
                       answerType: "Short text",
                       knockout: false,
@@ -211,20 +180,52 @@ export function QualificationStep({
                   key={question.id}
                   className="rounded-lg border border-border px-3 py-3"
                 >
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,11rem)_1fr_auto]">
+                    <Field
+                      label="Title"
+                      htmlFor={`${question.id}-title`}
+                      required
+                    >
+                      <Input
+                        id={`${question.id}-title`}
+                        value={question.title}
+                        onChange={(event) =>
+                          updateQuestion(question.id, {
+                            title: event.target.value,
+                          })
+                        }
+                        placeholder="e.g. notice period"
+                        aria-invalid={
+                          showErrors && !question.title.trim()
+                        }
+                      />
+                      {showErrors && !question.title.trim() ? (
+                        <p role="alert" className="text-xs text-destructive">
+                          Title is required.
+                        </p>
+                      ) : null}
+                    </Field>
                     <Field
                       label={`Question ${index + 1}`}
                       htmlFor={`${question.id}-text`}
+                      required
                     >
                       <Input
                         id={`${question.id}-text`}
                         value={question.text}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const text = event.target.value;
                           updateQuestion(question.id, {
-                            text: event.target.value,
-                          })
-                        }
+                            text,
+                            ...(!question.title.trim()
+                              ? { title: suggestQuestionTitle(text) }
+                              : {}),
+                          });
+                        }}
                         placeholder="Ask a screening question…"
+                        aria-invalid={
+                          showErrors && !question.text.trim()
+                        }
                       />
                     </Field>
                     <div className="flex items-end pb-0.5">

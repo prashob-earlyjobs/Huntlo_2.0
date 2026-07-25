@@ -164,6 +164,7 @@ export type OutreachCampaignDocument = Document & {
     enabled: boolean;
     questions: Array<{
       id: string;
+      title?: string | null;
       prompt: string;
       answerType: string;
       knockout?: boolean;

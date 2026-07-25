@@ -21,13 +21,14 @@ import { quotaService } from '../../shared/usage/index.js';
 import {
   emitConversationMessageCreated,
   emitOutreachCampaignUpdated,
+  emitOutreachEnrollmentUpdated,
 } from '../../realtime/events.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
 import { conversationsService } from '../conversations/conversations.service.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { refreshCampaignStats } from '../outreach/campaigns.service.js';
-import { recordCampaignActivity } from '../outreach/campaign-activity.model.js';
+import { recordCampaignActivity, CampaignActivityModel } from '../outreach/campaign-activity.model.js';
 import {
   isVoiceCallTerminal,
   pendingVoiceCallId,
@@ -35,6 +36,7 @@ import {
   type VoiceCallDocument,
   type VoiceCallStatus,
 } from './voice-call.model.js';
+import { applyVoiceResultToQualificationState } from './voice-qualification-sync.js';
 
 const log = () => getLogger().child({ component: 'voice-webhook' });
 
@@ -358,7 +360,11 @@ async function syncConversationVoiceTranscript(row: VoiceCallDocument) {
   });
 }
 
-async function syncOutreachEnrollment(row: VoiceCallDocument, parsed: ParsedHunarWebhook) {
+async function syncOutreachEnrollment(
+  row: VoiceCallDocument,
+  parsed: ParsedHunarWebhook,
+  options?: { previousStatus?: string | null; webhookKind?: string }
+) {
   if (!row.campaignId || !row.enrollmentId) return;
   const enrollment = await OutreachEnrollmentModel.findById(row.enrollmentId);
   if (!enrollment) return;
@@ -397,22 +403,83 @@ async function syncOutreachEnrollment(row: VoiceCallDocument, parsed: ParsedHuna
     };
   }
 
+  const result =
+    (parsed.result as Record<string, unknown> | null | undefined) ||
+    (row.callResult?.raw as Record<string, unknown> | null | undefined) ||
+    null;
+  let qualificationUpdated = false;
+  const previousQualificationStatus = enrollment.qualificationState?.status || 'pending';
+
+  if (result) {
+    const campaign = await OutreachCampaignModel.findById(row.campaignId).select(
+      'qualificationConfig stats organizationId'
+    );
+    if (campaign) {
+      qualificationUpdated = applyVoiceResultToQualificationState({
+        campaign,
+        enrollment,
+        result,
+      });
+      if (
+        qualificationUpdated &&
+        enrollment.qualificationState?.status === 'qualified' &&
+        previousQualificationStatus !== 'qualified'
+      ) {
+        await OutreachCampaignModel.updateOne(
+          { _id: campaign._id },
+          { $inc: { 'stats.qualified': 1 } }
+        ).catch(() => undefined);
+      }
+    }
+  }
+
   enrollment.lastActionAt = new Date();
+  enrollment.markModified('qualificationState');
   await enrollment.save();
 
-  await recordCampaignActivity({
-    organizationId: String(row.organizationId),
-    campaignId: String(row.campaignId),
-    enrollmentId: String(row.enrollmentId),
-    type: 'enrollment.voice_updated',
-    title: `Voice call ${row.status}`,
-    metadata: {
-      callId: parsed.callId,
-      status: row.status,
-      interestLevel: row.callResult?.interestLevel,
-      finalOutcome: row.callResult?.finalOutcome,
-    },
-  }).catch(() => undefined);
+  if (qualificationUpdated) {
+    emitOutreachEnrollmentUpdated({
+      organizationId: String(row.organizationId),
+      campaignId: String(row.campaignId),
+      enrollmentId: String(row.enrollmentId),
+      status: enrollment.status,
+    });
+  }
+
+  // Hunar sends call-status / call-result / call-recording / call-summary separately.
+  // Only log once when the call first becomes terminal, not on every webhook.
+  const previousStatus = options?.previousStatus || null;
+  const becameTerminal =
+    isVoiceCallTerminal(row) &&
+    (!previousStatus || !isVoiceCallTerminal({ status: previousStatus as VoiceCallStatus }));
+
+  if (becameTerminal) {
+    // Dedupe: same callId + status already recorded (e.g. parallel webhooks).
+    const callId = parsed.callId || row.callId;
+    const alreadyLogged = await CampaignActivityModel.exists({
+      campaignId: row.campaignId,
+      type: 'enrollment.voice_updated',
+      'metadata.callId': callId,
+      'metadata.status': row.status,
+    });
+    if (!alreadyLogged) {
+      await recordCampaignActivity({
+        organizationId: String(row.organizationId),
+        campaignId: String(row.campaignId),
+        enrollmentId: String(row.enrollmentId),
+        type: 'enrollment.voice_updated',
+        title: `Voice call ${row.status}`,
+        metadata: {
+          callId,
+          status: row.status,
+          webhookKind: options?.webhookKind || null,
+          interestLevel: row.callResult?.interestLevel,
+          finalOutcome: row.callResult?.finalOutcome,
+          qualificationStatus: enrollment.qualificationState?.status,
+        },
+      }).catch(() => undefined);
+    }
+  }
 }
 
 async function maybeCompleteOutreachCampaign(campaignId: string) {
@@ -531,6 +598,7 @@ export async function processCampaignVoiceWebhook(input: {
     });
   }
 
+  const previousStatus = row.status;
   const previousCallId = applyParsedToCall(row, input.kind, parsed);
 
   // If we promoted pending→real callId, clear unique conflict by removing other pending.
@@ -570,7 +638,10 @@ export async function processCampaignVoiceWebhook(input: {
     await commitVoiceQuota(row);
   }
 
-  await syncOutreachEnrollment(row, parsed);
+  await syncOutreachEnrollment(row, parsed, {
+    previousStatus,
+    webhookKind: input.kind,
+  });
   await syncConversationVoiceTranscript(row).catch((err) => {
     log().warn(
       { err, callId: row.callId, campaignId: input.campaignId },

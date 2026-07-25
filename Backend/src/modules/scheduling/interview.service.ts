@@ -85,16 +85,23 @@ async function loadInterview(organizationId: string, id: string) {
 
 async function candidateExtras(candidateId: mongoose.Types.ObjectId | null) {
   if (!candidateId) {
-    return { name: 'Candidate', title: '', company: '', email: null as string | null };
+    return {
+      name: 'Candidate',
+      title: '',
+      company: '',
+      email: null as string | null,
+      phone: null as string | null,
+    };
   }
   const c = await SavedCandidateModel.findById(candidateId)
-    .select('name currentTitle currentCompany email')
+    .select('name currentTitle currentCompany email phone')
     .lean();
   return {
     name: c?.name || 'Candidate',
     title: c?.currentTitle || '',
     company: c?.currentCompany || '',
     email: c?.email || null,
+    phone: c?.phone || null,
   };
 }
 
@@ -185,6 +192,8 @@ export function toInterviewDisplay(
     candidateName: string;
     candidateTitle: string;
     candidateCompany: string;
+    candidateEmail: string | null;
+    candidatePhone: string | null;
     jobTitle: string | null;
     recruiter: string;
     interviewerNames: string[];
@@ -198,6 +207,8 @@ export function toInterviewDisplay(
     candidateName: extras.candidateName,
     candidateTitle: extras.candidateTitle,
     candidateCompany: extras.candidateCompany,
+    candidateEmail: extras.candidateEmail || doc.inviteeEmail || null,
+    candidatePhone: extras.candidatePhone || null,
     jobId: doc.jobId ? String(doc.jobId) : null,
     jobTitle: extras.jobTitle,
     interviewType: doc.interviewType,
@@ -226,7 +237,14 @@ export function toInterviewDisplay(
     location: doc.location,
     meetingUrl: doc.meetingUrl,
     meetingLink: doc.meetingUrl,
-    platform: doc.meetingUrl ? 'Calendly' : doc.location || '—',
+    platform: (() => {
+      const location = String(doc.location || '').trim();
+      if (location === 'Online' || location === 'Offline') return location;
+      if (doc.meetingUrl) return 'Online';
+      if (location) return 'Offline';
+      if (doc.schedulingMethod === 'calendly_link') return 'Calendly';
+      return '—';
+    })(),
     instructions: doc.instructions,
     status: STATUS_DISPLAY[doc.status] || doc.status,
     statusRaw: doc.status,
@@ -280,6 +298,8 @@ async function display(doc: InterviewDocument) {
     candidateName: doc.inviteeName || cand.name,
     candidateTitle: cand.title,
     candidateCompany: cand.company,
+    candidateEmail: cand.email,
+    candidatePhone: cand.phone,
     jobTitle: title,
     recruiter,
     interviewerNames: names,
@@ -388,11 +408,7 @@ export const interviewsService = {
     }
 
     const startAt = input.startAt ? new Date(input.startAt) : null;
-    const endAt = input.endAt
-      ? new Date(input.endAt)
-      : startAt
-        ? new Date(startAt.getTime() + 30 * 60_000)
-        : null;
+    const endAt = input.endAt ? new Date(input.endAt) : null;
 
     const isManualBooked = method === 'manual' && startAt;
 
@@ -521,7 +537,9 @@ export const interviewsService = {
         ? `${formatInTimezone(doc.startAt, doc.timezone, {
             dateStyle: 'medium',
             timeStyle: 'short',
-          })}${doc.location ? ` · ${doc.location}` : ''}`
+          })}${doc.location ? ` · ${doc.location}` : ''}${
+            doc.meetingUrl ? ` · ${doc.meetingUrl}` : ''
+          }`
         : doc.schedulingUrl ||
           'Please reply to this message with your preferred interview slots.';
     const renderedMessage = renderInterviewMessage(input.message, {

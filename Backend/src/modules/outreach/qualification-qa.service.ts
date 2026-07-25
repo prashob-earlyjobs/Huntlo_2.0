@@ -154,6 +154,7 @@ async function resolveEmailReplyContext(
 
 export type QualificationQuestion = {
   id: string;
+  title?: string | null;
   prompt: string;
   answerType: string;
   knockout?: boolean;

@@ -203,10 +203,24 @@ async function runSendOrFollowup(mongoJobId: string) {
           bodyText: body,
         });
 
+        job.details = {
+          ...(job.details || {}),
+          delivery: 'sent',
+          channel,
+        };
+        job.markModified('details');
+
         await OutreachCampaignModel.updateOne(
           { _id: campaign._id },
           { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }
         );
+      } else {
+        job.details = {
+          ...(job.details || {}),
+          delivery: delivery.outcome,
+          reason: 'reason' in delivery ? delivery.reason : undefined,
+        };
+        job.markModified('details');
       }
     } else {
       // wait / conditional / recruiter_task — just move on

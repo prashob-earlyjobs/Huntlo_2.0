@@ -182,6 +182,7 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       enabled: true,
       questions: state.questions.map((question) => ({
         id: question.id,
+        title: question.title.trim(),
         prompt: question.text,
         answerType: question.answerType,
         knockout: question.knockout,
