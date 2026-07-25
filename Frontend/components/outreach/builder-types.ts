@@ -382,6 +382,8 @@ export function stepErrors(step: number, state: BuilderState): string[] {
         );
       }
       state.questions.forEach((question, index) => {
+        if (!question.title.trim())
+          errors.push(`Qualification question ${index + 1} needs a title.`);
         if (!question.text.trim())
           errors.push(`Qualification question ${index + 1} is empty.`);
       });

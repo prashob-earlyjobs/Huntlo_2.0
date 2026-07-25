@@ -103,6 +103,32 @@ export function SolutionPageContent({ page }: Props) {
         </div>
       </section>
 
+      {page.faq && page.faq.length > 0 ? (
+        <section
+          className="faq-section border-t border-[#c3c6d6]/20 bg-white px-4 py-16 md:px-8 md:py-20 lg:px-12"
+          id="faq"
+        >
+          <div className="mx-auto max-w-3xl">
+            <div className="text-center">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#0050cb]">FAQ</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-[#141b2b] md:text-3xl">
+                Frequently Asked Questions
+              </h2>
+            </div>
+            <div className="mt-10 space-y-8">
+              {page.faq.map((item) => (
+                <div key={item.question}>
+                  <h3 className="text-lg font-semibold text-[#141b2b]">{item.question}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-[#434654] md:text-base">
+                    {emphasizeCategoryPhrase(item.answer)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {related.length > 0 ? (
         <section className="border-t border-[#c3c6d6]/20 bg-[#faf9ff] px-4 py-16 md:px-8 md:py-20 lg:px-12">
           <div className="mx-auto max-w-7xl">
@@ -135,6 +161,20 @@ export function SolutionPageContent({ page }: Props) {
           </div>
         </section>
       ) : null}
+    </>
+  );
+}
+
+const CATEGORY_PHRASE = "Agentic AI Hiring Infrastructure";
+
+function emphasizeCategoryPhrase(text: string) {
+  const index = text.indexOf(CATEGORY_PHRASE);
+  if (index === -1) return text;
+  return (
+    <>
+      {text.slice(0, index)}
+      <strong>{CATEGORY_PHRASE}</strong>
+      {text.slice(index + CATEGORY_PHRASE.length)}
     </>
   );
 }

@@ -35,23 +35,34 @@ export function absoluteOgImage(ogImagePath: string): string {
 type PageMetadataInput = {
   title: string;
   description: string;
+  /** Open Graph description — defaults to `description`. */
+  ogDescription?: string;
+  /** Twitter card description — defaults to `description`. */
+  twitterDescription?: string;
   /** Defaults to `DEFAULT_OG_IMAGE` (`/og_image/Platform.jpg`). */
   ogImage?: string;
+  /** Open Graph site_name — defaults to Huntlo. */
+  siteName?: string;
   path?: string;
 };
 
 export function buildPageMetadata({
   title,
   description,
+  ogDescription,
+  twitterDescription,
   ogImage,
+  siteName = "Huntlo",
   path = "",
 }: PageMetadataInput): Metadata {
   const url = absoluteUrl(path);
   const imagePath = String(ogImage || "").trim() || DEFAULT_OG_IMAGE;
   const imageUrl = absoluteOgImage(imagePath);
+  const ogDesc = ogDescription || description;
+  const twitterDesc = twitterDescription || description;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: {
       canonical: url,
@@ -62,16 +73,16 @@ export function buildPageMetadata({
     },
     openGraph: {
       title,
-      description,
+      description: ogDesc,
       url,
-      siteName: "Huntlo",
+      siteName,
       type: "website",
       images: [{ url: imageUrl, width: 1200, height: 626, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
-      description,
+      description: twitterDesc,
       images: [imageUrl],
     },
   };

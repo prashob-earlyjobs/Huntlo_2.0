@@ -38,6 +38,7 @@ import {
   syncVoiceAgent,
 } from '../voice/voice-dialer.service.js';
 import { buildRoshniAgentPrompt, qualificationQuestionsForRoshni } from '../voice/roshni-prompt.js';
+import { extendResultSchemaForQualificationQuestions } from '../voice/voice-qualification-sync.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { integrationsService } from '../integrations/integration.service.js';
@@ -742,16 +743,21 @@ async function launchVoiceCall(input: {
       : roshni?.introduction || null
   );
 
+  const qualificationExtras = extendResultSchemaForQualificationQuestions(
+    roshni?.resultSchema,
+    typeof input.campaign.voiceAgentConfig?.resultPrompt === 'string'
+      ? String(input.campaign.voiceAgentConfig.resultPrompt)
+      : roshni?.resultPrompt,
+    input.campaign.qualificationConfig?.questions || []
+  );
+
   const synced = await syncVoiceAgent({
     name: `${input.campaign.name} · voice`.slice(0, 80),
     agentPrompt,
     objective,
     introduction,
-    resultPrompt:
-      typeof input.campaign.voiceAgentConfig?.resultPrompt === 'string'
-        ? String(input.campaign.voiceAgentConfig.resultPrompt)
-        : roshni?.resultPrompt,
-    resultSchema: roshni?.resultSchema,
+    resultPrompt: qualificationExtras.resultPrompt,
+    resultSchema: qualificationExtras.resultSchema,
     voicePersona: getHunarVoicePersona(),
     language: getHunarVoiceLanguage(),
     existingAgentId,
@@ -764,7 +770,7 @@ async function launchVoiceCall(input: {
       objective,
       introduction,
       agentPrompt,
-      resultPrompt: roshni?.resultPrompt || input.campaign.voiceAgentConfig?.resultPrompt,
+      resultPrompt: qualificationExtras.resultPrompt,
       updatedAt: new Date().toISOString(),
     };
     input.campaign.markModified('voiceAgentConfig');

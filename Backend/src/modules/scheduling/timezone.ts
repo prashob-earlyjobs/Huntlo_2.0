@@ -90,12 +90,13 @@ export function zonedLocalToUtc(
 export function formatInTimezone(
   date: Date,
   timeZone: string,
-  options?: Intl.DateTimeFormatOptions
+  options: Intl.DateTimeFormatOptions = {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }
 ): string {
   return new Intl.DateTimeFormat('en-IN', {
     timeZone,
-    dateStyle: 'medium',
-    timeStyle: 'short',
     ...options,
   }).format(date);
 }

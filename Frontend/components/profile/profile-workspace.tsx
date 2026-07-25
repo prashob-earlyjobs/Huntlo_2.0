@@ -8,6 +8,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { authApi, getApiErrorMessage, profileApi } from "@/lib/api";
@@ -28,37 +29,27 @@ import {
 } from "@/components/ui/select";
 import {
   DEFAULT_APPEARANCE,
-  DEFAULT_NOTIFICATIONS,
   DEFAULT_PERSONAL,
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_EVENTS,
-  PROFILE_TIMEZONES,
   type ActiveSession,
   type AppearancePrefs,
   type DensityPreference,
-  type NotificationChannel,
-  type NotificationEventId,
-  type NotificationPrefs,
   type ProfilePersonal,
   type ThemePreference,
 } from "@/lib/mock-profile";
+import {
+  composeE164Mobile,
+  getPhoneCountry,
+  nationalNumberPlaceholder,
+  PHONE_COUNTRIES,
+  splitPhoneNumber,
+} from "@/lib/phone-countries";
 import { cn } from "@/lib/utils";
 
 function clonePersonal(value: ProfilePersonal): ProfilePersonal {
   return { ...value };
 }
 
-function cloneNotifications(value: NotificationPrefs): NotificationPrefs {
-  return Object.fromEntries(
-    Object.entries(value).map(([key, channels]) => [key, { ...channels }])
-  );
-}
-
 function personalEqual(a: ProfilePersonal, b: ProfilePersonal) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-function notificationsEqual(a: NotificationPrefs, b: NotificationPrefs) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -114,73 +105,6 @@ function useSimulatedSave() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Notification matrix                                                  */
-/* ------------------------------------------------------------------ */
-
-function NotificationMatrix({
-  value,
-  onChange,
-}: {
-  value: NotificationPrefs;
-  onChange: (next: NotificationPrefs) => void;
-}) {
-  function toggle(eventId: NotificationEventId, channel: NotificationChannel) {
-    onChange({
-      ...value,
-      [eventId]: {
-        ...value[eventId],
-        [channel]: !value[eventId][channel],
-      },
-    });
-  }
-
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-[36rem] text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/40">
-            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-              Event
-            </th>
-            {NOTIFICATION_CHANNELS.map((channel) => (
-              <th
-                key={channel.id}
-                className="px-3 py-2 text-center text-xs font-medium text-muted-foreground"
-              >
-                {channel.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {NOTIFICATION_EVENTS.map((event) => (
-            <tr key={event.id} className="border-b border-border last:border-0">
-              <td className="px-3 py-2.5">
-                <p className="font-medium text-foreground">{event.label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {event.description}
-                </p>
-              </td>
-              {NOTIFICATION_CHANNELS.map((channel) => (
-                <td key={channel.id} className="px-3 py-2.5 text-center">
-                  <input
-                    type="checkbox"
-                    aria-label={`${event.label} · ${channel.label}`}
-                    checked={value[event.id][channel.id]}
-                    onChange={() => toggle(event.id, channel.id)}
-                    className="size-3.5 accent-primary"
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Appearance                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -219,26 +143,26 @@ function ThemeOption({
 /* ------------------------------------------------------------------ */
 
 export function ProfileWorkspace() {
+  const router = useRouter();
   const { setTheme } = useTheme();
-  const { user, refresh, isMockMode } = useAuth();
+  const { user, refresh, logout, isMockMode } = useAuth();
 
   const [savedPersonal, setSavedPersonal] = useState(() =>
     clonePersonal(DEFAULT_PERSONAL)
   );
   const [personal, setPersonal] = useState(() => clonePersonal(DEFAULT_PERSONAL));
+  const [phoneCountryIso, setPhoneCountryIso] = useState(
+    () => splitPhoneNumber(DEFAULT_PERSONAL.phone).countryIso
+  );
+  const [phoneNational, setPhoneNational] = useState(
+    () => splitPhoneNumber(DEFAULT_PERSONAL.phone).nationalNumber
+  );
 
   const [password, setPassword] = useState({
     current: "",
     next: "",
     confirm: "",
   });
-
-  const [savedNotifications, setSavedNotifications] = useState(() =>
-    cloneNotifications(DEFAULT_NOTIFICATIONS)
-  );
-  const [notifications, setNotifications] = useState(() =>
-    cloneNotifications(DEFAULT_NOTIFICATIONS)
-  );
 
   const [savedAppearance, setSavedAppearance] = useState({
     ...DEFAULT_APPEARANCE,
@@ -251,7 +175,6 @@ export function ProfileWorkspace() {
 
   const personalSave = useSimulatedSave();
   const passwordSave = useSimulatedSave();
-  const notificationSave = useSimulatedSave();
   const appearanceSave = useSimulatedSave();
 
   const personalDirty = !personalEqual(personal, savedPersonal);
@@ -259,10 +182,6 @@ export function ProfileWorkspace() {
     password.current.length > 0 ||
     password.next.length > 0 ||
     password.confirm.length > 0;
-  const notificationsDirty = !notificationsEqual(
-    notifications,
-    savedNotifications
-  );
   const appearanceDirty = !appearanceEqual(appearance, savedAppearance);
 
   useEffect(() => {
@@ -276,9 +195,24 @@ export function ProfileWorkspace() {
       timezone: user.timezone ?? DEFAULT_PERSONAL.timezone,
       initials: user.initials,
     };
+    const split = splitPhoneNumber(nextPersonal.phone);
+    setPhoneCountryIso(split.countryIso);
+    setPhoneNational(split.nationalNumber);
     setSavedPersonal(clonePersonal(nextPersonal));
     setPersonal(clonePersonal(nextPersonal));
   }, [user]);
+
+  const selectedPhoneCountry = getPhoneCountry(phoneCountryIso);
+
+  function syncPhone(countryIso: string, nationalNumber: string) {
+    const nextPhone = composeE164Mobile(
+      getPhoneCountry(countryIso).dialCode,
+      nationalNumber
+    );
+    setPhoneCountryIso(countryIso);
+    setPhoneNational(nationalNumber);
+    updatePersonal("phone", nextPhone);
+  }
 
   useEffect(() => {
     if (isMockMode) {
@@ -304,10 +238,6 @@ export function ProfileWorkspace() {
         };
         setAppearance(appearanceNext);
         setSavedAppearance(appearanceNext);
-        if (prefs.notificationPreferences) {
-          setNotifications(cloneNotifications(prefs.notificationPreferences));
-          setSavedNotifications(cloneNotifications(prefs.notificationPreferences));
-        }
         setSessions(
           nextSessions.map((session) => ({
             id: session.id,
@@ -393,27 +323,18 @@ export function ProfileWorkspace() {
     passwordSave.runSave({
       simulateDelay: isMockMode,
       onSuccess: async () => {
-        if (!isMockMode) {
-          await profileApi.changePassword({
-            currentPassword: password.current,
-            newPassword: password.next,
-          });
+        if (isMockMode) {
+          setPassword({ current: "", next: "", confirm: "" });
+          return;
         }
+        await profileApi.changePassword({
+          currentPassword: password.current,
+          newPassword: password.next,
+        });
         setPassword({ current: "", next: "", confirm: "" });
-      },
-    });
-  }
-
-  function saveNotifications() {
-    notificationSave.runSave({
-      simulateDelay: isMockMode,
-      onSuccess: async () => {
-        if (!isMockMode) {
-          await profileApi.updatePreferences({
-            notificationPreferences: notifications,
-          });
-        }
-        setSavedNotifications(cloneNotifications(notifications));
+        // Backend revokes every session (including this one) — clear local auth and re-login.
+        await logout();
+        router.replace("/login");
       },
     });
   }
@@ -479,11 +400,52 @@ export function ProfileWorkspace() {
             />
           </Field>
           <Field label="Phone" htmlFor="phone">
-            <Input
-              id="phone"
-              value={personal.phone}
-              onChange={(event) => updatePersonal("phone", event.target.value)}
-            />
+            <div className="flex gap-2">
+              <Select
+                value={phoneCountryIso}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  personalSave.clearStatus();
+                  syncPhone(value, phoneNational);
+                }}
+              >
+                <SelectTrigger
+                  id="phone-country"
+                  aria-label="Country code"
+                  className="h-8 w-[7.5rem] shrink-0"
+                >
+                  <SelectValue>
+                    {selectedPhoneCountry.iso} +{selectedPhoneCountry.dialCode}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent align="start" className="max-h-72 min-w-[16rem]">
+                  {PHONE_COUNTRIES.map((country) => (
+                    <SelectItem key={country.iso} value={country.iso}>
+                      {country.name} (+{country.dialCode})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                id="phone"
+                type="tel"
+                autoComplete="tel-national"
+                inputMode="tel"
+                value={phoneNational}
+                onChange={(event) => {
+                  personalSave.clearStatus();
+                  const value = event.target.value;
+                  if (value.trim().startsWith("+")) {
+                    const split = splitPhoneNumber(value);
+                    syncPhone(split.countryIso, split.nationalNumber);
+                    return;
+                  }
+                  syncPhone(phoneCountryIso, value);
+                }}
+                placeholder={nationalNumberPlaceholder(phoneCountryIso)}
+                className="flex-1"
+              />
+            </div>
           </Field>
           <Field label="Job title" htmlFor="job-title">
             <Input
@@ -494,27 +456,6 @@ export function ProfileWorkspace() {
               }
             />
           </Field>
-          <Field label="Timezone" htmlFor="timezone">
-            <Select
-              value={personal.timezone}
-              onValueChange={(value) => {
-                if (!value) return;
-                personalSave.clearStatus();
-                updatePersonal("timezone", value);
-              }}
-            >
-              <SelectTrigger id="timezone" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PROFILE_TIMEZONES.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
         </div>
         <FormSaveBar
           dirty={personalDirty}
@@ -523,6 +464,9 @@ export function ProfileWorkspace() {
           successMessage="Personal information saved."
           onSave={savePersonal}
           onReset={() => {
+            const split = splitPhoneNumber(savedPersonal.phone);
+            setPhoneCountryIso(split.countryIso);
+            setPhoneNational(split.nationalNumber);
             setPersonal(clonePersonal(savedPersonal));
             personalSave.clearStatus();
           }}
@@ -722,30 +666,6 @@ export function ProfileWorkspace() {
             ))}
           </ul>
         </div>
-      </FormSection>
-
-      {/* Notifications */}
-      <FormSection
-        title="Notification Preferences"
-        description="Choose which events reach you and on which channels"
-      >
-        <NotificationMatrix
-          value={notifications}
-          onChange={(next) => {
-            notificationSave.clearStatus();
-            setNotifications(next);
-          }}
-        />
-        <FormSaveBar
-          dirty={notificationsDirty}
-          status={notificationSave.status}
-          successMessage="Notification preferences saved."
-          onSave={saveNotifications}
-          onReset={() => {
-            setNotifications(cloneNotifications(savedNotifications));
-            notificationSave.clearStatus();
-          }}
-        />
       </FormSection>
 
       {/* Appearance */}

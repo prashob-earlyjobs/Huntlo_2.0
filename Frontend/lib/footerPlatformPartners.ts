@@ -13,48 +13,65 @@ export type FooterPlatformPartner = {
   description: string;
 };
 
-/** Footer AI platforms — each opens a pre-filled prompt about Huntlo on that assistant. */
-export const FOOTER_PLATFORM_PARTNERS: FooterPlatformPartner[] = [
+const FOOTER_PLATFORM_DEFS: {
+  name: string;
+  platformId: AiPlatformId;
+  logoSrc: string;
+  labelName: string;
+}[] = [
   {
     name: "ChatGPT",
     platformId: "chatgpt",
-    href: buildAiPlatformAskUrl("chatgpt"),
     logoSrc: "/ai_platform_logo/7ud8D03WW4Xz07m1QMs2FDOfTsI.avif",
-    description: aiPlatformAskLabel("ChatGPT"),
+    labelName: "ChatGPT",
   },
   {
     name: "Grok",
     platformId: "grok",
-    href: buildAiPlatformAskUrl("grok"),
     logoSrc: "/ai_platform_logo/DOvioIjyXLpNCXgY4C5nNa27mZw.avif",
-    description: aiPlatformAskLabel("Grok"),
+    labelName: "Grok",
   },
   {
     name: "Claude",
     platformId: "claude",
-    href: buildAiPlatformAskUrl("claude"),
     logoSrc: "/ai_platform_logo/VvjO4WL1ltvgOoqHT1CkwK1ux7U.avif",
-    description: aiPlatformAskLabel("Claude"),
+    labelName: "Claude",
   },
   {
     name: "Gemini",
     platformId: "gemini",
-    href: buildAiPlatformAskUrl("gemini"),
     logoSrc: "/ai_platform_logo/jEoZsXXHmUeMCBMhNKQ2cCLGO5U.avif",
-    description: aiPlatformAskLabel("Gemini"),
+    labelName: "Gemini",
   },
   {
     name: "Perplexity",
     platformId: "perplexity",
-    href: buildAiPlatformAskUrl("perplexity"),
     logoSrc: "/ai_platform_logo/tY3GhsAA7ImzHjzp9QP55Rs9Ng.avif",
-    description: aiPlatformAskLabel("Perplexity"),
+    labelName: "Perplexity",
   },
   {
     name: "Bing AI",
     platformId: "bing",
-    href: buildAiPlatformAskUrl("bing"),
     logoSrc: "/ai_platform_logo/zeHXnTcYIt76cdHGqVTEKVCB5bc.avif",
-    description: aiPlatformAskLabel("Copilot"),
+    labelName: "Microsoft Copilot",
   },
 ];
+
+/** Build footer AI-platform links with an optional page-specific GEO prompt/topic. */
+export function buildFooterPlatformPartners(options?: {
+  prompt?: string;
+  topic?: string;
+}): FooterPlatformPartner[] {
+  const topic = options?.topic ?? "Huntlo";
+  return FOOTER_PLATFORM_DEFS.map((def) => ({
+    name: def.name,
+    platformId: def.platformId,
+    href: buildAiPlatformAskUrl(def.platformId, options?.prompt),
+    logoSrc: def.logoSrc,
+    description: aiPlatformAskLabel(def.labelName, topic),
+  }));
+}
+
+/** Footer AI platforms — each opens a pre-filled prompt about Huntlo on that assistant. */
+export const FOOTER_PLATFORM_PARTNERS: FooterPlatformPartner[] =
+  buildFooterPlatformPartners();

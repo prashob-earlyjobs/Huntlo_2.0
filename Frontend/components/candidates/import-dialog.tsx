@@ -253,8 +253,20 @@ export function ImportCandidatesDialog({
       const duplicatesInFile = Number(current.totals?.duplicatesInFile ?? 0);
       const errors = current.errors ?? [];
       const added = imported + linkedExisting;
+      const nonFatalErrorCodes = new Set([
+        "ALREADY_ON_LIST",
+        "DUPLICATE_IN_FILE",
+        "DUPLICATE_EXISTING",
+      ]);
+      const onlyNonFatalSkips =
+        failed === 0 &&
+        skipped > 0 &&
+        errors.every((err) => nonFatalErrorCodes.has(err.code));
+      // List imports that only refresh people already on the list still succeed —
+      // the audience is those list members, so continue should unlock.
+      const listAlreadyComplete = forList && added === 0 && onlyNonFatalSkips;
 
-      setImportedCount(added);
+      setImportedCount(listAlreadyComplete ? skipped : added);
       setImportSummary({
         imported,
         linkedExisting,
@@ -266,7 +278,7 @@ export function ImportCandidatesDialog({
       });
       setJobStatus("completed");
 
-      if (added === 0 && (skipped > 0 || failed > 0 || errors.length > 0)) {
+      if (added === 0 && !listAlreadyComplete && (skipped > 0 || failed > 0 || errors.length > 0)) {
         const reason =
           errors[0]?.message ||
           (duplicatesExisting > 0 && !forList
@@ -281,7 +293,7 @@ export function ImportCandidatesDialog({
       }
 
       onImported?.({
-        imported: added,
+        imported: listAlreadyComplete ? skipped : added,
         linkedExisting,
         listId: listId ?? null,
       });
@@ -308,8 +320,8 @@ export function ImportCandidatesDialog({
           )
         }
       />
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-4 overflow-hidden sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Import candidates</DialogTitle>
           <DialogDescription>
             {forList
@@ -321,10 +333,10 @@ export function ImportCandidatesDialog({
         <Stepper
           steps={STEPS}
           currentStep={step}
-          className="rounded-lg border border-border bg-muted/20 p-3"
+          className="shrink-0 rounded-lg border border-border bg-muted/20 p-3"
         />
 
-        <div className="min-h-48 space-y-3">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
           {error ? (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -525,9 +537,17 @@ export function ImportCandidatesDialog({
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {importedCount != null
-                      ? forList && importSummary
-                        ? `Added ${importedCount} to list (${importSummary.imported} new · ${importSummary.linkedExisting} from pool)`
-                        : `Imported ${importedCount} candidates`
+                      ? forList &&
+                        importSummary &&
+                        importSummary.imported === 0 &&
+                        importSummary.linkedExisting === 0 &&
+                        importSummary.skipped > 0
+                        ? `${importSummary.skipped} candidate${
+                            importSummary.skipped === 1 ? "" : "s"
+                          } already on this list`
+                        : forList && importSummary
+                          ? `Added ${importedCount} to list (${importSummary.imported} new · ${importSummary.linkedExisting} from pool)`
+                          : `Imported ${importedCount} candidates`
                       : busy
                         ? `Importing… (${jobStatus ?? "starting"})`
                         : `Ready to import ${previewReadyCount} candidates`}
@@ -537,31 +557,47 @@ export function ImportCandidatesDialog({
                       ? forList
                         ? "Validating rows, creating new pool candidates, and linking existing ones to this list."
                         : "Validating rows and writing candidates to your pool."
-                      : importSummary
-                        ? [
-                            importSummary.linkedExisting
-                              ? `${importSummary.linkedExisting} linked from pool`
-                              : null,
-                            importSummary.skipped
-                              ? `${importSummary.skipped} skipped`
-                              : null,
-                            importSummary.failed
-                              ? `${importSummary.failed} failed`
-                              : null,
-                            !forList && importSummary.duplicatesExisting
-                              ? `${importSummary.duplicatesExisting} already in pool`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") ||
-                          (forList
-                            ? "New candidates are created; existing ones are linked to this list."
-                            : "Duplicates and invalid rows are skipped.")
-                        : forList
-                          ? "Existing pool matches are linked to this campaign list; only new people are created."
-                          : "Ready-to-import count already excludes duplicates and invalid rows."}
+                      : importSummary &&
+                          forList &&
+                          importSummary.imported === 0 &&
+                          importSummary.linkedExisting === 0 &&
+                          importSummary.skipped > 0
+                        ? "Contact details refreshed where provided. You can continue with this audience."
+                        : importSummary
+                          ? [
+                              importSummary.linkedExisting
+                                ? `${importSummary.linkedExisting} linked from pool`
+                                : null,
+                              importSummary.skipped
+                                ? `${importSummary.skipped} skipped`
+                                : null,
+                              importSummary.failed
+                                ? `${importSummary.failed} failed`
+                                : null,
+                              !forList && importSummary.duplicatesExisting
+                                ? `${importSummary.duplicatesExisting} already in pool`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") ||
+                            (forList
+                              ? "New candidates are created; existing ones are linked to this list."
+                              : "Duplicates and invalid rows are skipped.")
+                          : forList
+                            ? "Existing pool matches are linked to this campaign list; only new people are created."
+                            : "Ready-to-import count already excludes duplicates and invalid rows."}
                   </p>
-                  {importSummary?.errors?.length ? (
+                  {importSummary?.errors?.length &&
+                  !(
+                    forList &&
+                    importSummary.failed === 0 &&
+                    importSummary.errors.every(
+                      (err) =>
+                        err.code === "ALREADY_ON_LIST" ||
+                        err.code === "DUPLICATE_IN_FILE" ||
+                        err.code === "DUPLICATE_EXISTING"
+                    )
+                  ) ? (
                     <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                       {importSummary.errors.slice(0, 5).map((err) => (
                         <li key={`${err.row}-${err.code}`}>
@@ -576,7 +612,7 @@ export function ImportCandidatesDialog({
           ) : null}
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border pt-3">
           <Button
             type="button"
             size="sm"

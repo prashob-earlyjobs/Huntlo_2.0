@@ -23,8 +23,10 @@ export type AdminUser = {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   organisation: string;
   organizationId?: string;
+  country?: string | null;
   plan: string;
   role: string;
   status: string;
@@ -61,6 +63,22 @@ export type AdminCandidate = {
   lastActivity: string;
 };
 
+export type AdminSourcingSession = {
+  id: string;
+  title: string;
+  query: string;
+  status: string;
+  userId: string | null;
+  userName: string;
+  userEmail: string;
+  organizationId: string;
+  organisation: string;
+  totalResults: number;
+  quotaConsumed: number;
+  createdAt: string;
+  completedAt: string | null;
+};
+
 export type AdminPlan = {
   id: string;
   name: string;
@@ -73,6 +91,7 @@ export type AdminPlan = {
   isTrialPlan?: boolean;
   trialDays?: number;
   currency?: string;
+  billingCycles?: Array<"monthly" | "yearly">;
   prices?: { monthly?: number | null; yearly?: number | null };
   usdPrices?: { monthly?: number | null; yearly?: number | null };
   limits?: Record<string, unknown>;
@@ -269,10 +288,22 @@ export interface AdminApi {
     limit?: number;
   }): Promise<AdminUsageHistoryResult>;
   listCandidates(params?: { page?: number; limit?: number; q?: string }): Promise<Paginated<AdminCandidate>>;
-  listCampaigns(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<AdminCampaign>>;
+  listCampaigns(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    q?: string;
+  }): Promise<Paginated<AdminCampaign>>;
   listScreenings(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
   listInterviews(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
-  listSourcingSessions(params?: { page?: number; limit?: number }): Promise<Paginated<Record<string, unknown>>>;
+  listSourcingSessions(params?: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: string;
+    userId?: string;
+    organizationId?: string;
+  }): Promise<Paginated<AdminSourcingSession>>;
   listBackgroundJobs(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
   listPendingWorkerTasks(params?: {
     queue?: "all" | "background" | "campaign";
@@ -419,7 +450,7 @@ const liveAdminApi: AdminApi = {
     return result.data;
   },
   async listSourcingSessions(params) {
-    const result = await apiClient.get<Paginated<Record<string, unknown>>>(
+    const result = await apiClient.get<Paginated<AdminSourcingSession>>(
       `/admin/sourcing-sessions${buildQueryString(params)}`
     );
     return result.data;
@@ -510,15 +541,33 @@ const mockAdminApi: AdminApi = {
       charts: ADMIN_CHARTS,
     };
   },
-  async listUsers() {
+  async listUsers(params) {
     await simulateMockLatency();
     const { ADMIN_USERS } = await import("@/lib/mock-admin");
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit) || 20));
+    const q = String(params?.q || "")
+      .trim()
+      .toLowerCase();
+    const filtered = q
+      ? ADMIN_USERS.filter(
+          (user) =>
+            user.name.toLowerCase().includes(q) ||
+            user.email.toLowerCase().includes(q) ||
+            (user.phone || "").toLowerCase().includes(q) ||
+            user.organisation.toLowerCase().includes(q)
+        )
+      : ADMIN_USERS;
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
     return {
-      items: ADMIN_USERS,
-      total: ADMIN_USERS.length,
-      page: 1,
-      limit: 20,
-      totalPages: 1,
+      items: filtered.slice(start, start + limit),
+      total,
+      page: safePage,
+      limit,
+      totalPages,
     };
   },
   async getUser(id) {
@@ -565,58 +614,97 @@ const mockAdminApi: AdminApi = {
   },
   async listPlans() {
     await simulateMockLatency();
-    const { ADMIN_PLANS } = await import("@/lib/mock-admin");
-    return ADMIN_PLANS.map((plan) => ({
-      id: plan.id,
-      name: plan.name,
-      code: plan.code,
-      description: plan.description,
-      active: plan.active,
-      public: plan.public,
-      sortOrder: plan.sortOrder,
-      isDefaultSignup: plan.isDefaultSignup,
-      isTrialPlan: plan.isTrialPlan,
-      trialDays: plan.trialDays,
-      currency: plan.currency,
-      prices: {
-        monthly: plan.priceInrMonthly === "" ? null : Number(plan.priceInrMonthly),
-        yearly: plan.priceInrYearly === "" ? null : Number(plan.priceInrYearly),
-      },
-      usdPrices: {
-        monthly: plan.priceUsdMonthly === "" ? null : Number(plan.priceUsdMonthly),
-        yearly: plan.priceUsdYearly === "" ? null : Number(plan.priceUsdYearly),
-      },
-      priceLabel: {
-        monthly:
-          plan.priceInrMonthly === ""
-            ? "Custom"
-            : plan.priceInrMonthly === "0"
-              ? "Free"
-              : `₹${Number(plan.priceInrMonthly).toLocaleString("en-IN")}`,
-        yearly:
-          plan.priceInrYearly === ""
-            ? "Custom"
-            : plan.priceInrYearly === "0"
-              ? "Free"
-              : `₹${Number(plan.priceInrYearly).toLocaleString("en-IN")}`,
-      },
-      usdPriceLabel: {
-        monthly:
-          plan.priceUsdMonthly === ""
-            ? "Custom"
-            : plan.priceUsdMonthly === "0"
-              ? "Free"
-              : `$${Number(plan.priceUsdMonthly).toLocaleString("en-US")}`,
-        yearly:
-          plan.priceUsdYearly === ""
-            ? "Custom"
-            : plan.priceUsdYearly === "0"
-              ? "Free"
-              : `$${Number(plan.priceUsdYearly).toLocaleString("en-US")}`,
-      },
-      limits: {},
-      featureAccess: {},
-    }));
+    const { ADMIN_PLANS, ADMIN_MODULES } = await import("@/lib/mock-admin");
+    const FEATURE_KEY_BY_LABEL: Record<string, string> = {
+      Sourcing: "sourcing",
+      "People Scout": "peopleScout",
+      Outreach: "outreach",
+      "Huntlo 360": "huntlo360",
+      Screening: "screening",
+      Scheduling: "assessments",
+      Analytics: "analytics",
+      Integrations: "integrations",
+      Team: "team",
+    };
+    const parseLimit = (value: string) => {
+      const trimmed = value.trim().toLowerCase();
+      if (!trimmed) return 0;
+      if (trimmed === "unlimited" || trimmed === "custom") return 999_999_999;
+      return Number(trimmed.replace(/[^\d]/g, "")) || 0;
+    };
+    return ADMIN_PLANS.map((plan) => {
+      const featureAccess: Record<string, boolean> = {};
+      for (const label of ADMIN_MODULES) {
+        const key = FEATURE_KEY_BY_LABEL[label];
+        if (key) featureAccess[key] = plan.modules.includes(label);
+      }
+      return {
+        id: plan.id,
+        name: plan.name,
+        code: plan.code,
+        description: plan.description,
+        active: plan.active,
+        public: plan.public,
+        sortOrder: plan.sortOrder,
+        isDefaultSignup: plan.isDefaultSignup,
+        isTrialPlan: plan.isTrialPlan,
+        trialDays: plan.trialDays,
+        currency: plan.currency,
+        billingCycles:
+          plan.billingCycle === "Annual"
+            ? (["yearly"] as const)
+            : (["monthly", "yearly"] as const),
+        prices: {
+          monthly: plan.priceInrMonthly === "" ? null : Number(plan.priceInrMonthly),
+          yearly: plan.priceInrYearly === "" ? null : Number(plan.priceInrYearly),
+        },
+        usdPrices: {
+          monthly: plan.priceUsdMonthly === "" ? null : Number(plan.priceUsdMonthly),
+          yearly: plan.priceUsdYearly === "" ? null : Number(plan.priceUsdYearly),
+        },
+        priceLabel: {
+          monthly:
+            plan.priceInrMonthly === ""
+              ? "Custom"
+              : plan.priceInrMonthly === "0"
+                ? "Free"
+                : `₹${Number(plan.priceInrMonthly).toLocaleString("en-IN")}`,
+          yearly:
+            plan.priceInrYearly === ""
+              ? "Custom"
+              : plan.priceInrYearly === "0"
+                ? "Free"
+                : `₹${Number(plan.priceInrYearly).toLocaleString("en-IN")}`,
+        },
+        usdPriceLabel: {
+          monthly:
+            plan.priceUsdMonthly === ""
+              ? "Custom"
+              : plan.priceUsdMonthly === "0"
+                ? "Free"
+                : `$${Number(plan.priceUsdMonthly).toLocaleString("en-US")}`,
+          yearly:
+            plan.priceUsdYearly === ""
+              ? "Custom"
+              : plan.priceUsdYearly === "0"
+                ? "Free"
+                : `$${Number(plan.priceUsdYearly).toLocaleString("en-US")}`,
+        },
+        limits: {
+          candidate_search: parseLimit(plan.searchLimit),
+          email_reveal: parseLimit(plan.emailRevealLimit),
+          mobile_reveal: parseLimit(plan.mobileRevealLimit),
+          people_scout: parseLimit(plan.peopleScoutLimit),
+          email_outreach: parseLimit(plan.emailOutreachLimit),
+          whatsapp_outreach: parseLimit(plan.whatsappLimit),
+          ai_voice_minutes: parseLimit(plan.aiVoiceLimit),
+          assessment_invites: parseLimit(plan.assessmentInviteLimit),
+          team_seats: parseLimit(plan.teamMemberLimit),
+          allowOverage: plan.allowOverage,
+        },
+        featureAccess,
+      };
+    });
   },
   async createPlan(input) {
     return {
@@ -748,15 +836,31 @@ const mockAdminApi: AdminApi = {
       totalPages: 1,
     };
   },
-  async listCampaigns() {
+  async listCampaigns(params) {
     await simulateMockLatency();
     const { ADMIN_CAMPAIGNS } = await import("@/lib/mock-admin");
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit) || 20));
+    const q = String(params?.q || "")
+      .trim()
+      .toLowerCase();
+    const filtered = q
+      ? ADMIN_CAMPAIGNS.filter(
+          (campaign) =>
+            campaign.name.toLowerCase().includes(q) ||
+            campaign.workspace.toLowerCase().includes(q)
+        )
+      : ADMIN_CAMPAIGNS;
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
     return {
-      items: ADMIN_CAMPAIGNS,
-      total: ADMIN_CAMPAIGNS.length,
-      page: 1,
-      limit: 20,
-      totalPages: 1,
+      items: filtered.slice(start, start + limit),
+      total,
+      page: safePage,
+      limit,
+      totalPages,
     };
   },
   async listScreenings() {
@@ -765,8 +869,66 @@ const mockAdminApi: AdminApi = {
   async listInterviews() {
     return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };
   },
-  async listSourcingSessions() {
-    return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };
+  async listSourcingSessions(params) {
+    await simulateMockLatency();
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit) || 20));
+    const samples: AdminSourcingSession[] = [
+      {
+        id: "ss1",
+        title: "Senior React engineers in Bengaluru",
+        query: "Senior React engineers in Bengaluru with 5+ years",
+        status: "completed",
+        userId: "u1",
+        userName: "Ananya Sharma",
+        userEmail: "ananya@acmetalent.in",
+        organizationId: "org1",
+        organisation: "Acme Talent Partners",
+        totalResults: 128,
+        quotaConsumed: 1,
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      },
+      {
+        id: "ss2",
+        title: "Product managers – remote India",
+        query: "Product managers remote India B2B SaaS",
+        status: "polling",
+        userId: "u2",
+        userName: "Rahul Verma",
+        userEmail: "rahul@northstar.hiring",
+        organizationId: "org2",
+        organisation: "Northstar Hiring",
+        totalResults: 42,
+        quotaConsumed: 1,
+        createdAt: new Date(Date.now() - 3600_000).toISOString(),
+        completedAt: null,
+      },
+    ];
+    const q = String(params?.q || "")
+      .trim()
+      .toLowerCase();
+    const filtered = q
+      ? samples.filter(
+          (row) =>
+            row.title.toLowerCase().includes(q) ||
+            row.query.toLowerCase().includes(q) ||
+            row.userName.toLowerCase().includes(q) ||
+            row.userEmail.toLowerCase().includes(q) ||
+            row.organisation.toLowerCase().includes(q)
+        )
+      : samples;
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
+    return {
+      items: filtered.slice(start, start + limit),
+      total,
+      page: safePage,
+      limit,
+      totalPages,
+    };
   },
   async listBackgroundJobs() {
     return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };

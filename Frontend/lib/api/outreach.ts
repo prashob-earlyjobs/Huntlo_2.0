@@ -96,6 +96,7 @@ export type ApiOutreachCampaign = {
     enabled: boolean;
     questions: Array<{
       id: string;
+      title?: string | null;
       prompt: string;
       answerType: string;
       knockout?: boolean;
@@ -176,6 +177,7 @@ export type CampaignCreateInput = {
     enabled: boolean;
     questions: Array<{
       id: string;
+      title?: string | null;
       prompt: string;
       answerType: string;
       knockout?: boolean;
@@ -443,6 +445,10 @@ export interface OutreachApi {
     id: string,
     params?: ListEnrollmentsParams
   ): Promise<ApiCampaignEnrollment[]>;
+  listEnrollmentsPage(
+    id: string,
+    params?: ListEnrollmentsParams
+  ): Promise<{ items: ApiCampaignEnrollment[]; pagination: PaginationMeta }>;
   getActivity(id: string): Promise<
     Array<{ id: string; type: string; title: string; detail: string | null; createdAt: string }>
   >;
@@ -884,6 +890,13 @@ const mockOutreachApi: OutreachApi = {
     await simulateMockLatency();
     return [];
   },
+  async listEnrollmentsPage() {
+    await simulateMockLatency();
+    return {
+      items: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
+    };
+  },
   async getActivity() {
     await simulateMockLatency();
     return [];
@@ -1090,10 +1103,30 @@ const liveOutreachApi: OutreachApi = {
     return result.data;
   },
   async listEnrollments(id, params) {
+    const page = await this.listEnrollmentsPage(id, params);
+    return page.items;
+  },
+  async listEnrollmentsPage(id, params) {
     const result = await apiClient.get<ApiCampaignEnrollment[]>(
       `/outreach-campaigns/${id}/enrollments${buildQueryString(params)}`
     );
-    return result.data;
+    const pagination = result.meta?.pagination;
+    return {
+      items: result.data,
+      pagination: pagination
+        ? {
+            page: pagination.page,
+            limit: pagination.limit,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+          }
+        : {
+            page: Number(params?.page ?? 1) || 1,
+            limit: Number(params?.limit ?? 20) || 20,
+            total: result.data.length,
+            totalPages: 1,
+          },
+    };
   },
   async getActivity(id) {
     const result = await apiClient.get<

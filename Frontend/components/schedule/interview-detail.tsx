@@ -2,7 +2,6 @@
 
 import {
   CalendarCheck2,
-  CalendarClock,
   ExternalLink,
   Eye,
   Link2,
@@ -10,18 +9,17 @@ import {
   MoreHorizontal,
   RefreshCw,
   Send,
-  StickyNote,
   UserX,
   Video,
   XCircle,
-  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { InterviewStatusBadge } from "@/components/schedule/interview-status-badge";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,27 +27,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { getApiErrorMessage, schedulingApi } from "@/lib/api";
 import { type Interview } from "@/lib/mock-schedule";
 import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
 
-type InterviewNote = { id: string; author: string; text: string; time: string };
-type InterviewReminder = {
-  id: string;
-  label: string;
-  status: string;
-  channel: string;
-  time: string;
-};
-type InterviewActivityEntry = {
-  id: string;
-  icon: LucideIcon;
-  title: string;
-  detail: string;
-  time: string;
-};
+function detailRows(interview: Interview): Array<[string, string]> {
+  const dateTime = [interview.dateLabel, interview.timeLabel]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" · ");
+  const meetingFormat =
+    interview.platform ||
+    (interview.meetingLink ? "Online" : interview.location ? "Offline" : "");
+  const reminderHours = (interview.reminderHours || [])
+    .slice()
+    .sort((a, b) => b - a)
+    .map((hours) => `${hours}h before`)
+    .join(", ");
+
+  return (
+    [
+      ["Interview round", interview.round],
+      ["Interview type", interview.interviewType],
+      ["Date and time", dateTime],
+      ["Timezone", interview.timezone],
+      ["Meeting format", meetingFormat],
+      ["Booking source", interview.bookingSource],
+      ["Reminder status", interview.reminderStatus],
+      ["Reminders", reminderHours],
+    ] as const
+  ).filter(([, value]) => Boolean(value)) as Array<[string, string]>;
+}
 
 export function InterviewDetail({
   interview: initial,
@@ -62,19 +70,27 @@ export function InterviewDetail({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notes, setNotes] = useState<InterviewNote[]>([]);
-  const [noteDraft, setNoteDraft] = useState("");
-  const [noteOpen, setNoteOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
-  const [rescheduleAt, setRescheduleAt] = useState("");
+  const [rescheduleAt, setRescheduleAt] = useState<Date | null>(null);
 
   useEffect(() => {
     setInterview(initial);
-    setNotes([]);
   }, [initial]);
 
-  const reminders: InterviewReminder[] = [];
-  const activity: InterviewActivityEntry[] = [];
+  const rows = useMemo(() => detailRows(interview), [interview]);
+  const profileRows = useMemo(
+    () =>
+      (
+        [
+          ["Name", interview.candidateName],
+          ["Current role", interview.candidateTitle],
+          ["Company", interview.candidateCompany],
+          ["Email", interview.candidateEmail || ""],
+          ["Phone", interview.candidatePhone || ""],
+        ] as const
+      ).filter(([, value]) => Boolean(value)),
+    [interview]
+  );
 
   function flash(text: string) {
     setFeedback(text);
@@ -127,13 +143,40 @@ export function InterviewDetail({
                     {interview.candidateName}
                   </h1>
                 )}
-                <InterviewStatusBadge status={interview.status} />
+                {interview.status ? (
+                  <InterviewStatusBadge status={interview.status} />
+                ) : null}
               </div>
               {interview.candidateTitle || interview.candidateCompany ? (
                 <p className="mt-1 truncate text-sm text-muted-foreground">
                   {[interview.candidateTitle, interview.candidateCompany]
                     .filter(Boolean)
                     .join(" · ")}
+                </p>
+              ) : null}
+              {interview.candidateEmail || interview.candidatePhone ? (
+                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
+                  {interview.candidateEmail ? (
+                    <a
+                      href={`mailto:${interview.candidateEmail}`}
+                      className="truncate underline-offset-4 hover:text-foreground hover:underline"
+                    >
+                      {interview.candidateEmail}
+                    </a>
+                  ) : null}
+                  {interview.candidateEmail && interview.candidatePhone ? (
+                    <span aria-hidden className="text-border">
+                      ·
+                    </span>
+                  ) : null}
+                  {interview.candidatePhone ? (
+                    <a
+                      href={`tel:${interview.candidatePhone}`}
+                      className="truncate underline-offset-4 hover:text-foreground hover:underline"
+                    >
+                      {interview.candidatePhone}
+                    </a>
+                  ) : null}
                 </p>
               ) : null}
               <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
@@ -200,14 +243,6 @@ export function InterviewDetail({
             >
               <Send aria-hidden />
               Send Reminder
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setNoteOpen((previous) => !previous)}
-            >
-              <StickyNote aria-hidden />
-              Add Note
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -289,24 +324,24 @@ export function InterviewDetail({
 
         {rescheduleOpen ? (
           <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
-            <label
-              htmlFor="reschedule-at"
-              className="text-xs font-medium text-muted-foreground"
-            >
+            <p className="text-xs font-medium text-muted-foreground">
               New date and time
-            </label>
-            <Input
+            </p>
+            <DateTimePicker
               id="reschedule-at"
-              type="datetime-local"
               value={rescheduleAt}
-              onChange={(event) => setRescheduleAt(event.target.value)}
-              className="bg-card"
+              minDate={new Date()}
+              onChange={setRescheduleAt}
+              placeholder="Select date"
             />
             <div className="flex justify-end gap-2">
               <Button
                 size="xs"
                 variant="ghost"
-                onClick={() => setRescheduleOpen(false)}
+                onClick={() => {
+                  setRescheduleOpen(false);
+                  setRescheduleAt(null);
+                }}
               >
                 Cancel
               </Button>
@@ -314,58 +349,25 @@ export function InterviewDetail({
                 size="xs"
                 disabled={busy || !rescheduleAt}
                 onClick={() => {
-                  const startAt = new Date(rescheduleAt).toISOString();
+                  if (!rescheduleAt) return;
+                  const startAt = rescheduleAt.toISOString();
                   void runAction(
                     () =>
                       schedulingApi.reschedule(interview.id, {
                         startAt,
-                        timezone: interview.timezone.split(" ")[0] || interview.timezone,
+                        timezone:
+                          interview.timezone.split(" ")[0] ||
+                          interview.timezone ||
+                          undefined,
                       }),
                     `Rescheduled interview with ${interview.candidateName}.`
                   ).then(() => {
                     setRescheduleOpen(false);
-                    setRescheduleAt("");
+                    setRescheduleAt(null);
                   });
                 }}
               >
                 Confirm reschedule
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {noteOpen ? (
-          <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
-            <Textarea
-              value={noteDraft}
-              onChange={(event) => setNoteDraft(event.target.value)}
-              placeholder="Interview note…"
-              className="min-h-20 bg-card"
-              aria-label="Interview note"
-            />
-            <div className="flex justify-end gap-2">
-              <Button size="xs" variant="ghost" onClick={() => setNoteOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                size="xs"
-                disabled={!noteDraft.trim()}
-                onClick={() => {
-                  setNotes((previous) => [
-                    {
-                      id: `n-${Date.now()}`,
-                      author: "You",
-                      text: noteDraft.trim(),
-                      time: "Just now",
-                    },
-                    ...previous,
-                  ]);
-                  setNoteDraft("");
-                  setNoteOpen(false);
-                  flash("Note added.");
-                }}
-              >
-                Save note
               </Button>
             </div>
           </div>
@@ -395,26 +397,22 @@ export function InterviewDetail({
             <h2 className="text-sm font-semibold text-foreground">
               Interview details
             </h2>
-            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-              {(
-                [
-                  ["Interview round", interview.round],
-                  ["Date and time", `${interview.dateLabel} · ${interview.timeLabel}`],
-                  ["Duration", interview.duration],
-                  ["Candidate timezone", interview.timezone],
-                  ["Meeting platform", interview.platform],
-                  ["Booking source", interview.bookingSource],
-                  ["Reminder status", interview.reminderStatus],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-xs text-muted-foreground">{label}</dt>
-                  <dd className="mt-0.5 text-sm font-medium text-foreground">
-                    {value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            {rows.length > 0 ? (
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                {rows.map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="mt-0.5 text-sm font-medium text-foreground">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No interview details available.
+              </p>
+            )}
 
             {interview.meetingLink ? (
               <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
@@ -429,9 +427,7 @@ export function InterviewDetail({
                   size="xs"
                   variant="outline"
                   onClick={() => {
-                    void navigator.clipboard?.writeText(
-                      interview.meetingLink ?? ""
-                    );
+                    void navigator.clipboard?.writeText(interview.meetingLink!);
                     flash("Meeting link copied.");
                   }}
                 >
@@ -441,7 +437,9 @@ export function InterviewDetail({
               </div>
             ) : null}
 
-            {interview.location ? (
+            {interview.location &&
+            interview.location !== "Online" &&
+            interview.location !== interview.platform ? (
               <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
                 <MapPin aria-hidden className="mt-0.5 size-3.5 shrink-0" />
                 {interview.location}
@@ -486,144 +484,39 @@ export function InterviewDetail({
               ) : null}
             </ul>
           </section>
-
-          <section className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              Scheduling activity
-            </h2>
-            <ol className="mt-3 space-y-0">
-              {activity.map((entry, index) => (
-                <li
-                  key={entry.id}
-                  className="relative flex gap-3 pb-5 last:pb-0"
-                >
-                  {index < activity.length - 1 ? (
-                    <span
-                      aria-hidden
-                      className="absolute top-6 left-[11px] h-full w-px bg-border"
-                    />
-                  ) : null}
-                  <span className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
-                    <entry.icon
-                      aria-hidden
-                      className="size-3 text-muted-foreground"
-                    />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">
-                      {entry.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{entry.detail}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {entry.time}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
         </div>
 
         <div className="space-y-4">
-          <section className="rounded-xl border border-border bg-card p-4">
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-              <CalendarClock aria-hidden className="size-3.5 text-muted-foreground" />
-              Candidate profile
-            </h2>
-            <dl className="mt-3 space-y-2">
-              <div>
-                <dt className="text-xs text-muted-foreground">Name</dt>
-                <dd className="text-sm font-medium text-foreground">
-                  {interview.candidateName}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Current role</dt>
-                <dd className="text-sm text-foreground">
-                  {interview.candidateTitle}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Company</dt>
-                <dd className="text-sm text-foreground">
-                  {interview.candidateCompany}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Timezone</dt>
-                <dd className="text-sm text-foreground">{interview.timezone}</dd>
-              </div>
-            </dl>
-            {interview.candidateId ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3 w-full"
-                nativeButton={false}
-                render={
-                  <Link href={candidateDetailPath(interview.candidateId)} />
-                }
-              >
-                Open full profile
-              </Button>
-            ) : null}
-          </section>
-
-          <section className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              Reminder history
-            </h2>
-            <ul className="mt-3 divide-y divide-border">
-              {reminders.map((reminder) => (
-                <li key={reminder.id} className="py-2.5 first:pt-0 last:pb-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-foreground">
-                      {reminder.label}
-                    </p>
-                    <span
-                      className={
-                        reminder.status === "Sent"
-                          ? "text-xs font-medium text-success"
-                          : reminder.status === "Failed"
-                            ? "text-xs font-medium text-destructive"
-                            : "text-xs text-muted-foreground"
-                      }
-                    >
-                      {reminder.status}
-                    </span>
+          {profileRows.length > 0 ? (
+            <section className="rounded-xl border border-border bg-card p-4">
+              <h2 className="text-sm font-semibold text-foreground">
+                Candidate profile
+              </h2>
+              <dl className="mt-3 space-y-2">
+                {profileRows.map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="text-sm font-medium text-foreground">
+                      {value}
+                    </dd>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {reminder.channel} · {reminder.time}
-                  </p>
-                </li>
-              ))}
-              {reminders.length === 0 ? (
-                <li className="py-2 text-sm text-muted-foreground">
-                  No reminders yet.
-                </li>
-              ) : null}
-            </ul>
-          </section>
-
-          <section className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-sm font-semibold text-foreground">Notes</h2>
-            {notes.length > 0 ? (
-              <ul className="mt-3 space-y-3">
-                {notes.map((note) => (
-                  <li key={note.id} className="rounded-lg border border-border p-2.5">
-                    <p className="text-sm text-foreground">{note.text}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {note.author} · {note.time}
-                    </p>
-                  </li>
                 ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm text-muted-foreground">
-                No notes yet.
-              </p>
-            )}
-          </section>
+              </dl>
+              {interview.candidateId ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 w-full"
+                  nativeButton={false}
+                  render={
+                    <Link href={candidateDetailPath(interview.candidateId)} />
+                  }
+                >
+                  Open full profile
+                </Button>
+              ) : null}
+            </section>
+          ) : null}
         </div>
       </div>
     </div>
