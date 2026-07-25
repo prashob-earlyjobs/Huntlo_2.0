@@ -47,6 +47,16 @@ import { ConversationsPanel } from "@/components/conversations/conversations-pan
 import { ApiFeedback } from "@/components/shared/api-feedback";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -424,18 +434,68 @@ function OverviewTab({ campaign }: { campaign: OutreachCampaign }) {
 /* ------------------------------------------------------------------ */
 
 function CandidatesTab({
+  campaignId,
   enrollments,
   state,
   message,
   onRetry,
+  onChanged,
   autoScreening,
 }: {
+  campaignId: string;
   enrollments: ApiCampaignEnrollment[];
   state: ApiUiState;
   message: string | null;
   onRetry: () => void;
+  onChanged: () => void;
   autoScreening?: boolean;
 }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<ApiCampaignEnrollment | null>(
+    null
+  );
+
+  async function pauseCandidate(candidate: ApiCampaignEnrollment) {
+    if (!candidate.candidateId) return;
+    setBusyId(candidate.id);
+    setActionError(null);
+    try {
+      await outreachApi.recordCandidateAction(campaignId, candidate.candidateId, {
+        action: "stop_automation",
+        reason: "Paused for candidate from campaign detail",
+      });
+      onChanged();
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, "Unable to pause candidate."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmRemoveCandidate() {
+    const candidate = pendingRemove;
+    if (!candidate?.candidateId) return;
+    setBusyId(candidate.id);
+    setActionError(null);
+    try {
+      const result = await outreachApi.removeAudience(campaignId, {
+        candidateIds: [candidate.candidateId],
+      });
+      if (!result.removed) {
+        setActionError("Candidate could not be removed from this campaign.");
+        return;
+      }
+      setPendingRemove(null);
+      onChanged();
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, "Unable to remove candidate."));
+      setPendingRemove(null);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (state !== "success") {
     return (
       <ApiFeedback
@@ -449,7 +509,16 @@ function CandidatesTab({
   }
 
   return (
-    <section className="overflow-x-auto rounded-xl border border-border bg-card">
+    <section className="space-y-3">
+      {actionError ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {actionError}
+        </div>
+      ) : null}
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
         <caption className="sr-only">
           Candidates enrolled in this campaign
@@ -475,6 +544,8 @@ function CandidatesTab({
               autoScreening,
             });
             const scheduling = candidate.schedulingState?.status ?? "not_started";
+            const isBusy = busyId === candidate.id;
+            const canAct = Boolean(candidate.candidateId);
             return (
               <TableRow key={candidate.id}>
                 <TableCell className="py-2.5">
@@ -543,6 +614,7 @@ function CandidatesTab({
                         <Button
                           size="icon-sm"
                           variant="ghost"
+                          disabled={isBusy}
                           aria-label={`Actions for ${candidate.name}`}
                         />
                       }
@@ -562,11 +634,18 @@ function CandidatesTab({
                           View profile
                         </DropdownMenuItem>
                       ) : null}
-                      <DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={!canAct || isBusy}
+                        onClick={() => void pauseCandidate(candidate)}
+                      >
                         <Pause aria-hidden />
                         Pause for candidate
                       </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        disabled={!canAct || isBusy}
+                        onClick={() => setPendingRemove(candidate)}
+                      >
                         <Trash2 aria-hidden />
                         Remove from campaign
                       </DropdownMenuItem>
@@ -578,6 +657,37 @@ function CandidatesTab({
           })}
         </TableBody>
       </Table>
+      </div>
+
+      <AlertDialog
+        open={!!pendingRemove}
+        onOpenChange={(open) => {
+          if (!open && busyId !== pendingRemove?.id) setPendingRemove(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRemove
+                ? `“${pendingRemove.name}” will be removed from this campaign and pending outreach jobs for them will be cancelled. This cannot be undone.`
+                : "This candidate will be removed from the campaign."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyId === pendingRemove?.id}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busyId === pendingRemove?.id}
+              onClick={() => void confirmRemoveCandidate()}
+            >
+              {busyId === pendingRemove?.id ? "Removing…" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
@@ -1566,10 +1676,12 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
           <CandidatesTab
+            campaignId={campaign.id}
             enrollments={enrollments}
             state={enrollmentsState}
             message={enrollmentsMessage}
             onRetry={() => setReloadKey((k) => k + 1)}
+            onChanged={() => setReloadKey((k) => k + 1)}
             autoScreening={Boolean(raw?.qualificationConfig?.autoScreening)}
           />
         </TabsContent>

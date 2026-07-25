@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { Send } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConversationInbox } from "@/components/conversations/conversation-inbox";
 import { ConversationInboxSkeleton } from "@/components/conversations/conversation-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { conversationsApi, getApiErrorMessage } from "@/lib/api";
+import {
+  conversationsApi,
+  getApiErrorMessage,
+  isAbortError,
+} from "@/lib/api";
 import type { Conversation } from "@/lib/mock-conversations";
 import { ROUTES } from "@/lib/routes";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
@@ -17,29 +21,29 @@ export function ConversationsPageClient() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { showLoading?: boolean }) => {
+    const requestId = ++requestIdRef.current;
+    if (opts?.showLoading) setLoading(true);
     try {
       const rows = await conversationsApi.list({ limit: 100 });
+      if (requestId !== requestIdRef.current) return;
       setConversations(rows);
       setError(null);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
+      if (isAbortError(err)) return;
       setError(getApiErrorMessage(err, "Unable to load conversations."));
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      try {
-        await refresh();
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    void refresh({ showLoading: true });
     return () => {
-      cancelled = true;
+      requestIdRef.current += 1;
     };
   }, [refresh]);
 
@@ -51,7 +55,8 @@ export function ConversationsPageClient() {
     ],
     () => {
       void refresh();
-    }
+    },
+    { debounceMs: 800 }
   );
 
   return (

@@ -720,12 +720,35 @@ export const campaignsService = {
   ) {
     const doc = await loadCampaign(organizationId, id);
     await assertEditable(doc);
-    const result = await OutreachEnrollmentModel.deleteMany({
+
+    const enrollments = await OutreachEnrollmentModel.find({
       campaignId: doc._id,
       organizationId,
       candidateId: { $in: input.candidateIds },
-      status: { $in: ['pending', 'opted_out'] },
+    }).select('_id candidateId');
+
+    if (enrollments.length === 0) {
+      return { removed: 0 };
+    }
+
+    const enrollmentIds = enrollments.map((row) => row._id);
+    await Promise.all([
+      CampaignJobModel.updateMany(
+        {
+          enrollmentId: { $in: enrollmentIds },
+          status: { $in: ['queued', 'queued_v2', 'leased', 'running'] },
+        },
+        { $set: { status: 'cancelled' } }
+      ),
+      ...enrollments.map((row) => cancelJobsForEnrollment(String(row._id))),
+    ]);
+
+    const result = await OutreachEnrollmentModel.deleteMany({
+      _id: { $in: enrollmentIds },
+      campaignId: doc._id,
+      organizationId,
     });
+
     const remaining = await OutreachEnrollmentModel.find({ campaignId: doc._id })
       .select('candidateId')
       .lean();
@@ -738,7 +761,13 @@ export const campaignsService = {
       actorUserId: userId,
       type: 'audience.removed',
       title: 'Audience candidates removed',
-      detail: `Removed ${result.deletedCount}`,
+      detail: `Removed ${result.deletedCount || 0}`,
+    });
+    emitOutreachCampaignUpdated({
+      organizationId,
+      campaignId: id,
+      status: doc.status,
+      userId,
     });
     return { removed: result.deletedCount || 0 };
   },
