@@ -87,7 +87,8 @@ export const candidateDetailsQuerySchema = z.object({
 });
 
 export const sessionsListQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export const recentSearchesQuerySchema = z.object({

@@ -22,6 +22,15 @@ const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware
 
 export const plansRouter = Router();
 export const usageRouter = Router();
+export const publicPricingRouter = Router();
+
+publicPricingRouter.get(
+  '/',
+  asyncHandler(async (_req, res) => {
+    const plans = await plansService.getPublicPricingPlans();
+    res.status(200).json({ success: true, plans });
+  })
+);
 
 plansRouter.get(
   '/',

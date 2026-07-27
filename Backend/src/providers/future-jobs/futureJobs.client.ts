@@ -4,6 +4,7 @@ import {
   getFutureJobsConfig,
   shouldUseFutureJobsMock,
 } from './futureJobs.auth.js';
+import { appendFutureJobsCurl } from './futureJobs.curl-log.js';
 import {
   createFutureJobsCircuitOpenError,
   createFutureJobsUpstreamError,
@@ -115,7 +116,8 @@ async function fetchWithTimeout(
 async function futureJobsFetch(
   url: string,
   options: RequestInit = {},
-  dedupe = false
+  dedupe = false,
+  fjOperation?: string
 ): Promise<DedupedResponse> {
   const method = options.method || 'GET';
   const key = dedupe ? dedupeKey(method, url, typeof options.body === 'string' ? options.body : '') : '';
@@ -125,6 +127,14 @@ async function futureJobsFetch(
   }
 
   const { timeoutMs } = getFutureJobsConfig();
+
+  appendFutureJobsCurl({
+    method,
+    url,
+    headers: options.headers,
+    body: options.body,
+    fjOperation,
+  });
 
   const run = async (): Promise<DedupedResponse> => {
     const res = await fetchWithTimeout(url, options, timeoutMs);
@@ -196,7 +206,12 @@ async function futureJobsHttpRequest(options: {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const started = Date.now();
     try {
-      const res = await futureJobsFetch(url, init, dedupe && method.toUpperCase() === 'GET');
+      const res = await futureJobsFetch(
+        url,
+        init,
+        dedupe && method.toUpperCase() === 'GET',
+        fjOperation
+      );
       const text = await res.text();
       const data = await parseJsonSafe(text);
       const elapsedMs = Date.now() - started;
@@ -414,7 +429,8 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
               ...authHeaders,
             },
           },
-          true
+          true,
+          fjOperation
         );
         const text = await res.text();
         const data = await parseJsonSafe(text);

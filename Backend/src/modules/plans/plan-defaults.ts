@@ -26,7 +26,7 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     public: true,
     isDefaultSignup: true,
     isTrialPlan: true,
-    trialDays: 14,
+    trialDays: 7,
     featureAccess: {
       sourcing: true,
       peopleScout: true,

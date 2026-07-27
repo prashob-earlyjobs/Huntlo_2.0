@@ -279,9 +279,21 @@ export interface CandidateSearchApi {
     fromStored: boolean;
     candidate: import("./candidate-details").CandidateDetailsApi;
   }>;
-  getSourcingSessions(params?: { limit?: number }): Promise<{
+  getSourcingSessions(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{
     success: true;
     sessions: SourcingSessionSummary[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    metrics: {
+      totalSearches: number;
+      candidatesFound: number;
+      creditsUsed: number;
+    };
   }>;
   getRecentSearches(params?: { limit?: number }): Promise<{
     success: true;
@@ -479,9 +491,23 @@ const mockCandidateSearchApi: CandidateSearchApi = {
       },
     };
   },
-  async getSourcingSessions() {
+  async getSourcingSessions(params) {
     await simulateMockLatency();
-    return { success: true, sessions: [] };
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.max(1, Math.min(100, params?.limit ?? 20));
+    return {
+      success: true as const,
+      sessions: [],
+      page,
+      limit,
+      total: 0,
+      totalPages: 1,
+      metrics: {
+        totalSearches: 0,
+        candidatesFound: 0,
+        creditsUsed: 0,
+      },
+    };
   },
   async getRecentSearches() {
     await simulateMockLatency();
@@ -600,11 +626,22 @@ const liveCandidateSearchApi: CandidateSearchApi = {
     );
   },
   async getSourcingSessions(params) {
-    const qs = buildQueryString(params ?? { limit: 50 });
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 20;
+    const qs = buildQueryString({ page, limit });
     // Wrapped in successResponse data envelope
     const result = await apiClient.get<{
       success: true;
       sessions: SourcingSessionSummary[];
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      metrics: {
+        totalSearches: number;
+        candidatesFound: number;
+        creditsUsed: number;
+      };
     }>(`/candidates/sessions${qs}`);
     return result.data;
   },
@@ -694,7 +731,10 @@ export async function getCandidateDetails(
   return candidateSearchApi.getCandidateDetails(candidateId, params);
 }
 
-export async function getSourcingSessions(params?: { limit?: number }) {
+export async function getSourcingSessions(params?: {
+  page?: number;
+  limit?: number;
+}) {
   return candidateSearchApi.getSourcingSessions(params);
 }
 

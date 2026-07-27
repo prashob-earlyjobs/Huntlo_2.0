@@ -22,6 +22,7 @@ import {
 import { peopleScoutRouter } from './modules/people-scout/index.js';
 import {
   adminPlansRouter,
+  publicPricingRouter,
   plansRouter,
   usageRouter,
 } from './modules/plans/index.js';
@@ -123,6 +124,7 @@ export function createApp(): Express {
 
   app.use('/api', healthRouter);
   app.use('/api/blog', publicBlogRouter);
+  app.use('/api/pricing-plans', publicPricingRouter);
   app.use('/api/v1', openApiRouter);
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/onboarding', onboardingRouter);
