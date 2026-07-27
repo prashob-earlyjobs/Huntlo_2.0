@@ -12,6 +12,7 @@ import { LandingLogo } from "./LandingLogo";
 
 const FOOTER_LINK_HREFS: Record<string, string> = {
   Sourcing: "/sourcing",
+  "Candidate Discovery": "/candidate-sourcing",
   Screening: "/screening",
   Assessments: "/assessments",
   Interview: "/interview",
@@ -19,6 +20,11 @@ const FOOTER_LINK_HREFS: Record<string, string> = {
   "People Scout": "/people-scout",
   "Candidate Pool": "/candidate-pool",
   Integrations: "/integrations",
+  "AI Hiring Infrastructure": "/ai-hiring-infrastructure",
+  "Agentic Hiring": "/agentic-hiring",
+  "Hiring OS": "/hiring-os",
+  "Hiring Workflows": "/hiring-workflows",
+  "Workflow Orchestration": "/workflow-orchestration",
   Documentation: "/docs",
   Blog: "/blog",
   FAQs: "/faqs",
@@ -76,7 +82,8 @@ const FOOTER_COLUMNS: {
 }[] = [
   {
     title: "Hiring OS",
-    links: ["Sourcing", "Screening", "Assessments", "Interview"],
+    titleHref: "/hiring-os",
+    links: ["Sourcing", "Candidate Discovery", "Screening", "Assessments", "Interview"],
   },
   {
     title: "Product",
@@ -84,7 +91,17 @@ const FOOTER_COLUMNS: {
   },
   {
     title: "Resources",
-    links: ["Documentation", "Blog", "FAQs"],
+    links: [
+      "AI Hiring Infrastructure",
+      "Agentic Hiring",
+      "Hiring OS",
+      "Hiring Workflows",
+      "Workflow Orchestration",
+      "Candidate Discovery",
+      "Documentation",
+      "Blog",
+      "FAQs",
+    ],
   },
   {
     title: "Company",

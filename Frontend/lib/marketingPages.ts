@@ -65,6 +65,54 @@ export const MARKETING_PAGES = {
       "Source candidates, run multi-channel outreach, and manage hiring workflows in one AI-native recruiting OS.",
     ogImage: OG_IMAGES.platform,
   },
+  aiHiringInfrastructure: {
+    path: "/ai-hiring-infrastructure",
+    eyebrow: "Category",
+    title: "AI Hiring Infrastructure — The Future of Hiring",
+    description:
+      "Huntlo is AI Hiring Infrastructure for modern recruiting teams — candidate discovery, talent intelligence, AI recruiting agents, and workflow orchestration in one connected layer.",
+    ogImage: OG_IMAGES.platform,
+  },
+  hiringOs: {
+    path: "/hiring-os",
+    eyebrow: "Category",
+    title: "The Hiring Operating System For Modern Recruiting Teams",
+    description:
+      "Huntlo is the Hiring Operating System for modern recruiting teams — connecting candidate discovery, talent intelligence, AI recruiting agents, and hiring workflows in one platform.",
+    ogImage: OG_IMAGES.platform,
+  },
+  agenticHiring: {
+    path: "/agentic-hiring",
+    eyebrow: "Category",
+    title: "Agentic Hiring — Human + AI Recruiting",
+    description:
+      "Agentic Hiring is the future of Human + AI recruiting — intelligent collaboration between recruiters and AI recruiting agents across discovery, engagement, screening, and hiring workflows.",
+    ogImage: OG_IMAGES.platform,
+  },
+  hiringWorkflows: {
+    path: "/hiring-workflows",
+    eyebrow: "Category",
+    title: "Hiring Workflows — Intelligent Recruiting Workflows",
+    description:
+      "Huntlo connects candidate discovery, intelligence, engagement, and hiring operations into intelligent hiring workflows designed for modern recruiting teams.",
+    ogImage: OG_IMAGES.platform,
+  },
+  workflowOrchestration: {
+    path: "/workflow-orchestration",
+    eyebrow: "Category",
+    title: "Workflow Orchestration — Intelligent Hiring Workflows",
+    description:
+      "Huntlo Workflow Orchestration connects candidate discovery, AI recruiting agents, talent intelligence, and hiring outcomes through one intelligent orchestration layer — not disconnected automation.",
+    ogImage: OG_IMAGES.platform,
+  },
+  candidateSourcing: {
+    path: "/candidate-sourcing",
+    eyebrow: "Category",
+    title: "AI Candidate Sourcing & Candidate Discovery",
+    description:
+      "Huntlo Candidate Discovery helps recruiting teams continuously discover talent through skills intelligence, hiring intent, and AI discovery agents — beyond traditional candidate search.",
+    ogImage: OG_IMAGES.platform,
+  },
   pricing: {
     path: "/pricing",
     eyebrow: "Pricing",
