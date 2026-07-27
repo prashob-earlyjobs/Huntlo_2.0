@@ -98,6 +98,7 @@ export interface Conversation {
   pipelineStatus?: CandidatePipelineStatus;
   qualification: QualificationState;
   qualificationStatus?: string;
+  qualificationReason?: string | null;
   screeningStatus: string;
   screeningId?: string | null;
   /** Final screening outcome when screening is completed. */
