@@ -22,7 +22,38 @@ function oid(id: string | null | undefined) {
   return new mongoose.Types.ObjectId(id);
 }
 
+/** Candidate email this job will message — shown in Admin → Worker tasks. */
+async function resolveTargetEmail(
+  enrollmentId: string | null | undefined
+): Promise<string | null> {
+  if (!enrollmentId || !mongoose.Types.ObjectId.isValid(enrollmentId)) return null;
+  try {
+    const { OutreachEnrollmentModel } = await import(
+      '../modules/outreach/enrollment.model.js'
+    );
+    const enrollment = await OutreachEnrollmentModel.findById(enrollmentId)
+      .select('candidateId')
+      .lean();
+    if (!enrollment?.candidateId) return null;
+    const { SavedCandidateModel } = await import(
+      '../modules/candidates/saved-candidate.model.js'
+    );
+    const candidate = await SavedCandidateModel.findById(enrollment.candidateId)
+      .select('email')
+      .lean();
+    return candidate?.email ? String(candidate.email) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function scheduleJob(input: ScheduleInput) {
+  const details: Record<string, unknown> = { ...(input.details ?? {}) };
+  if (!details.targetEmail) {
+    const targetEmail = await resolveTargetEmail(input.enrollmentId);
+    if (targetEmail) details.targetEmail = targetEmail;
+  }
+
   try {
     return await BullOutreachJobModel.create({
       kind: input.kind,
@@ -34,7 +65,7 @@ export async function scheduleJob(input: ScheduleInput) {
       runAt: input.runAt ?? new Date(),
       status: 'pending',
       attempts: 0,
-      details: input.details ?? {},
+      details,
     });
   } catch (error) {
     if (error instanceof Error && 'code' in error && (error as { code?: number }).code === 11000) {
