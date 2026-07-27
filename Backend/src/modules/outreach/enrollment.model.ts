@@ -68,6 +68,7 @@ export type OutreachEnrollmentDocument = Document & {
   qualificationState: {
     status: 'pending' | 'in_progress' | 'qualified' | 'rejected' | 'skipped';
     answers: Record<string, unknown>;
+    reason?: string | null;
   };
   screeningState: {
     status: 'not_started' | 'scheduled' | 'completed' | 'skipped';
@@ -176,10 +177,11 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
             default: 'pending',
           },
           answers: { type: Schema.Types.Mixed, default: {} },
+          reason: { type: String, default: null, maxlength: 500 },
         },
         { _id: false }
       ),
-      default: () => ({ status: 'pending', answers: {} }),
+      default: () => ({ status: 'pending', answers: {}, reason: null }),
     },
     screeningState: {
       type: new Schema(

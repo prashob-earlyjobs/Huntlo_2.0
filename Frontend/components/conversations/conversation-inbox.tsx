@@ -172,12 +172,15 @@ function stripEmailQuotedReply(raw: string): string {
 function MiniBadge({
   text,
   className,
+  title,
 }: {
   text: string;
   className: string;
+  title?: string;
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex h-5 items-center rounded-md px-1.5 text-[11px] font-medium whitespace-nowrap",
         className
@@ -186,6 +189,23 @@ function MiniBadge({
       {text}
     </span>
   );
+}
+
+function qualificationBadgeTooltip(conversation: Conversation): string | undefined {
+  const pipeline = conversationPipelineStatus(conversation);
+  if (pipeline === "Qualified") {
+    return (
+      conversation.qualificationReason ||
+      "Candidate was marked qualified."
+    );
+  }
+  if (pipeline === "Not qualified") {
+    return (
+      conversation.qualificationReason ||
+      "Candidate was marked not qualified."
+    );
+  }
+  return undefined;
 }
 
 /* ------------------------------------------------------------------ */
@@ -993,12 +1013,17 @@ export function ConversationInbox({
                           {conversation.channels.map((channel) => {
                             const Icon =
                               CHANNEL_ICONS[channel] ?? MessageCircle;
+                            const tooltip =
+                              channel === "Email" && conversation.email
+                                ? conversation.email
+                                : channel;
                             return (
-                              <Icon
-                                key={channel}
-                                aria-label={channel}
-                                className="size-3 shrink-0 text-muted-foreground"
-                              />
+                              <span key={channel} title={tooltip}>
+                                <Icon
+                                  aria-label={tooltip}
+                                  className="size-3 shrink-0 text-muted-foreground"
+                                />
+                              </span>
                             );
                           })}
                           <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -1038,6 +1063,7 @@ export function ConversationInbox({
                           <MiniBadge
                             text={pipeline}
                             className={pipelineStatusBadgeClass(pipeline)}
+                            title={qualificationBadgeTooltip(conversation)}
                           />
                           {isUnread ? (
                             <span
@@ -1100,6 +1126,7 @@ export function ConversationInbox({
                 className={pipelineStatusBadgeClass(
                   conversationPipelineStatus(selected)
                 )}
+                title={qualificationBadgeTooltip(selected)}
               />
               {!embedded && !profileOpen ? (
                 <Button

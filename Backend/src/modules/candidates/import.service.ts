@@ -135,10 +135,70 @@ type ExistingPoolMatch = {
   linkedinUrl: string | null;
 };
 
+/** Email/phone agree when either side is missing, or both are present and equal. */
+function contactsCompatible(
+  existing: { email: string | null; phone: string | null },
+  incoming: { email: string | null; phone: string | null }
+): boolean {
+  if (
+    existing.email &&
+    incoming.email &&
+    existing.email.toLowerCase() !== incoming.email.toLowerCase()
+  ) {
+    return false;
+  }
+  if (existing.phone && incoming.phone && existing.phone !== incoming.phone) {
+    return false;
+  }
+  return true;
+}
+
+function asNullableString(value: unknown): string | null {
+  return value ? String(value) : null;
+}
+
+function buildLinkedExistingPatch(input: {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  linkedinUrl: string | null;
+  currentTitle: string | null;
+  currentCompany: string | null;
+  location: string | null;
+  headline: string | null;
+  existing: ExistingPoolMatch;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    lastActivityAt: new Date(),
+  };
+
+  if (input.name) patch.name = input.name;
+
+  // Never overwrite a different non-empty email/phone — only fill blanks.
+  if (input.email && !input.existing.email) {
+    patch.email = input.email;
+  }
+  if (input.phone && !input.existing.phone) {
+    patch.phone = input.phone;
+  }
+  if (input.linkedinUrl) {
+    patch.linkedinUrl = input.linkedinUrl;
+  }
+
+  // Refresh profile fields from this CSV row when provided.
+  if (input.currentTitle) patch.currentTitle = input.currentTitle;
+  if (input.currentCompany) patch.currentCompany = input.currentCompany;
+  if (input.location) patch.location = input.location;
+  if (input.headline) patch.headline = input.headline;
+
+  return patch;
+}
+
 /**
  * Resolve an existing pool candidate for dedupe.
  * Priority: email → LinkedIn → phone.
- * Same phone with a *different* email is NOT treated as a duplicate (creates a new row).
+ * Conflicting email/phone on the matched record means NOT a duplicate
+ * (create a new row instead of scrambling identity).
  */
 async function findExistingPoolMatch(input: {
   organizationId: mongoose.Types.ObjectId | string;
@@ -150,6 +210,7 @@ async function findExistingPoolMatch(input: {
     organizationId: input.organizationId,
     deletedAt: null,
   };
+  const incoming = { email: input.email, phone: input.phone };
 
   if (input.email) {
     const byEmail = await SavedCandidateModel.findOne({
@@ -159,12 +220,14 @@ async function findExistingPoolMatch(input: {
       .select('_id email phone linkedinUrl')
       .lean();
     if (byEmail) {
-      return {
+      const match: ExistingPoolMatch = {
         _id: byEmail._id as mongoose.Types.ObjectId,
-        email: byEmail.email ? String(byEmail.email) : null,
-        phone: byEmail.phone ? String(byEmail.phone) : null,
-        linkedinUrl: byEmail.linkedinUrl ? String(byEmail.linkedinUrl) : null,
+        email: asNullableString(byEmail.email),
+        phone: asNullableString(byEmail.phone),
+        linkedinUrl: asNullableString(byEmail.linkedinUrl),
       };
+      if (contactsCompatible(match, incoming)) return match;
+      return null;
     }
   }
 
@@ -179,12 +242,14 @@ async function findExistingPoolMatch(input: {
       .select('_id email phone linkedinUrl')
       .lean();
     if (byLi) {
-      return {
+      const match: ExistingPoolMatch = {
         _id: byLi._id as mongoose.Types.ObjectId,
-        email: byLi.email ? String(byLi.email) : null,
-        phone: byLi.phone ? String(byLi.phone) : null,
-        linkedinUrl: byLi.linkedinUrl ? String(byLi.linkedinUrl) : null,
+        email: asNullableString(byLi.email),
+        phone: asNullableString(byLi.phone),
+        linkedinUrl: asNullableString(byLi.linkedinUrl),
       };
+      if (contactsCompatible(match, incoming)) return match;
+      return null;
     }
   }
 
@@ -196,16 +261,14 @@ async function findExistingPoolMatch(input: {
       .select('_id email phone linkedinUrl')
       .lean();
     if (byPhone) {
-      const existingEmail = byPhone.email ? String(byPhone.email) : null;
-      if (input.email && existingEmail && existingEmail !== input.email) {
-        return null;
-      }
-      return {
+      const match: ExistingPoolMatch = {
         _id: byPhone._id as mongoose.Types.ObjectId,
-        email: existingEmail,
-        phone: byPhone.phone ? String(byPhone.phone) : null,
-        linkedinUrl: byPhone.linkedinUrl ? String(byPhone.linkedinUrl) : null,
+        email: asNullableString(byPhone.email),
+        phone: asNullableString(byPhone.phone),
+        linkedinUrl: asNullableString(byPhone.linkedinUrl),
       };
+      if (contactsCompatible(match, incoming)) return match;
+      return null;
     }
   }
 
@@ -327,15 +390,15 @@ async function classifyPreviewRows(
   for (const key of candidateKeys) {
     let hits = false;
     if (key.email && existingByEmail.has(key.email)) {
-      hits = true;
+      const matched = existingByEmail.get(key.email)!;
+      if (contactsCompatible(matched, key)) hits = true;
     } else if (key.linkedin && existingByLinkedin.has(key.linkedin)) {
+      // LinkedIn hits still require live phone/email compatibility in processImportJob;
+      // treat as existing for preview when LinkedIn matches (conservative).
       hits = true;
     } else if (key.phone && existingByPhone.has(key.phone)) {
       const matched = existingByPhone.get(key.phone)!;
-      // Same phone + different email → not a duplicate (mirrors processImportJob).
-      if (!(key.email && matched.email && matched.email !== key.email)) {
-        hits = true;
-      }
+      if (contactsCompatible(matched, key)) hits = true;
     }
     if (hits) {
       duplicatesExisting += 1;
@@ -717,17 +780,18 @@ export class ImportService {
           if (existing) {
               totals.duplicatesExisting += 1;
 
-              // Refresh contact fields from this row when provided (e.g. new email
-              // on an existing phone match), then attach to the campaign list.
-              const contactPatch: Record<string, unknown> = {
-                lastActivityAt: new Date(),
-              };
-              if (email && (!existing.email || existing.email === email)) {
-                contactPatch.email = email;
-              }
-              if (phone) contactPatch.phone = phone;
-              if (linkedinUrl) contactPatch.linkedinUrl = linkedinUrl;
-              if (name) contactPatch.name = name;
+              // Refresh compatible blanks + profile fields; never scramble identity.
+              const contactPatch = buildLinkedExistingPatch({
+                name,
+                email,
+                phone,
+                linkedinUrl,
+                currentTitle: displayValue(mapped.currentTitle ?? '') || null,
+                currentCompany: displayValue(mapped.currentCompany ?? '') || null,
+                location: displayValue(mapped.location ?? '') || null,
+                headline: displayValue(mapped.headline ?? '') || null,
+                existing,
+              });
 
               if (listId && isValidObjectId(listId)) {
                 const listOid = new mongoose.Types.ObjectId(listId);

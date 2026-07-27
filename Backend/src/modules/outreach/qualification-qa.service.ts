@@ -762,9 +762,11 @@ async function completeQualificationWhenAllAnswered(input: {
     enrollment: input.enrollment,
     threadId: input.threadId,
     status: 'qualified',
-    reason: shouldHandOffAfterQuestions(input.config)
-      ? input.config.takeoverCondition || 'Recruiter takeover after qualification'
-      : undefined,
+    reason:
+      assessment.reason ||
+      (shouldHandOffAfterQuestions(input.config)
+        ? input.config.takeoverCondition || 'Recruiter takeover after qualification'
+        : undefined),
   });
   return { action: 'qualified' };
 }
@@ -894,7 +896,8 @@ async function processEmailQualificationReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason: `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
+        reason:
+          evaluation.reason || `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
       });
       return { action: 'rejected_knockout' };
     }
@@ -1198,6 +1201,13 @@ async function completeQualification(input: {
 }) {
   const { campaign, enrollment, status } = input;
   const organizationId = String(campaign.organizationId);
+  const qualificationReason =
+    input.reason ||
+    (status === 'qualified'
+      ? 'All qualification questions were answered successfully.'
+      : status === 'rejected'
+        ? 'Candidate did not meet qualification criteria.'
+        : null);
 
   if (
     (status === 'qualified' || status === 'handed_off') &&
@@ -1215,11 +1225,13 @@ async function completeQualification(input: {
     enrollment.qualificationState = {
       status,
       answers: enrollment.qualificationState?.answers || {},
+      reason: qualificationReason,
     };
   } else {
     enrollment.qualificationState = {
       status: 'in_progress',
       answers: enrollment.qualificationState?.answers || {},
+      reason: qualificationReason,
     };
   }
   enrollment.lastActionAt = new Date();
@@ -2112,7 +2124,9 @@ export async function processQualificationAfterReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason: `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
+        reason:
+          evaluation.reason ||
+          `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
       });
       return { action: 'rejected_knockout' };
     }

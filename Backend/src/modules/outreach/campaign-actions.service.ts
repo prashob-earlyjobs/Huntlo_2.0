@@ -130,6 +130,7 @@ export const campaignActionsService = {
         enrollment.qualificationState = {
           ...enrollment.qualificationState,
           status: 'qualified',
+          reason: 'Recruiter marked the candidate as qualified.',
         };
         await enrollment.save();
         break;
@@ -137,6 +138,7 @@ export const campaignActionsService = {
         enrollment.qualificationState = {
           ...enrollment.qualificationState,
           status: 'rejected',
+          reason: 'Recruiter marked the candidate as not qualified.',
         };
         await campaignsService.stopEnrollment(
           String(enrollment._id),
@@ -147,6 +149,7 @@ export const campaignActionsService = {
         enrollment.qualificationState = {
           ...enrollment.qualificationState,
           status: 'qualified',
+          reason: 'Recruiter shortlisted the candidate.',
           answers: {
             ...(enrollment.qualificationState.answers || {}),
             shortlisted: true,
