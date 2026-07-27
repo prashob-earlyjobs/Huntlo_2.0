@@ -58,6 +58,8 @@ export type AdminPendingTask = {
   entityType: string | null;
   entityId: string | null;
   entityLabel: string | null;
+  /** Candidate email the job will message (outreach sends/followups). */
+  targetEmail: string | null;
   attempts: number;
   lastError: string | null;
   createdAt: string;
@@ -209,6 +211,7 @@ export class AdminJobsService {
         entityLabel: doc.entityType
           ? `${doc.entityType}${doc.entityId ? `:${doc.entityId}` : ''}`
           : null,
+        targetEmail: null,
         attempts: Number(doc.attempts || 0),
         lastError: doc.lastError ? String(doc.lastError) : null,
         createdAt: new Date(doc.createdAt as Date).toISOString(),
@@ -221,6 +224,14 @@ export class AdminJobsService {
       const status = String(doc.status || '');
       const campaignId = String(doc.campaignId || '');
       const channel = doc.channel ? String(doc.channel) : null;
+      const targetEmail =
+        String((doc.details as { targetEmail?: unknown } | null)?.targetEmail || '') ||
+        null;
+      const baseLabel = campaignId
+        ? campaignNameById.get(campaignId) || campaignId
+        : channel
+          ? `${String(doc.kind)} · ${channel}`
+          : String(doc.kind || '—');
       items.push({
         id: String(doc._id),
         queue: 'outreach',
@@ -230,11 +241,8 @@ export class AdminJobsService {
         organizationId: doc.organizationId ? String(doc.organizationId) : null,
         entityType: campaignId ? 'campaign' : doc.kind ? String(doc.kind) : null,
         entityId: campaignId || null,
-        entityLabel: campaignId
-          ? campaignNameById.get(campaignId) || campaignId
-          : channel
-            ? `${String(doc.kind)} · ${channel}`
-            : String(doc.kind || '—'),
+        entityLabel: targetEmail ? `${baseLabel} → ${targetEmail}` : baseLabel,
+        targetEmail,
         attempts: Number(doc.attempts || 0),
         lastError: doc.lastError ? String(doc.lastError) : null,
         createdAt: new Date(doc.createdAt as Date).toISOString(),

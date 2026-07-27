@@ -19,6 +19,7 @@ import {
   setEmailPipelineLogContextId,
 } from '../../providers/gemini/gemini.conversations.js';
 import { stripEmailQuotedReply } from '../../providers/email/strip-quoted-reply.js';
+import { normalizeWhatsAppMessageId } from '../webhooks/whatsapp-outbound-route.service.js';
 import {
   ConversationMessageModel,
   type MessageProvider,
@@ -97,27 +98,30 @@ async function findCandidate(input: NormalizedInboundMessage) {
     }).lean();
   }
 
-  const from = normalizeContact(input.from);
-  if (!from) return null;
+  const byPhone = await findCandidatesByPhone(input.organizationId, input.from);
+  return byPhone[0] || null;
+}
+
+/** All candidate records whose phone digit-suffix matches the sender. */
+async function findCandidatesByPhone(organizationId: string, rawFrom: string) {
+  const from = normalizeContact(rawFrom);
+  if (!from) return [];
 
   const phoneDigits = from.replace(/\D/g, '');
-  if (phoneDigits.length >= 8) {
-    const candidates = await SavedCandidateModel.find({
-      organizationId: input.organizationId,
-      deletedAt: null,
-      phone: { $ne: null },
-    })
-      .select('name email phone tags customFields currentTitle currentCompany location')
-      .limit(500)
-      .lean();
-    return (
-      candidates.find((c) => {
-        const digits = String(c.phone || '').replace(/\D/g, '');
-        return digits.endsWith(phoneDigits) || phoneDigits.endsWith(digits);
-      }) || null
-    );
-  }
-  return null;
+  if (phoneDigits.length < 8) return [];
+
+  const candidates = await SavedCandidateModel.find({
+    organizationId,
+    deletedAt: null,
+    phone: { $ne: null },
+  })
+    .select('name email phone tags customFields currentTitle currentCompany location')
+    .limit(500)
+    .lean();
+  return candidates.filter((c) => {
+    const digits = String(c.phone || '').replace(/\D/g, '');
+    return digits.endsWith(phoneDigits) || phoneDigits.endsWith(digits);
+  });
 }
 
 type ChannelCapableCampaign = {
@@ -146,6 +150,217 @@ export function campaignSupportsChannel(
     );
   }
   return true;
+}
+
+/**
+ * Email: derive campaign/enrollment from the provider conversation id stamped
+ * on outbound send (Gmail threadId, Outlook conversationId, etc.). Prefer this
+ * over "latest enrollment by updatedAt" when the candidate is in multiple
+ * email campaigns — otherwise a reply to campaign A can land on campaign B.
+ *
+ * Includes closed threads: a newer outreach may have closed the prior chat,
+ * but the reply still belongs to the stamped provider conversation.
+ *
+ * WhatsApp is excluded — its providerThreadId is the phone number and is not
+ * unique across campaigns.
+ */
+async function resolveEmailThreadBinding(input: {
+  organizationId: string;
+  provider: MessageProvider;
+  providerThreadId: string;
+  channel: ConversationChannel;
+}): Promise<{
+  threadId: string | null;
+  candidateId: string | null;
+  campaignId: string | null;
+  enrollmentId: string | null;
+}> {
+  if (input.channel !== 'email') {
+    return { threadId: null, candidateId: null, campaignId: null, enrollmentId: null };
+  }
+  const providerThreadId = String(input.providerThreadId || '').trim();
+  if (!providerThreadId) {
+    return { threadId: null, candidateId: null, campaignId: null, enrollmentId: null };
+  }
+
+  const log = getLogger().child({ component: 'inbound-sync', fn: 'resolveEmailThreadBinding' });
+
+  const threadQuery = {
+    organizationId: input.organizationId,
+    providerThreadIds: {
+      $elemMatch: { provider: input.provider, threadId: providerThreadId },
+    },
+    ...messagingChannelThreadFilter(input.channel),
+  };
+  const byProvider = await ConversationThreadModel.findOne(threadQuery)
+    .select('_id candidateId campaignId enrollmentId providerThreadIds')
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  log.info(
+    {
+      providerThreadId,
+      provider: input.provider,
+      organizationId: input.organizationId,
+      foundThread: byProvider ? String(byProvider._id) : null,
+      foundCandidateId: byProvider?.candidateId ? String(byProvider.candidateId) : null,
+      foundCampaignId: byProvider?.campaignId ? String(byProvider.campaignId) : null,
+      storedProviderThreadIds: byProvider?.providerThreadIds || null,
+    },
+    'providerThread lookup result'
+  );
+
+  if (byProvider?.campaignId) {
+    return {
+      threadId: String(byProvider._id),
+      candidateId: String(byProvider.candidateId),
+      campaignId: String(byProvider.campaignId),
+      enrollmentId: byProvider.enrollmentId ? String(byProvider.enrollmentId) : null,
+    };
+  }
+
+  // Fallback: message-level providerThreadId when the thread array wasn't stamped.
+  const msg = await ConversationMessageModel.findOne({
+    organizationId: input.organizationId,
+    provider: input.provider,
+    providerThreadId,
+    channel: 'email',
+  })
+    .select('threadId')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  log.info(
+    {
+      providerThreadId,
+      fallbackMessageId: msg ? String(msg._id) : null,
+      fallbackThreadId: msg?.threadId ? String(msg.threadId) : null,
+    },
+    'providerThread message fallback'
+  );
+
+  if (!msg?.threadId) {
+    return { threadId: null, candidateId: null, campaignId: null, enrollmentId: null };
+  }
+
+  const thread = await ConversationThreadModel.findOne({
+    _id: msg.threadId,
+    organizationId: input.organizationId,
+  })
+    .select('_id candidateId campaignId enrollmentId')
+    .lean();
+
+  if (!thread?.campaignId || !thread.candidateId) {
+    return { threadId: null, candidateId: null, campaignId: null, enrollmentId: null };
+  }
+
+  return {
+    threadId: String(thread._id),
+    candidateId: String(thread.candidateId),
+    campaignId: String(thread.campaignId),
+    enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
+  };
+}
+
+/**
+ * WhatsApp: bind by the exact outbound the user replied to (Meta context.id)
+ * when present; otherwise by the newest WhatsApp outreach outbound across ALL
+ * candidate records that share the sender phone.
+ *
+ * Duplicate candidates with the same phone otherwise make findCandidate pick
+ * one arbitrarily, and the "latest outbound" heuristic then only searches that
+ * candidate's threads — binding the reply to an old campaign instead of the
+ * campaign that actually messaged the phone last.
+ */
+async function resolveWhatsAppThreadBinding(input: {
+  organizationId: string;
+  provider: MessageProvider;
+  from: string;
+  contextProviderMessageId?: string | null;
+}): Promise<{
+  threadId: string | null;
+  candidateId: string | null;
+  campaignId: string | null;
+  enrollmentId: string | null;
+}> {
+  const empty = {
+    threadId: null,
+    candidateId: null,
+    campaignId: null,
+    enrollmentId: null,
+  };
+  const log = getLogger().child({
+    component: 'inbound-sync',
+    fn: 'resolveWhatsAppThreadBinding',
+  });
+
+  // 1) Deterministic: the wamid of the outbound message the user replied to.
+  const contextId = normalizeWhatsAppMessageId(input.contextProviderMessageId);
+  if (contextId) {
+    const outbound = await ConversationMessageModel.findOne({
+      organizationId: input.organizationId,
+      channel: 'whatsapp',
+      direction: 'outbound',
+      providerMessageId: { $in: [contextId, `${input.provider}:${contextId}`] },
+    })
+      .select('threadId')
+      .sort({ createdAt: -1 })
+      .lean();
+    if (outbound?.threadId) {
+      const thread = await ConversationThreadModel.findOne({
+        _id: outbound.threadId,
+        organizationId: input.organizationId,
+      })
+        .select('_id candidateId campaignId enrollmentId')
+        .lean();
+      if (thread?.candidateId && thread.campaignId) {
+        log.info(
+          {
+            from: input.from,
+            contextId,
+            threadId: String(thread._id),
+            candidateId: String(thread.candidateId),
+            campaignId: String(thread.campaignId),
+          },
+          'WhatsApp inbound bound via context wamid'
+        );
+        return {
+          threadId: String(thread._id),
+          candidateId: String(thread.candidateId),
+          campaignId: String(thread.campaignId),
+          enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
+        };
+      }
+    }
+  }
+
+  // 2) Newest WA outreach send across every candidate sharing this phone.
+  const candidates = await findCandidatesByPhone(input.organizationId, input.from);
+  if (!candidates.length) return empty;
+
+  const latest = await findLatestWhatsAppOutbound(
+    input.organizationId,
+    candidates.map((c) => String(c._id))
+  );
+  if (!latest) return empty;
+
+  log.info(
+    {
+      from: input.from,
+      matchedCandidates: candidates.length,
+      threadId: latest.threadId,
+      candidateId: latest.candidateId,
+      campaignId: latest.campaignId,
+      sentAt: latest.sentAt,
+    },
+    'WhatsApp inbound bound via latest outbound across phone-matched candidates'
+  );
+  return {
+    threadId: latest.threadId,
+    candidateId: latest.candidateId,
+    campaignId: latest.campaignId,
+    enrollmentId: latest.enrollmentId,
+  };
 }
 
 async function resolveEnrollment(
@@ -241,6 +456,7 @@ async function resolveEnrollment(
 
 type LatestWhatsAppOutbound = {
   threadId: string;
+  candidateId: string;
   campaignId: string;
   enrollmentId: string | null;
   messageId: string;
@@ -271,13 +487,23 @@ async function findLatestWhatsAppOutboundForCandidate(
   organizationId: string,
   candidateId: string
 ): Promise<LatestWhatsAppOutbound | null> {
+  return findLatestWhatsAppOutbound(organizationId, [candidateId]);
+}
+
+/** Same as above, but across several candidate records (duplicate phones). */
+async function findLatestWhatsAppOutbound(
+  organizationId: string,
+  candidateIds: string[]
+): Promise<LatestWhatsAppOutbound | null> {
+  if (!candidateIds.length) return null;
+
   const threads = await ConversationThreadModel.find({
     organizationId,
-    candidateId,
+    candidateId: { $in: candidateIds },
     channels: 'whatsapp',
     campaignId: { $ne: null },
   })
-    .select('_id campaignId enrollmentId')
+    .select('_id candidateId campaignId enrollmentId')
     .lean();
 
   if (!threads.length) return null;
@@ -301,6 +527,7 @@ async function findLatestWhatsAppOutboundForCandidate(
     if (!thread?.campaignId) continue;
     return {
       threadId: String(thread._id),
+      candidateId: String(thread.candidateId),
       campaignId: String(thread.campaignId),
       enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
       messageId: String(msg._id),
@@ -805,6 +1032,75 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     };
   }
 
+  // Email replies: bind by provider thread first. This avoids picking the wrong
+  // candidate when the same sender email exists on multiple candidate records.
+  let boundThreadId: string | null = null;
+  if (input.channel === 'email' && input.providerThreadId) {
+    const binding = await resolveEmailThreadBinding({
+      organizationId: input.organizationId,
+      provider: input.provider,
+      providerThreadId: input.providerThreadId,
+      channel: input.channel,
+    });
+    if (binding.candidateId) {
+      input = {
+        ...input,
+        candidateId: input.candidateId || binding.candidateId,
+        campaignId: input.campaignId || binding.campaignId,
+        enrollmentId: input.enrollmentId || binding.enrollmentId,
+      };
+      boundThreadId = binding.threadId;
+      getLogger()
+        .child({ component: 'inbound-sync' })
+        .info(
+          {
+            from: input.from,
+            candidateId: binding.candidateId,
+            campaignId: binding.campaignId,
+            enrollmentId: binding.enrollmentId,
+            providerThreadId: input.providerThreadId,
+            threadId: binding.threadId,
+          },
+          'Email inbound pre-bound via providerThreadId'
+        );
+    }
+  }
+
+  // WhatsApp replies: bind by context wamid / newest outbound across all
+  // candidates sharing the phone, so duplicates don't hijack the reply.
+  if (input.channel === 'whatsapp') {
+    const binding = await resolveWhatsAppThreadBinding({
+      organizationId: input.organizationId,
+      provider: input.provider,
+      from: input.from,
+      contextProviderMessageId: input.contextProviderMessageId,
+    });
+    if (binding.candidateId) {
+      input = {
+        ...input,
+        candidateId: input.candidateId || binding.candidateId,
+        campaignId: input.campaignId || binding.campaignId,
+        enrollmentId: input.enrollmentId || binding.enrollmentId,
+      };
+      // Only pin the thread when it belongs to the effective candidate.
+      if (input.candidateId === binding.candidateId) {
+        boundThreadId = binding.threadId;
+      }
+      getLogger()
+        .child({ component: 'inbound-sync' })
+        .info(
+          {
+            from: input.from,
+            candidateId: binding.candidateId,
+            campaignId: binding.campaignId,
+            enrollmentId: binding.enrollmentId,
+            threadId: binding.threadId,
+          },
+          'WhatsApp inbound pre-bound via thread binding'
+        );
+    }
+  }
+
   const candidate = await findCandidate(input);
   if (!candidate) {
     getLogger()
@@ -832,30 +1128,34 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     return { duplicate: false, threadId: null, messageId: null };
   }
 
+  let hintCampaignId = input.campaignId || null;
+  let hintEnrollmentId = input.enrollmentId || null;
+
   const enrollment = await resolveEnrollment(
     input.organizationId,
     String(candidate._id),
-    input.campaignId,
-    input.enrollmentId,
+    hintCampaignId,
+    hintEnrollmentId,
     input.channel
   );
 
   let campaignId = enrollment ? String(enrollment.campaignId) : null;
   let enrollmentId = enrollment ? String(enrollment._id) : null;
 
-  // Only keep an explicit campaignId from the webhook when it supports this channel.
+  // Only keep an explicit/hinted campaignId when it supports this channel.
   // WhatsApp: never attach to a stated campaign that is not the latest outbound owner.
-  if (!campaignId && input.campaignId) {
+  if (!campaignId && (hintCampaignId || input.campaignId)) {
+    const statedCampaignId = String(hintCampaignId || input.campaignId);
     if (input.channel === 'whatsapp') {
       const latest = await findLatestWhatsAppOutboundForCandidate(
         input.organizationId,
         String(candidate._id)
       );
-      if (latest && latest.campaignId === input.campaignId) {
-        campaignId = input.campaignId;
+      if (latest && latest.campaignId === statedCampaignId) {
+        campaignId = statedCampaignId;
       }
     } else {
-      const stated = await OutreachCampaignModel.findById(input.campaignId)
+      const stated = await OutreachCampaignModel.findById(statedCampaignId)
         .select('channelConfig sequenceSteps')
         .lean();
       // In this branch channel is never WhatsApp (handled above).
@@ -864,7 +1164,10 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
         input.channel !== 'email' ||
         campaignSupportsChannel(stated, input.channel)
       ) {
-        campaignId = input.campaignId;
+        campaignId = statedCampaignId;
+        if (!enrollmentId && hintEnrollmentId) {
+          enrollmentId = hintEnrollmentId;
+        }
       }
     }
   }
@@ -915,6 +1218,36 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
 
   let thread;
   try {
+    if (boundThreadId) {
+      const prebound = await ConversationThreadModel.findOne({
+        _id: boundThreadId,
+        organizationId: input.organizationId,
+        candidateId: candidate._id,
+      });
+      if (prebound) {
+        if (prebound.status === 'closed' || prebound.status === 'opted_out') {
+          prebound.status = 'replied';
+          prebound.automationStatus = 'active';
+        }
+        if (enrollmentId) {
+          prebound.enrollmentId = new mongoose.Types.ObjectId(enrollmentId);
+        }
+        if (input.providerThreadId) {
+          const has = prebound.providerThreadIds.some(
+            (p) => p.provider === input.provider && p.threadId === input.providerThreadId
+          );
+          if (!has) {
+            prebound.providerThreadIds.push({
+              provider: input.provider,
+              threadId: input.providerThreadId,
+            });
+          }
+        }
+        await prebound.save();
+        thread = prebound;
+      }
+    }
+
     // Pin WhatsApp replies to the exact thread that owns the latest outreach send.
     if (
       input.channel === 'whatsapp' &&
