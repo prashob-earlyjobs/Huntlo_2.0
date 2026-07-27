@@ -100,19 +100,26 @@ const FOOTER_COLUMNS: {
 export function LandingFooter({
   aiAskPrompt,
   aiAskTopic,
+  aiAskLabelTemplate,
   platformPartners,
 }: {
   /** Page-specific GEO prompt for AI platform deep links. */
   aiAskPrompt?: string;
   /** e.g. "Huntlo AI for Enterprise Hiring" for link titles. */
   aiAskTopic?: string;
+  /** Overrides default titles. Use `{platform}` placeholder, e.g. `Ask {platform} to compare Huntlo AI and Avature`. */
+  aiAskLabelTemplate?: string;
   /** Fully custom partner list — overrides prompt/topic helpers. */
   platformPartners?: FooterPlatformPartner[];
 } = {}) {
   const partners =
     platformPartners ??
-    (aiAskPrompt || aiAskTopic
-      ? buildFooterPlatformPartners({ prompt: aiAskPrompt, topic: aiAskTopic })
+    (aiAskPrompt || aiAskTopic || aiAskLabelTemplate
+      ? buildFooterPlatformPartners({
+          prompt: aiAskPrompt,
+          topic: aiAskTopic,
+          askLabelTemplate: aiAskLabelTemplate,
+        })
       : FOOTER_PLATFORM_PARTNERS);
 
   return (

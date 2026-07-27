@@ -52,9 +52,9 @@ export const MARKETING_PAGES = {
   solutions: {
     path: "/solutions",
     eyebrow: "Solutions",
-    title: "Recruiting solutions",
+    title: "Agentic AI Hiring Infrastructure — Solutions by Team",
     description:
-      "Outbound recruiting, staffing workflows, high-volume hiring, and AI engagement for modern talent teams.",
+      "Huntlo AI is an Agentic AI Hiring Infrastructure built for every type of hiring team. Explore solutions for staffing agencies, recruitment firms, executive search, startups, enterprise hiring, and Global Capability Centers (GCCs).",
     ogImage: OG_IMAGES.solutions,
   },
   platform: {
@@ -90,6 +90,34 @@ export const MARKETING_PAGES = {
     ogImage: OG_IMAGES.bookDemo,
   },
 } as const;
+
+/** Visible FAQ + FAQPage schema for /book-a-demo — answers must match verbatim. */
+export const BOOK_DEMO_FAQ = [
+  {
+    question: "What happens during a Huntlo AI demo?",
+    answer:
+      "A Huntlo AI demo walks through the Agentic AI Hiring Infrastructure in the context of your own hiring needs, covering AI-powered candidate sourcing, outreach, AI voice screening, AI video interviews, and recruiter workflow automation, with time to ask questions specific to your team.",
+  },
+  {
+    question: "Who should attend a Huntlo AI demo?",
+    answer:
+      "Anyone involved in hiring decisions is welcome, including recruiters, talent acquisition leaders, hiring managers, agency owners, and founders evaluating how Huntlo AI fits their hiring process.",
+  },
+  {
+    question: "How long does a Huntlo AI demo take?",
+    answer:
+      "Demos are typically scheduled as a short call, long enough to walk through the platform and answer questions, and can be tailored in depth depending on your team's specific hiring needs.",
+  },
+  {
+    question: "Is there a cost to book a Huntlo AI demo?",
+    answer:
+      "No. Booking a demo of Huntlo AI is free and does not require a purchase or commitment.",
+  },
+] as const;
+
+export const BOOK_DEMO_GEO_ASK_TOPIC = "booking a Huntlo AI demo";
+export const BOOK_DEMO_GEO_ASK_PROMPT =
+  "What should I expect from a Huntlo AI demo (https://huntlo.ai/book-a-demo)? What is Huntlo AI's Agentic AI Hiring Infrastructure and who is it for?";
 
 export type MarketingPageKey = keyof typeof MARKETING_PAGES;
 

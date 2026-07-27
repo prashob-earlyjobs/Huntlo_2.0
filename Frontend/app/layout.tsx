@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { AuthProvider, RealtimeProvider } from "@/providers";
+import { CookieBanner } from "@/components/cookie-banner/CookieBanner";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -46,7 +47,10 @@ export default function RootLayout({
         >
           <AuthProvider>
             <RealtimeProvider>
-              <TooltipProvider delay={200}>{children}</TooltipProvider>
+              <TooltipProvider delay={200}>
+                {children}
+                <CookieBanner />
+              </TooltipProvider>
             </RealtimeProvider>
           </AuthProvider>
         </ThemeProvider>
