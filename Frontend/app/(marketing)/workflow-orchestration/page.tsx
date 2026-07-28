@@ -29,12 +29,12 @@ export default function WorkflowOrchestrationRoutePage() {
             description: WORKFLOW_ORCHESTRATION_SEO.description,
             url: pageUrl,
             primaryImageOfPage: OG_IMAGES.platform,
-            aboutName: "Workflow Orchestration",
-            mainEntityName: "Huntlo Workflow Orchestration",
+            aboutName: "Hiring Intelligence Orchestration™",
+            mainEntityName: "Huntlo Hiring Intelligence Orchestration™",
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Workflow Orchestration", href: WORKFLOW_ORCHESTRATION_PATH },
+            { name: "Hiring Intelligence Orchestration™", href: WORKFLOW_ORCHESTRATION_PATH },
           ]),
           faqPageJsonLd([...WORKFLOW_ORCHESTRATION_FAQS]),
         ]}

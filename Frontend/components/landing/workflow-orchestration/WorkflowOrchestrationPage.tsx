@@ -7,6 +7,7 @@ import { LandingNav } from "@/components/landing/LandingNav";
 import { WORKFLOW_ORCHESTRATION_GEO } from "@/lib/workflowOrchestration";
 
 import {
+  WorkflowOrchestrationEnterprise,
   WorkflowOrchestrationFaq,
   WorkflowOrchestrationFinalCta,
   WorkflowOrchestrationFuture,
@@ -25,6 +26,7 @@ export function WorkflowOrchestrationPage() {
         <WorkflowOrchestrationHero reduceMotion={reduceMotion} />
         <WorkflowOrchestrationStory reduceMotion={reduceMotion} />
         <WorkflowOrchestrationSystems reduceMotion={reduceMotion} />
+        <WorkflowOrchestrationEnterprise />
         <WorkflowOrchestrationFuture />
         <WorkflowOrchestrationFaq />
         <WorkflowOrchestrationFinalCta />

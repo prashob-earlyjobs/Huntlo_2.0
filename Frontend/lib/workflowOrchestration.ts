@@ -3,12 +3,12 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const WORKFLOW_ORCHESTRATION_PATH = "/workflow-orchestration";
 
 export const WORKFLOW_ORCHESTRATION_SEO = {
-  title: "Workflow Orchestration — Intelligent Hiring Workflows | Huntlo",
+  title: "Hiring Intelligence Orchestration™ | Huntlo",
   description:
-    "Huntlo Workflow Orchestration connects candidate discovery, AI recruiting agents, talent intelligence, and hiring outcomes through one intelligent orchestration layer — not disconnected automation.",
-  ogTitle: "The Future Of Hiring Won't Be Automated. It Will Be Orchestrated.",
+    "Hiring doesn't need better workflows — it needs better intelligence. Huntlo Hiring Intelligence Orchestration™ continuously connects people, context, conversations, workflows, and outcomes for Human + AI Hiring.",
+  ogTitle: "Great Hiring Doesn't Orchestrate Tasks. It Orchestrates Intelligence.",
   ogDescription:
-    "Modern hiring isn't a sequence of tasks. It's an ecosystem of people, intelligence, decisions, and workflows. Explore Huntlo's intelligent workflow orchestration.",
+    "Welcome to Hiring Intelligence Orchestration™ — built for the future of Human + AI Hiring.",
 } as const;
 
 export function workflowOrchestrationMetadata() {
@@ -23,303 +23,306 @@ export function workflowOrchestrationMetadata() {
 }
 
 export const WORKFLOW_ORCHESTRATION_GEO = {
-  askTopic: "Huntlo Workflow Orchestration",
+  askTopic: "Huntlo Hiring Intelligence Orchestration™",
   askPrompt:
-    "What is Huntlo Workflow Orchestration (https://www.huntlo.ai/workflow-orchestration)? How is workflow orchestration different from workflow automation in recruiting, and how does Huntlo coordinate AI recruiting agents and hiring outcomes?",
+    "What is Huntlo Hiring Intelligence Orchestration™ on /workflow-orchestration (https://www.huntlo.ai/workflow-orchestration)? How is Workflow Intelligence different from workflow automation, and how does it improve hiring outcomes?",
 } as const;
 
-export const HERO_ORCHESTRATION_NODES = [
+export const HERO_FLOW = [
   "Candidate Discovery",
-  "AI Recruiting Agents",
-  "Talent Intelligence",
-  "Outreach Workflows",
-  "Interview Coordination",
-  "Hiring Intelligence",
-  "Business Outcomes",
-  "Recruiter Decisions",
+  "Candidate Context",
+  "Conversation Intelligence",
   "Workflow Intelligence",
-  "Enterprise Hiring",
+  "Hiring Momentum",
+  "Hiring Confidence",
+  "Business Alignment",
+  "Hiring Outcomes",
   "Huntlo",
 ] as const;
 
-export const COMPLEXITY_CHAIN = [
-  "Candidate Discovery",
-  "Emails",
-  "WhatsApp",
-  "Talent Pipelines",
-  "Interview Scheduling",
-  "Assessments",
-  "Hiring Managers",
-  "Productivity",
-  "Analytics",
-  "Communication",
-  "Follow-ups",
+export const COMPLEXITY_STACK = [
+  "Candidates",
+  "Recruiters",
+  "Hiring managers",
+  "Interviews",
+  "Conversations",
+  "Business priorities",
+  "Hiring decisions",
+  "More software",
+] as const;
+
+export const COMPLEXITY_RESULTS = [
+  "Fragmented workflows",
+  "Disconnected candidate experiences",
+  "Slower hiring cycles",
+  "Recruiter fatigue",
+  "Operational complexity",
+] as const;
+
+export const ORCHESTRATION_FLOW = [
+  "Candidate Context",
+  "Hiring Intent",
+  "Candidate Conversations",
+  "Workflow Intelligence",
+  "Hiring Momentum",
+  "Hiring Confidence",
   "Business Outcomes",
-] as const;
-
-export const AUTOMATION_SOLVES = [
-  "Repetitive tasks",
-  "Notifications",
-  "Scheduling",
-  "Reminders",
-] as const;
-
-export const AUTOMATION_DOESNT_SOLVE = [
-  "Intelligence",
-  "Context",
-  "Priorities",
-  "Workflow relationships",
-  "Hiring outcomes",
-] as const;
-
-export const ORCHESTRATION_TRAITS = [
-  "Dynamic",
-  "Intelligent",
-  "Adaptive",
-  "Connected",
-  "Context Aware",
-  "Outcome Driven",
-] as const;
-
-export const UNDERSTANDS_BEFORE_NEXT = [
-  "Candidate intent",
-  "Recruiter priorities",
-  "Business outcomes",
-  "Workflow intelligence",
-  "Hiring velocity",
-  "Talent availability",
-] as const;
-
-export const MEET_HUNTLO_FLOW = [
-  "Candidate Discovery",
-  "Talent Intelligence",
-  "AI Recruiting Agents",
-  "Workflow Intelligence",
-  "Recruiter Productivity",
-  "Candidate Engagement",
-  "Enterprise Hiring",
-  "Business Intelligence",
   "Hiring Outcomes",
 ] as const;
 
-export const LEARNING_SIGNALS = [
-  "Candidate Behaviour",
-  "Engagement Signals",
-  "Interview Outcomes",
-  "Hiring Velocity",
-  "Recruiter Productivity",
+export const BENTO_CARDS = [
+  {
+    title: "Talent Discovery",
+    description: "Understand exceptional talent.",
+    href: "/candidate-sourcing",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Candidate Intelligence",
+    description: "Continuously understand candidate signals.",
+    href: "/candidate-intelligence",
+    span: "",
+  },
+  {
+    title: "Conversation Intelligence",
+    description: "Create meaningful hiring experiences.",
+    href: "/candidate-engagement",
+    span: "",
+  },
+  {
+    title: "Hiring Momentum",
+    description: "Maintain candidate engagement intelligently.",
+    href: "/follow-up-automation",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Workflow Intelligence",
+    description: "Move hiring forward intelligently.",
+    href: "/hiring-workflows",
+    span: "",
+  },
+  {
+    title: "Hiring Confidence",
+    description: "Improve hiring decisions continuously.",
+    href: "/screening-engine",
+    span: "",
+  },
+  {
+    title: "Human + AI Hiring",
+    description: "Built around recruiters.",
+    href: "/recruiting-agents",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Hiring Outcomes",
+    description: "Designed around business success.",
+    href: "/huntlo360",
+    span: "md:col-span-2",
+  },
+] as const;
+
+export const LEARNING_LOOP = [
+  "Candidate Signals",
   "Business Priorities",
-  "Talent Pipelines",
-  "Hiring Decisions",
-] as const;
-
-export const AGENT_ENSEMBLE = [
-  { name: "AI Sourcing Agent", href: "/sourcing" },
-  { name: "AI Outreach Agent", href: "/candidate-pool" },
-  { name: "AI Screening Agent", href: "/screening" },
-  { name: "AI Interview Agent", href: "/interview" },
-  { name: "AI Scheduling Agent", href: "/interview" },
-] as const;
-
-export const AGENT_OUTCOMES = [
+  "Conversation Intelligence",
   "Workflow Intelligence",
-  "Recruiter Productivity",
+  "Hiring Momentum",
+  "Hiring Confidence",
   "Hiring Outcomes",
 ] as const;
 
-export const CANDIDATE_REMEMBERS = [
-  "Responsiveness",
-  "Consistency",
-  "Communication",
-  "Experiences",
-  "Relationships",
+export const HUMAN_AI_EQUATION = [
+  "Human Intelligence",
+  "AI Intelligence",
+  "Workflow Intelligence",
+  "Business Alignment",
 ] as const;
 
-export const ORCHESTRATION_IMPROVES = [
+export const TRADITIONAL_METRICS = [
+  "Interviews completed",
+  "Emails sent",
+  "Time to hire",
+  "Response rates",
+] as const;
+
+export const MODERN_METRICS = [
+  "Hiring confidence",
+  "Hiring velocity",
   "Candidate experiences",
   "Recruiter productivity",
-  "Hiring outcomes",
-] as const;
-
-export const ENTERPRISE_MANAGES = [
-  "Recruiters",
-  "Workflows",
-  "Candidates",
-  "Stakeholders",
-  "Business priorities",
-  "Talent pipelines",
-  "Hiring intelligence",
-] as const;
-
-export const ENTERPRISE_COORDINATES = [
-  "People",
-  "Processes",
-  "AI",
-  "Intelligence",
-  "Hiring Outcomes",
-] as const;
-
-export const RECRUITER_MORE_TIME = [
-  "Building relationships",
-  "Making hiring decisions",
-  "Understanding talent",
-  "Improving candidate experiences",
-] as const;
-
-export const AI_MANAGES = [
-  "Workflows",
-  "Intelligence",
-  "Orchestration",
-  "Repetitive work",
-] as const;
-
-export const HUMANS_MANAGE = [
-  "People",
-  "Context",
-  "Decisions",
+  "Business alignment",
   "Business outcomes",
 ] as const;
 
-export const FUTURE_INTELLIGENCE = [
-  "People",
-  "Intelligence",
-  "Context",
-  "Priorities",
-  "Business Outcomes",
-  "Hiring Decisions",
-  "Talent",
-  "Recruiters",
+export const INFRA_CHANGES = [
+  "Hiring velocity",
+  "Candidate experiences",
+  "Recruiter productivity",
+  "Hiring confidence",
+  "Business outcomes",
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "Technical hiring", href: "/solutions/startups" },
-  { label: "Global hiring", href: "/solutions" },
-  { label: "High-volume hiring", href: "/solutions" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
+  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
+  { label: "GCCs", href: "/solutions/gccs" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
+  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Technical hiring", href: "/solutions/startups" },
+  { label: "Executive hiring", href: "/solutions/executive-search" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [
   "Enterprise governance",
+  "Compliance",
+  "AI native hiring",
+  "Workflow intelligence",
   "Scalability",
   "Integrations",
-  "Compliance",
-  "Audit logs",
-  "Workflow customization",
-  "Multi-recruiter environments",
+] as const;
+
+export const STACK_TODAY = [
+  "Workflow automation",
+  "Hiring operations",
+  "Operational complexity",
+  "Disconnected experiences",
+  "More software",
+] as const;
+
+export const STACK_TOMORROW = [
+  "Hiring Intelligence Orchestration™",
+  "Human + AI Hiring™",
+  "Workflow Intelligence™",
+  "Hiring Outcomes™",
+  "AI Hiring Infrastructure™",
+] as const;
+
+export const FUTURE_YES = [
+  "Hiring Intelligence Orchestration™",
+  "Human + AI Hiring™",
+  "Agentic Hiring™",
+  "Better Hiring Outcomes™",
 ] as const;
 
 export const WORKFLOW_ORCHESTRATION_FAQS = [
   {
-    question: "What is Workflow Orchestration?",
+    question: "What is Hiring Intelligence Orchestration™?",
     answer:
-      "Workflow Orchestration is the intelligent coordination of people, AI systems, hiring decisions, and outcomes across recruiting — continuously adapting what should happen next based on context, priorities, and results.",
+      "It is how hiring continuously connects people, context, conversations, workflows, and business outcomes — so organizations orchestrate intelligence, not just tasks.",
   },
   {
-    question: "How is workflow orchestration different from workflow automation?",
+    question: "How is this different from workflow automation?",
     answer:
-      "Automation completes repetitive tasks like notifications, scheduling, and reminders. Orchestration understands what happened, why it happened, and what should happen next — connecting intelligence, context, priorities, and hiring outcomes.",
+      "Workflow automation executes processes. Hiring Intelligence Orchestration™ continuously improves outcomes through context, conversations, momentum, confidence, and alignment.",
   },
   {
-    question: "What is Workflow Intelligence?",
+    question: "Does hiring need better workflows or better intelligence?",
     answer:
-      "Workflow Intelligence is the continuous understanding of candidate signals, recruiter priorities, hiring velocity, talent availability, and business outcomes so workflows can adapt instead of running as fixed sequences.",
+      "Better intelligence. Organizations struggle because experiences, conversations, priorities, and decisions remain disconnected — not because workflows don't exist.",
   },
   {
-    question: "How does Huntlo orchestrate workflows?",
+    question: "What should great hiring orchestrate?",
     answer:
-      "Huntlo connects candidate discovery, talent intelligence, AI recruiting agents, engagement, recruiter productivity, and hiring outcomes through one intelligent orchestration layer — so recruiters spend less time manually coordinating disconnected processes.",
+      "People, context, conversations, workflows, and business outcomes — not only interviews, reminders, and hiring stages.",
   },
   {
-    question: "What role do AI Recruiting Agents play in orchestration?",
+    question: "What is Workflow Intelligence™?",
     answer:
-      "AI agents operating independently create isolated automation. In Huntlo, sourcing, outreach, screening, interview, and scheduling agents collaborate through workflow intelligence to support recruiter productivity and hiring outcomes together.",
+      "Workflow Intelligence™ continuously learns from candidate signals, priorities, conversations, momentum, and confidence so hiring moves forward intelligently.",
   },
   {
-    question: "Can enterprises customize workflows?",
+    question: "Do teams still manage disconnected systems?",
     answer:
-      "Yes. Enterprise teams can adapt connected hiring flows across sourcing, engagement, screening, and interviews, with support for governance, integrations, multi-recruiter environments, and operational control.",
+      "They shouldn't. Hiring Intelligence Orchestration™ means no managing fragmented workflows and no coordinating disconnected systems — everything continuously improving.",
   },
   {
-    question: "How does workflow intelligence improve productivity?",
+    question: "How does Human + AI Hiring fit?",
     answer:
-      "By reducing manual coordination — switching systems, stitching follow-ups, and managing fragmented processes — so recruiters spend more time on relationships, talent understanding, and hiring decisions.",
+      "Human Intelligence + AI Intelligence + Workflow Intelligence + Business Alignment create hiring outcomes. AI amplifies hiring intelligence — it doesn't replace hiring teams.",
   },
   {
-    question: "Can Huntlo support large recruiting teams?",
+    question: "Is Hiring Intelligence becoming infrastructure?",
     answer:
-      "Yes. Huntlo is designed for enterprise hiring teams that manage recruiters, candidates, stakeholders, pipelines, and hiring intelligence across multi-recruiter environments.",
+      "Yes. Future organizations will ask how intelligently hiring can continuously improve itself — not which workflow automation software to buy.",
   },
   {
-    question: "Why isn't automation enough for modern hiring?",
+    question: "What metrics matter now?",
     answer:
-      "Hiring is no longer a simple sequence of tasks. It is simultaneous decisions across discovery, engagement, interviews, and outcomes. Automation can help with repetitive work, but orchestration is needed for context and connected decisions.",
+      "Hiring confidence, velocity, candidate experiences, recruiter productivity, business alignment, and business outcomes — not only interviews completed or emails sent.",
   },
   {
-    question: "How does orchestration improve candidate experience?",
+    question: "What does tomorrow's orchestration stack look like?",
     answer:
-      "Candidates remember responsiveness, consistency, communication, experiences, and relationships — not software stacks. Orchestration helps keep those moments connected so experience quality improves alongside productivity and outcomes.",
+      "Hiring Intelligence Orchestration™ → Human + AI Hiring™ → Workflow Intelligence™ → Hiring Outcomes™ → AI Hiring Infrastructure™.",
   },
   {
-    question: "What does it mean that hiring happens simultaneously?",
+    question: "Who is this built for?",
     answer:
-      "Every action creates another workflow. Discovery, outreach, screening, stakeholder updates, and decisions often run in parallel. Orchestration coordinates that ecosystem instead of forcing everything into a rigid sequence.",
+      "Enterprises, GCCs, staffing firms, recruitment agencies, global hiring teams, technical hiring, and executive hiring.",
   },
   {
-    question: "How is this different from a hiring workflow platform?",
+    question: "Is this a Zapier or ATS workflow builder?",
     answer:
-      "A workflow platform may track steps. Huntlo focuses on intelligent orchestration — connecting AI agents, talent intelligence, recruiter actions, and outcomes through one continuously adapting layer.",
+      "No. This page sells Hiring Intelligence Orchestration™ — not automation builders, kanban boards, or ATS dashboards.",
   },
   {
-    question: "Is Huntlo a workflow automation platform?",
+    question: "How does this relate to Intelligent Hiring Workflows™?",
     answer:
-      "Huntlo includes automation where useful, but the product direction is workflow intelligence and orchestration — coordinating what should happen next across hiring, not only automating isolated tasks.",
+      "Hiring Workflows is the workflow ownership narrative. Workflow Orchestration / Hiring Intelligence Orchestration™ is the deeper category of continuously orchestrating intelligence across hiring.",
   },
   {
-    question: "What should recruiters coordinate in the future?",
+    question: "How does this relate to Agentic Hiring™?",
     answer:
-      "Recruiters should coordinate talent — relationships, decisions, context, and business outcomes — while AI helps manage workflows, intelligence, orchestration, and repetitive work.",
+      "Agentic Hiring™ is the philosophy of continuously moving hiring forward. Orchestration is how intelligence, conversations, and workflows stay connected to outcomes.",
   },
   {
-    question: "How does Huntlo support GCC and staffing orchestration needs?",
+    question: "Can enterprises run this with governance?",
     answer:
-      "GCC leaders, staffing firms, and recruitment agencies can use Huntlo to coordinate high-volume and specialized hiring workflows across discovery, engagement, screening, and interview operations.",
+      "Yes. Supporting enterprise governance, compliance, AI-native hiring, Workflow Intelligence, scalability, and integrations.",
   },
   {
-    question: "What signals do intelligent workflows learn from?",
+    question: "What will define the next decade?",
     answer:
-      "Workflows continuously learn from candidate behaviour, engagement signals, interview outcomes, hiring velocity, recruiter productivity, business priorities, talent pipelines, and hiring decisions.",
+      "Organizations won't automate hiring alone — they'll intelligently orchestrate it through Hiring Intelligence Orchestration™, Human + AI Hiring™, Agentic Hiring™, and Better Hiring Outcomes™.",
   },
   {
-    question: "How does orchestration relate to Huntlo Hiring OS and Hiring Workflows?",
+    question: "How do I get started?",
     answer:
-      "Hiring Workflows describe the connected journey. Workflow Orchestration is how that journey is intelligently coordinated. Huntlo Hiring OS is the operating system that brings those capabilities together.",
+      "Book an enterprise demo, explore Workflow Intelligence, see Huntlo in action, or continue into Agentic Hiring™ and AI Hiring Infrastructure.",
   },
   {
-    question: "Can workflow orchestration support enterprise governance?",
+    question: "Does orchestration stop learning?",
     answer:
-      "Yes. Huntlo is designed to support enterprise governance, scalability, integrations, compliance considerations, audit logs, workflow customization, and multi-recruiter environments.",
+      "No. It continuously understands candidate signals, business priorities, conversation intelligence, workflow intelligence, momentum, confidence, and outcomes.",
   },
   {
-    question: "What is AI workflow infrastructure in recruiting?",
+    question: "Why has hiring become increasingly complex?",
     answer:
-      "AI workflow infrastructure is the layer that connects agents, intelligence, and hiring operations so AI systems can collaborate with recruiters across the full hiring journey instead of running as isolated tools.",
+      "Organizations manage candidates, recruiters, managers, interviews, conversations, priorities, decisions, and more software — making hiring workflow heavy instead of intelligence native.",
   },
   {
-    question: "Will orchestration replace recruiters?",
+    question: "What belongs to the future?",
     answer:
-      "No. Orchestration is designed so AI coordinates workflows while humans remain responsible for people, context, decisions, and business outcomes.",
+      "Outcome intelligence — not process intelligence alone.",
   },
   {
-    question: "What is the difference between purchasing workflow automation and adopting workflow intelligence?",
+    question: "Where does Huntlo sit?",
     answer:
-      "Workflow automation buys task completion. Workflow intelligence adopts systems that continuously understand people, context, priorities, talent, and outcomes — then adapt what happens next.",
+      "Huntlo builds Hiring Intelligence Orchestration™ for Human + AI Hiring — connecting Workflow Intelligence to hiring outcomes.",
   },
   {
-    question: "How do I get started with Huntlo Workflow Orchestration?",
+    question: "Should workflows merely execute processes?",
     answer:
-      "Book a demo to see orchestration in the context of your hiring operations, explore Huntlo's Hiring Workflows and Hiring OS pages, or create an account to get started.",
+      "No. They should intelligently improve outcomes.",
+  },
+  {
+    question: "Is this category creation?",
+    answer:
+      "Yes. /workflow-orchestration creates Hiring Intelligence Orchestration™ as Workflow Intelligence ownership and thought leadership.",
+  },
+  {
+    question: "How does Conversation Intelligence fit?",
+    answer:
+      "Conversation Intelligence keeps hiring experiences meaningful while orchestration connects those conversations to momentum, confidence, and outcomes.",
   },
 ] as const;

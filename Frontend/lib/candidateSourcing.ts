@@ -3,12 +3,12 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const CANDIDATE_SOURCING_PATH = "/candidate-sourcing";
 
 export const CANDIDATE_SOURCING_SEO = {
-  title: "AI Candidate Sourcing & Candidate Discovery | Huntlo",
+  title: "AI Native Candidate Discovery™ | AI Candidate Sourcing | Huntlo",
   description:
-    "Huntlo Candidate Discovery helps recruiting teams continuously discover talent through skills intelligence, hiring intent, and AI discovery agents — beyond traditional candidate search.",
-  ogTitle: "The Future Of Recruiting Isn't Candidate Search. It's Candidate Discovery.",
+    "Stop searching for candidates. Start discovering exceptional talent intelligently. Huntlo AI Native Candidate Discovery™ helps recruiting teams understand context, intent, and outcomes — not just keywords and filters.",
+  ogTitle: "Great Hiring Doesn't Begin With Searches. It Begins With Understanding Talent.",
   ogDescription:
-    "The best candidates don't search for jobs. Why are recruiters still searching for candidates? Explore Huntlo Candidate Discovery.",
+    "Welcome to AI Native Candidate Discovery™ — built for the future of Human + AI Hiring.",
 } as const;
 
 export function candidateSourcingMetadata() {
@@ -23,252 +23,297 @@ export function candidateSourcingMetadata() {
 }
 
 export const CANDIDATE_SOURCING_GEO = {
-  askTopic: "Huntlo Candidate Discovery",
+  askTopic: "Huntlo AI Native Candidate Discovery™",
   askPrompt:
-    "What is Huntlo Candidate Discovery (https://www.huntlo.ai/candidate-sourcing)? How is candidate discovery different from candidate search, and how does Huntlo use AI discovery agents and talent intelligence?",
+    "What is Huntlo AI Native Candidate Discovery™ on /candidate-sourcing (https://www.huntlo.ai/candidate-sourcing)? How is Candidate Discovery Intelligence different from AI candidate sourcing software, Boolean search, or candidate search platforms?",
 } as const;
 
 export const HERO_DISCOVERY_FLOW = [
-  "Candidate Signals",
-  "Skills Intelligence",
-  "Talent Intelligence",
   "Hiring Intent",
-  "AI Discovery Agents",
-  "Candidate Discovery",
-  "Engagement Intelligence",
-  "Recruiter Productivity",
+  "Candidate Context",
+  "Talent Discovery",
+  "Conversation Intelligence",
+  "Hiring Momentum",
+  "Hiring Outcomes",
   "Huntlo",
 ] as const;
 
-export const CANDIDATE_REALITY = [
-  "Growing",
-  "Learning",
-  "Contributing",
-  "Building",
-  "Moving",
-  "Changing roles",
-  "Creating signals continuously",
+export const TODAY_RECRUITER_WORK = [
+  "Searching",
+  "Filtering",
+  "Exporting",
+  "Messaging",
+  "Following up",
+  "Repeating everything again",
 ] as const;
 
-export const UNDERSTAND_BEFORE_SEARCH = [
-  "Skills",
-  "Experiences",
+export const FUTURE_RECRUITER_WORK = [
+  "Describe talent",
+  "Understand context",
+  "Discover candidates",
+  "Create conversations",
+  "Improve hiring outcomes",
+] as const;
+
+export const DISCOVERY_UNDERSTANDS = [
+  "Candidate signals",
   "Hiring intent",
-  "Engagement signals",
-  "Talent relationships",
+  "Candidate context",
+  "Talent intelligence",
+  "Hiring priorities",
+  "Business outcomes",
 ] as const;
 
-export const AGED_SEARCH_CHAIN = [
-  "LinkedIn",
-  "Job boards",
-  "Boolean search",
+export const BENTO_CARDS = [
+  {
+    title: "AI Talent Discovery",
+    description: "Discover exceptional candidates intelligently.",
+    href: "/people-scout",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Candidate Intelligence",
+    description: "Understand talent beyond resumes.",
+    href: "/candidate-intelligence",
+    span: "",
+  },
+  {
+    title: "Candidate Context",
+    description: "Maintain hiring momentum continuously.",
+    href: "/talent-intelligence",
+    span: "",
+  },
+  {
+    title: "Talent Relationships",
+    description: "Create meaningful candidate experiences.",
+    href: "/talent-pipeline",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Hiring Intelligence",
+    description: "Improve hiring confidence continuously.",
+    href: "/screening-engine",
+    span: "",
+  },
+  {
+    title: "Human + AI Hiring",
+    description: "Amplify recruiting teams intelligently.",
+    href: "/recruiting-agents",
+    span: "",
+  },
+] as const;
+
+export const WORKFLOW_HELPS = [
+  "Discover exceptional talent.",
+  "Build talent intelligence continuously.",
+  "Maintain hiring momentum.",
+  "Improve recruiter productivity.",
+  "Create meaningful candidate experiences.",
+  "Accelerate hiring outcomes.",
+] as const;
+
+export const TRADITIONAL_REQUIRES = [
+  "Boolean searches",
   "Filters",
-  "Spreadsheets",
-  "Emails",
-  "Follow-ups",
-  "More searching",
-  "Repeat",
+  "Manual searches",
+  "Manual outreach",
+  "Disconnected systems",
 ] as const;
 
-export const DISCOVERY_COMBINES = [
-  "Candidate Intelligence",
-  "Talent Intelligence",
-  "Hiring Intent",
-  "Skills Intelligence",
-  "Engagement Signals",
-  "AI Recruiting Agents",
-  "Workflow Intelligence",
-] as const;
-
-export const CONTINUOUS_UNDERSTANDING = [
-  "Skills",
-  "Experience",
-  "Intent Signals",
-  "Candidate Behaviour",
-  "Engagement",
-  "Hiring Readiness",
-  "Talent Markets",
-  "Recruiter Priorities",
-  "Business Outcomes",
-] as const;
-
-export const MEET_HUNTLO_FLOW = [
-  { label: "Candidate Discovery", href: "/sourcing" },
-  { label: "Talent Intelligence", href: "/people-scout" },
-  { label: "AI Recruiting Agents", href: "/agentic-hiring" },
-  { label: "Workflow Intelligence", href: "/workflow-orchestration" },
-  { label: "Candidate Engagement", href: "/candidate-pool" },
-  { label: "Hiring Infrastructure", href: "/ai-hiring-infrastructure" },
-  { label: "Recruiter Productivity", href: "/hiring-os" },
-  { label: "Enterprise Hiring", href: "/solutions" },
-] as const;
-
-export const DISCOVERY_IMPROVES = [
-  "Recruiter productivity",
-  "Talent quality",
-  "Candidate experiences",
-  "Engagement",
-  "Hiring velocity",
-  "Workflow intelligence",
-  "Business outcomes",
-] as const;
-
-export const AI_DISCOVERY_ANIMATION = [
-  "AI Discovery Agent",
-  "Candidate Signals",
-  "Skills Intelligence",
-  "Hiring Intent",
-  "Talent Intelligence",
-  "Candidate Discovery",
-  "Recruiter Decisions",
-  "Hiring Outcomes",
-] as const;
-
-export const INTELLIGENCE_LEARNS = [
-  "Context",
-  "Priorities",
-  "Engagement",
-  "Relationships",
-  "Business outcomes",
-] as const;
-
-export const FUTURE_EQUATION = [
-  "Intelligence",
-  "AI",
-  "People",
-  "Context",
-  "Signals",
-  "Workflows",
-  "Business Outcomes",
+export const HUNTLO_DELIVERS = [
+  "Talent Discovery Intelligence™",
+  "Candidate Intelligence™",
+  "Workflow Intelligence™",
+  "Human + AI Hiring™",
+  "Hiring Outcomes™",
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "Technical hiring", href: "/solutions/startups" },
-  { label: "High-volume hiring", href: "/solutions" },
-  { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
+  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
+  { label: "GCCs", href: "/solutions/gccs" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
+  { label: "Technical hiring", href: "/solutions/startups" },
+  { label: "Global hiring teams", href: "/solutions" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
+  { label: "Founders & startups", href: "/solutions/startups" },
+  { label: "Talent acquisition teams", href: "/solutions" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [
+  "Governance",
   "Compliance",
   "Scalability",
   "Integrations",
-  "Governance",
-  "Recruiter workflows",
+  "Enterprise Intelligence",
+] as const;
+
+export const INFRA_CHANGES = [
+  "Recruiter productivity",
+  "Candidate experiences",
+  "Hiring velocity",
+  "Hiring confidence",
+  "Business outcomes",
 ] as const;
 
 export const CANDIDATE_SOURCING_FAQS = [
   {
-    question: "What is Candidate Discovery?",
+    question: "What is AI Native Candidate Discovery™?",
     answer:
-      "Candidate Discovery is a continuous approach to finding talent by understanding skills, hiring intent, engagement signals, and talent relationships — so recruiters discover who they should look for, not only search for known profiles.",
+      "It is how recruiting teams intelligently discover exceptional talent by understanding context, intent, experience, and hiring outcomes — not just keywords and filters.",
   },
   {
-    question: "How is Candidate Discovery different from Candidate Search?",
+    question: "What is AI Candidate Discovery?",
     answer:
-      "Search requires recruiters to already know what they are looking for. Discovery helps recruiters understand who they should be looking for by combining candidate signals, skills intelligence, and hiring intent before manual searching begins.",
+      "AI Candidate Discovery continuously interprets candidate signals, hiring intent, and talent intelligence so recruiters discover who they should engage — before manual searching begins.",
   },
   {
-    question: "What are Candidate Signals?",
+    question: "How is Huntlo different from AI candidate sourcing software?",
     answer:
-      "Candidate signals are the continuous indicators talent creates as they grow, learn, contribute, build, move, and change roles — information modern recruiting teams can use to discover relevant candidates earlier.",
+      "Sourcing is often treated as a commodity search workflow. Huntlo positions discovery as intelligence — Talent Discovery Intelligence™ connected to conversations, momentum, and hiring outcomes.",
   },
   {
-    question: "What is Hiring Intent?",
+    question: "How is Huntlo different from sourcing platforms?",
     answer:
-      "Hiring intent refers to signals that help teams understand candidate readiness and relevance for opportunities — so discovery can prioritize talent more intelligently than keyword matching alone.",
+      "Traditional sourcing platforms emphasize Boolean searches, filters, exports, and lists. Huntlo helps teams describe talent, understand context, discover candidates, create conversations, and improve outcomes.",
   },
   {
-    question: "What is Skills Intelligence?",
+    question: "Is this a candidate sourcing platform?",
     answer:
-      "Skills Intelligence helps recruiting teams understand candidate capabilities and experience context beyond basic keyword filters, supporting stronger discovery and better shortlists.",
+      "Commercially, teams searching for a candidate sourcing platform will find Huntlo — but the product category we own is AI Native Candidate Discovery™, not another search utility.",
   },
   {
-    question: "Can Candidate Discovery improve recruiter productivity?",
+    question: "What is Candidate Discovery Intelligence™?",
     answer:
-      "Yes. By reducing hours spent on repetitive searching across LinkedIn, job boards, Boolean strings, filters, and spreadsheets, recruiters can spend more time hiring, evaluating talent, and engaging candidates.",
+      "It is Huntlo continuously understanding candidate signals, hiring intent, candidate context, talent intelligence, hiring priorities, and business outcomes before recruiters begin searching.",
   },
   {
-    question: "How does Huntlo discover talent?",
+    question: "What is Talent Discovery Intelligence™?",
     answer:
-      "Huntlo combines candidate discovery, talent intelligence, AI recruiting agents, workflow intelligence, and engagement through one connected infrastructure layer — helping teams move from manual searching to continuous discovery.",
+      "Talent Discovery Intelligence™ is how Huntlo continuously surfaces exceptional talent through context and intent — the intelligent alternative to repetitive candidate search.",
   },
   {
-    question: "What role do AI Recruiting Agents play in discovery?",
+    question: "Can Huntlo support technical hiring?",
     answer:
-      "AI Discovery Agents help interpret candidate signals, skills intelligence, hiring intent, and talent intelligence so recruiters can make stronger decisions and move into engagement and hiring outcomes faster.",
+      "Yes. Technical recruiters and engineering hiring teams use discovery to understand skills, context, and intent beyond keyword matching.",
   },
   {
-    question: "Is Candidate Discovery the same as AI Candidate Sourcing?",
+    question: "How does Huntlo improve recruiter productivity?",
     answer:
-      "AI Candidate Sourcing is often associated with finding candidates faster. Candidate Discovery goes further by treating sourcing as continuous intelligence — understanding talent before and during hiring workflows, not only running searches.",
+      "By reducing repetitive searching, filtering, exporting, messaging, and follow-up loops — so recruiters spend more time on conversations and hiring outcomes.",
   },
   {
-    question: "Why do the best candidates not apply anymore?",
+    question: "Does Huntlo support global hiring?",
     answer:
-      "Many of the strongest candidates are not waiting in applicant pipelines. They are growing, learning, contributing, and changing roles — leaving signals that discovery systems can help recruiting teams understand earlier.",
+      "Yes. Huntlo supports enterprises, GCCs, staffing firms, recruitment agencies, and global hiring teams with scalable discovery workflows.",
+  },
+  {
+    question: "Can enterprises customize hiring workflows?",
+    answer:
+      "Yes. Discovery connects into Workflow Intelligence™ so enterprises can align talent discovery with hiring priorities, governance, and outcomes.",
+  },
+  {
+    question: "Who is AI Native Candidate Discovery™ built for?",
+    answer:
+      "Recruiters, talent acquisition teams, founders, recruitment agencies, GCC hiring teams, staffing firms, technical recruiters, and enterprise hiring teams.",
+  },
+  {
+    question: "Why shouldn't candidate discovery feel like work?",
+    answer:
+      "Because tomorrow's teams describe talent, understand context, discover candidates, create conversations, and improve outcomes — instead of endlessly searching and repeating.",
   },
   {
     question: "Does Huntlo replace Boolean search?",
     answer:
-      "Huntlo is designed so recruiters rely less on manual Boolean searching and more on continuous candidate discovery powered by intelligence and AI agents. Product sourcing workflows support natural-language discovery rather than forcing Boolean-first sourcing.",
+      "Huntlo is designed so teams rely less on Boolean-first sourcing and more on continuous discovery. This page intentionally avoids Boolean search visuals and candidate lists.",
   },
   {
-    question: "How does talent intelligence power discovery?",
+    question: "What is a candidate discovery software vs candidate search software?",
     answer:
-      "Talent intelligence helps discovery become intelligence-driven rather than search-driven by learning context, priorities, engagement, relationships, and business outcomes before hiring decisions begin.",
+      "Search software finds profiles matching filters. Discovery software continuously understands who exceptional talent is and when conversations should begin.",
   },
   {
-    question: "Is Candidate Discovery becoming recruiting infrastructure?",
+    question: "Is Huntlo an AI recruiting platform?",
     answer:
-      "Yes. The shift from asking where to search toward asking what talent to discover next is becoming a core infrastructure change for modern recruiting teams.",
+      "Huntlo is an AI hiring intelligence platform. Candidate Discovery is how teams enter that intelligence layer from talent discovery.",
   },
   {
-    question: "Who is Candidate Discovery built for?",
+    question: "Is Huntlo a candidate intelligence platform?",
     answer:
-      "Recruiters, staffing firms, enterprises, founders, TA leaders, recruitment agencies, GCC hiring teams, and technical recruiters who need stronger discovery than fragmented search workflows.",
+      "Yes in capability — Candidate Intelligence™ is a core layer of discovery, helping teams understand talent beyond resumes.",
   },
   {
-    question: "How does discovery improve hiring decisions?",
+    question: "How does discovery connect across hiring workflows?",
     answer:
-      "Better discovery improves recruiter productivity, talent quality, candidate experiences, engagement, hiring velocity, workflow intelligence, and business outcomes by starting with stronger talent understanding.",
+      "Huntlo helps organizations discover talent, build talent intelligence, maintain momentum, improve productivity, create experiences, and accelerate outcomes — everything intelligently connected.",
   },
   {
-    question: "Can enterprise teams use Huntlo for candidate discovery?",
+    question: "Why Huntlo instead of traditional sourcing tools?",
     answer:
-      "Yes. Huntlo supports enterprise, technical, high-volume, executive, GCC, staffing, and agency hiring needs with compliance considerations, scalability, integrations, governance, and recruiter workflows.",
+      "Traditional tools require Boolean searches, filters, manual searches, manual outreach, and disconnected systems. Huntlo delivers discovery, candidate, workflow, and Human + AI hiring intelligence toward outcomes.",
   },
   {
-    question: "How is this different from Huntlo's /sourcing product page?",
+    question: "Is candidate discovery becoming intelligence?",
     answer:
-      "The sourcing product page focuses on Huntlo Source capabilities. This Candidate Discovery page explains the category shift from search to continuous discovery and how Huntlo approaches that future.",
+      "Yes. Future organizations will ask how intelligently they can continuously discover exceptional talent — not which sourcing software to purchase.",
   },
   {
-    question: "What should recruiters ask instead of where can I search?",
+    question: "What changes when discovery becomes intelligence?",
     answer:
-      "The future recruiter asks: what talent should I be discovering next? That question reflects a move from tool-based searching to intelligence-driven discovery.",
+      "Recruiter productivity, candidate experiences, hiring velocity, hiring confidence, and business outcomes.",
   },
   {
-    question: "Does Candidate Discovery stop after finding profiles?",
+    question: "How does this relate to People Scout?",
     answer:
-      "No. Discovery connects into engagement, workflow intelligence, recruiter productivity, and hiring outcomes — because finding candidates is only the beginning of the hiring journey.",
+      "People Scout deepens Talent Discovery Intelligence. /candidate-sourcing is the commercial category page for AI Native Candidate Discovery™ and AI candidate sourcing intent.",
   },
   {
-    question: "How does Candidate Discovery relate to Agentic Hiring?",
+    question: "How does this relate to Vibe Sourcing?",
     answer:
-      "Agentic Hiring describes Human + AI collaboration. Candidate Discovery is where AI discovery agents and recruiters collaborate to understand talent continuously before and during hiring workflows.",
+      "Vibe Sourcing emphasizes intent-driven discovery. Candidate Discovery is the broader commercial category connecting intent, context, conversations, and outcomes.",
   },
   {
-    question: "Can Candidate Discovery help technical and high-volume hiring?",
+    question: "How does this relate to Agentic Hiring?",
     answer:
-      "Yes. Technical and high-volume teams benefit when discovery continuously surfaces relevant talent instead of relying on repetitive manual search cycles.",
+      "Agentic Hiring™ is Human + AI Hiring. Candidate Discovery is where AI and recruiters collaborate to discover exceptional talent from the first interaction.",
   },
   {
-    question: "How do I get started with Huntlo Candidate Discovery?",
+    question: "Does Huntlo help recruitment agencies and staffing firms?",
     answer:
-      "Book a demo to see discovery in the context of your hiring needs, explore Huntlo Source for product workflows, or create an account to get started.",
+      "Yes. Agencies and staffing firms use discovery to improve talent quality, velocity, and client hiring outcomes.",
+  },
+  {
+    question: "Can founders use Huntlo for early hiring?",
+    answer:
+      "Yes. Founders and startup teams use discovery to find exceptional talent without building heavy sourcing operations.",
+  },
+  {
+    question: "Does Huntlo support GCC hiring teams?",
+    answer:
+      "Yes. GCC hiring teams use discovery to scale talent understanding across global priorities and enterprise governance.",
+  },
+  {
+    question: "What is hiring intent in candidate discovery?",
+    answer:
+      "Hiring intent helps discovery prioritize relevance and readiness so conversations start with stronger context than keyword matches alone.",
+  },
+  {
+    question: "What is candidate context?",
+    answer:
+      "Candidate context is the continuous understanding of signals, experience, and priorities that makes discovery intelligent rather than transactional.",
+  },
+  {
+    question: "How do I see Candidate Discovery in action?",
+    answer:
+      "Book a demo, explore Candidate Discovery on this page, try Huntlo in product workflows, or continue into Agentic Hiring™.",
+  },
+  {
+    question: "Is this page about candidate databases or ATS sourcing?",
+    answer:
+      "No. This page strictly avoids candidate databases, Boolean search visuals, ATS dashboards, candidate lists, and recruiter stock imagery.",
+  },
+  {
+    question: "What should visitors believe after this page?",
+    answer:
+      "That exceptional hiring begins with exceptional talent discovery — and Huntlo owns AI Native Candidate Discovery™ for Human + AI Hiring.",
   },
 ] as const;

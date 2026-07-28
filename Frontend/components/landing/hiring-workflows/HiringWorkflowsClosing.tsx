@@ -3,32 +3,30 @@ import Link from "next/link";
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
 import {
-  AI_MANAGES,
   ENTERPRISE_BUILT_FOR,
   ENTERPRISE_SUPPORTS,
-  FUTURE_UNDERSTANDS,
+  FUTURE_YES,
   HIRING_WORKFLOWS_FAQS,
-  RECRUITERS_MANAGE,
 } from "@/lib/hiringWorkflows";
 
 import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
 
 export function HiringWorkflowsEnterprise() {
   return (
-    <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+    <section className="bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
       <div className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
-            Built to scale
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
+            Built for enterprise hiring
           </p>
-          <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
-            Enterprise ready
+          <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            Workflow intelligence at enterprise scale.
           </h2>
         </div>
 
         <div className="mt-10 grid gap-10 lg:grid-cols-2">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
               Built for
             </h3>
             <ul className="mt-4 space-y-2">
@@ -36,7 +34,7 @@ export function HiringWorkflowsEnterprise() {
                 <li key={item.label}>
                   <Link
                     href={item.href}
-                    className="flex min-h-11 items-center rounded-xl border border-[#c3c6d6]/35 bg-[#f7f8fc] px-4 py-3 text-sm text-[#141b2b] transition-colors hover:border-[#0050cb]/40"
+                    className="flex min-h-11 items-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/85 transition-colors hover:border-[#0050cb]/40"
                   >
                     {item.label}
                   </Link>
@@ -45,14 +43,14 @@ export function HiringWorkflowsEnterprise() {
             </ul>
           </div>
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
               Supporting
             </h3>
             <ul className="mt-4 grid gap-2 sm:grid-cols-2">
               {ENTERPRISE_SUPPORTS.map((item) => (
                 <li
                   key={item}
-                  className="rounded-xl border border-[#c3c6d6]/35 bg-white px-4 py-3 text-sm text-[#434654]"
+                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/75"
                 >
                   {item}
                 </li>
@@ -61,15 +59,21 @@ export function HiringWorkflowsEnterprise() {
             <div className="mt-5 flex flex-wrap gap-4">
               <Link
                 href="/security"
-                className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
+                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
               >
                 Security practices
               </Link>
               <Link
                 href="/integrations"
-                className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
+                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
               >
                 Integrations
+              </Link>
+              <Link
+                href="/agentic-hiring"
+                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
+              >
+                Agentic Hiring™
               </Link>
             </div>
           </div>
@@ -81,93 +85,36 @@ export function HiringWorkflowsEnterprise() {
 
 export function HiringWorkflowsFuture() {
   return (
-    <section className="bg-[#f1f3ff] px-4 py-20 md:px-8 md:py-28 lg:px-12">
+    <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
       <div className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
-            Future of hiring workflows
+            The future starts here
           </p>
           <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
-            We believe recruiters shouldn&apos;t work around software.
+            Hiring workflows shouldn&apos;t exist to manage processes.
           </h2>
-          <p className="mt-5 text-lg font-semibold text-[#141b2b] md:text-xl">
-            Software should work around recruiters.
-          </p>
-          <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
-            The future hiring workflow should continuously understand people, intelligence,
-            priorities, business needs, productivity, and talent — while intelligently adapting
-            itself around hiring outcomes.
+          <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            They should exist to continuously improve outcomes. The organizations that define the
+            next decade won&apos;t simply automate hiring. They&apos;ll intelligently orchestrate
+            it.
           </p>
         </div>
 
-        <div className="mt-8 flex flex-wrap gap-2">
-          {FUTURE_UNDERSTANDS.map((item) => (
-            <span
+        <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {FUTURE_YES.map((item) => (
+            <li
               key={item}
-              className="rounded-full border border-[#c3c6d6]/40 bg-white px-4 py-2.5 text-sm font-medium text-[#141b2b]"
+              className="rounded-2xl border border-[#0050cb]/25 bg-[#0050cb]/8 px-5 py-4 text-sm font-semibold text-[#141b2b]"
             >
               {item}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
 
-        <div className="mt-14 grid gap-6 md:grid-cols-2">
-          <div className="rounded-3xl border border-[#c3c6d6]/35 bg-white p-6 md:p-8">
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#434654]">
-              AI manages
-            </h3>
-            <ul className="mt-4 space-y-2">
-              {AI_MANAGES.map((item) => (
-                <li key={item} className="text-base text-[#434654]">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="rounded-3xl border border-[#0050cb]/25 bg-[#070d1a] p-6 text-white md:p-8">
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
-              Recruiters manage
-            </h3>
-            <ul className="mt-4 space-y-2">
-              {RECRUITERS_MANAGE.map((item) => (
-                <li key={item} className="text-base font-medium text-white">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <p className="mt-10 max-w-3xl text-xl font-semibold text-[#141b2b] md:text-2xl">
-          The future recruiter won&apos;t manage workflows. They&apos;ll design hiring outcomes.
+        <p className="mt-10 text-xl font-semibold text-[#141b2b] md:text-2xl">
+          Welcome to the future of intelligent hiring.
         </p>
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/hiring-os"
-            className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
-          >
-            Explore Hiring OS
-          </Link>
-          <span className="text-[#c3c6d6]" aria-hidden>
-            ·
-          </span>
-          <Link
-            href="/agentic-hiring"
-            className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
-          >
-            Explore Agentic Hiring
-          </Link>
-          <span className="text-[#c3c6d6]" aria-hidden>
-            ·
-          </span>
-          <Link
-            href="/ai-hiring-infrastructure"
-            className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
-          >
-            AI Hiring Infrastructure
-          </Link>
-        </div>
       </div>
     </section>
   );
@@ -175,22 +122,22 @@ export function HiringWorkflowsFuture() {
 
 export function HiringWorkflowsFaq() {
   return (
-    <section className="bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12" id="faqs">
+    <section className="bg-[#f7f8fc] px-4 py-20 md:px-8 md:py-28 lg:px-12" id="faqs">
       <div className="mx-auto max-w-3xl">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">FAQ</p>
         <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
-          Questions about Hiring Workflows
+          Questions about Intelligent Hiring Workflows™
         </h2>
         <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
-          Clear answers for leaders redesigning recruiting around connected decisions — not
-          disconnected tools.
+          Clear answers for teams evaluating Workflow Intelligence — not another automation
+          builder.
         </p>
 
         <div className="mt-10 space-y-3">
           {HIRING_WORKFLOWS_FAQS.map((item) => (
             <details
               key={item.question}
-              className="group rounded-2xl border border-[#c3c6d6]/30 bg-[#f7f8fc] p-5 open:bg-white open:shadow-md"
+              className="group rounded-2xl border border-[#c3c6d6]/30 bg-white p-5 open:shadow-md"
             >
               <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-base font-semibold text-[#141b2b] marker:content-none [&::-webkit-details-marker]:hidden">
                 <span>{item.question}</span>
@@ -214,25 +161,25 @@ export function HiringWorkflowsFinalCta() {
   return (
     <section className="relative overflow-hidden bg-[#050914] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.22),_transparent_60%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.28),_transparent_58%)]"
         aria-hidden
       />
       <div className="relative mx-auto max-w-3xl text-center">
-        <h2 className="text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.75rem]">
-          Hiring doesn&apos;t need better automation.
-          <span className="mt-2 block text-white/70">It needs better workflows.</span>
+        <h2 className="text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+          Great hiring doesn&apos;t follow workflows.
+          <span className="mt-2 block text-[#8eb0ff]">It creates better outcomes.</span>
         </h2>
         <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/65 md:text-lg">
-          Discover how Huntlo is building intelligent hiring workflows designed for the future of
-          recruiting.
+          Discover how Huntlo is building Intelligent Hiring Workflows™ for the future of Human +
+          AI Hiring.
         </p>
         <div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <BookDemoLink className={primaryCtaClass}>Book Demo</BookDemoLink>
-          <Link href="/platform" className={secondaryCtaClass}>
-            Explore Huntlo
+          <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
+          <Link href="#hiring-workflows" className={secondaryCtaClass}>
+            Explore Hiring Workflows
           </Link>
-          <Link href="#connected-workflows" className={ghostCtaClass}>
-            See Modern Hiring Workflows
+          <Link href="/workflow-orchestration" className={ghostCtaClass}>
+            Meet Workflow Intelligence
           </Link>
         </div>
       </div>

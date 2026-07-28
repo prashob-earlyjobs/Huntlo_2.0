@@ -10,9 +10,9 @@ import {
   AgenticHiringEnterprise,
   AgenticHiringFaq,
   AgenticHiringFinalCta,
+  AgenticHiringFuture,
 } from "./AgenticHiringClosing";
 import { AgenticHiringHero } from "./AgenticHiringHero";
-import { AgenticHiringModel } from "./AgenticHiringModel";
 import { AgenticHiringStory } from "./AgenticHiringStory";
 import { AgenticHiringSystems } from "./AgenticHiringSystems";
 
@@ -25,9 +25,9 @@ export function AgenticHiringPage() {
       <main className="pt-16">
         <AgenticHiringHero reduceMotion={reduceMotion} />
         <AgenticHiringStory reduceMotion={reduceMotion} />
-        <AgenticHiringModel reduceMotion={reduceMotion} />
         <AgenticHiringSystems reduceMotion={reduceMotion} />
         <AgenticHiringEnterprise />
+        <AgenticHiringFuture />
         <AgenticHiringFaq />
         <AgenticHiringFinalCta />
       </main>
