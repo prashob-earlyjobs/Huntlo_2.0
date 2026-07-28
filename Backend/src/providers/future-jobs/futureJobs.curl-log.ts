@@ -14,7 +14,10 @@ function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-function headersToRecord(headers: HeadersInit | undefined): Record<string, string> {
+type CurlHeaders = NonNullable<RequestInit['headers']>;
+type CurlBody = NonNullable<RequestInit['body']>;
+
+function headersToRecord(headers: CurlHeaders | undefined): Record<string, string> {
   if (!headers) return {};
   if (headers instanceof Headers) {
     const out: Record<string, string> = {};
@@ -34,7 +37,7 @@ function headersToRecord(headers: HeadersInit | undefined): Record<string, strin
   return out;
 }
 
-function bodyToString(body: BodyInit | null | undefined): string | null {
+function bodyToString(body: CurlBody | null | undefined): string | null {
   if (body == null) return null;
   if (typeof body === 'string') return body;
   if (body instanceof URLSearchParams) return body.toString();
@@ -68,8 +71,8 @@ export function getFutureJobsCurlLogPath(): string {
 export function formatFutureJobsCurl(input: {
   method: string;
   url: string;
-  headers?: HeadersInit;
-  body?: BodyInit | null;
+  headers?: CurlHeaders;
+  body?: CurlBody | null;
 }): string {
   const method = (input.method || 'GET').toUpperCase();
   const headers = headersToRecord(input.headers);
@@ -93,8 +96,8 @@ export function formatFutureJobsCurl(input: {
 export function appendFutureJobsCurl(input: {
   method: string;
   url: string;
-  headers?: HeadersInit;
-  body?: BodyInit | null;
+  headers?: CurlHeaders;
+  body?: CurlBody | null;
   fjOperation?: string;
 }): void {
   if (!isFutureJobsCurlLogEnabled()) return;
