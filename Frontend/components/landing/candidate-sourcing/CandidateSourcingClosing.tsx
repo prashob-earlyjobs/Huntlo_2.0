@@ -6,7 +6,6 @@ import {
   CANDIDATE_SOURCING_FAQS,
   ENTERPRISE_BUILT_FOR,
   ENTERPRISE_SUPPORTS,
-  FUTURE_EQUATION,
 } from "@/lib/candidateSourcing";
 
 import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
@@ -17,10 +16,10 @@ export function CandidateSourcingEnterprise() {
       <div className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
-            Built to scale
+            Built for enterprise hiring
           </p>
           <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
-            Enterprise ready
+            Built for enterprise hiring.
           </h2>
         </div>
 
@@ -69,74 +68,14 @@ export function CandidateSourcingEnterprise() {
               >
                 Integrations
               </Link>
+              <Link
+                href="/people-scout"
+                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
+              >
+                People Scout
+              </Link>
             </div>
           </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function CandidateSourcingFuture() {
-  return (
-    <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
-      <div className="mx-auto max-w-6xl">
-        <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
-            Future of Candidate Discovery
-          </p>
-          <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
-            We believe recruiters shouldn&apos;t continuously search for talent.
-          </h2>
-          <p className="mt-5 text-lg font-semibold text-[#141b2b] md:text-xl">
-            Intelligent systems should continuously discover it.
-          </p>
-        </div>
-
-        <div className="mt-10 flex flex-wrap items-center gap-2 md:gap-3">
-          {FUTURE_EQUATION.map((item, index) => (
-            <div key={item} className="flex items-center gap-2 md:gap-3">
-              <span className="rounded-2xl border border-[#c3c6d6]/40 bg-[#f7f8fc] px-4 py-3 text-sm font-semibold text-[#141b2b]">
-                {item}
-              </span>
-              {index < FUTURE_EQUATION.length - 1 ? (
-                <span className="text-[#0050cb]/50" aria-hidden>
-                  +
-                </span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-
-        <p className="mt-8 max-w-2xl text-base leading-relaxed text-[#434654] md:text-lg">
-          Through one connected infrastructure layer.
-        </p>
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/sourcing"
-            className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
-          >
-            Huntlo Source
-          </Link>
-          <span className="text-[#c3c6d6]" aria-hidden>
-            ·
-          </span>
-          <Link
-            href="/agentic-hiring"
-            className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
-          >
-            Agentic Hiring
-          </Link>
-          <span className="text-[#c3c6d6]" aria-hidden>
-            ·
-          </span>
-          <Link
-            href="/ai-hiring-infrastructure"
-            className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
-          >
-            AI Hiring Infrastructure
-          </Link>
         </div>
       </div>
     </section>
@@ -149,10 +88,11 @@ export function CandidateSourcingFaq() {
       <div className="mx-auto max-w-3xl">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">FAQ</p>
         <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
-          Questions about Candidate Discovery
+          Questions about AI Native Candidate Discovery™
         </h2>
         <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
-          Clear answers for teams moving from candidate search to continuous discovery.
+          Clear answers for teams evaluating AI candidate sourcing and candidate discovery — not
+          another Boolean search tool.
         </p>
 
         <div className="mt-10 space-y-3">
@@ -183,24 +123,24 @@ export function CandidateSourcingFinalCta() {
   return (
     <section className="relative overflow-hidden bg-[#050914] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.22),_transparent_60%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.28),_transparent_58%)]"
         aria-hidden
       />
       <div className="relative mx-auto max-w-3xl text-center">
         <h2 className="text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
-          The future of recruiting won&apos;t be powered by search.
-          <span className="mt-2 block text-white/70">It will be powered by discovery.</span>
+          Exceptional hiring begins with exceptional talent discovery.
         </h2>
         <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/65 md:text-lg">
-          Discover how Huntlo is building Candidate Discovery for the future of hiring.
+          Discover how Huntlo is building AI Native Candidate Discovery™ for the future of Human +
+          AI Hiring.
         </p>
         <div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <BookDemoLink className={primaryCtaClass}>Book Demo</BookDemoLink>
-          <Link href="/platform" className={secondaryCtaClass}>
-            Explore Huntlo
+          <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
+          <Link href="#candidate-discovery" className={secondaryCtaClass}>
+            Explore Candidate Discovery
           </Link>
-          <Link href="#candidate-discovery" className={ghostCtaClass}>
-            Meet Candidate Discovery
+          <Link href="/agentic-hiring" className={ghostCtaClass}>
+            Meet Agentic Hiring™
           </Link>
         </div>
       </div>

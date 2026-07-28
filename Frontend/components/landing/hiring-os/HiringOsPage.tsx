@@ -6,15 +6,15 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { HIRING_OS_GEO } from "@/lib/hiringOs";
 
-import { HiringOsAgents } from "./HiringOsAgents";
-import { HiringOsFaq } from "./HiringOsFaq";
-import { HiringOsFinalCta } from "./HiringOsFinalCta";
-import { HiringOsFragmentation } from "./HiringOsFragmentation";
-import { HiringOsFuture } from "./HiringOsFuture";
+import {
+  HiringOsEnterprise,
+  HiringOsFaq,
+  HiringOsFinalCta,
+  HiringOsFuture,
+} from "./HiringOsClosing";
 import { HiringOsHero } from "./HiringOsHero";
-import { HiringOsOperations } from "./HiringOsOperations";
-import { HiringOsRise } from "./HiringOsRise";
-import { HiringOsWorkflow } from "./HiringOsWorkflow";
+import { HiringOsStory } from "./HiringOsStory";
+import { HiringOsSystems } from "./HiringOsSystems";
 
 export function HiringOsPage() {
   const reduceMotion = !!useReducedMotion();
@@ -24,11 +24,9 @@ export function HiringOsPage() {
       <LandingNav />
       <main className="pt-16">
         <HiringOsHero reduceMotion={reduceMotion} />
-        <HiringOsFragmentation />
-        <HiringOsRise reduceMotion={reduceMotion} />
-        <HiringOsWorkflow reduceMotion={reduceMotion} />
-        <HiringOsAgents reduceMotion={reduceMotion} />
-        <HiringOsOperations />
+        <HiringOsStory reduceMotion={reduceMotion} />
+        <HiringOsSystems reduceMotion={reduceMotion} />
+        <HiringOsEnterprise />
         <HiringOsFuture />
         <HiringOsFaq />
         <HiringOsFinalCta />

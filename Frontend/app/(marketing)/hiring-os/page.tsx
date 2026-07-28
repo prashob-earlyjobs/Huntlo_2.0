@@ -29,12 +29,12 @@ export default function HiringOsRoutePage() {
             description: HIRING_OS_SEO.description,
             url: pageUrl,
             primaryImageOfPage: OG_IMAGES.platform,
-            aboutName: "Hiring Operating System",
-            mainEntityName: "Huntlo Hiring Operating System",
+            aboutName: "AI Native Hiring Operating System",
+            mainEntityName: "Huntlo Hiring OS",
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Hiring Operating System", href: HIRING_OS_PATH },
+            { name: "Hiring OS", href: HIRING_OS_PATH },
           ]),
           faqPageJsonLd([...HIRING_OS_FAQS]),
         ]}

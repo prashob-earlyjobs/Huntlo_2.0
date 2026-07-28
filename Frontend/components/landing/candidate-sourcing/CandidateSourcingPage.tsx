@@ -10,7 +10,6 @@ import {
   CandidateSourcingEnterprise,
   CandidateSourcingFaq,
   CandidateSourcingFinalCta,
-  CandidateSourcingFuture,
 } from "./CandidateSourcingClosing";
 import { CandidateSourcingHero } from "./CandidateSourcingHero";
 import { CandidateSourcingStory } from "./CandidateSourcingStory";
@@ -27,7 +26,6 @@ export function CandidateSourcingPage() {
         <CandidateSourcingStory reduceMotion={reduceMotion} />
         <CandidateSourcingSystems reduceMotion={reduceMotion} />
         <CandidateSourcingEnterprise />
-        <CandidateSourcingFuture />
         <CandidateSourcingFaq />
         <CandidateSourcingFinalCta />
       </main>
