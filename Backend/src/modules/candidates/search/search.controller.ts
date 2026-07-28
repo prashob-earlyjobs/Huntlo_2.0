@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { getRequestId } from '../../../middleware/request-id.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
 import { successResponse } from '../../../shared/http/response.js';
+import { buildPaginationMeta } from '../../../shared/pagination/paginate.js';
 import { candidateSearchService } from './search.service.js';
 import {
   allCandidatesQuerySchema,
@@ -110,7 +111,18 @@ export const getCandidateSearchDetails = asyncHandler(async (req: Request, res: 
 export const listSearchSessions = asyncHandler(async (req: Request, res: Response) => {
   const query = sessionsListQuerySchema.parse(req.query);
   const result = await candidateSearchService.listSessions(actorFrom(req), query);
-  successResponse(res, result, { meta: { requestId: getRequestId(req) } });
+  successResponse(res, result, {
+    meta: {
+      requestId: getRequestId(req),
+      ...buildPaginationMeta({
+        items: result.sessions,
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      }),
+    },
+  });
 });
 
 export const getRecentSearches = asyncHandler(async (req: Request, res: Response) => {

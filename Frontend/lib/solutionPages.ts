@@ -31,6 +31,8 @@ export type SolutionFaqItem = {
 export type SolutionPageData = SolutionsNavItem & {
   /** SEO H1 — defaults to `title` when omitted. */
   h1?: string;
+  /** Breadcrumb / hero segment label — defaults to `title` without the "For " prefix. */
+  breadcrumbLabel?: string;
   metaTitle: string;
   metaDescription: string;
   /** Open Graph description — defaults to `metaDescription` when omitted. */
@@ -69,20 +71,50 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     description:
       "Manage multiple client mandates, source candidates faster, and automate recruiter workflows.",
     href: "/solutions/staffing-agencies",
-    h1: "Agentic AI Recruiting Infrastructure Built for Staffing Agencies",
-    metaTitle: "AI Recruiting Infrastructure for Staffing Agencies | Huntlo",
+    h1: "Agentic AI Hiring Infrastructure for Staffing Agencies",
+    metaTitle: "Agentic AI Hiring Infrastructure for Staffing Agencies | Huntlo AI",
     metaDescription:
-      "Huntlo helps staffing agencies fill every client mandate faster with agentic AI sourcing, autonomous outreach & real-time pipeline tracking. Start free.",
+      "Huntlo AI is an Agentic AI Hiring Infrastructure for staffing agencies. Automate candidate sourcing, outreach, AI voice screening, AI video interviews, recruiter workflows, and hiring operations while keeping recruiters in control.",
+    ogDescription:
+      "Automate sourcing, outreach, AI interviews, recruiter workflows and hiring operations with Huntlo AI's Agentic AI Hiring Infrastructure for staffing agencies.",
+    twitterDescription:
+      "Modern Agentic AI Hiring Infrastructure helping staffing agencies automate sourcing, outreach, AI interviews and recruiter workflows.",
+    ogSiteName: "Huntlo AI",
+    geoAskTopic: "Huntlo AI for Staffing Agencies",
+    geoAskPrompt:
+      "What is Huntlo AI Agentic AI Hiring Infrastructure for Staffing Agencies (https://huntlo.ai/solutions/staffing-agencies)? Explain how it helps staffing agencies automate candidate sourcing, outreach, AI voice screening, AI video interviews and recruiter workflows.",
+    faq: [
+      {
+        question: "What is Huntlo AI for staffing agencies?",
+        answer:
+          "Huntlo AI is an Agentic AI Hiring Infrastructure built for staffing agencies. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, recruiter collaboration and hiring workflows while allowing recruiters to stay in control.",
+      },
+      {
+        question: "Is Huntlo AI recruitment software or an ATS?",
+        answer:
+          "Huntlo AI goes beyond traditional recruitment software and ATS platforms. It acts as an Agentic AI Hiring Infrastructure where AI agents automate repetitive recruiting tasks while recruiters focus on relationship building and placements.",
+      },
+      {
+        question: "How does Huntlo AI help staffing agencies hire faster?",
+        answer:
+          "Huntlo AI automates candidate sourcing, multichannel outreach, AI screening, interview scheduling and recruiter coordination, reducing manual work and accelerating placements.",
+      },
+      {
+        question: "Can Huntlo AI work alongside existing ATS or CRM systems?",
+        answer:
+          "Yes. Huntlo AI complements existing ATS and recruitment CRM systems by adding AI-powered automation and agentic workflows without replacing established recruiting processes.",
+      },
+    ],
     heroAccent: "Fill every client mandate faster—with one recruiting workspace.",
     heroLead:
-      "Staffing agencies run on speed. New reqs land daily, clients expect pipeline within hours, and recruiters can't afford to jump between LinkedIn, spreadsheets, and outreach tools. Huntlo unifies AI sourcing, contact reveal, and multi-channel campaigns so your desk stays ahead of SLAs.",
+      "Huntlo AI is Agentic AI Hiring Infrastructure for staffing agencies—going beyond traditional AI Recruitment Software, Recruitment Platforms, ATS, and Recruitment CRM tools. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, recruiter workflows, and hiring operations while keeping recruiters in control.",
     heroSupport:
-      "Whether you run contingent staffing or retained search, every mandate gets its own campaign workspace—sourcing sessions, outreach sequences, reply tracking, and manager visibility in one place.",
+      "Whether you run high-volume temp or contract staffing, every client mandate gets its own campaign workspace—sourcing sessions, outreach sequences, reply tracking, and manager visibility in one place.",
     heroPills: [
       "Multi-mandate campaigns",
       "Email + WhatsApp outreach",
-      "Contact reveal & enrichment",
-      "Pipeline per client req",
+      "AI voice & video screening",
+      "ATS / CRM complementary",
     ],
     heroPreview: {
       label: "Staffing workspace",
@@ -95,14 +127,14 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       ],
       activeCampaigns: "12 open",
     },
-    overviewTitle: "Run every client mandate from one recruiting workspace",
+    overviewTitle: "Agentic AI Hiring Infrastructure for high-volume staffing desks",
     intro:
-      "Staffing agencies juggle dozens of open roles, client SLAs, and recruiter bandwidth at once. Huntlo gives your team one workspace to source across mandates, run outbound campaigns, and keep every client pipeline moving—without adding headcount.",
+      "Staffing agencies juggle dozens of open roles, client SLAs, and recruiter bandwidth at once. Huntlo's Agentic AI Hiring Infrastructure gives your team one workspace to source across mandates, run outbound campaigns, and keep every client pipeline moving—without replacing your ATS or Recruitment CRM.",
     highlights: [
       "Spin up sourcing for a new client req in minutes with natural-language search",
       "Run Email and WhatsApp sequences with automated no-reply follow-ups",
       "Reveal contacts and enrich profiles without switching tools",
-      "Give managers visibility into activity, replies, and pipeline per mandate",
+      "Complement existing ATS and recruitment CRM stacks used by staffing desks",
     ],
     metrics: [
       { value: "72%", label: "Avg. reply rate" },
@@ -132,10 +164,10 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     capabilities: [
       "AI candidate search with natural-language prompts per client role",
       "Campaign-based outreach across Email and WhatsApp with follow-up sequences",
+      "AI voice screening and AI video interviews for faster shortlisting",
       "Contact reveal and enrichment to reach candidates faster",
       "Shared candidate pools and session history across your recruiting team",
-      "Job-specific messaging with role titles and descriptions merged automatically",
-      "Pipeline visibility so managers can see activity across mandates",
+      "Workflows that complement existing ATS and recruitment CRM systems",
     ],
     outcomes: [
       "Fill more reqs per recruiter without expanding the team",
@@ -150,20 +182,50 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     description:
       "Scale candidate sourcing, outreach, and placements without growing your recruiting team.",
     href: "/solutions/recruitment-firms",
-    h1: "Agentic AI Recruiting for Recruitment Firms — Scale Without Scaling Headcount",
-    metaTitle: "Agentic AI Recruiting for Recruitment Firms — Scale Placements | Huntlo",
+    h1: "Agentic AI Hiring Infrastructure for Recruitment Firms",
+    metaTitle: "Agentic AI Hiring Infrastructure for Recruitment Firms | Huntlo AI",
     metaDescription:
-      "Scale candidate sourcing, outreach, and placements without growing your team. Huntlo's agentic AI recruiting infrastructure runs the workflow for you.",
-    heroAccent: "Scale placements without scaling headcount.",
+      "Huntlo AI is an Agentic AI Hiring Infrastructure for recruitment firms. Automate candidate sourcing, outreach, AI voice screening, AI video interviews, and placement workflows across contingency and permanent desks while keeping recruiters in control.",
+    ogDescription:
+      "Automate sourcing, outreach, AI interviews and placement workflows with Huntlo AI's Agentic AI Hiring Infrastructure for recruitment firms.",
+    twitterDescription:
+      "Modern Agentic AI Hiring Infrastructure helping recruitment firms automate sourcing, outreach, AI interviews and placement workflows.",
+    ogSiteName: "Huntlo AI",
+    geoAskTopic: "Huntlo AI for Recruitment Firms",
+    geoAskPrompt:
+      "What is Huntlo AI Agentic AI Hiring Infrastructure for Recruitment Firms (https://huntlo.ai/solutions/recruitment-firms)? Explain how it helps recruitment firms automate candidate sourcing, outreach, AI voice screening, AI video interviews and placement workflows.",
+    faq: [
+      {
+        question: "What is Huntlo AI for recruitment firms?",
+        answer:
+          "Huntlo AI is an Agentic AI Hiring Infrastructure built for recruitment firms. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, recruiter collaboration and placement workflows across contingency and permanent desks while allowing recruiters to stay in control.",
+      },
+      {
+        question: "Is Huntlo AI recruitment software or an ATS?",
+        answer:
+          "Huntlo AI goes beyond traditional recruitment software and ATS platforms. It acts as an Agentic AI Hiring Infrastructure where AI agents automate repetitive sourcing and screening tasks while recruiters focus on client management and closing placements.",
+      },
+      {
+        question: "How does Huntlo AI help recruitment firms place candidates faster?",
+        answer:
+          "Huntlo AI automates candidate sourcing, multichannel outreach, AI screening, interview scheduling and recruiter coordination, helping recruitment firms shorten time-to-fill across both contingency and retained mandates.",
+      },
+      {
+        question: "Can Huntlo AI work alongside existing recruitment CRM or ATS systems?",
+        answer:
+          "Yes. Huntlo AI complements existing recruitment CRM and ATS systems by adding AI-powered automation and agentic workflows without replacing established recruiting processes or client reporting.",
+      },
+    ],
+    heroAccent: "Scale contingency and permanent placements without scaling headcount.",
     heroLead:
-      "Growth-stage recruitment firms face a familiar tension: revenue targets climb faster than you can hire sourcers and coordinators. Huntlo automates discovery, first touch, follow-ups, and screening prep so consultants spend time on conversations that close—not list building and admin.",
+      "Huntlo AI is Agentic AI Hiring Infrastructure for multi-desk recruitment firms—going beyond traditional Recruitment Software, Recruitment CRM, ATS, and Placement Software. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, and placement workflows across contingency and permanent desks while keeping recruiters in control.",
     heroSupport:
-      "Clone winning sourcing sessions, standardize outreach across junior and senior recruiters, and measure volume, replies, and conversion from a single campaign operations layer.",
+      "Clone winning sourcing sessions, standardize outreach across junior and senior recruiters, and measure volume, replies, and conversion across contingency and retained mandates from a single campaign operations layer.",
     heroPills: [
+      "Contingency + permanent desks",
       "Repeatable sourcing playbooks",
-      "Standardized outreach quality",
-      "Campaign per open role",
-      "Team analytics & quotas",
+      "AI voice & video screening",
+      "Recruitment CRM complementary",
     ],
     heroPreview: {
       label: "Firm operations",
@@ -176,14 +238,14 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       ],
       activeCampaigns: "8 open",
     },
-    overviewTitle: "Scale placements without scaling headcount",
+    overviewTitle: "Agentic AI Hiring Infrastructure for multi-desk recruitment firms",
     intro:
-      "Growth-stage recruitment firms need throughput without proportional hiring of sourcers and coordinators. Huntlo automates the repetitive work—discovery, first touch, follow-ups, and screening prep—so consultants focus on closing roles and building relationships.",
+      "Growth-stage recruitment firms need throughput across contingency and retained/permanent mandates without proportional hiring of sourcers and coordinators. Huntlo's Agentic AI Hiring Infrastructure automates discovery, outreach, screening, and placement prep so consultants focus on client management and closing—without replacing your Recruitment CRM or ATS.",
     highlights: [
       "Clone winning sourcing sessions for similar roles and verticals",
       "Standardize outreach quality across junior and senior consultants",
-      "Keep every open role in a dedicated campaign workspace",
-      "Measure outreach volume, replies, and conversion in one place",
+      "Run dedicated campaigns for contingency and permanent desks",
+      "Complement existing recruitment CRM, ATS, and placement software stacks",
     ],
     metrics: [
       { value: "10x", label: "More outreach capacity" },
@@ -201,28 +263,28 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       },
       {
         title: "Focus consultants on closing",
-        description: "Spend time on conversations that convert—not list building and admin.",
+        description: "Spend time on client relationships and placements—not list building and admin.",
       },
     ],
     challenges: [
-      "Revenue goals outpace recruiter capacity",
+      "Revenue goals outpace recruiter capacity across contingency and permanent desks",
       "Outbound quality drops when teams rush to hit activity targets",
       "Sourcing and outreach live in disconnected tools and spreadsheets",
-      "Difficult to standardize process across junior and senior recruiters",
+      "Hard to standardize process across junior and senior recruiters without losing placement quality",
     ],
     capabilities: [
-      "Repeatable sourcing sessions you can clone for similar roles",
+      "Repeatable sourcing sessions you can clone for similar roles and mandates",
       "WhatsApp and email sequences with approved templates and AI reply flows",
-      "Chrome extension and integrations to work where recruiters already operate",
-      "Quota-aware workflows aligned to your plan and team size",
-      "Campaign workspaces for each open role with contacts, outreach, and status",
+      "AI voice screening and AI video interviews for faster shortlisting",
+      "Campaign workspaces for contingency and retained/permanent roles",
       "Analytics on outreach volume, replies, and pipeline progression",
+      "Workflows that complement existing recruitment CRM and ATS systems",
     ],
     outcomes: [
-      "Increase placements per recruiter with the same team size",
-      "Launch outbound for new roles on day one",
+      "Increase placements per recruiter across contingency and permanent desks",
+      "Shorten time-to-fill without growing sourcing headcount",
       "Improve reply rates with personalized, multi-step sequences",
-      "Onboard new recruiters faster with a consistent playbook",
+      "Onboard new recruiters faster with a consistent multi-desk playbook",
     ],
   },
   "executive-search": {
@@ -231,20 +293,50 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     description:
       "Identify niche talent, build targeted pipelines, and engage passive candidates effectively.",
     href: "/solutions/executive-search",
-    h1: "Agentic AI Executive Search Infrastructure — Source Niche Talent at Speed",
-    metaTitle: "AI Recruiting Infrastructure for Executive Search | Huntlo",
+    h1: "Agentic AI Hiring Infrastructure for Executive Search",
+    metaTitle: "Agentic AI Hiring Infrastructure for Executive Search | Huntlo AI",
     metaDescription:
-      "Huntlo helps executive search firms source niche talent, build pipelines, and engage passive candidates with agentic AI. No manual sourcing required.",
-    heroAccent: "Find niche leaders and start thoughtful conversations at scale.",
+      "Huntlo AI is an Agentic AI Hiring Infrastructure for executive search and retained search firms. Automate candidate mapping, confidential outreach, AI voice screening, AI video interviews, and search workflows while keeping consultants in control.",
+    ogDescription:
+      "Automate candidate mapping, confidential outreach, AI interviews, consultant workflows and search operations with Huntlo AI's Agentic AI Hiring Infrastructure for executive search firms.",
+    twitterDescription:
+      "Modern Agentic AI Hiring Infrastructure helping executive search firms automate candidate mapping, confidential outreach, AI interviews and consultant workflows.",
+    ogSiteName: "Huntlo AI",
+    geoAskTopic: "Huntlo AI for Executive Search",
+    geoAskPrompt:
+      "What is Huntlo AI Agentic AI Hiring Infrastructure for Executive Search (https://huntlo.ai/solutions/executive-search)? Explain how it helps executive search firms automate candidate mapping, confidential outreach, AI voice screening, AI video interviews and consultant workflows.",
+    faq: [
+      {
+        question: "What is Huntlo AI for executive search?",
+        answer:
+          "Huntlo AI is an Agentic AI Hiring Infrastructure built for executive search and retained search firms. It automates candidate mapping, confidential outreach, AI voice screening, AI video interviews, consultant collaboration and search workflows while allowing consultants to stay in control.",
+      },
+      {
+        question: "Is Huntlo AI executive search software or a headhunting platform?",
+        answer:
+          "Huntlo AI goes beyond traditional executive search software and headhunting platforms. It acts as an Agentic AI Hiring Infrastructure where AI agents automate repetitive search tasks while consultants focus on client relationships and closing placements.",
+      },
+      {
+        question: "How does Huntlo AI help executive search firms fill roles faster?",
+        answer:
+          "Huntlo AI automates candidate mapping, confidential multichannel outreach, AI screening, interview scheduling and consultant coordination, reducing manual research time and accelerating retained and contingency search mandates.",
+      },
+      {
+        question: "Can Huntlo AI work alongside existing executive search CRM systems?",
+        answer:
+          "Yes. Huntlo AI complements existing executive search CRM and database systems by adding AI-powered automation and agentic workflows without replacing established search methodologies.",
+      },
+    ],
+    heroAccent: "Run retained and contingency searches with confidential precision.",
     heroLead:
-      "Executive search lives on precision—narrow markets, passive talent, and brand-sensitive outreach. Researchers need more than job boards: semantic filters, verified contact data, and messaging that respects senior audiences. Huntlo helps you build qualified longlists and engage executives with discretion.",
+      "Huntlo AI is Agentic AI Hiring Infrastructure for executive search and retained search firms—going beyond traditional Executive Search Software, Headhunting Platforms, and Executive Search CRM tools. It automates candidate mapping, confidential outreach, AI voice screening, AI video interviews, and search workflows while keeping consultants in control.",
     heroSupport:
-      "Every search assignment stays confidential with full activity history, senior-appropriate templates, and reply-driven qualification before partners get involved.",
+      "Every retained mandate stays discreet with private pipelines, senior-appropriate messaging, verified contact reveal, and reply-driven qualification before partners engage passive executives.",
     heroPills: [
-      "Semantic executive search",
-      "Verified email & phone reveal",
-      "Discreet multi-step outreach",
-      "Confidential search pipelines",
+      "Confidential retained search",
+      "Discreet multichannel outreach",
+      "AI voice & video screening",
+      "Executive Search CRM complementary",
     ],
     heroPreview: {
       label: "Executive search",
@@ -257,14 +349,14 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       ],
       activeCampaigns: "3 retained",
     },
-    overviewTitle: "Precision sourcing for passive executive talent",
+    overviewTitle: "Confidential Agentic AI Hiring Infrastructure for search firms",
     intro:
-      "Executive search depends on precision—finding the right leader in a narrow market and starting a thoughtful conversation. Huntlo helps researchers build highly targeted longlists, enrich contact details, and run respectful outreach at scale while keeping every touchpoint on-brand.",
+      "Executive search depends on precision and discretion—finding the right leader in a narrow market and starting a confidential conversation. Huntlo's Agentic AI Hiring Infrastructure helps researchers map niche talent, enrich contacts, and run discreet outreach at scale without replacing your Executive Search CRM or established search methodology.",
     highlights: [
-      "Filter leaders by title, industry, tenure, and geography with semantic search",
-      "Reveal verified email and phone for hard-to-reach executives",
-      "Use senior-appropriate templates that protect your firm's brand",
-      "Maintain confidential pipelines with full activity history per search",
+      "Map leaders by title, industry, tenure, and geography with semantic search",
+      "Reveal verified email and phone for hard-to-reach passive executives",
+      "Run confidential, senior-appropriate outreach that protects your firm's brand",
+      "Keep private pipelines with full activity history per retained mandate",
     ],
     metrics: [
       { value: "92%", label: "Match accuracy" },
@@ -273,12 +365,12 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     ],
     workflowSteps: [
       {
-        title: "Build a targeted longlist",
+        title: "Map a targeted longlist",
         description: "Surface niche leaders who fit mandate criteria—not generic job board profiles.",
       },
       {
         title: "Enrich and verify contacts",
-        description: "Unlock direct lines and personalize outreach for passive senior talent.",
+        description: "Unlock direct lines and personalize confidential outreach for passive senior talent.",
       },
       {
         title: "Engage with discretion",
@@ -286,22 +378,22 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       },
     ],
     challenges: [
-      "Niche searches require deep filtering beyond generic job boards",
+      "Niche retained searches require deep filtering beyond generic job boards",
       "Passive executives rarely respond to generic InMails or blasts",
       "Researchers lose time hunting for emails and direct lines",
-      "Confidential searches need controlled, professional communication",
+      "Confidential mandates need controlled, professional communication",
     ],
     capabilities: [
-      "Semantic search to surface leaders by title, industry, tenure, and geography",
+      "Semantic candidate mapping by title, industry, tenure, and geography",
       "Verified email and phone reveal for hard-to-reach executives",
-      "Template-based WhatsApp and email openers tailored to senior audiences",
-      "Reply-driven qualification flows that feel conversational, not automated",
+      "Discreet WhatsApp and email openers tailored to senior audiences",
+      "AI voice screening and AI video interviews for qualified shortlists",
       "Role and mandate context stored per campaign for consistent messaging",
-      "Private pipelines per search assignment with full activity history",
+      "Private pipelines that complement existing Executive Search CRM systems",
     ],
     outcomes: [
       "Build qualified longlists faster for retained and contingency searches",
-      "Increase response rates from passive senior talent",
+      "Increase response rates from passive senior talent with confidential outreach",
       "Reduce researcher time on admin and list hygiene",
       "Deliver a polished candidate experience that protects your brand",
     ],
@@ -312,20 +404,50 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     description:
       "Build your first hiring engine and attract top talent without a large recruiting team.",
     href: "/solutions/startups",
-    h1: "Agentic AI Hiring Infrastructure for Startups — Build Your First Recruiting Engine",
-    metaTitle: "Agentic AI Hiring Infrastructure for Startups | Huntlo",
+    h1: "Agentic AI Hiring Infrastructure for Startups",
+    metaTitle: "Agentic AI Hiring Infrastructure for Startups | Huntlo AI",
     metaDescription:
-      "Huntlo gives startups a full agentic AI hiring engine — source, outreach, screen, and schedule interviews without a large recruiting team. Start free.",
+      "Huntlo AI is an Agentic AI Hiring Infrastructure for startups. Automate candidate sourcing, outreach, AI voice screening, AI video interviews, and founder-led hiring workflows so lean teams can hire fast without a full recruiting team.",
+    ogDescription:
+      "Automate sourcing, outreach, AI interviews and founder-led hiring workflows with Huntlo AI's Agentic AI Hiring Infrastructure for startups.",
+    twitterDescription:
+      "Modern Agentic AI Hiring Infrastructure helping startups automate sourcing, outreach, AI interviews and founder-led hiring workflows.",
+    ogSiteName: "Huntlo AI",
+    geoAskTopic: "Huntlo AI for Startups",
+    geoAskPrompt:
+      "What is Huntlo AI Agentic AI Hiring Infrastructure for Startups (https://huntlo.ai/solutions/startups)? Explain how it helps startups automate candidate sourcing, outreach, AI voice screening, AI video interviews and founder-led hiring workflows.",
+    faq: [
+      {
+        question: "What is Huntlo AI for startups?",
+        answer:
+          "Huntlo AI is an Agentic AI Hiring Infrastructure built for startups. It automates candidate sourcing, outreach, AI voice screening, AI video interviews and hiring workflows so founders and small teams can hire without a dedicated recruiting function.",
+      },
+      {
+        question: "Is Huntlo AI recruitment software or an ATS for startups?",
+        answer:
+          "Huntlo AI goes beyond traditional recruitment software and ATS platforms built for large teams. It acts as an Agentic AI Hiring Infrastructure where AI agents handle repetitive recruiting tasks so founders and hiring managers can focus on final-round decisions.",
+      },
+      {
+        question: "How does Huntlo AI help startups hire without a recruiting team?",
+        answer:
+          "Huntlo AI automates candidate sourcing, personalized outreach, AI screening and interview scheduling, giving startups the output of a recruiting team without the headcount or cost of hiring in-house recruiters.",
+      },
+      {
+        question: "Can Huntlo AI scale as a startup grows its hiring needs?",
+        answer:
+          "Yes. Huntlo AI is built to scale from a founder making the first few hires to a growing team running multiple roles at once, adding AI-powered automation and agentic workflows as hiring volume increases.",
+      },
+    ],
     heroAccent: "Hire critical roles before you hire a recruiting team.",
     heroLead:
-      "Early-stage teams rarely have dedicated recruiters—but every hire shapes the company. Founders and hiring managers need to source builders, operators, and leaders while shipping product. Huntlo gives you a professional outbound hiring motion from day one, without agency fees or enterprise tool sprawl.",
+      "Huntlo AI is Agentic AI Hiring Infrastructure for startups—going beyond traditional AI Recruitment Software, Recruiting Tools for Startups, ATS, and Applicant Tracking Systems built for large teams. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, and founder-led hiring workflows so lean teams can hire fast without a full recruiting team.",
     heroSupport:
-      "Describe your ideal hire in plain English, reach strong candidates proactively, and book interviews faster with integrated workflows—then reuse what works as you scale each new role.",
+      "Describe your ideal hire in plain English, reach strong candidates proactively, and book interviews faster with self-serve workflows—then reuse what works as you scale each new role.",
     heroPills: [
-      "Natural-language AI search",
+      "No recruiter required",
       "Trial plans for lean teams",
-      "Email + WhatsApp sequences",
-      "Calendly & interview booking",
+      "AI voice & video screening",
+      "Founder-led hiring workflows",
     ],
     heroPreview: {
       label: "Startup hiring",
@@ -338,14 +460,14 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       ],
       activeCampaigns: "2 active",
     },
-    overviewTitle: "Your first hiring engine—without hiring recruiters first",
+    overviewTitle: "Agentic AI Hiring Infrastructure for founder-led hiring",
     intro:
-      "Early-stage teams rarely have dedicated recruiters—but every hire shapes the company. Huntlo lets founders and hiring managers run a professional outbound hiring motion from day one: source builders, operators, and leaders, then engage them before competitors do.",
+      "Early-stage teams rarely have dedicated recruiters—but every hire shapes the company. Huntlo's Agentic AI Hiring Infrastructure lets founders and early ops/people hires run a professional outbound hiring motion from day one: source builders, operators, and leaders, then engage them before competitors do—without agency fees or enterprise ATS sprawl.",
     highlights: [
       "Describe your ideal hire in plain English—no Boolean strings required",
       "Start on a trial plan sized for lean teams and first critical hires",
       "Run polished outreach that competes with larger employers",
-      "Book interviews faster with Calendly and integrated workflows",
+      "Scale from first hires to multiple open roles with the same playbook",
     ],
     metrics: [
       { value: "Day 1", label: "Go-live speed" },
@@ -368,7 +490,7 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     ],
     challenges: [
       "Founders and hiring managers source between product and ops work",
-      "Limited budget for agencies and premium tools",
+      "Limited budget for agencies and premium recruiting tools for startups",
       "Hard to compete with larger employers for the same talent",
       "No structured process for outreach, follow-up, or pipeline tracking",
     ],
@@ -376,9 +498,9 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       "Natural-language search to describe the ideal hire in plain English",
       "Affordable trial and starter plans sized for lean teams",
       "Email and WhatsApp outreach without a separate sequencing tool",
-      "Job title and description fields for consistent candidate communication",
+      "AI voice screening and AI video interviews for faster shortlists",
       "Campaign view to track who was contacted, replied, and moved forward",
-      "Integrations and Calendly scheduling to book interviews faster",
+      "Self-serve workflows that scale as hiring volume increases",
     ],
     outcomes: [
       "Hire critical roles without hiring a recruiter first",
@@ -409,12 +531,12 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       {
         question: "What is Huntlo AI for enterprise hiring?",
         answer:
-          "Huntlo AI is an Agentic AI Hiring Infrastructure designed for enterprise talent acquisition teams. It automates sourcing, outreach, AI voice screening, AI video interviews, cross-departmental recruiter collaboration and high-volume hiring workflows while keeping talent teams in control.",
+          "Huntlo AI is an Agentic AI Hiring Infrastructure built for enterprise talent acquisition teams. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, cross-departmental recruiter collaboration and high-volume hiring workflows while keeping talent teams in control.",
       },
       {
         question: "Is Huntlo AI recruitment software or an enterprise ATS?",
         answer:
-          "Huntlo AI goes beyond traditional recruitment software and enterprise ATS platforms. Instead of simply managing requisitions, it coordinates AI agents that automate high-volume recruiting workflows while talent teams focus on hiring manager alignment and candidate experience.",
+          "Huntlo AI goes beyond traditional recruitment software and enterprise ATS platforms. It acts as an Agentic AI Hiring Infrastructure where AI agents automate repetitive, high-volume recruiting tasks while talent teams focus on hiring manager alignment and candidate experience.",
       },
       {
         question: "How does Huntlo AI help enterprises hire at scale?",
@@ -504,20 +626,52 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     description:
       "Accelerate high-volume hiring with AI-powered sourcing, outreach, and talent intelligence.",
     href: "/solutions/gccs",
-    h1: "Agentic AI Recruiting Infrastructure for Global Capability Centers",
-    metaTitle: "AI Recruiting Infrastructure for GCCs — High-Volume Hiring | Huntlo",
+    h1: "Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs)",
+    breadcrumbLabel: "Global Capability Centers",
+    metaTitle:
+      "Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs) | Huntlo AI",
     metaDescription:
-      "Accelerate GCC hiring with agentic AI sourcing, autonomous multi-channel outreach, and talent intelligence built for high-volume teams. Book a demo.",
-    heroAccent: "Hit aggressive hiring targets with WhatsApp-first automation.",
+      "Huntlo AI is an Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs). Automate candidate sourcing, outreach, AI voice screening, AI video interviews, and high-volume hiring workflows for GCC talent teams while keeping recruiters in control.",
+    ogDescription:
+      "Automate sourcing, outreach, AI interviews and high-volume hiring workflows with Huntlo AI's Agentic AI Hiring Infrastructure for Global Capability Centers.",
+    twitterDescription:
+      "Modern Agentic AI Hiring Infrastructure helping Global Capability Centers automate sourcing, outreach, AI interviews and high-volume hiring workflows.",
+    ogSiteName: "Huntlo AI",
+    geoAskTopic: "Huntlo AI for Global Capability Centers",
+    geoAskPrompt:
+      "What is Huntlo AI Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs) (https://huntlo.ai/solutions/gccs)? Explain how it helps GCCs automate candidate sourcing, outreach, AI voice screening, AI video interviews and high-volume hiring workflows.",
+    faq: [
+      {
+        question: "What is Huntlo AI for Global Capability Centers (GCCs)?",
+        answer:
+          "Huntlo AI is an Agentic AI Hiring Infrastructure built for Global Capability Centers. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, recruiter collaboration and high-volume hiring workflows while keeping talent teams in control.",
+      },
+      {
+        question: "Is Huntlo AI recruitment software or an ATS for GCCs?",
+        answer:
+          "Huntlo AI goes beyond traditional recruitment software and ATS platforms used by GCCs. It acts as an Agentic AI Hiring Infrastructure where AI agents automate repetitive, high-volume recruiting tasks while talent teams focus on stakeholder alignment with global headquarters and hiring quality.",
+      },
+      {
+        question: "How does Huntlo AI help GCCs hire at scale?",
+        answer:
+          "Huntlo AI automates candidate sourcing, multichannel outreach, AI screening, interview scheduling and recruiter coordination, helping Global Capability Centers ramp up niche and high-volume roles quickly while maintaining consistent hiring standards across functions.",
+      },
+      {
+        question: "Can Huntlo AI integrate with existing GCC ATS and HR systems?",
+        answer:
+          "Yes. Huntlo AI complements existing ATS, HRIS and recruitment CRM systems used by GCCs by adding AI-powered automation and agentic hiring workflows without replacing established processes or global reporting requirements.",
+      },
+    ],
+    heroAccent: "Ramp niche and high-volume roles while reporting cleanly to global HQ.",
     heroLead:
-      "Global Capability Centers hire at scale across engineering, operations, finance, and shared services—often under monthly targets that manual sourcing can't sustain. Huntlo is built for volume: discover talent in bulk, operationalize WhatsApp with compliant templates, and keep thousands of candidates moving through structured campaigns.",
+      "Huntlo AI is Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs)—going beyond traditional Recruitment Software, ATS, Recruitment CRM, and Talent Acquisition Platforms. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, and high-volume hiring workflows while keeping recruiters in control.",
     heroSupport:
-      "Run repeatable playbooks across role families, bulk add and reveal contacts, and track reply rates and pipeline health across parallel hiring drives from one operations hub.",
+      "Hit aggressive India/APAC hiring targets with WhatsApp-first automation, repeatable playbooks across functions, and consistent hiring standards your global headquarters can trust.",
     heroPills: [
-      "High-volume AI sourcing",
+      "High-volume GCC hiring",
       "WhatsApp at scale",
-      "Bulk contact workflows",
-      "Parallel hiring campaigns",
+      "ATS / HRIS complementary",
+      "Consistent cross-function standards",
     ],
     heroPreview: {
       label: "GCC operations",
@@ -530,14 +684,14 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       ],
       activeCampaigns: "24 drives",
     },
-    overviewTitle: "High-volume hiring built for GCC scale",
+    overviewTitle: "Agentic AI Hiring Infrastructure built for Global Capability Centers",
     intro:
-      "Global Capability Centers hire at scale across engineering, operations, finance, and shared services—often under aggressive timelines. Huntlo is built for volume: discover talent in bulk, automate first-touch outreach, and keep thousands of candidates moving through structured campaigns.",
+      "Global Capability Centers (GCCs) hire at scale across engineering, operations, finance, and shared services—often under aggressive timelines set by global HQ. Huntlo's Agentic AI Hiring Infrastructure helps GCC talent teams ramp niche and high-volume roles quickly with consistent hiring standards across functions—without replacing your ATS, HRIS, or recruitment CRM.",
     highlights: [
       "Source large candidate pools with skills, location, and experience filters",
       "Operationalize WhatsApp at scale with compliant, template-based sequences",
       "Bulk add, reveal, and enroll contacts into parallel hiring campaigns",
-      "Run repeatable playbooks across engineering, ops, and shared services",
+      "Complement existing ATS, HRIS, and recruitment CRM stacks used by GCCs",
     ],
     metrics: [
       { value: "1000+", label: "Candidates per campaign" },
@@ -561,22 +715,22 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
     challenges: [
       "Mass hiring targets require more throughput than manual sourcing allows",
       "WhatsApp is critical in many GCC markets but hard to operationalize at scale",
-      "Recruiter teams need repeatable playbooks across similar role families",
-      "Talent intelligence and pipeline data scattered across tools",
+      "Recruiter teams need consistent standards across functions for global HQ reporting",
+      "Legacy ATS and Talent Acquisition Platforms don't connect sourcing, outreach, and pipeline in one flow",
     ],
     capabilities: [
       "Large session results with filters for skills, location, and experience",
       "WhatsApp campaign sequences with no-reply follow-ups and reply qualification",
+      "AI voice screening and AI video interviews for high-volume pipelines",
       "Bulk contact add, reveal, and campaign enrollment workflows",
-      "Minutes-to-days wait options for testing and production outreach timing",
       "Multi-role campaign management for parallel hiring drives",
-      "Analytics to monitor outreach performance across high-volume programs",
+      "ATS- and HRIS-friendly workflows that support global reporting requirements",
     ],
     outcomes: [
-      "Hit monthly hiring targets with fewer recruiters per requisition",
-      "Run compliant, template-based WhatsApp outreach at scale",
+      "Ramp niche and high-volume roles faster without proportional headcount",
+      "Run compliant, template-based WhatsApp outreach at GCC scale",
+      "Maintain consistent hiring standards across functions and locations",
       "Shorten time from req open to engaged candidate pipeline",
-      "Standardize hiring motion across GCC locations and functions",
     ],
   },
 };
@@ -589,3 +743,33 @@ export function getSolutionPage(slug: string): SolutionPageData | null {
 export function listSolutionPages(): SolutionPageData[] {
   return SOLUTION_PAGE_SLUGS.map((slug) => SOLUTION_PAGES[slug]).filter(Boolean);
 }
+
+/** Display name for CollectionPage ItemList entries on /solutions. */
+export function solutionCollectionItemName(page: SolutionPageData): string {
+  if (page.id === "gccs") return "Global Capability Centers (GCCs)";
+  return page.breadcrumbLabel ?? page.title.replace(/^For /, "");
+}
+
+/** Visible FAQ + FAQPage schema for the /solutions hub. */
+export const SOLUTIONS_INDEX_FAQ: SolutionFaqItem[] = [
+  {
+    question: "What is Huntlo AI?",
+    answer:
+      "Huntlo AI is an Agentic AI Hiring Infrastructure that automates candidate sourcing, outreach, AI voice screening, AI video interviews, and recruiter or hiring team workflows while keeping humans in control of final decisions.",
+  },
+  {
+    question: "Who is Huntlo AI built for?",
+    answer:
+      "Huntlo AI is built for every type of hiring team, including staffing agencies, recruitment firms, executive search consultants, startup founders, enterprise talent acquisition teams, and Global Capability Centers.",
+  },
+  {
+    question: "Is Huntlo AI recruitment software or an ATS?",
+    answer:
+      "Huntlo AI goes beyond traditional recruitment software and ATS platforms. It acts as an Agentic AI Hiring Infrastructure where AI agents automate repetitive recruiting tasks while people focus on relationships, judgment calls, and closing hires.",
+  },
+  {
+    question: "Can Huntlo AI integrate with the tools my team already uses?",
+    answer:
+      "Yes. Huntlo AI complements existing ATS, recruitment CRM, and HRIS systems by adding AI-powered automation and agentic hiring workflows without replacing established processes.",
+  },
+];

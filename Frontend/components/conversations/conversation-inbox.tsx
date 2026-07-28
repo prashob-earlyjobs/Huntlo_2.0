@@ -172,12 +172,15 @@ function stripEmailQuotedReply(raw: string): string {
 function MiniBadge({
   text,
   className,
+  title,
 }: {
   text: string;
   className: string;
+  title?: string;
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex h-5 items-center rounded-md px-1.5 text-[11px] font-medium whitespace-nowrap",
         className
@@ -186,6 +189,23 @@ function MiniBadge({
       {text}
     </span>
   );
+}
+
+function qualificationBadgeTooltip(conversation: Conversation): string | undefined {
+  const pipeline = conversationPipelineStatus(conversation);
+  if (pipeline === "Qualified") {
+    return (
+      conversation.qualificationReason ||
+      "Candidate was marked qualified."
+    );
+  }
+  if (pipeline === "Not qualified") {
+    return (
+      conversation.qualificationReason ||
+      "Candidate was marked not qualified."
+    );
+  }
+  return undefined;
 }
 
 /* ------------------------------------------------------------------ */
@@ -881,8 +901,9 @@ export function ConversationInbox({
               "lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]"
             )
           : cn(
-              "grid min-h-0 flex-1 rounded-xl border border-border",
-              "lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
+              "grid h-full min-h-0 rounded-xl border border-border",
+              "grid-cols-1 grid-rows-[minmax(0,14rem)_minmax(0,1fr)]",
+              "lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
               profileOpen && selected
                 ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
                 : "xl:grid-cols-[300px_minmax(0,1fr)]"
@@ -993,12 +1014,17 @@ export function ConversationInbox({
                           {conversation.channels.map((channel) => {
                             const Icon =
                               CHANNEL_ICONS[channel] ?? MessageCircle;
+                            const tooltip =
+                              channel === "Email" && conversation.email
+                                ? conversation.email
+                                : channel;
                             return (
-                              <Icon
-                                key={channel}
-                                aria-label={channel}
-                                className="size-3 shrink-0 text-muted-foreground"
-                              />
+                              <span key={channel} title={tooltip}>
+                                <Icon
+                                  aria-label={tooltip}
+                                  className="size-3 shrink-0 text-muted-foreground"
+                                />
+                              </span>
                             );
                           })}
                           <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -1038,6 +1064,7 @@ export function ConversationInbox({
                           <MiniBadge
                             text={pipeline}
                             className={pipelineStatusBadgeClass(pipeline)}
+                            title={qualificationBadgeTooltip(conversation)}
                           />
                           {isUnread ? (
                             <span
@@ -1100,6 +1127,7 @@ export function ConversationInbox({
                 className={pipelineStatusBadgeClass(
                   conversationPipelineStatus(selected)
                 )}
+                title={qualificationBadgeTooltip(selected)}
               />
               {!embedded && !profileOpen ? (
                 <Button
@@ -1114,7 +1142,7 @@ export function ConversationInbox({
               ) : null}
             </div>
 
-            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto">
+            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
               <div
                 className={cn(
                   "@container/thread box-border w-full max-w-full space-y-3",

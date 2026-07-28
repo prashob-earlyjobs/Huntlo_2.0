@@ -414,7 +414,7 @@ See [CONVENTIONS.md](./CONVENTIONS.md) for full standards.
 
 ## 13. Security
 
-- JWT access (15m) + refresh (7d) rotation
+- JWT access (15m) + refresh (30d) rotation
 - bcrypt password hashing
 - Workspace-scoped authorization on every mutating route
 - Provider secrets encrypted at rest (`shared/encryption/`)

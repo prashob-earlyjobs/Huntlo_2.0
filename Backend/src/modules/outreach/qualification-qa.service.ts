@@ -193,6 +193,17 @@ export function normalizeAnswerRecord(
   };
 }
 
+/** Prefer deterministic knockout rules over Gemini when the rule is clear. */
+function resolveKnockoutDecision(
+  question: QualificationQuestion,
+  rawAnswer: unknown,
+  geminiKnockout: 'pass' | 'fail' | 'unknown'
+): 'pass' | 'fail' | 'unknown' {
+  const deterministic = evaluateKnockout(question, rawAnswer);
+  if (deterministic === 'pass' || deterministic === 'fail') return deterministic;
+  return geminiKnockout;
+}
+
 /** Evaluate knockout rules. Returns fail only when clearly matched. */
 export function evaluateKnockout(
   question: QualificationQuestion,
@@ -223,10 +234,10 @@ export function evaluateKnockout(
   if (isNumber) {
     const num = Number.parseFloat(raw.replace(/[^\d.-]/g, ''));
     if (!Number.isFinite(num)) return 'unknown';
-    const moreThan = condition.match(/more than\s+(\d+)/);
-    const lessThan = condition.match(/less than\s+(\d+)/);
-    const atLeast = condition.match(/(?:at least|>=)\s*(\d+)/);
-    const atMost = condition.match(/(?:at most|<=|max)\s*(\d+)/);
+    const moreThan = condition.match(/(?:more than|greater than|>\s*|gt\s+)\s*(\d+(?:\.\d+)?)/);
+    const lessThan = condition.match(/(?:less than|<\s*|lt\s+)\s*(\d+(?:\.\d+)?)/);
+    const atLeast = condition.match(/(?:at least|>=)\s*(\d+(?:\.\d+)?)/);
+    const atMost = condition.match(/(?:at most|<=|max)\s*(\d+(?:\.\d+)?)/);
     if (moreThan && num > Number(moreThan[1])) return 'fail';
     if (lessThan && num < Number(lessThan[1])) return 'fail';
     if (atLeast && num < Number(atLeast[1])) return 'fail';
@@ -744,15 +755,77 @@ async function completeQualificationWhenAllAnswered(input: {
     'Gemini qualification assessment (complete)'
   );
 
-  if (assessment.outcome === 'rejected') {
+  let outcome = assessment.outcome;
+  let reason =
+    assessment.reason ||
+    (assessment.outcome === 'rejected'
+      ? `Screening failed${assessment.failedQuestionId ? ` (${assessment.failedQuestionId})` : ''}`
+      : undefined);
+
+  // Explicit knockout on a question is authoritative. If Gemini rejects because
+  // JD compensation differs (e.g. JD 30k–40k/month vs answer 5 LPA) but that
+  // question's knockout already passes, keep the candidate qualified.
+  if (outcome === 'rejected' && assessment.failedQuestionId) {
+    const failed = input.questions.find((q) => q.id === assessment.failedQuestionId);
+    const rawAnswer =
+      input.enrollment.qualificationState?.answers?.[assessment.failedQuestionId];
+    if (failed?.knockout && rawAnswer != null) {
+      const ko = evaluateKnockout(failed, rawAnswer);
+      if (ko === 'pass') {
+        log().info(
+          {
+            enrollmentId: String(input.enrollment._id),
+            failedQuestionId: assessment.failedQuestionId,
+            knockoutCondition: failed.knockoutCondition,
+            geminiReason: assessment.reason,
+          },
+          'Overriding Gemini reject — explicit knockout already passed'
+        );
+        outcome = 'qualified';
+        reason =
+          assessment.reason && /knockout|jd|salary|compensation|lpa|ctc/i.test(assessment.reason)
+            ? `Passed screening knockout (${failed.knockoutCondition || failed.id}); JD compensation difference ignored.`
+            : assessment.reason ||
+              `Passed screening knockout (${failed.knockoutCondition || failed.id}).`;
+      }
+    }
+  } else if (outcome === 'rejected') {
+    // Gemini sometimes rejects on JD salary mismatch without naming the question.
+    const compensationQs = input.questions.filter((q) => {
+      if (!q.knockout) return false;
+      const hay = `${q.id} ${q.prompt} ${q.knockoutCondition || ''}`.toLowerCase();
+      return /lpa|ctc|salary|compensation|pay|package/.test(hay);
+    });
+    const allCompPass =
+      compensationQs.length > 0 &&
+      compensationQs.every((q) => {
+        const raw = input.enrollment.qualificationState?.answers?.[q.id];
+        return raw != null && evaluateKnockout(q, raw) === 'pass';
+      });
+    const looksCompReject = /salary|compensation|lpa|ctc|jd|band|package|pay/i.test(
+      String(assessment.reason || '')
+    );
+    if (allCompPass && looksCompReject) {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          geminiReason: assessment.reason,
+          compensationQuestionIds: compensationQs.map((q) => q.id),
+        },
+        'Overriding Gemini reject — compensation knockouts already passed'
+      );
+      outcome = 'qualified';
+      reason = `Passed compensation screening knockout(s); JD compensation difference ignored.`;
+    }
+  }
+
+  if (outcome === 'rejected') {
     await completeQualification({
       campaign: input.campaign,
       enrollment: input.enrollment,
       threadId: input.threadId,
       status: 'rejected',
-      reason:
-        assessment.reason ||
-        `Screening failed${assessment.failedQuestionId ? ` (${assessment.failedQuestionId})` : ''}`,
+      reason,
     });
     return { action: 'rejected_assessment' };
   }
@@ -762,9 +835,11 @@ async function completeQualificationWhenAllAnswered(input: {
     enrollment: input.enrollment,
     threadId: input.threadId,
     status: 'qualified',
-    reason: shouldHandOffAfterQuestions(input.config)
-      ? input.config.takeoverCondition || 'Recruiter takeover after qualification'
-      : undefined,
+    reason:
+      reason ||
+      (shouldHandOffAfterQuestions(input.config)
+        ? input.config.takeoverCondition || 'Recruiter takeover after qualification'
+        : undefined),
   });
   return { action: 'qualified' };
 }
@@ -886,7 +961,7 @@ async function processEmailQualificationReply(input: {
       },
     };
 
-    const knockout = evaluation.knockout;
+    const knockout = resolveKnockoutDecision(q, value, evaluation.knockout);
     if (knockout === 'fail') {
       await enrollment.save();
       await completeQualification({
@@ -894,7 +969,8 @@ async function processEmailQualificationReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason: `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
+        reason:
+          evaluation.reason || `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
       });
       return { action: 'rejected_knockout' };
     }
@@ -1198,6 +1274,13 @@ async function completeQualification(input: {
 }) {
   const { campaign, enrollment, status } = input;
   const organizationId = String(campaign.organizationId);
+  const qualificationReason =
+    input.reason ||
+    (status === 'qualified'
+      ? 'All qualification questions were answered successfully.'
+      : status === 'rejected'
+        ? 'Candidate did not meet qualification criteria.'
+        : null);
 
   if (
     (status === 'qualified' || status === 'handed_off') &&
@@ -1215,11 +1298,13 @@ async function completeQualification(input: {
     enrollment.qualificationState = {
       status,
       answers: enrollment.qualificationState?.answers || {},
+      reason: qualificationReason,
     };
   } else {
     enrollment.qualificationState = {
       status: 'in_progress',
       answers: enrollment.qualificationState?.answers || {},
+      reason: qualificationReason,
     };
   }
   enrollment.lastActionAt = new Date();
@@ -2104,7 +2189,7 @@ export async function processQualificationAfterReply(input: {
       },
     };
 
-    const knockout = evaluation.knockout;
+    const knockout = resolveKnockoutDecision(current, value, evaluation.knockout);
     if (knockout === 'fail') {
       await enrollment.save();
       await completeQualification({
@@ -2112,7 +2197,9 @@ export async function processQualificationAfterReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason: `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
+        reason:
+          evaluation.reason ||
+          `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
       });
       return { action: 'rejected_knockout' };
     }

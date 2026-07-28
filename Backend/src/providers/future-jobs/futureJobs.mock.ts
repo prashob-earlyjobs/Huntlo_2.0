@@ -86,6 +86,7 @@ function maybeFail(operation: string): void {
       fjHttpStatus: 0,
       fjOperation: operation,
       statusCode: 503,
+      logFailure: false,
     });
   }
 
@@ -96,6 +97,7 @@ function maybeFail(operation: string): void {
       fjHttpStatus: 503,
       fjOperation: operation,
       statusCode: 503,
+      logFailure: false,
     });
   }
 }

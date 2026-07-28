@@ -1,13 +1,17 @@
 "use client";
 
 import { Users } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConversationInbox } from "@/components/conversations/conversation-inbox";
 import { ConversationInboxSkeleton } from "@/components/conversations/conversation-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
-import { conversationsApi, getApiErrorMessage } from "@/lib/api";
+import {
+  conversationsApi,
+  getApiErrorMessage,
+  isAbortError,
+} from "@/lib/api";
 import type { Conversation } from "@/lib/mock-conversations";
 import { cn } from "@/lib/utils";
 
@@ -29,34 +33,37 @@ export function ConversationsPanel({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const refresh = useCallback(async () => {
-    try {
-      const rows = await conversationsApi.list({
-        campaignId,
-        candidateId,
-        jobId,
-        limit: 100,
-      });
-      setConversations(rows);
-      setError(null);
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Unable to load conversations."));
-    }
-  }, [campaignId, candidateId, jobId]);
+  const refresh = useCallback(
+    async (opts?: { showLoading?: boolean }) => {
+      const requestId = ++requestIdRef.current;
+      if (opts?.showLoading) setLoading(true);
+      try {
+        const rows = await conversationsApi.list({
+          campaignId,
+          candidateId,
+          jobId,
+          limit: 100,
+        });
+        if (requestId !== requestIdRef.current) return;
+        setConversations(rows);
+        setError(null);
+      } catch (err) {
+        if (requestId !== requestIdRef.current) return;
+        if (isAbortError(err)) return;
+        setError(getApiErrorMessage(err, "Unable to load conversations."));
+      } finally {
+        if (requestId === requestIdRef.current) setLoading(false);
+      }
+    },
+    [campaignId, candidateId, jobId]
+  );
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      try {
-        await refresh();
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    void refresh({ showLoading: true });
     return () => {
-      cancelled = true;
+      requestIdRef.current += 1;
     };
   }, [refresh]);
 
@@ -71,7 +78,6 @@ export function ConversationsPanel({
         event?.data && typeof event.data === "object"
           ? (event.data as { threadId?: string; campaignId?: string | null })
           : null;
-      // Campaign-scoped panel: ignore events for other campaigns.
       if (
         campaignId &&
         data?.campaignId &&
@@ -80,7 +86,8 @@ export function ConversationsPanel({
         return;
       }
       void refresh();
-    }
+    },
+    { debounceMs: 800 }
   );
 
   if (loading) {

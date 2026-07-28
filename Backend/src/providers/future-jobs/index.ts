@@ -12,6 +12,9 @@ import {
   FUTURE_JOBS_UPSTREAM_USER_MESSAGE,
   FutureJobsUpstreamError,
   createFutureJobsUpstreamError,
+  fjUpstreamLogFields,
+  isFutureJobsUpstreamError,
+  summarizeFjResponseForLog,
 } from './futureJobs.errors.js';
 import {
   DEFAULT_FILTER_FORM,
@@ -86,6 +89,9 @@ export {
   FUTURE_JOBS_UPSTREAM_USER_MESSAGE,
   FutureJobsUpstreamError,
   createFutureJobsUpstreamError,
+  fjUpstreamLogFields,
+  isFutureJobsUpstreamError,
+  summarizeFjResponseForLog,
   DEFAULT_FILTER_FORM,
   GEO_EXPAND_STEPS,
   POST_SESSION_CREATE_PROFILES_WAIT_MS,

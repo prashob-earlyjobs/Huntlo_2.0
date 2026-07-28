@@ -137,6 +137,16 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
   return fallback;
 }
 
+export function isAbortError(error: unknown): boolean {
+  if (error instanceof ApiError && error.code === "ABORTED") return true;
+  if (typeof DOMException !== "undefined" && error instanceof DOMException) {
+    return error.name === "AbortError";
+  }
+  if (error instanceof Error && error.name === "AbortError") return true;
+  const message = getApiErrorMessage(error, "");
+  return /request was aborted|aborted|aborterror/i.test(message);
+}
+
 /** Interview was created but the invite email/link could not be delivered. */
 export function isInviteDeliveryFailed(error: unknown): boolean {
   if (error instanceof ApiError && error.code === "INVITE_DELIVERY_FAILED") {

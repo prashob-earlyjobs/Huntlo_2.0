@@ -10,12 +10,17 @@ import type { SolutionPageData } from "@/lib/solutionPages";
 type SolutionPageLayoutProps = {
   page?: SolutionPageData;
   breadcrumbItems?: { label: string; href?: string }[];
+  /** Hub / index GEO overrides when `page` is not set. */
+  aiAskPrompt?: string;
+  aiAskTopic?: string;
   children: React.ReactNode;
 };
 
 export function SolutionPageLayout({
   page,
   breadcrumbItems,
+  aiAskPrompt,
+  aiAskTopic,
   children,
 }: SolutionPageLayoutProps) {
   return (
@@ -56,8 +61,8 @@ export function SolutionPageLayout({
         </section>
       </main>
       <LandingFooter
-        aiAskPrompt={page?.geoAskPrompt}
-        aiAskTopic={page?.geoAskTopic}
+        aiAskPrompt={page?.geoAskPrompt ?? aiAskPrompt}
+        aiAskTopic={page?.geoAskTopic ?? aiAskTopic}
       />
     </div>
   );

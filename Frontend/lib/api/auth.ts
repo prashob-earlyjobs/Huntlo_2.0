@@ -36,6 +36,13 @@ export type ChangePasswordInput = {
   newPassword: string;
 };
 
+export type ForgotPasswordResult = {
+  message: string;
+  resetToken?: string;
+  resetUrl?: string;
+  emailed?: boolean;
+};
+
 type AuthPayload = AuthMeResponse & {
   accessToken: string;
 };
@@ -48,6 +55,8 @@ export interface AuthApi {
   me(): Promise<AuthMeResponse>;
   updateMe(input: UpdateMeInput): Promise<AuthMeResponse>;
   changePassword(input: ChangePasswordInput): Promise<void>;
+  forgotPassword(email: string): Promise<ForgotPasswordResult>;
+  resetPassword(input: { token: string; password: string }): Promise<void>;
 }
 
 function mapAuthPayload(data: AuthPayload): AuthSession & { me: AuthMeResponse } {
@@ -113,6 +122,23 @@ const liveAuthApi: AuthApi = {
     await apiClient.patch<{ changed: boolean }>("/auth/me/password", input, {
       sensitive: true,
     });
+  },
+
+  async forgotPassword(email) {
+    const result = await apiClient.post<ForgotPasswordResult>(
+      "/auth/forgot-password",
+      { email },
+      { auth: false, sensitive: true }
+    );
+    return result.data;
+  },
+
+  async resetPassword(input) {
+    await apiClient.post<{ reset: boolean }>(
+      "/auth/reset-password",
+      input,
+      { auth: false, sensitive: true }
+    );
   },
 };
 
@@ -203,6 +229,16 @@ const mockAuthApi: AuthApi = {
     };
   },
   async changePassword() {
+    return;
+  },
+  async forgotPassword() {
+    return {
+      message: "If the account exists, a reset email will be sent.",
+      resetUrl: "/reset-password?token=mock-reset-token",
+      resetToken: "mock-reset-token",
+    };
+  },
+  async resetPassword() {
     return;
   },
 };

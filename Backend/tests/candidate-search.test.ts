@@ -308,9 +308,21 @@ describe('Candidate search workflow', () => {
 
     const sessions = await agent
       .get('/api/v1/candidates/sessions')
-      .query({ limit: 10 })
+      .query({ page: 1, limit: 10 })
       .set('Authorization', `Bearer ${auth.token}`);
     expect(sessions.status).toBe(200);
+    expect(sessions.body.data.sessions).toBeDefined();
+    expect(sessions.body.data.page).toBe(1);
+    expect(sessions.body.data.limit).toBe(10);
+    expect(typeof sessions.body.data.total).toBe('number');
+    expect(typeof sessions.body.data.totalPages).toBe('number');
+    expect(sessions.body.data.metrics).toEqual(
+      expect.objectContaining({
+        totalSearches: expect.any(Number),
+        candidatesFound: expect.any(Number),
+        creditsUsed: expect.any(Number),
+      })
+    );
 
     const recent = await agent
       .get('/api/v1/candidates/recent-searches')

@@ -22,6 +22,7 @@ import {
 } from '../../../providers/future-jobs/index.js';
 import { emitCandidateSearchPoll } from '../../../realtime/events.js';
 import { AppError } from '../../../shared/errors/app-error.js';
+import { getSkip } from '../../../shared/pagination/paginate.js';
 import { isValidObjectId } from '../../../shared/validation/object-id.js';
 import { enqueueJob } from '../../../workers/queue.js';
 import { UserModel } from '../../auth/user.model.js';
@@ -1520,14 +1521,57 @@ export class CandidateSearchService {
 
   async listSessions(
     actor: SearchActor,
-    query: { limit: number }
-  ): Promise<{ success: true; sessions: SourcingSessionSummaryDto[] }> {
-    const sessions = await SourcingSessionModel.find({
+    query: { page: number; limit: number }
+  ): Promise<{
+    success: true;
+    sessions: SourcingSessionSummaryDto[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    metrics: {
+      totalSearches: number;
+      candidatesFound: number;
+      creditsUsed: number;
+    };
+  }> {
+    const filter = {
       organizationId: actor.organizationId,
       deletedAt: null,
-    })
-      .sort({ createdAt: -1 })
-      .limit(query.limit);
+    } as const;
+
+    const page = Math.max(1, query.page);
+    const limit = Math.min(100, Math.max(1, query.limit));
+
+    const [total, sessions, metricsRows] = await Promise.all([
+      SourcingSessionModel.countDocuments(filter),
+      SourcingSessionModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(getSkip(page, limit))
+        .limit(limit),
+      SourcingSessionModel.aggregate<{
+        candidatesFound: number;
+        creditsUsed: number;
+      }>([
+        { $match: { organizationId: new mongoose.Types.ObjectId(actor.organizationId), deletedAt: null } },
+        {
+          $group: {
+            _id: null,
+            candidatesFound: {
+              $sum: { $ifNull: ['$totalDocs', { $ifNull: ['$totalResults', 0] }] },
+            },
+            creditsUsed: { $sum: { $ifNull: ['$quotaConsumed', 0] } },
+          },
+        },
+      ]),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const metrics = {
+      totalSearches: total,
+      candidatesFound: metricsRows[0]?.candidatesFound ?? 0,
+      creditsUsed: metricsRows[0]?.creditsUsed ?? 0,
+    };
 
     const ownerIds = sessions.map((s) => s.userId ?? s.ownerUserId);
     const users = await UserModel.find({ _id: { $in: ownerIds } }).select(
@@ -1550,18 +1594,20 @@ export class CandidateSearchService {
         .map((j) => [j._id.toHexString(), j.title as string])
     );
 
-    const counts = await SourcedCandidateModel.aggregate<{
-      _id: mongoose.Types.ObjectId;
-      count: number;
-    }>([
-      {
-        $match: {
-          organizationId: new mongoose.Types.ObjectId(actor.organizationId),
-          sourcingSessionId: { $in: sessions.map((s) => s._id) },
-        },
-      },
-      { $group: { _id: '$sourcingSessionId', count: { $sum: 1 } } },
-    ]);
+    const counts = sessions.length
+      ? await SourcedCandidateModel.aggregate<{
+          _id: mongoose.Types.ObjectId;
+          count: number;
+        }>([
+          {
+            $match: {
+              organizationId: new mongoose.Types.ObjectId(actor.organizationId),
+              sourcingSessionId: { $in: sessions.map((s) => s._id) },
+            },
+          },
+          { $group: { _id: '$sourcingSessionId', count: { $sum: 1 } } },
+        ])
+      : [];
     const countMap = new Map(counts.map((c) => [c._id.toHexString(), c.count]));
 
     return {
@@ -1591,6 +1637,11 @@ export class CandidateSearchService {
           savedAt: session.savedAt?.toISOString?.() ?? null,
         };
       }),
+      page,
+      limit,
+      total,
+      totalPages,
+      metrics,
     };
   }
 

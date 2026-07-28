@@ -421,6 +421,10 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     autoScreening,
     threadQualificationStatus: thread.qualificationStatus,
   });
+  const qualificationReason =
+    enrollment?.qualificationState?.reason ||
+    latestClass?.recruiterOverride?.note ||
+    null;
 
   return {
     id: String(thread._id),
@@ -447,6 +451,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     pipelineStatus,
     qualification: QUAL_DISPLAY[thread.qualificationStatus] || 'Pending',
     qualificationStatus: thread.qualificationStatus,
+    qualificationReason,
     screeningStatus: enrollment?.screeningState?.status || 'not_started',
     screeningId: enrollment?.screeningState?.screeningId ?? null,
     screeningDecision: enrollment?.screeningState?.decision ?? null,
@@ -1028,6 +1033,7 @@ export const conversationsService = {
           enrollment.qualificationState = {
             status: 'rejected',
             answers: enrollment.qualificationState.answers,
+            reason: `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
           };
           await enrollment.save();
           thread.qualificationStatus = 'rejected';
@@ -1048,6 +1054,9 @@ export const conversationsService = {
             enrollment.qualificationState = {
               status: handoff ? 'in_progress' : 'qualified',
               answers: enrollment.qualificationState.answers,
+              reason: handoff
+                ? 'All qualification questions were answered. Recruiter takeover is enabled.'
+                : 'All qualification questions were answered successfully.',
             };
             if (campaign.qualificationConfig.autoScreening && !handoff) {
               try {

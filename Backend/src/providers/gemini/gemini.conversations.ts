@@ -811,7 +811,7 @@ Rules:
 - isCandidateQuestion=true when the candidate is mainly asking us something (they may also answer — set answersQuestion independently).
 - answersQuestion and isNotAnAnswer must agree: if they addressed this question, answersQuestion=true and isNotAnAnswer=false.
 - answerValue: concise normalized value when answersQuestion is true (keep their meaning; do not invent). null when answersQuestion is false.
-- knockout: if a knockout rule is provided, evaluate against it using the answer AND job context (fail only when clearly matched). Otherwise "unknown".
+- knockout: if a knockout rule is provided, evaluate that RULE as the authority for this question (e.g. "more than 5" / "reject if > 5 LPA"). Do NOT fail the knockout only because JD compensation uses different units/period (monthly thousands vs LPA) or a different band. Use JD only as secondary context when the knockout rule itself is ambiguous. Fail only when the answer clearly matches the knockout rule. Otherwise "pass" or "unknown".
 - Prefer conversation context: the last recruiter message is usually the open question.
 - If the recruiter's last message listed multiple numbered screening questions and the candidate replied with numbered lines (1., 2., 3.), map each line to the matching question by position and meaning.
 - If Classifier extractedVariables already contains a value for id "${input.question.id}", treat it as a strong signal the candidate answered that question (still verify against the reply).
@@ -942,7 +942,10 @@ Return JSON only:
 
 Rules:
 - Use ONLY the job description / role context below plus the screening Q&A — do not invent requirements.
-- outcome="rejected" ONLY when a knockout rule clearly fails OR an answer is clearly incompatible with stated JD must-haves.
+- Explicit knockout rules on screening questions are AUTHORITATIVE for those questions.
+  Example: if expected CTC/LPA has knockout "more than 5" and the candidate answered 5 LPA (or less), that criterion PASSES.
+  Do NOT reject solely because the JD salary band differs or uses different units (e.g. JD "30k-40k per month" vs answer "5 LPA").
+- outcome="rejected" ONLY when a knockout rule clearly fails OR an answer is clearly incompatible with a stated JD must-have that has NO knockout rule covering that criterion.
 - If answers are vague but not failing knockouts, outcome="qualified".
 - failedQuestionId: id of the question that caused rejection, or null if qualified.
 - reason: one short sentence for recruiters.

@@ -61,6 +61,8 @@ const FOOTER_PLATFORM_DEFS: {
 export function buildFooterPlatformPartners(options?: {
   prompt?: string;
   topic?: string;
+  /** Overrides default `Ask {platform} about {topic}` titles. Use `{platform}` as placeholder. */
+  askLabelTemplate?: string;
 }): FooterPlatformPartner[] {
   const topic = options?.topic ?? "Huntlo";
   return FOOTER_PLATFORM_DEFS.map((def) => ({
@@ -68,7 +70,9 @@ export function buildFooterPlatformPartners(options?: {
     platformId: def.platformId,
     href: buildAiPlatformAskUrl(def.platformId, options?.prompt),
     logoSrc: def.logoSrc,
-    description: aiPlatformAskLabel(def.labelName, topic),
+    description: options?.askLabelTemplate
+      ? options.askLabelTemplate.replaceAll("{platform}", def.labelName)
+      : aiPlatformAskLabel(def.labelName, topic),
   }));
 }
 

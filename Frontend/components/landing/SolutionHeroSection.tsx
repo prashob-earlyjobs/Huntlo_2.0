@@ -14,7 +14,7 @@ type Props = {
 };
 
 export function SolutionHeroSection({ page, breadcrumbItems }: Props) {
-  const segmentLabel = page.title.replace(/^For /, "");
+  const segmentLabel = page.breadcrumbLabel ?? page.title.replace(/^For /, "");
 
   return (
     <section className="relative overflow-x-clip border-b border-[#c3c6d6]/25 bg-[#faf9ff] px-4 pb-16 pt-24 md:px-8 md:pb-24 md:pt-28 lg:px-12">

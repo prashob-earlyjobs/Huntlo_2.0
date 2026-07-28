@@ -1,5 +1,7 @@
 import { Epilogue, Inter } from "next/font/google";
 
+import { ZohoSalesIqWidget } from "@/components/marketing/ZohoSalesIqWidget";
+
 import "../landing.css";
 
 const inter = Inter({
@@ -30,6 +32,7 @@ export default function MarketingLayout({
         rel="stylesheet"
       />
       {children}
+      <ZohoSalesIqWidget />
     </div>
   );
 }

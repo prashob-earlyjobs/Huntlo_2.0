@@ -158,7 +158,8 @@ export async function fetchPublicPricingPlans(): Promise<PricingPlansPayload | n
   const apiBase = getApiBaseUrl();
   try {
     const res = await fetch(`${apiBase}/api/pricing-plans`, {
-      next: { revalidate: 60 },
+      // Avoid stale landing copy when pricing feature labels change.
+      cache: "no-store",
     });
     const data = (await res.json()) as {
       success?: boolean;
@@ -208,7 +209,9 @@ export function splitPrimaryPriceDisplay(primaryPrice: string): {
 } {
   const raw = primaryPrice.trim();
   if (!raw) return { amount: "—", period: "" };
-  if (/^custom/i.test(raw)) return { amount: "Custom", period: "" };
+  if (/^custom(\s+pricing)?$/i.test(raw)) {
+    return { amount: "Custom pricing", period: "" };
+  }
 
   const slashMo = raw.match(/^(.+?)(\s*\/\s*mo(?:nth)?\.?)$/i);
   if (slashMo) {

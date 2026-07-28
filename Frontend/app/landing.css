@@ -2686,3 +2686,11 @@ html.landing-scroll-locked .landing-nav {
   background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 255, 255, 0.4);
 }
+
+/* Zoho SalesIQ float — slight inset from viewport edges */
+.landing-root .zsiq-float,
+.landing-root .zsiq_floatmain,
+.landing-root #zsiq_float {
+  right: max(1.25rem, env(safe-area-inset-right)) !important;
+  bottom: max(1.25rem, env(safe-area-inset-bottom)) !important;
+}
