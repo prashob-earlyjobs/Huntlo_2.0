@@ -305,6 +305,46 @@ export const MARKETING_PAGES = {
       "Huntlo360 is the Hiring Operating System for Human + AI hiring — AI Hiring Intelligence Infrastructure that connects discovery, conversations, workflows, agents, and outcomes in one intelligent layer.",
     ogImage: OG_IMAGES.platform,
   },
+  gccRecruitmentSoftware: {
+    path: "/gcc-recruitment-software",
+    eyebrow: "Solutions",
+    title: "GCC Recruitment Software — AI Recruiting for Global Capability Centers",
+    description:
+      "Modern AI recruitment software built for Global Capability Centers. Source candidates, automate screening, build talent pools, and hire faster with Huntlo.",
+    ogImage: OG_IMAGES.platform,
+  },
+  gccHiringPlatform: {
+    path: "/gcc-hiring-platform",
+    eyebrow: "Solutions",
+    title: "GCC Hiring Platform — AI Hiring Platform for Enterprise GCCs",
+    description:
+      "Discover Huntlo's AI-powered GCC hiring platform. Unify sourcing, candidate engagement, interviews, recruiter workflows, and talent intelligence in one enterprise platform.",
+    ogImage: OG_IMAGES.platform,
+  },
+  aiRecruitingForGccs: {
+    path: "/ai-recruiting-for-gccs",
+    eyebrow: "Solutions",
+    title: "AI Recruiting Software for GCCs — Enterprise AI Hiring Platform",
+    description:
+      "Transform enterprise hiring with AI recruiting software built for GCCs. Automate sourcing, screening, candidate engagement, interviews, and recruiter workflows with Huntlo.",
+    ogImage: OG_IMAGES.platform,
+  },
+  gccTalentIntelligence: {
+    path: "/gcc-talent-intelligence",
+    eyebrow: "Solutions",
+    title: "GCC Talent Intelligence Platform — AI Talent Intelligence for Enterprise Hiring",
+    description:
+      "Transform hiring decisions with AI-powered talent intelligence. Discover skills, candidate intent, pipeline health, recruiter productivity, and workforce insights with Huntlo.",
+    ogImage: OG_IMAGES.platform,
+  },
+  gccSourcingAutomation: {
+    path: "/gcc-sourcing-automation",
+    eyebrow: "Solutions",
+    title: "GCC Sourcing Automation — AI Candidate Discovery Platform",
+    description:
+      "Automate candidate sourcing for Global Capability Centers with Huntlo. Discover talent faster, build intelligent talent pools, improve recruiter productivity, and reduce manual sourcing.",
+    ogImage: OG_IMAGES.platform,
+  },
   peopleScout: {
     path: "/people-scout",
     eyebrow: "Product",

@@ -20,6 +20,11 @@ const FOOTER_LINK_HREFS: Record<string, string> = {
   "Candidate Pool": "/candidate-pool",
   Integrations: "/integrations",
   Huntlo360: "/huntlo360",
+  "GCC Recruitment Software": "/gcc-recruitment-software",
+  "GCC Hiring Platform": "/gcc-hiring-platform",
+  "AI Recruiting for GCCs": "/ai-recruiting-for-gccs",
+  "GCC Talent Intelligence": "/gcc-talent-intelligence",
+  "GCC Sourcing Automation": "/gcc-sourcing-automation",
   "Vibe Sourcing": "/vibe-sourcing",
   "AI Hiring Infrastructure": "/ai-hiring-infrastructure",
   "AI Hiring Intelligence Infrastructure": "/ai-hiring-infrastructure",
@@ -94,7 +99,25 @@ const FOOTER_COLUMNS: {
   },
   {
     title: "Product",
-    links: ["Huntlo360", "Source Candidates", "People Scout", "Vibe Sourcing", "Candidate Pool", "Integrations"],
+    links: [
+      "Huntlo360",
+      "Source Candidates",
+      "People Scout",
+      "Vibe Sourcing",
+      "Candidate Pool",
+      "Integrations",
+    ],
+  },
+  {
+    title: "For GCC",
+    titleHref: "/solutions/gccs",
+    links: [
+      "GCC Recruitment Software",
+      "GCC Hiring Platform",
+      "AI Recruiting for GCCs",
+      "GCC Talent Intelligence",
+      "GCC Sourcing Automation",
+    ],
   },
   {
     title: "Resources",
@@ -203,7 +226,7 @@ export function LandingFooter({
       </div>
       <div className="mx-auto max-w-7xl px-4 py-12 md:px-8 md:py-14 lg:px-12">
         <nav
-          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-5 lg:gap-x-10 lg:gap-y-0"
+          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-6 lg:gap-x-6 lg:gap-y-0"
           aria-label="Footer"
         >
           {FOOTER_COLUMNS.map((col) => (

@@ -44,6 +44,31 @@ export const RESOURCES_DIRECTORY: ResourcesDirectoryGroup[] = [
         href: "/huntlo360",
         description: "Hiring Operating System for Human + AI hiring.",
       },
+      {
+        label: "GCC Recruitment Software",
+        href: "/gcc-recruitment-software",
+        description: "AI recruiting platform for Global Capability Centers.",
+      },
+      {
+        label: "GCC Hiring Platform",
+        href: "/gcc-hiring-platform",
+        description: "One enterprise hiring platform for every GCC workflow.",
+      },
+      {
+        label: "AI Recruiting for GCCs",
+        href: "/ai-recruiting-for-gccs",
+        description: "AI recruiting agents that make recruiters more productive.",
+      },
+      {
+        label: "GCC Talent Intelligence",
+        href: "/gcc-talent-intelligence",
+        description: "AI talent intelligence for skills, pipelines, and hiring performance.",
+      },
+      {
+        label: "GCC Sourcing Automation",
+        href: "/gcc-sourcing-automation",
+        description: "AI candidate discovery that replaces manual sourcing workflows.",
+      },
     ],
   },
   {
