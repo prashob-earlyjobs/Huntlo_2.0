@@ -901,8 +901,9 @@ export function ConversationInbox({
               "lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]"
             )
           : cn(
-              "grid min-h-0 flex-1 rounded-xl border border-border",
-              "lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
+              "grid h-full min-h-0 rounded-xl border border-border",
+              "grid-cols-1 grid-rows-[minmax(0,14rem)_minmax(0,1fr)]",
+              "lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
               profileOpen && selected
                 ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
                 : "xl:grid-cols-[300px_minmax(0,1fr)]"
@@ -1141,7 +1142,7 @@ export function ConversationInbox({
               ) : null}
             </div>
 
-            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto">
+            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
               <div
                 className={cn(
                   "@container/thread box-border w-full max-w-full space-y-3",
