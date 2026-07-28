@@ -12,6 +12,7 @@ import { LandingLogo } from "./LandingLogo";
 
 const FOOTER_LINK_HREFS: Record<string, string> = {
   Sourcing: "/sourcing",
+  "Candidate Discovery": "/candidate-sourcing",
   Screening: "/screening",
   Assessments: "/assessments",
   Interview: "/interview",
@@ -19,6 +20,11 @@ const FOOTER_LINK_HREFS: Record<string, string> = {
   "People Scout": "/people-scout",
   "Candidate Pool": "/candidate-pool",
   Integrations: "/integrations",
+  "AI Hiring Infrastructure": "/ai-hiring-infrastructure",
+  "Agentic Hiring": "/agentic-hiring",
+  "Hiring OS": "/hiring-os",
+  "Hiring Workflows": "/hiring-workflows",
+  "Workflow Orchestration": "/workflow-orchestration",
   Documentation: "/docs",
   Blog: "/blog",
   FAQs: "/faqs",
@@ -76,7 +82,8 @@ const FOOTER_COLUMNS: {
 }[] = [
   {
     title: "Hiring OS",
-    links: ["Sourcing", "Screening", "Assessments", "Interview"],
+    titleHref: "/hiring-os",
+    links: ["Sourcing", "Candidate Discovery", "Screening", "Assessments", "Interview"],
   },
   {
     title: "Product",
@@ -84,7 +91,17 @@ const FOOTER_COLUMNS: {
   },
   {
     title: "Resources",
-    links: ["Documentation", "Blog", "FAQs"],
+    links: [
+      "AI Hiring Infrastructure",
+      "Agentic Hiring",
+      "Hiring OS",
+      "Hiring Workflows",
+      "Workflow Orchestration",
+      "Candidate Discovery",
+      "Documentation",
+      "Blog",
+      "FAQs",
+    ],
   },
   {
     title: "Company",
@@ -100,19 +117,26 @@ const FOOTER_COLUMNS: {
 export function LandingFooter({
   aiAskPrompt,
   aiAskTopic,
+  aiAskLabelTemplate,
   platformPartners,
 }: {
   /** Page-specific GEO prompt for AI platform deep links. */
   aiAskPrompt?: string;
   /** e.g. "Huntlo AI for Enterprise Hiring" for link titles. */
   aiAskTopic?: string;
+  /** Overrides default titles. Use `{platform}` placeholder, e.g. `Ask {platform} to compare Huntlo AI and Avature`. */
+  aiAskLabelTemplate?: string;
   /** Fully custom partner list — overrides prompt/topic helpers. */
   platformPartners?: FooterPlatformPartner[];
 } = {}) {
   const partners =
     platformPartners ??
-    (aiAskPrompt || aiAskTopic
-      ? buildFooterPlatformPartners({ prompt: aiAskPrompt, topic: aiAskTopic })
+    (aiAskPrompt || aiAskTopic || aiAskLabelTemplate
+      ? buildFooterPlatformPartners({
+          prompt: aiAskPrompt,
+          topic: aiAskTopic,
+          askLabelTemplate: aiAskLabelTemplate,
+        })
       : FOOTER_PLATFORM_PARTNERS);
 
   return (

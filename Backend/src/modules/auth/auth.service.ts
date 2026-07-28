@@ -13,6 +13,8 @@ import {
 import { parseDurationMs, signAccessToken } from '../../shared/auth/jwt.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { consumeRateLimit, resetRateLimit } from '../../middleware/rate-limit.js';
+import { sendPasswordResetEmail } from '../../providers/system-mail/system-mail.js';
+import { normalizeEmail } from '../../shared/validation/email.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
 import {
@@ -585,15 +587,17 @@ export class AuthService {
   }
 
   async forgotPassword(email: string, meta: SessionMeta) {
-    const rateKey = `forgot:${meta.ip}:${email}`;
+    const normalizedEmail = normalizeEmail(email);
+    const rateKey = `forgot:${meta.ip}:${normalizedEmail}`;
     const limit = consumeRateLimit(rateKey, 5, 60 * 60 * 1000);
     if (!limit.allowed) {
       throw new AppError(429, 'RATE_LIMITED', 'Too many password reset requests');
     }
 
-    const user = await UserModel.findOne({ email });
+    const generic = { message: 'If the account exists, a reset email will be sent.' };
+    const user = await UserModel.findOne({ email: normalizedEmail });
     if (!user) {
-      return { message: 'If the account exists, a reset email will be sent.' };
+      return generic;
     }
 
     const token = generateOpaqueToken(32);
@@ -603,6 +607,9 @@ export class AuthService {
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
 
+    const frontendUrl = getEnv().FRONTEND_URL.replace(/\/$/, '');
+    const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
     await recordAuditEvent({
       action: 'auth.forgot_password_requested',
       userId: user._id,
@@ -611,10 +618,24 @@ export class AuthService {
       metadata: { tokenIssued: true },
     });
 
-    return {
-      message: 'If the account exists, a reset email will be sent.',
-      ...(getEnv().APP_ENV !== 'production' ? { resetToken: token } : {}),
-    };
+    const emailed = await sendPasswordResetEmail({
+      to: user.email,
+      firstName: user.firstName,
+      resetUrl,
+      expiresInMinutes: 60,
+    });
+
+    // In non-production, still return the link as a fallback when SMTP fails.
+    if (getEnv().APP_ENV !== 'production') {
+      return {
+        ...generic,
+        resetToken: token,
+        resetUrl,
+        emailed,
+      };
+    }
+
+    return generic;
   }
 
   async resetPassword(token: string, password: string) {

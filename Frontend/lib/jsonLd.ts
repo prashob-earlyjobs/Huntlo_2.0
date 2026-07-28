@@ -174,6 +174,38 @@ export function faqPageJsonLd(items: FaqSchemaItem[]) {
   };
 }
 
+export type ContactPageJsonLdInput = {
+  name: string;
+  description: string;
+  url: string;
+  aboutName?: string;
+};
+
+export function contactPageJsonLd({
+  name,
+  description,
+  url,
+  aboutName,
+}: ContactPageJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    name,
+    description,
+    url: pageUrl,
+    ...(aboutName
+      ? {
+          about: {
+            "@type": "Service",
+            name: aboutName,
+          },
+        }
+      : {}),
+    publisher: HUNTLO_ORG,
+  };
+}
+
 export type ServiceJsonLdInput = {
   name: string;
   serviceType: string;
@@ -247,9 +279,46 @@ export function webPageJsonLd({
         }
       : {}),
     publisher: HUNTLO_ORG,
+    ...(mainEntityName
+      ? {
+          mainEntity: {
+            "@type": "Service",
+            name: mainEntityName,
+          },
+        }
+      : {}),
+  };
+}
+
+export type CollectionPageJsonLdInput = {
+  name: string;
+  description: string;
+  url: string;
+  items: { name: string; href: string }[];
+};
+
+export function collectionPageJsonLd({
+  name,
+  description,
+  url,
+  items,
+}: CollectionPageJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name,
+    description,
+    url: pageUrl,
+    publisher: HUNTLO_ORG,
     mainEntity: {
-      "@type": "Service",
-      name: mainEntityName ?? aboutName ?? name,
+      "@type": "ItemList",
+      itemListElement: items.map((item, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: item.name,
+        url: item.href.startsWith("http") ? item.href : `${SITE_URL}${item.href}`,
+      })),
     },
   };
 }

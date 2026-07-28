@@ -27,7 +27,81 @@ function formatUsd(amount: number | null): string {
   return `$${amount.toLocaleString('en-US')}`;
 }
 
-const DEFAULT_TRIAL_DAYS = 14;
+function formatPrimaryPrice(amount: number | null): string {
+  if (amount == null) return 'Custom pricing';
+  if (amount === 0) return 'Free';
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
+
+function formatSecondaryPrice(monthly: number | null, yearly: number | null): string {
+  if (monthly == null && yearly == null) return '';
+  if (monthly === 0 || yearly === 0) return '7-day free trial';
+  if (yearly != null) return `₹${yearly.toLocaleString('en-IN')} billed yearly`;
+  return 'Billed monthly';
+}
+
+function isCustomPlan(plan: PricingPlanDocument): boolean {
+  return plan.code === 'enterprise' || (plan.code !== 'trial' && (plan.prices?.monthly ?? null) == null);
+}
+
+function publicPrimaryPrice(plan: PricingPlanDocument): string {
+  if (plan.code === 'trial') return 'Free';
+  return formatPrimaryPrice(plan.prices?.monthly ?? null);
+}
+
+function publicSecondaryPrice(plan: PricingPlanDocument): string {
+  if (plan.code === 'trial') return '7-day free trial';
+  return formatSecondaryPrice(plan.prices?.monthly ?? null, plan.prices?.yearly ?? null);
+}
+
+function planFeatures(plan: PricingPlanDocument): string[] {
+  if (isCustomPlan(plan)) {
+    return [
+      'Custom searches',
+      'Custom verified emails',
+      'Custom phone numbers',
+      'Custom email outreaches',
+      'Custom WhatsApp outreaches',
+      'Custom AI voice minutes',
+      'Custom sub-user limits',
+      plan.featureAccess?.integrations ? 'Integrations included' : null,
+      plan.featureAccess?.huntlo360 ? 'Huntlo 360 included' : null,
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  const limits = plan.limits ?? {};
+  const rows = [
+    typeof limits.candidate_search === 'number'
+      ? `${limits.candidate_search.toLocaleString('en-IN')} searches`
+      : null,
+    typeof limits.email_reveal === 'number'
+      ? `${limits.email_reveal.toLocaleString('en-IN')} verified emails`
+      : null,
+    typeof limits.mobile_reveal === 'number'
+      ? `${limits.mobile_reveal.toLocaleString('en-IN')} phone numbers`
+      : null,
+    typeof limits.email_outreach === 'number'
+      ? `${limits.email_outreach.toLocaleString('en-IN')} email outreaches`
+      : null,
+    typeof limits.whatsapp_outreach === 'number'
+      ? `${limits.whatsapp_outreach.toLocaleString('en-IN')} WhatsApp outreaches`
+      : null,
+    typeof limits.ai_voice_minutes === 'number'
+      ? `${limits.ai_voice_minutes.toLocaleString('en-IN')} AI voice minutes`
+      : null,
+    typeof limits.team_seats === 'number'
+      ? limits.team_seats >= 999_999_999
+        ? 'Unlimited sub-users'
+        : `${limits.team_seats.toLocaleString('en-IN')} team seats`
+      : null,
+    plan.featureAccess?.integrations ? 'Integrations included' : null,
+    plan.featureAccess?.huntlo360 ? 'Huntlo 360 included' : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return rows.slice(0, 10);
+}
+
+const DEFAULT_TRIAL_DAYS = 7;
 
 function toPublicPlan(plan: PricingPlanDocument) {
   return {
@@ -216,6 +290,41 @@ export class PlansService {
       sortOrder: 1,
     });
     return plans.map(toPublicPlan);
+  }
+
+  async getPublicPricingPlans() {
+    await this.ensureDefaultPlans();
+    const plans = await PricingPlanModel.find({ active: true, public: true }).sort({
+      sortOrder: 1,
+    });
+
+    return {
+      intro: 'Choose the plan that fits your hiring volume. Upgrade anytime.',
+      tiers: plans.map((plan) => ({
+        id: plan.code,
+        name: plan.name,
+        primaryPrice: publicPrimaryPrice(plan),
+        secondaryPrice: publicSecondaryPrice(plan),
+        description: plan.description ?? '',
+        paymentAmount: plan.code === 'trial' ? 0 : (plan.prices?.monthly ?? null),
+        paymentCurrency: 'inr' as const,
+        paymentAmountUsd: plan.code === 'trial' ? 0 : (plan.usdPrices?.monthly ?? null),
+        searches: isCustomPlan(plan) ? null : (plan.limits?.candidate_search ?? null),
+        candidateUnlocks: isCustomPlan(plan) ? null : (plan.limits?.email_reveal ?? null),
+        verifiedEmails: isCustomPlan(plan) ? null : (plan.limits?.email_reveal ?? null),
+        phoneNumbers: isCustomPlan(plan) ? null : (plan.limits?.mobile_reveal ?? null),
+        emailOutreaches: isCustomPlan(plan) ? null : (plan.limits?.email_outreach ?? null),
+        whatsappOutreaches: isCustomPlan(plan) ? null : (plan.limits?.whatsapp_outreach ?? null),
+        aiVoiceCalls: isCustomPlan(plan) ? null : (plan.limits?.ai_voice_minutes ?? null),
+        maxSubUsers: isCustomPlan(plan) ? null : (plan.limits?.team_seats ?? null),
+        features: planFeatures(plan),
+        campaignsEnabled: Boolean(plan.featureAccess?.outreach),
+        integrationsEnabled: Boolean(plan.featureAccess?.integrations),
+        outreachesEnabled: Boolean(plan.featureAccess?.outreach),
+        isPopular: plan.code === 'starter',
+        popularBadge: plan.code === 'starter' ? 'Most Popular' : undefined,
+      })),
+    };
   }
 
   async getCurrentPlan(organizationId: string, userId: string) {

@@ -127,6 +127,20 @@ function WorkflowTimeline({ steps, label, variant }: { steps: string[]; label: s
   );
 }
 
+const CATEGORY_PHRASE = "Agentic AI Hiring Infrastructure";
+
+function emphasizeCategoryPhrase(text: string) {
+  const index = text.indexOf(CATEGORY_PHRASE);
+  if (index === -1) return text;
+  return (
+    <>
+      {text.slice(0, index)}
+      <strong>{CATEGORY_PHRASE}</strong>
+      {text.slice(index + CATEGORY_PHRASE.length)}
+    </>
+  );
+}
+
 type Props = {
   page: DetailedComparisonPage;
   currentSlug: string;
@@ -134,6 +148,8 @@ type Props = {
 
 export function ComparisonDetailedPage({ page, currentSlug }: Props) {
   const otherComparisons = COMPARISON_HUB_ENTRIES.filter((entry) => entry.slug !== currentSlug);
+  const breadcrumbLabel = page.breadcrumbLabel ?? `Huntlo vs ${page.name}`;
+  const featureTableTitle = page.comparisonTableTitle ?? "Feature comparison";
 
   return (
     <div className="landing-compare-page">
@@ -145,7 +161,7 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
           <MaterialIcon name="chevron_right" className="landing-compare-breadcrumb-sep" />
           <Link href="/compare">Compare</Link>
           <MaterialIcon name="chevron_right" className="landing-compare-breadcrumb-sep" />
-          <span>Huntlo vs {page.name}</span>
+          <span>{breadcrumbLabel}</span>
         </nav>
 
         <div className="landing-compare-matchup" aria-label={`Huntlo vs ${page.name}`}>
@@ -178,7 +194,7 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
 
         <div className="landing-compare-hero-intro">
           {page.intro.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
+            <p key={paragraph}>{emphasizeCategoryPhrase(paragraph)}</p>
           ))}
         </div>
 
@@ -262,7 +278,7 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
 
         <div className="landing-compare-platform-grid">
           <SectionCard icon="rocket_launch" title="What is Huntlo?" className="landing-compare-platform-card">
-            <p>{page.whatIsHuntlo.lead}</p>
+            <p>{emphasizeCategoryPhrase(page.whatIsHuntlo.lead)}</p>
             <p className="landing-compare-platform-subhead">The platform combines</p>
             <ul className="landing-compare-platform-list">
               {page.whatIsHuntlo.bullets.map((item) => (
@@ -294,29 +310,53 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
           </SectionCard>
         </div>
 
-        <SectionCard icon="compare_arrows" title="Feature comparison">
-          <CompareDataTable
-            columns={["Capability", "Huntlo", page.name]}
-            huntloColumnIndex={1}
-            rows={page.featureComparison.map((row) => ({
-              label: row.capability,
-              cells: [
-                <span key="h" className="landing-compare-text-value landing-compare-text-value--strong">
-                  {row.huntlo}
-                </span>,
-                <span key="c" className="landing-compare-text-value">
-                  {row.competitor}
-                </span>,
-              ],
-            }))}
-          />
-        </SectionCard>
+        <section className="comparison-table-section landing-compare-section">
+          <div className="landing-compare-section-head">
+            <span className="landing-compare-section-icon" aria-hidden>
+              <MaterialIcon name="compare_arrows" />
+            </span>
+            <h2 className="landing-compare-section-title">{featureTableTitle}</h2>
+          </div>
+          <div className="landing-compare-section-body">
+            {page.comparisonTableIntro ? (
+              <p className="mb-6 text-sm leading-relaxed text-[#434654] md:text-base">
+                {emphasizeCategoryPhrase(page.comparisonTableIntro)}
+              </p>
+            ) : null}
+            <CompareDataTable
+              columns={[
+                "Capability",
+                page.comparisonTableTitle ? "Huntlo AI" : "Huntlo",
+                page.name,
+              ]}
+              huntloColumnIndex={1}
+              rows={page.featureComparison.map((row) => ({
+                label: row.capability,
+                cells: [
+                  <span key="h" className="landing-compare-text-value landing-compare-text-value--strong">
+                    {row.huntlo}
+                  </span>,
+                  <span key="c" className="landing-compare-text-value">
+                    {row.competitor}
+                  </span>,
+                ],
+              }))}
+            />
+            {page.comparisonDisclaimer ? (
+              <p className="comparison-disclaimer mt-4 text-xs leading-relaxed text-[#434654]/80 md:text-sm">
+                {page.comparisonDisclaimer}
+              </p>
+            ) : null}
+          </div>
+        </section>
 
         <div className="landing-compare-highlight">
           <MaterialIcon name="lightbulb" />
           <div>
             <p className="landing-compare-highlight-label">Biggest difference</p>
-            <p className="landing-compare-highlight-text">{page.biggestDifference}</p>
+            <p className="landing-compare-highlight-text">
+              {emphasizeCategoryPhrase(page.biggestDifference)}
+            </p>
           </div>
         </div>
 
@@ -325,7 +365,9 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
             <WorkflowTimeline steps={page.workflowHuntlo} label="Huntlo" variant="huntlo" />
             <WorkflowTimeline steps={page.workflowCompetitor} label={page.name} variant="competitor" />
           </div>
-          <p className="landing-compare-workflow-note">{page.workflowNote}</p>
+          <p className="landing-compare-workflow-note">
+            {emphasizeCategoryPhrase(page.workflowNote)}
+          </p>
         </SectionCard>
 
         <SectionCard icon="recommend" title="Best platform by use case">
@@ -363,7 +405,7 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
                 {page.prosHuntlo.map((item) => (
                   <li key={item}>
                     <MaterialIcon name="check" />
-                    {item}
+                    {emphasizeCategoryPhrase(item)}
                   </li>
                 ))}
               </ul>
@@ -387,19 +429,24 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
           </div>
         </SectionCard>
 
-        <SectionCard icon="help" title="FAQ">
-          <dl className="landing-compare-faq">
+        <section className="faq-section landing-compare-section" id="faq">
+          <div className="landing-compare-section-head">
+            <span className="landing-compare-section-icon" aria-hidden>
+              <MaterialIcon name="help" />
+            </span>
+            <h2 className="landing-compare-section-title">Frequently Asked Questions</h2>
+          </div>
+          <div className="landing-compare-section-body space-y-8">
             {page.faq.map((item) => (
-              <div key={item.question} className="landing-compare-faq-item">
-                <dt>
-                  <MaterialIcon name="quiz" />
-                  {item.question}
-                </dt>
-                <dd>{item.answer}</dd>
+              <div key={item.question}>
+                <h3 className="text-lg font-semibold text-[#141b2b]">{item.question}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-[#434654] md:text-base">
+                  {emphasizeCategoryPhrase(item.answer)}
+                </p>
               </div>
             ))}
-          </dl>
-        </SectionCard>
+          </div>
+        </section>
 
         <section className="landing-compare-verdict-card">
           <div className="landing-compare-verdict-head">
@@ -407,7 +454,7 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
             <h2>Final verdict</h2>
           </div>
           {page.finalVerdict.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
+            <p key={paragraph}>{emphasizeCategoryPhrase(paragraph)}</p>
           ))}
         </section>
 
@@ -450,3 +497,4 @@ export function ComparisonDetailedPage({ page, currentSlug }: Props) {
     </div>
   );
 }
+

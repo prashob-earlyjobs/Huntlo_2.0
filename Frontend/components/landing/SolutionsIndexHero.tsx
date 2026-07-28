@@ -46,22 +46,21 @@ export function SolutionsIndexHero({ breadcrumbItems }: Props) {
               Solutions
             </p>
             <h1 className="mt-3 text-3xl font-bold leading-[1.1] tracking-tight text-[#141b2b] md:text-4xl lg:text-5xl">
-              Recruiting solutions for every hiring model
+              Agentic AI Hiring Infrastructure — Solutions by Team
             </h1>
             <p className="mt-3 text-xl font-bold leading-snug text-[#0050cb] md:text-2xl">
-              One platform for sourcing, outreach, and pipeline—no matter how you hire.
+              Built for every type of hiring team.
             </p>
 
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#434654] md:text-lg">
-              Huntlo adapts to staffing agencies, recruitment firms, executive search, startups,
-              enterprise TA teams, and GCCs running high-volume programs. Replace fragmented tools
-              with AI-powered discovery, multi-channel engagement, and campaign operations built for
-              outbound recruiting.
+              Huntlo AI is Agentic AI Hiring Infrastructure that goes beyond traditional Recruitment
+              Software, ATS, and Recruitment CRM tools. Explore dedicated solutions for staffing
+              agencies, recruitment firms, executive search, startups, enterprise hiring, and Global
+              Capability Centers (GCCs).
             </p>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#434654]/90">
-              Pick the solution that matches your team—or explore how Huntlo unifies sourcing,
-              WhatsApp and email outreach, contact reveal, and pipeline tracking across your entire
-              hiring motion.
+              Pick the vertical that matches your hiring context—then go deeper on the page built for
+              your workflow, from high-volume staffing desks to confidential search and GCC scale.
             </p>
 
             <ul className="mt-7 flex flex-wrap gap-2">
