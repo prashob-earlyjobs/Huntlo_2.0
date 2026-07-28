@@ -1699,6 +1699,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         <TabsContent value="conversations" className="pt-3">
           <ConversationsPanel
             campaignId={campaign.id}
+            className="h-[min(70vh,42rem)] max-h-[min(70vh,42rem)]"
             emptyDescription="Outbound messages (sent or failed) and candidate replies for this campaign will appear here."
           />
         </TabsContent>

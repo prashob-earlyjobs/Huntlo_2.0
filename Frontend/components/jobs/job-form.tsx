@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 
+import { LocationAutocompleteField } from "@/components/jobs/location-autocomplete-field";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { FormSection } from "@/components/shared/form-section";
 import { PageHeader } from "@/components/shared/page-header";
@@ -23,7 +24,6 @@ import {
   EMPLOYMENT_TYPES,
   EVALUATION_FIELD_OPTIONS,
   JOB_DEPARTMENTS,
-  JOB_LOCATIONS,
   JOB_PRIORITIES,
   SALARY_CURRENCIES,
   SALARY_VISIBILITY,
@@ -175,12 +175,7 @@ function applyParsedJd(
       parsed.openings != null && parsed.openings > 0
         ? String(parsed.openings)
         : previous.openings,
-    location:
-      pickOption(
-        parsed.location,
-        JOB_LOCATIONS,
-        previous.location as "" | (typeof JOB_LOCATIONS)[number]
-      ) || previous.location,
+    location: parsed.location?.trim() || previous.location,
     experienceMin:
       parsed.experienceMin != null
         ? String(parsed.experienceMin)
@@ -651,25 +646,12 @@ export function JobForm() {
               />
             </Field>
             <Field id="location" label="Location" required error={errors.location}>
-              <Select
-                value={form.location || null}
-                onValueChange={(value) => update("location", value ?? "")}
-              >
-                <SelectTrigger
-                  id="location"
-                  className="w-full"
-                  aria-invalid={Boolean(errors.location)}
-                >
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  {JOB_LOCATIONS.map((location) => (
-                    <SelectItem key={location} value={location}>
-                      {location}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <LocationAutocompleteField
+                id="location"
+                value={form.location}
+                onChange={(value) => update("location", value)}
+                invalid={Boolean(errors.location)}
+              />
             </Field>
           </div>
         </FormSection>
