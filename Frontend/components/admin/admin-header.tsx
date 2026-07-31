@@ -34,6 +34,7 @@ export function AdminHeader() {
   const [open, setOpen] = useState(false);
 
   const title =
+    ADMIN_ROUTE_LABELS[pathname as AdminRoute] ??
     ADMIN_ROUTE_LABELS[(activeHref as AdminRoute) ?? pathname] ??
     "Administration";
 

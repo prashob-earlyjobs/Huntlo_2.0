@@ -45,6 +45,19 @@ export const registerSchema = z
     companyName: z.string().trim().min(1).max(120).optional(),
     organizationName: z.string().trim().min(1).max(120).optional(),
     mobile: z.string().trim().min(1).max(30).optional(),
+    attribution: z
+      .object({
+        sessionId: z.string().trim().max(120).nullish(),
+        visitorId: z.string().trim().max(120).nullish(),
+        utmSource: z.string().trim().max(160).nullish(),
+        utmMedium: z.string().trim().max(160).nullish(),
+        utmCampaign: z.string().trim().max(160).nullish(),
+        utmContent: z.string().trim().max(160).nullish(),
+        utmTerm: z.string().trim().max(160).nullish(),
+        landingPage: z.string().trim().max(500).nullish(),
+        referrer: z.string().trim().max(1000).nullish(),
+      })
+      .optional(),
   })
   .superRefine((value, ctx) => {
     if (value.email && !isWorkEmail(value.email)) {
@@ -216,6 +229,17 @@ export type NormalizedRegisterInput = {
   lastName: string;
   companyName: string;
   mobile: string | null;
+  attribution: {
+    sessionId: string | null;
+    visitorId: string | null;
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    utmContent: string | null;
+    utmTerm: string | null;
+    landingPage: string | null;
+    referrer: string | null;
+  } | null;
 };
 
 export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): NormalizedRegisterInput {
@@ -248,6 +272,20 @@ export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): N
     }
   }
 
+  const attribution = input.attribution
+    ? {
+        sessionId: input.attribution.sessionId?.trim() || null,
+        visitorId: input.attribution.visitorId?.trim() || null,
+        utmSource: input.attribution.utmSource?.trim() || null,
+        utmMedium: input.attribution.utmMedium?.trim() || null,
+        utmCampaign: input.attribution.utmCampaign?.trim() || null,
+        utmContent: input.attribution.utmContent?.trim() || null,
+        utmTerm: input.attribution.utmTerm?.trim() || null,
+        landingPage: input.attribution.landingPage?.trim() || null,
+        referrer: input.attribution.referrer?.trim() || null,
+      }
+    : null;
+
   return {
     email: normalizeEmail(input.email),
     password: input.password,
@@ -255,6 +293,7 @@ export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): N
     lastName,
     companyName,
     mobile,
+    attribution,
   };
 }
 

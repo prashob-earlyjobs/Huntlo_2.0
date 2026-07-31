@@ -22,6 +22,13 @@ import {
   updateBlogSchema,
 } from './admin.validation.js';
 import { requireAdmin, requireAdminPermission } from './require-admin.js';
+import { utmService } from '../utm/utm.service.js';
+import {
+  attributedVisitsQuerySchema,
+  createUtmCampaignSchema,
+  listUtmCampaignsQuerySchema,
+  updateUtmCampaignSchema,
+} from '../utm/utm.validation.js';
 
 const adminAuth = [requireAuth, requireAdmin];
 
@@ -243,6 +250,93 @@ adminConsoleRouter.get(
         pagination: data.pagination,
       },
     });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/attributed-visits',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = attributedVisitsQuerySchema.parse(req.query);
+    const data = await utmService.getAttributedVisitsSummary(query.days);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/attributed-visits/breakdown',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = attributedVisitsQuerySchema.parse(req.query);
+    const data = await utmService.getAttributedVisitsBreakdown(query.days);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/overview',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = attributedVisitsQuerySchema.parse(req.query);
+    const data = await utmService.getOverview(query.days);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/campaigns',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = listUtmCampaignsQuerySchema.parse(req.query);
+    const data = await utmService.listCampaigns(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/utm/campaigns',
+  ...adminAuth,
+  requireAdminPermission('admin:utm:write', 'admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const body = createUtmCampaignSchema.parse(req.body ?? {});
+    const data = await utmService.createCampaign(body, req.auth!.sub);
+    await recordAdminMutation(req, {
+      action: 'admin.utm.campaign.created',
+      relatedEntityType: 'utm_campaign',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+adminConsoleRouter.patch(
+  '/utm/campaigns/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:utm:write', 'admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const body = updateUtmCampaignSchema.parse(req.body ?? {});
+    const data = await utmService.updateCampaign(String(req.params.id), body);
+    await recordAdminMutation(req, {
+      action: 'admin.utm.campaign.updated',
+      relatedEntityType: 'utm_campaign',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/utm/campaigns/:id/archive',
+  ...adminAuth,
+  requireAdminPermission('admin:utm:write', 'admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const data = await utmService.archiveCampaign(String(req.params.id));
+    await recordAdminMutation(req, {
+      action: 'admin.utm.campaign.archived',
+      relatedEntityType: 'utm_campaign',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );
 adminConsoleRouter.get(

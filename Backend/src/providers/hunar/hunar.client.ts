@@ -16,7 +16,7 @@ export type HunarAgentWritePayload = {
   result_prompt: string;
   result_schema: Record<string, unknown>;
   language: string;
-  persona_name: string | null;
+  persona_name: string;
   agent_prompt: string;
   introduction: string;
 };
@@ -96,18 +96,23 @@ export function buildHunarAgentWritePayload(input: {
   personaName?: string | null;
 }): HunarAgentWritePayload {
   const stripEmptyVars = (value: string) => String(value || '').replace(/\{\}/g, '').trim();
+  const voicePersona = String(input.voicePersona || getHunarVoicePersona()).trim() || 'NEHA';
+  // Hunar PUT rejects updates that change voice_persona/language when persona_name is null.
+  const personaName =
+    String(input.personaName || '').trim() ||
+    voicePersona.charAt(0) + voicePersona.slice(1).toLowerCase() ||
+    'Roshni';
   return {
     name: String(input.name || '')
       .trim()
       .slice(0, 64) || 'Screening Voice Agent',
-    voice_persona: String(input.voicePersona || getHunarVoicePersona()).trim(),
+    voice_persona: voicePersona,
     objective: stripEmptyVars(String(input.objective || '')),
     result_prompt: stripEmptyVars(String(input.resultPrompt || '')),
     result_schema:
       input.resultSchema && typeof input.resultSchema === 'object' ? input.resultSchema : {},
     language: String(input.language || getHunarVoiceLanguage()).trim(),
-    persona_name:
-      input.personaName == null ? null : String(input.personaName).trim() || null,
+    persona_name: personaName,
     agent_prompt: stripEmptyVars(String(input.agentPrompt || '')),
     introduction: stripEmptyVars(String(input.introduction || '')),
   };
@@ -171,7 +176,15 @@ async function requestHunarJson(
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const details = Array.isArray((body as { details?: unknown })?.details)
+      ? ((body as { details: Array<{ field_name?: string; error_msg?: string }> }).details)
+      : [];
+    const detailMessage = details
+      .map((row) => String(row?.error_msg || '').trim())
+      .filter(Boolean)
+      .join('; ');
     const message =
+      detailMessage ||
       (typeof (body as { message?: string })?.message === 'string' &&
         (body as { message: string }).message) ||
       (typeof (body as { error?: string })?.error === 'string' &&

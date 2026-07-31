@@ -24,6 +24,7 @@ import {
 } from '../organizations/permissions.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { plansService } from '../plans/plans.service.js';
+import { utmService } from '../utm/utm.service.js';
 import { OnboardingModel } from './onboarding.model.js';
 import {
   EmailVerificationTokenModel,
@@ -165,6 +166,17 @@ export class AuthService {
     companyName: string;
     mobile?: string | null;
     organizationName?: string;
+    attribution?: {
+      sessionId: string | null;
+      visitorId: string | null;
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+      utmContent: string | null;
+      utmTerm: string | null;
+      landingPage: string | null;
+      referrer: string | null;
+    } | null;
     meta: SessionMeta;
   }) {
     const existing = await UserModel.findOne({ email: input.email });
@@ -273,6 +285,26 @@ export class AuthService {
         ipHash: hashIp(input.meta.ip),
         userAgent: input.meta.userAgent,
       });
+
+      if (input.attribution) {
+        const attributionPayload = {
+          ...input.attribution,
+          userId: user._id.toHexString(),
+          organizationId: organization._id.toHexString(),
+          userAgent: input.meta.userAgent || null,
+        };
+        await Promise.all([
+          utmService.recordEvent({
+            eventType: 'signup',
+            ...attributionPayload,
+          }),
+          utmService.recordEvent({
+            eventType: 'conversion',
+            ...attributionPayload,
+            meta: { kind: 'signup' },
+          }),
+        ]).catch(() => undefined);
+      }
 
       return { ...auth, refreshToken: createdSession.refreshToken };
     } catch (error) {
