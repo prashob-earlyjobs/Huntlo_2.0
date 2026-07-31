@@ -254,6 +254,132 @@ export type AdminUsageHistoryResult = {
   };
 };
 
+export type AdminAttributedVisitsSummary = {
+  attributedVisits: number;
+  previousAttributedVisits: number;
+  windowDays: number;
+  change: string;
+  trend: "up" | "down" | "flat";
+  comparison: string;
+  updatedAt: string;
+};
+
+export type AdminAttributedVisitsBreakdown = {
+  windowDays: number;
+  total: number;
+  bySource: Array<{ source: string; visits: number }>;
+  byMedium: Array<{ medium: string; visits: number }>;
+  byCampaign: Array<{
+    source: string;
+    medium: string;
+    campaign: string;
+    visits: number;
+  }>;
+  recent: Array<{
+    id: string;
+    source: string;
+    medium: string;
+    campaign: string;
+    content: string | null;
+    term: string | null;
+    landingPage: string | null;
+    referrer: string | null;
+    createdAt: string;
+  }>;
+  updatedAt: string;
+};
+
+export type AdminUtmMetric = {
+  value: number;
+  previous: number;
+  change: string;
+  trend: "up" | "down" | "flat";
+  comparison: string;
+};
+
+export type AdminUtmOverview = {
+  windowDays: number;
+  visits: AdminUtmMetric;
+  signups: AdminUtmMetric;
+  demos: AdminUtmMetric;
+  conversions: AdminUtmMetric;
+  daily: Array<{
+    date: string;
+    label: string;
+    visits: number;
+    signups: number;
+    demos: number;
+    conversions: number;
+  }>;
+  campaigns: Array<{
+    id: string;
+    source: string;
+    medium: string;
+    campaign: string;
+    content: string;
+    term: string;
+    visits: number;
+    signups: number;
+    demos: number;
+    conversions: number;
+  }>;
+  recentEvents: Array<{
+    id: string;
+    when: string;
+    touch: "First" | "Last";
+    source: string;
+    medium: string;
+    campaign: string;
+    landingPage: string;
+    outcome: string;
+    eventType: string;
+  }>;
+  updatedAt: string;
+};
+
+export type AdminUtmCampaign = {
+  id: string;
+  name: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string | null;
+  utmTerm: string | null;
+  landingPath: string;
+  notes: string | null;
+  status: "active" | "archived";
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stats?: {
+    visits: number;
+    signups: number;
+    demos: number;
+    conversions: number;
+  };
+};
+
+export type AdminUtmCampaignList = {
+  windowDays: number;
+  items: AdminUtmCampaign[];
+  updatedAt: string;
+};
+
+export type CreateAdminUtmCampaignInput = {
+  name: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent?: string | null;
+  utmTerm?: string | null;
+  landingPath?: string;
+  notes?: string | null;
+};
+
+export type UpdateAdminUtmCampaignInput = Partial<CreateAdminUtmCampaignInput> & {
+  status?: "active" | "archived";
+};
+
 export type Paginated<T> = {
   items: T[];
   total: number;
@@ -293,6 +419,21 @@ export interface AdminApi {
     page?: number;
     limit?: number;
   }): Promise<AdminUsageHistoryResult>;
+  getAttributedVisits(params?: { days?: number }): Promise<AdminAttributedVisitsSummary>;
+  getAttributedVisitsBreakdown(params?: {
+    days?: number;
+  }): Promise<AdminAttributedVisitsBreakdown>;
+  getUtmOverview(params?: { days?: number }): Promise<AdminUtmOverview>;
+  listUtmCampaigns(params?: {
+    days?: number;
+    status?: "active" | "archived" | "all";
+  }): Promise<AdminUtmCampaignList>;
+  createUtmCampaign(input: CreateAdminUtmCampaignInput): Promise<AdminUtmCampaign>;
+  updateUtmCampaign(
+    id: string,
+    input: UpdateAdminUtmCampaignInput
+  ): Promise<AdminUtmCampaign>;
+  archiveUtmCampaign(id: string): Promise<AdminUtmCampaign>;
   listCandidates(params?: { page?: number; limit?: number; q?: string }): Promise<Paginated<AdminCandidate>>;
   listCampaigns(params?: {
     page?: number;
@@ -428,6 +569,50 @@ const liveAdminApi: AdminApi = {
   async getUsageAnalyticsHistory(params) {
     const result = await apiClient.get<AdminUsageHistoryResult>(
       `/admin/usage-analytics/history${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getAttributedVisits(params) {
+    const result = await apiClient.get<AdminAttributedVisitsSummary>(
+      `/admin/utm/attributed-visits${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getAttributedVisitsBreakdown(params) {
+    const result = await apiClient.get<AdminAttributedVisitsBreakdown>(
+      `/admin/utm/attributed-visits/breakdown${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getUtmOverview(params) {
+    const result = await apiClient.get<AdminUtmOverview>(
+      `/admin/utm/overview${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async listUtmCampaigns(params) {
+    const result = await apiClient.get<AdminUtmCampaignList>(
+      `/admin/utm/campaigns${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async createUtmCampaign(input) {
+    const result = await apiClient.post<AdminUtmCampaign>(
+      "/admin/utm/campaigns",
+      input
+    );
+    return result.data;
+  },
+  async updateUtmCampaign(id, input) {
+    const result = await apiClient.patch<AdminUtmCampaign>(
+      `/admin/utm/campaigns/${id}`,
+      input
+    );
+    return result.data;
+  },
+  async archiveUtmCampaign(id) {
+    const result = await apiClient.post<AdminUtmCampaign>(
+      `/admin/utm/campaigns/${id}/archive`
     );
     return result.data;
   },
@@ -829,6 +1014,133 @@ const mockAdminApi: AdminApi = {
         },
       ],
       pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    };
+  },
+  async getAttributedVisits() {
+    await simulateMockLatency();
+    return {
+      attributedVisits: 0,
+      previousAttributedVisits: 0,
+      windowDays: 30,
+      change: "0%",
+      trend: "flat" as const,
+      comparison: "vs prior 30 days",
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async getAttributedVisitsBreakdown() {
+    await simulateMockLatency();
+    return {
+      windowDays: 30,
+      total: 0,
+      bySource: [],
+      byMedium: [],
+      byCampaign: [],
+      recent: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async getUtmOverview() {
+    await simulateMockLatency();
+    return {
+      windowDays: 30,
+      visits: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "vs prior 30 days",
+      },
+      signups: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "attributed signups",
+      },
+      demos: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "Book Demo clicks",
+      },
+      conversions: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "signup conversions",
+      },
+      daily: [],
+      campaigns: [],
+      recentEvents: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async listUtmCampaigns() {
+    await simulateMockLatency();
+    return {
+      windowDays: 30,
+      items: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async createUtmCampaign(input) {
+    await simulateMockLatency();
+    return {
+      id: `utm_camp_${Date.now()}`,
+      name: input.name,
+      utmSource: input.utmSource,
+      utmMedium: input.utmMedium,
+      utmCampaign: input.utmCampaign,
+      utmContent: input.utmContent ?? null,
+      utmTerm: input.utmTerm ?? null,
+      landingPath: input.landingPath || "/",
+      notes: input.notes ?? null,
+      status: "active" as const,
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      stats: { visits: 0, signups: 0, demos: 0, conversions: 0 },
+    };
+  },
+  async updateUtmCampaign(id, input) {
+    await simulateMockLatency();
+    return {
+      id,
+      name: input.name || "Campaign",
+      utmSource: input.utmSource || "source",
+      utmMedium: input.utmMedium || "medium",
+      utmCampaign: input.utmCampaign || "campaign",
+      utmContent: input.utmContent ?? null,
+      utmTerm: input.utmTerm ?? null,
+      landingPath: input.landingPath || "/",
+      notes: input.notes ?? null,
+      status: input.status || "active",
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      stats: { visits: 0, signups: 0, demos: 0, conversions: 0 },
+    };
+  },
+  async archiveUtmCampaign(id) {
+    await simulateMockLatency();
+    return {
+      id,
+      name: "Archived campaign",
+      utmSource: "source",
+      utmMedium: "medium",
+      utmCampaign: "campaign",
+      utmContent: null,
+      utmTerm: null,
+      landingPath: "/",
+      notes: null,
+      status: "archived" as const,
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      stats: { visits: 0, signups: 0, demos: 0, conversions: 0 },
     };
   },
   async listCandidates() {

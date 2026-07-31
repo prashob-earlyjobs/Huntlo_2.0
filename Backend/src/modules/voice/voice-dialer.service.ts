@@ -208,7 +208,7 @@ export async function syncVoiceAgent(input: VoiceAgentConfigInput): Promise<{ ag
         : defaultResultSchema(),
     voicePersona: input.voicePersona || getHunarVoicePersona(),
     language: String(input.language || getHunarVoiceLanguage()).toUpperCase(),
-    personaName: input.personaName || null,
+    personaName: input.personaName || 'Roshni',
   };
 
   const existing = String(input.existingAgentId || '').trim();

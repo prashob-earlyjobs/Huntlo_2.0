@@ -19,6 +19,17 @@ export type RegisterInput = {
   firstName?: string;
   lastName?: string;
   organizationName?: string;
+  attribution?: {
+    sessionId?: string | null;
+    visitorId?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    utmContent?: string | null;
+    utmTerm?: string | null;
+    landingPage?: string | null;
+    referrer?: string | null;
+  } | null;
 };
 
 export type UpdateMeInput = {

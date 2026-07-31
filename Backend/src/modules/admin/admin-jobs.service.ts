@@ -18,6 +18,7 @@ import {
   OUTREACH_QUEUE_STATUS,
 } from '../outreach/campaign-job.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 
 export const listAdminJobsSchema = z.object({
   status: z.enum(BACKGROUND_JOB_STATUSES).optional(),
@@ -299,8 +300,24 @@ export class AdminJobsService {
       }
       outreach.status = 'pending';
       outreach.runAt = new Date();
+      outreach.attempts = 0;
       outreach.lastError = null;
       await outreach.save();
+
+      // Re-open enrollment if a prior fatal provider error stopped it, otherwise
+      // retry would immediately cancel again in runSendOrFollowup.
+      if (outreach.enrollmentId) {
+        await OutreachEnrollmentModel.updateOne(
+          {
+            _id: outreach.enrollmentId,
+            status: 'failed',
+            stopReason: 'fatal_provider_error',
+          },
+          {
+            $set: { status: 'active', stopReason: null, errorState: null },
+          }
+        );
+      }
 
       let status: string = 'pending';
       try {
