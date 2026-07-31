@@ -4,7 +4,10 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { Redis } from 'ioredis';
+
 import { getLogger } from '../../config/logger.js';
+import { getRedisUrl } from '../../bull-outreach/redis.js';
 import {
   createHunarBulkCalls,
   createHunarVoiceAgent,
@@ -28,6 +31,76 @@ import {
 } from './voice-call.model.js';
 
 const log = () => getLogger().child({ component: 'voice-dialer' });
+
+/** In-process fallback when Redis is down — serializes sync within one worker. */
+const localVoiceAgentLocks = new Map<string, Promise<void>>();
+
+let lockRedis: Redis | null = null;
+let lockRedisFailed = false;
+
+function getLockRedis(): Redis | null {
+  if (lockRedisFailed) return null;
+  if (lockRedis) return lockRedis;
+  try {
+    lockRedis = new Redis(getRedisUrl(), {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+    });
+    lockRedis.on('error', (err) => {
+      log().warn({ err }, 'Voice agent lock Redis error');
+    });
+    return lockRedis;
+  } catch {
+    lockRedisFailed = true;
+    return null;
+  }
+}
+
+/**
+ * Serialize Hunar agent create/update per campaign so parallel enrollment jobs
+ * do not race-create agents (Hunar 500) or overwrite each other's saves.
+ */
+export async function withCampaignVoiceAgentLock<T>(
+  campaignId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const key = `huntlo:voice-agent-lock:${String(campaignId)}`;
+  const token = randomUUID();
+  const redis = getLockRedis();
+  const lockTtlMs = 45_000;
+
+  if (redis) {
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const ok = await redis.set(key, token, 'PX', lockTtlMs, 'NX').catch(() => null);
+      if (ok === 'OK') {
+        try {
+          return await fn();
+        } finally {
+          const current = await redis.get(key).catch(() => null);
+          if (current === token) await redis.del(key).catch(() => undefined);
+        }
+      }
+      await new Promise((r) => setTimeout(r, 75 + Math.floor(Math.random() * 75)));
+    }
+    log().warn({ campaignId }, 'Voice agent Redis lock wait timed out; using local lock');
+  }
+
+  const prev = localVoiceAgentLocks.get(key) || Promise.resolve();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = prev.then(() => held).catch(() => held);
+  localVoiceAgentLocks.set(key, tail);
+  await prev.catch(() => undefined);
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (localVoiceAgentLocks.get(key) === tail) localVoiceAgentLocks.delete(key);
+  }
+}
 
 export const VOICE_INTRO_BY_TONE = {
   professional: 'Hello, am I speaking with {callee_name}?',
