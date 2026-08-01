@@ -29,12 +29,15 @@ export default function CandidateSourcingRoutePage() {
             description: CANDIDATE_SOURCING_SEO.description,
             url: pageUrl,
             primaryImageOfPage: OG_IMAGES.platform,
-            aboutName: "Candidate Discovery",
-            mainEntityName: "Huntlo Candidate Discovery",
+            aboutName: "AI Native Candidate Discovery™",
+            mainEntityName: "Huntlo AI Native Candidate Discovery™",
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Candidate Discovery", href: CANDIDATE_SOURCING_PATH },
+            {
+              name: "AI Native Candidate Discovery™",
+              href: CANDIDATE_SOURCING_PATH,
+            },
           ]),
           faqPageJsonLd([...CANDIDATE_SOURCING_FAQS]),
         ]}

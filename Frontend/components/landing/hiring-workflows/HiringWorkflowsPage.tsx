@@ -13,9 +13,8 @@ import {
   HiringWorkflowsFuture,
 } from "./HiringWorkflowsClosing";
 import { HiringWorkflowsHero } from "./HiringWorkflowsHero";
-import { HiringWorkflowsPillars } from "./HiringWorkflowsPillars";
-import { HiringWorkflowsProblem } from "./HiringWorkflowsProblem";
-import { HiringWorkflowsScroll } from "./HiringWorkflowsScroll";
+import { HiringWorkflowsStory } from "./HiringWorkflowsStory";
+import { HiringWorkflowsSystems } from "./HiringWorkflowsSystems";
 
 export function HiringWorkflowsPage() {
   const reduceMotion = !!useReducedMotion();
@@ -25,9 +24,8 @@ export function HiringWorkflowsPage() {
       <LandingNav />
       <main className="pt-16">
         <HiringWorkflowsHero reduceMotion={reduceMotion} />
-        <HiringWorkflowsProblem reduceMotion={reduceMotion} />
-        <HiringWorkflowsScroll reduceMotion={reduceMotion} />
-        <HiringWorkflowsPillars />
+        <HiringWorkflowsStory reduceMotion={reduceMotion} />
+        <HiringWorkflowsSystems reduceMotion={reduceMotion} />
         <HiringWorkflowsEnterprise />
         <HiringWorkflowsFuture />
         <HiringWorkflowsFaq />

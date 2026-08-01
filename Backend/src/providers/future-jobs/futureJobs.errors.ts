@@ -64,6 +64,23 @@ export function isFutureJobsUpstreamError(err: unknown): err is FutureJobsUpstre
   return err instanceof FutureJobsUpstreamError;
 }
 
+/** FJ sometimes returns HTTP 400 when fetch-more has no additional matches. */
+export function isFjNoMoreProfilesError(err: unknown): boolean {
+  if (!isFutureJobsUpstreamError(err)) return false;
+  if (err.code === 'FUTURE_JOBS_NO_MORE_PROFILES') return true;
+  if (err.fjHttpStatus !== 400) return false;
+  const details = err.details;
+  let message = err.message || '';
+  if (typeof details === 'string') {
+    message = details;
+  } else if (details && typeof details === 'object') {
+    const o = details as Record<string, unknown>;
+    if (typeof o.message === 'string') message = o.message;
+    else if (typeof o.error === 'string') message = o.error;
+  }
+  return /no profiles match/i.test(message);
+}
+
 function logUpstreamFailure(err: FutureJobsUpstreamError, extra?: Record<string, unknown>): void {
   log().error(
     {
@@ -121,11 +138,26 @@ export function throwIfFjHttpNotOk(
 ): void {
   if (!res || res.ok) return;
 
+  const fjMessage =
+    data && typeof data === 'object' && typeof (data as { message?: unknown }).message === 'string'
+      ? String((data as { message: string }).message)
+      : typeof data === 'string'
+        ? data
+        : '';
+  const noMoreProfiles =
+    res.status === 400 && /no profiles match/i.test(fjMessage);
+
   throw createFutureJobsUpstreamError({
     details: data,
     fjHttpStatus: res.status,
     fjOperation: logContext.fjOperation ?? logContext.label,
-    statusCode: 502,
+    // Business "exhausted" response — not an upstream outage.
+    statusCode: noMoreProfiles ? 400 : 502,
+    message: noMoreProfiles
+      ? fjMessage || 'No profiles match your search criteria.'
+      : undefined,
+    code: noMoreProfiles ? 'FUTURE_JOBS_NO_MORE_PROFILES' : undefined,
+    logFailure: !noMoreProfiles,
     logExtra: logContext.extra,
   });
 }

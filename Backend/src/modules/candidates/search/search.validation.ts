@@ -38,6 +38,12 @@ export const applySearchSchema = z.object({
   jobId: z.string().trim().optional().nullable(),
 });
 
+/** Preview expected profile count for filters — no session / no quota. */
+export const previewSearchSchema = z.object({
+  prompt: z.string().trim().max(MAX_PROMPT_LENGTH).optional().default(''),
+  filterForm: z.record(z.string(), z.unknown()).default({}),
+});
+
 export const createSearchSchema = z.object({
   prompt: z.string().trim().min(1).max(MAX_PROMPT_LENGTH),
   session: z.record(z.string(), z.unknown()).optional(),
@@ -109,4 +115,5 @@ export const fetchMoreBodySchema = z.object({
 
 export type AnnotateSearchInput = z.infer<typeof annotateSearchSchema>;
 export type ApplySearchInput = z.infer<typeof applySearchSchema>;
+export type PreviewSearchInput = z.infer<typeof previewSearchSchema>;
 export type CreateSearchInput = z.infer<typeof createSearchSchema>;

@@ -29,12 +29,12 @@ export default function AgenticHiringRoutePage() {
             description: AGENTIC_HIRING_SEO.description,
             url: pageUrl,
             primaryImageOfPage: OG_IMAGES.platform,
-            aboutName: "Agentic Hiring",
-            mainEntityName: "Huntlo Agentic Hiring",
+            aboutName: "Agentic Hiring™",
+            mainEntityName: "Huntlo Agentic Hiring™",
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Agentic Hiring", href: AGENTIC_HIRING_PATH },
+            { name: "Agentic Hiring™", href: AGENTIC_HIRING_PATH },
           ]),
           faqPageJsonLd([...AGENTIC_HIRING_FAQS]),
         ]}

@@ -15,6 +15,7 @@ import {
   createSearchSchema,
   fetchMoreBodySchema,
   legacySearchSchema,
+  previewSearchSchema,
   recentSearchesQuerySchema,
   sessionProfilesQuerySchema,
   sessionsListQuerySchema,
@@ -34,6 +35,12 @@ export const annotateSearch = asyncHandler(async (req: Request, res: Response) =
   const input = annotateSearchSchema.parse(req.body);
   const result = await candidateSearchService.annotate(actorFrom(req), input);
   // Annotate returns success payload at top level for frontend drawer contract
+  res.status(200).json(result);
+});
+
+export const previewSearch = asyncHandler(async (req: Request, res: Response) => {
+  const input = previewSearchSchema.parse(req.body);
+  const result = await candidateSearchService.preview(actorFrom(req), input);
   res.status(200).json(result);
 });
 

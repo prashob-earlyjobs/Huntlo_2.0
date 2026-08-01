@@ -3,12 +3,12 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AGENTIC_HIRING_PATH = "/agentic-hiring";
 
 export const AGENTIC_HIRING_SEO = {
-  title: "Agentic Hiring — Human + AI Recruiting | Huntlo",
+  title: "Agentic Hiring™ — The Future of Human + AI Hiring | Huntlo",
   description:
-    "Agentic Hiring is the future of Human + AI recruiting — intelligent collaboration between recruiters and AI recruiting agents across discovery, engagement, screening, and hiring workflows.",
-  ogTitle: "Agentic Hiring — The Future of Human + AI Recruiting",
+    "Hiring isn't becoming automated — it's becoming Agentic. Agentic Hiring™ is where Human Intelligence and AI continuously move hiring forward through intelligence, workflows, and outcomes.",
+  ogTitle: "Hiring Isn't Becoming Automated. It's Becoming Agentic.",
   ogDescription:
-    "AI won't replace recruiters. Recruiters using AI will define the future of hiring. Explore Huntlo's approach to Agentic Hiring.",
+    "Welcome to Agentic Hiring™ — the future of Human + AI Hiring. Built by Huntlo.",
 } as const;
 
 export function agenticHiringMetadata() {
@@ -23,326 +23,311 @@ export function agenticHiringMetadata() {
 }
 
 export const AGENTIC_HIRING_GEO = {
-  askTopic: "Huntlo Agentic Hiring",
+  askTopic: "Huntlo Agentic Hiring™",
   askPrompt:
-    "What is Agentic Hiring on Huntlo (https://www.huntlo.ai/agentic-hiring)? How does Human + AI recruiting work with AI recruiting agents, and does AI replace recruiters?",
+    "What is Agentic Hiring™ on /agentic-hiring (https://www.huntlo.ai/agentic-hiring)? How is it different from recruiting software or AI recruiters, and how does Human + AI Hiring with AI Recruiting Agents improve hiring outcomes?",
 } as const;
 
-export const HERO_COLLABORATION_FLOW = [
-  "Recruiter",
-  "AI Recruiting Agents",
-  "Talent Intelligence",
-  "Workflow Intelligence",
-  "Hiring Decisions",
-  "Candidate Engagement",
-  "Human Judgment",
-  "Successful Hire",
-] as const;
-
-export const HIRING_GENERATIONS = [
-  {
-    generation: "First generation",
-    title: "Manual hiring",
-    items: ["Job boards", "Emails", "Manual hiring"],
-    highlight: false,
-  },
-  {
-    generation: "Second generation",
-    title: "Recruitment platforms",
-    items: ["ATS", "CRM", "Recruitment platforms"],
-    highlight: false,
-  },
-  {
-    generation: "Third generation",
-    title: "AI automation",
-    items: ["AI sourcing", "AI automation", "AI communication"],
-    highlight: false,
-  },
-  {
-    generation: "Fourth generation",
-    title: "Agentic Hiring",
-    items: [
-      "Intelligent collaboration",
-      "Continuous agent support",
-      "Human + AI workflows",
-    ],
-    highlight: true,
-  },
-] as const;
-
-export const RECRUITER_STRENGTHS = [
-  "People",
-  "Businesses",
-  "Hiring managers",
-  "Relationships",
-  "Negotiations",
-  "Talent",
-] as const;
-
-export const AI_STRENGTHS = [
-  "Workflows",
-  "Patterns",
-  "Intelligence",
-  "Automation",
-  "Orchestration",
-  "Repetitive work",
-] as const;
-
-export const AGENTIC_CAPABILITIES = [
-  "Discover talent",
-  "Understand hiring requirements",
-  "Engage candidates",
-  "Coordinate interviews",
-  "Generate hiring intelligence",
-  "Orchestrate workflows",
-  "Assist recruiters continuously",
-] as const;
-
-export const AI_RECRUITING_TEAM = [
-  {
-    name: "AI Recruiting Agent",
-    summary: "Coordinates recruiting execution across connected hiring workflows.",
-    detail:
-      "Helps recruiters keep candidates moving through discovery, engagement, and qualification with less manual coordination.",
-    href: "/platform",
-  },
-  {
-    name: "AI Sourcing Agent",
-    summary: "Discovers relevant talent from natural-language hiring requirements.",
-    detail:
-      "Surfaces matched candidates so recruiters start with stronger shortlists instead of empty pipelines.",
-    href: "/sourcing",
-  },
-  {
-    name: "AI Outreach Agent",
-    summary: "Supports personalized multi-channel candidate engagement.",
-    detail:
-      "Helps teams run email and WhatsApp outreach, track replies, and keep follow-ups consistent.",
-    href: "/candidate-pool",
-  },
-  {
-    name: "AI Screening Agent",
-    summary: "Qualifies interested candidates with structured screening support.",
-    detail:
-      "Supports AI voice screening so recruiters can review transcripts, recordings, and evaluation results faster.",
-    href: "/screening",
-  },
-  {
-    name: "AI Interview Agent",
-    summary: "Assists interview preparation and evaluation workflows.",
-    detail:
-      "Helps hiring teams run AI-supported interview workflows and review evaluation context in one place.",
-    href: "/interview",
-  },
-  {
-    name: "AI Scheduling Agent",
-    summary: "Reduces back-and-forth around interview coordination.",
-    detail:
-      "Helps teams schedule interviews and keep candidates moving without endless calendar coordination.",
-    href: "/interview",
-  },
-] as const;
-
-export const HUMAN_KEEPS = [
-  "Judgment",
-  "Relationships",
-  "Candidate experience",
-  "Negotiations",
-  "Leadership",
-  "Business understanding",
-] as const;
-
-export const RECRUITER_RESPONSIBILITIES = [
-  "Hiring decisions",
-  "Candidate relationships",
-  "Stakeholder management",
-  "Business outcomes",
-] as const;
-
-export const AI_HANDLES = [
-  "Repetitive work",
-  "Intelligence",
-  "Workflows",
-  "Orchestration",
-  "Coordination",
-] as const;
-
-export const AGENTIC_WORKFLOW = [
-  { label: "Job Requirement", href: "/platform" },
-  { label: "AI Discovery", href: "/sourcing" },
-  { label: "Talent Intelligence", href: "/people-scout" },
-  { label: "AI Outreach", href: "/candidate-pool" },
-  { label: "Candidate Engagement", href: "/candidate-pool" },
-  { label: "AI Screening", href: "/screening" },
-  { label: "Interview Coordination", href: "/interview" },
-  { label: "Hiring Intelligence", href: "/platform" },
-  { label: "Recruiter Decisions", href: "/hiring-os" },
-  { label: "Successful Hire", href: "/platform" },
-] as const;
-
-export const CONTINUOUS_HELP = [
-  "Discover talent",
-  "Understand signals",
-  "Generate insights",
-  "Coordinate workflows",
-  "Manage communication",
-  "Improve productivity",
-  "Reduce administrative work",
-  "Support better hiring decisions",
-] as const;
-
-export const FUTURE_RECRUITER_TRAITS = [
-  "More strategic",
-  "More productive",
-  "More influential",
-  "More intelligent",
-] as const;
-
-export const FUTURE_SKILLS = [
-  "Judgment",
-  "Communication",
-  "Leadership",
-  "Talent assessment",
-  "Business understanding",
-] as const;
-
-export const FUTURE_EQUATION = [
+export const HERO_FLOW = [
   "Human",
   "AI",
-  "Intelligence",
-  "Infrastructure",
-  "Workflows",
-  "Talent",
-  "Relationships",
-  "Hiring Decisions",
+  "Agentic Hiring",
+  "Hiring Intelligence",
+  "Candidate Discovery",
+  "Candidate Conversations",
+  "Workflow Intelligence",
+  "Hiring Confidence",
+  "Hiring Outcomes",
+  "Huntlo",
+] as const;
+
+export const SOFTWARE_STACK = [
+  "ATS",
+  "CRMs",
+  "Automation",
+  "Assessments",
+  "Scheduling",
+  "Analytics",
+  "More software",
+] as const;
+
+export const STILL_STRUGGLE = [
+  "Hiring velocity",
+  "Candidate experiences",
+  "Recruiter productivity",
+  "Hiring confidence",
+  "Fragmented workflows",
+] as const;
+
+export const AGENTIC_DOES = [
+  "Discover talent",
+  "Understand context",
+  "Maintain candidate momentum",
+  "Intelligently coordinate workflows",
+  "Improve hiring confidence",
+  "Accelerate business outcomes",
+] as const;
+
+export const HUMAN_AI_EQUATION = [
+  "Human Intelligence",
+  "Hiring Intelligence",
+  "AI Intelligence",
+  "Workflow Intelligence",
+  "Business Alignment",
+] as const;
+
+export const LEARNING_FLOW = [
+  "Candidate discovered",
+  "Candidate context understood",
+  "Hiring intent continuously improves",
+  "Conversations intelligently begin",
+  "Hiring momentum is maintained",
+  "Workflows coordinate themselves",
+  "Hiring confidence continuously improves",
+  "Hiring outcomes accelerate",
+] as const;
+
+export const BENTO_CARDS = [
+  {
+    title: "AI Discovery Agent",
+    description: "Continuously understands talent.",
+    href: "/ai-sourcing-agent",
+    span: "md:col-span-2",
+  },
+  {
+    title: "AI Conversation Agent",
+    description: "Creates meaningful candidate experiences.",
+    href: "/ai-outreach-agent",
+    span: "",
+  },
+  {
+    title: "AI Workflow Agent",
+    description: "Coordinates hiring intelligently.",
+    href: "/ai-scheduling-agent",
+    span: "",
+  },
+  {
+    title: "AI Hiring Agent",
+    description: "Improves hiring outcomes continuously.",
+    href: "/ai-recruiting-agent",
+    span: "md:col-span-2",
+  },
+  {
+    title: "AI Intelligence Agent",
+    description: "Accelerates business outcomes.",
+    href: "/talent-intelligence",
+    span: "",
+  },
+  {
+    title: "Human + AI Hiring",
+    description: "Built around recruiters.",
+    href: "/recruiting-agents",
+    span: "",
+  },
+  {
+    title: "Hiring Intelligence",
+    description: "Continuously learning.",
+    href: "/ai-hiring-infrastructure",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Agentic Hiring™",
+    description: "The future of hiring.",
+    href: "#agentic-hiring",
+    span: "md:col-span-2",
+  },
+] as const;
+
+export const INFRA_CHANGES = [
+  "Hiring outcomes",
+  "Recruiter productivity",
+  "Candidate experiences",
+  "Business alignment",
+  "Talent strategy",
+] as const;
+
+export const STACK_TODAY = [
+  "Recruiting software",
+  "Hiring workflows",
+  "Operational complexity",
+  "Fragmented experiences",
+  "More software",
+] as const;
+
+export const STACK_TOMORROW = [
+  "Agentic Hiring™",
+  "Human + AI Hiring",
+  "AI Recruiting Agents",
+  "Hiring Intelligence",
+  "AI Hiring Infrastructure",
+  "Better Hiring Outcomes",
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
+  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
+  { label: "GCCs", href: "/solutions/gccs" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
+  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Technical hiring", href: "/solutions/startups" },
-  { label: "High-volume hiring", href: "/solutions" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [
-  "Compliance",
   "Governance",
-  "Scalability",
+  "Compliance",
+  "AI native hiring",
+  "Enterprise intelligence",
   "Integrations",
-  "Enterprise workflows",
+  "Scalability",
+] as const;
+
+export const WHY_NOT = [
+  "Hire more people",
+  "Send more outreach",
+  "Automate more workflows",
+] as const;
+
+export const WHY_YES = [
+  "Understand talent better",
+  "Hire more intelligently",
+  "Improve candidate experiences",
+  "Continuously learn from hiring outcomes",
+  "Intelligently orchestrate global hiring operations",
+] as const;
+
+export const FUTURE_NOT = [
+  "Recruiting operations",
+  "Hiring workflows",
+  "Talent pipelines",
+] as const;
+
+export const FUTURE_YES = [
+  "Hiring Intelligence",
+  "Human + AI Hiring",
+  "Agentic Hiring™",
+  "Better Hiring Outcomes",
 ] as const;
 
 export const AGENTIC_HIRING_FAQS = [
   {
-    question: "What is Agentic Hiring?",
+    question: "What is Agentic Hiring™?",
     answer:
-      "Agentic Hiring is a recruiting model where AI systems collaborate continuously with recruiters across hiring workflows — discovering talent, engaging candidates, coordinating interviews, generating intelligence, and orchestrating work — while humans remain responsible for judgment and hiring decisions.",
+      "Agentic Hiring™ is a new approach where intelligent systems continuously work alongside hiring teams to discover talent, understand context, maintain momentum, coordinate workflows, improve confidence, and accelerate outcomes — before recruiters ever need to intervene.",
   },
   {
-    question: "Can AI replace recruiters?",
+    question: "Is hiring becoming automated or Agentic?",
     answer:
-      "No. AI should not replace judgment, relationships, negotiations, leadership, or business understanding. Agentic Hiring is built so AI amplifies recruiters rather than replacing them.",
+      "Agentic. The next generation of hiring won't be defined by better recruiting software, larger databases, or faster automation — but by systems that continuously understand talent and move hiring forward.",
   },
   {
-    question: "What is Human + AI Recruiting?",
+    question: "How is Agentic Hiring different from AI recruiters?",
     answer:
-      "Human + AI Recruiting means recruiters and AI systems work together: humans bring expertise, relationships, and decisions; AI handles repetitive work, patterns, orchestration, and workflow intelligence.",
+      "AI recruiters imply replacement. Agentic Hiring™ is Human + AI Hiring — Human Intelligence and Artificial Intelligence working together continuously.",
+  },
+  {
+    question: "Does Agentic Hiring replace recruiters?",
+    answer:
+      "No. Future organizations won't choose humans or AI alone. They'll choose Human + AI Hiring — AI amplifies hiring teams.",
   },
   {
     question: "What are AI Recruiting Agents?",
     answer:
-      "AI Recruiting Agents are purpose-built systems that assist with sourcing, outreach, screening, interviews, and scheduling so recruiters can focus on higher-value hiring work.",
+      "Discovery, Conversation, Workflow, Hiring, and Intelligence Agents that continuously learn and help hiring outcomes move forward within Agentic Hiring™.",
   },
   {
-    question: "How does Huntlo use AI?",
+    question: "Why did recruiting change but hiring didn't?",
     answer:
-      "Huntlo uses AI to support candidate discovery, multi-channel outreach, engagement tracking, AI voice screening, evaluation review, interview scheduling support, and connected recruiting workflows inside one Hiring Operating System.",
+      "We built ATS, CRMs, automation, assessments, scheduling, and analytics — yet organizations still struggle with velocity, experiences, productivity, confidence, and fragmented workflows. The problem is hiring infrastructure.",
   },
   {
-    question: "How is Agentic Hiring different from AI automation?",
+    question: "How does Agentic Hiring never stop learning?",
     answer:
-      "Automation often completes isolated tasks. Agentic Hiring emphasizes continuous collaboration across workflows — multiple intelligent systems working with recruiters rather than replacing one manual step at a time.",
+      "From discovery through context, intent, conversations, momentum, self-coordinating workflows, confidence, and accelerated outcomes — everything intelligently connected.",
   },
   {
-    question: "Will recruiters become less valuable in an AI-first world?",
+    question: "Is Hiring Intelligence becoming infrastructure?",
     answer:
-      "No. The future recruiter becomes more strategic, productive, and influential. The skills that matter most — judgment, communication, leadership, talent assessment, and business understanding — become even more important.",
+      "Yes. Future enterprises will ask how intelligently hiring can continuously improve itself — not only which recruiting software to buy.",
   },
   {
-    question: "What should AI never replace in recruiting?",
+    question: "What does tomorrow's hiring stack look like?",
     answer:
-      "AI should never replace judgment, relationships, candidate experience ownership, negotiations, leadership, or business understanding. Those remain human strengths at the center of hiring.",
+      "Agentic Hiring™ → Human + AI Hiring → AI Recruiting Agents → Hiring Intelligence → AI Hiring Infrastructure → better hiring outcomes.",
   },
   {
-    question: "How secure are AI workflows in Huntlo?",
+    question: "Who is Agentic Hiring built for?",
     answer:
-      "Huntlo maintains security practices across application protections, infrastructure controls, vendor evaluation, and incident response. Details are published on the Huntlo security page. For security questions, contact security@huntlo.ai.",
+      "Enterprises, GCCs, staffing firms, recruitment agencies, global hiring teams, executive hiring, and technical hiring.",
   },
   {
-    question: "Can recruiters customize AI agents?",
+    question: "Why does Agentic Hiring matter?",
     answer:
-      "Recruiters work with Huntlo's AI-supported workflows across sourcing, outreach, screening, and scheduling. Teams can adapt how candidates move through those flows based on their hiring process and requirements.",
+      "Organizations that define the next decade won't win by hiring more people or automating more workflows — they'll win by understanding talent better and hiring more intelligently.",
   },
   {
-    question: "What industries benefit most from Agentic Hiring?",
+    question: "How does this relate to Huntlo?",
     answer:
-      "Agentic Hiring is especially useful for enterprise hiring teams, GCCs, staffing firms, recruitment agencies, technical hiring teams, and high-volume hiring organizations that need connected workflows and higher recruiter productivity.",
+      "Huntlo is building AI Hiring Intelligence Infrastructure for Agentic Hiring™ — the thought leadership and category home for the future of hiring.",
   },
   {
-    question: "How is Agentic Hiring different from an ATS?",
+    question: "Is this a product feature page?",
     answer:
-      "An ATS primarily tracks applicants and stages. Agentic Hiring focuses on collaboration between recruiters and AI systems across discovery, engagement, screening, interviews, and hiring intelligence — not only recording applicants.",
+      "No. /agentic-hiring is Huntlo's thought leadership manifesto and category creation page for Agentic Hiring™.",
   },
   {
-    question: "How does Agentic Hiring relate to Huntlo Hiring OS?",
+    question: "Can enterprises run Agentic Hiring with governance?",
     answer:
-      "Agentic Hiring is the collaboration model. Huntlo Hiring OS is the operating system that connects candidate discovery, talent intelligence, AI recruiting agents, and hiring workflows so that model can run in practice.",
+      "Yes. Supporting governance, compliance, AI-native hiring, enterprise intelligence, integrations, and scalability.",
   },
   {
-    question: "Does Agentic Hiring mean AI operates independently?",
+    question: "What will the next generation of organizations build?",
     answer:
-      "No. The next generation of recruiting is not AI operating alone. It is intelligent collaboration between human expertise and AI systems purpose-built for hiring.",
+      "Not recruiting operations, hiring workflows, or talent pipelines alone — but Hiring Intelligence, Human + AI Hiring, Agentic Hiring™, and better hiring outcomes.",
   },
   {
-    question: "What hiring workflows can AI agents support?",
+    question: "How do I explore Agentic Hiring™?",
     answer:
-      "AI agents can support discovery, outreach, candidate engagement, screening, interview coordination, scheduling, and hiring intelligence — while recruiters remain accountable for decisions and relationships.",
+      "Explore Agentic Hiring™ on this page, book an enterprise demo, see Huntlo in action, or continue into Human + AI Hiring, recruiting agents, and AI Hiring Infrastructure.",
   },
   {
-    question: "Is Huntlo suitable for enterprise Agentic Hiring?",
+    question: "Where does Workflow Intelligence fit?",
     answer:
-      "Yes. Huntlo is designed for enterprise hiring needs including compliance considerations, governance, scalability, integrations, and enterprise workflows. See the security and integrations pages for current details.",
+      "Workflow Intelligence helps hiring coordinate itself continuously as part of Agentic Hiring™ — so recruiters aren't workflow managers.",
   },
   {
-    question: "Can GCC and staffing teams use Agentic Hiring with Huntlo?",
+    question: "Where does Hiring Confidence fit?",
     answer:
-      "Yes. GCC leaders, staffing firms, and recruitment agencies can use Huntlo to run connected Human + AI recruiting workflows across specialized and high-volume hiring needs.",
+      "Hiring Confidence continuously improves as context, conversations, and workflows stay connected to outcomes.",
   },
   {
-    question: "What is hiring intelligence in Agentic Hiring?",
+    question: "Is talent the problem?",
     answer:
-      "Hiring intelligence helps teams understand signals, insights, pipeline health, engagement, and productivity so recruiters can make better decisions with stronger context.",
+      "No. The problem isn't talent. The problem is hiring infrastructure.",
   },
   {
-    question: "Is Agentic Hiring the same as AI replacing human recruiters?",
+    question: "How does Agentic Hiring accelerate business outcomes?",
     answer:
-      "No. Agentic Hiring rejects the human versus AI framing. It is about building intelligent systems that make recruiters dramatically more effective.",
+      "By continuously moving discovery, conversations, momentum, workflows, and confidence forward — hiring continuously moves itself forward intelligently.",
   },
   {
-    question: "How do I get started with Agentic Hiring on Huntlo?",
+    question: "What should visitors believe after this page?",
     answer:
-      "Book a demo to see Human + AI recruiting in the context of your workflows, explore Huntlo's platform and Hiring OS pages, or create an account to get started.",
+      "That the future of hiring is Agentic Hiring™ — Human + AI Hiring powered by AI Hiring Intelligence Infrastructure — not more recruiting software.",
   },
   {
-    question: "What is the wrong question about AI recruiting?",
+    question: "How does this relate to Hiring OS?",
     answer:
-      "Asking only whether AI will replace recruiters is the wrong question. A better question is how recruiters can become exponentially more productive alongside AI.",
+      "Hiring OS is the operating system narrative. Agentic Hiring™ is the philosophy and category of how hiring continuously moves forward with Human + AI.",
   },
   {
-    question: "How does Agentic Hiring improve candidate experience?",
+    question: "Will organizations choose humans or AI?",
     answer:
-      "By reducing delays from manual coordination — faster discovery follow-through, more consistent engagement, and better-supported screening and interview workflows — while humans remain accountable for relationships and experience quality.",
+      "Neither alone. They'll choose Human + AI Hiring.",
+  },
+  {
+    question: "Welcome to the future of hiring — what does that mean?",
+    answer:
+      "Recruitment became software. Hiring is becoming intelligence. Welcome to Agentic Hiring™ — welcome to Huntlo.",
   },
 ] as const;
