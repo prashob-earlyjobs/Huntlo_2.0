@@ -333,9 +333,10 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
           sessionId,
           error: getApiErrorMessage(err),
         });
-        timer = window.setTimeout(() => {
-          void run();
-        }, POLL_INTERVAL_MS * 2);
+        // Stop auto-paging on failure — retrying FJ "no profiles" / outages
+        // only spam 502s. User can refresh if needed.
+        setCanFetchMore(false);
+        clearLiveSearchSession(sessionId);
       }
     };
 

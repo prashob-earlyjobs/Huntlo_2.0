@@ -8,6 +8,7 @@ import { appendFutureJobsCurl } from './futureJobs.curl-log.js';
 import {
   createFutureJobsCircuitOpenError,
   createFutureJobsUpstreamError,
+  isFjNoMoreProfilesError,
   throwIfFjHttpNotOk,
 } from './futureJobs.errors.js';
 import { createMockFutureJobsProvider } from './futureJobs.mock.js';
@@ -24,6 +25,115 @@ import type {
 } from './futureJobs.types.js';
 
 const log = () => createChildLogger({ provider: 'future-jobs' });
+
+/** Truncate long strings for log payloads (avoid dumping full prompts/JD). */
+function truncateForLog(value: unknown, max = 120): string | undefined {
+  if (value == null) return undefined;
+  const s = String(value);
+  if (!s) return undefined;
+  return s.length <= max ? s : `${s.slice(0, max)}…`;
+}
+
+function pathFromFjUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.pathname}${u.search}`;
+  } catch {
+    return url;
+  }
+}
+
+function sessionIdFromFjUrl(url: string): string | undefined {
+  const update = url.match(/\/wl\/sourcing-session\/update-session\/([^/?#]+)/i);
+  if (update?.[1]) return decodeURIComponent(update[1]);
+
+  const sessionOp = url.match(
+    /\/wl\/sourcing-session\/([^/?#]+)\/(?:profiles|fetch-more)(?:\?|$)/i
+  );
+  if (sessionOp?.[1]) return decodeURIComponent(sessionOp[1]);
+
+  return undefined;
+}
+
+/** Safe request summary — keys + sizes, not full PII bodies. */
+function summarizeFjRequest(body: unknown): Record<string, unknown> | undefined {
+  if (body == null) return undefined;
+  if (typeof body !== 'object' || Array.isArray(body)) {
+    return { bodyType: Array.isArray(body) ? 'array' : typeof body };
+  }
+  const o = body as Record<string, unknown>;
+  const keys = Object.keys(o);
+  const out: Record<string, unknown> = { bodyKeys: keys };
+  if (typeof o.jd === 'string') out.jdChars = o.jd.length;
+  if (typeof o.prompt === 'string') out.promptChars = o.prompt.length;
+  if (typeof o.query === 'string') out.query = truncateForLog(o.query, 80);
+  if (typeof o.filter_type === 'string') out.filterType = o.filter_type;
+  if (typeof o.type === 'string') out.type = o.type;
+  if (typeof o.revealType === 'string') out.revealType = o.revealType;
+  if (typeof o.sessionId === 'string') out.sessionId = o.sessionId;
+  if (typeof o.candidateId === 'string') out.candidateId = truncateForLog(o.candidateId, 40);
+  if (o.queries && typeof o.queries === 'object' && !Array.isArray(o.queries)) {
+    out.queryKeys = Object.keys(o.queries as Record<string, unknown>);
+  }
+  return out;
+}
+
+/** Safe response summary for tracking session/profile outcomes. */
+function summarizeFjResponse(data: unknown): Record<string, unknown> {
+  if (data == null || typeof data !== 'object') {
+    return { responseType: data == null ? 'null' : typeof data };
+  }
+  const root = data as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  if (typeof root.success === 'boolean') out.success = root.success;
+  if (typeof root.message === 'string') out.message = truncateForLog(root.message, 160);
+  if (typeof root.status === 'string' || typeof root.status === 'number') {
+    out.status = root.status;
+  }
+
+  const bucket =
+    root.data && typeof root.data === 'object' && !Array.isArray(root.data)
+      ? (root.data as Record<string, unknown>)
+      : root;
+
+  const sessionId =
+    (typeof bucket.sessionId === 'string' && bucket.sessionId) ||
+    (typeof bucket._id === 'string' && bucket._id) ||
+    (typeof bucket.id === 'string' && bucket.id) ||
+    undefined;
+  if (sessionId) out.sessionId = sessionId;
+
+  const docs = bucket.docs;
+  if (Array.isArray(docs)) out.docCount = docs.length;
+  if (typeof bucket.totalDocs === 'number') out.totalDocs = bucket.totalDocs;
+  if (typeof bucket.hasNextPage === 'boolean') out.hasNextPage = bucket.hasNextPage;
+
+  const matching =
+    bucket.profileMatchingStatus ??
+    (bucket.sourcing &&
+    typeof bucket.sourcing === 'object' &&
+    !Array.isArray(bucket.sourcing)
+      ? (bucket.sourcing as Record<string, unknown>).profileMatchingStatus
+      : undefined);
+  if (typeof matching === 'string') out.profileMatchingStatus = matching;
+
+  for (const key of [
+    'expectedProfileCount',
+    'profileCount',
+    'estimatedResults',
+    'totalResults',
+    'count',
+    'previewCount',
+  ] as const) {
+    const v = bucket[key];
+    if (typeof v === 'number' && Number.isFinite(v)) out[key] = v;
+  }
+
+  // Preview APIs often nest counts under data
+  if (typeof root.count === 'number') out.count = root.count;
+
+  return out;
+}
 
 type CircuitState = {
   failures: number;
@@ -176,6 +286,7 @@ async function futureJobsHttpRequest(options: {
   traceId?: string;
   defaultErrorPrefix?: string;
   dedupe?: boolean;
+  logContext?: Record<string, unknown>;
 }): Promise<unknown> {
   const {
     method,
@@ -185,6 +296,7 @@ async function futureJobsHttpRequest(options: {
     fjOperation,
     defaultErrorPrefix = 'Future Jobs API',
     dedupe = false,
+    logContext,
   } = options;
 
   assertCircuitAllows(fjOperation);
@@ -201,10 +313,30 @@ async function futureJobsHttpRequest(options: {
     ...(hasBody ? { body: JSON.stringify(body) } : {}),
   };
 
+  const path = pathFromFjUrl(url);
+  const urlSessionId = sessionIdFromFjUrl(url);
+  const requestSummary = summarizeFjRequest(body);
+
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const started = Date.now();
+    log().info(
+      {
+        fjOperation,
+        method: method.toUpperCase(),
+        path,
+        sessionId: urlSessionId,
+        attempt: attempt + 1,
+        maxAttempts: maxRetries + 1,
+        timeoutMs,
+        traceId: options.traceId,
+        ...requestSummary,
+        ...logContext,
+      },
+      `FJ → ${fjOperation}`
+    );
+
     try {
       const res = await futureJobsFetch(
         url,
@@ -215,8 +347,52 @@ async function futureJobsHttpRequest(options: {
       const text = await res.text();
       const data = await parseJsonSafe(text);
       const elapsedMs = Date.now() - started;
+      const responseSummary = summarizeFjResponse(data);
 
       if (!res.ok) {
+        const noMoreProfiles =
+          res.status === 400 &&
+          typeof responseSummary.message === 'string' &&
+          /no profiles match/i.test(String(responseSummary.message));
+
+        if (noMoreProfiles) {
+          log().info(
+            {
+              fjOperation,
+              method: method.toUpperCase(),
+              path,
+              sessionId: urlSessionId ?? responseSummary.sessionId,
+              status: res.status,
+              elapsedMs,
+              attempt: attempt + 1,
+              ...responseSummary,
+              ...logContext,
+            },
+            `FJ ← ${fjOperation} no more profiles`
+          );
+          throwIfFjHttpNotOk(res, data, {
+            label: `${fjOperation || defaultErrorPrefix} HTTP ${res.status}`,
+            fjOperation,
+            extra: { elapsedMs },
+          });
+        }
+
+        log().warn(
+          {
+            fjOperation,
+            method: method.toUpperCase(),
+            path,
+            sessionId: urlSessionId ?? responseSummary.sessionId,
+            status: res.status,
+            statusText: res.statusText,
+            elapsedMs,
+            attempt: attempt + 1,
+            ...responseSummary,
+            ...logContext,
+          },
+          `FJ ← ${fjOperation} failed`
+        );
+
         if (isRetryableStatus(res.status) && attempt < maxRetries) {
           const backoff = Math.min(1000 * 2 ** attempt, 8000);
           log().warn(
@@ -236,6 +412,20 @@ async function futureJobsHttpRequest(options: {
       }
 
       recordCircuitSuccess();
+      log().info(
+        {
+          fjOperation,
+          method: method.toUpperCase(),
+          path,
+          sessionId: urlSessionId ?? responseSummary.sessionId,
+          status: res.status,
+          elapsedMs,
+          attempt: attempt + 1,
+          ...responseSummary,
+          ...logContext,
+        },
+        `FJ ← ${fjOperation} ok`
+      );
       return data;
     } catch (err) {
       lastError = err;
@@ -243,6 +433,22 @@ async function futureJobsHttpRequest(options: {
       if (err instanceof Error && 'code' in err) {
         const code = (err as { code?: string }).code;
         if (code === 'FUTURE_JOBS_UPSTREAM_ERROR' || code === 'FUTURE_JOBS_CIRCUIT_OPEN') {
+          log().error(
+            {
+              fjOperation,
+              method: method.toUpperCase(),
+              path,
+              sessionId: urlSessionId,
+              elapsedMs: Date.now() - started,
+              code,
+              error: err.message,
+              ...logContext,
+            },
+            `FJ ← ${fjOperation} error`
+          );
+          throw err;
+        }
+        if (code === 'FUTURE_JOBS_NO_MORE_PROFILES' || isFjNoMoreProfilesError(err)) {
           throw err;
         }
       }
@@ -265,6 +471,18 @@ async function futureJobsHttpRequest(options: {
       }
 
       recordCircuitFailure();
+      log().error(
+        {
+          fjOperation,
+          method: method.toUpperCase(),
+          path,
+          sessionId: urlSessionId,
+          elapsedMs: Date.now() - started,
+          error: err instanceof Error ? err.message : String(err),
+          ...logContext,
+        },
+        `FJ ← ${fjOperation} network error`
+      );
       throw createFutureJobsUpstreamError({
         details: {
           networkError: err instanceof Error ? err.message : String(err),
@@ -380,6 +598,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       traceId: opts.traceId,
       fjOperation: 'PATCH /wl/sourcing-session/update-session/:id',
       defaultErrorPrefix: 'Future Jobs update session',
+      logContext: { sessionId: sid },
     })) as FutureJobsApiResponse;
   }
 
@@ -396,7 +615,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       });
     }
 
-    const { baseUrl, apiKey, authStyle } = getFutureJobsConfig();
+    const { baseUrl, apiKey } = getFutureJobsConfig();
     assertFutureJobsApiKey(apiKey);
 
     if (!sessionId || typeof sessionId !== 'string') {
@@ -405,84 +624,28 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       throw err;
     }
 
+    const pageNum = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitNum = Math.min(300, Math.max(1, Math.floor(Number(limit)) || 20));
     const params = new URLSearchParams({
-      page: String(Math.max(1, Math.floor(Number(page)) || 1)),
-      limit: String(Math.min(300, Math.max(1, Math.floor(Number(limit)) || 20))),
+      page: String(pageNum),
+      limit: String(limitNum),
     });
 
     const url = `${baseUrl}/wl/sourcing-session/${encodeURIComponent(sessionId)}/profiles?${params}`;
-    const fjOperation = 'GET /wl/sourcing-session/:id/profiles';
-    assertCircuitAllows(fjOperation);
-
-    const authHeaders = buildFjAuthHeaders(apiKey, authStyle);
-    const { maxRetries } = getFutureJobsConfig();
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        const res = await futureJobsFetch(
-          url,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              ...authHeaders,
-            },
-          },
-          true,
-          fjOperation
-        );
-        const text = await res.text();
-        const data = await parseJsonSafe(text);
-
-        if (!res.ok) {
-          if (isRetryableStatus(res.status) && attempt < maxRetries) {
-            await sleep(Math.min(1000 * 2 ** attempt, 8000));
-            continue;
-          }
-          recordCircuitFailure();
-          throwIfFjHttpNotOk(res, data, {
-            label: 'profiles response error',
-            fjOperation,
-          });
-        }
-
-        recordCircuitSuccess();
-        return data as FutureJobsApiResponse<FutureJobsProfilesPage>;
-      } catch (err) {
-        lastError = err;
-        if (err instanceof Error && 'code' in err) {
-          const code = (err as { code?: string }).code;
-          if (code === 'FUTURE_JOBS_UPSTREAM_ERROR' || code === 'FUTURE_JOBS_CIRCUIT_OPEN') {
-            throw err;
-          }
-        }
-        if ((isAbortError(err) || err instanceof TypeError) && attempt < maxRetries) {
-          await sleep(Math.min(1000 * 2 ** attempt, 8000));
-          continue;
-        }
-        recordCircuitFailure();
-        throw createFutureJobsUpstreamError({
-          details: {
-            networkError: err instanceof Error ? err.message : String(err),
-          },
-          fjHttpStatus: 0,
-          fjOperation,
-          statusCode: 503,
-        });
-      }
-    }
-
-    recordCircuitFailure();
-    throw createFutureJobsUpstreamError({
-      details: {
-        networkError:
-          lastError instanceof Error ? lastError.message : String(lastError ?? 'unknown'),
-      },
-      fjHttpStatus: 0,
+    return (await futureJobsHttpRequest({
+      method: 'GET',
+      url,
+      apiKey,
       fjOperation: 'GET /wl/sourcing-session/:id/profiles',
-      statusCode: 503,
-    });
+      defaultErrorPrefix: 'Future Jobs profiles',
+      dedupe: true,
+      logContext: {
+        sessionId,
+        page: pageNum,
+        limit: limitNum,
+        ...(pollAttempt != null ? { pollAttempt } : {}),
+      },
+    })) as FutureJobsApiResponse<FutureJobsProfilesPage>;
   }
 
   async function getSourcingSessionProfilesWhenReady(
@@ -541,6 +704,17 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     };
 
     if (!shouldPoll) {
+      log().info(
+        {
+          fjOperation: 'profilesWhenReady',
+          sessionId,
+          maxWaitMs,
+          expectedProfileCount: expected,
+          profileMatchingStatus: status || undefined,
+          shouldPoll: false,
+        },
+        'FJ profilesWhenReady — single fetch (not waiting)'
+      );
       const res = await getSourcingSessionProfiles(sessionId, {
         page,
         limit,
@@ -556,6 +730,18 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       });
       return res;
     }
+
+    log().info(
+      {
+        fjOperation: 'profilesWhenReady',
+        sessionId,
+        maxWaitMs,
+        intervalMs,
+        expectedProfileCount: expected,
+        profileMatchingStatus: status || undefined,
+      },
+      'FJ profilesWhenReady — start polling'
+    );
 
     const started = Date.now();
     let attempt = 0;
@@ -582,9 +768,9 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       });
 
       if (docCount > 0 || totalDocs > 0) {
-        log().debug(
+        log().info(
           { sessionId, attempt, waitedMs: Date.now() - started, docCount, totalDocs },
-          'profiles ready after poll'
+          'FJ profilesWhenReady — ready'
         );
         return lastRes;
       }
@@ -593,7 +779,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
         break;
       }
 
-      log().debug(
+      log().info(
         {
           sessionId,
           attempt,
@@ -602,14 +788,14 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
           profileMatchingStatus: status || undefined,
           nextPollInMs: intervalMs,
         },
-        'profiles empty — waiting for matching'
+        'FJ profilesWhenReady — empty, waiting'
       );
       await sleep(intervalMs);
     }
 
     log().warn(
       { sessionId, attempt, waitedMs: Date.now() - started, expectedProfileCount: expected },
-      'profiles poll timeout — returning last response'
+      'FJ profilesWhenReady — timeout'
     );
     return (
       lastRes ||
@@ -648,6 +834,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       fjOperation: 'POST /wl/sourcing-session/:id/fetch-more',
       defaultErrorPrefix: 'Future Jobs fetch-more',
       dedupe: false,
+      logContext: { sessionId },
     })) as FutureJobsApiResponse;
   }
 
@@ -682,6 +869,10 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       fjOperation: 'GET /wl/sourcing-session/candidate/:id/details',
       defaultErrorPrefix: 'Future Jobs candidate details',
       dedupe: true,
+      logContext: {
+        candidateId: cid,
+        ...(sid ? { sessionId: sid } : {}),
+      },
     })) as FutureJobsApiResponse;
   }
 
@@ -720,17 +911,17 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     });
     const url = `${baseUrl}/wl/sourcing-session/contact/reveal?${params.toString()}`;
 
-    log().info(
-      { fjOperation: 'POST /wl/sourcing-session/contact/reveal', revealType: type },
-      'future-jobs contact reveal request'
-    );
-
     return (await futureJobsHttpRequest({
       method: 'POST',
       url,
       apiKey,
       fjOperation: 'POST /wl/sourcing-session/contact/reveal',
       defaultErrorPrefix: 'Future Jobs contact reveal',
+      logContext: {
+        sessionId,
+        revealType: type,
+        linkedinProfileUrlLen: profileUrl.length,
+      },
     })) as FutureJobsApiResponse;
   }
 
@@ -755,15 +946,6 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     const revealContactType = type === 'EMAIL' ? ['email'] : ['phone'];
     const url = `${baseUrl}/wl/scout-people/reveal-contacts`;
 
-    log().info(
-      {
-        fjOperation: 'POST /wl/scout-people/reveal-contacts',
-        revealType: type,
-        linkedinProfileUrlLen: profileUrl.length,
-      },
-      'future-jobs scout reveal request'
-    );
-
     return (await futureJobsHttpRequest({
       method: 'POST',
       url,
@@ -774,6 +956,10 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       apiKey,
       fjOperation: 'POST /wl/scout-people/reveal-contacts',
       defaultErrorPrefix: 'Future Jobs scout reveal-contacts',
+      logContext: {
+        revealType: type,
+        linkedinProfileUrlLen: profileUrl.length,
+      },
     })) as FutureJobsApiResponse;
   }
 
@@ -806,14 +992,6 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
 
     const url = `${baseUrl}/wl/scout-people/lookup`;
 
-    log().info(
-      {
-        fjOperation: 'POST /wl/scout-people/lookup',
-        keys: Object.keys(payload),
-      },
-      'future-jobs scout lookup request'
-    );
-
     return (await futureJobsHttpRequest({
       method: 'POST',
       url,
@@ -821,6 +999,9 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       apiKey,
       fjOperation: 'POST /wl/scout-people/lookup',
       defaultErrorPrefix: 'Future Jobs scout-people lookup',
+      logContext: {
+        lookupBy: 'email' in payload ? 'email' : 'linkedin_url',
+      },
     })) as FutureJobsApiResponse;
   }
 
@@ -855,6 +1036,10 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       apiKey,
       fjOperation: 'POST /wl/sourcing-session/get-annotation',
       defaultErrorPrefix: 'Future Jobs get-annotation',
+      logContext: {
+        userTextChars: userText.length,
+        hasLinkedinUrl: Boolean(payload.linkedin_profile_url),
+      },
     })) as FutureJobsApiResponse<FutureJobsAnnotationData>;
   }
 
@@ -893,7 +1078,44 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       fjOperation: 'GET /wl/sourcing-session/filters/autocomplete',
       defaultErrorPrefix: 'Future Jobs autocomplete',
       dedupe: true,
+      logContext: {
+        filterType: String(filterType || 'region').trim() || 'region',
+        query: truncateForLog(q, 80),
+        limit: cappedLimit,
+      },
     })) as FutureJobsApiResponse;
+  }
+
+  async function previewSourcingSession(
+    body: { jd: string; queries: Record<string, unknown> },
+    opts: FutureJobsRequestOpts = {}
+  ): Promise<FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsPreviewData>> {
+    const delegate = resolveDelegate();
+    if (delegate) return delegate.previewSourcingSession(body, opts);
+
+    const { baseUrl, apiKey } = getFutureJobsConfig();
+    assertFutureJobsApiKey(apiKey);
+
+    const url = `${baseUrl}/wl/sourcing-session/preview`;
+    const jd = String(body?.jd ?? '');
+    const queries =
+      body?.queries && typeof body.queries === 'object' && !Array.isArray(body.queries)
+        ? body.queries
+        : {};
+    return (await futureJobsHttpRequest({
+      method: 'POST',
+      url,
+      body: { jd, queries },
+      apiKey,
+      traceId: opts.traceId,
+      fjOperation: 'POST /wl/sourcing-session/preview',
+      defaultErrorPrefix: 'Future Jobs preview',
+      dedupe: true,
+      logContext: {
+        jdChars: jd.length,
+        queryKeys: Object.keys(queries),
+      },
+    })) as FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsPreviewData>;
   }
 
   return {
@@ -908,6 +1130,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     scoutPeopleLookup,
     getSourcingSessionAnnotation,
     getFilterAutocomplete,
+    previewSourcingSession,
     isFjSessionPending,
     fjSessionPendingMessage,
   };
