@@ -367,9 +367,25 @@ export async function processBullJob(mongoJobId: string): Promise<void> {
     await job.save();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'bull job failed';
+    const statusCode = Number((error as { statusCode?: number })?.statusCode || 0);
+    const errorCode = String((error as { code?: string })?.code || '');
+    const isConfigValidationError =
+      errorCode === 'HUNAR_API_ERROR' &&
+      (statusCode === 400 || statusCode === 422);
+
     logger.warn({ err: error, mongoJobId }, 'Bull outreach job failed');
     const fresh = await BullOutreachJobModel.findById(mongoJobId);
     if (!fresh) return;
+
+    // Deterministic provider validation errors should not burn retries or kill the
+    // enrollment (that cancels later steps for the same candidate).
+    if (isConfigValidationError) {
+      fresh.status = 'failed';
+      fresh.lastError = message;
+      await fresh.save();
+      throw error;
+    }
+
     if (fresh.attempts >= 5) {
       fresh.status = 'failed';
       fresh.lastError = message;
@@ -381,7 +397,7 @@ export async function processBullJob(mongoJobId: string): Promise<void> {
       }
     } else {
       fresh.status = 'pending';
-      fresh.runAt = new Date(Date.now() + fresh.attempts * 30_000);
+      fresh.runAt = new Date(Date.now() + 30_000);
       fresh.lastError = message;
     }
     await fresh.save();

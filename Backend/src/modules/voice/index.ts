@@ -2,6 +2,7 @@ export { VoiceCallModel, pendingVoiceCallId, isVoiceCallTerminal } from './voice
 export {
   syncVoiceAgent,
   launchBulkVoiceCalls,
+  withCampaignVoiceAgentLock,
   normalizeVoiceRetryConfig,
   resolveIntroduction,
   buildJdVoiceTokens,

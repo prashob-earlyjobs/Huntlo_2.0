@@ -29,6 +29,7 @@ export const ADMIN_PERMISSIONS = [
   'admin:settings:write',
   'admin:blog:read',
   'admin:blog:write',
+  'admin:utm:write',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

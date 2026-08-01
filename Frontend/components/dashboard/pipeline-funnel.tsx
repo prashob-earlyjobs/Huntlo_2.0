@@ -42,17 +42,20 @@ export function PipelineFunnel({
     );
   }
 
-  const total = stages[0].count;
+  const total = Math.max(0, Number(stages[0]?.count) || 0);
 
   return (
     <div className={cn("min-w-0", className)}>
       <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
         {stages.map((stage, index) => {
-          const width = Math.max((stage.count / total) * 100, 1.5);
+          const count = Math.max(0, Number(stage.count) || 0);
+          const width =
+            total > 0 ? Math.max((count / total) * 100, count > 0 ? 1.5 : 0) : 0;
+          if (width <= 0) return null;
           return (
             <Tooltip key={stage.id}>
               <TooltipTrigger
-                aria-label={`${stage.label}: ${formatCount(stage.count)} candidates`}
+                aria-label={`${stage.label}: ${formatCount(count)} candidates`}
                 className="h-full border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={{ width: `${width}%` }}
               >
@@ -64,7 +67,7 @@ export function PipelineFunnel({
                 />
               </TooltipTrigger>
               <TooltipContent>
-                {stage.label}: {formatCount(stage.count)}
+                {stage.label}: {formatCount(count)}
               </TooltipContent>
             </Tooltip>
           );
@@ -73,10 +76,15 @@ export function PipelineFunnel({
 
       <dl className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1.5">
         {stages.map((stage, index) => {
-          const previous = index > 0 ? stages[index - 1] : null;
-          const conversion = previous
-            ? Math.round((stage.count / previous.count) * 100)
-            : null;
+          const count = Math.max(0, Number(stage.count) || 0);
+          const previousCount =
+            index > 0 ? Math.max(0, Number(stages[index - 1]?.count) || 0) : null;
+          const conversion =
+            previousCount === null
+              ? null
+              : previousCount > 0
+                ? Math.round((count / previousCount) * 100)
+                : null;
           return (
             <div key={stage.id} className="flex items-baseline gap-1.5">
               <span
@@ -88,11 +96,15 @@ export function PipelineFunnel({
               />
               <dt className="text-xs text-muted-foreground">{stage.label}</dt>
               <dd className="text-xs font-medium tabular-nums text-foreground">
-                {formatCount(stage.count)}
+                {formatCount(count)}
               </dd>
               {conversion !== null ? (
                 <span className="text-[11px] tabular-nums text-muted-foreground">
                   ({conversion}%)
+                </span>
+              ) : index > 0 ? (
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  (—)
                 </span>
               ) : null}
             </div>
