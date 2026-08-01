@@ -203,6 +203,20 @@ const HANDLERS: Record<BackgroundJobType, JobHandler> = {
     const outcome = await processWebhookEvent(webhookEventId);
     return { result: { retried: 1, ...outcome } };
   },
+
+  async 'email.sequence_sweep'(ctx) {
+    const { emailTemplatesService } = await import(
+      '../modules/admin/email-templates.service.js'
+    );
+    const outcome = await emailTemplatesService.processDueSequenceSends(
+      Number(ctx.payload.limit ?? 50)
+    );
+    logger().debug({ jobId: ctx.jobId, ...outcome }, 'email.sequence_sweep completed');
+    return {
+      result: outcome,
+      rescheduleInMs: Number(ctx.payload.intervalMs ?? 60_000),
+    };
+  },
 };
 
 export function registerAllJobHandlers(): void {
@@ -266,6 +280,11 @@ export async function ensureRecurringSweepJobs(intervalMs: number): Promise<void
       type: 'webhook.retry',
       idempotencyKey: 'sweep:webhook.retry',
       intervalMs: Math.max(intervalMs, 30_000),
+    },
+    {
+      type: 'email.sequence_sweep',
+      idempotencyKey: 'sweep:email.sequence_sweep',
+      intervalMs: Math.max(intervalMs, 60_000),
     },
   ];
 

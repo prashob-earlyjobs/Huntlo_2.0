@@ -923,6 +923,33 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     };
   }
 
+  async function previewSourcingSession(
+    body: { jd: string; queries: Record<string, unknown> },
+    _opts?: FutureJobsRequestOpts
+  ): Promise<
+    FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsPreviewData>
+  > {
+    maybeFail('POST /wl/sourcing-session/preview');
+    const queryKeys =
+      body?.queries && typeof body.queries === 'object'
+        ? Object.keys(body.queries).length
+        : 0;
+    const jdLen = String(body?.jd ?? '').trim().length;
+    // Deterministic mock count from filter richness (not a real FJ estimate).
+    const count = Math.max(120, Math.min(8000, 180 + queryKeys * 420 + Math.min(jdLen, 200) * 3));
+    const status = count > 5000 ? 'too_broad' : count > 1500 ? 'broad' : 'ok';
+    return {
+      status: 'SUCCESS',
+      statusCode: 200,
+      message: 'Search health retrieved',
+      data: {
+        status,
+        count,
+        exactCount: count,
+      },
+    };
+  }
+
   return {
     createSourcingSession,
     updateSourcingSession,
@@ -935,6 +962,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     scoutPeopleLookup,
     getSourcingSessionAnnotation,
     getFilterAutocomplete,
+    previewSourcingSession,
     isFjSessionPending,
     fjSessionPendingMessage,
   };

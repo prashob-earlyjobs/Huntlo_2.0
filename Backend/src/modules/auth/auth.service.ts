@@ -306,6 +306,17 @@ export class AuthService {
         ]).catch(() => undefined);
       }
 
+      // Post-signup drip enrollment (never blocks or fails registration)
+      void import('../admin/email-templates.service.js')
+        .then(({ emailTemplatesService }) =>
+          emailTemplatesService.enrollPostSignupSequence({
+            userId: user!._id.toHexString(),
+            email: user!.email,
+            firstName: user!.firstName,
+          })
+        )
+        .catch(() => undefined);
+
       return { ...auth, refreshToken: createdSession.refreshToken };
     } catch (error) {
       if (user) {
@@ -379,6 +390,13 @@ export class AuthService {
       userAgent: input.meta.userAgent,
       metadata: { sessionId: createdSession.session._id.toHexString() },
     });
+
+    // Event 03 — schedule no-search cool-off (idempotent; skipped if already searched).
+    void import('../admin/email-templates.service.js')
+      .then(({ emailTemplatesService }) =>
+        emailTemplatesService.onFirstLogin({ userId: user._id.toHexString() })
+      )
+      .catch(() => undefined);
 
     return { ...auth, refreshToken: createdSession.refreshToken };
   }

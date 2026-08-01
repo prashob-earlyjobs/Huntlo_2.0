@@ -30,9 +30,59 @@ export const recordUtmEventSchema = utmAttributionFieldsSchema.extend({
   meta: z.record(z.string(), z.unknown()).nullish().transform((v) => v || null),
 });
 
-export const attributedVisitsQuerySchema = z.object({
-  days: z.coerce.number().int().min(1).max(90).default(30),
-});
+const ymdSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
+
+function inclusiveDaySpan(from: string, to: string): number {
+  const start = new Date(`${from}T00:00:00.000Z`).getTime();
+  const end = new Date(`${to}T00:00:00.000Z`).getTime();
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+export const utmDateRangeQuerySchema = z
+  .object({
+    from: ymdSchema.optional(),
+    to: ymdSchema.optional(),
+    days: z.coerce.number().int().min(1).max(365).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (Boolean(value.from) !== Boolean(value.to)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'from and to must be provided together',
+        path: value.from ? ['to'] : ['from'],
+      });
+      return;
+    }
+    if (value.from && value.to) {
+      if (value.from > value.to) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'from must be on or before to',
+          path: ['from'],
+        });
+        return;
+      }
+      const span = inclusiveDaySpan(value.from, value.to);
+      if (span > 365) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Date range cannot exceed 365 days',
+          path: ['to'],
+        });
+      }
+    }
+  })
+  .transform((value) => {
+    if (value.from && value.to) {
+      return { from: value.from, to: value.to } as const;
+    }
+    return { days: value.days ?? 30 } as const;
+  });
+
+export const attributedVisitsQuerySchema = utmDateRangeQuerySchema;
 
 const requiredUtmSource = z
   .string()
@@ -118,11 +168,56 @@ export const updateUtmCampaignSchema = z
     message: 'At least one field is required',
   });
 
-export const listUtmCampaignsQuerySchema = z.object({
-  days: z.coerce.number().int().min(1).max(90).default(30),
-  status: z.enum(['active', 'archived', 'all']).default('active'),
-});
+export const listUtmCampaignsQuerySchema = z
+  .object({
+    from: ymdSchema.optional(),
+    to: ymdSchema.optional(),
+    days: z.coerce.number().int().min(1).max(365).optional(),
+    status: z.enum(['active', 'archived', 'all']).default('active'),
+  })
+  .superRefine((value, ctx) => {
+    if (Boolean(value.from) !== Boolean(value.to)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'from and to must be provided together',
+        path: value.from ? ['to'] : ['from'],
+      });
+      return;
+    }
+    if (value.from && value.to) {
+      if (value.from > value.to) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'from must be on or before to',
+          path: ['from'],
+        });
+        return;
+      }
+      const span = inclusiveDaySpan(value.from, value.to);
+      if (span > 365) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Date range cannot exceed 365 days',
+          path: ['to'],
+        });
+      }
+    }
+  })
+  .transform((value) => {
+    if (value.from && value.to) {
+      return {
+        from: value.from,
+        to: value.to,
+        status: value.status,
+      } as const;
+    }
+    return {
+      days: value.days ?? 30,
+      status: value.status,
+    } as const;
+  });
 
 export type UtmAttributionFields = z.infer<typeof utmAttributionFieldsSchema>;
+export type UtmDateRangeQuery = z.infer<typeof utmDateRangeQuerySchema>;
 export type CreateUtmCampaignInput = z.infer<typeof createUtmCampaignSchema>;
 export type UpdateUtmCampaignInput = z.infer<typeof updateUtmCampaignSchema>;

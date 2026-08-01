@@ -15,9 +15,10 @@ export {
 
 /**
  * Delay after a successful Future Jobs session create/update before the first
- * profiles request. Configurable via env override; default 20 seconds.
+ * profiles request. Prefer a short first try; override via env when FJ is slow.
+ * Default: 4 seconds (was 20s fixed wall).
  */
-export const POST_SESSION_CREATE_PROFILES_WAIT_MS_DEFAULT = 20_000;
+export const POST_SESSION_CREATE_PROFILES_WAIT_MS_DEFAULT = 4_000;
 
 export function getPostSessionCreateProfilesWaitMs(): number {
   const raw = process.env.POST_SESSION_CREATE_PROFILES_WAIT_MS;

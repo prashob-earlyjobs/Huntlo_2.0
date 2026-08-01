@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ADMIN_PERMISSIONS } from './require-admin.js';
 import { PLATFORM_PROVIDERS, PROVIDER_STATUSES } from './platform-settings.model.js';
 import { BLOG_STATUSES } from './blog.model.js';
+import { EMAIL_TEMPLATE_TYPES } from './email-template.model.js';
 import { passwordSchema } from '../../shared/validation/password.js';
 import { USAGE_METRICS } from '../../shared/usage/metrics.js';
 
@@ -50,7 +51,9 @@ export const createAdminUserSchema = z.object({
   organizationName: z.string().trim().min(1).max(120).optional(),
   role: z.enum(['owner', 'admin', 'recruiter', 'hiring_manager', 'interviewer', 'analyst', 'viewer']).default('recruiter'),
   platformAdmin: z.boolean().optional(),
-  adminPermissions: z.array(z.enum(ADMIN_PERMISSIONS)).optional(),
+  adminPermissions: z
+    .array(z.union([z.enum(ADMIN_PERMISSIONS), z.literal('*')]))
+    .optional(),
 });
 
 export const updateAdminUserSchema = z.object({
@@ -95,6 +98,23 @@ export const createBlogSchema = z.object({
 });
 
 export const updateBlogSchema = createBlogSchema.partial();
+
+export const listEmailTemplatesQuerySchema = z.object({
+  type: z.enum(EMAIL_TEMPLATE_TYPES).optional(),
+});
+
+export const updateEmailTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  subject: z.string().trim().min(1).max(300).optional(),
+  bodyHtml: z.string().max(100_000).optional(),
+  bodyText: z.string().max(50_000).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const sendEmailTemplateTestSchema = z.object({
+  to: z.string().trim().email().max(320),
+  firstName: z.string().trim().max(80).optional(),
+});
 
 export const patchPlatformSettingsSchema = z.object({
   maintenanceMode: z.boolean().optional(),

@@ -51,6 +51,7 @@ import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
 import {
   annotateCandidateSearch,
   applyCandidateSearch,
+  previewCandidateSearch,
 } from "@/lib/api/candidate-search";
 import type { JobListItem } from "@/lib/api/contracts";
 import {
@@ -63,7 +64,6 @@ import {
   FILTER_FIELD_INDEX,
   FILTER_SECTIONS,
   INTERPRETED_FILTER_STATE,
-  estimateReach,
   isFieldActive,
   type FilterValue,
   type InterpretedCriterion,
@@ -75,9 +75,14 @@ import {
   providerPayloadToFilters,
 } from "@/lib/search-filter-adapters";
 import { ROUTES, sessionDetailPath } from "@/lib/routes";
-import { cn } from "@/lib/utils";
 
 const NUMBER_FORMAT = new Intl.NumberFormat("en-IN");
+
+/** UI-only: cap live estimate display at 300+. */
+function formatPreviewReachCount(count: number): string {
+  if (count >= 300) return "300+";
+  return NUMBER_FORMAT.format(count);
+}
 
 function buildPromptFromJob(job: JobListItem): string {
   return `Find ${job.title.toLowerCase()}s in ${job.location} with ${job.experienceMin}–${job.experienceMax} years of experience for the ${job.department} team.`;
@@ -366,6 +371,10 @@ export function SearchWorkspace() {
   const [recentSearchesLoading, setRecentSearchesLoading] = useState(true);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const previewRequestId = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -498,13 +507,100 @@ export function SearchWorkspace() {
     return Array.from(bySection.values());
   }, [activeEntries]);
 
-  const reach = useMemo(
-    () => estimateReach(activeCount, query.trim().length > 0),
-    [activeCount, query]
-  );
+  const reach = useMemo(() => {
+    if (previewCount == null) return null;
+    return { count: previewCount, status: previewStatus };
+  }, [previewCount, previewStatus]);
 
   const isFresh =
     !query.trim() && activeCount === 0 && criteria === null && !searched;
+
+  useEffect(() => {
+    if (activeCount === 0 && !criteriaApplied) {
+      setPreviewCount(null);
+      setPreviewStatus(null);
+      setPreviewLoading(false);
+      return;
+    }
+
+    const requestId = ++previewRequestId.current;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setPreviewLoading(true);
+        try {
+          const providerFilters = filtersToProviderPayload(filters);
+          const result = await previewCandidateSearch({
+            prompt: query.trim(),
+            filterForm: providerFilters,
+          });
+          if (previewRequestId.current !== requestId) return;
+          setPreviewCount(result.exactCount ?? result.count ?? 0);
+          setPreviewStatus(result.status ?? null);
+          // Preview auto-peeled skills when estimate was 0 — sync drawer filters.
+          if (result.skillsRelaxFallbackUsed && result.filterForm) {
+            const relaxed = providerPayloadToFilters(result.filterForm);
+            const applySkillBuckets = (
+              previous: SearchFilterState | null
+            ): SearchFilterState => {
+              const next = { ...(previous ?? {}), ...relaxed };
+              delete next.mandatorySkills;
+              delete next.coreSkills;
+              delete next.secondarySkills;
+              if (Array.isArray(relaxed.mandatorySkills) && relaxed.mandatorySkills.length > 0) {
+                next.mandatorySkills = relaxed.mandatorySkills;
+              }
+              if (Array.isArray(relaxed.coreSkills) && relaxed.coreSkills.length > 0) {
+                next.coreSkills = relaxed.coreSkills;
+              }
+              if (Array.isArray(relaxed.secondarySkills) && relaxed.secondarySkills.length > 0) {
+                next.secondarySkills = relaxed.secondarySkills;
+              }
+              return next;
+            };
+            setFilters((previous) => applySkillBuckets(previous));
+            setInterpretedFilters((previous) => applySkillBuckets(previous));
+            setCriteria((previous) => {
+              if (!previous) return previous;
+              const skillParts = [
+                ...(Array.isArray(relaxed.mandatorySkills) ? relaxed.mandatorySkills : []),
+                ...(Array.isArray(relaxed.coreSkills) ? relaxed.coreSkills : []),
+                ...(Array.isArray(relaxed.secondarySkills) ? relaxed.secondarySkills : []),
+              ];
+              return previous
+                .map((criterion) => {
+                  if (criterion.id !== "ic-skills" && criterion.fieldId !== "coreSkills") {
+                    return criterion;
+                  }
+                  if (skillParts.length === 0) return null;
+                  return { ...criterion, value: skillParts.join(", ") };
+                })
+                .filter((item): item is InterpretedCriterion => item != null);
+            });
+          }
+          console.log("[SearchWorkspace] profile count", {
+            count: result.count,
+            exactCount: result.exactCount,
+            status: result.status,
+            skillsRelaxFallbackUsed: result.skillsRelaxFallbackUsed ?? false,
+            activeFilters: activeCount,
+          });
+        } catch (err) {
+          if (previewRequestId.current !== requestId) return;
+          console.warn("[SearchWorkspace] preview profile count failed", err);
+          setPreviewCount(null);
+          setPreviewStatus(null);
+        } finally {
+          if (previewRequestId.current === requestId) {
+            setPreviewLoading(false);
+          }
+        }
+      })();
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [filters, query, activeCount, criteriaApplied]);
 
   function setField(fieldId: string, value: FilterValue | undefined) {
     setFilters((previous) => {
@@ -664,7 +760,8 @@ export function SearchWorkspace() {
 
       if ("sessionPending" in result && result.sessionPending) {
         setPendingMessage(
-          result.message || "Candidate matching is still being processed."
+          result.message ||
+            "Finding candidates — matching profiles in progress."
         );
         if (result.savedSessionId) {
           setSearched(true);
@@ -855,13 +952,26 @@ export function SearchWorkspace() {
                       </SheetDescription>
                     </SheetHeader>
                     <div className="min-h-0 flex-1 overflow-y-auto">{filterPanel}</div>
-                    <SheetFooter className="mt-0 flex-row items-center justify-end gap-3 border-t border-border p-3">
-                      {/* <span className="text-xs text-muted-foreground">
-                        Est. reach{" "}
-                        <span className="font-medium tabular-nums text-foreground">
-                          {NUMBER_FORMAT.format(reach.low)}–{NUMBER_FORMAT.format(reach.high)}
-                        </span>
-                      </span> */}
+                    <SheetFooter className="mt-0 flex-row items-center justify-between gap-3 border-t border-border p-3">
+                      <span className="text-xs text-muted-foreground">
+                        {previewLoading ? (
+                          "Estimating profiles…"
+                        ) : reach ? (
+                          <>
+                            Est. profiles{" "}
+                            <span className="font-medium tabular-nums text-foreground">
+                              {formatPreviewReachCount(reach.count)}
+                            </span>
+                            {reach.status === "too_broad" ? (
+                              <span className="ml-1 text-amber-600 dark:text-amber-400">
+                                (broad)
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          "Est. profiles —"
+                        )}
+                      </span>
                       <Button
                         type="button"
                         size="sm"
@@ -872,7 +982,7 @@ export function SearchWorkspace() {
                           void handleSearchClick();
                         }}
                       >
-                        {searching ? "Searching…" : "Show results"}
+                        {searching ? "Finding candidates…" : "Show results"}
                       </Button>
                     </SheetFooter>
                   </SheetContent>
@@ -928,7 +1038,7 @@ export function SearchWorkspace() {
                   aria-busy={searching || interpreting}
                   aria-label={
                     searching
-                      ? "Searching candidates"
+                      ? "Finding candidates"
                       : !criteriaApplied && activeCount === 0 && query.trim()
                         ? "Generate filters from search"
                         : undefined
@@ -1029,12 +1139,23 @@ export function SearchWorkspace() {
                     {activeCount}
                   </span>
                 </h2>
-                <span className="hidden items-center gap-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                   <Users aria-hidden className="size-3.5" />
-                  Est. reach{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {NUMBER_FORMAT.format(reach.low)}–{NUMBER_FORMAT.format(reach.high)}
-                  </span>
+                  {previewLoading ? (
+                    "Estimating…"
+                  ) : reach ? (
+                    <>
+                      Est. profiles{" "}
+                      <span className="font-medium tabular-nums text-foreground">
+                        {formatPreviewReachCount(reach.count)}
+                      </span>
+                      {reach.status === "too_broad" ? (
+                        <span className="text-amber-600 dark:text-amber-400">(broad)</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    "Est. profiles —"
+                  )}
                 </span>
               </div>
 

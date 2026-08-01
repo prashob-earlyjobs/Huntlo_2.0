@@ -12,6 +12,10 @@ import {
   Plus,
 } from "lucide-react";
 
+import {
+  getDefaultUtmDateRange,
+  UtmDateRangeControls,
+} from "@/components/admin/utm-date-range-controls";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FormSection } from "@/components/shared/form-section";
 import { PageHeader } from "@/components/shared/page-header";
@@ -54,13 +58,6 @@ import { appendUtmToUrl } from "@/lib/utm";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
-
-const DAY_OPTIONS = [
-  { value: "7", label: "Last 7 days" },
-  { value: "14", label: "Last 14 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
-] as const;
 
 const LANDING_PRESETS = [
   { value: "/", label: "Home (/)" },
@@ -178,7 +175,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 export function AdminUtmCampaignsWorkspace() {
-  const [days, setDays] = useState("30");
+  const [range, setRange] = useState(getDefaultUtmDateRange);
   const [statusFilter, setStatusFilter] = useState<"active" | "archived" | "all">(
     "active"
   );
@@ -197,7 +194,8 @@ export function AdminUtmCampaignsWorkspace() {
     setLoading(true);
     try {
       const data = await adminApi.listUtmCampaigns({
-        days: Number(days),
+        from: range.from,
+        to: range.to,
         status: statusFilter,
       });
       setItems(data.items);
@@ -213,7 +211,7 @@ export function AdminUtmCampaignsWorkspace() {
   useEffect(() => {
     void loadCampaigns();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on filter change
-  }, [days, statusFilter]);
+  }, [range.from, range.to, statusFilter]);
 
   const previewUrl = useMemo(() => buildCampaignUrl(form), [form]);
 
@@ -309,21 +307,12 @@ export function AdminUtmCampaignsWorkspace() {
         description="Create tracked marketing links, share them, and measure visits, demos, and signups."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={days}
-              onValueChange={(value) => setDays(value ?? "30")}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Range" />
-              </SelectTrigger>
-              <SelectContent>
-                {DAY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <UtmDateRangeControls
+              from={range.from}
+              to={range.to}
+              onChange={setRange}
+              disabled={loading}
+            />
             <Button onClick={openCreate} size="sm">
               <Plus aria-hidden />
               New campaign

@@ -186,7 +186,7 @@ export type SaveSearchResponse = {
   candidateCount?: number;
 };
 
-/** Apply/create/fetch-more can wait 20s + poll up to ~90s on the server. */
+/** Apply can return pending quickly (~4s wait + short poll); client follows session. */
 const LONG_SEARCH_TIMEOUT_MS = 120_000;
 
 async function rawPost<T>(
@@ -220,11 +220,26 @@ async function rawDelete<T>(path: string): Promise<T> {
   return result.data;
 }
 
+export type SearchPreviewResponse = {
+  success: true;
+  count: number;
+  exactCount: number;
+  status: string;
+  message?: string;
+  /** Present when preview auto-peeled skills because estimate was 0. */
+  filterForm?: CandidateFilterForm;
+  skillsRelaxFallbackUsed?: boolean;
+};
+
 export interface CandidateSearchApi {
   annotateCandidateSearch(input: {
     prompt: string;
     linkedin_profile_url?: string;
   }): Promise<SearchAnnotationResponse>;
+  previewCandidateSearch(input: {
+    prompt?: string;
+    filterForm: CandidateFilterForm;
+  }): Promise<SearchPreviewResponse>;
   autocompleteCandidateFilter(input: {
     filter_type?: string;
     query: string;
@@ -325,6 +340,20 @@ const mockCandidateSearchApi: CandidateSearchApi = {
       filterForm: INTERPRETED_FILTER_STATE as unknown as CandidateFilterForm,
       annotation: { prompt },
     };
+  },
+  async previewCandidateSearch({ prompt, filterForm }) {
+    await simulateMockLatency();
+    const keys = Object.keys(filterForm ?? {}).length;
+    const count = Math.max(120, Math.min(8000, 200 + keys * 380 + (prompt?.length ?? 0)));
+    const result = {
+      success: true as const,
+      count,
+      exactCount: count,
+      status: count > 5000 ? "too_broad" : "ok",
+      message: "Search health retrieved",
+    };
+    console.log("[candidate-search/preview] profile count", result);
+    return result;
   },
   async autocompleteCandidateFilter({ query, filter_type }) {
     await simulateMockLatency();
@@ -556,6 +585,14 @@ const liveCandidateSearchApi: CandidateSearchApi = {
       linkedin_profile_url: input.linkedin_profile_url ?? "",
     });
   },
+  async previewCandidateSearch(input) {
+    const result = await rawPost<SearchPreviewResponse>("/candidates/search/preview", {
+      prompt: input.prompt ?? "",
+      filterForm: input.filterForm ?? {},
+    });
+    console.log("[candidate-search/preview] profile count", result);
+    return result;
+  },
   async autocompleteCandidateFilter(input) {
     const qs = buildQueryString({
       filter_type: input.filter_type ?? "region",
@@ -677,6 +714,12 @@ export async function annotateCandidateSearch(
   input: Parameters<CandidateSearchApi["annotateCandidateSearch"]>[0]
 ) {
   return candidateSearchApi.annotateCandidateSearch(input);
+}
+
+export async function previewCandidateSearch(
+  input: Parameters<CandidateSearchApi["previewCandidateSearch"]>[0]
+) {
+  return candidateSearchApi.previewCandidateSearch(input);
 }
 
 export async function autocompleteCandidateFilter(

@@ -276,9 +276,27 @@ export interface FutureJobsProvider {
     opts?: FutureJobsRequestOpts
   ): Promise<FutureJobsApiResponse>;
 
+  /**
+   * POST /wl/sourcing-session/preview
+   * Body: { jd: string, queries: FutureJobsQueries }
+   * Returns expected profile count for the filter set (no session created).
+   */
+  previewSourcingSession(
+    body: { jd: string; queries: Record<string, unknown> },
+    opts?: FutureJobsRequestOpts
+  ): Promise<FutureJobsApiResponse<FutureJobsPreviewData>>;
+
   isFjSessionPending(data: unknown): boolean;
   fjSessionPendingMessage(data: unknown): string;
 }
+
+/** Response `data` from POST /wl/sourcing-session/preview. */
+export type FutureJobsPreviewData = {
+  status?: string;
+  count?: number;
+  exactCount?: number;
+  [key: string]: unknown;
+};
 
 export type MockFutureJobsMode = {
   /** Fail the next N requests with an upstream error. */

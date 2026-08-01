@@ -913,7 +913,7 @@ export const screeningService = {
     for (const row of rows) {
       const candidate = byId.get(String(row.candidateId));
       if (!candidate?.phone) continue;
-      const mobile = normalizePhone(candidate.phone).replace(/^\+/, '');
+      const mobile = normalizePhone(candidate.phone);
       if (!mobile) continue;
       callees.push({
         callee_name: candidate.name || 'Candidate',

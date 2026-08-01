@@ -18,10 +18,14 @@ import {
 const MAX_POLL_ATTEMPTS = 15;
 const POLL_BATCH_LIMIT = 25;
 const PROFILES_PAGE_LIMIT = 300;
+/** Skip a poll tick if another path (FE getProgress / dedicated job / sweep) just polled. */
+const MIN_POLL_GAP_MS = 2_500;
+/** Consecutive "FJ has nothing new" polls before the session is called done. */
+const NO_NEW_PROFILE_STREAK_LIMIT = 3;
+/** Empty searches need several ready+0 ticks before we accept "no matches". */
+const EMPTY_SEARCH_MIN_ATTEMPTS = 8;
 
 const ACTIVE_STATUSES = ['creating', 'pending', 'queued', 'running', 'polling'] as const;
-
-const pollAttempts = new Map<string, number>();
 
 function log() {
   return createChildLogger({ component: 'sourcing-poller' });
@@ -194,10 +198,53 @@ function computeProgress(
 async function finalizeSession(
   session: SourcingSessionDocument,
   status: 'completed' | 'partial' | 'failed',
-  options?: { errorCode?: string | null; errorMessage?: string | null }
+  options?: {
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    reason?: string;
+    attempt?: number;
+  }
 ): Promise<void> {
   const orgId = session.organizationId.toHexString();
   const sessionId = session._id.toHexString();
+
+  // Claim the terminal transition so concurrent pollers can't finalize (and
+  // notify) the same session twice.
+  const claimedFinal = await SourcingSessionModel.updateOne(
+    {
+      _id: session._id,
+      status: { $in: [...ACTIVE_STATUSES] },
+      deletedAt: null,
+    },
+    { $set: { status } }
+  );
+  if (claimedFinal.modifiedCount === 0) {
+    console.log(
+      `[sourcing-poll] finalize skipped (already terminal) session=${sessionId} status=${status} reason=${options?.reason ?? 'unspecified'}`
+    );
+    return;
+  }
+
+  console.log(
+    `[sourcing-poll] finalize session=${sessionId} status=${status} reason=${
+      options?.reason ?? 'unspecified'
+    } attempt=${options?.attempt ?? session.pollAttemptCount ?? 0}/${MAX_POLL_ATTEMPTS} found=${
+      session.totalResults ?? 0
+    } estimated=${session.estimatedResults ?? 0}`
+  );
+  log().info(
+    {
+      sourcingSessionId: sessionId,
+      futureJobsSessionId: session.futureJobsSessionId || session.externalSessionId,
+      finalStatus: status,
+      reason: options?.reason ?? 'unspecified',
+      attempt: options?.attempt ?? session.pollAttemptCount ?? 0,
+      maxAttempts: MAX_POLL_ATTEMPTS,
+      totalResults: session.totalResults ?? 0,
+      estimatedResults: session.estimatedResults ?? 0,
+    },
+    'Sourcing session finalized'
+  );
   const fjId = session.futureJobsSessionId || session.externalSessionId || sessionId;
 
   if (status === 'failed') {
@@ -218,9 +265,10 @@ async function finalizeSession(
   session.errorCode = options?.errorCode ?? (status === 'failed' ? session.errorCode : null);
   session.errorMessage =
     options?.errorMessage ?? (status === 'failed' ? session.errorMessage : null);
+  if (status === 'partial') {
+    session.canFetchMore = true;
+  }
   await session.save();
-
-  pollAttempts.delete(sessionId);
 
   emitCandidateSearchPoll({
     organizationId: orgId,
@@ -254,6 +302,29 @@ async function finalizeSession(
         actionUrl: `/dashboard/sessions/${sessionId}`,
       })
       .catch(() => undefined);
+
+    // First completed/partial search → lifecycle email (idempotent).
+    try {
+      const ownerId = session.ownerUserId;
+      const priorCompleted = await SourcingSessionModel.countDocuments({
+        $or: [{ userId: ownerId }, { ownerUserId: ownerId }],
+        status: { $in: ['completed', 'partial'] },
+        _id: { $ne: session._id },
+      });
+      if (priorCompleted === 0) {
+        const { emailTemplatesService } = await import(
+          '../admin/email-templates.service.js'
+        );
+        void emailTemplatesService
+          .onFirstSearchCompleted({
+            userId: ownerId,
+            sessionId: session._id,
+          })
+          .catch(() => undefined);
+      }
+    } catch {
+      // Never block search completion on mail failures.
+    }
   }
 }
 
@@ -270,8 +341,44 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     session.externalSessionId = session.futureJobsSessionId;
   }
 
-  const attempt = (pollAttempts.get(sessionId) ?? 0) + 1;
-  pollAttempts.set(sessionId, attempt);
+  // Claim the tick atomically: dedicated worker job + sweep + FE getProgress all
+  // call this. The gap filter lives in the query (not in JS) so two concurrent
+  // callers can never both claim, and it keys off lastFjPollAt — lastPolledAt is
+  // also written by apply/fetch-more/profile reads and would starve polling.
+  const now = new Date();
+  const claimed = await SourcingSessionModel.findOneAndUpdate(
+    {
+      _id: session._id,
+      status: { $in: [...ACTIVE_STATUSES] },
+      deletedAt: null,
+      $or: [
+        { lastFjPollAt: null },
+        { lastFjPollAt: { $lte: new Date(now.getTime() - MIN_POLL_GAP_MS) } },
+      ],
+    },
+    {
+      $inc: { pollAttemptCount: 1 },
+      $set: { lastFjPollAt: now, lastPolledAt: now },
+    },
+    { new: true }
+  );
+  if (!claimed) {
+    console.log(
+      `[sourcing-poll] skipped (debounce ${MIN_POLL_GAP_MS}ms or inactive) session=${sessionId} fj=${externalId} status=${session.status} lastFjPollAt=${session.lastFjPollAt?.toISOString?.() ?? 'null'}`
+    );
+    return;
+  }
+
+  // Work off the freshly claimed doc: `session` may be a stale snapshot from the
+  // sweep/queue, and saving it would roll back counters written by other ticks.
+  session = claimed;
+  if (!session.futureJobsSessionId && session.externalSessionId) {
+    session.futureJobsSessionId = session.externalSessionId;
+  }
+  if (!session.externalSessionId && session.futureJobsSessionId) {
+    session.externalSessionId = session.futureJobsSessionId;
+  }
+  const attempt = Number(claimed.pollAttemptCount) || 1;
 
   console.log(
     `[sourcing-poll] calling Future Jobs GET /profiles attempt=${attempt}/${MAX_POLL_ATTEMPTS} session=${sessionId} fj=${externalId} limit=${PROFILES_PAGE_LIMIT}`
@@ -299,6 +406,8 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
       await finalizeSession(session, 'partial', {
         errorCode: code,
         errorMessage: message,
+        reason: 'provider-error-with-partial-results',
+        attempt,
       });
       return;
     }
@@ -306,12 +415,11 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     await finalizeSession(session, 'failed', {
       errorCode: code,
       errorMessage: message,
+      reason: 'provider-error-no-results',
+      attempt,
     });
     return;
   }
-
-  session.lastPolledAt = new Date();
-
   if (provider.isFjSessionPending(profilesRes)) {
     const pendingDocs = Array.isArray(profilesRes?.data?.docs)
       ? profilesRes.data.docs.length
@@ -345,7 +453,18 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     if (!session.errorMessage) {
       session.errorMessage = provider.fjSessionPendingMessage(profilesRes);
     }
-    await session.save();
+    await SourcingSessionModel.updateOne(
+      { _id: session._id, status: { $in: [...ACTIVE_STATUSES] } },
+      {
+        $set: {
+          status: 'polling',
+          polling: true,
+          progress: session.progress,
+          errorMessage: session.errorMessage,
+          lastPolledAt: new Date(),
+        },
+      }
+    );
     emitCandidateSearchPoll({
       organizationId: orgId,
       userId: session.ownerUserId ? String(session.ownerUserId) : undefined,
@@ -408,18 +527,39 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     'Future Jobs profiles poll response'
   );
 
+  const hasNextPage = Boolean(profilesRes?.data?.hasNextPage);
+  const moreOnProvider = hasNextPage || totalDocs > storedCount;
+  session.noNewProfileStreak =
+    newCandidateCount > 0 || moreOnProvider ? 0 : (session.noNewProfileStreak ?? 0) + 1;
+
   session.totalResults = Math.max(storedCount, totalDocs);
   session.totalDocs = session.totalResults;
-  session.canFetchMore = totalDocs > storedCount || attempt < MAX_POLL_ATTEMPTS;
-  if (session.estimatedResults <= 0 && totalDocs > 0) {
-    session.estimatedResults = totalDocs;
-  }
+  session.canFetchMore = moreOnProvider;
 
+  const progress = computeProgress(session.totalResults, session.estimatedResults, attempt);
   session.status = 'polling';
   session.polling = true;
-  session.progress = computeProgress(session.totalResults, session.estimatedResults, attempt);
+  session.progress = progress;
   session.errorMessage = null;
-  await session.save();
+
+  // Atomic field update — avoid session.save() rolling back pollAttemptCount /
+  // lastFjPollAt written by a concurrent claim.
+  await SourcingSessionModel.updateOne(
+    { _id: session._id, status: { $in: [...ACTIVE_STATUSES] } },
+    {
+      $set: {
+        totalResults: session.totalResults,
+        totalDocs: session.totalDocs,
+        canFetchMore: session.canFetchMore,
+        noNewProfileStreak: session.noNewProfileStreak ?? 0,
+        status: 'polling',
+        polling: true,
+        progress,
+        errorMessage: null,
+        lastPolledAt: new Date(),
+      },
+    }
+  );
 
   emitCandidateSearchPoll({
     organizationId: orgId,
@@ -439,22 +579,52 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
   });
 
   const pendingEmpty = docs.length === 0 && totalDocs === 0;
+  const found = session.totalResults ?? 0;
 
-  // Always run the full MAX_POLL_ATTEMPTS window so the FE can observe growth
-  // across polls. Finalize only when the attempt budget is exhausted (or the
-  // provider stays empty with no expected results).
-  if (pendingEmpty && attempt >= 3 && session.estimatedResults === 0) {
-    await finalizeSession(session, 'completed');
+  // Empty search — wait for several ready+0 ticks (do not gate on estimated).
+  if (pendingEmpty && attempt >= EMPTY_SEARCH_MIN_ATTEMPTS) {
+    await finalizeSession(session, 'completed', {
+      reason: 'no-profiles-returned',
+      attempt,
+    });
+    return;
+  }
+
+  // FJ has stopped producing: everything it reports is stored, no next page, and
+  // repeated polls added nothing. Finish now instead of burning the whole budget.
+  if (
+    found > 0 &&
+    !moreOnProvider &&
+    (session.noNewProfileStreak ?? 0) >= NO_NEW_PROFILE_STREAK_LIMIT
+  ) {
+    await finalizeSession(session, 'completed', {
+      reason: 'provider-exhausted',
+      attempt,
+    });
     return;
   }
 
   if (attempt >= MAX_POLL_ATTEMPTS) {
-    if ((session.totalResults ?? 0) > 0) {
-      await finalizeSession(session, 'completed');
+    if (found > 0) {
+      // Keep fetch-more available if FJ still reports more pages / docs.
+      if (moreOnProvider) {
+        session.canFetchMore = true;
+        await finalizeSession(session, 'partial', {
+          reason: 'attempts-exhausted-more-available',
+          attempt,
+        });
+      } else {
+        await finalizeSession(session, 'completed', {
+          reason: 'attempts-exhausted',
+          attempt,
+        });
+      }
     } else {
       await finalizeSession(session, 'failed', {
         errorCode: 'POLL_TIMEOUT',
         errorMessage: 'Sourcing timed out before profiles were ready',
+        reason: 'attempts-exhausted-no-results',
+        attempt,
       });
     }
   }

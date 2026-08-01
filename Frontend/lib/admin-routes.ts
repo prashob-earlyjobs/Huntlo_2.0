@@ -16,6 +16,7 @@ export const ADMIN_ROUTES = {
   integrations: "/admin/integrations",
   settings: "/admin/settings",
   blog: "/admin/blog",
+  emailTemplates: "/admin/email-templates",
 } as const;
 
 export type AdminRouteKey = keyof typeof ADMIN_ROUTES;
@@ -36,4 +37,5 @@ export const ADMIN_ROUTE_LABELS: Record<AdminRoute, string> = {
   [ADMIN_ROUTES.integrations]: "Integrations",
   [ADMIN_ROUTES.settings]: "Platform settings",
   [ADMIN_ROUTES.blog]: "Blog",
+  [ADMIN_ROUTES.emailTemplates]: "Email templates",
 };

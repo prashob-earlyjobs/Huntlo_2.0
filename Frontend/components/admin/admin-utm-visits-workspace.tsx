@@ -14,6 +14,10 @@ import {
 } from "recharts";
 import { ArrowLeft, Megaphone, MousePointerClick } from "lucide-react";
 
+import {
+  getDefaultUtmDateRange,
+  UtmDateRangeControls,
+} from "@/components/admin/utm-date-range-controls";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FormSection } from "@/components/shared/form-section";
 import { PageHeader } from "@/components/shared/page-header";
@@ -26,13 +30,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -48,12 +45,6 @@ import { ADMIN_ROUTES } from "@/lib/admin-routes";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
-const DAY_OPTIONS = [
-  { value: "7", label: "Last 7 days" },
-  { value: "14", label: "Last 14 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
-] as const;
 
 const CHART_COLORS = [
   "var(--chart-1)",
@@ -100,7 +91,7 @@ function ShareCell({ value, total }: { value: number; total: number }) {
 }
 
 export function AdminUtmVisitsWorkspace() {
-  const [days, setDays] = useState("30");
+  const [range, setRange] = useState(getDefaultUtmDateRange);
   const [breakdown, setBreakdown] =
     useState<AdminAttributedVisitsBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +101,7 @@ export function AdminUtmVisitsWorkspace() {
     let cancelled = false;
     setLoading(true);
     void adminApi
-      .getAttributedVisitsBreakdown({ days: Number(days) })
+      .getAttributedVisitsBreakdown({ from: range.from, to: range.to })
       .then((data) => {
         if (cancelled) return;
         setBreakdown(data);
@@ -127,10 +118,10 @@ export function AdminUtmVisitsWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [days]);
+  }, [range.from, range.to]);
 
   const total = breakdown?.total ?? 0;
-  const windowDays = breakdown?.windowDays ?? Number(days);
+  const windowDays = breakdown?.windowDays ?? 0;
 
   const sourceChart = useMemo(
     () =>
@@ -192,25 +183,16 @@ export function AdminUtmVisitsWorkspace() {
         description={
           loading
             ? "Loading visit attribution…"
-            : `${formatNumber(total)} sessions with UTM tags in the last ${windowDays} days.`
+            : `${formatNumber(total)} sessions with UTM tags from ${range.from} to ${range.to}${windowDays ? ` (${windowDays} days)` : ""}.`
         }
         actions={
-          <div className="flex items-center gap-2">
-            <Select
-              value={days}
-              onValueChange={(value) => setDays(value ?? "30")}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Range" />
-              </SelectTrigger>
-              <SelectContent>
-                {DAY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <UtmDateRangeControls
+              from={range.from}
+              to={range.to}
+              onChange={setRange}
+              disabled={loading}
+            />
             <Button
               variant="outline"
               size="sm"
