@@ -24,6 +24,7 @@ import {
 } from '../organizations/permissions.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { plansService } from '../plans/plans.service.js';
+import { utmService } from '../utm/utm.service.js';
 import { OnboardingModel } from './onboarding.model.js';
 import {
   EmailVerificationTokenModel,
@@ -165,6 +166,17 @@ export class AuthService {
     companyName: string;
     mobile?: string | null;
     organizationName?: string;
+    attribution?: {
+      sessionId: string | null;
+      visitorId: string | null;
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+      utmContent: string | null;
+      utmTerm: string | null;
+      landingPage: string | null;
+      referrer: string | null;
+    } | null;
     meta: SessionMeta;
   }) {
     const existing = await UserModel.findOne({ email: input.email });
@@ -274,6 +286,37 @@ export class AuthService {
         userAgent: input.meta.userAgent,
       });
 
+      if (input.attribution) {
+        const attributionPayload = {
+          ...input.attribution,
+          userId: user._id.toHexString(),
+          organizationId: organization._id.toHexString(),
+          userAgent: input.meta.userAgent || null,
+        };
+        await Promise.all([
+          utmService.recordEvent({
+            eventType: 'signup',
+            ...attributionPayload,
+          }),
+          utmService.recordEvent({
+            eventType: 'conversion',
+            ...attributionPayload,
+            meta: { kind: 'signup' },
+          }),
+        ]).catch(() => undefined);
+      }
+
+      // Post-signup drip enrollment (never blocks or fails registration)
+      void import('../admin/email-templates.service.js')
+        .then(({ emailTemplatesService }) =>
+          emailTemplatesService.enrollPostSignupSequence({
+            userId: user!._id.toHexString(),
+            email: user!.email,
+            firstName: user!.firstName,
+          })
+        )
+        .catch(() => undefined);
+
       return { ...auth, refreshToken: createdSession.refreshToken };
     } catch (error) {
       if (user) {
@@ -347,6 +390,13 @@ export class AuthService {
       userAgent: input.meta.userAgent,
       metadata: { sessionId: createdSession.session._id.toHexString() },
     });
+
+    // Event 03 — schedule no-search cool-off (idempotent; skipped if already searched).
+    void import('../admin/email-templates.service.js')
+      .then(({ emailTemplatesService }) =>
+        emailTemplatesService.onFirstLogin({ userId: user._id.toHexString() })
+      )
+      .catch(() => undefined);
 
     return { ...auth, refreshToken: createdSession.refreshToken };
   }

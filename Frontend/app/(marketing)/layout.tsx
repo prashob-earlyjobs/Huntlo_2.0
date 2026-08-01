@@ -1,6 +1,7 @@
 import { Epilogue, Inter } from "next/font/google";
+import { Suspense } from "react";
 
-import { ZohoSalesIqWidget } from "@/components/marketing/ZohoSalesIqWidget";
+import { UtmVisitTracker } from "@/components/marketing/UtmVisitTracker";
 
 import "../landing.css";
 
@@ -32,7 +33,9 @@ export default function MarketingLayout({
         rel="stylesheet"
       />
       {children}
-      <ZohoSalesIqWidget />
+      <Suspense fallback={null}>
+        <UtmVisitTracker />
+      </Suspense>
     </div>
   );
 }

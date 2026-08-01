@@ -4,7 +4,10 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { Redis } from 'ioredis';
+
 import { getLogger } from '../../config/logger.js';
+import { getRedisUrl } from '../../bull-outreach/redis.js';
 import {
   createHunarBulkCalls,
   createHunarVoiceAgent,
@@ -28,6 +31,76 @@ import {
 } from './voice-call.model.js';
 
 const log = () => getLogger().child({ component: 'voice-dialer' });
+
+/** In-process fallback when Redis is down — serializes sync within one worker. */
+const localVoiceAgentLocks = new Map<string, Promise<void>>();
+
+let lockRedis: Redis | null = null;
+let lockRedisFailed = false;
+
+function getLockRedis(): Redis | null {
+  if (lockRedisFailed) return null;
+  if (lockRedis) return lockRedis;
+  try {
+    lockRedis = new Redis(getRedisUrl(), {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+    });
+    lockRedis.on('error', (err) => {
+      log().warn({ err }, 'Voice agent lock Redis error');
+    });
+    return lockRedis;
+  } catch {
+    lockRedisFailed = true;
+    return null;
+  }
+}
+
+/**
+ * Serialize Hunar agent create/update per campaign so parallel enrollment jobs
+ * do not race-create agents (Hunar 500) or overwrite each other's saves.
+ */
+export async function withCampaignVoiceAgentLock<T>(
+  campaignId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const key = `huntlo:voice-agent-lock:${String(campaignId)}`;
+  const token = randomUUID();
+  const redis = getLockRedis();
+  const lockTtlMs = 45_000;
+
+  if (redis) {
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const ok = await redis.set(key, token, 'PX', lockTtlMs, 'NX').catch(() => null);
+      if (ok === 'OK') {
+        try {
+          return await fn();
+        } finally {
+          const current = await redis.get(key).catch(() => null);
+          if (current === token) await redis.del(key).catch(() => undefined);
+        }
+      }
+      await new Promise((r) => setTimeout(r, 75 + Math.floor(Math.random() * 75)));
+    }
+    log().warn({ campaignId }, 'Voice agent Redis lock wait timed out; using local lock');
+  }
+
+  const prev = localVoiceAgentLocks.get(key) || Promise.resolve();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = prev.then(() => held).catch(() => held);
+  localVoiceAgentLocks.set(key, tail);
+  await prev.catch(() => undefined);
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (localVoiceAgentLocks.get(key) === tail) localVoiceAgentLocks.delete(key);
+  }
+}
 
 export const VOICE_INTRO_BY_TONE = {
   professional: 'Hello, am I speaking with {callee_name}?',
@@ -208,7 +281,7 @@ export async function syncVoiceAgent(input: VoiceAgentConfigInput): Promise<{ ag
         : defaultResultSchema(),
     voicePersona: input.voicePersona || getHunarVoicePersona(),
     language: String(input.language || getHunarVoiceLanguage()).toUpperCase(),
-    personaName: input.personaName || null,
+    personaName: input.personaName || 'Roshni',
   };
 
   const existing = String(input.existingAgentId || '').trim();
@@ -224,9 +297,10 @@ export async function syncVoiceAgent(input: VoiceAgentConfigInput): Promise<{ ag
 
 export function toHunarMobile(phone: string): string | null {
   try {
+    // Hunar requires E.164 with leading '+' (e.g. +919876543210).
     const normalized = normalizePhone(phone);
     const digits = normalized.replace(/\D/g, '');
-    return digits.length >= 10 ? digits : null;
+    return digits.length >= 10 && normalized.startsWith('+') ? normalized : null;
   } catch {
     return null;
   }
@@ -316,17 +390,18 @@ export async function launchBulkVoiceCalls(input: {
       skippedInvalid += 1;
       continue;
     }
-    if (seen.has(mobile)) {
+    const mobileDigits = mobile.replace(/\D/g, '');
+    if (seen.has(mobileDigits)) {
       skippedInvalid += 1;
       continue;
     }
-    seen.add(mobile);
+    seen.add(mobileDigits);
     callees.push({
       callee_name: contact.name || 'Candidate',
       mobile_number: mobile,
       custom_data: contact.customData || {},
     });
-    seeded.push({ ...contact, mobileDigits: mobile });
+    seeded.push({ ...contact, mobileDigits });
   }
 
   if (!callees.length) {
@@ -337,9 +412,12 @@ export async function launchBulkVoiceCalls(input: {
     );
   }
 
-  const requestId =
+  const requestId = (
     String(input.requestId || '').trim() ||
-    `${input.campaignId || input.screeningId || 'voice'}-${randomUUID()}`;
+    `${input.campaignId || input.screeningId || 'voice'}-${randomUUID()}`
+  )
+    .replace(/[^a-zA-Z0-9_.-]/g, '-')
+    .slice(0, 64);
   const retry = input.retryConfig || { maxRetryCount: 0, retryIntervalHours: 0 };
 
   const reservationKeys = new Map<string, string>();
@@ -403,12 +481,35 @@ export async function launchBulkVoiceCalls(input: {
       {
         requestId: bulk.requestId,
         dialedCount: bulk.dialedCount,
+        submittedCount: callees.length,
+        phones: callees.map((c) => c.mobile_number),
+        hunarResponse:
+          bulk.response && typeof bulk.response === 'object'
+            ? {
+                message: (bulk.response as { message?: unknown }).message,
+                status: (bulk.response as { status?: unknown }).status,
+                error: (bulk.response as { error?: unknown }).error,
+                dataKeys:
+                  (bulk.response as { data?: unknown }).data &&
+                  typeof (bulk.response as { data?: unknown }).data === 'object'
+                    ? Object.keys((bulk.response as { data: Record<string, unknown> }).data)
+                    : [],
+              }
+            : bulk.response,
         source: input.source,
         campaignId: input.campaignId,
         screeningId: input.screeningId,
       },
       'Hunar bulk voice launch accepted'
     );
+
+    if (bulk.dialedCount > 0) {
+      void import('../admin/email-templates.service.js')
+        .then(({ emailTemplatesService }) =>
+          emailTemplatesService.onAiVoiceUsed({ userId: input.userId })
+        )
+        .catch(() => undefined);
+    }
 
     return {
       requestId: bulk.requestId,

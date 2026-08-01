@@ -16,12 +16,23 @@ import {
   assignPlanSchema,
   createAdminUserSchema,
   createBlogSchema,
+  listEmailTemplatesQuerySchema,
   patchPlatformSettingsSchema,
   resetPasswordSchema,
+  sendEmailTemplateTestSchema,
   updateAdminUserSchema,
   updateBlogSchema,
+  updateEmailTemplateSchema,
 } from './admin.validation.js';
+import { emailTemplatesService } from './email-templates.service.js';
 import { requireAdmin, requireAdminPermission } from './require-admin.js';
+import { utmService } from '../utm/utm.service.js';
+import {
+  attributedVisitsQuerySchema,
+  createUtmCampaignSchema,
+  listUtmCampaignsQuerySchema,
+  updateUtmCampaignSchema,
+} from '../utm/utm.validation.js';
 
 const adminAuth = [requireAuth, requireAdmin];
 
@@ -243,6 +254,93 @@ adminConsoleRouter.get(
         pagination: data.pagination,
       },
     });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/attributed-visits',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = attributedVisitsQuerySchema.parse(req.query);
+    const data = await utmService.getAttributedVisitsSummary(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/attributed-visits/breakdown',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = attributedVisitsQuerySchema.parse(req.query);
+    const data = await utmService.getAttributedVisitsBreakdown(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/overview',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = attributedVisitsQuerySchema.parse(req.query);
+    const data = await utmService.getOverview(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/utm/campaigns',
+  ...adminAuth,
+  requireAdminPermission('admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const query = listUtmCampaignsQuerySchema.parse(req.query);
+    const data = await utmService.listCampaigns(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/utm/campaigns',
+  ...adminAuth,
+  requireAdminPermission('admin:utm:write', 'admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const body = createUtmCampaignSchema.parse(req.body ?? {});
+    const data = await utmService.createCampaign(body, req.auth!.sub);
+    await recordAdminMutation(req, {
+      action: 'admin.utm.campaign.created',
+      relatedEntityType: 'utm_campaign',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+adminConsoleRouter.patch(
+  '/utm/campaigns/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:utm:write', 'admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const body = updateUtmCampaignSchema.parse(req.body ?? {});
+    const data = await utmService.updateCampaign(String(req.params.id), body);
+    await recordAdminMutation(req, {
+      action: 'admin.utm.campaign.updated',
+      relatedEntityType: 'utm_campaign',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/utm/campaigns/:id/archive',
+  ...adminAuth,
+  requireAdminPermission('admin:utm:write', 'admin:usage:read'),
+  asyncHandler(async (req, res) => {
+    const data = await utmService.archiveCampaign(String(req.params.id));
+    await recordAdminMutation(req, {
+      action: 'admin.utm.campaign.archived',
+      relatedEntityType: 'utm_campaign',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );
 adminConsoleRouter.get(
@@ -485,9 +583,62 @@ adminConsoleRouter.post(
   })
 );
 
+/** Email templates (post-signup drip and future sequence types) */
+adminConsoleRouter.get(
+  '/email-templates',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:read'),
+  asyncHandler(async (req, res) => {
+    const query = listEmailTemplatesQuerySchema.parse(req.query);
+    const data = await emailTemplatesService.list(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/email-templates/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:read'),
+  asyncHandler(async (req, res) => {
+    const data = await emailTemplatesService.get(String(req.params.id));
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.patch(
+  '/email-templates/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:write'),
+  asyncHandler(async (req, res) => {
+    const body = updateEmailTemplateSchema.parse(req.body ?? {});
+    const data = await emailTemplatesService.update(String(req.params.id), body, req.auth!.sub);
+    await recordAdminMutation(req, {
+      action: 'admin.email_template.updated',
+      relatedEntityType: 'email_template',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/email-templates/:id/send-test',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:write'),
+  asyncHandler(async (req, res) => {
+    const body = sendEmailTemplateTestSchema.parse(req.body ?? {});
+    const data = await emailTemplatesService.sendTest(String(req.params.id), body);
+    await recordAdminMutation(req, {
+      action: 'admin.email_template.test_sent',
+      relatedEntityType: 'email_template',
+      relatedEntityId: String(req.params.id),
+      metadata: { to: data.to, sent: data.sent },
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
 // Keep job retry/cancel under platform admin as well (alongside legacy mount).
 adminConsoleRouter.post(
   '/background-jobs/:id/retry',
+
   ...adminAuth,
   requireAdminPermission('admin:jobs:write'),
   asyncHandler(async (req, res) => {

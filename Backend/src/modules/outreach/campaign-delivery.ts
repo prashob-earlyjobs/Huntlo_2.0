@@ -36,6 +36,7 @@ import {
   resolveIntroduction,
   resolveVoiceTokens,
   syncVoiceAgent,
+  withCampaignVoiceAgentLock,
 } from '../voice/voice-dialer.service.js';
 import { buildRoshniAgentPrompt, qualificationQuestionsForRoshni } from '../voice/roshni-prompt.js';
 import { extendResultSchemaForQualificationQuestions } from '../voice/voice-qualification-sync.js';
@@ -47,9 +48,10 @@ import { OrganizationModel } from '../organizations/organization.model.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import { buildCandidateMergeContext, mergeMessageTemplate } from './variables.js';
-import type {
-  CampaignSequenceStep,
-  OutreachCampaignDocument,
+import {
+  OutreachCampaignModel,
+  type CampaignSequenceStep,
+  type OutreachCampaignDocument,
 } from './campaign.model.js';
 import type { OutreachEnrollmentDocument } from './enrollment.model.js';
 import {
@@ -678,11 +680,7 @@ async function launchVoiceCall(input: {
   const tokens = { ...jdTokens, ...input.mergeContext, campaign_name: input.campaign.name };
   const stepBody = String(input.step.body || input.step.note || '').trim();
   const stepUsesRoshniTemplate = stepBody.includes('You are Roshni');
-
-  const existingAgentId =
-    typeof input.campaign.voiceAgentConfig?.agentId === 'string'
-      ? String(input.campaign.voiceAgentConfig.agentId)
-      : null;
+  const campaignId = String(input.campaign._id);
 
   const storedPrompt =
     typeof input.campaign.voiceAgentConfig?.agentPrompt === 'string'
@@ -751,20 +749,41 @@ async function launchVoiceCall(input: {
     input.campaign.qualificationConfig?.questions || []
   );
 
-  const synced = await syncVoiceAgent({
-    name: `${input.campaign.name} · voice`.slice(0, 80),
-    agentPrompt,
-    objective,
-    introduction,
-    resultPrompt: qualificationExtras.resultPrompt,
-    resultSchema: qualificationExtras.resultSchema,
-    voicePersona: getHunarVoicePersona(),
-    language: getHunarVoiceLanguage(),
-    existingAgentId,
-  });
+  // Parallel enrollment jobs all load a stale campaign without agentId and race
+  // on Hunar create (500). Ensure agent once under a per-campaign lock, then dial.
+  const agentId = await withCampaignVoiceAgentLock(campaignId, async () => {
+    const fresh = await OutreachCampaignModel.findById(campaignId)
+      .select('voiceAgentConfig')
+      .lean();
+    const existingAgentId =
+      typeof fresh?.voiceAgentConfig?.agentId === 'string'
+        ? String(fresh.voiceAgentConfig.agentId).trim()
+        : typeof input.campaign.voiceAgentConfig?.agentId === 'string'
+          ? String(input.campaign.voiceAgentConfig.agentId).trim()
+          : '';
 
-  if (!existingAgentId || existingAgentId !== synced.agentId || stepUsesRoshniTemplate || !useStoredCustomPrompt) {
-    input.campaign.voiceAgentConfig = {
+    if (existingAgentId) {
+      if (!input.campaign.voiceAgentConfig) input.campaign.voiceAgentConfig = {};
+      input.campaign.voiceAgentConfig.agentId = existingAgentId;
+      return existingAgentId;
+    }
+
+    const synced = await syncVoiceAgent({
+      name: `${input.campaign.name} · voice`.slice(0, 80),
+      agentPrompt,
+      objective,
+      introduction,
+      resultPrompt: qualificationExtras.resultPrompt,
+      resultSchema: qualificationExtras.resultSchema,
+      voicePersona: getHunarVoicePersona(),
+      language: getHunarVoiceLanguage(),
+      existingAgentId: null,
+    });
+
+    const nextConfig = {
+      ...(typeof fresh?.voiceAgentConfig === 'object' && fresh.voiceAgentConfig
+        ? fresh.voiceAgentConfig
+        : {}),
       ...(input.campaign.voiceAgentConfig || {}),
       agentId: synced.agentId,
       objective,
@@ -773,9 +792,14 @@ async function launchVoiceCall(input: {
       resultPrompt: qualificationExtras.resultPrompt,
       updatedAt: new Date().toISOString(),
     };
-    input.campaign.markModified('voiceAgentConfig');
-    await input.campaign.save().catch(() => undefined);
-  }
+
+    await OutreachCampaignModel.updateOne(
+      { _id: campaignId },
+      { $set: { voiceAgentConfig: nextConfig } }
+    );
+    input.campaign.voiceAgentConfig = nextConfig;
+    return synced.agentId;
+  });
 
   const retry = normalizeVoiceRetryConfig(
     (input.campaign.voiceAgentConfig?.retry as {
@@ -788,8 +812,8 @@ async function launchVoiceCall(input: {
     organizationId: input.organizationId,
     userId: input.userId,
     source: 'outreach',
-    campaignId: String(input.campaign._id),
-    agentId: synced.agentId,
+    campaignId,
+    agentId,
     contacts: [
       {
         candidateId: input.candidateId,

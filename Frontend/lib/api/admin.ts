@@ -157,6 +157,20 @@ export type BlogArticle = {
   updatedAt?: string;
 };
 
+export type EmailTemplate = {
+  id: string;
+  key: string;
+  type: string;
+  dayOffset: number;
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText: string;
+  enabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type AdminPendingTask = {
   id: string;
   queue: "background" | "outreach" | "campaign";
@@ -254,6 +268,132 @@ export type AdminUsageHistoryResult = {
   };
 };
 
+export type AdminAttributedVisitsSummary = {
+  attributedVisits: number;
+  previousAttributedVisits: number;
+  windowDays: number;
+  change: string;
+  trend: "up" | "down" | "flat";
+  comparison: string;
+  updatedAt: string;
+};
+
+export type AdminAttributedVisitsBreakdown = {
+  windowDays: number;
+  total: number;
+  bySource: Array<{ source: string; visits: number }>;
+  byMedium: Array<{ medium: string; visits: number }>;
+  byCampaign: Array<{
+    source: string;
+    medium: string;
+    campaign: string;
+    visits: number;
+  }>;
+  recent: Array<{
+    id: string;
+    source: string;
+    medium: string;
+    campaign: string;
+    content: string | null;
+    term: string | null;
+    landingPage: string | null;
+    referrer: string | null;
+    createdAt: string;
+  }>;
+  updatedAt: string;
+};
+
+export type AdminUtmMetric = {
+  value: number;
+  previous: number;
+  change: string;
+  trend: "up" | "down" | "flat";
+  comparison: string;
+};
+
+export type AdminUtmOverview = {
+  windowDays: number;
+  visits: AdminUtmMetric;
+  signups: AdminUtmMetric;
+  demos: AdminUtmMetric;
+  conversions: AdminUtmMetric;
+  daily: Array<{
+    date: string;
+    label: string;
+    visits: number;
+    signups: number;
+    demos: number;
+    conversions: number;
+  }>;
+  campaigns: Array<{
+    id: string;
+    source: string;
+    medium: string;
+    campaign: string;
+    content: string;
+    term: string;
+    visits: number;
+    signups: number;
+    demos: number;
+    conversions: number;
+  }>;
+  recentEvents: Array<{
+    id: string;
+    when: string;
+    touch: "First" | "Last";
+    source: string;
+    medium: string;
+    campaign: string;
+    landingPage: string;
+    outcome: string;
+    eventType: string;
+  }>;
+  updatedAt: string;
+};
+
+export type AdminUtmCampaign = {
+  id: string;
+  name: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string | null;
+  utmTerm: string | null;
+  landingPath: string;
+  notes: string | null;
+  status: "active" | "archived";
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stats?: {
+    visits: number;
+    signups: number;
+    demos: number;
+    conversions: number;
+  };
+};
+
+export type AdminUtmCampaignList = {
+  windowDays: number;
+  items: AdminUtmCampaign[];
+  updatedAt: string;
+};
+
+export type CreateAdminUtmCampaignInput = {
+  name: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent?: string | null;
+  utmTerm?: string | null;
+  landingPath?: string;
+  notes?: string | null;
+};
+
+export type UpdateAdminUtmCampaignInput = Partial<CreateAdminUtmCampaignInput> & {
+  status?: "active" | "archived";
+};
+
 export type Paginated<T> = {
   items: T[];
   total: number;
@@ -293,6 +433,33 @@ export interface AdminApi {
     page?: number;
     limit?: number;
   }): Promise<AdminUsageHistoryResult>;
+  getAttributedVisits(params?: {
+    days?: number;
+    from?: string;
+    to?: string;
+  }): Promise<AdminAttributedVisitsSummary>;
+  getAttributedVisitsBreakdown(params?: {
+    days?: number;
+    from?: string;
+    to?: string;
+  }): Promise<AdminAttributedVisitsBreakdown>;
+  getUtmOverview(params?: {
+    days?: number;
+    from?: string;
+    to?: string;
+  }): Promise<AdminUtmOverview>;
+  listUtmCampaigns(params?: {
+    days?: number;
+    from?: string;
+    to?: string;
+    status?: "active" | "archived" | "all";
+  }): Promise<AdminUtmCampaignList>;
+  createUtmCampaign(input: CreateAdminUtmCampaignInput): Promise<AdminUtmCampaign>;
+  updateUtmCampaign(
+    id: string,
+    input: UpdateAdminUtmCampaignInput
+  ): Promise<AdminUtmCampaign>;
+  archiveUtmCampaign(id: string): Promise<AdminUtmCampaign>;
   listCandidates(params?: { page?: number; limit?: number; q?: string }): Promise<Paginated<AdminCandidate>>;
   listCampaigns(params?: {
     page?: number;
@@ -329,6 +496,13 @@ export interface AdminApi {
   deleteBlog(id: string): Promise<{ deleted: boolean }>;
   publishBlog(id: string): Promise<BlogArticle>;
   unpublishBlog(id: string): Promise<BlogArticle>;
+  listEmailTemplates(params?: { type?: string }): Promise<{ items: EmailTemplate[] }>;
+  getEmailTemplate(id: string): Promise<EmailTemplate>;
+  updateEmailTemplate(id: string, input: Record<string, unknown>): Promise<EmailTemplate>;
+  sendEmailTemplateTest(
+    id: string,
+    input: { to: string; firstName?: string }
+  ): Promise<{ sent: boolean; to: string; subject: string; mailConfigured: boolean }>;
 }
 
 const liveAdminApi: AdminApi = {
@@ -428,6 +602,50 @@ const liveAdminApi: AdminApi = {
   async getUsageAnalyticsHistory(params) {
     const result = await apiClient.get<AdminUsageHistoryResult>(
       `/admin/usage-analytics/history${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getAttributedVisits(params) {
+    const result = await apiClient.get<AdminAttributedVisitsSummary>(
+      `/admin/utm/attributed-visits${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getAttributedVisitsBreakdown(params) {
+    const result = await apiClient.get<AdminAttributedVisitsBreakdown>(
+      `/admin/utm/attributed-visits/breakdown${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getUtmOverview(params) {
+    const result = await apiClient.get<AdminUtmOverview>(
+      `/admin/utm/overview${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async listUtmCampaigns(params) {
+    const result = await apiClient.get<AdminUtmCampaignList>(
+      `/admin/utm/campaigns${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async createUtmCampaign(input) {
+    const result = await apiClient.post<AdminUtmCampaign>(
+      "/admin/utm/campaigns",
+      input
+    );
+    return result.data;
+  },
+  async updateUtmCampaign(id, input) {
+    const result = await apiClient.patch<AdminUtmCampaign>(
+      `/admin/utm/campaigns/${id}`,
+      input
+    );
+    return result.data;
+  },
+  async archiveUtmCampaign(id) {
+    const result = await apiClient.post<AdminUtmCampaign>(
+      `/admin/utm/campaigns/${id}/archive`
     );
     return result.data;
   },
@@ -531,6 +749,29 @@ const liveAdminApi: AdminApi = {
   },
   async unpublishBlog(id) {
     const result = await apiClient.post<BlogArticle>(`/admin/blog/${id}/unpublish`);
+    return result.data;
+  },
+  async listEmailTemplates(params) {
+    const result = await apiClient.get<{ items: EmailTemplate[] }>(
+      `/admin/email-templates${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getEmailTemplate(id) {
+    const result = await apiClient.get<EmailTemplate>(`/admin/email-templates/${id}`);
+    return result.data;
+  },
+  async updateEmailTemplate(id, input) {
+    const result = await apiClient.patch<EmailTemplate>(`/admin/email-templates/${id}`, input);
+    return result.data;
+  },
+  async sendEmailTemplateTest(id, input) {
+    const result = await apiClient.post<{
+      sent: boolean;
+      to: string;
+      subject: string;
+      mailConfigured: boolean;
+    }>(`/admin/email-templates/${id}/send-test`, input);
     return result.data;
   },
 };
@@ -829,6 +1070,133 @@ const mockAdminApi: AdminApi = {
         },
       ],
       pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    };
+  },
+  async getAttributedVisits() {
+    await simulateMockLatency();
+    return {
+      attributedVisits: 0,
+      previousAttributedVisits: 0,
+      windowDays: 30,
+      change: "0%",
+      trend: "flat" as const,
+      comparison: "vs prior 30 days",
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async getAttributedVisitsBreakdown() {
+    await simulateMockLatency();
+    return {
+      windowDays: 30,
+      total: 0,
+      bySource: [],
+      byMedium: [],
+      byCampaign: [],
+      recent: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async getUtmOverview() {
+    await simulateMockLatency();
+    return {
+      windowDays: 30,
+      visits: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "vs prior 30 days",
+      },
+      signups: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "attributed signups",
+      },
+      demos: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "Book Demo clicks",
+      },
+      conversions: {
+        value: 0,
+        previous: 0,
+        change: "0%",
+        trend: "flat" as const,
+        comparison: "signup conversions",
+      },
+      daily: [],
+      campaigns: [],
+      recentEvents: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async listUtmCampaigns() {
+    await simulateMockLatency();
+    return {
+      windowDays: 30,
+      items: [],
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async createUtmCampaign(input) {
+    await simulateMockLatency();
+    return {
+      id: `utm_camp_${Date.now()}`,
+      name: input.name,
+      utmSource: input.utmSource,
+      utmMedium: input.utmMedium,
+      utmCampaign: input.utmCampaign,
+      utmContent: input.utmContent ?? null,
+      utmTerm: input.utmTerm ?? null,
+      landingPath: input.landingPath || "/",
+      notes: input.notes ?? null,
+      status: "active" as const,
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      stats: { visits: 0, signups: 0, demos: 0, conversions: 0 },
+    };
+  },
+  async updateUtmCampaign(id, input) {
+    await simulateMockLatency();
+    return {
+      id,
+      name: input.name || "Campaign",
+      utmSource: input.utmSource || "source",
+      utmMedium: input.utmMedium || "medium",
+      utmCampaign: input.utmCampaign || "campaign",
+      utmContent: input.utmContent ?? null,
+      utmTerm: input.utmTerm ?? null,
+      landingPath: input.landingPath || "/",
+      notes: input.notes ?? null,
+      status: input.status || "active",
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      stats: { visits: 0, signups: 0, demos: 0, conversions: 0 },
+    };
+  },
+  async archiveUtmCampaign(id) {
+    await simulateMockLatency();
+    return {
+      id,
+      name: "Archived campaign",
+      utmSource: "source",
+      utmMedium: "medium",
+      utmCampaign: "campaign",
+      utmContent: null,
+      utmTerm: null,
+      landingPath: "/",
+      notes: null,
+      status: "archived" as const,
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      stats: { visits: 0, signups: 0, demos: 0, conversions: 0 },
     };
   },
   async listCandidates() {
@@ -1157,6 +1525,131 @@ const mockAdminApi: AdminApi = {
   async unpublishBlog(id) {
     const article = await this.publishBlog(id);
     return { ...article, status: "draft", publishedAt: null };
+  },
+  async listEmailTemplates(params) {
+    await simulateMockLatency();
+    const eventItems: EmailTemplate[] = [
+      {
+        id: "email_tpl_event_first_search",
+        key: "event.first_search_completed",
+        type: "event",
+        dayOffset: 0,
+        name: "Search completed · unlock nudge",
+        subject: "Your shortlist is ready.",
+        bodyHtml:
+          "<p>Hi {{firstName}},</p><p>Great start.</p><p>Now unlock a profile to view verified contact details and continue your hiring workflow.</p>",
+        bodyText:
+          "Hi {{firstName}},\n\nGreat start.\n\nNow unlock a profile to view verified contact details and continue your hiring workflow.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_no_search",
+        key: "event.no_search",
+        type: "event",
+        dayOffset: 1,
+        name: "No search · cool-off nudge",
+        subject: "Stop searching with filters. Start hiring with intent.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Simply describe your ideal hire.</p>",
+        bodyText: "Hi {{firstName}},\n\nSimply describe your ideal hire.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_campaign_draft",
+        key: "event.campaign_draft",
+        type: "event",
+        dayOffset: 2,
+        name: "Campaign draft · launch nudge",
+        subject: "Your campaign is almost ready.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Review and launch your campaign today.</p>",
+        bodyText: "Hi {{firstName}},\n\nReview and launch your campaign today.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_campaign_live",
+        key: "event.campaign_live",
+        type: "event",
+        dayOffset: 3,
+        name: "Campaign live · confirmation",
+        subject: "Your campaign is live.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>We'll notify you as replies arrive.</p>",
+        bodyText: "Hi {{firstName}},\n\nWe'll notify you as replies arrive.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_no_replies",
+        key: "event.no_replies",
+        type: "event",
+        dayOffset: 4,
+        name: "No replies · optimize nudge",
+        subject: "Let's improve your response rate.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Review your campaign and continue hiring.</p>",
+        bodyText: "Hi {{firstName}},\n\nReview your campaign and continue hiring.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_first_reply",
+        key: "event.first_reply",
+        type: "event",
+        dayOffset: 5,
+        name: "First reply · habit loop",
+        subject: "Someone replied.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Continue the conversation inside Huntlo.</p>",
+        bodyText: "Hi {{firstName}},\n\nContinue the conversation inside Huntlo.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_try_ai_voice",
+        key: "event.try_ai_voice",
+        type: "event",
+        dayOffset: 6,
+        name: "Try AI Voice · cool-off nudge",
+        subject: "Let AI qualify candidates for you.",
+        bodyHtml:
+          "<p>Hi {{firstName}},</p><p>Let Huntlo's AI Voice Recruiter handle the first conversation.</p>",
+        bodyText:
+          "Hi {{firstName}},\n\nLet Huntlo's AI Voice Recruiter handle the first conversation.",
+        enabled: true,
+      },
+    ];
+    const dripItems: EmailTemplate[] = [0, 6, 7].map((dayOffset) => ({
+      id: `email_tpl_${dayOffset}`,
+      key: `post_signup.day_${dayOffset}`,
+      type: "post_signup" as const,
+      dayOffset,
+      name: `Day ${dayOffset}`,
+      subject: `Mock subject day ${dayOffset}`,
+      bodyHtml: `<p>Hi {{firstName}}, mock body for day ${dayOffset}.</p>`,
+      bodyText: `Hi {{firstName}}, mock body for day ${dayOffset}.`,
+      enabled: true,
+    }));
+
+    if (params?.type === "event") return { items: eventItems };
+    if (params?.type === "post_signup") return { items: dripItems };
+    return { items: [...dripItems, ...eventItems] };
+  },
+  async getEmailTemplate(id) {
+    const { items } = await this.listEmailTemplates();
+    return items.find((item) => item.id === id) ?? items[0];
+  },
+  async updateEmailTemplate(id, input) {
+    const existing = await this.getEmailTemplate(id);
+    return {
+      ...existing,
+      name: String(input.name ?? existing.name),
+      subject: String(input.subject ?? existing.subject),
+      bodyHtml: String(input.bodyHtml ?? existing.bodyHtml),
+      bodyText: String(input.bodyText ?? existing.bodyText),
+      enabled: input.enabled !== undefined ? Boolean(input.enabled) : existing.enabled,
+    };
+  },
+  async sendEmailTemplateTest(_id, input) {
+    await simulateMockLatency();
+    return {
+      sent: true,
+      to: input.to,
+      subject: "Mock test email",
+      mailConfigured: true,
+    };
   },
 };
 

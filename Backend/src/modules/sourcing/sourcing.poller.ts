@@ -302,6 +302,29 @@ async function finalizeSession(
         actionUrl: `/dashboard/sessions/${sessionId}`,
       })
       .catch(() => undefined);
+
+    // First completed/partial search → lifecycle email (idempotent).
+    try {
+      const ownerId = session.ownerUserId;
+      const priorCompleted = await SourcingSessionModel.countDocuments({
+        $or: [{ userId: ownerId }, { ownerUserId: ownerId }],
+        status: { $in: ['completed', 'partial'] },
+        _id: { $ne: session._id },
+      });
+      if (priorCompleted === 0) {
+        const { emailTemplatesService } = await import(
+          '../admin/email-templates.service.js'
+        );
+        void emailTemplatesService
+          .onFirstSearchCompleted({
+            userId: ownerId,
+            sessionId: session._id,
+          })
+          .catch(() => undefined);
+      }
+    } catch {
+      // Never block search completion on mail failures.
+    }
   }
 }
 

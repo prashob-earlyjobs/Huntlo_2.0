@@ -13,15 +13,16 @@ export function getOutreachQueue(): Queue {
 }
 
 export async function pushToQueue(mongoJobId: string): Promise<void> {
+  // Mongo + cron owns retry policy (up to 5). BullMQ should run once per push;
+  // a stable jobId would block re-queue after Redis marks the job failed.
   await getOutreachQueue().add(
     'run',
     { mongoJobId },
     {
-      jobId: mongoJobId,
+      jobId: `${mongoJobId}-${Date.now()}`,
       removeOnComplete: 1000,
       removeOnFail: 2000,
-      attempts: 3,
-      backoff: { type: 'fixed', delay: 30_000 },
+      attempts: 1,
     }
   );
 }
