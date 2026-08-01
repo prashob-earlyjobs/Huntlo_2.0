@@ -219,6 +219,19 @@ async function createLedgerEntry(options: {
       contactCacheId: options.contactCacheId,
       quotaTransactionId: options.quotaTransactionId,
       revealedAt: new Date(),
+    }).then(async (created) => {
+      // Event 11 — schedule AI Voice nudge 24h after first unlock (idempotent).
+      const unlockCount = await RevealedContactModel.countDocuments({
+        userId: options.userId,
+      });
+      if (unlockCount === 1) {
+        void import('../admin/email-templates.service.js')
+          .then(({ emailTemplatesService }) =>
+            emailTemplatesService.onProfileUnlocked({ userId: options.userId })
+          )
+          .catch(() => undefined);
+      }
+      return created;
     });
   } catch (error) {
     if (

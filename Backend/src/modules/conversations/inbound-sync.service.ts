@@ -1434,6 +1434,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       return { lateLosing: true };
     }
 
+    const wasFirstReply = !target.replyState?.hasReply;
     const isFirstWinner = !existingWinner && Boolean(replyChannel);
     target.replyState = {
       hasReply: true,
@@ -1454,6 +1455,15 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     await target.save();
 
     const campaign = await OutreachCampaignModel.findById(target.campaignId);
+    if (wasFirstReply && campaign?.ownerUserId && !looksLikeOptOut(input.bodyText)) {
+      void import('../admin/email-templates.service.js')
+        .then(({ emailTemplatesService }) =>
+          emailTemplatesService.onFirstReply({
+            userId: String(campaign.ownerUserId),
+          })
+        )
+        .catch(() => undefined);
+    }
     const currentStep = campaign?.sequenceSteps?.[target.currentStepIndex];
     const shouldStop =
       looksLikeOptOut(input.bodyText) ||

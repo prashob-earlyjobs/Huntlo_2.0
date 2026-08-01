@@ -297,9 +297,10 @@ export async function syncVoiceAgent(input: VoiceAgentConfigInput): Promise<{ ag
 
 export function toHunarMobile(phone: string): string | null {
   try {
+    // Hunar requires E.164 with leading '+' (e.g. +919876543210).
     const normalized = normalizePhone(phone);
     const digits = normalized.replace(/\D/g, '');
-    return digits.length >= 10 ? digits : null;
+    return digits.length >= 10 && normalized.startsWith('+') ? normalized : null;
   } catch {
     return null;
   }
@@ -389,17 +390,18 @@ export async function launchBulkVoiceCalls(input: {
       skippedInvalid += 1;
       continue;
     }
-    if (seen.has(mobile)) {
+    const mobileDigits = mobile.replace(/\D/g, '');
+    if (seen.has(mobileDigits)) {
       skippedInvalid += 1;
       continue;
     }
-    seen.add(mobile);
+    seen.add(mobileDigits);
     callees.push({
       callee_name: contact.name || 'Candidate',
       mobile_number: mobile,
       custom_data: contact.customData || {},
     });
-    seeded.push({ ...contact, mobileDigits: mobile });
+    seeded.push({ ...contact, mobileDigits });
   }
 
   if (!callees.length) {
@@ -410,9 +412,12 @@ export async function launchBulkVoiceCalls(input: {
     );
   }
 
-  const requestId =
+  const requestId = (
     String(input.requestId || '').trim() ||
-    `${input.campaignId || input.screeningId || 'voice'}-${randomUUID()}`;
+    `${input.campaignId || input.screeningId || 'voice'}-${randomUUID()}`
+  )
+    .replace(/[^a-zA-Z0-9_.-]/g, '-')
+    .slice(0, 64);
   const retry = input.retryConfig || { maxRetryCount: 0, retryIntervalHours: 0 };
 
   const reservationKeys = new Map<string, string>();
@@ -476,12 +481,35 @@ export async function launchBulkVoiceCalls(input: {
       {
         requestId: bulk.requestId,
         dialedCount: bulk.dialedCount,
+        submittedCount: callees.length,
+        phones: callees.map((c) => c.mobile_number),
+        hunarResponse:
+          bulk.response && typeof bulk.response === 'object'
+            ? {
+                message: (bulk.response as { message?: unknown }).message,
+                status: (bulk.response as { status?: unknown }).status,
+                error: (bulk.response as { error?: unknown }).error,
+                dataKeys:
+                  (bulk.response as { data?: unknown }).data &&
+                  typeof (bulk.response as { data?: unknown }).data === 'object'
+                    ? Object.keys((bulk.response as { data: Record<string, unknown> }).data)
+                    : [],
+              }
+            : bulk.response,
         source: input.source,
         campaignId: input.campaignId,
         screeningId: input.screeningId,
       },
       'Hunar bulk voice launch accepted'
     );
+
+    if (bulk.dialedCount > 0) {
+      void import('../admin/email-templates.service.js')
+        .then(({ emailTemplatesService }) =>
+          emailTemplatesService.onAiVoiceUsed({ userId: input.userId })
+        )
+        .catch(() => undefined);
+    }
 
     return {
       requestId: bulk.requestId,

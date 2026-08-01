@@ -11,6 +11,7 @@ import { UtmVisitModel } from './utm-visit.model.js';
 import type {
   CreateUtmCampaignInput,
   UpdateUtmCampaignInput,
+  UtmDateRangeQuery,
 } from './utm.validation.js';
 
 function clean(value: unknown, max = 160): string | null {
@@ -59,14 +60,41 @@ function percentChange(current: number, previous: number): {
   };
 }
 
-function windowRange(days: number) {
-  const windowDays = Math.min(90, Math.max(1, Math.floor(days)));
-  const now = new Date();
-  const currentStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
+function windowRange(input: {
+  from?: string;
+  to?: string;
+  days?: number;
+} | number) {
+  const params = typeof input === 'number' ? { days: input } : input;
+
+  let from = params.from;
+  let to = params.to;
+
+  if (!from || !to) {
+    const windowDays = Math.min(365, Math.max(1, Math.floor(params.days ?? 30)));
+    const end = new Date();
+    to = utcDayKey(end);
+    const start = new Date(`${to}T00:00:00.000Z`);
+    start.setUTCDate(start.getUTCDate() - (windowDays - 1));
+    from = utcDayKey(start);
+  }
+
+  const currentStart = new Date(`${from}T00:00:00.000Z`);
+  const rangeEnd = new Date(`${to}T23:59:59.999Z`);
+  const windowDays =
+    Math.round(
+      (new Date(`${to}T00:00:00.000Z`).getTime() - currentStart.getTime()) /
+        86_400_000
+    ) + 1;
   const previousStart = new Date(
-    currentStart.getTime() - windowDays * 24 * 60 * 60 * 1000
+    currentStart.getTime() - windowDays * 86_400_000
   );
-  return { windowDays, now, currentStart, previousStart };
+  return {
+    windowDays,
+    now: rangeEnd,
+    currentStart,
+    previousStart,
+  };
 }
 
 function normalizeAttribution(input: {
@@ -235,8 +263,8 @@ export const utmService = {
     };
   },
 
-  async getAttributedVisitsSummary(days = 30) {
-    const { windowDays, now, currentStart, previousStart } = windowRange(days);
+  async getAttributedVisitsSummary(range: UtmDateRangeQuery | number = 30) {
+    const { windowDays, now, currentStart, previousStart } = windowRange(range);
 
     const [current, previous] = await Promise.all([
       UtmVisitModel.countDocuments({ createdAt: { $gte: currentStart, $lte: now } }),
@@ -257,8 +285,8 @@ export const utmService = {
     };
   },
 
-  async getOverview(days = 30) {
-    const { windowDays, now, currentStart, previousStart } = windowRange(days);
+  async getOverview(range: UtmDateRangeQuery | number = 30) {
+    const { windowDays, now, currentStart, previousStart } = windowRange(range);
     const currentMatch = { createdAt: { $gte: currentStart, $lte: now } };
     const previousMatch = { createdAt: { $gte: previousStart, $lt: currentStart } };
 
@@ -457,8 +485,8 @@ export const utmService = {
       demos: number;
       conversions: number;
     }> = [];
-    for (let i = windowDays - 1; i >= 0; i -= 1) {
-      const day = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    for (let i = 0; i < windowDays; i += 1) {
+      const day = new Date(currentStart.getTime() + i * 86_400_000);
       const date = utcDayKey(day);
       const events = eventsDayMap.get(date) ?? {
         signups: 0,
@@ -505,8 +533,11 @@ export const utmService = {
     };
   },
 
-  async getAttributedVisitsBreakdown(days = 30, recentLimit = 25) {
-    const { windowDays, now, currentStart } = windowRange(days);
+  async getAttributedVisitsBreakdown(
+    range: UtmDateRangeQuery | number = 30,
+    recentLimit = 25
+  ) {
+    const { windowDays, now, currentStart } = windowRange(range);
     const limit = Math.min(100, Math.max(1, Math.floor(recentLimit)));
     const match = { createdAt: { $gte: currentStart, $lte: now } };
 
@@ -632,11 +663,12 @@ export const utmService = {
     }
   },
 
-  async listCampaigns(input: {
-    days?: number;
-    status?: 'active' | 'archived' | 'all';
-  } = {}) {
-    const { windowDays, now, currentStart } = windowRange(input.days ?? 30);
+  async listCampaigns(
+    input: UtmDateRangeQuery & {
+      status?: 'active' | 'archived' | 'all';
+    } = { days: 30 }
+  ) {
+    const { windowDays, now, currentStart } = windowRange(input);
     const statusFilter =
       input.status === 'all'
         ? {}

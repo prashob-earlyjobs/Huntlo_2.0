@@ -29,6 +29,8 @@ export const ADMIN_PERMISSIONS = [
   'admin:settings:write',
   'admin:blog:read',
   'admin:blog:write',
+  'admin:email-templates:read',
+  'admin:email-templates:write',
   'admin:utm:write',
 ] as const;
 
@@ -61,6 +63,28 @@ export async function isPlatformAdminUser(user: {
 }
 
 /**
+ * Resolve stored admin permission grants.
+ * Empty / `*` → full access. Full-catalogue snapshots (from create-platform-admin)
+ * are expanded to include any permissions added since the user was provisioned.
+ */
+export function resolveAdminPermissions(stored: unknown): string[] {
+  const list = Array.isArray(stored) ? stored.map(String).filter(Boolean) : [];
+  if (list.length === 0 || list.includes('*')) {
+    return ['*'];
+  }
+
+  const storedSet = new Set(list);
+  const heldCount = ADMIN_PERMISSIONS.filter((p) => storedSet.has(p)).length;
+  // create-platform-admin stores the full catalogue; keep those admins current
+  // when new permissions are introduced (allow a small gap for newly added keys).
+  const wasFullCatalogueAdmin = heldCount >= Math.max(1, ADMIN_PERMISSIONS.length - 8);
+  if (wasFullCatalogueAdmin) {
+    return Array.from(new Set([...list, ...ADMIN_PERMISSIONS]));
+  }
+  return list;
+}
+
+/**
  * Platform admin gate — never grant based on organization owner/admin role alone.
  * Must run after requireAuth.
  */
@@ -85,13 +109,8 @@ export const requireAdmin = asyncHandler(
       throw AppError.forbidden('Platform admin access required');
     }
 
-    const permissions =
-      Array.isArray(user.adminPermissions) && user.adminPermissions.length > 0
-        ? user.adminPermissions.map(String)
-        : ['*'];
-
     req.platformAdmin = true;
-    req.adminPermissions = permissions;
+    req.adminPermissions = resolveAdminPermissions(user.adminPermissions);
     next();
   }
 );

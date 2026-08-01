@@ -26,6 +26,10 @@ import {
 } from "lucide-react";
 
 import { OverviewMetricCard } from "@/components/dashboard/overview-metric-card";
+import {
+  getDefaultUtmDateRange,
+  UtmDateRangeControls,
+} from "@/components/admin/utm-date-range-controls";
 import { FormSection } from "@/components/shared/form-section";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -62,12 +66,6 @@ import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
-const DAY_OPTIONS = [
-  { value: "7", label: "Last 7 days" },
-  { value: "14", label: "Last 14 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
-] as const;
 
 const TREND_CONFIG = {
   visits: { label: "Visits", color: "var(--chart-1)" },
@@ -146,7 +144,7 @@ function FunnelStep({
 }
 
 export function AdminUtmWorkspace() {
-  const [days, setDays] = useState("30");
+  const [range, setRange] = useState(getDefaultUtmDateRange);
   const [query, setQuery] = useState("");
   const [medium, setMedium] = useState("all");
   const [page, setPage] = useState(1);
@@ -159,7 +157,7 @@ export function AdminUtmWorkspace() {
     let cancelled = false;
     setLoading(true);
     void adminApi
-      .getUtmOverview({ days: Number(days) })
+      .getUtmOverview({ from: range.from, to: range.to })
       .then((data) => {
         if (cancelled) return;
         setOverview(data);
@@ -176,7 +174,7 @@ export function AdminUtmWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [days]);
+  }, [range.from, range.to]);
 
   const metrics = useMemo<OverviewMetric[]>(() => {
     const visits = overview?.visits;
@@ -191,7 +189,7 @@ export function AdminUtmWorkspace() {
         value: visits ? formatNumber(visits.value) : loading ? "…" : "0",
         change: visits?.change ?? "—",
         trend: visits?.trend ?? "flat",
-        comparison: visits?.comparison ?? `last ${days} days`,
+        comparison: visits?.comparison ?? `${range.from} → ${range.to}`,
         tooltip:
           "Unique browser sessions (per day) that arrived with UTM parameters. Click for breakdown.",
         icon: MousePointerClick,
@@ -232,7 +230,7 @@ export function AdminUtmWorkspace() {
         icon: Target,
       },
     ];
-  }, [days, loading, overview]);
+  }, [loading, overview, range.from, range.to]);
 
   const filteredRows = useMemo(() => {
     const rows = overview?.campaigns ?? [];
@@ -249,7 +247,7 @@ export function AdminUtmWorkspace() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, medium, pageSize, days]);
+  }, [query, medium, pageSize, range.from, range.to]);
 
   const totalCampaignRows = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalCampaignRows / pageSize));
@@ -334,21 +332,12 @@ export function AdminUtmWorkspace() {
         description="Track which sources, mediums, and campaigns drive visits, signups, demos, and conversions."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={days}
-              onValueChange={(value) => setDays(value ?? "30")}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Range" />
-              </SelectTrigger>
-              <SelectContent>
-                {DAY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <UtmDateRangeControls
+              from={range.from}
+              to={range.to}
+              onChange={setRange}
+              disabled={loading}
+            />
             <Button
               variant="outline"
               size="sm"
@@ -408,7 +397,7 @@ export function AdminUtmWorkspace() {
       <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
         <FormSection
           title="Attribution trend"
-          description={`Daily visits, signups, demos, and conversions over the last ${days} days.`}
+          description={`Daily visits, signups, demos, and conversions from ${range.from} to ${range.to}.`}
         >
           {loading ? (
             <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
