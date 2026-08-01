@@ -522,6 +522,15 @@ export const campaignsService = {
       detail: doc.name,
     });
 
+    void import('../admin/email-templates.service.js')
+      .then(({ emailTemplatesService }) =>
+        emailTemplatesService.onCampaignDraftCreated({
+          userId: ownerUserId,
+          campaignId: String(doc._id),
+        })
+      )
+      .catch(() => undefined);
+
     return toSafeCampaign(doc, {
       ownerName: await ownerName(ownerUserId),
       relatedJobTitle: await jobTitle(doc.jobId),
@@ -999,6 +1008,15 @@ export const campaignsService = {
       title: 'Campaign launched',
       detail: `${eligible.length} enrollment(s) activated`,
     });
+
+    void import('../admin/email-templates.service.js')
+      .then(({ emailTemplatesService }) =>
+        emailTemplatesService.onCampaignLaunched({
+          userId: String(locked.ownerUserId),
+          campaignId: id,
+        })
+      )
+      .catch(() => undefined);
 
     emitOutreachCampaignUpdated({
       organizationId,

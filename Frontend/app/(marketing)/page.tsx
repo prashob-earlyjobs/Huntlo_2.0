@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { LandingPage } from "@/components/landing/LandingPage";
+import { ZohoSalesIqWidget } from "@/components/marketing/ZohoSalesIqWidget";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HOMEPAGE_FAQS } from "@/lib/homepageFaqs";
 import {
@@ -34,6 +35,7 @@ export default async function Home() {
         ]}
       />
       <LandingPage pricingPlans={pricingPlans} />
+      <ZohoSalesIqWidget />
     </>
   );
 }

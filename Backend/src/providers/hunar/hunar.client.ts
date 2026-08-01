@@ -32,7 +32,7 @@ export type HunarBulkCallsPayload = {
   data: HunarCalleeRow[];
   request_id: string;
   retry_config: { max_retry_count: number; retry_interval_hours: number };
-  timezone: null;
+  timezone?: string;
   callback_config: {
     call_status_callback_url: string;
     call_recording_callback_url: string;
@@ -41,7 +41,7 @@ export type HunarBulkCallsPayload = {
   };
   remove_invalid_rows: true;
   remove_duplicate_phone_numbers: true;
-  from_phone_number: null;
+  from_phone_number?: string;
 };
 
 export type HunarRetryConfig = {
@@ -271,24 +271,56 @@ export async function createHunarBulkCalls(input: {
     throw err;
   }
 
-  const requestId = input.requestId || `${entityId}-${randomUUID()}`;
+  // Hunar request_id max length is 64 (alphanumeric + _ - .)
+  const requestId = String(input.requestId || `${entityId}-${randomUUID()}`)
+    .replace(/[^a-zA-Z0-9_.-]/g, '-')
+    .slice(0, 64);
   const callbackParam = input.campaignId && !input.screeningId ? 'campaignId' : 'screeningId';
   const payload: HunarBulkCallsPayload = {
     agent_id: agentId,
     data: input.callees,
     request_id: requestId,
     retry_config: buildHunarRetryConfig(input.retryConfig),
-    timezone: null,
+    // Omit timezone / from_phone_number so Hunar uses org defaults (docs: null not a valid timezone).
     callback_config: buildHunarCallbackUrls(entityId, callbackParam),
     remove_invalid_rows: true,
     remove_duplicate_phone_numbers: true,
-    from_phone_number: null,
   };
 
   const body = await requestHunarJson('POST', HUNAR_BULK_CALLS_URL, payload);
+
+  // Docs: bulk success returns an array of created call objects. With
+  // remove_invalid_rows=true, invalid E.164 numbers are silently dropped.
+  const createdCalls = Array.isArray(body)
+    ? body
+    : Array.isArray((body as { data?: unknown })?.data)
+      ? ((body as { data: unknown[] }).data)
+      : Array.isArray((body as { results?: unknown })?.results)
+        ? ((body as { results: unknown[] }).results)
+        : null;
+
+  const dialedCount = createdCalls
+    ? createdCalls.length
+    : Number(
+        (body as { accepted_count?: unknown; dialed_count?: unknown })?.accepted_count ??
+          (body as { dialed_count?: unknown })?.dialed_count ??
+          NaN
+      );
+
+  if (createdCalls && createdCalls.length === 0) {
+    const err = new Error(
+      'Hunar accepted the bulk request but created 0 calls. Check mobile numbers are E.164 (e.g. +9198…) and that the agent is ACTIVE.'
+    );
+    (err as Error & { code?: string; statusCode?: number; details?: unknown }).code =
+      'HUNAR_BULK_EMPTY';
+    (err as Error & { statusCode?: number }).statusCode = 502;
+    (err as Error & { details?: unknown }).details = body;
+    throw err;
+  }
+
   return {
     requestId,
-    dialedCount: input.callees.length,
+    dialedCount: Number.isFinite(dialedCount) ? dialedCount : input.callees.length,
     response: body,
   };
 }

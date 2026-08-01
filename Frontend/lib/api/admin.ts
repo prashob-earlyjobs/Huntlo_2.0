@@ -157,6 +157,20 @@ export type BlogArticle = {
   updatedAt?: string;
 };
 
+export type EmailTemplate = {
+  id: string;
+  key: string;
+  type: string;
+  dayOffset: number;
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText: string;
+  enabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type AdminPendingTask = {
   id: string;
   queue: "background" | "outreach" | "campaign";
@@ -419,13 +433,25 @@ export interface AdminApi {
     page?: number;
     limit?: number;
   }): Promise<AdminUsageHistoryResult>;
-  getAttributedVisits(params?: { days?: number }): Promise<AdminAttributedVisitsSummary>;
+  getAttributedVisits(params?: {
+    days?: number;
+    from?: string;
+    to?: string;
+  }): Promise<AdminAttributedVisitsSummary>;
   getAttributedVisitsBreakdown(params?: {
     days?: number;
+    from?: string;
+    to?: string;
   }): Promise<AdminAttributedVisitsBreakdown>;
-  getUtmOverview(params?: { days?: number }): Promise<AdminUtmOverview>;
+  getUtmOverview(params?: {
+    days?: number;
+    from?: string;
+    to?: string;
+  }): Promise<AdminUtmOverview>;
   listUtmCampaigns(params?: {
     days?: number;
+    from?: string;
+    to?: string;
     status?: "active" | "archived" | "all";
   }): Promise<AdminUtmCampaignList>;
   createUtmCampaign(input: CreateAdminUtmCampaignInput): Promise<AdminUtmCampaign>;
@@ -470,6 +496,13 @@ export interface AdminApi {
   deleteBlog(id: string): Promise<{ deleted: boolean }>;
   publishBlog(id: string): Promise<BlogArticle>;
   unpublishBlog(id: string): Promise<BlogArticle>;
+  listEmailTemplates(params?: { type?: string }): Promise<{ items: EmailTemplate[] }>;
+  getEmailTemplate(id: string): Promise<EmailTemplate>;
+  updateEmailTemplate(id: string, input: Record<string, unknown>): Promise<EmailTemplate>;
+  sendEmailTemplateTest(
+    id: string,
+    input: { to: string; firstName?: string }
+  ): Promise<{ sent: boolean; to: string; subject: string; mailConfigured: boolean }>;
 }
 
 const liveAdminApi: AdminApi = {
@@ -716,6 +749,29 @@ const liveAdminApi: AdminApi = {
   },
   async unpublishBlog(id) {
     const result = await apiClient.post<BlogArticle>(`/admin/blog/${id}/unpublish`);
+    return result.data;
+  },
+  async listEmailTemplates(params) {
+    const result = await apiClient.get<{ items: EmailTemplate[] }>(
+      `/admin/email-templates${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async getEmailTemplate(id) {
+    const result = await apiClient.get<EmailTemplate>(`/admin/email-templates/${id}`);
+    return result.data;
+  },
+  async updateEmailTemplate(id, input) {
+    const result = await apiClient.patch<EmailTemplate>(`/admin/email-templates/${id}`, input);
+    return result.data;
+  },
+  async sendEmailTemplateTest(id, input) {
+    const result = await apiClient.post<{
+      sent: boolean;
+      to: string;
+      subject: string;
+      mailConfigured: boolean;
+    }>(`/admin/email-templates/${id}/send-test`, input);
     return result.data;
   },
 };
@@ -1469,6 +1525,131 @@ const mockAdminApi: AdminApi = {
   async unpublishBlog(id) {
     const article = await this.publishBlog(id);
     return { ...article, status: "draft", publishedAt: null };
+  },
+  async listEmailTemplates(params) {
+    await simulateMockLatency();
+    const eventItems: EmailTemplate[] = [
+      {
+        id: "email_tpl_event_first_search",
+        key: "event.first_search_completed",
+        type: "event",
+        dayOffset: 0,
+        name: "Search completed · unlock nudge",
+        subject: "Your shortlist is ready.",
+        bodyHtml:
+          "<p>Hi {{firstName}},</p><p>Great start.</p><p>Now unlock a profile to view verified contact details and continue your hiring workflow.</p>",
+        bodyText:
+          "Hi {{firstName}},\n\nGreat start.\n\nNow unlock a profile to view verified contact details and continue your hiring workflow.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_no_search",
+        key: "event.no_search",
+        type: "event",
+        dayOffset: 1,
+        name: "No search · cool-off nudge",
+        subject: "Stop searching with filters. Start hiring with intent.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Simply describe your ideal hire.</p>",
+        bodyText: "Hi {{firstName}},\n\nSimply describe your ideal hire.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_campaign_draft",
+        key: "event.campaign_draft",
+        type: "event",
+        dayOffset: 2,
+        name: "Campaign draft · launch nudge",
+        subject: "Your campaign is almost ready.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Review and launch your campaign today.</p>",
+        bodyText: "Hi {{firstName}},\n\nReview and launch your campaign today.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_campaign_live",
+        key: "event.campaign_live",
+        type: "event",
+        dayOffset: 3,
+        name: "Campaign live · confirmation",
+        subject: "Your campaign is live.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>We'll notify you as replies arrive.</p>",
+        bodyText: "Hi {{firstName}},\n\nWe'll notify you as replies arrive.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_no_replies",
+        key: "event.no_replies",
+        type: "event",
+        dayOffset: 4,
+        name: "No replies · optimize nudge",
+        subject: "Let's improve your response rate.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Review your campaign and continue hiring.</p>",
+        bodyText: "Hi {{firstName}},\n\nReview your campaign and continue hiring.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_first_reply",
+        key: "event.first_reply",
+        type: "event",
+        dayOffset: 5,
+        name: "First reply · habit loop",
+        subject: "Someone replied.",
+        bodyHtml: "<p>Hi {{firstName}},</p><p>Continue the conversation inside Huntlo.</p>",
+        bodyText: "Hi {{firstName}},\n\nContinue the conversation inside Huntlo.",
+        enabled: true,
+      },
+      {
+        id: "email_tpl_event_try_ai_voice",
+        key: "event.try_ai_voice",
+        type: "event",
+        dayOffset: 6,
+        name: "Try AI Voice · cool-off nudge",
+        subject: "Let AI qualify candidates for you.",
+        bodyHtml:
+          "<p>Hi {{firstName}},</p><p>Let Huntlo's AI Voice Recruiter handle the first conversation.</p>",
+        bodyText:
+          "Hi {{firstName}},\n\nLet Huntlo's AI Voice Recruiter handle the first conversation.",
+        enabled: true,
+      },
+    ];
+    const dripItems: EmailTemplate[] = [0, 6, 7].map((dayOffset) => ({
+      id: `email_tpl_${dayOffset}`,
+      key: `post_signup.day_${dayOffset}`,
+      type: "post_signup" as const,
+      dayOffset,
+      name: `Day ${dayOffset}`,
+      subject: `Mock subject day ${dayOffset}`,
+      bodyHtml: `<p>Hi {{firstName}}, mock body for day ${dayOffset}.</p>`,
+      bodyText: `Hi {{firstName}}, mock body for day ${dayOffset}.`,
+      enabled: true,
+    }));
+
+    if (params?.type === "event") return { items: eventItems };
+    if (params?.type === "post_signup") return { items: dripItems };
+    return { items: [...dripItems, ...eventItems] };
+  },
+  async getEmailTemplate(id) {
+    const { items } = await this.listEmailTemplates();
+    return items.find((item) => item.id === id) ?? items[0];
+  },
+  async updateEmailTemplate(id, input) {
+    const existing = await this.getEmailTemplate(id);
+    return {
+      ...existing,
+      name: String(input.name ?? existing.name),
+      subject: String(input.subject ?? existing.subject),
+      bodyHtml: String(input.bodyHtml ?? existing.bodyHtml),
+      bodyText: String(input.bodyText ?? existing.bodyText),
+      enabled: input.enabled !== undefined ? Boolean(input.enabled) : existing.enabled,
+    };
+  },
+  async sendEmailTemplateTest(_id, input) {
+    await simulateMockLatency();
+    return {
+      sent: true,
+      to: input.to,
+      subject: "Mock test email",
+      mailConfigured: true,
+    };
   },
 };
 
