@@ -87,8 +87,10 @@ export function filtersToProviderPayload(
     payload.functionCategory = functionCategory.join(", ");
   }
 
-  const seniorityLevel = asOptionalString(filters.seniorityLevel);
-  if (seniorityLevel) payload.seniorityLevel = seniorityLevel;
+  const seniorityLevel = asStringList(filters.seniorityLevel);
+  if (seniorityLevel.length > 0) {
+    payload.seniorityLevel = seniorityLevel.join(", ");
+  }
 
   const location = asStringList(filters.location);
   if (location.length > 0) payload.location = location;
@@ -285,9 +287,8 @@ export function providerPayloadToFilters(
   const functionCategory = stringListFromUnknown(form.functionCategory);
   if (functionCategory.length > 0) next.functionCategory = functionCategory;
 
-  if (typeof form.seniorityLevel === "string" && form.seniorityLevel.trim()) {
-    next.seniorityLevel = form.seniorityLevel.trim();
-  }
+  const seniorityLevel = stringListFromUnknown(form.seniorityLevel);
+  if (seniorityLevel.length > 0) next.seniorityLevel = seniorityLevel;
 
   const location = stringListFromUnknown(form.location);
   if (location.length > 0) next.location = location;
