@@ -597,6 +597,18 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               </p>
             )}
           </Card>
+
+          <Card className="overflow-hidden p-0">
+            <div className="space-y-3 p-4 pb-0">
+              <SectionHeader title="Conversations" />
+            </div>
+            <ConversationsPanel
+              candidateId={candidate.id}
+              emptyDescription="Email, WhatsApp, and voice replies for this candidate will show up here."
+              variant="embedded"
+              className="rounded-none border-0 border-t border-border"
+            />
+          </Card>
         </div>
 
         {/* Recruiter context */}
@@ -787,7 +799,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               </div>
             </div>
             {notes.length > 0 ? (
-              <ul className="space-y-2.5 border-t border-border pt-3">
+              <ul className="max-h-48 space-y-2.5 overflow-y-auto border-t border-border pt-3">
                 {notes.map((note) => (
                   <li key={note.id}>
                     <p className="text-sm leading-relaxed text-foreground">
@@ -804,15 +816,6 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 No notes yet — be the first to add context.
               </p>
             )}
-          </Card>
-
-          <Card>
-            <SectionHeader title="Conversations" />
-            <ConversationsPanel
-              candidateId={candidate.id}
-              emptyDescription="Email, WhatsApp, and voice replies for this candidate will show up here."
-              className="min-h-[320px] border-0"
-            />
           </Card>
 
           <Card>

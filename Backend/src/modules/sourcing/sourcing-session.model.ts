@@ -72,6 +72,8 @@ const sourcingSessionSchema = new mongoose.Schema(
     appliedRegionConfiguration: { type: mongoose.Schema.Types.Mixed, default: null },
     regionExpandFallbackUsed: { type: Boolean, default: false },
     regionExpandStep: { type: String, default: null, trim: true },
+    /** Cleared mandatory/core skills after FJ returned 0 estimated profiles. */
+    skillsRelaxFallbackUsed: { type: Boolean, default: false },
     /** Future Jobs session id (canonical). */
     futureJobsSessionId: { type: String, default: null, trim: true },
     /** Legacy alias for futureJobsSessionId. */
@@ -86,6 +88,15 @@ const sourcingSessionSchema = new mongoose.Schema(
     estimatedResults: { type: Number, default: 0, min: 0 },
     totalResults: { type: Number, default: 0, min: 0 },
     totalDocs: { type: Number, default: 0, min: 0 },
+    /** FJ poll ticks counted toward MAX_POLL_ATTEMPTS (shared across API + worker). */
+    pollAttemptCount: { type: Number, default: 0, min: 0 },
+    /**
+     * Last time the poller actually hit FJ. Separate from lastPolledAt, which
+     * apply/fetch-more/profile reads also touch and must not gate polling.
+     */
+    lastFjPollAt: { type: Date, default: null },
+    /** Consecutive polls where FJ returned nothing new — used to stop early. */
+    noNewProfileStreak: { type: Number, default: 0, min: 0 },
     candidateCountFirstPage: { type: Number, default: 0, min: 0 },
     candidatePreview: { type: [mongoose.Schema.Types.Mixed], default: [] },
     profilesPagination: { type: profilesPaginationSchema, default: () => ({}) },

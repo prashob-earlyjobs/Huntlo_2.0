@@ -176,14 +176,20 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timeoutMs = options.timeoutMs ?? 30_000;
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
 
     if (options.signal) {
       if (options.signal.aborted) {
         clearTimeout(timeout);
         throw ApiError.aborted();
       }
-      options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+      options.signal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
     }
 
     let response: Response;
@@ -203,8 +209,12 @@ export class ApiClient {
         signal: controller.signal,
       });
     } catch (error) {
-      if (controller.signal.aborted) {
-        throw ApiError.aborted();
+      if (
+        timedOut ||
+        controller.signal.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      ) {
+        throw timedOut ? ApiError.timeout() : ApiError.aborted();
       }
       throw ApiError.network(undefined, error);
     } finally {

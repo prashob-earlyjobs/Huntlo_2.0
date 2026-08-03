@@ -104,6 +104,7 @@ export const createCampaignSchema = z.object({
       questions: z.array(
         z.object({
           id: z.string(),
+          title: z.string().max(120).nullable().optional(),
           prompt: z.string().min(1).max(1000),
           answerType: z.string().min(1).max(40),
           knockout: z.boolean().optional(),

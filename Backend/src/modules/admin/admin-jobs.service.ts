@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { BullOutreachJobModel } from '../../bull-outreach/job.model.js';
+import { pushToQueue } from '../../bull-outreach/queue.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   BACKGROUND_JOB_STATUSES,
@@ -16,6 +18,7 @@ import {
   OUTREACH_QUEUE_STATUS,
 } from '../outreach/campaign-job.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 
 export const listAdminJobsSchema = z.object({
   status: z.enum(BACKGROUND_JOB_STATUSES).optional(),
@@ -29,7 +32,7 @@ export const listAdminJobsSchema = z.object({
 });
 
 export const listPendingTasksSchema = z.object({
-  queue: z.enum(['all', 'background', 'campaign']).default('all'),
+  queue: z.enum(['all', 'background', 'outreach', 'campaign']).default('all'),
   includeScheduled: z
     .union([z.boolean(), z.enum(['true', 'false'])])
     .optional()
@@ -48,7 +51,7 @@ export const adminJobIdParamSchema = z.object({
 
 export type AdminPendingTask = {
   id: string;
-  queue: 'background' | 'campaign';
+  queue: 'background' | 'outreach' | 'campaign';
   type: string;
   status: string;
   dueAt: string;
@@ -56,12 +59,19 @@ export type AdminPendingTask = {
   entityType: string | null;
   entityId: string | null;
   entityLabel: string | null;
+  /** Candidate email the job will message (outreach sends/followups). */
+  targetEmail: string | null;
   attempts: number;
   lastError: string | null;
   createdAt: string;
   canCancel: boolean;
   canRetry: boolean;
 };
+
+function bullJobType(kind: string, channel: string | null | undefined) {
+  if (channel) return `${kind}:${channel}`;
+  return kind;
+}
 
 export class AdminJobsService {
   async list(query: z.infer<typeof listAdminJobsSchema>) {
@@ -89,6 +99,9 @@ export class AdminJobsService {
   async listPendingTasks(query: z.infer<typeof listPendingTasksSchema>) {
     const now = new Date();
     const dueOnly = !query.includeScheduled;
+    // Accept legacy "campaign" filter as BullMQ outreach.
+    const queue =
+      query.queue === 'campaign' ? 'outreach' : query.queue;
 
     const bgOpen = { status: { $in: ['pending', 'retrying', 'leased', 'running'] } };
     const bgFilter = dueOnly
@@ -100,31 +113,31 @@ export class AdminJobsService {
         }
       : bgOpen;
 
-    const campaignOpen = {
-      status: { $in: ['queued', OUTREACH_QUEUE_STATUS, 'leased', 'running'] },
+    const outreachOpen = {
+      status: { $in: ['pending', 'queued', 'running'] },
     };
-    const campaignFilter = dueOnly
+    const outreachFilter = dueOnly
       ? {
           $or: [
-            {
-              status: { $in: ['queued', OUTREACH_QUEUE_STATUS] },
-              scheduledAt: { $lte: now },
-            },
-            { status: { $in: ['leased', 'running'] } },
+            { status: 'pending', runAt: { $lte: now } },
+            { status: { $in: ['queued', 'running'] } },
           ],
         }
-      : campaignOpen;
+      : outreachOpen;
+
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const [
       backgroundDue,
       backgroundScheduled,
-      campaignDue,
-      campaignScheduled,
+      outreachDue,
+      outreachScheduled,
       backgroundInFlight,
-      campaignInFlight,
-      failed24h,
+      outreachInFlight,
+      backgroundFailed24h,
+      outreachFailed24h,
       bgDocs,
-      campaignDocs,
+      outreachDocs,
     ] = await Promise.all([
       BackgroundJobModel.countDocuments({
         status: { $in: ['pending', 'retrying'] },
@@ -134,38 +147,42 @@ export class AdminJobsService {
         status: { $in: ['pending', 'retrying'] },
         runAt: { $gt: now },
       }),
-      CampaignJobModel.countDocuments({
-        status: { $in: ['queued', OUTREACH_QUEUE_STATUS] },
-        scheduledAt: { $lte: now },
+      BullOutreachJobModel.countDocuments({
+        status: { $in: ['pending', 'queued'] },
+        runAt: { $lte: now },
       }),
-      CampaignJobModel.countDocuments({
-        status: { $in: ['queued', OUTREACH_QUEUE_STATUS] },
-        scheduledAt: { $gt: now },
+      BullOutreachJobModel.countDocuments({
+        status: 'pending',
+        runAt: { $gt: now },
       }),
       BackgroundJobModel.countDocuments({
         status: { $in: ['leased', 'running'] },
       }),
-      CampaignJobModel.countDocuments({
-        status: { $in: ['leased', 'running'] },
+      BullOutreachJobModel.countDocuments({
+        status: { $in: ['queued', 'running'] },
       }),
       BackgroundJobModel.countDocuments({
         status: 'failed',
-        failedAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+        failedAt: { $gte: dayAgo },
       }),
-      query.queue === 'campaign'
+      BullOutreachJobModel.countDocuments({
+        status: 'failed',
+        updatedAt: { $gte: dayAgo },
+      }),
+      queue === 'outreach'
         ? Promise.resolve([])
         : BackgroundJobModel.find(bgFilter).sort({ runAt: 1 }).limit(500).lean(),
-      query.queue === 'background'
+      queue === 'background'
         ? Promise.resolve([])
-        : CampaignJobModel.find(campaignFilter)
-            .sort({ scheduledAt: 1 })
+        : BullOutreachJobModel.find(outreachFilter)
+            .sort({ runAt: 1 })
             .limit(500)
             .lean(),
     ]);
 
     const campaignIds = [
       ...new Set(
-        (campaignDocs as Array<{ campaignId?: unknown }>)
+        (outreachDocs as Array<{ campaignId?: unknown }>)
           .map((d) => String(d.campaignId || ''))
           .filter(Boolean)
       ),
@@ -195,6 +212,7 @@ export class AdminJobsService {
         entityLabel: doc.entityType
           ? `${doc.entityType}${doc.entityId ? `:${doc.entityId}` : ''}`
           : null,
+        targetEmail: null,
         attempts: Number(doc.attempts || 0),
         lastError: doc.lastError ? String(doc.lastError) : null,
         createdAt: new Date(doc.createdAt as Date).toISOString(),
@@ -203,31 +221,41 @@ export class AdminJobsService {
       });
     }
 
-    for (const doc of campaignDocs as Array<Record<string, unknown>>) {
+    for (const doc of outreachDocs as Array<Record<string, unknown>>) {
       const status = String(doc.status || '');
       const campaignId = String(doc.campaignId || '');
+      const channel = doc.channel ? String(doc.channel) : null;
+      const targetEmail =
+        String((doc.details as { targetEmail?: unknown } | null)?.targetEmail || '') ||
+        null;
+      const baseLabel = campaignId
+        ? campaignNameById.get(campaignId) || campaignId
+        : channel
+          ? `${String(doc.kind)} · ${channel}`
+          : String(doc.kind || '—');
       items.push({
         id: String(doc._id),
-        queue: 'campaign',
-        type: String(doc.jobType || ''),
+        queue: 'outreach',
+        type: bullJobType(String(doc.kind || ''), channel),
         status,
-        dueAt: new Date(doc.scheduledAt as Date).toISOString(),
+        dueAt: new Date(doc.runAt as Date).toISOString(),
         organizationId: doc.organizationId ? String(doc.organizationId) : null,
-        entityType: 'campaign',
+        entityType: campaignId ? 'campaign' : doc.kind ? String(doc.kind) : null,
         entityId: campaignId || null,
-        entityLabel: campaignNameById.get(campaignId) || campaignId || null,
+        entityLabel: targetEmail ? `${baseLabel} → ${targetEmail}` : baseLabel,
+        targetEmail,
         attempts: Number(doc.attempts || 0),
-        lastError: doc.error ? String(doc.error) : null,
+        lastError: doc.lastError ? String(doc.lastError) : null,
         createdAt: new Date(doc.createdAt as Date).toISOString(),
-        canCancel: ['queued', 'queued_v2', 'leased', 'running'].includes(status),
-        canRetry: ['failed', 'dead'].includes(status),
+        canCancel: ['pending', 'queued', 'running'].includes(status),
+        canRetry: status === 'failed',
       });
     }
 
     items.sort((a, b) => {
-      // Surface outreach/voice work before recurring background keepalives.
+      // Surface BullMQ outreach work before recurring background keepalives.
       if (a.queue !== b.queue) {
-        return a.queue === 'campaign' ? -1 : 1;
+        return a.queue === 'outreach' ? -1 : 1;
       }
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
@@ -238,10 +266,15 @@ export class AdminJobsService {
       summary: {
         backgroundDue,
         backgroundScheduled,
-        campaignDue,
-        campaignScheduled,
-        inFlight: backgroundInFlight + campaignInFlight,
-        failed24h,
+        outreachDue,
+        outreachScheduled,
+        outreachInFlight,
+        outreachFailed24h,
+        // Legacy aliases for older admin clients.
+        campaignDue: outreachDue,
+        campaignScheduled: outreachScheduled,
+        inFlight: backgroundInFlight + outreachInFlight,
+        failed24h: backgroundFailed24h + outreachFailed24h,
       },
       items: page,
       total,
@@ -259,6 +292,61 @@ export class AdminJobsService {
   async retry(id: string) {
     const bg = await retryFailedJob(id);
     if (bg) return { queue: 'background' as const, job: toPublicJob(bg) };
+
+    const outreach = await BullOutreachJobModel.findById(id);
+    if (outreach) {
+      if (outreach.status !== 'failed' && outreach.status !== 'cancelled') {
+        throw AppError.badRequest('Outreach job cannot be retried in its current state');
+      }
+      outreach.status = 'pending';
+      outreach.runAt = new Date();
+      outreach.attempts = 0;
+      outreach.lastError = null;
+      await outreach.save();
+
+      // Re-open enrollment if a prior fatal provider error stopped it, otherwise
+      // retry would immediately cancel again in runSendOrFollowup.
+      if (outreach.enrollmentId) {
+        await OutreachEnrollmentModel.updateOne(
+          {
+            _id: outreach.enrollmentId,
+            status: 'failed',
+            stopReason: 'fatal_provider_error',
+          },
+          {
+            $set: { status: 'active', stopReason: null, errorState: null },
+          }
+        );
+      }
+
+      let status: string = 'pending';
+      try {
+        const claimed = await BullOutreachJobModel.findOneAndUpdate(
+          { _id: outreach._id, status: 'pending' },
+          { $set: { status: 'queued' } },
+          { new: true }
+        );
+        if (claimed) {
+          await pushToQueue(String(claimed._id));
+          status = 'queued';
+        }
+      } catch {
+        await BullOutreachJobModel.updateOne(
+          { _id: outreach._id },
+          { $set: { status: 'pending' } }
+        );
+        status = 'pending';
+      }
+      return {
+        queue: 'outreach' as const,
+        job: {
+          id: outreach._id.toHexString(),
+          type: bullJobType(outreach.kind, outreach.channel),
+          status,
+          runAt: outreach.runAt.toISOString(),
+        },
+      };
+    }
 
     const campaign = await CampaignJobModel.findById(id);
     if (!campaign) throw AppError.notFound('Job not found');
@@ -285,6 +373,23 @@ export class AdminJobsService {
   async cancel(id: string) {
     const bg = await cancelJob(id);
     if (bg) return { queue: 'background' as const, job: toPublicJob(bg) };
+
+    const outreach = await BullOutreachJobModel.findById(id);
+    if (outreach) {
+      if (!['pending', 'queued', 'running'].includes(outreach.status)) {
+        throw AppError.badRequest('Outreach job cannot be cancelled in its current state');
+      }
+      outreach.status = 'cancelled';
+      await outreach.save();
+      return {
+        queue: 'outreach' as const,
+        job: {
+          id: outreach._id.toHexString(),
+          type: bullJobType(outreach.kind, outreach.channel),
+          status: outreach.status,
+        },
+      };
+    }
 
     const campaign = await CampaignJobModel.findById(id);
     if (!campaign) throw AppError.notFound('Job not found');

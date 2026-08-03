@@ -5,3 +5,7 @@ export { requireAdmin, requireAdminPermission } from './require-admin.js';
 export { adminConsoleService } from './admin-console.service.js';
 export { PlatformSettingsModel } from './platform-settings.model.js';
 export { BlogArticleModel } from './blog.model.js';
+export { EmailTemplateModel } from './email-template.model.js';
+export { EmailSequenceEnrollmentModel } from './email-sequence-enrollment.model.js';
+export { EmailLifecycleSendModel } from './email-lifecycle-send.model.js';
+export { emailTemplatesService, ensureEmailTemplatesSeeded } from './email-templates.service.js';

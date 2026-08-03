@@ -152,10 +152,17 @@ export function webSiteJsonLd() {
   };
 }
 
+const HUNTLO_ORG = {
+  "@type": "Organization" as const,
+  name: "Huntlo AI",
+  url: "https://huntlo.ai",
+};
+
 export function faqPageJsonLd(items: FaqSchemaItem[]) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
+    publisher: HUNTLO_ORG,
     mainEntity: items.map((item) => ({
       "@type": "Question",
       name: item.question,
@@ -165,6 +172,159 @@ export function faqPageJsonLd(items: FaqSchemaItem[]) {
       },
     })),
   };
+}
+
+export type ContactPageJsonLdInput = {
+  name: string;
+  description: string;
+  url: string;
+  aboutName?: string;
+};
+
+export function contactPageJsonLd({
+  name,
+  description,
+  url,
+  aboutName,
+}: ContactPageJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    name,
+    description,
+    url: pageUrl,
+    ...(aboutName
+      ? {
+          about: {
+            "@type": "Service",
+            name: aboutName,
+          },
+        }
+      : {}),
+    publisher: HUNTLO_ORG,
+  };
+}
+
+export type ServiceJsonLdInput = {
+  name: string;
+  serviceType: string;
+  description: string;
+  url: string;
+  mainEntityName?: string;
+};
+
+export function serviceJsonLd({
+  name,
+  serviceType,
+  description,
+  url,
+  mainEntityName,
+}: ServiceJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name,
+    serviceType,
+    description,
+    provider: HUNTLO_ORG,
+    areaServed: "Worldwide",
+    url: pageUrl,
+    publisher: HUNTLO_ORG,
+    mainEntity: {
+      "@type": "Service",
+      name: mainEntityName ?? serviceType,
+    },
+  };
+}
+
+export type WebPageJsonLdInput = {
+  name: string;
+  url: string;
+  description: string;
+  primaryImageOfPage?: string;
+  aboutName?: string;
+  mainEntityName?: string;
+};
+
+export function webPageJsonLd({
+  name,
+  url,
+  description,
+  primaryImageOfPage,
+  aboutName,
+  mainEntityName,
+}: WebPageJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name,
+    url: pageUrl,
+    description,
+    ...(primaryImageOfPage
+      ? {
+          primaryImageOfPage: primaryImageOfPage.startsWith("http")
+            ? primaryImageOfPage
+            : absoluteOgImageFromPath(primaryImageOfPage),
+        }
+      : {}),
+    ...(aboutName
+      ? {
+          about: {
+            "@type": "Thing",
+            name: aboutName,
+          },
+        }
+      : {}),
+    publisher: HUNTLO_ORG,
+    ...(mainEntityName
+      ? {
+          mainEntity: {
+            "@type": "Service",
+            name: mainEntityName,
+          },
+        }
+      : {}),
+  };
+}
+
+export type CollectionPageJsonLdInput = {
+  name: string;
+  description: string;
+  url: string;
+  items: { name: string; href: string }[];
+};
+
+export function collectionPageJsonLd({
+  name,
+  description,
+  url,
+  items,
+}: CollectionPageJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name,
+    description,
+    url: pageUrl,
+    publisher: HUNTLO_ORG,
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: items.map((item, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: item.name,
+        url: item.href.startsWith("http") ? item.href : `${SITE_URL}${item.href}`,
+      })),
+    },
+  };
+}
+
+function absoluteOgImageFromPath(path: string) {
+  return path.startsWith("http") ? path : `${SITE_URL}${path}`;
 }
 
 export function breadcrumbJsonLd(items: BreadcrumbSchemaItem[]) {

@@ -211,7 +211,7 @@ const livePlansApi: PlansApi = {
       const priceNote = isEnterprise
         ? " · talk to sales"
         : isTrial
-          ? " · 14-day trial"
+          ? " · 7-day trial"
           : " / month";
       const displayPrice = currency === "USD" ? usdPrice : inrPrice;
       return {

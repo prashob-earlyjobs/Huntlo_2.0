@@ -564,6 +564,9 @@ export class SourcingService {
       session.startedAt = new Date();
       session.completedAt = null;
       session.lastPolledAt = null;
+      session.lastFjPollAt = null;
+      session.pollAttemptCount = 0;
+      session.noNewProfileStreak = 0;
       await session.save();
 
       emitSourcingProgress({
@@ -663,6 +666,9 @@ export class SourcingService {
         session.startedAt = new Date();
         session.completedAt = null;
         session.lastPolledAt = null;
+        session.lastFjPollAt = null;
+        session.pollAttemptCount = 0;
+        session.noNewProfileStreak = 0;
         await session.save();
 
         await SourcedCandidateModel.deleteMany({ sourcingSessionId: session._id });

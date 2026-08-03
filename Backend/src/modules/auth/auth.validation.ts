@@ -45,6 +45,19 @@ export const registerSchema = z
     companyName: z.string().trim().min(1).max(120).optional(),
     organizationName: z.string().trim().min(1).max(120).optional(),
     mobile: z.string().trim().min(1).max(30).optional(),
+    attribution: z
+      .object({
+        sessionId: z.string().trim().max(120).nullish(),
+        visitorId: z.string().trim().max(120).nullish(),
+        utmSource: z.string().trim().max(160).nullish(),
+        utmMedium: z.string().trim().max(160).nullish(),
+        utmCampaign: z.string().trim().max(160).nullish(),
+        utmContent: z.string().trim().max(160).nullish(),
+        utmTerm: z.string().trim().max(160).nullish(),
+        landingPage: z.string().trim().max(500).nullish(),
+        referrer: z.string().trim().max(1000).nullish(),
+      })
+      .nullish(),
   })
   .superRefine((value, ctx) => {
     if (value.email && !isWorkEmail(value.email)) {
@@ -202,7 +215,7 @@ export function getRefreshTokenFromRequest(req: Request): string | null {
 
 function parseDurationCookieMs(value: string): number {
   const match = /^(\d+)([smhd])$/.exec(value.trim());
-  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  if (!match) return 30 * 24 * 60 * 60 * 1000;
   const amount = Number(match[1]);
   const unit = match[2];
   const multipliers: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
@@ -216,6 +229,17 @@ export type NormalizedRegisterInput = {
   lastName: string;
   companyName: string;
   mobile: string | null;
+  attribution: {
+    sessionId: string | null;
+    visitorId: string | null;
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    utmContent: string | null;
+    utmTerm: string | null;
+    landingPage: string | null;
+    referrer: string | null;
+  } | null;
 };
 
 export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): NormalizedRegisterInput {
@@ -248,6 +272,20 @@ export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): N
     }
   }
 
+  const attribution = input.attribution
+    ? {
+        sessionId: input.attribution.sessionId?.trim() || null,
+        visitorId: input.attribution.visitorId?.trim() || null,
+        utmSource: input.attribution.utmSource?.trim() || null,
+        utmMedium: input.attribution.utmMedium?.trim() || null,
+        utmCampaign: input.attribution.utmCampaign?.trim() || null,
+        utmContent: input.attribution.utmContent?.trim() || null,
+        utmTerm: input.attribution.utmTerm?.trim() || null,
+        landingPage: input.attribution.landingPage?.trim() || null,
+        referrer: input.attribution.referrer?.trim() || null,
+      }
+    : null;
+
   return {
     email: normalizeEmail(input.email),
     password: input.password,
@@ -255,6 +293,7 @@ export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): N
     lastName,
     companyName,
     mobile,
+    attribution,
   };
 }
 

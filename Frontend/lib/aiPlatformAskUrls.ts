@@ -28,6 +28,6 @@ export function buildAiPlatformAskUrl(
   }
 }
 
-export function aiPlatformAskLabel(platformName: string): string {
-  return `Ask ${platformName} about Huntlo`;
+export function aiPlatformAskLabel(platformName: string, topic = "Huntlo"): string {
+  return `Ask ${platformName} about ${topic}`;
 }

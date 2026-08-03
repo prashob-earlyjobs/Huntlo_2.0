@@ -168,6 +168,7 @@ function SessionStateBanner({
   if (state === "completed") return null;
 
   if (state === "running") {
+    const waitingForFirst = loadedCount === 0;
     return (
       <div
         role="status"
@@ -176,11 +177,12 @@ function SessionStateBanner({
         <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-primary" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">
-            Search in progress
+            {waitingForFirst ? "Finding candidates" : "Search in progress"}
           </p>
           <p className="text-xs text-muted-foreground">
-            {loadedCount} of {totalCount} candidates loaded — results update as
-            the graph is scanned.
+            {waitingForFirst
+              ? "Matching profiles in progress — results will appear as they arrive."
+              : `${loadedCount} of ${totalCount} candidates loaded — results update as the graph is scanned.`}
           </p>
         </div>
         <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted">

@@ -503,7 +503,11 @@ export function ScoutWorkspace() {
         </StatePanel>
       ) : null}
 
-      <ScoutLookupsTable lookups={recent} onRerun={rerunFromHistory} />
+      <ScoutLookupsTable
+        lookups={recent}
+        onRerun={rerunFromHistory}
+        onLookupUpdated={() => void refreshSideData()}
+      />
     </div>
   );
 }

@@ -7,7 +7,9 @@ export type CandidatePipelineStatus =
   | 'In qualification'
   | 'Qualified'
   | 'Not qualified'
-  | 'In screening';
+  | 'In screening'
+  | 'Shortlisted'
+  | 'Rejected';
 
 type EnrollmentSlice = {
   status?: string;
@@ -23,6 +25,7 @@ type EnrollmentSlice = {
   screeningState?: {
     status?: 'not_started' | 'scheduled' | 'completed' | 'skipped';
     screeningId?: string | null;
+    decision?: 'shortlisted' | 'rejected' | 'pending' | null;
   } | null;
 };
 
@@ -35,6 +38,7 @@ export function deriveEnrollmentPipelineStatus(
     mapThreadQualification(options?.threadQualificationStatus);
   const screening = enrollment?.screeningState?.status ?? 'not_started';
   const screeningId = enrollment?.screeningState?.screeningId ?? null;
+  const screeningDecision = enrollment?.screeningState?.decision ?? null;
   const disposition = enrollment?.replyState?.disposition?.toLowerCase() ?? null;
   const hasReply = Boolean(
     enrollment?.replyState?.hasReply || enrollment?.status === 'replied'
@@ -53,13 +57,15 @@ export function deriveEnrollmentPipelineStatus(
   }
 
   if (qual === 'qualified') {
+    if (screening === 'completed') {
+      if (screeningDecision === 'shortlisted') return 'Shortlisted';
+      if (screeningDecision === 'rejected') return 'Rejected';
+      return 'Qualified';
+    }
     const inScreening =
       screening === 'scheduled' && (options?.autoScreening || Boolean(screeningId));
     if (inScreening) {
       return 'In screening';
-    }
-    if (screening === 'completed') {
-      return 'Qualified';
     }
     return 'Qualified';
   }

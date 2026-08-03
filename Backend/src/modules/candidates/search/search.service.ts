@@ -11,8 +11,11 @@ import {
   filterFormFromAnnotation,
   getFutureJobsProvider,
   getPostSessionCreateProfilesWaitMs,
+  isFjNoMoreProfilesError,
   mapFjDocToCandidate,
+  MAX_SKILLS_RELAX_STEPS,
   nextGeoExpandStep,
+  nextSkillsRelaxStep,
   normalizeFilterFormForUi,
   normalizePromptPlainText,
   promptForSourcingApi,
@@ -22,6 +25,7 @@ import {
 } from '../../../providers/future-jobs/index.js';
 import { emitCandidateSearchPoll } from '../../../realtime/events.js';
 import { AppError } from '../../../shared/errors/app-error.js';
+import { getSkip } from '../../../shared/pagination/paginate.js';
 import { isValidObjectId } from '../../../shared/validation/object-id.js';
 import { enqueueJob } from '../../../workers/queue.js';
 import { UserModel } from '../../auth/user.model.js';
@@ -58,6 +62,7 @@ import type {
   AnnotateSearchInput,
   ApplySearchInput,
   CreateSearchInput,
+  PreviewSearchInput,
 } from './search.validation.js';
 
 export type SearchActor = {
@@ -71,13 +76,16 @@ const STORED_CANDIDATES_ALL_LIMIT = 500;
 /** Full poll budget for background worker / whenReady helpers. */
 const PROFILES_POLL_MAX_WAIT_MS = 90_000;
 /**
- * Cap synchronous HTTP apply polling so the request returns before typical
- * client/proxy timeouts. Remaining work continues via sourcing.poll.
- * (20s post-create wait + this budget ≈ under 60s for the HTTP path.)
+ * Cap synchronous HTTP apply polling so we return pending quickly when FJ is
+ * still matching. (~4s first wait + this budget ≈ under ~20s for the HTTP path.)
  */
-const HTTP_APPLY_POLL_MAX_WAIT_MS = 30_000;
+const HTTP_APPLY_POLL_MAX_WAIT_MS = 12_000;
 const PROFILES_POLL_INTERVAL_MS = 3_000;
 const BACKGROUND_POLL_DEADLINE_MS = 10 * 60_000;
+/** Max wait stacked on geo-expand retries during HTTP apply. */
+const GEO_EXPAND_PROFILES_WAIT_CAP_MS = 3_000;
+/** Max wait after fetch-more before profiles poll. */
+const FETCH_MORE_PROFILES_WAIT_CAP_MS = 5_000;
 
 const log = () => createChildLogger({ component: 'candidate-search' });
 
@@ -450,6 +458,146 @@ export class CandidateSearchService {
     };
   }
 
+  /**
+   * Preview expected profile count for the current filter set.
+   * Uses the same query mapping as create/apply session — does not create a session or consume quota.
+   */
+  async preview(actor: SearchActor, input: PreviewSearchInput) {
+    const started = Date.now();
+    const prompt = String(input.prompt ?? '').trim();
+    let workingForm = asFilterForm(input.filterForm);
+    let skillsRelaxFallbackUsed = false;
+
+    if (!prompt && !filterFormHasSearchCriteria(workingForm)) {
+      return {
+        success: true as const,
+        count: 0,
+        exactCount: 0,
+        status: 'empty' as const,
+        message: 'Add a prompt or filters to preview profile count.',
+        filterForm: undefined,
+        skillsRelaxFallbackUsed: false,
+      };
+    }
+
+    const provider = getFutureJobsProvider();
+
+    const runPreviewOnce = async (form: FutureJobsFilterForm) => {
+      const sessionPayload = buildSessionPayloadFromPromptAndFilter(
+        promptForSourcingApi(prompt || 'Candidate search'),
+        form
+      ) as {
+        jdDetail?: { userText?: string };
+        queries?: Record<string, unknown>;
+      };
+
+      const jd =
+        prompt ||
+        (typeof sessionPayload.jdDetail?.userText === 'string'
+          ? sessionPayload.jdDetail.userText
+          : '') ||
+        '';
+      const queries =
+        sessionPayload.queries && typeof sessionPayload.queries === 'object'
+          ? sessionPayload.queries
+          : {};
+
+      const previewRes = await provider.previewSourcingSession(
+        { jd, queries },
+        { traceId: actor.requestId }
+      );
+
+      const data =
+        previewRes?.data && typeof previewRes.data === 'object'
+          ? (previewRes.data as Record<string, unknown>)
+          : {};
+      const countRaw = data.exactCount ?? data.count;
+      const count =
+        typeof countRaw === 'number' && Number.isFinite(countRaw)
+          ? Math.max(0, Math.floor(countRaw))
+          : 0;
+      const exactCount =
+        typeof data.exactCount === 'number' && Number.isFinite(data.exactCount)
+          ? Math.max(0, Math.floor(data.exactCount))
+          : count;
+      const status =
+        typeof data.status === 'string' && data.status.trim()
+          ? data.status.trim()
+          : count > 0
+            ? 'ok'
+            : 'empty';
+      const message =
+        typeof previewRes?.message === 'string'
+          ? previewRes.message
+          : 'Search health retrieved';
+
+      return { count, exactCount, status, message, queryKeys: Object.keys(queries).length, jd };
+    };
+
+    let result = await runPreviewOnce(workingForm);
+
+    // Live estimate is 0 — peel mandatory/core (then keyword) one skill at a time
+    // until preview returns > 0 or nothing left to peel. UI receives relaxed filterForm.
+    if (result.count === 0) {
+      for (let step = 0; step < MAX_SKILLS_RELAX_STEPS; step++) {
+        const peel = nextSkillsRelaxStep(workingForm);
+        if (!peel) break;
+        workingForm = peel.form;
+        skillsRelaxFallbackUsed = true;
+        result = await runPreviewOnce(workingForm);
+        log().info(
+          {
+            requestId: actor.requestId,
+            organizationId: actor.organizationId,
+            skillsRelaxStep: step + 1,
+            removedBucket: peel.bucket,
+            removedSkill: peel.removed,
+            estimatedAfterRelax: result.count,
+          },
+          'skills relax step during preview (zero estimate)'
+        );
+        if (result.count > 0) break;
+      }
+    }
+
+    log().info(
+      {
+        requestId: actor.requestId,
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        durationMs: Date.now() - started,
+        profileCount: result.count,
+        exactCount: result.exactCount,
+        previewStatus: result.status,
+        queryKeys: result.queryKeys,
+        skillsRelaxFallbackUsed,
+      },
+      'sourcing preview profile count'
+    );
+
+    // eslint-disable-next-line no-console -- intentional debug log for profile-count verification
+    console.log('[candidate-search/preview] profile count', {
+      count: result.count,
+      exactCount: result.exactCount,
+      status: result.status,
+      queryKeys: result.queryKeys,
+      skillsRelaxFallbackUsed,
+      jdPreview: result.jd.slice(0, 120),
+    });
+
+    return {
+      success: true as const,
+      count: result.count,
+      exactCount: result.exactCount,
+      status: result.status,
+      message: result.message,
+      filterForm: skillsRelaxFallbackUsed
+        ? normalizeFilterFormForUi(workingForm)
+        : undefined,
+      skillsRelaxFallbackUsed,
+    };
+  }
+
   async autocomplete(
     _actor: SearchActor,
     query: {
@@ -620,6 +768,7 @@ export class CandidateSearchService {
     let workingForm: FutureJobsFilterForm = { ...originalFilterForm };
     let regionExpandStep: GeoExpandStep | null = null;
     let regionExpandFallbackUsed = false;
+    let skillsRelaxFallbackUsed = false;
 
     const quotaKey = idempotencyKeyForApply(actor, input);
     await reserveSearchQuota(actor, quotaKey);
@@ -684,7 +833,8 @@ export class CandidateSearchService {
         if (!next) break;
         regionExpandStep = next;
         regionExpandFallbackUsed = true;
-        workingForm = applyGeoExpandStep(originalFilterForm, next);
+        // Keep any skills already peeled on workingForm; only widen geo.
+        workingForm = applyGeoExpandStep(workingForm, next);
         log().info(
           {
             organizationId: actor.organizationId,
@@ -693,6 +843,34 @@ export class CandidateSearchService {
           },
           'geo expand after 207'
         );
+      }
+
+      // FJ estimated 0 — peel mandatory/core skills one at a time until estimate > 0
+      // or nothing left to peel. UI keeps originalFilterForm.
+      if (!provider.isFjSessionPending(lastRes) && extractExpectedCount(lastRes) === 0) {
+        for (let step = 0; step < MAX_SKILLS_RELAX_STEPS; step++) {
+          const peel = nextSkillsRelaxStep(workingForm);
+          if (!peel) break;
+          workingForm = peel.form;
+          skillsRelaxFallbackUsed = true;
+          const relaxed = await attemptProviderSession(workingForm);
+          lastRes = relaxed.res;
+          lastPayload = relaxed.payload;
+          fjId = relaxed.sessionId;
+          const estimatedAfterRelax = extractExpectedCount(lastRes);
+          log().info(
+            {
+              organizationId: actor.organizationId,
+              futureJobsSessionId: fjId,
+              skillsRelaxStep: step + 1,
+              removedBucket: peel.bucket,
+              removedSkill: peel.removed,
+              estimatedAfterRelax,
+            },
+            'skills relax step after zero estimated profiles'
+          );
+          if (provider.isFjSessionPending(lastRes) || estimatedAfterRelax > 0) break;
+        }
       }
 
       if (provider.isFjSessionPending(lastRes)) {
@@ -707,6 +885,7 @@ export class CandidateSearchService {
           status: 'pending',
           regionExpandFallbackUsed,
           regionExpandStep,
+          skillsRelaxFallbackUsed,
           originalRegionConfiguration,
           quotaKey,
           polling: true,
@@ -723,12 +902,12 @@ export class CandidateSearchService {
         return pendingResponse(
           fjId,
           originalFilterForm,
-          'Candidate matching is still being processed.',
+          'Finding candidates — matching profiles in progress.',
           session._id.toHexString()
         );
       }
 
-      // Wait before first profiles request
+      // Short first wait, then poll — avoid the old fixed 20s wall.
       const waitMs = getPostSessionCreateProfilesWaitMs();
       if (waitMs > 0) {
         await sleep(waitMs);
@@ -745,12 +924,14 @@ export class CandidateSearchService {
         workingForm,
         regionExpandStep,
         regionExpandFallbackUsed,
+        skillsRelaxFallbackUsed,
         attemptProviderSession: async (form) => {
           const result = await attemptProviderSession(form);
           lastPayload = result.payload;
           fjId = result.sessionId;
-          // Avoid stacking another full 20s wait on geo-fallback during HTTP apply
-          await sleep(Math.min(getPostSessionCreateProfilesWaitMs(), 3_000));
+          await sleep(
+            Math.min(getPostSessionCreateProfilesWaitMs(), GEO_EXPAND_PROFILES_WAIT_CAP_MS)
+          );
           return result;
         },
         maxWaitMs: HTTP_APPLY_POLL_MAX_WAIT_MS,
@@ -759,7 +940,63 @@ export class CandidateSearchService {
       regionExpandFallbackUsed =
         regionExpandFallbackUsed || pollResult.regionExpandFallbackUsed;
       regionExpandStep = pollResult.regionExpandStep ?? regionExpandStep;
+      skillsRelaxFallbackUsed =
+        skillsRelaxFallbackUsed || pollResult.skillsRelaxFallbackUsed;
       workingForm = pollResult.workingForm;
+
+      // No candidates yet but FJ is still matching → return pending early and
+      // finish via background poll (better UX than holding the HTTP request).
+      if (
+        pollResult.docs.length === 0 &&
+        pollResult.totalDocs === 0 &&
+        pollResult.polling
+      ) {
+        const session = await this.upsertHistorySession({
+          actor,
+          existing,
+          prompt,
+          originalFilterForm,
+          workingForm,
+          payload: lastPayload,
+          fjId,
+          status: 'pending',
+          regionExpandFallbackUsed,
+          regionExpandStep,
+          skillsRelaxFallbackUsed,
+          originalRegionConfiguration,
+          quotaKey,
+          polling: true,
+          estimatedResults: extractExpectedCount(lastRes),
+        });
+        await commitSearchQuota(actor.organizationId, quotaKey);
+        try {
+          await enqueueBackgroundPoll(session, actor);
+        } catch (enqueueError) {
+          log().warn(
+            { err: enqueueError, sourcingSessionId: session._id.toHexString() },
+            'failed to enqueue background poll after early pending apply'
+          );
+        }
+
+        log().info(
+          {
+            requestId: actor.requestId,
+            organizationId: actor.organizationId,
+            sourcingSessionId: session._id.toHexString(),
+            futureJobsSessionId: fjId,
+            durationMs: Date.now() - started,
+            earlyPending: true,
+          },
+          'apply search returned early pending'
+        );
+
+        return pendingResponse(
+          fjId,
+          originalFilterForm,
+          'Finding candidates — matching profiles in progress.',
+          session._id.toHexString()
+        );
+      }
 
       const session = await this.upsertHistorySession({
         actor,
@@ -778,6 +1015,7 @@ export class CandidateSearchService {
               : 'completed',
         regionExpandFallbackUsed,
         regionExpandStep,
+        skillsRelaxFallbackUsed,
         originalRegionConfiguration,
         quotaKey,
         polling: pollResult.polling,
@@ -910,6 +1148,7 @@ export class CandidateSearchService {
     status: string;
     regionExpandFallbackUsed: boolean;
     regionExpandStep: GeoExpandStep | null;
+    skillsRelaxFallbackUsed?: boolean;
     originalRegionConfiguration: Record<string, unknown>;
     quotaKey: string;
     polling: boolean;
@@ -926,6 +1165,7 @@ export class CandidateSearchService {
       status,
       regionExpandFallbackUsed,
       regionExpandStep,
+      skillsRelaxFallbackUsed = false,
       originalRegionConfiguration,
       quotaKey,
       polling,
@@ -952,6 +1192,7 @@ export class CandidateSearchService {
       existing.status = status as SourcingSessionDocument['status'];
       existing.regionExpandFallbackUsed = regionExpandFallbackUsed;
       existing.regionExpandStep = regionExpandStep;
+      existing.skillsRelaxFallbackUsed = skillsRelaxFallbackUsed;
       existing.originalRegionConfiguration = originalRegionConfiguration;
       existing.appliedRegionConfiguration = appliedRegionConfiguration;
       existing.quotaTransactionId = quotaKey;
@@ -993,6 +1234,7 @@ export class CandidateSearchService {
       status,
       regionExpandFallbackUsed,
       regionExpandStep,
+      skillsRelaxFallbackUsed,
       originalRegionConfiguration,
       appliedRegionConfiguration,
       quotaTransactionId: quotaKey,
@@ -1014,6 +1256,7 @@ export class CandidateSearchService {
     workingForm: FutureJobsFilterForm;
     regionExpandStep: GeoExpandStep | null;
     regionExpandFallbackUsed: boolean;
+    skillsRelaxFallbackUsed?: boolean;
     maxWaitMs?: number;
     attemptProviderSession: (
       form: FutureJobsFilterForm
@@ -1026,6 +1269,7 @@ export class CandidateSearchService {
     canFetchMore: boolean;
     regionExpandFallbackUsed: boolean;
     regionExpandStep: GeoExpandStep | null;
+    skillsRelaxFallbackUsed: boolean;
     workingForm: FutureJobsFilterForm;
   }> {
     const {
@@ -1034,20 +1278,36 @@ export class CandidateSearchService {
       limit,
       expectedProfileCount,
       profileMatchingStatus,
-      originalFilterForm,
       attemptProviderSession,
       maxWaitMs = PROFILES_POLL_MAX_WAIT_MS,
     } = options;
-    let { fjId, workingForm, regionExpandStep, regionExpandFallbackUsed } = options;
+    let {
+      fjId,
+      workingForm,
+      regionExpandStep,
+      regionExpandFallbackUsed,
+      skillsRelaxFallbackUsed = false,
+    } = options;
 
-    const pollOnce = async (sessionId: string) => {
+    const pollOnce = async (
+      sessionId: string,
+      opts?: { forceWait?: boolean; matchingStatusOverride?: string | null }
+    ) => {
+      const forceWait = Boolean(opts?.forceWait);
       const res = await provider.getSourcingSessionProfilesWhenReady(sessionId, {
         page,
         limit: Math.min(limit, 300),
-        maxWaitMs,
+        maxWaitMs: forceWait
+          ? Math.min(maxWaitMs, GEO_EXPAND_PROFILES_WAIT_CAP_MS + 2_000)
+          : maxWaitMs,
         intervalMs: PROFILES_POLL_INTERVAL_MS,
-        expectedProfileCount: expectedProfileCount || null,
-        profileMatchingStatus,
+        // After geo-expand / skills-relax PATCH, create-time expected count is
+        // stale — force a short wait so we don't single-fetch an empty index.
+        expectedProfileCount: forceWait
+          ? Math.max(1, expectedProfileCount || 1)
+          : expectedProfileCount || null,
+        profileMatchingStatus:
+          opts?.matchingStatusOverride ?? profileMatchingStatus,
       });
       return res;
     };
@@ -1056,30 +1316,90 @@ export class CandidateSearchService {
     let docs = profilesDocs(profilesRes);
     let totalDocs = profilesTotalDocs(profilesRes);
 
-    // Empty-result geo fallback (same 60 → 120 steps)
-    if (docs.length === 0 && totalDocs === 0) {
+    const isStillProcessing = (res: unknown) => {
+      const matchingStatus = extractMatchingStatus(res);
+      return (
+        provider.isFjSessionPending(res) ||
+        matchingStatus === 'processing' ||
+        matchingStatus === 'pending' ||
+        matchingStatus === 'in_progress'
+      );
+    };
+
+    const startedExpectingProfiles =
+      (typeof expectedProfileCount === 'number' && expectedProfileCount > 0) ||
+      (() => {
+        const status =
+          typeof profileMatchingStatus === 'string'
+            ? profileMatchingStatus.trim().toLowerCase()
+            : '';
+        return (
+          status === 'processing' || status === 'pending' || status === 'in_progress'
+        );
+      })();
+
+    // On the short HTTP apply budget, skip geo-expand while FJ may still be matching.
+    // Hand empty+expected off as pending so background poll can finish.
+    const deferGeoWhileMatching =
+      maxWaitMs <= HTTP_APPLY_POLL_MAX_WAIT_MS && startedExpectingProfiles;
+
+    if (
+      docs.length === 0 &&
+      totalDocs === 0 &&
+      !isStillProcessing(profilesRes) &&
+      !deferGeoWhileMatching
+    ) {
       while (true) {
         const next = nextGeoExpandStep(workingForm, regionExpandStep);
         if (!next) break;
         regionExpandStep = next;
         regionExpandFallbackUsed = true;
-        workingForm = applyGeoExpandStep(originalFilterForm, next);
+        workingForm = applyGeoExpandStep(workingForm, next);
         const updated = await attemptProviderSession(workingForm);
         fjId = updated.sessionId;
-        profilesRes = await pollOnce(fjId);
+        profilesRes = await pollOnce(fjId, {
+          forceWait: true,
+          matchingStatusOverride: 'processing',
+        });
         docs = profilesDocs(profilesRes);
         totalDocs = profilesTotalDocs(profilesRes);
         if (docs.length > 0 || totalDocs > 0) break;
+        if (isStillProcessing(profilesRes)) break;
+      }
+
+      // Still empty — peel skills one by one (mandatory → core → keyword).
+      for (let step = 0; step < MAX_SKILLS_RELAX_STEPS; step++) {
+        if (docs.length > 0 || totalDocs > 0 || isStillProcessing(profilesRes)) break;
+        const peel = nextSkillsRelaxStep(workingForm);
+        if (!peel) break;
+        workingForm = peel.form;
+        skillsRelaxFallbackUsed = true;
+        const updated = await attemptProviderSession(workingForm);
+        fjId = updated.sessionId;
+        profilesRes = await pollOnce(fjId, {
+          forceWait: true,
+          matchingStatusOverride: 'processing',
+        });
+        docs = profilesDocs(profilesRes);
+        totalDocs = profilesTotalDocs(profilesRes);
+        log().info(
+          {
+            futureJobsSessionId: fjId,
+            regionExpandStep,
+            skillsRelaxStep: step + 1,
+            removedBucket: peel.bucket,
+            removedSkill: peel.removed,
+            docCount: docs.length,
+            totalDocs,
+          },
+          'skills relax step after empty profiles'
+        );
       }
     }
 
-    const stillPending = provider.isFjSessionPending(profilesRes);
-    const matchingStatus = extractMatchingStatus(profilesRes);
     const processing =
-      stillPending ||
-      matchingStatus === 'processing' ||
-      matchingStatus === 'pending' ||
-      matchingStatus === 'in_progress';
+      isStillProcessing(profilesRes) ||
+      (docs.length === 0 && totalDocs === 0 && deferGeoWhileMatching);
 
     const canFetchMore =
       totalDocs > docs.length ||
@@ -1093,6 +1413,7 @@ export class CandidateSearchService {
       canFetchMore,
       regionExpandFallbackUsed,
       regionExpandStep,
+      skillsRelaxFallbackUsed,
       workingForm,
     };
   }
@@ -1207,7 +1528,10 @@ export class CandidateSearchService {
     const provider = getFutureJobsProvider();
     try {
       await provider.fetchMoreSourcingSession(fjId, {});
-      const waitMs = Math.min(getPostSessionCreateProfilesWaitMs(), 5_000);
+      const waitMs = Math.min(
+        getPostSessionCreateProfilesWaitMs(),
+        FETCH_MORE_PROFILES_WAIT_CAP_MS
+      );
       if (waitMs > 0) await sleep(waitMs);
 
       const profilesRes = await provider.getSourcingSessionProfilesWhenReady(fjId, {
@@ -1284,6 +1608,54 @@ export class CandidateSearchService {
       };
     } catch (error) {
       await releaseSearchQuota(actor.organizationId, quotaKey);
+
+      // FJ returns HTTP 400 "No profiles match…" when there is nothing left to
+      // fetch — treat as exhausted, not as an upstream outage / 502.
+      if (isFjNoMoreProfilesError(error)) {
+        const stored = await loadStoredCandidates({
+          organizationId: actor.organizationId,
+          sourcingSessionId: session._id.toHexString(),
+          all: true,
+          allLimit: STORED_CANDIDATES_ALL_LIMIT,
+        });
+        const pagination = buildPaginationDto({
+          totalDocs: stored.total,
+          page,
+          limit,
+        });
+        session.canFetchMore = false;
+        session.polling = false;
+        session.profilesPagination = pagination;
+        session.lastPolledAt = new Date();
+        await session.save();
+
+        log().info(
+          {
+            requestId: actor.requestId,
+            organizationId: actor.organizationId,
+            sourcingSessionId: session._id.toHexString(),
+            futureJobsSessionId: fjId,
+            storedProfileCount: stored.total,
+          },
+          'fetch-more exhausted — no more matching profiles'
+        );
+
+        return {
+          success: true,
+          sessionId: fjId,
+          savedSessionId: session._id.toHexString(),
+          candidates: stored.candidates.map((c) => toCandidateSummaryDto(c, fjId)),
+          newlyAddedCount: 0,
+          storedProfileCount: stored.total,
+          totalDocs: stored.total,
+          canFetchMore: false,
+          profilesPagination: pagination,
+          polling: false,
+          exhausted: true,
+          message: 'No more profiles match this search.',
+        };
+      }
+
       throw error instanceof AppError
         ? error
         : futureJobsUnavailable('Fetch more failed', error);
@@ -1520,14 +1892,57 @@ export class CandidateSearchService {
 
   async listSessions(
     actor: SearchActor,
-    query: { limit: number }
-  ): Promise<{ success: true; sessions: SourcingSessionSummaryDto[] }> {
-    const sessions = await SourcingSessionModel.find({
+    query: { page: number; limit: number }
+  ): Promise<{
+    success: true;
+    sessions: SourcingSessionSummaryDto[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    metrics: {
+      totalSearches: number;
+      candidatesFound: number;
+      creditsUsed: number;
+    };
+  }> {
+    const filter = {
       organizationId: actor.organizationId,
       deletedAt: null,
-    })
-      .sort({ createdAt: -1 })
-      .limit(query.limit);
+    } as const;
+
+    const page = Math.max(1, query.page);
+    const limit = Math.min(100, Math.max(1, query.limit));
+
+    const [total, sessions, metricsRows] = await Promise.all([
+      SourcingSessionModel.countDocuments(filter),
+      SourcingSessionModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(getSkip(page, limit))
+        .limit(limit),
+      SourcingSessionModel.aggregate<{
+        candidatesFound: number;
+        creditsUsed: number;
+      }>([
+        { $match: { organizationId: new mongoose.Types.ObjectId(actor.organizationId), deletedAt: null } },
+        {
+          $group: {
+            _id: null,
+            candidatesFound: {
+              $sum: { $ifNull: ['$totalDocs', { $ifNull: ['$totalResults', 0] }] },
+            },
+            creditsUsed: { $sum: { $ifNull: ['$quotaConsumed', 0] } },
+          },
+        },
+      ]),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const metrics = {
+      totalSearches: total,
+      candidatesFound: metricsRows[0]?.candidatesFound ?? 0,
+      creditsUsed: metricsRows[0]?.creditsUsed ?? 0,
+    };
 
     const ownerIds = sessions.map((s) => s.userId ?? s.ownerUserId);
     const users = await UserModel.find({ _id: { $in: ownerIds } }).select(
@@ -1550,18 +1965,20 @@ export class CandidateSearchService {
         .map((j) => [j._id.toHexString(), j.title as string])
     );
 
-    const counts = await SourcedCandidateModel.aggregate<{
-      _id: mongoose.Types.ObjectId;
-      count: number;
-    }>([
-      {
-        $match: {
-          organizationId: new mongoose.Types.ObjectId(actor.organizationId),
-          sourcingSessionId: { $in: sessions.map((s) => s._id) },
-        },
-      },
-      { $group: { _id: '$sourcingSessionId', count: { $sum: 1 } } },
-    ]);
+    const counts = sessions.length
+      ? await SourcedCandidateModel.aggregate<{
+          _id: mongoose.Types.ObjectId;
+          count: number;
+        }>([
+          {
+            $match: {
+              organizationId: new mongoose.Types.ObjectId(actor.organizationId),
+              sourcingSessionId: { $in: sessions.map((s) => s._id) },
+            },
+          },
+          { $group: { _id: '$sourcingSessionId', count: { $sum: 1 } } },
+        ])
+      : [];
     const countMap = new Map(counts.map((c) => [c._id.toHexString(), c.count]));
 
     return {
@@ -1591,6 +2008,11 @@ export class CandidateSearchService {
           savedAt: session.savedAt?.toISOString?.() ?? null,
         };
       }),
+      page,
+      limit,
+      total,
+      totalPages,
+      metrics,
     };
   }
 

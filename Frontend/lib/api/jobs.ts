@@ -2,6 +2,7 @@ import { Briefcase, FileEdit, Layers, Users } from "lucide-react";
 import { apiClient } from "./client";
 import { createDomainService, simulateMockLatency } from "./service";
 import type { JobDetail, JobListItem, JobMetric } from "./contracts";
+import { schedulingApi } from "./scheduling";
 import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
 import type { JobStatus } from "@/lib/types";
@@ -528,6 +529,26 @@ const liveJobsApi: JobsApi = {
             ? new Date(item.createdAt).toLocaleString()
             : "",
         }));
+      }
+      try {
+        const interviews = await schedulingApi.listInterviews({
+          jobId: id,
+          limit: 20,
+        });
+        detail.upcomingInterviews = interviews.map((row) => ({
+          id: row.id,
+          candidate: row.candidateName,
+          type: row.interviewType,
+          dateTime:
+            [row.dateLabel, row.timeLabel].filter(Boolean).join(", ") || "—",
+          interviewer: row.interviewers[0] || "—",
+          status:
+            row.status === "Scheduled" || row.status === "Rescheduled"
+              ? ("Scheduled" as const)
+              : ("Awaiting Response" as const),
+        }));
+      } catch {
+        detail.upcomingInterviews = [];
       }
       return detail;
     } catch (error) {

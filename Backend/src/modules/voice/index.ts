@@ -2,6 +2,7 @@ export { VoiceCallModel, pendingVoiceCallId, isVoiceCallTerminal } from './voice
 export {
   syncVoiceAgent,
   launchBulkVoiceCalls,
+  withCampaignVoiceAgentLock,
   normalizeVoiceRetryConfig,
   resolveIntroduction,
   buildJdVoiceTokens,
@@ -31,6 +32,11 @@ export {
   ROSHNI_AGENT_PROMPT_REQUIRED_PLACEHOLDERS,
 } from './roshni-prompt.js';
 export { processCampaignVoiceWebhook } from './voice-webhook.service.js';
+export {
+  applyVoiceResultToQualificationState,
+  extendResultSchemaForQualificationQuestions,
+  qualificationAnswerKey,
+} from './voice-qualification-sync.js';
 export { hunarVoiceWebhookRouter } from './hunar-voice-webhook.routes.js';
 export { voiceRoutes } from './voice.routes.js';
 export { voiceDefaultsRouter } from './voice-defaults.routes.js';

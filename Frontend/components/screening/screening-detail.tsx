@@ -94,7 +94,10 @@ function OverviewTab({ batch }: { batch: ScreeningBatch }) {
       value: batch.averageScore !== null ? String(batch.averageScore) : "—",
     },
     { label: "Shortlisted", value: String(batch.shortlisted) },
-    { label: "Attempts", value: String(batch.attempts) },
+    {
+      label: "Dial attempts",
+      value: String(batch.attempts),
+    },
   ];
 
   return (

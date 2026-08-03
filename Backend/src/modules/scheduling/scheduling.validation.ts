@@ -37,7 +37,7 @@ export const createInterviewSchema = z.object({
   timezone: z.string().max(80).optional(),
   location: z.string().max(500).nullable().optional(),
   meetingUrl: z.string().max(1000).nullable().optional(),
-  instructions: z.string().max(10000).nullable().optional(),
+  instructions: z.string().max(900).nullable().optional(),
   reminderHours: z.array(z.number().int().min(1).max(720)).max(10).optional(),
   reminderMessages: z
     .array(

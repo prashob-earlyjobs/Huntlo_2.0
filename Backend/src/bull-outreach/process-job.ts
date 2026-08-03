@@ -7,7 +7,6 @@ import {
 import { ScreeningModel, screeningService } from '../modules/screening/index.js';
 import { OutreachEnrollmentModel } from '../modules/outreach/enrollment.model.js';
 import { campaignsService } from '../modules/outreach/campaigns.service.js';
-import { nextSendAtWithinWindow } from '../modules/outreach/send-window.util.js';
 import { conversationsService } from '../modules/conversations/conversations.service.js';
 import { ConversationMessageModel } from '../modules/conversations/conversation-message.model.js';
 import type { ConversationChannel } from '../modules/conversations/conversation-thread.model.js';
@@ -204,10 +203,24 @@ async function runSendOrFollowup(mongoJobId: string) {
           bodyText: body,
         });
 
+        job.details = {
+          ...(job.details || {}),
+          delivery: 'sent',
+          channel,
+        };
+        job.markModified('details');
+
         await OutreachCampaignModel.updateOne(
           { _id: campaign._id },
           { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }
         );
+      } else {
+        job.details = {
+          ...(job.details || {}),
+          delivery: delivery.outcome,
+          reason: 'reason' in delivery ? delivery.reason : undefined,
+        };
+        job.markModified('details');
       }
     } else {
       // wait / conditional / recruiter_task — just move on
@@ -243,13 +256,10 @@ async function runSendOrFollowup(mongoJobId: string) {
     return;
   }
 
+  // Message/follow-up timing uses step delay only — no send window.
+  // Call windows apply only to screening calls.
   const delayMs = Math.max(0, sequenceDelayToMs(next.delayDays || 0, next.delayUnit));
-  const sendWindow = next.sendWindow || campaign.channelConfig.sendWindow || null;
-  const when = nextSendAtWithinWindow(
-    new Date(Date.now() + delayMs),
-    sendWindow,
-    campaign.channelConfig.timezone
-  );
+  const when = new Date(Date.now() + delayMs);
 
   enrollment.currentStepIndex = idx + 1;
   enrollment.status = delayMs > 0 ? 'waiting' : 'active';
@@ -357,9 +367,25 @@ export async function processBullJob(mongoJobId: string): Promise<void> {
     await job.save();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'bull job failed';
+    const statusCode = Number((error as { statusCode?: number })?.statusCode || 0);
+    const errorCode = String((error as { code?: string })?.code || '');
+    const isConfigValidationError =
+      errorCode === 'HUNAR_API_ERROR' &&
+      (statusCode === 400 || statusCode === 422);
+
     logger.warn({ err: error, mongoJobId }, 'Bull outreach job failed');
     const fresh = await BullOutreachJobModel.findById(mongoJobId);
     if (!fresh) return;
+
+    // Deterministic provider validation errors should not burn retries or kill the
+    // enrollment (that cancels later steps for the same candidate).
+    if (isConfigValidationError) {
+      fresh.status = 'failed';
+      fresh.lastError = message;
+      await fresh.save();
+      throw error;
+    }
+
     if (fresh.attempts >= 5) {
       fresh.status = 'failed';
       fresh.lastError = message;
@@ -371,7 +397,7 @@ export async function processBullJob(mongoJobId: string): Promise<void> {
       }
     } else {
       fresh.status = 'pending';
-      fresh.runAt = new Date(Date.now() + fresh.attempts * 30_000);
+      fresh.runAt = new Date(Date.now() + 30_000);
       fresh.lastError = message;
     }
     await fresh.save();

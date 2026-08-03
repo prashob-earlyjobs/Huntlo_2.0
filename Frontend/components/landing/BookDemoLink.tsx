@@ -1,4 +1,6 @@
-import { getCalendlyBookDemoUrl } from "@/lib/calendly";
+"use client";
+
+import { getCalendlyBookDemoUrl, trackBookDemoClick } from "@/lib/calendly";
 
 import { MaterialIcon } from "./MaterialIcon";
 
@@ -41,7 +43,10 @@ export function BookDemoLink({
       target="_blank"
       rel="noopener noreferrer"
       className={className}
-      onClick={onClick}
+      onClick={() => {
+        void trackBookDemoClick();
+        onClick?.();
+      }}
     >
       {showIcon ? (
         <MaterialIcon name="calendar_month" className="text-[20px] text-[#0050cb]" />

@@ -1,7 +1,11 @@
 import Link from "next/link";
 
 import { COMPARISON_FOOTER_LINKS } from "@/lib/comparisons";
-import { FOOTER_PLATFORM_PARTNERS } from "@/lib/footerPlatformPartners";
+import {
+  buildFooterPlatformPartners,
+  FOOTER_PLATFORM_PARTNERS,
+  type FooterPlatformPartner,
+} from "@/lib/footerPlatformPartners";
 import { FOOTER_LEGAL_LINKS, legalPageHref } from "@/lib/legalPages";
 
 import { LandingLogo } from "./LandingLogo";
@@ -15,6 +19,24 @@ const FOOTER_LINK_HREFS: Record<string, string> = {
   "People Scout": "/people-scout",
   "Candidate Pool": "/candidate-pool",
   Integrations: "/integrations",
+  Huntlo360: "/huntlo360",
+  "GCC Recruitment Software": "/gcc-recruitment-software",
+  "GCC Hiring Platform": "/gcc-hiring-platform",
+  "AI Recruiting for GCCs": "/ai-recruiting-for-gccs",
+  "GCC Talent Intelligence": "/gcc-talent-intelligence",
+  "GCC Sourcing Automation": "/gcc-sourcing-automation",
+  "Vibe Sourcing": "/vibe-sourcing",
+  "AI Hiring Infrastructure": "/ai-hiring-infrastructure",
+  "AI Hiring Intelligence Infrastructure": "/ai-hiring-infrastructure",
+  "Agentic Hiring": "/agentic-hiring",
+  "Agentic Hiring™": "/agentic-hiring",
+  "Hiring OS": "/hiring-os",
+  "Hiring Workflows": "/hiring-workflows",
+  "Intelligent Hiring Workflows™": "/hiring-workflows",
+  "Workflow Orchestration": "/workflow-orchestration",
+  "Hiring Intelligence Orchestration™": "/workflow-orchestration",
+  "Candidate Discovery": "/candidate-sourcing",
+  "AI Native Candidate Discovery™": "/candidate-sourcing",
   Documentation: "/docs",
   Blog: "/blog",
   FAQs: "/faqs",
@@ -72,15 +94,42 @@ const FOOTER_COLUMNS: {
 }[] = [
   {
     title: "Hiring OS",
-    links: ["Sourcing", "Screening", "Assessments", "Interview"],
+    titleHref: "/hiring-os",
+    links: ["Sourcing", "Candidate Discovery", "Screening", "Assessments", "Interview"],
   },
   {
     title: "Product",
-    links: ["Source Candidates", "People Scout", "Candidate Pool", "Integrations"],
+    links: [
+      "Huntlo360",
+      "Source Candidates",
+      "People Scout",
+      "Vibe Sourcing",
+      "Candidate Pool",
+      "Integrations",
+    ],
+  },
+  {
+    title: "For GCC",
+    titleHref: "/solutions/gccs",
+    links: [
+      "GCC Recruitment Software",
+      "GCC Hiring Platform",
+      "AI Recruiting for GCCs",
+      "GCC Talent Intelligence",
+      "GCC Sourcing Automation",
+    ],
   },
   {
     title: "Resources",
-    links: ["Documentation", "Blog", "FAQs"],
+    titleHref: "/resources",
+    links: [
+      "AI Hiring Infrastructure",
+      "Agentic Hiring",
+      "Hiring OS",
+      "Hiring Workflows",
+      "Blog",
+      "FAQs",
+    ],
   },
   {
     title: "Company",
@@ -93,7 +142,31 @@ const FOOTER_COLUMNS: {
   },
 ];
 
-export function LandingFooter() {
+export function LandingFooter({
+  aiAskPrompt,
+  aiAskTopic,
+  aiAskLabelTemplate,
+  platformPartners,
+}: {
+  /** Page-specific GEO prompt for AI platform deep links. */
+  aiAskPrompt?: string;
+  /** e.g. "Huntlo AI for Enterprise Hiring" for link titles. */
+  aiAskTopic?: string;
+  /** Overrides default titles. Use `{platform}` placeholder, e.g. `Ask {platform} to compare Huntlo AI and Avature`. */
+  aiAskLabelTemplate?: string;
+  /** Fully custom partner list — overrides prompt/topic helpers. */
+  platformPartners?: FooterPlatformPartner[];
+} = {}) {
+  const partners =
+    platformPartners ??
+    (aiAskPrompt || aiAskTopic || aiAskLabelTemplate
+      ? buildFooterPlatformPartners({
+          prompt: aiAskPrompt,
+          topic: aiAskTopic,
+          askLabelTemplate: aiAskLabelTemplate,
+        })
+      : FOOTER_PLATFORM_PARTNERS);
+
   return (
     <footer className="border-t border-[#c3c6d6]/25 bg-white">
       <div className="relative overflow-hidden bg-[#141b2b] px-4 py-10 md:px-8 lg:px-12">
@@ -109,7 +182,7 @@ export function LandingFooter() {
               className="flex flex-wrap items-center gap-3 sm:gap-3.5"
               aria-label="Ask AI assistants about Huntlo"
             >
-              {FOOTER_PLATFORM_PARTNERS.map((partner) => (
+              {partners.map((partner) => (
                 <a
                   key={partner.name}
                   href={partner.href}
@@ -153,7 +226,7 @@ export function LandingFooter() {
       </div>
       <div className="mx-auto max-w-7xl px-4 py-12 md:px-8 md:py-14 lg:px-12">
         <nav
-          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-5 lg:gap-x-10 lg:gap-y-0"
+          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-6 lg:gap-x-6 lg:gap-y-0"
           aria-label="Footer"
         >
           {FOOTER_COLUMNS.map((col) => (

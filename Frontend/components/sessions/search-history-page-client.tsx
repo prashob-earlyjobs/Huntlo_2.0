@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { SearchHistoryTable } from "@/components/sessions/search-history-table";
 import {
@@ -16,6 +16,8 @@ import { getSourcingSessions } from "@/lib/api/candidate-search";
 import type { SearchHistoryEntry } from "@/lib/mock-sessions";
 import { mapSessionState } from "@/lib/api/sourcing";
 import { ROUTES } from "@/lib/routes";
+
+const DEFAULT_PAGE_SIZE = 20;
 
 function formatHistoryDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -32,17 +34,27 @@ function formatHistoryDate(value: string | null | undefined): string {
 
 export function SearchHistoryPageClient() {
   const [entries, setEntries] = useState<SearchHistoryEntry[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [metrics, setMetrics] = useState({
+    totalSearches: 0,
+    candidatesFound: 0,
+    creditsUsed: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
+  const loadPage = useCallback(
+    async (nextPage: number, nextPageSize: number) => {
       setLoading(true);
       setError(null);
       try {
-        const result = await getSourcingSessions({ limit: 100 });
-        if (cancelled) return;
+        const result = await getSourcingSessions({
+          page: nextPage,
+          limit: nextPageSize,
+        });
         setEntries(
           result.sessions.map((session) => ({
             id: session.savedSessionId,
@@ -58,35 +70,41 @@ export function SearchHistoryPageClient() {
             state: mapSessionState(session.status),
           }))
         );
+        setPage(result.page);
+        setPageSize(result.limit);
+        setTotal(result.total);
+        setTotalPages(Math.max(1, result.totalPages));
+        setMetrics(result.metrics);
       } catch (err) {
         try {
           const history = await sourcingApi.listHistory();
-          if (!cancelled) {
-            setEntries(
-              history.map((entry) => ({
-                ...entry,
-                date: formatHistoryDate(entry.date),
-              }))
-            );
-          }
+          setEntries(
+            history.map((entry) => ({
+              ...entry,
+              date: formatHistoryDate(entry.date),
+            }))
+          );
+          setPage(1);
+          setTotal(history.length);
+          setTotalPages(1);
+          setMetrics({
+            totalSearches: history.length,
+            candidatesFound: history.reduce((sum, entry) => sum + entry.results, 0),
+            creditsUsed: history.reduce((sum, entry) => sum + entry.usage, 0),
+          });
         } catch {
-          if (!cancelled) setError(getApiErrorMessage(err));
+          setError(getApiErrorMessage(err));
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    },
+    []
+  );
 
-  const metrics = useMemo(() => {
-    const totalSearches = entries.length;
-    const candidatesFound = entries.reduce((sum, entry) => sum + entry.results, 0);
-    const creditsUsed = entries.reduce((sum, entry) => sum + entry.usage, 0);
-    return { totalSearches, candidatesFound, creditsUsed };
-  }, [entries]);
+  useEffect(() => {
+    void loadPage(page, pageSize);
+  }, [loadPage, page, pageSize]);
 
   if (loading && entries.length === 0 && !error) {
     return <SearchHistoryPageSkeleton />;
@@ -109,7 +127,7 @@ export function SearchHistoryPageClient() {
         }
       />
 
-      {loading ? (
+      {loading && entries.length === 0 ? (
         <SearchHistoryMetricsSkeleton />
       ) : (
         <div className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-border">
@@ -148,13 +166,28 @@ export function SearchHistoryPageClient() {
 
       <SearchHistoryTable
         entries={entries}
-        loading={loading}
+        loading={loading && entries.length === 0}
+        pagingDisabled={loading}
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPage(1);
+          setPageSize(size);
+        }}
         onDelete={async (entry) => {
           const sessionId = entry.sessionId || entry.id;
           if (!sessionId) return;
           try {
             await sourcingApi.deleteSession(sessionId);
-            setEntries((prev) => prev.filter((row) => row.id !== entry.id));
+            const remainingOnPage = entries.length - 1;
+            if (remainingOnPage <= 0 && page > 1) {
+              setPage((value) => Math.max(1, value - 1));
+            } else {
+              await loadPage(page, pageSize);
+            }
           } catch (err) {
             setError(getApiErrorMessage(err));
           }

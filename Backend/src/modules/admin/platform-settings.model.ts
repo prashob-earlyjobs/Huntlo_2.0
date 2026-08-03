@@ -1,19 +1,13 @@
 import mongoose from 'mongoose';
 
+/** Platform-level providers that are actively configured / in use. */
 export const PLATFORM_PROVIDERS = [
   'future-jobs',
   'gemini',
-  'gmail',
-  'outlook',
   'zoho',
-  'smtp',
-  'meta-whatsapp',
-  'gupshup',
   'hunar',
-  'calendly',
   'razorpay',
   'dodo',
-  'realtime',
 ] as const;
 
 export type PlatformProviderId = (typeof PLATFORM_PROVIDERS)[number];

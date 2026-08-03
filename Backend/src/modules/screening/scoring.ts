@@ -146,6 +146,20 @@ function deriveRecommendation(
   return null;
 }
 
+/** Map AI recommendation into the final stored decision (no manual shortlist/reject). */
+export function decisionFromAiRecommendation(
+  recommendation: string | null | undefined
+): 'shortlisted' | 'rejected' | null {
+  const raw = String(recommendation || '')
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, ' ');
+  if (!raw) return null;
+  if (raw.includes('shortlist')) return 'shortlisted';
+  if (raw.includes('reject')) return 'rejected';
+  return null;
+}
+
 /**
  * Resolve which configured knockout rules fired from the provider result.
  * Prefers an explicit `knockouts_triggered` array when present, then field heuristics.

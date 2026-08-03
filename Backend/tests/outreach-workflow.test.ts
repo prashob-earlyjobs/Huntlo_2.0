@@ -57,20 +57,22 @@ describe('outreach personalization', () => {
 });
 
 describe('whatsapp template catalogue', () => {
-  it('lists the 5 unique Meta cold-outbound templates', () => {
+  it('lists the 6 unique Meta cold-outbound templates', () => {
     const templates = listApprovedTemplates();
-    expect(templates).toHaveLength(5);
+    expect(templates).toHaveLength(6);
     expect(templates.map((t) => t.id).sort()).toEqual(
       [
         'final_profile_follow_up_v1',
+        'opening_message_01',
         'profile_review_closure_v1',
         'profile_review_reminder_v1',
         'recruitment_update_reminder_v1',
         'role_alignment_review',
       ].sort()
     );
-    const opening = getApprovedTemplate('profile_review_reminder_v1');
+    const opening = getApprovedTemplate('opening_message_01');
     expect(opening?.slot).toBe('opening');
+    expect(opening?.isDefault).toBe(true);
     const result = validateWhatsAppCatalogueVariables(opening!.id, {
       '1': 'Ada',
       '2': 'Engineer',

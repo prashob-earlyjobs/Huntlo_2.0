@@ -8,6 +8,7 @@ import {
   SEND_WINDOWS,
   TAKEOVER_CONDITIONS,
   TIMEZONE_OPTIONS,
+  suggestQuestionTitle,
   type AnswerType,
   type AudienceSource,
   type ChannelConnection,
@@ -126,13 +127,22 @@ export function builderStateFromCampaign(
 
   const steps = hydrateSteps(campaign.sequenceSteps || []);
   const questions =
-    campaign.qualificationConfig?.questions?.map((question) => ({
-      id: question.id,
-      text: question.prompt,
-      answerType: asAnswerType(question.answerType),
-      knockout: Boolean(question.knockout),
-      knockoutCondition: question.knockoutCondition || "",
-    })) ?? base.questions;
+    campaign.qualificationConfig?.questions?.map((question) => {
+      const text = question.prompt;
+      const title =
+        ("title" in question && typeof question.title === "string"
+          ? question.title
+          : ""
+        ).trim() || suggestQuestionTitle(text);
+      return {
+        id: question.id,
+        title,
+        text,
+        answerType: asAnswerType(question.answerType),
+        knockout: Boolean(question.knockout),
+        knockoutCondition: question.knockoutCondition || "",
+      };
+    }) ?? base.questions;
   const cappedQuestions = questions.slice(0, MAX_QUALIFICATION_QUESTIONS);
 
   return {

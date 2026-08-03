@@ -6,6 +6,34 @@ export type DetailedComparisonPage = {
   shortName: string;
   metaTitle: string;
   metaDescription: string;
+  /** Open Graph description — defaults to metaDescription when unset. */
+  ogDescription?: string;
+  /** Twitter card description — defaults to metaDescription when unset. */
+  twitterDescription?: string;
+  /** Open Graph site_name — defaults to Huntlo when unset. */
+  ogSiteName?: string;
+  /** BreadcrumbList final crumb name — defaults to `Huntlo vs ${shortName}`. */
+  breadcrumbLabel?: string;
+  /** Service JSON-LD name. */
+  serviceName?: string;
+  /** Service JSON-LD description. */
+  serviceDescription?: string;
+  /** WebPage JSON-LD name. */
+  webPageName?: string;
+  /** WebPage JSON-LD description. */
+  webPageDescription?: string;
+  /** Visible feature-table section title. */
+  comparisonTableTitle?: string;
+  /** Intro paragraph above the feature comparison table. */
+  comparisonTableIntro?: string;
+  /** Disclaimer below the feature comparison table. */
+  comparisonDisclaimer?: string;
+  /** Pre-filled prompt for footer AI-platform GEO deep links. */
+  geoAskPrompt?: string;
+  /** e.g. "comparing Huntlo AI and Avature" for link titles. */
+  geoAskTopic?: string;
+  /** Overrides default GEO titles. Use `{platform}` placeholder. */
+  geoAskLabelTemplate?: string;
   headline: string;
   intro: string[];
   quickComparisonRows: {
@@ -98,6 +126,20 @@ export type InfrastructureComparisonInput = {
   shortName?: string;
   metaTitle: string;
   metaDescription: string;
+  ogDescription?: string;
+  twitterDescription?: string;
+  ogSiteName?: string;
+  breadcrumbLabel?: string;
+  serviceName?: string;
+  serviceDescription?: string;
+  webPageName?: string;
+  webPageDescription?: string;
+  comparisonTableTitle?: string;
+  comparisonTableIntro?: string;
+  comparisonDisclaimer?: string;
+  geoAskPrompt?: string;
+  geoAskTopic?: string;
+  geoAskLabelTemplate?: string;
   headline: string;
   intro: string[];
   quickComparisonRows: DetailedComparisonPage["quickComparisonRows"];
@@ -128,6 +170,20 @@ export function buildInfrastructureComparison(
     shortName: input.shortName,
     metaTitle: input.metaTitle,
     metaDescription: input.metaDescription,
+    ogDescription: input.ogDescription,
+    twitterDescription: input.twitterDescription,
+    ogSiteName: input.ogSiteName,
+    breadcrumbLabel: input.breadcrumbLabel,
+    serviceName: input.serviceName,
+    serviceDescription: input.serviceDescription,
+    webPageName: input.webPageName,
+    webPageDescription: input.webPageDescription,
+    comparisonTableTitle: input.comparisonTableTitle,
+    comparisonTableIntro: input.comparisonTableIntro,
+    comparisonDisclaimer: input.comparisonDisclaimer,
+    geoAskPrompt: input.geoAskPrompt,
+    geoAskTopic: input.geoAskTopic,
+    geoAskLabelTemplate: input.geoAskLabelTemplate,
     headline: input.headline,
     intro: input.intro,
     quickComparisonRows: input.quickComparisonRows,

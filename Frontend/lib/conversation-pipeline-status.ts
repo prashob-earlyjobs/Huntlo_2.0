@@ -66,6 +66,7 @@ export function conversationPipelineStatus(
       screeningState: {
         status: normalizeScreeningStatus(conversation.screeningStatus),
         screeningId: conversation.screeningId ?? null,
+        decision: conversation.screeningDecision ?? null,
       },
       schedulingState: null,
       nextActionAt: null,

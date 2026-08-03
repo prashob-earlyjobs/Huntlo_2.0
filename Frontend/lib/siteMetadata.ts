@@ -35,23 +35,42 @@ export function absoluteOgImage(ogImagePath: string): string {
 type PageMetadataInput = {
   title: string;
   description: string;
+  /** Open Graph title — defaults to `title`. */
+  ogTitle?: string;
+  /** Open Graph description — defaults to `description`. */
+  ogDescription?: string;
+  /** Twitter card title — defaults to `title`. */
+  twitterTitle?: string;
+  /** Twitter card description — defaults to `description`. */
+  twitterDescription?: string;
   /** Defaults to `DEFAULT_OG_IMAGE` (`/og_image/Platform.jpg`). */
   ogImage?: string;
+  /** Open Graph site_name — defaults to Huntlo. */
+  siteName?: string;
   path?: string;
 };
 
 export function buildPageMetadata({
   title,
   description,
+  ogTitle,
+  ogDescription,
+  twitterTitle,
+  twitterDescription,
   ogImage,
+  siteName = "Huntlo",
   path = "",
 }: PageMetadataInput): Metadata {
   const url = absoluteUrl(path);
   const imagePath = String(ogImage || "").trim() || DEFAULT_OG_IMAGE;
   const imageUrl = absoluteOgImage(imagePath);
+  const resolvedOgTitle = ogTitle || title;
+  const ogDesc = ogDescription || description;
+  const resolvedTwitterTitle = twitterTitle || title;
+  const twitterDesc = twitterDescription || description;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: {
       canonical: url,
@@ -61,17 +80,17 @@ export function buildPageMetadata({
       follow: true,
     },
     openGraph: {
-      title,
-      description,
+      title: resolvedOgTitle,
+      description: ogDesc,
       url,
-      siteName: "Huntlo",
+      siteName,
       type: "website",
-      images: [{ url: imageUrl, width: 1200, height: 626, alt: title }],
+      images: [{ url: imageUrl, width: 1200, height: 626, alt: resolvedOgTitle }],
     },
     twitter: {
       card: "summary_large_image",
-      title,
-      description,
+      title: resolvedTwitterTitle,
+      description: twitterDesc,
       images: [imageUrl],
     },
   };
