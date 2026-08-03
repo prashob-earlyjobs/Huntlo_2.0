@@ -264,6 +264,214 @@ function normalizeAutocompleteSuggestion(suggestion: unknown): string | null {
 }
 
 /* ------------------------------------------------------------------ */
+/* Single-value autocomplete combobox                                   */
+/* ------------------------------------------------------------------ */
+
+export function AutocompleteCombobox({
+  id,
+  value,
+  onChange,
+  placeholder = "Search…",
+  autocompleteFilterType,
+  fallbackOptions = [],
+  "aria-invalid": ariaInvalid,
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  autocompleteFilterType: string;
+  fallbackOptions?: readonly string[];
+  "aria-invalid"?: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [autocompleteError, setAutocompleteError] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length < 2) {
+      setSuggestions([]);
+      setLoading(false);
+      setAutocompleteError(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setAutocompleteError(false);
+      try {
+        const result = await autocompleteCandidateFilter({
+          filter_type: autocompleteFilterType,
+          query: trimmedQuery,
+          limit: 10,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        setSuggestions(
+          result.suggestions
+            .map(normalizeAutocompleteSuggestion)
+            .filter((item): item is string => item !== null)
+            .filter(
+              (item, index, all) =>
+                all.findIndex(
+                  (candidate) =>
+                    candidate.toLocaleLowerCase() === item.toLocaleLowerCase()
+                ) === index
+            )
+        );
+      } catch {
+        if (!controller.signal.aborted) {
+          setSuggestions([]);
+          setAutocompleteError(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [autocompleteFilterType, query]);
+
+  const options = useMemo(() => {
+    const source =
+      suggestions.length > 0
+        ? [...suggestions, ...(value ? [value] : [])]
+        : [...fallbackOptions, ...(value ? [value] : [])];
+    return source.filter(
+      (option, index, all) =>
+        all.findIndex(
+          (candidate) =>
+            candidate.toLocaleLowerCase() === option.toLocaleLowerCase()
+        ) === index
+    );
+  }, [fallbackOptions, suggestions, value]);
+
+  const filtered = useMemo(() => {
+    if (suggestions.length > 0) return options;
+    const needle = query.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter((option) => option.toLowerCase().includes(needle));
+  }, [options, query, suggestions.length]);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setQuery("");
+          setSuggestions([]);
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            className="w-full justify-between font-normal"
+            aria-invalid={ariaInvalid}
+          />
+        }
+      >
+        <span
+          className={cn(
+            "truncate text-left",
+            !value && "text-muted-foreground"
+          )}
+        >
+          {value || placeholder}
+        </span>
+        <ChevronDown aria-hidden className="text-muted-foreground" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-64 p-0">
+        <div className="border-b border-border p-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={placeholder}
+            aria-label="Search location options"
+            className="h-7 text-sm"
+            autoFocus
+          />
+        </div>
+        <div className="max-h-56 overflow-y-auto p-1" role="listbox">
+          {query.trim().length < 2 && suggestions.length === 0 ? (
+            <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+              Type at least 2 characters
+            </p>
+          ) : loading ? (
+            <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+              Loading suggestions…
+            </p>
+          ) : autocompleteError ? (
+            <p className="px-2 py-4 text-center text-xs text-destructive">
+              Could not load suggestions
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+              No options match “{query}”
+            </p>
+          ) : (
+            filtered.map((option, index) => {
+              const isActive = value === option;
+              return (
+                <button
+                  key={`${option}-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                    setQuery("");
+                    setSuggestions([]);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50",
+                    isActive && "text-primary"
+                  )}
+                >
+                  <span className="truncate">{option}</span>
+                  {isActive ? (
+                    <Check aria-hidden className="size-3.5 shrink-0" />
+                  ) : null}
+                </button>
+              );
+            })
+          )}
+        </div>
+        {value ? (
+          <div className="border-t border-border p-1.5">
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+            >
+              <X aria-hidden />
+              Clear selection
+            </Button>
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Free-text tag input                                                  */
 /* ------------------------------------------------------------------ */
 
