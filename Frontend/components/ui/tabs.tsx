@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { motion, useReducedMotion } from "motion/react"
+import { motion, useReducedMotion, type HTMLMotionProps } from "motion/react"
 
 import { cn } from "@/lib/utils"
 
@@ -91,7 +91,11 @@ function TabsTrigger({
   )
 }
 
-function TabsContent({ className, value, ...props }: React.ComponentProps<"div"> & { value: string }) {
+function TabsContent({
+  className,
+  value,
+  ...props
+}: HTMLMotionProps<"div"> & { value: string }) {
   const ctx = React.useContext(TabsContext)
   const reduceMotion = useReducedMotion()
   if (!ctx || ctx.value !== value) return null
