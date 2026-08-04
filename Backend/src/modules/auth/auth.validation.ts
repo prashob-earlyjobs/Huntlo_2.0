@@ -57,7 +57,7 @@ export const registerSchema = z
         landingPage: z.string().trim().max(500).nullish(),
         referrer: z.string().trim().max(1000).nullish(),
       })
-      .optional(),
+      .nullish(),
   })
   .superRefine((value, ctx) => {
     if (value.email && !isWorkEmail(value.email)) {

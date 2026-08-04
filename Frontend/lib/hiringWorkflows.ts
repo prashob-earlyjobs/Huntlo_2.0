@@ -3,12 +3,12 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const HIRING_WORKFLOWS_PATH = "/hiring-workflows";
 
 export const HIRING_WORKFLOWS_SEO = {
-  title: "Hiring Workflows — Intelligent Recruiting Workflows | Huntlo",
+  title: "Intelligent Hiring Workflows™ | Huntlo",
   description:
-    "Huntlo connects candidate discovery, intelligence, engagement, and hiring operations into intelligent hiring workflows designed for modern recruiting teams.",
-  ogTitle: "The Future of Hiring Isn't Faster Workflows. It's Better Hiring Workflows.",
+    "Hiring isn't slowed down by people — it's slowed down by workflows. Huntlo Intelligent Hiring Workflows™ continuously move hiring outcomes forward with Workflow Intelligence and Human + AI Hiring.",
+  ogTitle: "Great Hiring Doesn't Follow Workflows. Great Workflows Continuously Improve Hiring Outcomes.",
   ogDescription:
-    "Modern recruiting isn't slowed down by individual tasks — it's slowed down by disconnected workflows. Explore Huntlo's intelligent hiring workflows.",
+    "Welcome to Intelligent Hiring Workflows™ — built for the future of Human + AI Hiring.",
 } as const;
 
 export function hiringWorkflowsMetadata() {
@@ -23,274 +23,313 @@ export function hiringWorkflowsMetadata() {
 }
 
 export const HIRING_WORKFLOWS_GEO = {
-  askTopic: "Huntlo Hiring Workflows",
+  askTopic: "Huntlo Intelligent Hiring Workflows™",
   askPrompt:
-    "What are Huntlo Hiring Workflows (https://www.huntlo.ai/hiring-workflows)? How do intelligent hiring workflows connect candidate discovery, engagement, screening, and recruiter productivity?",
+    "What are Huntlo Intelligent Hiring Workflows™ on /hiring-workflows (https://www.huntlo.ai/hiring-workflows)? How is Workflow Intelligence different from recruitment workflow automation, and how does it improve hiring outcomes?",
 } as const;
 
 export const HERO_FLOW = [
-  "Hiring Requirement",
   "Candidate Discovery",
-  "Talent Intelligence",
-  "AI Engagement",
-  "Candidate Conversations",
-  "AI Screening",
-  "Assessments",
-  "Interview Intelligence",
-  "Hiring Decisions",
-  "Business Outcomes",
-  "Successful Hire",
+  "Hiring Intent",
+  "Conversation Intelligence",
+  "Workflow Intelligence",
+  "Hiring Momentum",
+  "Hiring Confidence",
+  "Hiring Outcomes",
+  "Huntlo",
 ] as const;
 
-export const OPERATIONAL_COMPLEXITY = [
-  "Candidate Discovery",
-  "Emails",
-  "WhatsApp",
-  "Follow-ups",
-  "Interviews",
-  "Hiring managers",
-  "Talent pipelines",
-  "Scheduling",
-  "Assessments",
-  "Analytics",
-  "Communication",
-  "More communication",
-  "More follow-ups",
-  "Hiring decisions",
+export const TRADITIONAL_WORKFLOW = [
+  "Candidate applied",
+  "Recruiter reviews",
+  "Email sent",
+  "Interview scheduled",
+  "Follow up",
+  "Evaluation",
+  "Offer shared",
+  "Repeat",
 ] as const;
 
-export const DISCONNECTED_RESULTS = [
-  "Slower hiring",
-  "Candidate drop-offs",
-  "Repetitive work",
+export const TRADITIONAL_PROBLEMS = [
+  "Fragmented experiences",
+  "Disconnected systems",
   "Recruiter fatigue",
+  "Slower hiring cycles",
   "Poor candidate experiences",
-  "Fragmented intelligence",
-  "Operational inefficiencies",
 ] as const;
 
-export const WORKFLOW_UNDERSTANDS = [
-  "Context",
-  "Hiring priorities",
-  "Candidate signals",
-  "Recruiter actions",
-  "Business outcomes",
-  "Talent intelligence",
-] as const;
-
-export const WORKFLOW_IMPROVES = [
-  "Discovery",
-  "Intelligence",
-  "Engagement",
-  "Coordination",
-  "Automation",
-  "Productivity",
+export const INTELLIGENT_FLOW = [
+  "Candidate Context",
+  "Hiring Intent",
+  "Candidate Conversations",
+  "Workflow Intelligence",
+  "Hiring Momentum",
+  "Business Alignment",
   "Hiring Outcomes",
 ] as const;
 
-export const CONNECTED_WORKFLOW = [
-  { label: "Job Requirement", href: "/platform" },
-  { label: "Candidate Discovery", href: "/sourcing" },
-  { label: "AI Intelligence", href: "/people-scout" },
-  { label: "Candidate Engagement", href: "/candidate-pool" },
-  { label: "Outreach Workflows", href: "/candidate-pool" },
-  { label: "Screening", href: "/screening" },
-  { label: "Interview Coordination", href: "/interview" },
-  { label: "Hiring Intelligence", href: "/platform" },
-  { label: "Recruiter Decisions", href: "/hiring-os" },
-  { label: "Business Outcomes", href: "/platform" },
-  { label: "Hire", href: "/platform" },
+export const BENTO_CARDS = [
+  {
+    title: "Talent Discovery",
+    description: "Understand talent intelligently.",
+    href: "/candidate-sourcing",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Candidate Context",
+    description: "Continuously learn candidate signals.",
+    href: "/candidate-intelligence",
+    span: "",
+  },
+  {
+    title: "Hiring Conversations",
+    description: "Create meaningful engagement.",
+    href: "/candidate-engagement",
+    span: "",
+  },
+  {
+    title: "Hiring Momentum",
+    description: "Never lose exceptional talent.",
+    href: "/follow-up-automation",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Workflow Intelligence",
+    description: "Move hiring forward intelligently.",
+    href: "/workflow-orchestration",
+    span: "",
+  },
+  {
+    title: "Hiring Confidence",
+    description: "Improve hiring decisions continuously.",
+    href: "/screening-engine",
+    span: "",
+  },
+  {
+    title: "AI Recruiting Agents",
+    description: "Built around Human + AI hiring.",
+    href: "/recruiting-agents",
+    span: "md:col-span-2",
+  },
+  {
+    title: "Hiring Outcomes",
+    description: "Designed around business success.",
+    href: "/huntlo360",
+    span: "md:col-span-2",
+  },
 ] as const;
 
-export const DISCOVERY_INFLUENCES = [
-  "Engagement",
-  "Screening",
-  "Interviews",
-  "Productivity",
-  "Hiring decisions",
+export const LEARNING_LOOP = [
+  "Candidate Signals",
+  "Hiring Intent",
+  "Conversation Intelligence",
+  "Workflow Intelligence",
+  "Hiring Momentum",
+  "Hiring Confidence",
+  "Hiring Outcomes",
 ] as const;
 
-export const CANDIDATE_REMEMBERS = [
-  "Responsiveness",
-  "Communication",
-  "Consistency",
+export const RECRUITER_MANAGES = [
+  "Follow-ups",
   "Candidate experiences",
+  "Hiring coordination",
+  "Workflow transitions",
+  "Operational complexity",
 ] as const;
 
-export const RECRUITER_MORE_TIME = [
-  "Hiring",
-  "Evaluating talent",
-  "Building relationships",
-  "Making hiring decisions",
+export const HUMAN_AI_EQUATION = [
+  "People",
+  "AI Intelligence",
+  "Workflow Intelligence",
+  "Hiring Intelligence",
 ] as const;
 
-export const RECRUITER_LESS_TIME = [
-  "Updating systems",
-  "Switching tabs",
-  "Managing processes",
-  "Following up manually",
+export const TRADITIONAL_METRICS = [
+  "Emails sent",
+  "Interviews scheduled",
+  "Response rates",
+  "Time to hire",
 ] as const;
 
-export const HIRING_INTELLIGENCE = [
-  "Talent pipelines",
-  "Engagement signals",
-  "Hiring readiness",
-  "Candidate intent",
-  "Recruiter productivity",
-  "Workflow performance",
+export const MODERN_METRICS = [
+  "Hiring confidence",
+  "Talent quality",
+  "Candidate experiences",
+  "Hiring velocity",
   "Business outcomes",
+  "Recruiter productivity",
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
+  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
+  { label: "GCCs", href: "/solutions/gccs" },
   { label: "Technical hiring", href: "/solutions/startups" },
-  { label: "High-volume hiring", href: "/solutions" },
+  { label: "Executive hiring", href: "/solutions/executive-search" },
+  { label: "Global hiring", href: "/solutions" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
+  { label: "High volume hiring", href: "/solutions/enterprise-hiring" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [
-  "Scalability",
+  "Enterprise governance",
+  "Workflow intelligence",
   "Compliance",
-  "Integrations",
-  "Governance",
-  "Enterprise workflows",
-  "Audit logs",
+  "Scalability",
+  "Human + AI Hiring",
+  "Enterprise integrations",
 ] as const;
 
-export const FUTURE_UNDERSTANDS = [
-  "People",
-  "Intelligence",
-  "Priorities",
-  "Business needs",
-  "Productivity",
-  "Talent",
+export const STACK_TODAY = [
+  "Recruitment workflows",
+  "Manual coordination",
+  "Operational complexity",
+  "Disconnected experiences",
+  "More software",
 ] as const;
 
-export const AI_MANAGES = [
-  "Workflows",
-  "Intelligence",
-  "Coordination",
-  "Repetitive tasks",
+export const STACK_TOMORROW = [
+  "Intelligent Hiring Workflows™",
+  "Workflow Intelligence",
+  "Human + AI Hiring",
+  "Hiring Outcomes",
+  "AI Hiring Infrastructure",
 ] as const;
 
-export const RECRUITERS_MANAGE = [
-  "People",
-  "Relationships",
-  "Hiring decisions",
-  "Business impact",
+export const INFRA_CHANGES = [
+  "Hiring velocity",
+  "Recruiter productivity",
+  "Hiring confidence",
+  "Business outcomes",
+  "Candidate experiences",
+] as const;
+
+export const FUTURE_YES = [
+  "Intelligent Hiring Workflows™",
+  "Human + AI Hiring",
+  "Agentic Hiring™",
+  "Better Hiring Outcomes™",
 ] as const;
 
 export const HIRING_WORKFLOWS_FAQS = [
   {
-    question: "What are Hiring Workflows?",
+    question: "What are Intelligent Hiring Workflows™?",
     answer:
-      "Hiring Workflows are the connected sequences of decisions and actions that move a role from requirement to hire — including discovery, engagement, screening, interviews, coordination, and hiring decisions.",
+      "Intelligent Hiring Workflows™ continuously move hiring outcomes forward through context, intent, conversations, Workflow Intelligence, momentum, alignment, and outcomes — without recruiters becoming workflow managers.",
   },
   {
-    question: "How are intelligent hiring workflows different from traditional recruiting processes?",
+    question: "How are they different from recruitment workflow automation?",
     answer:
-      "Traditional processes often treat stages as disconnected steps across tools. Intelligent hiring workflows connect context, candidate signals, recruiter actions, and outcomes so work flows continuously instead of fragmenting across systems.",
+      "Automation moves candidates between stages. Intelligent Hiring Workflows™ use Hiring Intelligence and Workflow Intelligence to improve outcomes — not just operational throughput.",
+  },
+  {
+    question: "Is hiring slowed down by people or workflows?",
+    answer:
+      "By workflows. Teams struggle because hiring lives across disconnected tools, fragmented workflows, delayed conversations, and operational complexity.",
   },
   {
     question: "What is Workflow Intelligence?",
     answer:
-      "Workflow Intelligence helps teams understand how discovery, engagement, screening, interviews, productivity, and business outcomes interact — so recruiters can improve the full journey, not just isolated tasks.",
+      "Workflow Intelligence continuously learns from candidate signals, hiring intent, conversations, momentum, and confidence so hiring moves forward intelligently.",
   },
   {
-    question: "Can hiring workflows be customized?",
+    question: "Do recruiters still manage workflows manually?",
     answer:
-      "Huntlo supports connected hiring flows across sourcing, outreach, screening, and interviews. Teams can adapt how candidates move through those workflows based on their hiring process and priorities.",
+      "They shouldn't. Modern recruiting shouldn't require continuous management of follow-ups, experiences, coordination, transitions, and operational complexity.",
   },
   {
-    question: "Can enterprises customize workflows?",
+    question: "What metrics matter for modern hiring workflows?",
     answer:
-      "Yes. Enterprise teams can operate connected workflows for sourcing, engagement, screening, and interview coordination, with support for integrations, governance, and multi-recruiter hiring operations.",
+      "Hiring confidence, talent quality, candidate experiences, hiring velocity, business outcomes, and recruiter productivity — not only emails sent or interviews scheduled.",
   },
   {
-    question: "How does Huntlo improve recruiter productivity?",
+    question: "How does this relate to Agentic Hiring™?",
     answer:
-      "By reducing time spent switching tabs, updating systems, managing fragmented processes, and following up manually — so recruiters spend more time evaluating talent, building relationships, and making hiring decisions.",
+      "Intelligent Hiring Workflows™ are how Agentic Hiring™ and Human + AI Hiring continuously orchestrate momentum and outcomes.",
   },
   {
-    question: "Why do disconnected workflows slow hiring?",
+    question: "Can enterprises customize hiring workflows?",
     answer:
-      "Disconnected workflows create slower coordination, candidate drop-offs, repetitive work, recruiter fatigue, fragmented intelligence, and weaker candidate experiences — even when individual tools are strong.",
+      "Yes. Built for enterprises, GCCs, technical, executive, global, staffing, agency, and high-volume hiring with governance, compliance, and integrations.",
   },
   {
-    question: "Is candidate discovery a workflow?",
+    question: "What does tomorrow's workflow stack look like?",
     answer:
-      "Yes. Candidate discovery influences engagement, screening, interviews, productivity, and hiring decisions. It is where hiring begins inside a larger connected journey — not an isolated activity.",
+      "Intelligent Hiring Workflows™ → Workflow Intelligence → Human + AI Hiring → Hiring Outcomes → AI Hiring Infrastructure.",
   },
   {
-    question: "Is candidate engagement a workflow?",
+    question: "Will future teams buy workflow automation software?",
     answer:
-      "Yes. Candidates remember responsiveness, communication, consistency, and experience quality. Engagement workflows should continuously improve those moments rather than add operational complexity.",
+      "They'll ask how intelligently hiring can continuously move itself forward — changing velocity, productivity, confidence, outcomes, and experiences.",
   },
   {
-    question: "What is hiring intelligence in Huntlo workflows?",
+    question: "How do AI Recruiting Agents fit?",
     answer:
-      "Hiring intelligence helps teams understand talent pipelines, engagement signals, hiring readiness, candidate intent, recruiter productivity, workflow performance, and business outcomes before decisions are made.",
+      "AI Recruiting Agents operate within Human + AI Hiring to support discovery, conversations, workflows, and outcomes inside Intelligent Hiring Workflows™.",
   },
   {
-    question: "How does Huntlo support large hiring teams?",
+    question: "Is this a Zapier-style workflow builder?",
     answer:
-      "Huntlo is designed for multi-recruiter operations with connected workflows across discovery, engagement, screening, and interviews, plus enterprise needs like integrations, governance, scalability, and audit logs.",
+      "No. This page sells Workflow Intelligence and hiring outcomes — not automation diagrams, kanban boards, or ATS dashboards.",
   },
   {
-    question: "What industries benefit most from intelligent hiring workflows?",
+    question: "What should workflows exist to do?",
     answer:
-      "Enterprise hiring teams, GCCs, technical hiring teams, high-volume hiring organizations, staffing firms, and recruitment agencies benefit most when workflows must stay connected at scale.",
+      "Not manage processes alone. Continuously improve hiring outcomes.",
   },
   {
-    question: "Does Huntlo replace an ATS?",
+    question: "How does Hiring Momentum fit?",
     answer:
-      "Huntlo is designed as hiring infrastructure and a Hiring Operating System that connects workflows end to end. Teams can use Huntlo alongside existing systems where integrations are supported.",
+      "Hiring Momentum keeps exceptional talent moving — so workflows don't stall between conversations, decisions, and outcomes.",
   },
   {
-    question: "How is this different from adding more recruiting software?",
+    question: "Who is this page for?",
     answer:
-      "Adding more software rarely fixes disconnected processes. Intelligent workflow design connects discovery, intelligence, engagement, coordination, and outcomes through one operating layer.",
+      "Enterprise leaders, TA teams, GCC leaders, staffing firms, agencies, and global hiring teams building Workflow Intelligence ownership.",
   },
   {
-    question: "What does it mean that hiring happens in connected decisions?",
+    question: "How do I get started?",
     answer:
-      "Every hiring decision influences another. Discovery affects engagement, engagement affects interviews, and interviews affect outcomes. Connected workflows reflect that reality instead of treating stages as isolated boxes.",
+      "Book an enterprise demo, explore Hiring Workflows, see Huntlo in action, or continue into Workflow Orchestration and Agentic Hiring™.",
   },
   {
-    question: "How do hiring workflows improve candidate experience?",
+    question: "How does this relate to Hiring OS?",
     answer:
-      "Connected workflows reduce delays and inconsistency by keeping outreach, follow-ups, screening, and interview coordination moving — so candidates experience responsiveness rather than operational friction.",
+      "Hiring OS is the operating system. Intelligent Hiring Workflows™ are how hiring continuously moves outcomes forward inside that system.",
   },
   {
-    question: "What is the future of hiring workflows?",
+    question: "Does AI replace hiring teams in workflows?",
     answer:
-      "The future is software that works around recruiters — continuously understanding people, intelligence, priorities, business needs, productivity, and talent while adapting around hiring outcomes.",
+      "No. People + AI Intelligence + Workflow Intelligence + Hiring Intelligence create hiring outcomes. AI amplifies hiring teams.",
   },
   {
-    question: "Will recruiters still manage workflows in the future?",
+    question: "What belongs to the future?",
     answer:
-      "The future recruiter will design hiring outcomes more than manage software. AI can help manage workflows, intelligence, coordination, and repetitive tasks while recruiters manage people, relationships, decisions, and business impact.",
+      "Intelligent Hiring Workflows™, Human + AI Hiring, Agentic Hiring™, and Better Hiring Outcomes™.",
   },
   {
-    question: "How does Huntlo connect AI recruiting agents to workflows?",
+    question: "Why were traditional workflows never designed for modern hiring?",
     answer:
-      "AI recruiting agents support sourcing, outreach, screening, interviews, and scheduling inside connected hiring workflows — assisting recruiters continuously rather than operating as isolated automations.",
+      "Applied → review → email → schedule → follow up → evaluate → offer → repeat creates fragmentation, fatigue, slower cycles, and poor experiences.",
   },
   {
-    question: "Is Huntlo suitable for GCC and staffing workflows?",
+    question: "What should modern hiring require?",
     answer:
-      "Yes. GCC leaders, staffing firms, and recruitment agencies can use Huntlo to run scalable, connected hiring workflows across specialized and high-volume recruiting needs.",
+      "Intelligence — not operational complexity.",
   },
   {
-    question: "Where can I learn how Huntlo's Hiring OS relates to workflows?",
+    question: "Where does Huntlo sit?",
     answer:
-      "Explore the Huntlo Hiring OS and AI Hiring Infrastructure pages for the broader operating model, then use Hiring Workflows to understand how connected decisions run day to day.",
+      "Huntlo builds Intelligent Hiring Workflows™ for Human + AI Hiring — connecting Workflow Intelligence to hiring outcomes.",
   },
   {
-    question: "How do I get started with Huntlo hiring workflows?",
+    question: "Is this thought leadership or a feature page?",
     answer:
-      "Book a demo to see workflows in the context of your hiring process, explore the Huntlo platform, or create an account to start connecting discovery, engagement, and hiring operations.",
+      "Both commercially and categorically: Workflow Intelligence ownership and thought leadership for Intelligent Hiring Workflows™.",
+  },
+  {
+    question: "How does this improve candidate experiences?",
+    answer:
+      "By keeping conversations, momentum, and coordination connected — reducing delays and fragmented journeys.",
   },
 ] as const;

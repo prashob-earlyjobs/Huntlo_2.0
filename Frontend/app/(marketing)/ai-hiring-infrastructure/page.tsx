@@ -29,12 +29,12 @@ export default function AiHiringInfrastructureRoutePage() {
             description: AI_HIRING_INFRASTRUCTURE_SEO.description,
             url: pageUrl,
             primaryImageOfPage: OG_IMAGES.platform,
-            aboutName: "AI Hiring Infrastructure",
-            mainEntityName: "Huntlo AI Hiring Infrastructure",
+            aboutName: "AI Hiring Intelligence Infrastructure",
+            mainEntityName: "Huntlo AI Hiring Intelligence Infrastructure",
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "AI Hiring Infrastructure", href: AI_HIRING_INFRASTRUCTURE_PATH },
+            { name: "AI Hiring Intelligence Infrastructure", href: AI_HIRING_INFRASTRUCTURE_PATH },
           ]),
           faqPageJsonLd([...AI_HIRING_FAQS]),
         ]}

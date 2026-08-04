@@ -20,6 +20,7 @@ import {
   getStoredCandidates,
   legacySearch,
   listSearchSessions,
+  previewSearch,
   saveSearchSession,
   unsaveSearchSession,
 } from './search.controller.js';
@@ -37,6 +38,13 @@ candidateSearchRouter.post(
   ...orgAuth,
   requirePermission('sourcing:create', 'sourcing:view'),
   annotateSearch
+);
+
+candidateSearchRouter.post(
+  '/search/preview',
+  ...orgAuth,
+  requirePermission('sourcing:create', 'sourcing:view'),
+  previewSearch
 );
 
 candidateSearchRouter.post(

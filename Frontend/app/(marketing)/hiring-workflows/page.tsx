@@ -29,12 +29,12 @@ export default function HiringWorkflowsRoutePage() {
             description: HIRING_WORKFLOWS_SEO.description,
             url: pageUrl,
             primaryImageOfPage: OG_IMAGES.platform,
-            aboutName: "Hiring Workflows",
-            mainEntityName: "Huntlo Hiring Workflows",
+            aboutName: "Intelligent Hiring Workflows™",
+            mainEntityName: "Huntlo Intelligent Hiring Workflows™",
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Hiring Workflows", href: HIRING_WORKFLOWS_PATH },
+            { name: "Intelligent Hiring Workflows™", href: HIRING_WORKFLOWS_PATH },
           ]),
           faqPageJsonLd([...HIRING_WORKFLOWS_FAQS]),
         ]}

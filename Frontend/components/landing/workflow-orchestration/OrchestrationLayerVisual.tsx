@@ -2,84 +2,90 @@
 
 import { motion } from "motion/react";
 
-import { HERO_ORCHESTRATION_NODES } from "@/lib/workflowOrchestration";
+import { HERO_FLOW } from "@/lib/workflowOrchestration";
 
 type OrchestrationLayerVisualProps = {
   reduceMotion: boolean;
 };
 
-const POSITIONS = [
-  { x: 18, y: 16 },
-  { x: 72, y: 12 },
-  { x: 10, y: 38 },
-  { x: 78, y: 36 },
-  { x: 22, y: 58 },
-  { x: 70, y: 56 },
-  { x: 14, y: 78 },
-  { x: 52, y: 82 },
-  { x: 82, y: 76 },
-  { x: 48, y: 28 },
-] as const;
-
 export function OrchestrationLayerVisual({ reduceMotion }: OrchestrationLayerVisualProps) {
-  const floating = HERO_ORCHESTRATION_NODES.slice(0, -1);
-  const core = HERO_ORCHESTRATION_NODES[HERO_ORCHESTRATION_NODES.length - 1];
+  const steps = HERO_FLOW.slice(0, -1);
+  const core = HERO_FLOW[HERO_FLOW.length - 1];
 
   return (
-    <div
-      className="relative aspect-[5/4] w-full overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-[0_30px_80px_-40px_rgba(0,80,203,0.55)] backdrop-blur-md"
-      aria-hidden
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,80,203,0.28),_transparent_58%)]" />
+    <div className="relative mx-auto w-full max-w-[450px]" aria-hidden>
+      <div className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-gradient-to-b from-white/[0.08] via-[#0a1426]/90 to-[#050914] p-6 shadow-[0_42px_100px_-36px_rgba(0,80,203,0.7)] sm:p-8">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,_rgba(0,80,203,0.4),_transparent_55%)]" />
 
-      {!reduceMotion ? (
+        {!reduceMotion
+          ? Array.from({ length: 16 }).map((_, i) => (
+              <motion.span
+                key={`orch-${i}`}
+                className="absolute h-1 w-1 rounded-full bg-[#8eb0ff]/70"
+                style={{
+                  left: `${10 + ((i * 37) % 80)}%`,
+                  top: `${6 + ((i * 43) % 88)}%`,
+                }}
+                animate={{ opacity: [0.15, 0.95, 0.15], y: [0, i % 2 ? 8 : -8, 0] }}
+                transition={{
+                  duration: 2.7 + (i % 4) * 0.35,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: i * 0.09,
+                }}
+              />
+            ))
+          : null}
+
         <motion.div
-          className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#0050cb]/30"
-          animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.15, 0.35] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-        />
-      ) : null}
+          className="relative mb-5 rounded-full border border-[#0050cb]/50 bg-[#0050cb]/25 px-4 py-3 text-center shadow-[0_0_32px_rgba(0,80,203,0.45)]"
+          animate={reduceMotion ? undefined : { y: [0, -4, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <p className="text-[0.55rem] font-semibold uppercase tracking-[0.18em] text-[#8eb0ff]">
+            Hiring Intelligence Orchestration™
+          </p>
+          <p className="mt-1 text-sm font-bold text-white sm:text-base">{core}</p>
+        </motion.div>
 
-      {floating.map((label, index) => {
-        const pos = POSITIONS[index % POSITIONS.length];
-        const floatY = reduceMotion ? 0 : index % 2 === 0 ? 6 : -6;
-        return (
-          <motion.div
-            key={label}
-            className="absolute max-w-[8.5rem] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/12 bg-[#0b1528]/85 px-3 py-2.5 text-center text-[0.65rem] font-medium leading-snug text-white/85 shadow-lg backdrop-blur-sm sm:text-xs"
-            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
-            animate={
-              reduceMotion
-                ? { opacity: 1, scale: 1 }
-                : { opacity: 1, scale: 1, y: [0, floatY, 0] }
-            }
-            transition={
-              reduceMotion
-                ? { duration: 0.3 }
-                : {
-                    opacity: { delay: index * 0.05, duration: 0.35 },
-                    scale: { delay: index * 0.05, duration: 0.35 },
-                    y: { delay: 0.6 + index * 0.08, duration: 4 + (index % 3), repeat: Infinity, ease: "easeInOut" },
-                  }
-            }
-          >
-            {label}
-          </motion.div>
-        );
-      })}
-
-      <motion.div
-        className="absolute left-1/2 top-1/2 z-10 w-[8.5rem] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[#0050cb]/55 bg-[#0050cb]/25 px-4 py-5 text-center shadow-[0_0_40px_rgba(0,80,203,0.4)] sm:w-40"
-        initial={reduceMotion ? false : { opacity: 0, scale: 0.92 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: reduceMotion ? 0 : 0.35, duration: 0.4 }}
-      >
-        <p className="text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
-          Orchestration layer
-        </p>
-        <p className="mt-2 text-base font-bold text-white sm:text-lg">{core}</p>
-      </motion.div>
+        <ol className="relative space-y-2">
+          {steps.map((step, index) => (
+            <motion.li
+              key={step}
+              className={`flex items-center gap-3 rounded-2xl border px-3.5 py-2.5 ${
+                step === "Workflow Intelligence"
+                  ? "border-[#0050cb]/50 bg-[#0050cb]/20"
+                  : "border-white/10 bg-[#0b1528]/80"
+              }`}
+              initial={reduceMotion ? false : { opacity: 0, x: index % 2 === 0 ? -10 : 10 }}
+              animate={
+                reduceMotion
+                  ? { opacity: 1, x: 0 }
+                  : { opacity: 1, x: 0, y: [0, index % 2 === 0 ? -3 : 3, 0] }
+              }
+              transition={
+                reduceMotion
+                  ? { delay: index * 0.04, duration: 0.3 }
+                  : {
+                      opacity: { delay: index * 0.05, duration: 0.35 },
+                      x: { delay: index * 0.05, duration: 0.35 },
+                      y: {
+                        delay: 0.5 + index * 0.04,
+                        duration: 3.1 + (index % 3) * 0.25,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      },
+                    }
+              }
+            >
+              <span className="text-[0.55rem] font-semibold tabular-nums text-[#8eb0ff]">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="text-xs font-semibold text-white/90 sm:text-sm">{step}</span>
+            </motion.li>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }

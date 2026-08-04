@@ -7,6 +7,7 @@ import {
   ListTodo,
   Mail,
   Megaphone,
+  Plug,
   Search,
   Settings,
   Users,
@@ -102,6 +103,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         href: ADMIN_ROUTES.workerTasks,
         icon: ListTodo,
         description: "Pending background and campaign jobs",
+      },
+      {
+        title: "Integrations",
+        href: ADMIN_ROUTES.integrations,
+        icon: Plug,
+        description: "Provider connections and health",
       },
       {
         title: "Settings",
