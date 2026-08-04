@@ -29,7 +29,10 @@ function PricingCheckIcon({ featured }: { featured: boolean }) {
 }
 
 function PricingPrice({ tier, featured }: { tier: PricingTier; featured: boolean }) {
-  const priceLines = tierDbDisplayPriceLines(tier, { seatSuffix: false });
+  const priceLines = tierDbDisplayPriceLines(tier, {
+    seatSuffix: false,
+    currency: "usd",
+  });
   const enterprise = isEnterpriseTier(tier);
 
   return (

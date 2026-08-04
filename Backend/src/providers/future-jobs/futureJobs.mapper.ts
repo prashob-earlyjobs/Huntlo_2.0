@@ -922,9 +922,9 @@ function filterFormFromCreateResponse(futureJobsCreateResponse, requestPayload) 
     yearsExpMax: yoe.max,
     keywordSkills: skillsToKeyword(skillsQ),
     skills: normalizeSkillsValue(skillsQ),
-    seniorityLevel: queryValueFirst(queries, "current_employers.seniority_level", [
-      "seniority_level",
-    ]),
+    seniorityLevel: queryValues(queries, "current_employers.seniority_level").join(", ") ||
+      queryValueFirst(queries, "seniority_level") ||
+      "",
     location: queryValues(queries, "region")
       .map((r) => normalizeRegionForFutureJobs(r))
       .filter(Boolean),
@@ -1060,8 +1060,9 @@ function mergeFilterFormIntoSession(baseSession, form) {
     delete queries["current_employers.function_category"];
   }
 
-  if (String(form.seniorityLevel || "").trim()) {
-    setQueryIn(queries, "current_employers.seniority_level", [form.seniorityLevel]);
+  const seniorityTokens = commaSplitTokens(form.seniorityLevel);
+  if (seniorityTokens.length > 0) {
+    setQueryIn(queries, "current_employers.seniority_level", seniorityTokens);
   } else {
     delete queries["current_employers.seniority_level"];
   }
@@ -1352,7 +1353,7 @@ function filterFormFromAnnotation(annotationData) {
     annotationData["current_employers.seniority_level"]
   );
   if (seniority.length > 0) {
-    form.seniorityLevel = seniority[0];
+    form.seniorityLevel = seniority.join(", ");
   }
 
   const institutes = annotationFieldValues(

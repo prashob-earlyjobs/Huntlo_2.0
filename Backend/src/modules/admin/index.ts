@@ -9,3 +9,6 @@ export { EmailTemplateModel } from './email-template.model.js';
 export { EmailSequenceEnrollmentModel } from './email-sequence-enrollment.model.js';
 export { EmailLifecycleSendModel } from './email-lifecycle-send.model.js';
 export { emailTemplatesService, ensureEmailTemplatesSeeded } from './email-templates.service.js';
+export { WhatsAppTemplateModel } from './whatsapp-template.model.js';
+export { WhatsAppLifecycleSendModel } from './whatsapp-lifecycle-send.model.js';
+export { whatsappTemplatesService } from './whatsapp-templates.service.js';

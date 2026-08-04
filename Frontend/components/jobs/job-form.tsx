@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 
-import { LocationAutocompleteField } from "@/components/jobs/location-autocomplete-field";
+import { AutocompleteCombobox } from "@/components/search/filter-controls";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { FormSection } from "@/components/shared/form-section";
 import { PageHeader } from "@/components/shared/page-header";
@@ -24,6 +24,7 @@ import {
   EMPLOYMENT_TYPES,
   EVALUATION_FIELD_OPTIONS,
   JOB_DEPARTMENTS,
+  JOB_LOCATIONS,
   JOB_PRIORITIES,
   SALARY_CURRENCIES,
   SALARY_VISIBILITY,
@@ -646,11 +647,14 @@ export function JobForm() {
               />
             </Field>
             <Field id="location" label="Location" required error={errors.location}>
-              <LocationAutocompleteField
+              <AutocompleteCombobox
                 id="location"
                 value={form.location}
                 onChange={(value) => update("location", value)}
-                invalid={Boolean(errors.location)}
+                placeholder="Search location…"
+                autocompleteFilterType="region"
+                fallbackOptions={JOB_LOCATIONS}
+                aria-invalid={Boolean(errors.location)}
               />
             </Field>
           </div>

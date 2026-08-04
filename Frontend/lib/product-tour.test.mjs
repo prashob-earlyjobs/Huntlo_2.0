@@ -292,7 +292,7 @@ assert.equal(
   shouldOfferManualRestart({
     isAuthenticated: true,
     platformAdmin: true,
-    pathname: "/admin/dashboard",
+    pathname: "/admin",
   }),
   false
 );
