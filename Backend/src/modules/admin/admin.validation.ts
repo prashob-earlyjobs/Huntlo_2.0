@@ -116,6 +116,24 @@ export const sendEmailTemplateTestSchema = z.object({
   firstName: z.string().trim().max(80).optional(),
 });
 
+export const sendWhatsAppTemplateTestSchema = z.object({
+  to: z.string().trim().min(8).max(30),
+  firstName: z.string().trim().max(80).optional(),
+});
+
+export const createWhatsAppTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  bodyText: z.string().max(4096).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const updateWhatsAppTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  bodyText: z.string().max(4096).optional(),
+  enabled: z.boolean().optional(),
+  metaTemplateName: z.string().trim().min(1).max(120).nullable().optional(),
+});
+
 export const patchPlatformSettingsSchema = z.object({
   maintenanceMode: z.boolean().optional(),
   featureFlags: z.record(z.string(), z.unknown()).optional(),
