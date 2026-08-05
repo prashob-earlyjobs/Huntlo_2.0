@@ -34,6 +34,7 @@ import { screeningRouter } from './modules/screening/index.js';
 import {
   hunarVoiceWebhookRouter,
   voiceDefaultsRouter,
+  zyastraVoiceWebhookRouter,
 } from './modules/voice/index.js';
 import {
   assessmentsRouter,
@@ -108,6 +109,10 @@ export function createApp(): Express {
   app.use('/api/integrations/voice/hunar', hunarVoiceWebhookRouter);
   app.use('/api/v1/webhooks/hunar', hunarVoiceWebhookRouter);
   app.use('/api/v1/public/webhooks/hunar', hunarVoiceWebhookRouter);
+  // Zyastra (non-Indian) voice callbacks.
+  app.use('/api/integrations/voice/zyastra', zyastraVoiceWebhookRouter);
+  app.use('/api/v1/webhooks/zyastra', zyastraVoiceWebhookRouter);
+  app.use('/api/v1/public/webhooks/zyastra', zyastraVoiceWebhookRouter);
   app.use('/api/v1/webhooks/calendly', calendlyWebhookRouter);
   app.use('/api/v1/public/webhooks/calendly', calendlyWebhookRouter);
   app.use('/api/v1/webhooks/dodo', dodoWebhookRouter);

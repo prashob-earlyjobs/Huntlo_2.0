@@ -22,6 +22,9 @@ export type VoiceCallStatus = (typeof VOICE_CALL_STATUSES)[number];
 export const VOICE_CALL_SOURCES = ['outreach', 'screening', 'legacy'] as const;
 export type VoiceCallSource = (typeof VOICE_CALL_SOURCES)[number];
 
+export const VOICE_CALL_PROVIDERS = ['hunar', 'zyastra'] as const;
+export type VoiceCallProvider = (typeof VOICE_CALL_PROVIDERS)[number];
+
 export type VoiceCallResult = {
   summary: string | null;
   interestLevel: string | null;
@@ -48,6 +51,8 @@ export type VoiceCallDocument = Document & {
   candidateId: mongoose.Types.ObjectId | null;
   callId: string;
   requestId: string;
+  /** Voice provider that placed the call (Hunar for +91, Zyastra otherwise). */
+  provider: VoiceCallProvider;
   agentId: string | null;
   contactName: string | null;
   toNumber: string;
@@ -130,6 +135,12 @@ const voiceCallSchema = new Schema<VoiceCallDocument>(
     },
     callId: { type: String, required: true, trim: true },
     requestId: { type: String, required: true, trim: true, index: true },
+    provider: {
+      type: String,
+      enum: VOICE_CALL_PROVIDERS,
+      default: 'hunar',
+      index: true,
+    },
     agentId: { type: String, default: null },
     contactName: { type: String, default: null },
     toNumber: { type: String, required: true },

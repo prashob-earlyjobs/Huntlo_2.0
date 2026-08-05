@@ -4,7 +4,7 @@ import {
   getFutureJobsConfig,
   shouldUseFutureJobsMock,
 } from './futureJobs.auth.js';
-import { appendFutureJobsCurl } from './futureJobs.curl-log.js';
+import { appendFutureJobsCurl, logFutureJobsCurlResponse } from './futureJobs.curl-log.js';
 import {
   createFutureJobsCircuitOpenError,
   createFutureJobsUpstreamError,
@@ -348,6 +348,16 @@ async function futureJobsHttpRequest(options: {
       const data = await parseJsonSafe(text);
       const elapsedMs = Date.now() - started;
       const responseSummary = summarizeFjResponse(data);
+
+      logFutureJobsCurlResponse({
+        fjOperation,
+        method,
+        url,
+        status: res.status,
+        statusText: res.statusText,
+        elapsedMs,
+        response: data,
+      });
 
       if (!res.ok) {
         const noMoreProfiles =
