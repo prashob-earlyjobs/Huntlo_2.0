@@ -7,6 +7,7 @@ import { createChildLogger } from '../../config/logger.js';
 const log = () => createChildLogger({ provider: 'future-jobs', component: 'curl-log' });
 
 const DEFAULT_RELATIVE_PATH = path.join('logs', 'future-jobs-curls.sh');
+const MAX_RESPONSE_CHARS = 80_000;
 
 let writeChain: Promise<void> = Promise.resolve();
 
@@ -73,13 +74,24 @@ export function formatFutureJobsCurl(input: {
   url: string;
   headers?: CurlHeaders;
   body?: CurlBody | null;
+  /** When true, replace Authorization / api-key header values. */
+  redactAuth?: boolean;
 }): string {
   const method = (input.method || 'GET').toUpperCase();
   const headers = headersToRecord(input.headers);
   const parts: string[] = [`curl -sS -X ${method} ${shellSingleQuote(input.url)}`];
 
   for (const [key, value] of Object.entries(headers)) {
-    parts.push(`  -H ${shellSingleQuote(`${key}: ${value}`)}`);
+    const lower = key.toLowerCase();
+    const safeValue =
+      input.redactAuth &&
+      (lower === 'authorization' ||
+        lower === 'x-api-key' ||
+        lower === 'api-key' ||
+        lower.includes('secret'))
+        ? '[REDACTED]'
+        : value;
+    parts.push(`  -H ${shellSingleQuote(`${key}: ${safeValue}`)}`);
   }
 
   const body = bodyToString(input.body ?? null);
@@ -90,8 +102,23 @@ export function formatFutureJobsCurl(input: {
   return parts.join(' \\\n');
 }
 
+function truncateForTerminal(value: string, max = MAX_RESPONSE_CHARS): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}\n…[truncated ${value.length - max} more chars]`;
+}
+
+function responseToLogString(data: unknown): string {
+  if (typeof data === 'string') return truncateForTerminal(data);
+  try {
+    return truncateForTerminal(JSON.stringify(data, null, 2));
+  } catch {
+    return truncateForTerminal(String(data));
+  }
+}
+
 /**
- * Append a runnable curl for a Future Jobs HTTP call. Fire-and-forget; never throws to callers.
+ * Append a runnable curl for a Future Jobs HTTP call and print it to the terminal.
+ * Fire-and-forget; never throws to callers.
  */
 export function appendFutureJobsCurl(input: {
   method: string;
@@ -105,9 +132,74 @@ export function appendFutureJobsCurl(input: {
   const filePath = getFutureJobsCurlLogPath();
   const stamp = new Date().toISOString();
   const op = input.fjOperation ? ` ${input.fjOperation}` : '';
+  const curlForFile = formatFutureJobsCurl(input);
+  const curlForTerminal = formatFutureJobsCurl({ ...input, redactAuth: true });
+
+  log().info(
+    {
+      fjOperation: input.fjOperation,
+      method: (input.method || 'GET').toUpperCase(),
+      url: input.url,
+      curl: curlForTerminal,
+    },
+    `FJ curl →${op}`
+  );
+
+  const block = [`# ${stamp}${op}`, curlForFile, ''].join('\n');
+
+  writeChain = writeChain
+    .then(async () => {
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await appendFile(filePath, block, 'utf8');
+    })
+    .catch((err) => {
+      log().warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          filePath,
+        },
+        'failed to append Future Jobs curl log'
+      );
+    });
+}
+
+/**
+ * Print Future Jobs HTTP response body to the terminal (and the curl log file).
+ */
+export function logFutureJobsCurlResponse(input: {
+  fjOperation?: string;
+  method: string;
+  url: string;
+  status: number;
+  statusText?: string;
+  elapsedMs?: number;
+  response: unknown;
+}): void {
+  if (!isFutureJobsCurlLogEnabled()) return;
+
+  const op = input.fjOperation ? ` ${input.fjOperation}` : '';
+  const responseText = responseToLogString(input.response);
+
+  log().info(
+    {
+      fjOperation: input.fjOperation,
+      method: (input.method || 'GET').toUpperCase(),
+      url: input.url,
+      status: input.status,
+      statusText: input.statusText,
+      elapsedMs: input.elapsedMs,
+      response: responseText,
+    },
+    `FJ response ←${op}`
+  );
+
+  const filePath = getFutureJobsCurlLogPath();
+  const stamp = new Date().toISOString();
   const block = [
-    `# ${stamp}${op}`,
-    formatFutureJobsCurl(input),
+    `# ${stamp}${op} response HTTP ${input.status}${
+      input.elapsedMs != null ? ` ${input.elapsedMs}ms` : ''
+    }`,
+    responseText,
     '',
   ].join('\n');
 
@@ -122,7 +214,7 @@ export function appendFutureJobsCurl(input: {
           err: err instanceof Error ? err.message : String(err),
           filePath,
         },
-        'failed to append Future Jobs curl log'
+        'failed to append Future Jobs response log'
       );
     });
 }

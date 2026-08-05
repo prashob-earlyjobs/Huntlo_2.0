@@ -1,3 +1,4 @@
+import { getLogger } from '../../config/logger.js';
 import {
   buildZyastraWebhookUrl,
   getZyastraApiKey,
@@ -6,6 +7,8 @@ import {
   isZyastraConfigured,
   ZYASTRA_TRIGGER_URL,
 } from './zyastra.config.js';
+
+const log = () => getLogger().child({ component: 'zyastra-client' });
 
 export type ZyastraTriggerCandidate = {
   phoneNumber: string;
@@ -62,6 +65,27 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
 }
 
+/** Redact secrets before logging the trigger payload. */
+function sanitizePayloadForLog(payload: Record<string, unknown>): Record<string, unknown> {
+  const webhook = asRecord(payload.webhook);
+  const agent = asRecord(payload.agent);
+  const prompt = asString(agent.prompt);
+  return {
+    ...payload,
+    agent: {
+      ...agent,
+      prompt:
+        prompt.length > 400
+          ? `${prompt.slice(0, 400)}…[truncated ${prompt.length} chars]`
+          : prompt,
+    },
+    webhook: {
+      ...webhook,
+      ...(webhook.secret ? { secret: '[redacted]' } : {}),
+    },
+  };
+}
+
 /**
  * Trigger one AI voice call via Zyastra (non-bulk).
  * Used for non-Indian E.164 numbers.
@@ -116,6 +140,16 @@ export async function triggerZyastraVoiceCall(
       : {}),
   };
 
+  log().info(
+    {
+      url: ZYASTRA_TRIGGER_URL,
+      phoneNumber: input.candidate.phoneNumber,
+      metadata: input.metadata || {},
+      payload: sanitizePayloadForLog(payload),
+    },
+    'Zyastra trigger API request'
+  );
+
   const res = await fetch(ZYASTRA_TRIGGER_URL, {
     method: 'POST',
     headers: zyastraHeaders(),
@@ -127,6 +161,15 @@ export async function triggerZyastraVoiceCall(
       asString(asRecord(body).message) ||
       asString(asRecord(body).error) ||
       `Zyastra voice API failed (${res.status})`;
+    log().error(
+      {
+        statusCode: res.status,
+        phoneNumber: input.candidate.phoneNumber,
+        response: body,
+        message,
+      },
+      'Zyastra trigger API failed'
+    );
     const err = new Error(message);
     (err as Error & { code?: string; statusCode?: number; details?: unknown }).code =
       'ZYASTRA_API_ERROR';
@@ -143,11 +186,24 @@ export async function triggerZyastraVoiceCall(
   const status = asString(data.status) || 'queued';
 
   if (!callId && !requestId) {
+    log().error({ response: body }, 'Zyastra trigger API missing call id');
     const err = new Error('Zyastra voice API did not return a call id.');
     (err as Error & { code?: string; statusCode?: number }).code = 'ZYASTRA_CALL_ID_MISSING';
     (err as Error & { statusCode?: number }).statusCode = 502;
     throw err;
   }
+
+  log().info(
+    {
+      phoneNumber: input.candidate.phoneNumber,
+      requestId: requestId || callId,
+      callId: callId || requestId,
+      callReferenceId,
+      status,
+      response: body,
+    },
+    'Zyastra trigger API response'
+  );
 
   return {
     requestId: requestId || callId,

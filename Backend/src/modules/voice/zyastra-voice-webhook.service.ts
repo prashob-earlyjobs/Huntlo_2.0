@@ -159,6 +159,24 @@ export async function processZyastraVoiceWebhook(input: {
     throw new AppError(400, 'CALL_ID_REQUIRED', 'callId is required');
   }
 
+  log().info(
+    {
+      event: parsed.event,
+      eventId: parsed.eventId,
+      callId: parsed.callId,
+      callReferenceId: parsed.callReferenceId,
+      status: parsed.status,
+      phoneNumber: parsed.phoneNumber,
+      durationSeconds: parsed.durationSeconds,
+      hasTranscript: Boolean(parsed.transcript),
+      hasRecording: Boolean(parsed.recordingUrl),
+      variableKeys: Object.keys(parsed.variables),
+      metadata: parsed.metadata,
+      payload: parsed.raw,
+    },
+    'Zyastra webhook received'
+  );
+
   let screeningId = asString(parsed.metadata.screeningId) || null;
   let campaignId = asString(parsed.metadata.campaignId) || null;
 
