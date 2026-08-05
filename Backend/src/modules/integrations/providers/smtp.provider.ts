@@ -48,7 +48,7 @@ export const smtpProvider: EmailProvider = {
     } catch (error) {
       return {
         ok: false,
-        message: error instanceof Error ? error.message : 'SMTP test failed',
+        message: error instanceof Error ? error.message : 'SMTP test failed.',
       };
     }
   },
