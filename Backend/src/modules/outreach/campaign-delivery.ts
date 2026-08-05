@@ -16,6 +16,7 @@ import {
   sendMetaWhatsAppTemplate,
   sendMetaWhatsAppText,
 } from '../../providers/meta-whatsapp/meta.send.js';
+import { stampWhatsAppOutboundRoute } from '../webhooks/whatsapp-outbound-route.service.js';
 import { sendOutlookMail } from '../../providers/outlook/outlook.send.js';
 import { refreshOutlookAccessToken } from '../../providers/outlook/outlook.oauth.js';
 import {
@@ -35,8 +36,10 @@ import {
   resolveIntroduction,
   resolveVoiceTokens,
   syncVoiceAgent,
+  withCampaignVoiceAgentLock,
 } from '../voice/voice-dialer.service.js';
 import { buildRoshniAgentPrompt, qualificationQuestionsForRoshni } from '../voice/roshni-prompt.js';
+import { extendResultSchemaForQualificationQuestions } from '../voice/voice-qualification-sync.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { integrationsService } from '../integrations/integration.service.js';
@@ -45,9 +48,10 @@ import { OrganizationModel } from '../organizations/organization.model.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
 import { buildCandidateMergeContext, mergeMessageTemplate } from './variables.js';
-import type {
-  CampaignSequenceStep,
-  OutreachCampaignDocument,
+import {
+  OutreachCampaignModel,
+  type CampaignSequenceStep,
+  type OutreachCampaignDocument,
 } from './campaign.model.js';
 import type { OutreachEnrollmentDocument } from './enrollment.model.js';
 import {
@@ -480,6 +484,9 @@ async function sendWhatsAppViaIntegration(input: {
   body: string;
   templateId?: string | null;
   mergeContext?: Record<string, string>;
+  organizationId?: string | null;
+  campaignId?: string | null;
+  enrollmentId?: string | null;
 }): Promise<{ messageId?: string; provider: string; mode: 'template' | 'text' }> {
   const { secrets } = input;
   const body = input.body || '';
@@ -508,6 +515,24 @@ async function sendWhatsAppViaIntegration(input: {
     : [];
 
   const logger = getLogger().child({ component: 'whatsapp-send' });
+
+  const finish = async (result: {
+    messageId?: string;
+    provider: string;
+    mode: 'template' | 'text';
+  }) => {
+    await stampWhatsAppOutboundRoute({
+      providerMessageId: result.messageId,
+      toPhone: input.to,
+      provider: result.provider,
+      organizationId: input.organizationId,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+    }).catch((error) => {
+      logger.warn({ err: error, to: input.to }, 'Failed to stamp WhatsApp outbound route');
+    });
+    return result;
+  };
 
   if (secrets.provider === 'huntlo-whatsapp' || secrets.provider === 'meta-whatsapp') {
     let phoneNumberId = '';
@@ -567,11 +592,11 @@ async function sendWhatsAppViaIntegration(input: {
         languageCode,
         bodyParameters,
       });
-      return {
+      return finish({
         messageId: result.messageId,
         provider: secrets.provider,
         mode: 'template',
-      };
+      });
     }
 
     if (!body.trim()) {
@@ -602,7 +627,7 @@ async function sendWhatsAppViaIntegration(input: {
       to: input.to,
       body,
     });
-    return { messageId: result.messageId, provider: secrets.provider, mode: 'text' };
+    return finish({ messageId: result.messageId, provider: secrets.provider, mode: 'text' });
   }
 
   if (secrets.provider === 'gupshup') {
@@ -618,7 +643,7 @@ async function sendWhatsAppViaIntegration(input: {
         templateId: gupshupTemplateId,
         bodyParameters,
       });
-      return { messageId: result.messageId, provider: 'gupshup', mode: 'template' };
+      return finish({ messageId: result.messageId, provider: 'gupshup', mode: 'template' });
     }
 
     if (/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(body)) {
@@ -629,7 +654,7 @@ async function sendWhatsAppViaIntegration(input: {
     }
 
     const result = await sendGupshupText({ to: input.to, body, mode: 'reply' });
-    return { messageId: result.messageId, provider: 'gupshup', mode: 'text' };
+    return finish({ messageId: result.messageId, provider: 'gupshup', mode: 'text' });
   }
 
   throw Object.assign(
@@ -655,11 +680,7 @@ async function launchVoiceCall(input: {
   const tokens = { ...jdTokens, ...input.mergeContext, campaign_name: input.campaign.name };
   const stepBody = String(input.step.body || input.step.note || '').trim();
   const stepUsesRoshniTemplate = stepBody.includes('You are Roshni');
-
-  const existingAgentId =
-    typeof input.campaign.voiceAgentConfig?.agentId === 'string'
-      ? String(input.campaign.voiceAgentConfig.agentId)
-      : null;
+  const campaignId = String(input.campaign._id);
 
   const storedPrompt =
     typeof input.campaign.voiceAgentConfig?.agentPrompt === 'string'
@@ -720,34 +741,65 @@ async function launchVoiceCall(input: {
       : roshni?.introduction || null
   );
 
-  const synced = await syncVoiceAgent({
-    name: `${input.campaign.name} · voice`.slice(0, 80),
-    agentPrompt,
-    objective,
-    introduction,
-    resultPrompt:
-      typeof input.campaign.voiceAgentConfig?.resultPrompt === 'string'
-        ? String(input.campaign.voiceAgentConfig.resultPrompt)
-        : roshni?.resultPrompt,
-    resultSchema: roshni?.resultSchema,
-    voicePersona: getHunarVoicePersona(),
-    language: getHunarVoiceLanguage(),
-    existingAgentId,
-  });
+  const qualificationExtras = extendResultSchemaForQualificationQuestions(
+    roshni?.resultSchema,
+    typeof input.campaign.voiceAgentConfig?.resultPrompt === 'string'
+      ? String(input.campaign.voiceAgentConfig.resultPrompt)
+      : roshni?.resultPrompt,
+    input.campaign.qualificationConfig?.questions || []
+  );
 
-  if (!existingAgentId || existingAgentId !== synced.agentId || stepUsesRoshniTemplate || !useStoredCustomPrompt) {
-    input.campaign.voiceAgentConfig = {
+  // Parallel enrollment jobs all load a stale campaign without agentId and race
+  // on Hunar create (500). Ensure agent once under a per-campaign lock, then dial.
+  const agentId = await withCampaignVoiceAgentLock(campaignId, async () => {
+    const fresh = await OutreachCampaignModel.findById(campaignId)
+      .select('voiceAgentConfig')
+      .lean();
+    const existingAgentId =
+      typeof fresh?.voiceAgentConfig?.agentId === 'string'
+        ? String(fresh.voiceAgentConfig.agentId).trim()
+        : typeof input.campaign.voiceAgentConfig?.agentId === 'string'
+          ? String(input.campaign.voiceAgentConfig.agentId).trim()
+          : '';
+
+    if (existingAgentId) {
+      if (!input.campaign.voiceAgentConfig) input.campaign.voiceAgentConfig = {};
+      input.campaign.voiceAgentConfig.agentId = existingAgentId;
+      return existingAgentId;
+    }
+
+    const synced = await syncVoiceAgent({
+      name: `${input.campaign.name} · voice`.slice(0, 80),
+      agentPrompt,
+      objective,
+      introduction,
+      resultPrompt: qualificationExtras.resultPrompt,
+      resultSchema: qualificationExtras.resultSchema,
+      voicePersona: getHunarVoicePersona(),
+      language: getHunarVoiceLanguage(),
+      existingAgentId: null,
+    });
+
+    const nextConfig = {
+      ...(typeof fresh?.voiceAgentConfig === 'object' && fresh.voiceAgentConfig
+        ? fresh.voiceAgentConfig
+        : {}),
       ...(input.campaign.voiceAgentConfig || {}),
       agentId: synced.agentId,
       objective,
       introduction,
       agentPrompt,
-      resultPrompt: roshni?.resultPrompt || input.campaign.voiceAgentConfig?.resultPrompt,
+      resultPrompt: qualificationExtras.resultPrompt,
       updatedAt: new Date().toISOString(),
     };
-    input.campaign.markModified('voiceAgentConfig');
-    await input.campaign.save().catch(() => undefined);
-  }
+
+    await OutreachCampaignModel.updateOne(
+      { _id: campaignId },
+      { $set: { voiceAgentConfig: nextConfig } }
+    );
+    input.campaign.voiceAgentConfig = nextConfig;
+    return synced.agentId;
+  });
 
   const retry = normalizeVoiceRetryConfig(
     (input.campaign.voiceAgentConfig?.retry as {
@@ -760,8 +812,8 @@ async function launchVoiceCall(input: {
     organizationId: input.organizationId,
     userId: input.userId,
     source: 'outreach',
-    campaignId: String(input.campaign._id),
-    agentId: synced.agentId,
+    campaignId,
+    agentId,
     contacts: [
       {
         candidateId: input.candidateId,
@@ -842,6 +894,7 @@ export async function sendAdHocMessage(input: {
     secrets: integration.secrets,
     to: input.to,
     body: input.body,
+    organizationId: input.organizationId,
   });
   return { providerMessageId: sent.messageId, provider: sent.provider };
 }
@@ -1022,6 +1075,9 @@ export async function executeCampaignMessageStep(input: {
         body: conversationBody,
         templateId: isColdTemplate ? templateId : null,
         mergeContext,
+        organizationId,
+        campaignId: String(campaign._id),
+        enrollmentId: String(enrollment._id),
       });
       await quotaService.commitUsage({
         organizationId,

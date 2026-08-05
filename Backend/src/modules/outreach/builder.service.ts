@@ -234,6 +234,15 @@ export const builderService = {
       title: 'Draft campaign created',
     });
 
+    void import('../admin/email-templates.service.js')
+      .then(({ emailTemplatesService }) =>
+        emailTemplatesService.onCampaignDraftCreated({
+          userId,
+          campaignId: String(doc._id),
+        })
+      )
+      .catch(() => undefined);
+
     return {
       id: String(doc._id),
       name: doc.name,

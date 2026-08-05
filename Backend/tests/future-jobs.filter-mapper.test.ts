@@ -276,3 +276,58 @@ describe('Future Jobs filter mapper — requested sourcing filters', () => {
     });
   });
 });
+
+describe('skills relax fallback', () => {
+  it('peels mandatory then core one skill at a time', async () => {
+    const { nextSkillsRelaxStep, canRelaxSkillsFilter } = await import(
+      '../src/providers/future-jobs/futureJobs.filterMapping.js'
+    );
+
+    let form = {
+      searchType: 'Flexible',
+      selectRegion: ['India'],
+      currentTitle: 'Solution Architect',
+      yearsExpMin: '6',
+      yearsExpMax: '10',
+      keywordSkills: 'A, B, C, Soft Skills',
+      skills: {
+        mandatory: ['A', 'B'],
+        core: ['C'],
+        secondary: ['Soft Skills'],
+      },
+      location: ['Bengaluru, Karnataka, India'],
+      geoDistance: '50_km',
+    };
+
+    expect(canRelaxSkillsFilter(form)).toBe(true);
+
+    const step1 = nextSkillsRelaxStep(form as never)!;
+    expect(step1.bucket).toBe('mandatory');
+    expect(step1.removed).toBe('B');
+    expect(step1.form.skills).toEqual({
+      mandatory: ['A'],
+      core: ['C'],
+      secondary: ['Soft Skills'],
+    });
+    form = step1.form as typeof form;
+
+    const step2 = nextSkillsRelaxStep(form as never)!;
+    expect(step2.bucket).toBe('mandatory');
+    expect(step2.removed).toBe('A');
+    expect(step2.form.skills?.mandatory).toEqual([]);
+    form = step2.form as typeof form;
+
+    const step3 = nextSkillsRelaxStep(form as never)!;
+    expect(step3.bucket).toBe('core');
+    expect(step3.removed).toBe('C');
+    expect(step3.form.skills).toEqual({
+      mandatory: [],
+      core: [],
+      secondary: ['Soft Skills'],
+    });
+    expect(step3.form.keywordSkills).toBe('Soft Skills');
+
+    expect(nextSkillsRelaxStep(step3.form)).toBeNull();
+    expect(canRelaxSkillsFilter(step3.form)).toBe(false);
+  });
+});

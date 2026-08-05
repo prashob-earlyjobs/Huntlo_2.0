@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { getRequestId } from '../../../middleware/request-id.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
 import { successResponse } from '../../../shared/http/response.js';
+import { buildPaginationMeta } from '../../../shared/pagination/paginate.js';
 import { candidateSearchService } from './search.service.js';
 import {
   allCandidatesQuerySchema,
@@ -14,6 +15,7 @@ import {
   createSearchSchema,
   fetchMoreBodySchema,
   legacySearchSchema,
+  previewSearchSchema,
   recentSearchesQuerySchema,
   sessionProfilesQuerySchema,
   sessionsListQuerySchema,
@@ -33,6 +35,12 @@ export const annotateSearch = asyncHandler(async (req: Request, res: Response) =
   const input = annotateSearchSchema.parse(req.body);
   const result = await candidateSearchService.annotate(actorFrom(req), input);
   // Annotate returns success payload at top level for frontend drawer contract
+  res.status(200).json(result);
+});
+
+export const previewSearch = asyncHandler(async (req: Request, res: Response) => {
+  const input = previewSearchSchema.parse(req.body);
+  const result = await candidateSearchService.preview(actorFrom(req), input);
   res.status(200).json(result);
 });
 
@@ -110,7 +118,18 @@ export const getCandidateSearchDetails = asyncHandler(async (req: Request, res: 
 export const listSearchSessions = asyncHandler(async (req: Request, res: Response) => {
   const query = sessionsListQuerySchema.parse(req.query);
   const result = await candidateSearchService.listSessions(actorFrom(req), query);
-  successResponse(res, result, { meta: { requestId: getRequestId(req) } });
+  successResponse(res, result, {
+    meta: {
+      requestId: getRequestId(req),
+      ...buildPaginationMeta({
+        items: result.sessions,
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      }),
+    },
+  });
 });
 
 export const getRecentSearches = asyncHandler(async (req: Request, res: Response) => {

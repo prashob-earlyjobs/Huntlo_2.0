@@ -157,8 +157,16 @@ export const openApiSpec = {
     '/candidates/sessions': {
       get: {
         tags: ['Candidate Search'],
-        summary: 'Search history',
-        responses: { '200': { description: 'Session summaries' } },
+        summary: 'Search history (paginated)',
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: {
+          '200': {
+            description: 'Session summaries with page/limit/total/totalPages and org metrics',
+          },
+        },
       },
     },
     '/candidates/recent-searches': {

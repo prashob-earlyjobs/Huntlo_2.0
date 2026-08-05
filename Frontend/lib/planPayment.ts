@@ -73,14 +73,16 @@ function formatPriceLine(
   suffix: string
 ): string {
   const symbol = currency === "usd" ? "$" : "₹";
-  return `${symbol}${formatPaymentAmount(amount)}${suffix}`;
+  return `${symbol}${formatPaymentAmount(amount, currency)}${suffix}`;
 }
 
 function splitDisplayPriceLine(line: string): { amount: string; period: string } {
   const raw = line.trim();
   if (!raw) return { amount: "—", period: "" };
   if (/^free$/i.test(raw)) return { amount: raw, period: "" };
-  if (/^custom$/i.test(raw)) return { amount: "Custom", period: "" };
+  if (/^custom(\s+pricing)?$/i.test(raw)) {
+    return { amount: "Custom pricing", period: "" };
+  }
 
   const slashMo = raw.match(/^(.+?)(\/month(?:\/seat)?)$/i);
   if (slashMo) {
@@ -114,7 +116,7 @@ export function tierDbPaymentMajorAmount(tier: PricingTier): number | null {
 
 export function tierDbDisplayPriceLines(
   tier: PricingTier,
-  options?: { seatSuffix?: boolean }
+  options?: { seatSuffix?: boolean; currency?: PlanPaymentCurrency }
 ): TierDisplayPriceLines {
   const planId = tier.id?.trim().toLowerCase() || "";
   const suffix = options?.seatSuffix !== false ? "/month/seat" : "/month";
@@ -125,14 +127,19 @@ export function tierDbDisplayPriceLines(
     return { primary, secondary: null, amount: split.amount, period: split.period };
   }
 
-  const currency = resolveTierBillingCurrency(tier);
-  const amount = tierDbPaymentMajorAmount(tier);
+  const preferredCurrency = options?.currency ?? null;
+  const currency = preferredCurrency ?? resolveTierBillingCurrency(tier);
+  const amount = preferredCurrency
+    ? resolveTierPaymentMajorAmount(tier, preferredCurrency)
+    : tierDbPaymentMajorAmount(tier);
 
   if (planId === "enterprise" && !amount) {
-    const primary = tier.primaryPrice?.trim() || "Custom";
-    const secondary = tier.secondaryPrice?.trim() || null;
+    const primary =
+      tier.primaryPrice?.trim() && !/^custom$/i.test(tier.primaryPrice.trim())
+        ? tier.primaryPrice.trim()
+        : "Custom pricing";
     const split = splitDisplayPriceLine(primary);
-    return { primary, secondary, amount: split.amount, period: split.period };
+    return { primary, secondary: null, amount: split.amount, period: split.period };
   }
 
   if (!currency || !amount) {
@@ -191,8 +198,12 @@ export function isPlanUpgrade(
   return planTierRank(targetPlanId) > planTierRank(currentPlanId);
 }
 
-function formatPaymentAmount(amount: number): string {
-  return amount.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+function formatPaymentAmount(
+  amount: number,
+  currency: PlanPaymentCurrency = "inr"
+): string {
+  const locale = currency === "usd" ? "en-US" : "en-IN";
+  return amount.toLocaleString(locale, { maximumFractionDigits: 0 });
 }
 
 export function dashboardPlanPaymentButtonLabel(
@@ -206,7 +217,7 @@ export function dashboardPlanPaymentButtonLabel(
   const amount = tierDbPaymentMajorAmount(tier);
   if (amount) {
     const verb = options.isUpgrade ? "Upgrade" : "Subscribe";
-    return `${verb} · ${symbol}${formatPaymentAmount(amount)}/mo`;
+    return `${verb} · ${symbol}${formatPaymentAmount(amount, currency)}/mo`;
   }
   return options.isUpgrade ? "Upgrade plan" : "Subscribe";
 }

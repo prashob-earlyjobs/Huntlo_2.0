@@ -76,6 +76,15 @@ describe('Plans + usage API', () => {
   it('lists plans and returns current plan + usage summary', async () => {
     const auth = await registerAndAuth(agent);
 
+    const publicPlans = await agent.get('/api/pricing-plans');
+    expect(publicPlans.status).toBe(200);
+    expect(publicPlans.body.success).toBe(true);
+    expect(publicPlans.body.plans?.intro).toBeTruthy();
+    expect(Array.isArray(publicPlans.body.plans?.tiers)).toBe(true);
+    expect(
+      publicPlans.body.plans.tiers.some((plan: { id: string }) => plan.id === 'trial')
+    ).toBe(true);
+
     const plans = await agent
       .get('/api/v1/plans')
       .set('Authorization', `Bearer ${auth.token}`);

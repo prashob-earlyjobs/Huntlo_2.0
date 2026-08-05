@@ -60,7 +60,6 @@ import {
   DELAY_UNIT_OPTIONS,
   formatStepDelay,
   PERSONALIZATION_VARIABLES,
-  SEND_WINDOWS,
   STEP_CHANNELS,
   STEP_TYPE_ICONS,
   STEP_TYPES,
@@ -134,6 +133,35 @@ function StepEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when defaults or stub body changes
   }, [isAiVoice, step.id, step.body, voiceDefaults.agentPrompt]);
 
+  useEffect(() => {
+    if (!showLockedTemplate || !effectiveWhatsAppSlot) return;
+    const picked =
+      (step.templateId && getWhatsAppTemplateById(step.templateId)) ||
+      getDefaultWhatsAppTemplate(effectiveWhatsAppSlot);
+    if (!picked) return;
+    if (
+      step.templateId === picked.id &&
+      step.body === picked.body &&
+      step.template === picked.name
+    ) {
+      return;
+    }
+    // Keep approved Meta copy in sync (empty body, stale catalogue, or missing id).
+    if (
+      !step.templateId ||
+      !step.body.trim() ||
+      (step.templateId === picked.id && step.body !== picked.body)
+    ) {
+      onChange({
+        ...step,
+        templateId: picked.id,
+        template: picked.name,
+        body: picked.body,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed locked WhatsApp copy from catalogue
+  }, [showLockedTemplate, effectiveWhatsAppSlot, step.id, step.templateId, step.body]);
+
   return (
     <div className="space-y-4 border-t border-border px-4 py-4">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -147,8 +175,7 @@ function StepEditor({
               className="bg-muted/40 text-muted-foreground"
             />
             <p className="pt-1 text-xs text-muted-foreground">
-              Opening message sends as soon as the campaign launches (within the
-              send window).
+              Opening message sends as soon as the campaign launches.
             </p>
           </Field>
         ) : (
@@ -241,7 +268,7 @@ function StepEditor({
                   <SelectContent>
                     {whatsappTemplates.map((template) => (
                       <SelectItem key={template.id} value={template.id}>
-                        {template.name}
+                        {template.metaName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -403,29 +430,6 @@ function StepEditor({
         </Field>
       )}
 
-      {isMessage ? (
-        <div className="max-w-sm">
-          <Field label="Send window" htmlFor={`${step.id}-window`}>
-            <Select
-              value={step.sendWindow}
-              onValueChange={(value) =>
-                value && onChange({ ...step, sendWindow: value })
-              }
-            >
-              <SelectTrigger id={`${step.id}-window`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SEND_WINDOWS.map((window) => (
-                  <SelectItem key={window} value={window}>
-                    {window}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-      ) : null}
     </div>
   );
 }

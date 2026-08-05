@@ -1,19 +1,41 @@
 import type { Metadata } from "next";
 
-import { PeopleScoutPageContent } from "@/components/marketing/people-scout/PeopleScoutPageContent";
-import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
+import { PeopleScoutPage } from "@/components/landing/people-scout/PeopleScoutPage";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  PEOPLE_SCOUT_FAQS,
+  PEOPLE_SCOUT_PATH,
+  PEOPLE_SCOUT_SEO,
+  peopleScoutMetadata,
+} from "@/lib/peopleScout";
+import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
-const title = "People Scout | Huntlo";
-const description =
-  "Look up individual candidate profiles, reveal contact details, and move targeted talent into outreach workflows.";
+export const metadata: Metadata = peopleScoutMetadata();
 
-export const metadata: Metadata = buildPageMetadata({
-  title,
-  description,
-  ogImage: OG_IMAGES.platform,
-  path: "/people-scout",
-});
+export default function PeopleScoutRoutePage() {
+  const pageUrl = absoluteUrl(PEOPLE_SCOUT_PATH);
 
-export default function PeopleScoutPage() {
-  return <PeopleScoutPageContent />;
+  return (
+    <>
+      <JsonLd
+        data={[
+          webPageJsonLd({
+            name: PEOPLE_SCOUT_SEO.title,
+            description: PEOPLE_SCOUT_SEO.description,
+            url: pageUrl,
+            primaryImageOfPage: OG_IMAGES.platform,
+            aboutName: "Talent Discovery Intelligence",
+            mainEntityName: "Huntlo People Scout",
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", href: "/" },
+            { name: "People Scout", href: PEOPLE_SCOUT_PATH },
+          ]),
+          faqPageJsonLd([...PEOPLE_SCOUT_FAQS]),
+        ]}
+      />
+      <PeopleScoutPage />
+    </>
+  );
 }

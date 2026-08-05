@@ -67,7 +67,7 @@ export function UserProfileMenu() {
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`Account: ${displayName}`}
-          className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <Avatar className="size-7">
             <AvatarFallback className="bg-muted text-[11px] font-medium text-muted-foreground">

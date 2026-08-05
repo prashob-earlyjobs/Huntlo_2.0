@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/table";
 import {
   DEFAULT_WORKSPACE,
-  SETTINGS_TIMEZONES,
   type AuditLogEntry,
   type WorkspaceSettings,
 } from "@/lib/mock-settings";
@@ -190,7 +189,7 @@ export function SettingsWorkspace() {
     <div className="space-y-6">
       <FormSection
         title="Workspace"
-        description="Organisation identity and locale defaults for this workspace"
+        description="Organisation identity for this workspace"
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Organisation name" htmlFor="ws-name" required>
@@ -251,67 +250,6 @@ export function SettingsWorkspace() {
                     {size}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Default timezone" htmlFor="ws-tz">
-            <Select
-              value={form.workspace.defaultTimezone}
-              onValueChange={(value) =>
-                value && patchWorkspace("defaultTimezone", value)
-              }
-            >
-              <SelectTrigger id="ws-tz" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SETTINGS_TIMEZONES.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Date format" htmlFor="ws-date">
-            <Select
-              value={form.workspace.dateFormat}
-              onValueChange={(value) =>
-                value && patchWorkspace("dateFormat", value)
-              }
-            >
-              <SelectTrigger id="ws-date" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["DD MMM YYYY", "MMM DD, YYYY", "YYYY-MM-DD", "DD/MM/YYYY"].map(
-                  (format) => (
-                    <SelectItem key={format} value={format}>
-                      {format}
-                    </SelectItem>
-                  )
-                )}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Default currency" htmlFor="ws-currency">
-            <Select
-              value={form.workspace.defaultCurrency}
-              onValueChange={(value) =>
-                value && patchWorkspace("defaultCurrency", value)
-              }
-            >
-              <SelectTrigger id="ws-currency" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["INR (₹)", "USD ($)", "AED (د.إ)", "SGD (S$)", "GBP (£)"].map(
-                  (currency) => (
-                    <SelectItem key={currency} value={currency}>
-                      {currency}
-                    </SelectItem>
-                  )
-                )}
               </SelectContent>
             </Select>
           </Field>

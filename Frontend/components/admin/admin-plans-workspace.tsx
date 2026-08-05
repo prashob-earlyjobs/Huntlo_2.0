@@ -41,9 +41,10 @@ import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
+const UNLIMITED_QUOTA = 999_999_999;
+
 const FEATURE_KEY_BY_LABEL: Record<string, string> = {
-  "Candidate Search": "sourcing",
-  "Candidate Pool": "sourcing",
+  Sourcing: "sourcing",
   "People Scout": "peopleScout",
   Outreach: "outreach",
   "Huntlo 360": "huntlo360",
@@ -56,7 +57,26 @@ const FEATURE_KEY_BY_LABEL: Record<string, string> = {
 
 function limitValue(limits: Record<string, unknown> | undefined, key: string) {
   const value = limits?.[key];
-  return value == null ? "—" : String(value);
+  if (value == null || value === "") return "";
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric >= UNLIMITED_QUOTA) return "Unlimited";
+  return String(value);
+}
+
+function parseLimit(value: string): number {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return 0;
+  if (
+    trimmed === "unlimited" ||
+    trimmed === "custom" ||
+    trimmed === "∞" ||
+    trimmed === "inf"
+  ) {
+    return UNLIMITED_QUOTA;
+  }
+  const digits = trimmed.replace(/[^\d]/g, "");
+  if (!digits) return 0;
+  return Number(digits);
 }
 
 function parsePrice(value: string): number | null {
@@ -114,6 +134,9 @@ function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
     const key = FEATURE_KEY_BY_LABEL[label];
     return key ? enabledKeys.has(key) : false;
   }) as string[];
+  const cycles = plan.billingCycles ?? [];
+  const billingCycle: AdminPlan["billingCycle"] =
+    cycles.length === 1 && cycles[0] === "yearly" ? "Annual" : "Monthly";
 
   return {
     id: plan.id,
@@ -125,7 +148,7 @@ function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
     priceInrYearly: amountToInput(plan.prices?.yearly),
     priceUsdMonthly: amountToInput(plan.usdPrices?.monthly),
     priceUsdYearly: amountToInput(plan.usdPrices?.yearly),
-    billingCycle: "Monthly",
+    billingCycle,
     searchLimit: limitValue(limits, "candidate_search"),
     emailRevealLimit: limitValue(limits, "email_reveal"),
     mobileRevealLimit: limitValue(limits, "mobile_reveal"),
@@ -133,7 +156,9 @@ function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
     emailOutreachLimit: limitValue(limits, "email_outreach"),
     whatsappLimit: limitValue(limits, "whatsapp_outreach"),
     aiVoiceLimit: limitValue(limits, "ai_voice_minutes"),
+    assessmentInviteLimit: limitValue(limits, "assessment_invites"),
     teamMemberLimit: limitValue(limits, "team_seats"),
+    allowOverage: Boolean(limits.allowOverage),
     modules,
     active: plan.active,
     public: plan.public ?? true,
@@ -156,6 +181,8 @@ function toPlanPayload(draft: AdminPlan, { includeCode }: { includeCode: boolean
     featureAccess[key] = draft.modules.includes(label);
   }
 
+  const isDefaultSignup = draft.active ? draft.isDefaultSignup : false;
+
   return {
     name: draft.name.trim(),
     ...(includeCode
@@ -171,22 +198,25 @@ function toPlanPayload(draft: AdminPlan, { includeCode }: { includeCode: boolean
       monthly: priceUsdMonthly,
       yearly: priceUsdYearly,
     },
-    billingCycles: draft.billingCycle === "Annual" ? ["yearly"] : ["monthly", "yearly"],
+    billingCycles:
+      draft.billingCycle === "Annual" ? ["yearly"] : ["monthly", "yearly"],
     limits: {
-      candidate_search: Number(String(draft.searchLimit).replace(/[^\d]/g, "")) || 0,
-      email_reveal: Number(String(draft.emailRevealLimit).replace(/[^\d]/g, "")) || 0,
-      mobile_reveal: Number(String(draft.mobileRevealLimit).replace(/[^\d]/g, "")) || 0,
-      people_scout: Number(String(draft.peopleScoutLimit).replace(/[^\d]/g, "")) || 0,
-      email_outreach: Number(String(draft.emailOutreachLimit).replace(/[^\d]/g, "")) || 0,
-      whatsapp_outreach: Number(String(draft.whatsappLimit).replace(/[^\d]/g, "")) || 0,
-      ai_voice_minutes: Number(String(draft.aiVoiceLimit).replace(/[^\d]/g, "")) || 0,
-      team_seats: Number(String(draft.teamMemberLimit).replace(/[^\d]/g, "")) || 0,
+      candidate_search: parseLimit(draft.searchLimit),
+      email_reveal: parseLimit(draft.emailRevealLimit),
+      mobile_reveal: parseLimit(draft.mobileRevealLimit),
+      people_scout: parseLimit(draft.peopleScoutLimit),
+      email_outreach: parseLimit(draft.emailOutreachLimit),
+      whatsapp_outreach: parseLimit(draft.whatsappLimit),
+      ai_voice_minutes: parseLimit(draft.aiVoiceLimit),
+      assessment_invites: parseLimit(draft.assessmentInviteLimit),
+      team_seats: parseLimit(draft.teamMemberLimit),
+      allowOverage: draft.allowOverage,
     },
     featureAccess,
     active: draft.active,
     public: draft.public,
     sortOrder: Number(draft.sortOrder) || 0,
-    isDefaultSignup: draft.isDefaultSignup,
+    isDefaultSignup,
     isTrialPlan: draft.isTrialPlan,
     trialDays: Number(draft.trialDays) || 14,
   };
@@ -244,17 +274,21 @@ export function AdminPlansWorkspace() {
       setToast("Plan name is required.");
       return;
     }
-    if (!draft.priceInrMonthly.trim() && !draft.priceUsdMonthly.trim()) {
-      setToast("Enter at least one monthly price (INR or USD). Use 0 for free.");
-      return;
-    }
-    if (draft.currency === "INR" && !draft.priceInrMonthly.trim()) {
-      setToast("INR monthly price is required when billing currency is INR.");
-      return;
-    }
-    if (draft.currency === "USD" && !draft.priceUsdMonthly.trim()) {
-      setToast("USD monthly price is required when billing currency is USD.");
-      return;
+    const hasAnyPrice =
+      draft.priceInrMonthly.trim() ||
+      draft.priceInrYearly.trim() ||
+      draft.priceUsdMonthly.trim() ||
+      draft.priceUsdYearly.trim();
+    const isCustomPricing = !hasAnyPrice;
+    if (!isCustomPricing) {
+      if (draft.currency === "INR" && !draft.priceInrMonthly.trim()) {
+        setToast("INR monthly price is required when billing currency is INR.");
+        return;
+      }
+      if (draft.currency === "USD" && !draft.priceUsdMonthly.trim()) {
+        setToast("USD monthly price is required when billing currency is USD.");
+        return;
+      }
     }
     const payload = toPlanPayload(draft, { includeCode: !editingId });
     setSaving(true);
@@ -262,7 +296,11 @@ export function AdminPlansWorkspace() {
       try {
         if (editingId) {
           await adminApi.updatePlan(editingId, payload);
-          setToast(`Updated ${draft.name}.`);
+          setToast(
+            !draft.active && draft.isDefaultSignup
+              ? `Updated ${draft.name} and cleared default signup (inactive plans cannot be default).`
+              : `Updated ${draft.name}.`
+          );
         } else {
           await adminApi.createPlan(payload);
           setToast(`Created ${draft.name}.`);
@@ -466,7 +504,15 @@ export function AdminPlansWorkspace() {
             <Field
               label="INR monthly"
               htmlFor="pl-price-inr-m"
-              required={draft.currency === "INR"}
+              required={
+                draft.currency === "INR" &&
+                Boolean(
+                  draft.priceInrMonthly.trim() ||
+                    draft.priceInrYearly.trim() ||
+                    draft.priceUsdMonthly.trim() ||
+                    draft.priceUsdYearly.trim()
+                )
+              }
             >
               <Input
                 id="pl-price-inr-m"
@@ -504,7 +550,15 @@ export function AdminPlansWorkspace() {
             <Field
               label="USD monthly"
               htmlFor="pl-price-usd-m"
-              required={draft.currency === "USD"}
+              required={
+                draft.currency === "USD" &&
+                Boolean(
+                  draft.priceInrMonthly.trim() ||
+                    draft.priceInrYearly.trim() ||
+                    draft.priceUsdMonthly.trim() ||
+                    draft.priceUsdYearly.trim()
+                )
+              }
             >
               <Input
                 id="pl-price-usd-m"
@@ -667,7 +721,7 @@ export function AdminPlansWorkspace() {
                 }
               />
             </Field>
-            <Field label="AI voice limit" htmlFor="pl-voice">
+            <Field label="AI voice minutes" htmlFor="pl-voice">
               <Input
                 id="pl-voice"
                 value={draft.aiVoiceLimit}
@@ -677,6 +731,20 @@ export function AdminPlansWorkspace() {
                     aiVoiceLimit: event.target.value,
                   }))
                 }
+                placeholder="e.g. 60 or Unlimited"
+              />
+            </Field>
+            <Field label="Assessment invites" htmlFor="pl-assess">
+              <Input
+                id="pl-assess"
+                value={draft.assessmentInviteLimit}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    assessmentInviteLimit: event.target.value,
+                  }))
+                }
+                placeholder="e.g. 200 or Unlimited"
               />
             </Field>
             <Field label="Team member limit" htmlFor="pl-team">
@@ -689,6 +757,7 @@ export function AdminPlansWorkspace() {
                     teamMemberLimit: event.target.value,
                   }))
                 }
+                placeholder="e.g. 5 or Unlimited"
               />
             </Field>
           </div>
@@ -710,11 +779,26 @@ export function AdminPlansWorkspace() {
 
           <div className="space-y-2">
             <ToggleRow
+              id="pl-overage"
+              label="Allow overage"
+              description="When enabled, quotas can exceed the configured limits (Enterprise-style)"
+              checked={draft.allowOverage}
+              onChange={(checked) =>
+                setDraft((previous) => ({ ...previous, allowOverage: checked }))
+              }
+            />
+            <ToggleRow
               id="pl-active"
               label="Active"
               description="Inactive plans cannot be assigned to new workspaces"
               checked={draft.active}
-              onChange={(checked) => setDraft((previous) => ({ ...previous, active: checked }))}
+              onChange={(checked) =>
+                setDraft((previous) => ({
+                  ...previous,
+                  active: checked,
+                  isDefaultSignup: checked ? previous.isDefaultSignup : false,
+                }))
+              }
             />
             <ToggleRow
               id="pl-public"
@@ -729,7 +813,11 @@ export function AdminPlansWorkspace() {
               description="New accounts are assigned this plan automatically"
               checked={draft.isDefaultSignup}
               onChange={(checked) =>
-                setDraft((previous) => ({ ...previous, isDefaultSignup: checked }))
+                setDraft((previous) => ({
+                  ...previous,
+                  isDefaultSignup: checked,
+                  active: checked ? true : previous.active,
+                }))
               }
             />
             <ToggleRow

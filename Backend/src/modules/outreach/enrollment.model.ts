@@ -54,6 +54,8 @@ export type OutreachEnrollmentDocument = Document & {
     hasReply: boolean;
     disposition: string | null;
     repliedAt: Date | null;
+    /** First-reply winner channel — locks multi-channel outreach to this channel. */
+    channel: 'email' | 'whatsapp' | null;
   };
   /** Mirrors replyState.hasReply, kept in sync on save. */
   hasReply: boolean;
@@ -66,10 +68,13 @@ export type OutreachEnrollmentDocument = Document & {
   qualificationState: {
     status: 'pending' | 'in_progress' | 'qualified' | 'rejected' | 'skipped';
     answers: Record<string, unknown>;
+    reason?: string | null;
   };
   screeningState: {
     status: 'not_started' | 'scheduled' | 'completed' | 'skipped';
     screeningId: string | null;
+    /** Final screening outcome when status is completed. */
+    decision: 'shortlisted' | 'rejected' | 'pending' | null;
   };
   schedulingState: {
     status: 'not_started' | 'link_sent' | 'booked' | 'skipped';
@@ -142,10 +147,20 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
           hasReply: { type: Boolean, default: false },
           disposition: { type: String, default: null },
           repliedAt: { type: Date, default: null },
+          channel: {
+            type: String,
+            enum: ['email', 'whatsapp'],
+            default: null,
+          },
         },
         { _id: false }
       ),
-      default: () => ({ hasReply: false, disposition: null, repliedAt: null }),
+      default: () => ({
+        hasReply: false,
+        disposition: null,
+        repliedAt: null,
+        channel: null,
+      }),
     },
     hasReply: { type: Boolean, default: false },
     replyDisposition: { type: String, default: null },
@@ -162,10 +177,11 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
             default: 'pending',
           },
           answers: { type: Schema.Types.Mixed, default: {} },
+          reason: { type: String, default: null, maxlength: 500 },
         },
         { _id: false }
       ),
-      default: () => ({ status: 'pending', answers: {} }),
+      default: () => ({ status: 'pending', answers: {}, reason: null }),
     },
     screeningState: {
       type: new Schema(
@@ -176,10 +192,15 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
             default: 'not_started',
           },
           screeningId: { type: String, default: null },
+          decision: {
+            type: String,
+            enum: ['shortlisted', 'rejected', 'pending'],
+            default: null,
+          },
         },
         { _id: false }
       ),
-      default: () => ({ status: 'not_started', screeningId: null }),
+      default: () => ({ status: 'not_started', screeningId: null, decision: null }),
     },
     schedulingState: {
       type: new Schema(

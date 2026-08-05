@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   LayoutTemplate,
   Loader2,
@@ -37,6 +39,7 @@ import { ROUTES, sessionDetailPath } from "@/lib/routes";
 import type { Status } from "@/lib/types";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 const STATE_STATUS: Record<SearchHistoryEntry["state"], Status> = {
   completed: "Completed",
@@ -115,17 +118,31 @@ function HistoryRowActions({
 export function SearchHistoryTable({
   entries,
   loading = false,
+  pagingDisabled = false,
+  page = 1,
+  pageSize = 20,
+  total = 0,
+  totalPages = 1,
+  onPageChange,
+  onPageSizeChange,
   onDelete,
 }: {
   entries: SearchHistoryEntry[];
   loading?: boolean;
+  pagingDisabled?: boolean;
+  page?: number;
+  pageSize?: number;
+  total?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   onDelete?: (entry: SearchHistoryEntry) => void;
 }) {
   if (loading) {
     return <SearchHistoryTableSkeleton />;
   }
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && total === 0) {
     return (
       <EmptyState
         icon={Search}
@@ -136,6 +153,10 @@ export function SearchHistoryTable({
       />
     );
   }
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
+  const showPager = Boolean(onPageChange && onPageSizeChange);
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card">
@@ -221,6 +242,62 @@ export function SearchHistoryTable({
           </TableBody>
         </Table>
       </div>
+
+      {showPager ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            {total === 0
+              ? "No searches"
+              : `Showing ${rangeStart}–${rangeEnd} of ${total.toLocaleString("en-IN")}`}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              Rows
+              <select
+                value={pageSize}
+                disabled={pagingDisabled}
+                onChange={(event) =>
+                  onPageSizeChange?.(Number(event.target.value))
+                }
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-label="Previous page"
+                disabled={pagingDisabled || page <= 1}
+                onClick={() => onPageChange?.(Math.max(1, page - 1))}
+              >
+                <ChevronLeft aria-hidden />
+              </Button>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-label="Next page"
+                disabled={pagingDisabled || page >= totalPages}
+                onClick={() =>
+                  onPageChange?.(Math.min(totalPages, page + 1))
+                }
+              >
+                <ChevronRight aria-hidden />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

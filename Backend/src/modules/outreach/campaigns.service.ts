@@ -29,6 +29,7 @@ import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } fro
 import { enrichCampaignContactsForLaunch } from './campaign-launch-reveal.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
 import {
+  BullOutreachJobModel,
   cancelJobsForCampaign,
   cancelJobsForEnrollment,
   scheduleFirstSends,
@@ -213,11 +214,29 @@ export async function refreshCampaignStats(campaignId: string) {
 
   // Succeeded send jobs are the source of truth for Contacted/Delivered.
   // (Nested Mixed `stats.sent++` was often not persisted by Mongoose.)
-  const sentCount = await CampaignJobModel.countDocuments({
-    campaignId: oid,
-    status: 'succeeded',
-    'result.delivery': 'sent',
-  });
+  // Count both legacy CampaignJob rows and BullMQ outreach jobs — get() refreshes
+  // from this, so Bull-only voice/email sends were previously wiped back to 0.
+  const [legacySent, bullSent] = await Promise.all([
+    CampaignJobModel.countDocuments({
+      campaignId: oid,
+      status: 'succeeded',
+      'result.delivery': 'sent',
+    }),
+    BullOutreachJobModel.countDocuments({
+      campaignId: oid,
+      status: 'done',
+      kind: { $in: ['send', 'followup'] },
+      $or: [
+        { 'details.delivery': 'sent' },
+        // Backfill: jobs completed before details.delivery was stamped.
+        {
+          channel: { $in: ['email', 'whatsapp', 'ai_voice'] },
+          'details.delivery': { $exists: false },
+        },
+      ],
+    }),
+  ]);
+  const sentCount = legacySent + bullSent;
   stats.sent = sentCount;
   stats.delivered = sentCount;
 
@@ -503,6 +522,15 @@ export const campaignsService = {
       detail: doc.name,
     });
 
+    void import('../admin/email-templates.service.js')
+      .then(({ emailTemplatesService }) =>
+        emailTemplatesService.onCampaignDraftCreated({
+          userId: ownerUserId,
+          campaignId: String(doc._id),
+        })
+      )
+      .catch(() => undefined);
+
     return toSafeCampaign(doc, {
       ownerName: await ownerName(ownerUserId),
       relatedJobTitle: await jobTitle(doc.jobId),
@@ -701,12 +729,35 @@ export const campaignsService = {
   ) {
     const doc = await loadCampaign(organizationId, id);
     await assertEditable(doc);
-    const result = await OutreachEnrollmentModel.deleteMany({
+
+    const enrollments = await OutreachEnrollmentModel.find({
       campaignId: doc._id,
       organizationId,
       candidateId: { $in: input.candidateIds },
-      status: { $in: ['pending', 'opted_out'] },
+    }).select('_id candidateId');
+
+    if (enrollments.length === 0) {
+      return { removed: 0 };
+    }
+
+    const enrollmentIds = enrollments.map((row) => row._id);
+    await Promise.all([
+      CampaignJobModel.updateMany(
+        {
+          enrollmentId: { $in: enrollmentIds },
+          status: { $in: ['queued', 'queued_v2', 'leased', 'running'] },
+        },
+        { $set: { status: 'cancelled' } }
+      ),
+      ...enrollments.map((row) => cancelJobsForEnrollment(String(row._id))),
+    ]);
+
+    const result = await OutreachEnrollmentModel.deleteMany({
+      _id: { $in: enrollmentIds },
+      campaignId: doc._id,
+      organizationId,
     });
+
     const remaining = await OutreachEnrollmentModel.find({ campaignId: doc._id })
       .select('candidateId')
       .lean();
@@ -719,7 +770,13 @@ export const campaignsService = {
       actorUserId: userId,
       type: 'audience.removed',
       title: 'Audience candidates removed',
-      detail: `Removed ${result.deletedCount}`,
+      detail: `Removed ${result.deletedCount || 0}`,
+    });
+    emitOutreachCampaignUpdated({
+      organizationId,
+      campaignId: id,
+      status: doc.status,
+      userId,
     });
     return { removed: result.deletedCount || 0 };
   },
@@ -951,6 +1008,15 @@ export const campaignsService = {
       title: 'Campaign launched',
       detail: `${eligible.length} enrollment(s) activated`,
     });
+
+    void import('../admin/email-templates.service.js')
+      .then(({ emailTemplatesService }) =>
+        emailTemplatesService.onCampaignLaunched({
+          userId: String(locked.ownerUserId),
+          campaignId: id,
+        })
+      )
+      .catch(() => undefined);
 
     emitOutreachCampaignUpdated({
       organizationId,

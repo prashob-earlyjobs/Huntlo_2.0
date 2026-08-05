@@ -29,7 +29,10 @@ function PricingCheckIcon({ featured }: { featured: boolean }) {
 }
 
 function PricingPrice({ tier, featured }: { tier: PricingTier; featured: boolean }) {
-  const priceLines = tierDbDisplayPriceLines(tier, { seatSuffix: false });
+  const priceLines = tierDbDisplayPriceLines(tier, {
+    seatSuffix: false,
+    currency: "usd",
+  });
   const enterprise = isEnterpriseTier(tier);
 
   return (
@@ -52,7 +55,7 @@ function PricingPrice({ tier, featured }: { tier: PricingTier; featured: boolean
           </span>
         ) : null}
       </p>
-      {priceLines.secondary && enterprise ? (
+      {priceLines.secondary && !enterprise ? (
         <p className={`mt-1.5 text-sm ${featured ? "text-white/65" : "text-[#434654]/80"}`}>
           {priceLines.secondary}
         </p>
@@ -119,7 +122,7 @@ function PricingCard({ tier }: { tier: PricingTier }) {
           featured ? "text-white" : "text-[#141b2b]"
         }`}
       >
-        {tier.name}
+        {tier.id === "trial" ? "7 days trial" : tier.name}
       </h3>
 
       <PricingPrice tier={tier} featured={featured} />

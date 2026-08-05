@@ -89,7 +89,7 @@ export function verifyRealtimeTicket(token: string): RealtimeTicketPayload {
 
 export function parseDurationMs(value: string): number {
   const match = /^(\d+)([smhd])$/.exec(value.trim());
-  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  if (!match) return 30 * 24 * 60 * 60 * 1000;
   const amount = Number(match[1]);
   const unit = match[2];
   switch (unit) {
@@ -102,6 +102,6 @@ export function parseDurationMs(value: string): number {
     case 'd':
       return amount * 24 * 60 * 60 * 1000;
     default:
-      return 7 * 24 * 60 * 60 * 1000;
+      return 30 * 24 * 60 * 60 * 1000;
   }
 }

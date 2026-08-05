@@ -45,12 +45,31 @@ const envSchema = z.object({
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
   REFRESH_COOKIE_NAME: z.string().default('huntlo_refresh_token'),
   COOKIE_DOMAIN: z.string().optional(),
   AUTH_MAX_LOGIN_ATTEMPTS: z.coerce.number().int().min(3).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
+
+  // Platform transactional email (password reset, verification, etc.)
+  SYSTEM_SMTP_HOST: z.string().optional(),
+  SYSTEM_SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  SYSTEM_SMTP_SECURITY: z.enum(['tls', 'ssl', 'none']).default('tls'),
+  SYSTEM_SMTP_USER: z.string().optional(),
+  SYSTEM_SMTP_PASS: z.string().optional(),
+  SYSTEM_MAIL_FROM: z
+    .string()
+    .optional()
+    .transform((value) => {
+      const trimmed = (value ?? '').trim();
+      return trimmed || undefined;
+    })
+    .refine(
+      (value) => value === undefined || z.string().email().safeParse(value).success,
+      { message: 'SYSTEM_MAIL_FROM must be a valid email' }
+    ),
+  SYSTEM_MAIL_FROM_NAME: z.string().default('Huntlo'),
 
   // Platform admin console — comma-separated emails granted platformAdmin access
   PLATFORM_ADMIN_EMAILS: z
@@ -77,6 +96,10 @@ const envSchema = z.object({
   FUTURE_JOBS_MAX_RETRIES: z.coerce.number().int().min(0).default(2),
   FUTURE_JOBS_CIRCUIT_FAILURE_THRESHOLD: z.coerce.number().int().min(1).default(5),
   FUTURE_JOBS_CIRCUIT_RESET_MS: z.coerce.number().int().min(1000).default(60000),
+  /** Append runnable curls for each FJ HTTP call. Defaults on in development. */
+  FUTURE_JOBS_CURL_LOG: booleanFromEnv.optional(),
+  /** Absolute or cwd-relative path. Default: logs/future-jobs-curls.sh */
+  FUTURE_JOBS_CURL_LOG_PATH: z.string().optional(),
 
   // Optional Gemini enhancement for sourcing interpret (no-op when empty)
   GEMINI_API_KEY: z.string().default(''),

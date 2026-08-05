@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,11 @@ import {
   nationalNumberPlaceholder,
   PHONE_COUNTRIES,
 } from "@/lib/phone-countries";
+import {
+  buildAttributionPayload,
+  persistUtm,
+  readUtmFromSearch,
+} from "@/lib/utm";
 import {
   companyNameFromWorkEmail,
   isWorkEmail,
@@ -84,6 +89,12 @@ export default function SignupPage() {
   const selectedCountry = useMemo(() => getPhoneCountry(form.countryIso), [form.countryIso]);
   const companyDomain = useMemo(() => workEmailDomain(form.email), [form.email]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromUrl = readUtmFromSearch(window.location.search);
+    if (fromUrl) persistUtm(fromUrl);
+  }, []);
+
   function updateField<K extends keyof SignupFormState>(key: K, value: SignupFormState[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
     if (key === "companyName") {
@@ -127,6 +138,7 @@ export default function SignupPage() {
         mobile,
         password: form.password,
         confirmPassword: form.confirmPassword,
+        attribution: buildAttributionPayload(),
       });
       router.replace(resolvePostAuthDestination(nextUser, peekPendingRedirectPath()));
     } catch (err) {

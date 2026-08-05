@@ -3,7 +3,7 @@
 Production backend for the Huntlo agentic AI recruiting platform.
 
 **Status:** Phase 0 foundation implemented.
-
+.
 ## Quick start
 
 ```bash

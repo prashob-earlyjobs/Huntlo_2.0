@@ -12,6 +12,10 @@ import {
 } from './inbound-sync.service.js';
 import { ConversationThreadModel } from './conversation-thread.model.js';
 import type { MessageProvider } from './conversation-message.model.js';
+import {
+  WEBHOOK_ROUTE_ENV_HEADER,
+} from '../webhooks/webhook-route-env.js';
+import { shouldProcessWhatsAppInboundForThisEnv } from '../webhooks/whatsapp-outbound-route.service.js';
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -73,12 +77,14 @@ export function parseMetaWhatsAppWebhook(payload: unknown): {
           '[whatsapp message]';
         const id = String(m.id || '');
         if (!id) continue;
+        const contextId = String(asRecord(m.context).id || '').trim() || null;
         messages.push({
           organizationId: orgHint,
           provider: 'meta-whatsapp',
           channel: 'whatsapp',
           providerMessageId: webhookIdempotencyKey('meta-whatsapp', id),
           providerThreadId: String(m.from || ''),
+          contextProviderMessageId: contextId,
           from: String(m.from || ''),
           to: phoneNumberId || displayPhone || null,
           bodyText: text,
@@ -338,7 +344,9 @@ export async function handleProviderWebhook(input: {
   organizationId?: string | null;
   payload: unknown;
   req?: Request;
-}): Promise<{ ingested: number; duplicates: number; statuses: number }> {
+  /** Optional fan-out header override (x-huntlo-webhook-route-env). */
+  routeEnvHeader?: string | null;
+}): Promise<{ ingested: number; duplicates: number; statuses: number; skippedRoute: number }> {
   let messages: NormalizedInboundMessage[] = [];
   let statuses: Array<{
     providerMessageId: string;
@@ -385,10 +393,45 @@ export async function handleProviderWebhook(input: {
     });
   }
 
+  const headerRouteEnv =
+    String(input.routeEnvHeader || '').trim() ||
+    (input.req
+      ? String(
+          input.req.header(WEBHOOK_ROUTE_ENV_HEADER) ||
+            input.req.headers[WEBHOOK_ROUTE_ENV_HEADER] ||
+            ''
+        ).trim()
+      : '') ||
+    null;
+
   const logger = getLogger().child({ component: 'provider-sync', provider: input.provider });
   let ingested = 0;
   let duplicates = 0;
+  let skippedRoute = 0;
   for (const message of messages) {
+    if (message.channel === 'whatsapp' || input.provider === 'meta-whatsapp' || input.provider === 'gupshup') {
+      const gate = await shouldProcessWhatsAppInboundForThisEnv({
+        fromPhone: message.from,
+        contextProviderMessageId: message.contextProviderMessageId,
+        headerRouteEnv,
+      });
+      if (!gate.process) {
+        skippedRoute += 1;
+        logger.info(
+          {
+            from: message.from,
+            myEnv: gate.myEnv,
+            routeEnv: gate.routeEnv,
+            reason: gate.reason,
+            contextProviderMessageId: message.contextProviderMessageId || null,
+            providerMessageId: message.providerMessageId,
+          },
+          'Skipping inbound WhatsApp — owned by another deploy env'
+        );
+        continue;
+      }
+    }
+
     let organizationId =
       message.organizationId || input.organizationId || '';
     if (!organizationId && (message.channel === 'whatsapp' || input.provider === 'meta-whatsapp' || input.provider === 'gupshup')) {
@@ -481,5 +524,5 @@ export async function handleProviderWebhook(input: {
     if (updated) statusUpdates += 1;
   }
 
-  return { ingested, duplicates, statuses: statusUpdates };
+  return { ingested, duplicates, statuses: statusUpdates, skippedRoute };
 }

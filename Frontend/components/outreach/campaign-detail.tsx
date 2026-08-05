@@ -9,6 +9,8 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   Eye,
@@ -31,7 +33,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
@@ -45,6 +47,16 @@ import { ConversationsPanel } from "@/components/conversations/conversations-pan
 import { ApiFeedback } from "@/components/shared/api-feedback";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -75,6 +87,7 @@ import {
   type ApiCampaignSequenceStep,
   type ApiOutreachCampaign,
   type ApiUiState,
+  type PaginationMeta,
 } from "@/lib/api";
 import {
   CHANNEL_ICONS,
@@ -86,6 +99,7 @@ import {
   deriveCandidatePipelineStatus,
   pipelineStatusBadgeClass,
 } from "@/lib/enrollment-pipeline-status";
+import { suggestQuestionTitle } from "@/lib/mock-outreach";
 import {
   campaignDetailPath,
   campaignEditPath,
@@ -184,6 +198,107 @@ function relativeTime(iso: string | null): string {
   const hours = Math.floor(mins / 60);
   if (hours < 48) return `${hours}h ago`;
   return new Date(ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+function formatQualificationAnswer(entry: unknown): string {
+  if (entry == null) return "";
+  if (
+    typeof entry === "string" ||
+    typeof entry === "number" ||
+    typeof entry === "boolean"
+  ) {
+    return String(entry).trim();
+  }
+  if (typeof entry === "object" && entry !== null && "value" in entry) {
+    return String((entry as { value?: unknown }).value ?? "").trim();
+  }
+  return String(entry).trim();
+}
+
+function qualificationStatusLabel(status: string | undefined): string {
+  switch (status) {
+    case "qualified":
+      return "Qualified";
+    case "rejected":
+      return "Not qualified";
+    case "in_progress":
+      return "In progress";
+    case "skipped":
+      return "Skipped";
+    default:
+      return "Pending";
+  }
+}
+
+function csvEscape(value: string | number | null | undefined): string {
+  const text = value == null ? "" : String(value);
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildQualificationCsv(
+  questions: CampaignQuestion[],
+  enrollments: ApiCampaignEnrollment[]
+): string {
+  const headers = [
+    "Candidate",
+    "Email",
+    "Phone",
+    "Company",
+    "Title",
+    "Qualification status",
+    ...questions.map((question) => questionColumnTitle(question)),
+  ];
+  const rows = enrollments.map((candidate) => {
+    const status = candidate.qualificationState?.status ?? "pending";
+    const answers = candidate.qualificationState?.answers || {};
+    return [
+      candidate.name,
+      candidate.email ?? "",
+      candidate.phone ?? "",
+      candidate.company ?? "",
+      candidate.title ?? "",
+      qualificationStatusLabel(status),
+      ...questions.map((question) =>
+        formatQualificationAnswer(answers[question.id])
+      ),
+    ];
+  });
+  return [headers, ...rows]
+    .map((row) => row.map(csvEscape).join(","))
+    .join("\n");
+}
+
+async function fetchAllQualificationEnrollments(
+  campaignId: string
+): Promise<ApiCampaignEnrollment[]> {
+  const limit = 100;
+  const first = await outreachApi.listEnrollmentsPage(campaignId, {
+    page: 1,
+    limit,
+  });
+  const items = [...first.items];
+  const totalPages = Math.max(1, Number(first.pagination.totalPages) || 1);
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await outreachApi.listEnrollmentsPage(campaignId, {
+      page,
+      limit,
+    });
+    items.push(...next.items);
+  }
+  return items;
 }
 
 const STEP_ICONS: Record<string, LucideIcon> = {
@@ -319,18 +434,68 @@ function OverviewTab({ campaign }: { campaign: OutreachCampaign }) {
 /* ------------------------------------------------------------------ */
 
 function CandidatesTab({
+  campaignId,
   enrollments,
   state,
   message,
   onRetry,
+  onChanged,
   autoScreening,
 }: {
+  campaignId: string;
   enrollments: ApiCampaignEnrollment[];
   state: ApiUiState;
   message: string | null;
   onRetry: () => void;
+  onChanged: () => void;
   autoScreening?: boolean;
 }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<ApiCampaignEnrollment | null>(
+    null
+  );
+
+  async function pauseCandidate(candidate: ApiCampaignEnrollment) {
+    if (!candidate.candidateId) return;
+    setBusyId(candidate.id);
+    setActionError(null);
+    try {
+      await outreachApi.recordCandidateAction(campaignId, candidate.candidateId, {
+        action: "stop_automation",
+        reason: "Paused for candidate from campaign detail",
+      });
+      onChanged();
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, "Unable to pause candidate."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmRemoveCandidate() {
+    const candidate = pendingRemove;
+    if (!candidate?.candidateId) return;
+    setBusyId(candidate.id);
+    setActionError(null);
+    try {
+      const result = await outreachApi.removeAudience(campaignId, {
+        candidateIds: [candidate.candidateId],
+      });
+      if (!result.removed) {
+        setActionError("Candidate could not be removed from this campaign.");
+        return;
+      }
+      setPendingRemove(null);
+      onChanged();
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, "Unable to remove candidate."));
+      setPendingRemove(null);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (state !== "success") {
     return (
       <ApiFeedback
@@ -344,7 +509,16 @@ function CandidatesTab({
   }
 
   return (
-    <section className="overflow-x-auto rounded-xl border border-border bg-card">
+    <section className="space-y-3">
+      {actionError ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {actionError}
+        </div>
+      ) : null}
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
         <caption className="sr-only">
           Candidates enrolled in this campaign
@@ -370,6 +544,8 @@ function CandidatesTab({
               autoScreening,
             });
             const scheduling = candidate.schedulingState?.status ?? "not_started";
+            const isBusy = busyId === candidate.id;
+            const canAct = Boolean(candidate.candidateId);
             return (
               <TableRow key={candidate.id}>
                 <TableCell className="py-2.5">
@@ -438,6 +614,7 @@ function CandidatesTab({
                         <Button
                           size="icon-sm"
                           variant="ghost"
+                          disabled={isBusy}
                           aria-label={`Actions for ${candidate.name}`}
                         />
                       }
@@ -457,11 +634,18 @@ function CandidatesTab({
                           View profile
                         </DropdownMenuItem>
                       ) : null}
-                      <DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={!canAct || isBusy}
+                        onClick={() => void pauseCandidate(candidate)}
+                      >
                         <Pause aria-hidden />
                         Pause for candidate
                       </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        disabled={!canAct || isBusy}
+                        onClick={() => setPendingRemove(candidate)}
+                      >
                         <Trash2 aria-hidden />
                         Remove from campaign
                       </DropdownMenuItem>
@@ -473,7 +657,319 @@ function CandidatesTab({
           })}
         </TableBody>
       </Table>
+      </div>
+
+      <AlertDialog
+        open={!!pendingRemove}
+        onOpenChange={(open) => {
+          if (!open && busyId !== pendingRemove?.id) setPendingRemove(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRemove
+                ? `“${pendingRemove.name}” will be removed from this campaign and pending outreach jobs for them will be cancelled. This cannot be undone.`
+                : "This candidate will be removed from the campaign."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyId === pendingRemove?.id}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busyId === pendingRemove?.id}
+              onClick={() => void confirmRemoveCandidate()}
+            >
+              {busyId === pendingRemove?.id ? "Removing…" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Qualification Q&A                                                    */
+/* ------------------------------------------------------------------ */
+
+type CampaignQuestion = {
+  id: string;
+  title?: string | null;
+  prompt: string;
+  answerType: string;
+  knockout?: boolean;
+  knockoutCondition?: string | null;
+};
+
+function questionColumnTitle(question: CampaignQuestion): string {
+  const titled = question.title?.trim();
+  if (titled) return titled;
+  return suggestQuestionTitle(question.prompt) || question.prompt;
+}
+
+const QUALIFICATION_PAGE_SIZE = 20;
+
+const EMPTY_QUAL_PAGINATION: PaginationMeta = {
+  page: 1,
+  limit: QUALIFICATION_PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+};
+
+function QualificationTab({
+  campaignId,
+  campaignName,
+  questions,
+  questionsState,
+  questionsMessage,
+  onQuestionsRetry,
+  reloadToken,
+}: {
+  campaignId: string;
+  campaignName: string;
+  questions: CampaignQuestion[];
+  questionsState: ApiUiState;
+  questionsMessage: string | null;
+  onQuestionsRetry: () => void;
+  reloadToken: number;
+}) {
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<ApiCampaignEnrollment[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_QUAL_PAGINATION);
+  const [state, setState] = useState<ApiUiState>("loading");
+  const [message, setMessage] = useState<string | null>(null);
+  const [fetchKey, setFetchKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPage(1);
+  }, [campaignId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setState((previous) => (previous === "success" ? "success" : "loading"));
+      try {
+        const next = await outreachApi.listEnrollmentsPage(campaignId, {
+          page,
+          limit: QUALIFICATION_PAGE_SIZE,
+        });
+        if (cancelled) return;
+        setRows(next.items);
+        setPagination(next.pagination);
+        const nextPage = Number(next.pagination.page) || 1;
+        if (nextPage !== page) setPage(nextPage);
+        setMessage(null);
+        setState(next.items.length === 0 ? "empty" : "success");
+      } catch (err) {
+        if (cancelled) return;
+        setRows([]);
+        setPagination(EMPTY_QUAL_PAGINATION);
+        setState(mapApiErrorToUiState(err));
+        setMessage(getApiErrorMessage(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, page, reloadToken, fetchKey]);
+
+  async function handleExportCsv() {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const enrollments = await fetchAllQualificationEnrollments(campaignId);
+      const csv = buildQualificationCsv(questions, enrollments);
+      const safeName =
+        campaignName
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "") || "campaign";
+      downloadCsv(`${safeName}-qualification.csv`, csv);
+    } catch (err) {
+      setExportError(getApiErrorMessage(err));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  if (questionsState === "loading" || questionsState === "error") {
+    return (
+      <ApiFeedback
+        state={questionsState === "loading" ? "loading" : "error"}
+        message={questionsMessage}
+        onRetry={onQuestionsRetry}
+        emptyTitle="No qualification questions"
+        emptyDescription="This campaign has no screening questions configured."
+      />
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <EmptyState
+        icon={Bookmark}
+        title="No qualification questions"
+        description="This campaign has no screening questions configured. Add them in the campaign builder Qualification step."
+      />
+    );
+  }
+
+  if (state !== "success") {
+    return (
+      <ApiFeedback
+        state={state}
+        message={message}
+        onRetry={() => setFetchKey((value) => value + 1)}
+        emptyTitle="No candidates enrolled"
+        emptyDescription="Enroll candidates to collect qualification answers."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {pagination.total.toLocaleString("en-IN")} candidate
+          {pagination.total === 1 ? "" : "s"} with qualification answers
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={exporting || rows.length === 0}
+          onClick={() => void handleExportCsv()}
+        >
+          {exporting ? (
+            <Loader2 aria-hidden className="animate-spin" />
+          ) : (
+            <Download aria-hidden />
+          )}
+          {exporting ? "Exporting…" : "Export CSV"}
+        </Button>
+      </div>
+      {exportError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {exportError}
+        </p>
+      ) : null}
+      <section className="overflow-x-auto rounded-xl border border-border bg-card">
+        <Table>
+          <caption className="sr-only">
+            Qualification answers by candidate
+          </caption>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className={HEAD}>Candidate</TableHead>
+              <TableHead className={HEAD}>Status</TableHead>
+              {questions.map((question) => (
+                <TableHead
+                  key={question.id}
+                  className={HEAD}
+                  title={question.prompt}
+                >
+                  {questionColumnTitle(question)}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((candidate) => {
+              const status = candidate.qualificationState?.status ?? "pending";
+              const answers = candidate.qualificationState?.answers || {};
+              return (
+                <TableRow key={candidate.id}>
+                  <TableCell className="py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <CandidateAvatar name={candidate.name} className="size-7" />
+                      {candidate.candidateId ? (
+                        <Link
+                          href={candidateDetailPath(candidate.candidateId)}
+                          className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                        >
+                          {candidate.name}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium text-foreground">
+                          {candidate.name}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-2.5">
+                    <Badge
+                      text={qualificationStatusLabel(status)}
+                      className={stateBadgeClass(status)}
+                    />
+                  </TableCell>
+                  {questions.map((question) => {
+                    const answer = formatQualificationAnswer(
+                      answers[question.id]
+                    );
+                    return (
+                      <TableCell
+                        key={question.id}
+                        className={cn(
+                          "max-w-56 truncate py-2.5 text-sm",
+                          answer ? "text-foreground" : "text-muted-foreground"
+                        )}
+                        title={answer || undefined}
+                      >
+                        {answer || "—"}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </section>
+
+      {pagination.totalPages > 1 || pagination.total > QUALIFICATION_PAGE_SIZE ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <p className="text-xs text-muted-foreground">
+            {pagination.total.toLocaleString("en-IN")} candidate
+            {pagination.total === 1 ? "" : "s"}
+            {" · "}
+            Page {pagination.page} of {pagination.totalPages}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Previous page"
+              disabled={pagination.page <= 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              <ChevronLeft aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Next page"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() =>
+                setPage((value) =>
+                  Math.min(pagination.totalPages, value + 1)
+                )
+              }
+            >
+              <ChevronRight aria-hidden />
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -698,16 +1194,8 @@ function SettingsTab({
   }
 
   const cfg = raw.channelConfig;
-  const sendWindow = cfg?.sendWindow;
   const settings: { id: string; label: string; value: string }[] = [
     { id: "timezone", label: "Timezone", value: cfg?.timezone || "—" },
-    {
-      id: "window",
-      label: "Send window",
-      value: sendWindow
-        ? `${sendWindow.startHour}:00 – ${sendWindow.endHour}:00`
-        : "—",
-    },
     {
       id: "stop",
       label: "Stop on reply",
@@ -765,8 +1253,47 @@ function SettingsTab({
 /* Detail shell                                                         */
 /* ------------------------------------------------------------------ */
 
+const CAMPAIGN_DETAIL_TABS = [
+  "overview",
+  "candidates",
+  "qualification",
+  "conversations",
+  "sequence",
+  "analytics",
+  "activity",
+  "settings",
+] as const;
+
+type CampaignDetailTab = (typeof CAMPAIGN_DETAIL_TABS)[number];
+
+function parseCampaignDetailTab(value: string | null): CampaignDetailTab {
+  if (
+    value &&
+    (CAMPAIGN_DETAIL_TABS as readonly string[]).includes(value)
+  ) {
+    return value as CampaignDetailTab;
+  }
+  return "overview";
+}
+
 export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab = parseCampaignDetailTab(searchParams.get("tab"));
+
+  function setActiveTab(next: string) {
+    const tab = parseCampaignDetailTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "overview") {
+      params.delete("tab");
+    } else {
+      params.set("tab", tab);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
   const [status, setStatus] = useState<CampaignStatus>(campaign.status);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -795,7 +1322,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
 
   useRealtimeRefresh(["campaign.updated", "campaign.thread.updated"], () => {
     setReloadKey((key) => key + 1);
-  });
+  }, { debounceMs: 1500 });
 
   useEffect(() => {
     let cancelled = false;
@@ -1130,11 +1657,12 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
       </header>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="overflow-x-auto">
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
+            <TabsTrigger value="qualification">Qualification</TabsTrigger>
             <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="sequence">Sequence</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -1148,16 +1676,30 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
           <CandidatesTab
+            campaignId={campaign.id}
             enrollments={enrollments}
             state={enrollmentsState}
             message={enrollmentsMessage}
             onRetry={() => setReloadKey((k) => k + 1)}
+            onChanged={() => setReloadKey((k) => k + 1)}
             autoScreening={Boolean(raw?.qualificationConfig?.autoScreening)}
+          />
+        </TabsContent>
+        <TabsContent value="qualification" className="pt-3">
+          <QualificationTab
+            campaignId={campaign.id}
+            campaignName={campaign.name}
+            questions={raw?.qualificationConfig?.questions ?? []}
+            questionsState={rawState}
+            questionsMessage={rawMessage}
+            onQuestionsRetry={() => setReloadKey((k) => k + 1)}
+            reloadToken={reloadKey}
           />
         </TabsContent>
         <TabsContent value="conversations" className="pt-3">
           <ConversationsPanel
             campaignId={campaign.id}
+            className="h-[min(70vh,42rem)] max-h-[min(70vh,42rem)]"
             emptyDescription="Outbound messages (sent or failed) and candidate replies for this campaign will appear here."
           />
         </TabsContent>

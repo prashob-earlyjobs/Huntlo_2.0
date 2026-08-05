@@ -51,7 +51,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
 
   useRealtimeRefresh(["campaign.updated", "campaign.thread.updated"], () => {
     void refresh();
-  });
+  }, { debounceMs: 1500 });
 
   if (loading && !campaign) {
     return <CampaignDetailSkeleton />;

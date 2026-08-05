@@ -114,16 +114,6 @@ function ResultRowActions({
             View profile
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem
-          onClick={() => onAction(`Marked “${result.candidateName}” as shortlisted.`)}
-        >
-          Shortlist
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onAction(`Rejected “${result.candidateName}”.`)}
-        >
-          Reject
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => onAction(`Queued another call for “${result.candidateName}”.`)}

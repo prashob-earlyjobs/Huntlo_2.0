@@ -3,9 +3,24 @@ import { ZodError } from 'zod';
 
 import { getEnv } from '../config/env.js';
 import { getLogger } from '../config/logger.js';
+import {
+  fjUpstreamLogFields,
+  isFutureJobsUpstreamError,
+} from '../providers/future-jobs/futureJobs.errors.js';
 import { AppError } from '../shared/errors/app-error.js';
 import { errorResponse } from '../shared/http/response.js';
 import { getRequestId } from './request-id.js';
+
+function causeUpstreamFields(err: unknown): Record<string, unknown> {
+  const cause = err instanceof Error ? err.cause : undefined;
+  if (isFutureJobsUpstreamError(cause)) {
+    return fjUpstreamLogFields(cause);
+  }
+  if (isFutureJobsUpstreamError(err)) {
+    return fjUpstreamLogFields(err);
+  }
+  return {};
+}
 
 function zodToDetails(error: ZodError): Array<{ path?: string; message: string }> {
   return error.issues.map((issue) => ({
@@ -32,6 +47,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
           userId: req.userId ?? req.auth?.sub ?? null,
           organizationId: req.organizationId ?? req.auth?.orgId ?? null,
           errorClass: err.code,
+          ...causeUpstreamFields(err),
         },
         err.message
       );
@@ -43,6 +59,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
           userId: req.userId ?? req.auth?.sub ?? null,
           organizationId: req.organizationId ?? req.auth?.orgId ?? null,
           errorClass: err.code,
+          ...causeUpstreamFields(err),
         },
         err.message
       );
@@ -87,6 +104,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
       userId: req.userId ?? req.auth?.sub ?? null,
       organizationId: req.organizationId ?? req.auth?.orgId ?? null,
       errorClass: 'INTERNAL_ERROR',
+      ...causeUpstreamFields(err),
     },
     'Unhandled error'
   );

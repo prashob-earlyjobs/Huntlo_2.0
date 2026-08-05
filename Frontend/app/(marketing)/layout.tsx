@@ -1,4 +1,7 @@
 import { Epilogue, Inter } from "next/font/google";
+import { Suspense } from "react";
+
+import { UtmVisitTracker } from "@/components/marketing/UtmVisitTracker";
 
 import "../landing.css";
 
@@ -30,6 +33,9 @@ export default function MarketingLayout({
         rel="stylesheet"
       />
       {children}
+      <Suspense fallback={null}>
+        <UtmVisitTracker />
+      </Suspense>
     </div>
   );
 }

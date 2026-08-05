@@ -24,10 +24,16 @@ async function processMetaOrGupshup(
   event: WebhookEventDocument
 ) {
   const mapped = provider === 'meta' ? 'meta-whatsapp' : 'gupshup';
+  const headerRouteEnv = String(
+    event.headers?.['x-huntlo-webhook-route-env'] ||
+      event.headers?.['X-Huntlo-Webhook-Route-Env'] ||
+      ''
+  ).trim();
   const result = await handleProviderWebhook({
     provider: mapped,
     organizationId: event.organizationId ? String(event.organizationId) : null,
     payload: event.payload,
+    routeEnvHeader: headerRouteEnv || null,
   });
   getLogger()
     .child({ component: 'webhooks', provider })
@@ -36,6 +42,7 @@ async function processMetaOrGupshup(
         ingested: result.ingested,
         duplicates: result.duplicates,
         statuses: result.statuses,
+        skippedRoute: result.skippedRoute,
         providerEventId: event.providerEventId,
       },
       'WhatsApp webhook ingest result'

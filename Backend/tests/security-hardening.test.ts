@@ -13,7 +13,10 @@ import { UserModel } from '../src/modules/auth/user.model.js';
 import { OrganizationMemberModel } from '../src/modules/organizations/member.model.js';
 import { OrganizationModel } from '../src/modules/organizations/organization.model.js';
 import { verifyCalendlySignature } from '../src/providers/calendly/calendly.client.js';
-import { verifyHunarWebhookAuthenticity } from '../src/providers/hunar/hunar.webhook.js';
+import {
+  computeHunarWebhookSignature,
+  verifyHunarWebhookAuthenticity,
+} from '../src/providers/hunar/hunar.webhook.js';
 import { passwordSchema } from '../src/shared/validation/password.js';
 import { escapeRegex } from '../src/shared/validation/regex.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
@@ -139,28 +142,63 @@ describe('Security hardening', () => {
     expect(verifyCalendlySignature(body, `t=${timestamp},v1=${digest}`, key)).toBe(true);
   });
 
-  it('fails closed for Hunar webhooks without secret in production-like envs', () => {
+  it('verifies Hunar webhooks with X-Hunar-Signature (API key HMAC)', () => {
     const previous = process.env.APP_ENV;
+    const previousKey = process.env.HUNAR_VOICE_API_KEY;
     const previousSecret = process.env.HUNAR_WEBHOOK_SECRET;
     delete process.env.HUNAR_WEBHOOK_SECRET;
+    delete process.env.HUNAR_VOICE_API_KEY;
     process.env.APP_ENV = 'production';
 
-    const denied = verifyHunarWebhookAuthenticity({
+    const deniedNoKey = verifyHunarWebhookAuthenticity({
       headers: {},
       rawBody: Buffer.from('{}'),
       screeningId: '507f1f77bcf86cd799439011',
     });
-    expect(denied.ok).toBe(false);
+    expect(deniedNoKey.ok).toBe(false);
 
     process.env.APP_ENV = 'test';
-    const allowed = verifyHunarWebhookAuthenticity({
+    const allowedNoKey = verifyHunarWebhookAuthenticity({
       headers: {},
       rawBody: Buffer.from('{}'),
+      screeningId: '507f1f77bcf86cd799439011',
+    });
+    expect(allowedNoKey.ok).toBe(true);
+
+    const apiKey = 'hunar_test_api_key_for_signature';
+    process.env.HUNAR_VOICE_API_KEY = apiKey;
+    process.env.APP_ENV = 'development';
+    const body = Buffer.from('{"event_type":"call_status_updated","call_id":"c1"}', 'utf8');
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = computeHunarWebhookSignature({
+      apiKey,
+      requestBody: body,
+      timestamp,
+    });
+
+    const deniedBad = verifyHunarWebhookAuthenticity({
+      headers: {
+        'x-hunar-timestamp': timestamp,
+        'x-hunar-signature': 'not-a-valid-signature',
+      },
+      rawBody: body,
+      screeningId: '507f1f77bcf86cd799439011',
+    });
+    expect(deniedBad.ok).toBe(false);
+
+    const allowed = verifyHunarWebhookAuthenticity({
+      headers: {
+        'x-hunar-timestamp': timestamp,
+        'x-hunar-signature': signature,
+      },
+      rawBody: body,
       screeningId: '507f1f77bcf86cd799439011',
     });
     expect(allowed.ok).toBe(true);
 
     process.env.APP_ENV = previous;
+    if (previousKey) process.env.HUNAR_VOICE_API_KEY = previousKey;
+    else delete process.env.HUNAR_VOICE_API_KEY;
     if (previousSecret) process.env.HUNAR_WEBHOOK_SECRET = previousSecret;
     else delete process.env.HUNAR_WEBHOOK_SECRET;
   });

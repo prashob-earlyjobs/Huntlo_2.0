@@ -2,7 +2,7 @@
  * End-to-end qualification Q&A after a candidate replies to outreach.
  * Asks screening questions (one-by-one on WhatsApp; on email, all predefined
  * questions after interest, then batched follow-ups for missed answers),
- * then qualifies / hands off with a thank-you wrap-up email, or optionally
+ * then qualifies / hands off with a thank-you wrap-up message, or optionally
  * flags screening.
  */
 
@@ -154,6 +154,7 @@ async function resolveEmailReplyContext(
 
 export type QualificationQuestion = {
   id: string;
+  title?: string | null;
   prompt: string;
   answerType: string;
   knockout?: boolean;
@@ -192,6 +193,17 @@ export function normalizeAnswerRecord(
   };
 }
 
+/** Prefer deterministic knockout rules over Gemini when the rule is clear. */
+function resolveKnockoutDecision(
+  question: QualificationQuestion,
+  rawAnswer: unknown,
+  geminiKnockout: 'pass' | 'fail' | 'unknown'
+): 'pass' | 'fail' | 'unknown' {
+  const deterministic = evaluateKnockout(question, rawAnswer);
+  if (deterministic === 'pass' || deterministic === 'fail') return deterministic;
+  return geminiKnockout;
+}
+
 /** Evaluate knockout rules. Returns fail only when clearly matched. */
 export function evaluateKnockout(
   question: QualificationQuestion,
@@ -222,10 +234,10 @@ export function evaluateKnockout(
   if (isNumber) {
     const num = Number.parseFloat(raw.replace(/[^\d.-]/g, ''));
     if (!Number.isFinite(num)) return 'unknown';
-    const moreThan = condition.match(/more than\s+(\d+)/);
-    const lessThan = condition.match(/less than\s+(\d+)/);
-    const atLeast = condition.match(/(?:at least|>=)\s*(\d+)/);
-    const atMost = condition.match(/(?:at most|<=|max)\s*(\d+)/);
+    const moreThan = condition.match(/(?:more than|greater than|>\s*|gt\s+)\s*(\d+(?:\.\d+)?)/);
+    const lessThan = condition.match(/(?:less than|<\s*|lt\s+)\s*(\d+(?:\.\d+)?)/);
+    const atLeast = condition.match(/(?:at least|>=)\s*(\d+(?:\.\d+)?)/);
+    const atMost = condition.match(/(?:at most|<=|max)\s*(\d+(?:\.\d+)?)/);
     if (moreThan && num > Number(moreThan[1])) return 'fail';
     if (lessThan && num < Number(lessThan[1])) return 'fail';
     if (atLeast && num < Number(atLeast[1])) return 'fail';
@@ -743,15 +755,77 @@ async function completeQualificationWhenAllAnswered(input: {
     'Gemini qualification assessment (complete)'
   );
 
-  if (assessment.outcome === 'rejected') {
+  let outcome = assessment.outcome;
+  let reason =
+    assessment.reason ||
+    (assessment.outcome === 'rejected'
+      ? `Screening failed${assessment.failedQuestionId ? ` (${assessment.failedQuestionId})` : ''}`
+      : undefined);
+
+  // Explicit knockout on a question is authoritative. If Gemini rejects because
+  // JD compensation differs (e.g. JD 30k–40k/month vs answer 5 LPA) but that
+  // question's knockout already passes, keep the candidate qualified.
+  if (outcome === 'rejected' && assessment.failedQuestionId) {
+    const failed = input.questions.find((q) => q.id === assessment.failedQuestionId);
+    const rawAnswer =
+      input.enrollment.qualificationState?.answers?.[assessment.failedQuestionId];
+    if (failed?.knockout && rawAnswer != null) {
+      const ko = evaluateKnockout(failed, rawAnswer);
+      if (ko === 'pass') {
+        log().info(
+          {
+            enrollmentId: String(input.enrollment._id),
+            failedQuestionId: assessment.failedQuestionId,
+            knockoutCondition: failed.knockoutCondition,
+            geminiReason: assessment.reason,
+          },
+          'Overriding Gemini reject — explicit knockout already passed'
+        );
+        outcome = 'qualified';
+        reason =
+          assessment.reason && /knockout|jd|salary|compensation|lpa|ctc/i.test(assessment.reason)
+            ? `Passed screening knockout (${failed.knockoutCondition || failed.id}); JD compensation difference ignored.`
+            : assessment.reason ||
+              `Passed screening knockout (${failed.knockoutCondition || failed.id}).`;
+      }
+    }
+  } else if (outcome === 'rejected') {
+    // Gemini sometimes rejects on JD salary mismatch without naming the question.
+    const compensationQs = input.questions.filter((q) => {
+      if (!q.knockout) return false;
+      const hay = `${q.id} ${q.prompt} ${q.knockoutCondition || ''}`.toLowerCase();
+      return /lpa|ctc|salary|compensation|pay|package/.test(hay);
+    });
+    const allCompPass =
+      compensationQs.length > 0 &&
+      compensationQs.every((q) => {
+        const raw = input.enrollment.qualificationState?.answers?.[q.id];
+        return raw != null && evaluateKnockout(q, raw) === 'pass';
+      });
+    const looksCompReject = /salary|compensation|lpa|ctc|jd|band|package|pay/i.test(
+      String(assessment.reason || '')
+    );
+    if (allCompPass && looksCompReject) {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          geminiReason: assessment.reason,
+          compensationQuestionIds: compensationQs.map((q) => q.id),
+        },
+        'Overriding Gemini reject — compensation knockouts already passed'
+      );
+      outcome = 'qualified';
+      reason = `Passed compensation screening knockout(s); JD compensation difference ignored.`;
+    }
+  }
+
+  if (outcome === 'rejected') {
     await completeQualification({
       campaign: input.campaign,
       enrollment: input.enrollment,
       threadId: input.threadId,
       status: 'rejected',
-      reason:
-        assessment.reason ||
-        `Screening failed${assessment.failedQuestionId ? ` (${assessment.failedQuestionId})` : ''}`,
+      reason,
     });
     return { action: 'rejected_assessment' };
   }
@@ -761,9 +835,11 @@ async function completeQualificationWhenAllAnswered(input: {
     enrollment: input.enrollment,
     threadId: input.threadId,
     status: 'qualified',
-    reason: shouldHandOffAfterQuestions(input.config)
-      ? input.config.takeoverCondition || 'Recruiter takeover after qualification'
-      : undefined,
+    reason:
+      reason ||
+      (shouldHandOffAfterQuestions(input.config)
+        ? input.config.takeoverCondition || 'Recruiter takeover after qualification'
+        : undefined),
   });
   return { action: 'qualified' };
 }
@@ -885,7 +961,7 @@ async function processEmailQualificationReply(input: {
       },
     };
 
-    const knockout = evaluation.knockout;
+    const knockout = resolveKnockoutDecision(q, value, evaluation.knockout);
     if (knockout === 'fail') {
       await enrollment.save();
       await completeQualification({
@@ -893,7 +969,8 @@ async function processEmailQualificationReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason: `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
+        reason:
+          evaluation.reason || `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
       });
       return { action: 'rejected_knockout' };
     }
@@ -966,21 +1043,22 @@ async function processEmailQualificationReply(input: {
 }
 
 function shouldSendQualificationWrapUp(campaign: OutreachCampaignDocument): boolean {
-  const config = (campaign.qualificationConfig || {}) as QualificationConfig;
-  const schedulingOn = Boolean(campaign.schedulingConfig?.enabled);
-  // Default end: thank-you note when no auto screening / Calendly follow-up is enabled.
-  return !config.autoScreening && !schedulingOn;
+  // Always close the qualification thread with a thank-you wrap-up when the
+  // candidate finishes answering. Auto-screening / Calendly can still run after.
+  void campaign;
+  return true;
 }
 
 /**
- * After all screening answers are in, send a short thank-you wrap-up so the
- * candidate knows a recruiter will follow up. Skipped on knockout rejection.
+ * After all screening answers are in, send a short neutral wrap-up so the
+ * candidate knows their responses were received. This also runs for rejected
+ * candidates so the thread closes gracefully without exposing the rejection.
  */
 async function sendQualificationCompletionWrapUp(input: {
   campaign: OutreachCampaignDocument;
   enrollment: OutreachEnrollmentDocument;
   threadId: string;
-  status: 'qualified' | 'handed_off';
+  status: 'qualified' | 'rejected' | 'handed_off';
 }): Promise<void> {
   const { campaign, enrollment } = input;
   const organizationId = String(campaign.organizationId);
@@ -991,12 +1069,27 @@ async function sendQualificationCompletionWrapUp(input: {
     .lean();
   if (!thread) return;
 
-  const alreadySent = await ConversationMessageModel.exists({
+  const lastOutreach = await ConversationMessageModel.findOne({
     threadId: input.threadId,
     direction: 'outbound',
-    providerMessageId: { $regex: /^qualification-wrapup:/ },
-  });
-  if (alreadySent) return;
+    channel: { $in: ['email', 'whatsapp'] },
+    messageType: { $nin: ['qualification', 'note', 'system', 'voice_summary'] },
+    bodyText: {
+      $not: /shared your responses with our recruiting team/i,
+    },
+  })
+    .sort({ createdAt: -1 })
+    .select('createdAt')
+    .lean();
+
+  const wrapUpOr = [
+    { providerMessageId: { $regex: /^qualification-wrapup:/ } },
+    {
+      bodyText: {
+        $regex: /shared your responses with our recruiting team/i,
+      },
+    },
+  ];
 
   const candidate = await SavedCandidateModel.findOne({
     _id: enrollment.candidateId,
@@ -1006,126 +1099,192 @@ async function sendQualificationCompletionWrapUp(input: {
     .select('email phone name')
     .lean();
 
-  // Prefer email for the wrap-up (matches single-channel email screening).
-  const channel =
-    pickOutboundChannel(thread.channels as string[] | undefined, campaign, 'email') ||
-    pickOutboundChannel(thread.channels as string[] | undefined, campaign, 'whatsapp');
-  if (!channel) return;
+  const candidateThreadIds = await ConversationThreadModel.find({
+    organizationId: campaign.organizationId,
+    candidateId: enrollment.candidateId,
+  })
+    .select('_id')
+    .lean();
 
-  const to =
-    channel === 'whatsapp'
-      ? String(candidate?.phone || '').trim()
-      : String(candidate?.email || '').trim();
-  if (!to) return;
+  const preferredReplyChannel =
+    enrollment.replyState?.channel === 'email' || enrollment.replyState?.channel === 'whatsapp'
+      ? enrollment.replyState.channel
+      : null;
+  const channels: Array<'email' | 'whatsapp'> = [];
+  if (
+    campaignChannelEnabled(campaign, 'email') &&
+    String(candidate?.email || '').trim() &&
+    (!preferredReplyChannel || preferredReplyChannel === 'email')
+  ) {
+    channels.push('email');
+  }
+  if (
+    campaignChannelEnabled(campaign, 'whatsapp') &&
+    String(candidate?.phone || '').trim() &&
+    (!preferredReplyChannel || preferredReplyChannel === 'whatsapp')
+  ) {
+    channels.push('whatsapp');
+  }
+  if (channels.length === 0) return;
 
   const firstName =
     String(candidate?.name || 'there').trim().split(/\s+/)[0] || 'there';
+  const config = (campaign.qualificationConfig || {}) as QualificationConfig;
+  const nextStep =
+    input.status === 'rejected'
+      ? `Our team will review everything and reach out if there is a relevant next step.`
+      : config.autoScreening
+      ? `Our team may give you a quick screening call next — please keep an eye on your phone.`
+      : campaign.schedulingConfig?.enabled
+        ? `A recruiter will share next steps for scheduling shortly.`
+        : `A recruiter will be in touch with you soon.`;
   const body =
     `Hi ${firstName},\n\n` +
-    `We've shared your responses with our recruiting team, and a recruiter will be in touch with you soon.\n\n` +
+    `We've shared your responses with our recruiting team. ${nextStep}\n\n` +
     `We appreciate your interest!\n\n` +
     `Best regards`;
 
-  let emailReply: {
-    subject: string;
-    providerThreadId?: string | null;
-    inReplyTo?: string | null;
-    references?: string | null;
-    gmailMessageIdHint?: string | null;
-  } | null = null;
-  if (channel === 'email') {
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  for (const channel of channels) {
+    const alreadySentOnThread = await ConversationMessageModel.exists({
+      threadId: input.threadId,
+      direction: 'outbound',
+      channel,
+      $or: wrapUpOr,
+      ...(lastOutreach?.createdAt
+        ? { createdAt: { $gt: lastOutreach.createdAt } }
+        : {}),
+    });
+    if (alreadySentOnThread) continue;
+
+    const alreadySentRecently = await ConversationMessageModel.exists({
+      organizationId: new mongoose.Types.ObjectId(organizationId),
+      threadId: { $in: candidateThreadIds.map((t) => t._id) },
+      direction: 'outbound',
+      channel,
+      createdAt: { $gte: dayAgo },
+      $or: wrapUpOr,
+    });
+    if (alreadySentRecently) {
+      log().info(
+        {
+          enrollmentId: String(enrollment._id),
+          threadId: input.threadId,
+          channel,
+        },
+        'Skipping qualification wrap-up — already sent to this candidate recently on channel'
+      );
+      continue;
+    }
+
+    const to =
+      channel === 'whatsapp'
+        ? String(candidate?.phone || '').trim()
+        : String(candidate?.email || '').trim();
+    if (!to) continue;
+
+    let emailReply: {
+      subject: string;
+      providerThreadId?: string | null;
+      inReplyTo?: string | null;
+      references?: string | null;
+      gmailMessageIdHint?: string | null;
+    } | null = null;
+    if (channel === 'email') {
+      try {
+        emailReply = await resolveEmailReplyContext(
+          input.threadId,
+          campaign.name || 'your application'
+        );
+      } catch (error) {
+        log().warn(
+          { err: error, enrollmentId: String(enrollment._id) },
+          'Wrap-up email threading context failed — sending without thread headers'
+        );
+        emailReply = { subject: `Re: ${campaign.name || 'your application'}` };
+      }
+    }
+
     try {
-      emailReply = await resolveEmailReplyContext(
-        input.threadId,
-        campaign.name || 'your application'
+      const sent = await sendAdHocMessage({
+        organizationId,
+        userId,
+        channel,
+        to,
+        subject: channel === 'email' ? emailReply!.subject : null,
+        body,
+        senderEmail: campaign.channelConfig?.email?.senderEmail,
+        integrationId:
+          channel === 'email'
+            ? campaign.channelConfig?.email?.integrationId
+            : campaign.channelConfig?.whatsapp?.integrationId,
+        providerThreadId: emailReply?.providerThreadId,
+        inReplyTo: emailReply?.inReplyTo,
+        references: emailReply?.references,
+        gmailMessageIdHint: emailReply?.gmailMessageIdHint,
+      });
+
+      const message = await ConversationMessageModel.create({
+        organizationId: new mongoose.Types.ObjectId(organizationId),
+        threadId: new mongoose.Types.ObjectId(input.threadId),
+        provider: sent.provider || 'system',
+        channel,
+        direction: 'outbound',
+        sender: null,
+        recipient: to,
+        subject: channel === 'email' ? emailReply?.subject ?? null : null,
+        bodyText: body,
+        bodyHtml: null,
+        providerMessageId:
+          sent.providerMessageId || `qualification-wrapup:${input.threadId}:${Date.now()}`,
+        providerThreadId: sent.providerThreadId || emailReply?.providerThreadId || null,
+        deliveryStatus: 'sent',
+        messageType: 'message',
+        aiGenerated: true,
+        sentAt: new Date(),
+      });
+
+      await ConversationThreadModel.updateOne(
+        { _id: input.threadId },
+        {
+          $set: {
+            lastMessageAt: new Date(),
+            lastRecruiterMessageAt: new Date(),
+            lastMessagePreview: body.slice(0, 240),
+          },
+        }
+      );
+
+      await emitOutboundConversationRealtime({
+        organizationId,
+        threadId: input.threadId,
+        messageId: String(message._id),
+        channel,
+      });
+
+      enrollment.autoReplyCount = (enrollment.autoReplyCount || 0) + 1;
+
+      await logEmailPipeline({
+        task: 'qualification wrap-up sent',
+        detail: `status=${input.status} channel=${channel}`,
+      }).catch(() => undefined);
+
+      log().info(
+        {
+          enrollmentId: String(enrollment._id),
+          campaignId: String(campaign._id),
+          status: input.status,
+          channel,
+        },
+        'Sent qualification completion wrap-up'
       );
     } catch (error) {
       log().warn(
-        { err: error, enrollmentId: String(enrollment._id) },
-        'Wrap-up email threading context failed — sending without thread headers'
+        { err: error, enrollmentId: String(enrollment._id), status: input.status, channel },
+        'Qualification wrap-up send failed — continuing completion'
       );
-      emailReply = { subject: `Re: ${campaign.name || 'your application'}` };
     }
-  }
-
-  try {
-    const sent = await sendAdHocMessage({
-      organizationId,
-      userId,
-      channel,
-      to,
-      subject: channel === 'email' ? emailReply!.subject : null,
-      body,
-      senderEmail: campaign.channelConfig?.email?.senderEmail,
-      integrationId:
-        channel === 'email'
-          ? campaign.channelConfig?.email?.integrationId
-          : campaign.channelConfig?.whatsapp?.integrationId,
-      providerThreadId: emailReply?.providerThreadId,
-      inReplyTo: emailReply?.inReplyTo,
-      references: emailReply?.references,
-      gmailMessageIdHint: emailReply?.gmailMessageIdHint,
-    });
-
-    const message = await ConversationMessageModel.create({
-      organizationId: new mongoose.Types.ObjectId(organizationId),
-      threadId: new mongoose.Types.ObjectId(input.threadId),
-      provider: sent.provider || 'system',
-      channel,
-      direction: 'outbound',
-      sender: null,
-      recipient: to,
-      subject: channel === 'email' ? emailReply?.subject ?? null : null,
-      bodyText: body,
-      bodyHtml: null,
-      providerMessageId:
-        sent.providerMessageId || `qualification-wrapup:${input.threadId}:${Date.now()}`,
-      providerThreadId: sent.providerThreadId || emailReply?.providerThreadId || null,
-      deliveryStatus: 'sent',
-      messageType: 'message',
-      aiGenerated: true,
-      sentAt: new Date(),
-    });
-
-    await ConversationThreadModel.updateOne(
-      { _id: input.threadId },
-      {
-        $set: {
-          lastMessageAt: new Date(),
-          lastRecruiterMessageAt: new Date(),
-          lastMessagePreview: body.slice(0, 240),
-        },
-      }
-    );
-
-    await emitOutboundConversationRealtime({
-      organizationId,
-      threadId: input.threadId,
-      messageId: String(message._id),
-      channel,
-    });
-
-    enrollment.autoReplyCount = (enrollment.autoReplyCount || 0) + 1;
-
-    await logEmailPipeline({
-      task: 'qualification wrap-up sent',
-      detail: `status=${input.status} channel=${channel}`,
-    }).catch(() => undefined);
-
-    log().info(
-      {
-        enrollmentId: String(enrollment._id),
-        campaignId: String(campaign._id),
-        status: input.status,
-        channel,
-      },
-      'Sent qualification completion wrap-up'
-    );
-  } catch (error) {
-    log().warn(
-      { err: error, enrollmentId: String(enrollment._id), status: input.status },
-      'Qualification wrap-up send failed — continuing completion'
-    );
   }
 }
 
@@ -1138,11 +1297,15 @@ async function completeQualification(input: {
 }) {
   const { campaign, enrollment, status } = input;
   const organizationId = String(campaign.organizationId);
+  const qualificationReason =
+    input.reason ||
+    (status === 'qualified'
+      ? 'All qualification questions were answered successfully.'
+      : status === 'rejected'
+        ? 'Candidate did not meet qualification criteria.'
+        : null);
 
-  if (
-    (status === 'qualified' || status === 'handed_off') &&
-    shouldSendQualificationWrapUp(campaign)
-  ) {
+  if (shouldSendQualificationWrapUp(campaign)) {
     await sendQualificationCompletionWrapUp({
       campaign,
       enrollment,
@@ -1155,11 +1318,13 @@ async function completeQualification(input: {
     enrollment.qualificationState = {
       status,
       answers: enrollment.qualificationState?.answers || {},
+      reason: qualificationReason,
     };
   } else {
     enrollment.qualificationState = {
       status: 'in_progress',
       answers: enrollment.qualificationState?.answers || {},
+      reason: qualificationReason,
     };
   }
   enrollment.lastActionAt = new Date();
@@ -1217,6 +1382,7 @@ async function completeQualification(input: {
       enrollment.screeningState = {
         status: 'scheduled',
         screeningId,
+        decision: null,
       };
       await enrollment.save();
       emitOutreachEnrollmentUpdated({
@@ -1237,6 +1403,7 @@ async function completeQualification(input: {
         ...enrollment.screeningState,
         status: 'scheduled',
         screeningId: enrollment.screeningState?.screeningId ?? null,
+        decision: enrollment.screeningState?.decision ?? null,
       };
       await enrollment.save();
     }
@@ -1578,6 +1745,81 @@ export async function processQualificationAfterReply(input: {
   const enrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
   if (!enrollment) return { action: 'missing_enrollment' };
 
+  /**
+   * Fresh outreach cycle detection:
+   * If the latest campaign send on this thread has no screening question after it,
+   * wipe stale answers/completion state and start Q1 — never re-send an old wrap-up.
+   */
+  const latestOutreach = await ConversationMessageModel.findOne({
+    threadId: input.threadId,
+    direction: 'outbound',
+    channel: { $in: ['email', 'whatsapp'] },
+    messageType: { $nin: ['qualification', 'note', 'system', 'voice_summary'] },
+    bodyText: {
+      $not: /shared your responses with our recruiting team/i,
+    },
+  })
+    .sort({ sentAt: -1, createdAt: -1 })
+    .select('_id createdAt sentAt')
+    .lean();
+
+  const outreachAt = latestOutreach?.sentAt || latestOutreach?.createdAt || null;
+  const qualAfterOutreach = outreachAt
+    ? await ConversationMessageModel.exists({
+        threadId: input.threadId,
+        direction: 'outbound',
+        messageType: 'qualification',
+        createdAt: { $gt: outreachAt },
+      })
+    : await ConversationMessageModel.exists({
+        threadId: input.threadId,
+        direction: 'outbound',
+        messageType: 'qualification',
+      });
+
+  const qualStatus = String(enrollment.qualificationState?.status || '');
+  // Any reply after a fresh campaign send (before screening Qs) starts a new cycle.
+  const needsFreshCycle = Boolean(latestOutreach) && !qualAfterOutreach;
+
+  if (needsFreshCycle) {
+    const hadStaleProgress =
+      ['qualified', 'rejected', 'in_progress'].includes(qualStatus) ||
+      (typeof enrollment.replyQuestionIndex === 'number' &&
+        enrollment.replyQuestionIndex >= 0) ||
+      Object.keys(enrollment.qualificationState?.answers || {}).length > 0;
+
+    log().info(
+      {
+        enrollmentId: input.enrollmentId,
+        qualificationStatus: qualStatus,
+        latestOutreachId: String(latestOutreach?._id),
+        outreachAt,
+        hadStaleProgress,
+      },
+      'Starting fresh qualification cycle after newer outreach'
+    );
+    enrollment.qualificationState = { status: 'pending', answers: {} };
+    enrollment.replyQuestionIndex = -1;
+    enrollment.autoReplyCount = 0;
+    if (
+      ['completed', 'stopped', 'qualified', 'replied'].includes(
+        String(enrollment.status)
+      )
+    ) {
+      enrollment.status = 'replied';
+    }
+    await enrollment.save();
+  } else if (qualStatus === 'qualified' || qualStatus === 'rejected') {
+    log().info(
+      {
+        enrollmentId: input.enrollmentId,
+        qualificationStatus: qualStatus,
+      },
+      'Qualification skipped — enrollment already complete for this outreach cycle'
+    );
+    return { action: 'skipped_already_complete' };
+  }
+
   // Never block Q&A sends on a missing/false aiReplyEnabled flag (legacy campaigns).
   // Classification-only mode is no longer exposed in the builder.
 
@@ -1804,6 +2046,7 @@ export async function processQualificationAfterReply(input: {
       threadId: input.threadId,
       direction: 'outbound',
       messageType: 'qualification',
+      ...(outreachAt ? { createdAt: { $gt: outreachAt } } : {}),
     });
     if (!stillNoQual && questions[0]) {
       enrollment.replyQuestionIndex = -1;
@@ -1824,6 +2067,14 @@ export async function processQualificationAfterReply(input: {
       return {
         action: result.sent ? 'asked_first_recovered' : `ask_failed:${result.error}`,
       };
+    }
+    // Refuse to complete/wrap-up when this outreach cycle never asked screening Qs.
+    if (!stillNoQual) {
+      log().warn(
+        { enrollmentId: input.enrollmentId, threadId: input.threadId },
+        'Refusing qualification wrap-up — no screening questions in current outreach cycle'
+      );
+      return { action: 'skipped_no_cycle_questions' };
     }
     const finalizedEarly = await completeQualificationWhenAllAnswered({
       campaign: input.campaign,
@@ -1958,7 +2209,7 @@ export async function processQualificationAfterReply(input: {
       },
     };
 
-    const knockout = evaluation.knockout;
+    const knockout = resolveKnockoutDecision(current, value, evaluation.knockout);
     if (knockout === 'fail') {
       await enrollment.save();
       await completeQualification({
@@ -1966,7 +2217,9 @@ export async function processQualificationAfterReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason: `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
+        reason:
+          evaluation.reason ||
+          `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
       });
       return { action: 'rejected_knockout' };
     }

@@ -15,7 +15,6 @@ import { hashPassword } from '../src/shared/auth/crypto.js';
 import { normalizeEmail } from '../src/shared/validation/email.js';
 import { UserModel } from '../src/modules/auth/user.model.js';
 import { adminConsoleService } from '../src/modules/admin/admin-console.service.js';
-import { ADMIN_PERMISSIONS } from '../src/modules/admin/require-admin.js';
 
 try {
   dns.setServers(['8.8.8.8', '1.1.1.1', ...dns.getServers()]);
@@ -46,7 +45,7 @@ try {
   if (existing) {
     existing.passwordHash = await hashPassword(password);
     existing.platformAdmin = true;
-    existing.adminPermissions = [...ADMIN_PERMISSIONS];
+    existing.adminPermissions = ['*'];
     existing.memberStatus = 'active';
     existing.onboardingStatus = 'completed';
     if (!existing.emailVerifiedAt) existing.emailVerifiedAt = new Date();
@@ -63,7 +62,7 @@ try {
       organizationName: 'Huntlo Platform',
       role: 'owner',
       platformAdmin: true,
-      adminPermissions: [...ADMIN_PERMISSIONS],
+      adminPermissions: ['*'],
     });
     console.log(`Created platform admin: ${email} (${user.id})`);
   }

@@ -45,7 +45,27 @@ export async function runOutreachCronTick(): Promise<void> {
     });
   }
 
-  // 3) find anything due (send / followup / sync_replies) and push to Redis
+  // 3) reclaim jobs stuck in `queued` (e.g. BullMQ exhausted its own attempts
+  // and could not re-push with a stable jobId). After 2 minutes, treat as pending.
+  const staleQueuedCutoff = new Date(now.getTime() - 2 * 60_000);
+  const reclaimed = await BullOutreachJobModel.updateMany(
+    {
+      status: 'queued',
+      updatedAt: { $lte: staleQueuedCutoff },
+    },
+    {
+      $set: {
+        status: 'pending',
+        runAt: now,
+        lastError: 'reclaimed stale queued job',
+      },
+    }
+  );
+  if (reclaimed.modifiedCount > 0) {
+    logger.info({ reclaimed: reclaimed.modifiedCount }, 'Reclaimed stale queued outreach jobs');
+  }
+
+  // 4) find anything due (send / followup / sync_replies) and push to Redis
   const due = await BullOutreachJobModel.find({
     status: 'pending',
     runAt: { $lte: now },
