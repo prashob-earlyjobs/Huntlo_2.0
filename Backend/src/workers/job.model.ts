@@ -76,7 +76,7 @@ const backgroundJobSchema = new Schema<BackgroundJobDocument>(
     priority: { type: Number, default: 100, min: 0, max: 1000 },
     runAt: { type: Date, default: () => new Date(), index: true },
     attempts: { type: Number, default: 0, min: 0 },
-    maxAttempts: { type: Number, default: 5, min: 1, max: 25 },
+    maxAttempts: { type: Number, default: 5, min: 1, max: 40 },
     leaseOwner: { type: String, default: null, index: true },
     leaseExpiresAt: { type: Date, default: null, index: true },
     lastError: { type: String, default: null, maxlength: 4000 },

@@ -560,6 +560,8 @@ function tokensFromFreeText(text, max = 6) {
 
 /**
  * Future Jobs 422 if skills.mandatory/core/secondary are all empty.
+ * Fallback fills core from industry / prompt tokens / "General" — never job titles
+ * (titles belong in current_employers.title, not skills.core).
  */
 function ensureSkillsForFutureJobs(skills, form, session) {
   const normalized = normalizeSkillsValue(skills);
@@ -577,11 +579,6 @@ function ensureSkillsForFutureJobs(skills, form, session) {
   for (const token of industryTokensFromForm(form)) {
     addCore(token);
     if (core.length >= 4) break;
-  }
-
-  const title = String(form?.currentTitle || "").trim();
-  if (title) {
-    addCore(title);
   }
 
   if (core.length === 0) {
