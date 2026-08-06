@@ -210,7 +210,7 @@ function QuotaCard({
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span>{percent}% used</span>
-        <span>Resets {quota.resetDate}</span>
+        {/* <span>Resets {quota.resetDate}</span> */}
       </div>
 
       {state === "Limit exhausted" ? (
@@ -962,13 +962,13 @@ export function PlansWorkspace() {
                   </div>
                 ))}
               </dl>
-              <p className="mt-3 text-sm text-muted-foreground">
+              {/* <p className="mt-3 text-sm text-muted-foreground">
                 <span className="font-semibold tabular-nums text-foreground">
                   {currentPlan.price}
                 </span>
                 {currentPlan.pricePeriod} · next invoice on{" "}
                 {currentPlan.renewalDate}
-              </p>
+              </p> */}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button size="sm" onClick={() => setDialog("upgrade")}>
@@ -1011,7 +1011,7 @@ export function PlansWorkspace() {
         </div>
       </section>
 
-      <UsageTrendChart />
+      {/* <UsageTrendChart /> */}
 
       <PlanComparison
         tiers={tiers}
@@ -1019,7 +1019,7 @@ export function PlansWorkspace() {
         onSales={() => setDialog("sales")}
       />
 
-      <Tabs defaultValue="billing">
+      {/* <Tabs defaultValue="billing">
         <TabsList>
           <TabsTrigger value="billing">Billing history</TabsTrigger>
           <TabsTrigger value="usage">Usage history</TabsTrigger>
@@ -1030,7 +1030,7 @@ export function PlansWorkspace() {
         <TabsContent value="usage" className="pt-3">
           <UsageHistoryTable />
         </TabsContent>
-      </Tabs>
+      </Tabs> */}
 
       <PlansDialogs
         kind={dialog}
