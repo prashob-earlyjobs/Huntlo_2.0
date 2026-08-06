@@ -15,6 +15,8 @@ export type RegisterInput = {
   fullName: string;
   companyName: string;
   mobile: string;
+  /** 5-digit signup email OTP (required in non-test environments). */
+  otp?: string;
   /** @deprecated Prefer fullName + companyName */
   firstName?: string;
   lastName?: string;
@@ -30,6 +32,15 @@ export type RegisterInput = {
     landingPage?: string | null;
     referrer?: string | null;
   } | null;
+};
+
+export type SendSignupOtpResult = {
+  message: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+  emailed?: boolean;
+  /** Present in non-production when SMTP is unavailable / for local testing. */
+  otp?: string;
 };
 
 export type UpdateMeInput = {
@@ -60,6 +71,7 @@ type AuthPayload = AuthMeResponse & {
 
 export interface AuthApi {
   login(input: LoginInput): Promise<AuthSession & { me: AuthMeResponse }>;
+  sendSignupOtp(email: string): Promise<SendSignupOtpResult>;
   register(input: RegisterInput): Promise<AuthSession & { me: AuthMeResponse }>;
   logout(): Promise<void>;
   refresh(): Promise<AuthSession>;
@@ -90,6 +102,15 @@ const liveAuthApi: AuthApi = {
       sensitive: true,
     });
     return mapAuthPayload(result.data);
+  },
+
+  async sendSignupOtp(email) {
+    const result = await apiClient.post<SendSignupOtpResult>(
+      "/auth/register/send-otp",
+      { email },
+      { auth: false, sensitive: true }
+    );
+    return result.data;
   },
 
   async register(input) {
@@ -184,6 +205,17 @@ const mockAuthApi: AuthApi = {
         organization: workspace,
         permissions: ["*"],
       },
+    };
+  },
+  async sendSignupOtp(email) {
+    const now = Date.now();
+    return {
+      message: "Verification code sent",
+      expiresAt: new Date(now + 30 * 60 * 1000).toISOString(),
+      resendAvailableAt: new Date(now + 30 * 1000).toISOString(),
+      emailed: true,
+      otp: "12345",
+      ...(email ? {} : {}),
     };
   },
   async register(input) {

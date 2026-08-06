@@ -1,0 +1,28 @@
+import mongoose from 'mongoose';
+
+const signupOtpSchema = new mongoose.Schema(
+  {
+    email: { type: String, required: true, index: true },
+    otpHash: { type: String, required: true, index: true },
+    expiresAt: { type: Date, required: true, index: true },
+    usedAt: { type: Date, default: null },
+    /** Earliest time a new OTP may be issued for this email (resend cooldown). */
+    resendAvailableAt: { type: Date, required: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } }
+);
+
+signupOtpSchema.index({ email: 1, createdAt: -1 });
+
+export type SignupOtpDocument = {
+  _id: mongoose.Types.ObjectId;
+  email: string;
+  otpHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  resendAvailableAt: Date;
+  createdAt: Date;
+};
+
+export const SignupOtpModel = (mongoose.models.SignupOtp ??
+  mongoose.model('SignupOtp', signupOtpSchema)) as mongoose.Model<SignupOtpDocument>;

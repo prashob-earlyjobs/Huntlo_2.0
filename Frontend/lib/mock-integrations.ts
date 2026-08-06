@@ -319,7 +319,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     isDefault: true,
     configKind: "calendly",
   },
-  /* ATS */
+  /* ATS — temporarily unavailable */
   {
     id: "zwayam-amplify",
     name: "Zwayam Amplify",
@@ -338,6 +338,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     isDefault: false,
     configKind: "zwayam",
     serverConfigured: true,
+    inactive: true,
   },
   /* Payments */
   {

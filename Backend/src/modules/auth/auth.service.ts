@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-import { getEnv } from '../../config/env.js';
+import { getEnv, isSignupOtpRequired } from '../../config/env.js';
 import { recordAuditEvent } from '../../shared/audit/audit.service.js';
 import {
   buildOrganizationInitials,
@@ -13,7 +13,10 @@ import {
 import { parseDurationMs, signAccessToken } from '../../shared/auth/jwt.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { consumeRateLimit, resetRateLimit } from '../../middleware/rate-limit.js';
-import { sendPasswordResetEmail } from '../../providers/system-mail/system-mail.js';
+import {
+  sendPasswordResetEmail,
+  sendSignupOtpEmail,
+} from '../../providers/system-mail/system-mail.js';
 import { normalizeEmail } from '../../shared/validation/email.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
@@ -32,10 +35,12 @@ import {
   UserSessionModel,
   type UserSessionDocument,
 } from './session.model.js';
+import { SignupOtpModel } from './signup-otp.model.js';
 import { parseUserAgent, getClientIp } from './auth.types.js';
 import type { RequestContext } from './auth.types.js';
 import { toPublicUser, UserModel, type UserDocument } from './user.model.js';
 import type { OrganizationDocument } from '../organizations/organization.model.js';
+import { randomInt } from 'node:crypto';
 
 type SessionMeta = {
   ip: string;
@@ -111,6 +116,26 @@ function ensureNotLocked(user: { lockedUntil?: Date | null; failedLoginCount: nu
   }
 }
 
+function generateSignupOtpCode(): string {
+  return String(randomInt(0, 100_000)).padStart(5, '0');
+}
+
+async function consumeSignupOtp(email: string, otp: string) {
+  const otpHash = hashToken(otp);
+  const record = await SignupOtpModel.findOne({
+    email,
+    otpHash,
+    usedAt: null,
+  }).sort({ createdAt: -1 });
+
+  if (!record || record.expiresAt.getTime() <= Date.now()) {
+    throw AppError.badRequest('Invalid or expired verification code');
+  }
+
+  record.usedAt = new Date();
+  await record.save();
+}
+
 async function createSession(userId: mongoose.Types.ObjectId, meta: SessionMeta) {
   const refreshToken = generateOpaqueToken(48);
   const refreshTokenHash = hashToken(refreshToken);
@@ -158,6 +183,84 @@ async function buildAuthResponse(userId: string, sessionId: string) {
 }
 
 export class AuthService {
+  async sendSignupOtp(email: string, meta: SessionMeta) {
+    const normalizedEmail = normalizeEmail(email);
+    const rateKey = `signup-otp:${meta.ip}:${normalizedEmail}`;
+    const limit = consumeRateLimit(rateKey, 8, 60 * 60 * 1000);
+    if (!limit.allowed) {
+      throw new AppError(429, 'RATE_LIMITED', 'Too many verification code requests. Try again later.', {
+        meta: { retryAfterSeconds: limit.retryAfterSeconds },
+      });
+    }
+
+    const existingUser = await UserModel.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      throw new AppError(409, 'AUTH_EMAIL_ALREADY_EXISTS', 'An account with this email already exists');
+    }
+
+    const env = getEnv();
+    const ttlMinutes = env.AUTH_SIGNUP_OTP_TTL_MINUTES;
+    const resendSeconds = env.AUTH_SIGNUP_OTP_RESEND_SECONDS;
+    const now = Date.now();
+
+    const latest = await SignupOtpModel.findOne({ email: normalizedEmail }).sort({ createdAt: -1 });
+    if (latest && latest.resendAvailableAt.getTime() > now) {
+      const resendAvailableAt = latest.resendAvailableAt.toISOString();
+      throw new AppError(
+        429,
+        'AUTH_OTP_RESEND_COOLDOWN',
+        'Please wait before requesting a new verification code',
+        {
+          meta: {
+            resendAvailableAt,
+            retryAfterSeconds: Math.max(
+              1,
+              Math.ceil((latest.resendAvailableAt.getTime() - now) / 1000)
+            ),
+          },
+        }
+      );
+    }
+
+    const otp = generateSignupOtpCode();
+    const expiresAt = new Date(now + ttlMinutes * 60 * 1000);
+    const resendAvailableAt = new Date(now + resendSeconds * 1000);
+
+    await SignupOtpModel.updateMany(
+      { email: normalizedEmail, usedAt: null },
+      { $set: { usedAt: new Date() } }
+    );
+
+    await SignupOtpModel.create({
+      email: normalizedEmail,
+      otpHash: hashToken(otp),
+      expiresAt,
+      resendAvailableAt,
+      usedAt: null,
+    });
+
+    const emailed = await sendSignupOtpEmail({
+      to: normalizedEmail,
+      otp,
+      expiresInMinutes: ttlMinutes,
+    });
+
+    await recordAuditEvent({
+      action: 'auth.signup_otp_sent',
+      ipHash: hashIp(meta.ip),
+      userAgent: meta.userAgent,
+      metadata: { email: normalizedEmail, emailed },
+    });
+
+    return {
+      message: 'Verification code sent',
+      expiresAt: expiresAt.toISOString(),
+      resendAvailableAt: resendAvailableAt.toISOString(),
+      emailed,
+      ...(env.APP_ENV !== 'production' ? { otp } : {}),
+    };
+  }
+
   async register(input: {
     email: string;
     password: string;
@@ -165,6 +268,7 @@ export class AuthService {
     lastName: string;
     companyName: string;
     mobile?: string | null;
+    otp?: string | null;
     organizationName?: string;
     attribution?: {
       sessionId: string | null;
@@ -182,6 +286,15 @@ export class AuthService {
     const existing = await UserModel.findOne({ email: input.email });
     if (existing) {
       throw new AppError(409, 'AUTH_EMAIL_ALREADY_EXISTS', 'An account with this email already exists');
+    }
+
+    if (isSignupOtpRequired()) {
+      if (!input.otp) {
+        throw AppError.badRequest('Email verification code is required');
+      }
+      await consumeSignupOtp(input.email, input.otp);
+    } else if (input.otp) {
+      await consumeSignupOtp(input.email, input.otp);
     }
 
     const orgName =
@@ -238,6 +351,7 @@ export class AuthService {
         onboardingStatus: 'not_started',
         onboardingCompleted: false,
         onboardingCompletedAt: null,
+        emailVerifiedAt: input.otp ? new Date() : null,
       });
 
       organization.ownerUserId = user._id;

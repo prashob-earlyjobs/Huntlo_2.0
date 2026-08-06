@@ -36,7 +36,6 @@ import {
 import {
   candidatePoolApi,
   getApiErrorMessage,
-  integrationsApi,
   sourcingApi,
   type ApiPoolCandidate,
   type SourcingSessionApi,
@@ -341,22 +340,6 @@ export function AudienceStep({
   );
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [atsConnected, setAtsConnected] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void integrationsApi
-      .listAtsProviders()
-      .then((rows) => {
-        if (!cancelled) setAtsConnected(rows.length > 0);
-      })
-      .catch(() => {
-        if (!cancelled) setAtsConnected(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -629,7 +612,7 @@ export function AudienceStep({
             const meta = SOURCE_META[source];
             const Icon = meta.icon;
             const selected = state.source === source;
-            const atsLocked = source === "Import from ATS" && !atsConnected;
+            const atsLocked = source === "Import from ATS";
             return (
               <button
                 key={source}
@@ -665,7 +648,7 @@ export function AudienceStep({
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
                     {atsLocked
-                      ? "Connect an ATS in Integrations"
+                      ? "Temporarily unavailable"
                       : meta.description}
                   </span>
                 </span>

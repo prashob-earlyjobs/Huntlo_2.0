@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { CompanyTypeStep } from "@/components/onboarding/CompanyTypeStep";
@@ -10,7 +10,7 @@ import { HiringVolumeStep } from "@/components/onboarding/HiringVolumeStep";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { OutreachChannelsStep } from "@/components/onboarding/OutreachChannelsStep";
 import { WelcomeStep } from "@/components/onboarding/WelcomeStep";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { getApiErrorMessage, onboardingApi } from "@/lib/api";
 import { postAuthPath, resolvePostAuthDestination } from "@/lib/auth-redirect";
 import {
@@ -32,6 +32,7 @@ import {
   type OnboardingAnswers,
   type OutreachChannel,
 } from "@/lib/onboarding";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
 function loadDraft(): OnboardingAnswers {
@@ -87,6 +88,7 @@ export function OnboardingFlow() {
   const [ready, setReady] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const continueButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -127,8 +129,45 @@ export function OnboardingFlow() {
     saveDraft(answers);
   }, [answers, ready]);
 
+  useEffect(() => {
+    if (!ready || step !== 0) return;
+    const focusContinue = () => {
+      const node = continueButtonRef.current;
+      if (!node) return;
+      node.focus({ preventScroll: true });
+    };
+    // Wait for the loading shell to unmount and the Continue button to mount.
+    const timer = window.setTimeout(focusContinue, 50);
+    return () => window.clearTimeout(timer);
+  }, [ready, step]);
+
+  useEffect(() => {
+    if (!ready || step !== 0) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Enter" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("textarea, [contenteditable='true']")) return;
+      if (target?.closest("button, a, input, select")) return;
+      event.preventDefault();
+      setStep((previous) => Math.min(4, previous + 1));
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [ready, step]);
+
   function updateAnswers(patch: Partial<OnboardingAnswers>) {
     setAnswers((previous) => ({ ...previous, ...patch }));
+  }
+
+  function goNext() {
+    if (!isStepValid(step, answers) || submitting) return;
+    if (step < 4) {
+      setStep((previous) => Math.min(4, previous + 1));
+      return;
+    }
+    void finishSetup();
   }
 
   async function finishSetup() {
@@ -175,59 +214,67 @@ export function OnboardingFlow() {
         <OnboardingProgress step={step} />
       </div>
 
-      <div className="flex-1">
-        {step === 0 ? <WelcomeStep /> : null}
-        {step === 1 ? (
-          <CompanyTypeStep
-            value={answers.companyType}
-            onChange={(companyType) => updateAnswers({ companyType })}
-          />
-        ) : null}
-        {step === 2 ? (
-          <HiringChallengesStep
-            value={answers.hiringChallenges}
-            onChange={(hiringChallenges) => updateAnswers({ hiringChallenges })}
-          />
-        ) : null}
-        {step === 3 ? (
-          <OutreachChannelsStep
-            value={answers.outreachChannels}
-            onChange={(outreachChannels) => updateAnswers({ outreachChannels })}
-          />
-        ) : null}
-        {step === 4 ? (
-          <HiringVolumeStep
-            value={answers.hiringVolume}
-            onChange={(hiringVolume) => updateAnswers({ hiringVolume })}
-          />
-        ) : null}
-      </div>
+      <form
+        className="flex flex-1 flex-col"
+        onSubmit={(event) => {
+          event.preventDefault();
+          goNext();
+        }}
+      >
+        <div className="flex-1">
+          {step === 0 ? <WelcomeStep /> : null}
+          {step === 1 ? (
+            <CompanyTypeStep
+              value={answers.companyType}
+              onChange={(companyType) => updateAnswers({ companyType })}
+            />
+          ) : null}
+          {step === 2 ? (
+            <HiringChallengesStep
+              value={answers.hiringChallenges}
+              onChange={(hiringChallenges) => updateAnswers({ hiringChallenges })}
+            />
+          ) : null}
+          {step === 3 ? (
+            <OutreachChannelsStep
+              value={answers.outreachChannels}
+              onChange={(outreachChannels) => updateAnswers({ outreachChannels })}
+            />
+          ) : null}
+          {step === 4 ? (
+            <HiringVolumeStep
+              value={answers.hiringVolume}
+              onChange={(hiringVolume) => updateAnswers({ hiringVolume })}
+            />
+          ) : null}
+        </div>
 
-      {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
 
-      <div className="mt-8 flex items-center justify-between gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={step === 0 || submitting}
-          onClick={() => setStep((previous) => Math.max(0, previous - 1))}
-        >
-          Back
-        </Button>
-        {step < 4 ? (
+        <div className="mt-8 flex items-center justify-between gap-3">
           <Button
             type="button"
-            disabled={!canContinue}
-            onClick={() => setStep((previous) => Math.min(4, previous + 1))}
+            variant="outline"
+            disabled={step === 0 || submitting}
+            onClick={() => setStep((previous) => Math.max(0, previous - 1))}
           >
-            Continue
+            Back
           </Button>
-        ) : (
-          <Button type="button" disabled={!canContinue} onClick={() => void finishSetup()}>
-            {submitting ? "Finishing setup…" : "Finish Setup"}
-          </Button>
-        )}
-      </div>
+          <button
+            ref={continueButtonRef}
+            type="submit"
+            disabled={!canContinue}
+            autoFocus={step === 0}
+            data-slot="button"
+            className={cn(
+              buttonVariants(),
+              "focus:border-ring focus:ring-3 focus:ring-ring/50",
+            )}
+          >
+            {step < 4 ? "Continue" : submitting ? "Finishing setup…" : "Finish Setup"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

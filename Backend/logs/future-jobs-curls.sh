@@ -344,3 +344,63 @@ curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a72f
 curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a72f095cd381f9a3a11e5f7/profiles?page=1&limit=300' \
   -H 'Content-Type: application/json' \
   -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:27.892Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:29.914Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:32.008Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:34.133Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:35.942Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:37.990Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:39.926Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:41.981Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:43.940Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:46.073Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:47.944Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:50.024Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:51.940Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:54.034Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-05T10:51:55.973Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'

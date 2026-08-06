@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { CompanyDomainLogo } from "@/components/shared/company-domain-logo";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -15,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { authApi } from "@/lib/api/auth";
 import { getApiErrorMessage } from "@/lib/api";
 import { resolvePostAuthDestination } from "@/lib/auth-redirect";
 import { peekPendingRedirectPath } from "@/lib/claim-public-search";
@@ -25,6 +35,7 @@ import {
   nationalNumberPlaceholder,
   PHONE_COUNTRIES,
 } from "@/lib/phone-countries";
+import { cn } from "@/lib/utils";
 import {
   buildAttributionPayload,
   persistUtm,
@@ -37,7 +48,8 @@ import {
   WORK_EMAIL_ERROR,
 } from "@/lib/work-email";
 import { useAuth } from "@/providers/auth-provider";
-import { CompanyDomainLogo } from "@/components/shared/company-domain-logo";
+
+const OTP_LENGTH = 5;
 
 type SignupFormState = {
   fullName: string;
@@ -77,23 +89,64 @@ function validateSignup(form: SignupFormState): string | null {
   return null;
 }
 
+function formatCountdown(totalSeconds: number): string {
+  const safe = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const { register } = useAuth();
   const [form, setForm] = useState<SignupFormState>(INITIAL);
-  const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>(() =>
+    Array.from({ length: OTP_LENGTH }, () => ""),
+  );
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
   const autoCompanyNameRef = useRef("");
+  const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const otpBusyRef = useRef(false);
+  const otpSubmitLockRef = useRef(false);
 
   const selectedCountry = useMemo(() => getPhoneCountry(form.countryIso), [form.countryIso]);
   const companyDomain = useMemo(() => workEmailDomain(form.email), [form.email]);
+  const otpValue = otpDigits.join("");
+  const otpComplete = otpValue.length === OTP_LENGTH && /^\d{5}$/.test(otpValue);
+  const resendRemainingSeconds =
+    resendAvailableAt == null
+      ? 0
+      : Math.max(0, Math.ceil((resendAvailableAt - nowMs) / 1000));
+  const canResend = resendRemainingSeconds <= 0 && !resendBusy && !otpBusy;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const fromUrl = readUtmFromSearch(window.location.search);
     if (fromUrl) persistUtm(fromUrl);
   }, []);
+
+  useEffect(() => {
+    if (!otpOpen) return;
+    const timer = window.setTimeout(() => {
+      otpInputRefs.current[0]?.focus();
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [otpOpen]);
+
+  useEffect(() => {
+    if (!otpOpen || resendAvailableAt == null) return;
+    if (resendAvailableAt <= Date.now()) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [otpOpen, resendAvailableAt]);
 
   function updateField<K extends keyof SignupFormState>(key: K, value: SignupFormState[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -118,17 +171,106 @@ export default function SignupPage() {
     });
   }
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const validationError = validateSignup(form);
-    if (validationError) {
-      setFieldError(validationError);
+  function resetOtpInputs() {
+    setOtpDigits(Array.from({ length: OTP_LENGTH }, () => ""));
+    setOtpError(null);
+    otpSubmitLockRef.current = false;
+  }
+
+  function applyOtpSendResult(result: {
+    resendAvailableAt: string;
+    otp?: string;
+  }) {
+    setResendAvailableAt(new Date(result.resendAvailableAt).getTime());
+    setNowMs(Date.now());
+    setDevOtpHint(result.otp ?? null);
+  }
+
+  function handleOtpChange(index: number, raw: string) {
+    const digitsOnly = raw.replace(/\D/g, "");
+    if (!digitsOnly) {
+      setOtpDigits((previous) => {
+        const next = [...previous];
+        next[index] = "";
+        return next;
+      });
+      setOtpError(null);
       return;
     }
 
-    setSubmitting(true);
-    setError(null);
-    setFieldError(null);
+    let nextDigits: string[];
+
+    if (digitsOnly.length > 1) {
+      const chars = digitsOnly.slice(0, OTP_LENGTH).split("");
+      nextDigits = Array.from({ length: OTP_LENGTH }, (_, i) => chars[i] ?? "");
+      setOtpDigits(nextDigits);
+      setOtpError(null);
+      const focusIndex = Math.min(chars.length, OTP_LENGTH) - 1;
+      otpInputRefs.current[focusIndex]?.focus();
+    } else {
+      nextDigits = [...otpDigits];
+      nextDigits[index] = digitsOnly;
+      setOtpDigits(nextDigits);
+      setOtpError(null);
+      if (index < OTP_LENGTH - 1) {
+        otpInputRefs.current[index + 1]?.focus();
+      }
+    }
+
+    const code = nextDigits.join("");
+    if (/^\d{5}$/.test(code)) {
+      void submitOtp(code);
+    }
+  }
+
+  function handleOtpKeyDown(index: number, event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Backspace" && !otpDigits[index] && index > 0) {
+      event.preventDefault();
+      otpInputRefs.current[index - 1]?.focus();
+      setOtpDigits((previous) => {
+        const next = [...previous];
+        next[index - 1] = "";
+        return next;
+      });
+    }
+    if (event.key === "ArrowLeft" && index > 0) {
+      event.preventDefault();
+      otpInputRefs.current[index - 1]?.focus();
+    }
+    if (event.key === "ArrowRight" && index < OTP_LENGTH - 1) {
+      event.preventDefault();
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  }
+
+  async function handleResendOtp() {
+    if (!canResend) return;
+    setResendBusy(true);
+    setOtpError(null);
+    try {
+      const result = await authApi.sendSignupOtp(form.email.trim().toLowerCase());
+      applyOtpSendResult(result);
+      resetOtpInputs();
+      otpSubmitLockRef.current = false;
+      otpInputRefs.current[0]?.focus();
+    } catch (err) {
+      setOtpError(getApiErrorMessage(err, "Unable to resend verification code."));
+    } finally {
+      setResendBusy(false);
+    }
+  }
+
+  async function submitOtp(code: string) {
+    if (!/^\d{5}$/.test(code)) {
+      setOtpError("Enter the 5-digit code.");
+      return;
+    }
+    if (otpBusyRef.current || otpSubmitLockRef.current) return;
+
+    otpSubmitLockRef.current = true;
+    otpBusyRef.current = true;
+    setOtpBusy(true);
+    setOtpError(null);
     try {
       const mobile = composeE164Mobile(selectedCountry.dialCode, form.mobile);
       const nextUser = await register({
@@ -138,11 +280,42 @@ export default function SignupPage() {
         mobile,
         password: form.password,
         confirmPassword: form.confirmPassword,
+        otp: code,
         attribution: buildAttributionPayload(),
       });
+      setOtpOpen(false);
       router.replace(resolvePostAuthDestination(nextUser, peekPendingRedirectPath()));
     } catch (err) {
-      setError(getApiErrorMessage(err, "Unable to create your account."));
+      otpSubmitLockRef.current = false;
+      setOtpError(getApiErrorMessage(err, "Unable to verify the code."));
+    } finally {
+      otpBusyRef.current = false;
+      setOtpBusy(false);
+    }
+  }
+
+  async function handleVerifyOtp(event: React.FormEvent) {
+    event.preventDefault();
+    await submitOtp(otpValue);
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const validationError = validateSignup(form);
+    if (validationError) {
+      setFieldError(validationError);
+      return;
+    }
+
+    setFieldError(null);
+    setSubmitting(true);
+    try {
+      const result = await authApi.sendSignupOtp(form.email.trim().toLowerCase());
+      applyOtpSendResult(result);
+      resetOtpInputs();
+      setOtpOpen(true);
+    } catch (err) {
+      setFieldError(getApiErrorMessage(err, "Unable to send verification code."));
     } finally {
       setSubmitting(false);
     }
@@ -268,9 +441,8 @@ export default function SignupPage() {
           />
         </div>
         {fieldError ? <p className="text-sm text-destructive">{fieldError}</p> : null}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <Button type="submit" className="w-full" disabled={submitting}>
-          {submitting ? "Creating account…" : "Create account"}
+          {submitting ? "Sending code…" : "Create account"}
         </Button>
       </form>
 
@@ -280,6 +452,92 @@ export default function SignupPage() {
           Sign in
         </Link>
       </p>
+
+      <Dialog
+        open={otpOpen}
+        onOpenChange={(open) => {
+          if (otpBusy) return;
+          setOtpOpen(open);
+          if (!open) {
+            resetOtpInputs();
+            setDevOtpHint(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-sm" showCloseButton={!otpBusy}>
+          <DialogHeader>
+            <DialogTitle>Verify your email</DialogTitle>
+            <DialogDescription>
+              Enter the 5-digit code we sent to{" "}
+              <span className="font-medium text-foreground">
+                {form.email.trim() || "your email"}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <div className="flex justify-center gap-2" role="group" aria-label="One-time passcode">
+              {otpDigits.map((digit, index) => (
+                <Input
+                  key={index}
+                  ref={(node) => {
+                    otpInputRefs.current[index] = node;
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete={index === 0 ? "one-time-code" : "off"}
+                  maxLength={OTP_LENGTH}
+                  value={digit}
+                  disabled={otpBusy}
+                  onChange={(event) => handleOtpChange(index, event.target.value)}
+                  onKeyDown={(event) => handleOtpKeyDown(index, event)}
+                  onFocus={(event) => event.target.select()}
+                  aria-label={`Digit ${index + 1} of ${OTP_LENGTH}`}
+                  className={cn(
+                    "h-12 w-11 px-0 text-center text-lg font-semibold tracking-widest",
+                    otpError && "border-destructive",
+                  )}
+                />
+              ))}
+            </div>
+
+            {devOtpHint ? (
+              <p className="text-center text-xs text-muted-foreground">
+                Dev code: <span className="font-mono font-medium text-foreground">{devOtpHint}</span>
+              </p>
+            ) : null}
+
+            {otpError ? <p className="text-center text-sm text-destructive">{otpError}</p> : null}
+
+            <p className="text-center text-sm text-muted-foreground">
+              {canResend ? (
+                <button
+                  type="button"
+                  className="font-medium text-foreground underline-offset-4 hover:underline disabled:opacity-50"
+                  disabled={!canResend}
+                  onClick={() => void handleResendOtp()}
+                >
+                  {resendBusy ? "Sending…" : "Resend new code"}
+                </button>
+              ) : (
+                <>
+                  Resend new code in{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {formatCountdown(resendRemainingSeconds)}
+                  </span>
+                </>
+              )}
+            </p>
+
+            <DialogFooter>
+              <Button type="submit" className="w-full sm:w-auto" disabled={!otpComplete || otpBusy}>
+                {otpBusy ? "Verifying…" : "Verify"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
