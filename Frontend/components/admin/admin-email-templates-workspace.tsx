@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Eye, Loader2, Send } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminBlogRichTextEditor } from "@/components/admin/admin-blog-rich-text-editor";
 import { AdminWhatsAppTemplatesPanel } from "@/components/admin/admin-whatsapp-templates-panel";
@@ -16,6 +16,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { adminApi, type EmailTemplate } from "@/lib/api";
@@ -118,9 +123,12 @@ export function AdminEmailTemplatesWorkspace() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [baseline, setBaseline] = useState<FormState | null>(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [testEmailOpen, setTestEmailOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const testEmailSeededRef = useRef(false);
 
   const dirty = Boolean(form && baseline && !formsEqual(form, baseline));
 
@@ -169,6 +177,12 @@ export function AdminEmailTemplatesWorkspace() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
+  useEffect(() => {
+    if (testEmailSeededRef.current || !user?.email) return;
+    testEmailSeededRef.current = true;
+    setTestEmail(user.email);
+  }, [user?.email]);
+
   function openTemplate(template: EmailTemplate) {
     const next = templateToForm(template);
     setExpandedId(template.id);
@@ -182,6 +196,7 @@ export function AdminEmailTemplatesWorkspace() {
     setExpandedId(null);
     setForm(null);
     setBaseline(null);
+    setTestEmailOpen(false);
     setPreviewOpen(false);
   }
 
@@ -237,7 +252,12 @@ export function AdminEmailTemplatesWorkspace() {
   }
 
   async function handleSendTest() {
-    if (!expandedId || !form || !user?.email) return;
+    const to = testEmail.trim();
+    if (!expandedId || !form) return;
+    if (!to) {
+      setError("Enter an email address to send a test email.");
+      return;
+    }
     if (dirty) {
       setSaving(true);
       setError(null);
@@ -267,7 +287,7 @@ export function AdminEmailTemplatesWorkspace() {
     setError(null);
     try {
       const result = await adminApi.sendEmailTemplateTest(expandedId, {
-        to: user.email,
+        to,
         firstName: user.firstName || "Alex",
       });
       if (!result.mailConfigured) {
@@ -278,6 +298,7 @@ export function AdminEmailTemplatesWorkspace() {
         setError("Test email failed to send. Check SYSTEM_SMTP_* credentials.");
         return;
       }
+      setTestEmailOpen(false);
       setToast(`Test sent to ${result.to} via SYSTEM_SMTP.`);
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to send test email."));
@@ -484,21 +505,60 @@ export function AdminEmailTemplatesWorkspace() {
                           >
                             <Eye aria-hidden />
                           </Button>
-                          <Button
-                            size="icon-xs"
-                            variant="outline"
-                            onClick={() => void handleSendTest()}
-                            disabled={saving || !user?.email}
-                            aria-busy={sendingTest}
-                            aria-label={sendingTest ? "Sending test…" : "Send test"}
-                            title={sendingTest ? "Sending…" : "Send test"}
-                          >
-                            {sendingTest ? (
-                              <Loader2 aria-hidden className="animate-spin" />
-                            ) : (
-                              <Send aria-hidden />
-                            )}
-                          </Button>
+                          <Popover open={testEmailOpen} onOpenChange={setTestEmailOpen}>
+                            <PopoverTrigger
+                              render={
+                                <Button
+                                  size="icon-xs"
+                                  variant="outline"
+                                  disabled={saving || sendingTest}
+                                  aria-busy={sendingTest}
+                                  aria-label={sendingTest ? "Sending test…" : "Send test"}
+                                  title={sendingTest ? "Sending…" : "Send test"}
+                                />
+                              }
+                            >
+                              {sendingTest ? (
+                                <Loader2 aria-hidden className="animate-spin" />
+                              ) : (
+                                <Send aria-hidden />
+                              )}
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-72 p-3">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={testEmail}
+                                  onChange={(event) => setTestEmail(event.target.value)}
+                                  placeholder="alex@example.com"
+                                  maxLength={320}
+                                  type="email"
+                                  autoComplete="email"
+                                  onKeyDown={(event) => {
+                                    // Keep typing/backspace inside the popover input;
+                                    // don't let parent expand/collapse handlers steal keys.
+                                    event.stopPropagation();
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      void handleSendTest();
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  size="icon-xs"
+                                  onClick={() => void handleSendTest()}
+                                  disabled={saving || sendingTest}
+                                  aria-label={sendingTest ? "Sending test…" : "Send test"}
+                                  title={sendingTest ? "Sending…" : "Send test"}
+                                >
+                                  {sendingTest ? (
+                                    <Loader2 aria-hidden className="animate-spin" />
+                                  ) : (
+                                    <Send aria-hidden />
+                                  )}
+                                </Button>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                           <Button
                             size="sm"
                             variant="outline"
