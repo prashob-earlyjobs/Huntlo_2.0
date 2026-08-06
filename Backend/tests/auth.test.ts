@@ -97,6 +97,52 @@ describe('Auth API', () => {
     }
   });
 
+  it('limits self-serve signup to 3 owner accounts per email domain', async () => {
+    for (let i = 1; i <= 3; i += 1) {
+      await agent
+        .post('/api/v1/auth/register')
+        .send({
+          email: `owner${i}@earlyjobs.in`,
+          password: 'Password123!',
+          firstName: `Owner${i}`,
+          lastName: 'Early',
+          organizationName: `Early Jobs ${i}`,
+        })
+        .expect(201);
+    }
+
+    const blockedOtp = await agent
+      .post('/api/v1/auth/register/send-otp')
+      .send({ email: 'owner4@earlyjobs.in' })
+      .expect(409);
+    expect(blockedOtp.body.error.code).toBe('AUTH_DOMAIN_SIGNUP_LIMIT');
+
+    const blockedRegister = await agent
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'owner4@earlyjobs.in',
+        password: 'Password123!',
+        firstName: 'Owner4',
+        lastName: 'Early',
+        organizationName: 'Early Jobs 4',
+      })
+      .expect(409);
+    expect(blockedRegister.body.error.code).toBe('AUTH_DOMAIN_SIGNUP_LIMIT');
+    expect(blockedRegister.body.error.message).toMatch(/maximum of 3/i);
+
+    // Different domain is unaffected.
+    await agent
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'owner@otherco.in',
+        password: 'Password123!',
+        firstName: 'Other',
+        lastName: 'Co',
+        organizationName: 'Other Co',
+      })
+      .expect(201);
+  });
+
   it('registers, returns access token, and sets refresh cookie', async () => {
     const response = await agent
       .post('/api/v1/auth/register')

@@ -55,6 +55,8 @@ const envSchema = z.object({
   AUTH_SIGNUP_OTP_REQUIRED: booleanFromEnv.optional(),
   AUTH_SIGNUP_OTP_TTL_MINUTES: z.coerce.number().int().min(1).default(30),
   AUTH_SIGNUP_OTP_RESEND_SECONDS: z.coerce.number().int().min(1).default(30),
+  /** Max self-serve signup accounts (owners) allowed per email domain. */
+  AUTH_SIGNUP_MAX_ACCOUNTS_PER_DOMAIN: z.coerce.number().int().min(1).default(3),
 
   // Platform transactional email (password reset, verification, etc.)
   SYSTEM_SMTP_HOST: z.string().optional(),
