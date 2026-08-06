@@ -55,14 +55,14 @@ export async function getWorkspaceSubscriptionAccess(organizationId: string): Pr
     return { subscription: null, plan: null, trialExpired: false };
   }
 
-  subscription = await syncExpiredTrialSubscription(subscription);
-  const plan = await PricingPlanModel.findById(subscription.planId);
+  const synced = await syncExpiredTrialSubscription(subscription);
+  const plan = await PricingPlanModel.findById(synced.planId);
   const trialExpired =
     isTrialPlan(plan) &&
-    isTrialPeriodEnded(subscription) &&
-    (subscription.status === 'cancelled' || subscription.status === 'trialing');
+    isTrialPeriodEnded(synced) &&
+    (synced.status === 'cancelled' || synced.status === 'trialing');
 
-  return { subscription, plan, trialExpired };
+  return { subscription: synced, plan, trialExpired };
 }
 
 /** Throw when the org's trial has ended and they must upgrade. */
