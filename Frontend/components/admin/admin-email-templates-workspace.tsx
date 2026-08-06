@@ -288,7 +288,7 @@ export function AdminEmailTemplatesWorkspace() {
     try {
       const result = await adminApi.sendEmailTemplateTest(expandedId, {
         to,
-        firstName: user.firstName || "Alex",
+        firstName: user?.firstName || "Alex",
       });
       if (!result.mailConfigured) {
         setError("SYSTEM_SMTP_* is not configured on the server.");
