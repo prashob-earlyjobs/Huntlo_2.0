@@ -99,7 +99,7 @@ export function JobsTable({
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className={HEAD}>Job</TableHead>
-            <TableHead className={HEAD}>Pipeline</TableHead>
+            {/* <TableHead className={HEAD}>Pipeline</TableHead> */}
             <TableHead className={HEAD}>Owner</TableHead>
             <TableHead className={HEAD}>Posted</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
@@ -131,9 +131,9 @@ export function JobsTable({
                     {job.department} · {job.location} · {experienceLabel(job)}
                   </p>
                 </TableCell>
-                <TableCell className="py-2">
+                {/* <TableCell className="py-2">
                   <PipelineCell job={job} />
-                </TableCell>
+                </TableCell> */}
                 <TableCell className="py-2">
                   <p className="text-sm whitespace-nowrap text-foreground">{job.recruiter}</p>
                   <p className="mt-0.5 text-xs whitespace-nowrap text-muted-foreground">

@@ -224,8 +224,6 @@ export const NAV_SECTIONS: NavSection[] = [
         href: ROUTES.plans,
         icon: CreditCard,
         description: "Subscription, credits and limits",
-        badge: "Low",
-        badgeTone: "warning",
       },
       {
         title: "Profile",

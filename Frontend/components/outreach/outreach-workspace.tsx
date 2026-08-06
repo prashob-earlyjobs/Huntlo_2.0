@@ -547,9 +547,12 @@ export function OutreachWorkspace({
                         {campaign.relatedJobId && campaign.relatedJobTitle ? (
                           <Link
                             href={jobDetailPath(campaign.relatedJobId)}
+                            title={campaign.relatedJobTitle}
                             className="text-sm text-muted-foreground underline-offset-4 hover:underline"
                           >
-                            {campaign.relatedJobTitle}
+                            {campaign.relatedJobTitle.length > 25
+                              ? `${campaign.relatedJobTitle.slice(0, 25)}...`
+                              : campaign.relatedJobTitle}
                           </Link>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>

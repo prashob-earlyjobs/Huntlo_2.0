@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Eye, ExternalLink, Loader2, Send } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { adminApi, type WhatsAppTemplate } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api/errors";
@@ -70,7 +75,9 @@ export function AdminWhatsAppTemplatesPanel({ onToast, onError }: Props) {
     null
   );
   const [testPhone, setTestPhone] = useState("");
+  const [testPhoneOpenId, setTestPhoneOpenId] = useState<string | null>(null);
   const [sendingTestId, setSendingTestId] = useState<string | null>(null);
+  const testPhoneSeededRef = useRef(false);
 
   const visibleTemplates = useMemo(() => templates.slice(0, 4), [templates]);
 
@@ -100,10 +107,10 @@ export function AdminWhatsAppTemplatesPanel({ onToast, onError }: Props) {
   }, [loadTemplates]);
 
   useEffect(() => {
-    if (defaultPhone && !testPhone) {
-      setTestPhone(defaultPhone);
-    }
-  }, [defaultPhone, testPhone]);
+    if (testPhoneSeededRef.current || !defaultPhone) return;
+    testPhoneSeededRef.current = true;
+    setTestPhone(defaultPhone);
+  }, [defaultPhone]);
 
   async function handleToggle(template: WhatsAppTemplate, enabled: boolean) {
     if (template.enabled === enabled) return;
@@ -145,6 +152,7 @@ export function AdminWhatsAppTemplatesPanel({ onToast, onError }: Props) {
         onError("WhatsApp test failed to send. Check Meta template name and credentials.");
         return;
       }
+      setTestPhoneOpenId(null);
       onToast(`Test WhatsApp sent to ${result.to}.`);
     } catch (err) {
       onError(getApiErrorMessage(err, "Unable to send WhatsApp test."));
@@ -294,41 +302,40 @@ export function AdminWhatsAppTemplatesPanel({ onToast, onError }: Props) {
                       )}
                     </div>
 
-                    <div className="space-y-1.5 border-t border-border pt-3">
-                      <p className="text-xs font-medium text-foreground">Test phone</p>
-                      <Input
-                        value={testPhone}
-                        onChange={(event) => setTestPhone(event.target.value)}
-                        placeholder="+91XXXXXXXXXX"
-                        maxLength={30}
-                      />
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <Button
-                          size="icon-xs"
-                          variant="outline"
-                          onClick={() => setPreviewTemplate(template)}
-                          aria-label="Preview"
-                          title="Preview"
-                        >
-                          <Eye aria-hidden />
-                        </Button>
-                        <Button
-                          size="icon-xs"
-                          variant="outline"
-                          onClick={() => void handleSendTest(template)}
-                          disabled={
-                            Boolean(savingId) ||
-                            Boolean(sendingTestId) ||
-                            !template.metaTemplateName
-                          }
-                          aria-busy={isSendingTest}
-                          aria-label={isSendingTest ? "Sending test…" : "Send test"}
-                          title={
-                            !template.metaTemplateName
-                              ? "No Meta template name configured"
-                              : isSendingTest
-                                ? "Sending…"
-                                : "Send test"
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                      <Button
+                        size="icon-xs"
+                        variant="outline"
+                        onClick={() => setPreviewTemplate(template)}
+                        aria-label="Preview"
+                        title="Preview"
+                      >
+                        <Eye aria-hidden />
+                      </Button>
+                      <Popover
+                        open={testPhoneOpenId === template.id}
+                        onOpenChange={(open) => setTestPhoneOpenId(open ? template.id : null)}
+                      >
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              size="icon-xs"
+                              variant="outline"
+                              disabled={
+                                Boolean(savingId) ||
+                                Boolean(sendingTestId) ||
+                                !template.metaTemplateName
+                              }
+                              aria-busy={isSendingTest}
+                              aria-label={isSendingTest ? "Sending test…" : "Send test"}
+                              title={
+                                !template.metaTemplateName
+                                  ? "No Meta template name configured"
+                                  : isSendingTest
+                                    ? "Sending…"
+                                    : "Send test"
+                              }
+                            />
                           }
                         >
                           {isSendingTest ? (
@@ -336,11 +343,47 @@ export function AdminWhatsAppTemplatesPanel({ onToast, onError }: Props) {
                           ) : (
                             <Send aria-hidden />
                           )}
-                        </Button>
-                        <span className="text-[11px] text-muted-foreground">
-                          Preview locally · Test sends via Meta template
-                        </span>
-                      </div>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-72 p-3">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={testPhone}
+                              onChange={(event) => setTestPhone(event.target.value)}
+                              placeholder="+91XXXXXXXXXX"
+                              maxLength={30}
+                              onKeyDown={(event) => {
+                                // Keep typing/backspace inside the popover input;
+                                // don't let parent expand/collapse handlers steal keys.
+                                event.stopPropagation();
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  void handleSendTest(template);
+                                }
+                              }}
+                            />
+                            <Button
+                              size="icon-xs"
+                              onClick={() => void handleSendTest(template)}
+                              disabled={
+                                Boolean(savingId) ||
+                                Boolean(sendingTestId) ||
+                                !template.metaTemplateName
+                              }
+                              aria-label={isSendingTest ? "Sending test…" : "Send test"}
+                              title={isSendingTest ? "Sending…" : "Send test"}
+                            >
+                              {isSendingTest ? (
+                                <Loader2 aria-hidden className="animate-spin" />
+                              ) : (
+                                <Send aria-hidden />
+                              )}
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <span className="text-[11px] text-muted-foreground">
+                        Preview locally · Test sends via Meta template
+                      </span>
                     </div>
                   </div>
                 ) : null}
