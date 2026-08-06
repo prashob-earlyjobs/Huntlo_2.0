@@ -247,17 +247,9 @@ voiceRoutes.post(
     });
     if (!campaign) throw AppError.notFound('Campaign not found');
 
-    const agentId = String(campaign.voiceAgentConfig?.agentId || '').trim();
-    if (!agentId) {
-      throw new AppError(
-        400,
-        'VOICE_AGENT_REQUIRED',
-        'Save a voice agent before launching AI voice calls.'
-      );
-    }
-
     const { OutreachEnrollmentModel } = await import('../outreach/enrollment.model.js');
     const { SavedCandidateModel } = await import('../candidates/saved-candidate.model.js');
+    const { partitionVoiceContacts } = await import('./voice-dialer.service.js');
 
     const enrollmentFilter: Record<string, unknown> = {
       organizationId,
@@ -314,14 +306,38 @@ voiceRoutes.post(
       }) || null
     );
 
+    const { indian } = partitionVoiceContacts(contacts);
+    const agentId = String(campaign.voiceAgentConfig?.agentId || '').trim();
+    if (indian.length > 0 && !agentId) {
+      throw new AppError(
+        400,
+        'VOICE_AGENT_REQUIRED',
+        'Save a voice agent before launching AI voice calls to Indian (+91) numbers.'
+      );
+    }
+
+    const agentPrompt =
+      typeof campaign.voiceAgentConfig?.agentPrompt === 'string'
+        ? String(campaign.voiceAgentConfig.agentPrompt)
+        : typeof campaign.voiceAgentConfig?.objective === 'string'
+          ? String(campaign.voiceAgentConfig.objective)
+          : `Call candidates about ${campaign.name}.`;
+    const firstMessage =
+      typeof campaign.voiceAgentConfig?.introduction === 'string'
+        ? String(campaign.voiceAgentConfig.introduction)
+        : undefined;
+
     const launched = await launchBulkVoiceCalls({
       organizationId,
       userId,
       source: 'outreach',
       campaignId: id,
-      agentId,
+      agentId: agentId || null,
       contacts,
       retryConfig: retry,
+      agentPrompt,
+      firstMessage,
+      preferredLanguage: indian.length === contacts.length ? undefined : 'en-US',
     });
 
     if (campaign.status === 'draft' || campaign.status === 'scheduled') {

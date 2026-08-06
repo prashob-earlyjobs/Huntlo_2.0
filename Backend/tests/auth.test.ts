@@ -7,6 +7,7 @@ import { getEnv, resetEnvCache } from '../src/config/env.js';
 import { clearRateLimits } from '../src/middleware/rate-limit.js';
 import { OnboardingModel } from '../src/modules/auth/onboarding.model.js';
 import { UserSessionModel } from '../src/modules/auth/session.model.js';
+import { SignupOtpModel } from '../src/modules/auth/signup-otp.model.js';
 import { UserModel } from '../src/modules/auth/user.model.js';
 import { OrganizationModel } from '../src/modules/organizations/organization.model.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
@@ -32,9 +33,114 @@ describe('Auth API', () => {
     await Promise.all([
       UserSessionModel.deleteMany({}),
       OnboardingModel.deleteMany({}),
+      SignupOtpModel.deleteMany({}),
       UserModel.deleteMany({}),
       OrganizationModel.deleteMany({}),
     ]);
+  });
+
+  it('sends signup OTP and enforces resend cooldown', async () => {
+    const email = 'otp.user@huntlo.ai';
+    const first = await agent.post('/api/v1/auth/register/send-otp').send({ email }).expect(200);
+
+    expect(first.body.data.message).toMatch(/verification code/i);
+    expect(first.body.data.resendAvailableAt).toBeTruthy();
+    expect(first.body.data.otp).toMatch(/^\d{5}$/);
+
+    const second = await agent.post('/api/v1/auth/register/send-otp').send({ email }).expect(429);
+    expect(second.body.error.code).toBe('AUTH_OTP_RESEND_COOLDOWN');
+    expect(second.body.error.meta.resendAvailableAt).toBeTruthy();
+  });
+
+  it('registers with a valid signup OTP when required', async () => {
+    process.env.AUTH_SIGNUP_OTP_REQUIRED = 'true';
+    resetEnvCache();
+
+    try {
+      const email = 'verified.signup@huntlo.ai';
+      const otpResponse = await agent
+        .post('/api/v1/auth/register/send-otp')
+        .send({ email })
+        .expect(200);
+      const otp = otpResponse.body.data.otp as string;
+
+      const response = await agent
+        .post('/api/v1/auth/register')
+        .send({
+          email,
+          password: 'Password123!',
+          firstName: 'Verified',
+          lastName: 'Signup',
+          organizationName: 'OTP Co',
+          otp,
+        })
+        .expect(201);
+
+      expect(response.body.data.accessToken).toBeTruthy();
+      expect(response.body.data.user.emailVerified).toBe(true);
+
+      const reuse = await agent
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'another@huntlo.ai',
+          password: 'Password123!',
+          firstName: 'Reuse',
+          lastName: 'Otp',
+          organizationName: 'Reuse Co',
+          otp,
+        })
+        .expect(400);
+      expect(reuse.body.error.message).toMatch(/invalid or expired/i);
+    } finally {
+      delete process.env.AUTH_SIGNUP_OTP_REQUIRED;
+      resetEnvCache();
+    }
+  });
+
+  it('limits self-serve signup to 3 owner accounts per email domain', async () => {
+    for (let i = 1; i <= 3; i += 1) {
+      await agent
+        .post('/api/v1/auth/register')
+        .send({
+          email: `owner${i}@earlyjobs.in`,
+          password: 'Password123!',
+          firstName: `Owner${i}`,
+          lastName: 'Early',
+          organizationName: `Early Jobs ${i}`,
+        })
+        .expect(201);
+    }
+
+    const blockedOtp = await agent
+      .post('/api/v1/auth/register/send-otp')
+      .send({ email: 'owner4@earlyjobs.in' })
+      .expect(409);
+    expect(blockedOtp.body.error.code).toBe('AUTH_DOMAIN_SIGNUP_LIMIT');
+
+    const blockedRegister = await agent
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'owner4@earlyjobs.in',
+        password: 'Password123!',
+        firstName: 'Owner4',
+        lastName: 'Early',
+        organizationName: 'Early Jobs 4',
+      })
+      .expect(409);
+    expect(blockedRegister.body.error.code).toBe('AUTH_DOMAIN_SIGNUP_LIMIT');
+    expect(blockedRegister.body.error.message).toMatch(/maximum of 3/i);
+
+    // Different domain is unaffected.
+    await agent
+      .post('/api/v1/auth/register')
+      .send({
+        email: 'owner@otherco.in',
+        password: 'Password123!',
+        firstName: 'Other',
+        lastName: 'Co',
+        organizationName: 'Other Co',
+      })
+      .expect(201);
   });
 
   it('registers, returns access token, and sets refresh cookie', async () => {

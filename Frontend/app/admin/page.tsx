@@ -1,7 +1,9 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
-import { ADMIN_ROUTES } from "@/lib/admin-routes";
+import { AdminDashboardWorkspace } from "@/components/admin/admin-dashboard-workspace";
+
+export const metadata: Metadata = { title: "Dashboard" };
 
 export default function AdminIndexPage() {
-  redirect(ADMIN_ROUTES.dashboard);
+  return <AdminDashboardWorkspace />;
 }

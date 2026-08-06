@@ -139,3 +139,36 @@ export async function sendPasswordResetEmail(input: {
 
   return sendSystemMail({ to: input.to, subject, text, html });
 }
+
+export async function sendSignupOtpEmail(input: {
+  to: string;
+  otp: string;
+  expiresInMinutes?: number;
+}): Promise<boolean> {
+  const minutes = input.expiresInMinutes ?? 30;
+  const subject = 'Your Huntlo verification code';
+  const text = [
+    'Hi,',
+    '',
+    `Your Huntlo verification code is: ${input.otp}`,
+    `This code expires in ${minutes} minutes.`,
+    '',
+    'If you did not try to create a Huntlo account, you can ignore this email.',
+    '',
+    '— Huntlo',
+  ].join('\n');
+
+  const safeOtp = escapeHtml(input.otp);
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5;color:#141b2b;max-width:560px;margin:0 auto;">
+      <img src="${HUNTLO_LOGO_URL}" alt="Huntlo" width="120" height="28" style="display:block;height:28px;width:auto;max-width:128px;border:0;margin:0 0 24px;" />
+      <p style="margin:0 0 12px;">Hi,</p>
+      <p style="margin:0 0 20px;">Use this code to verify your email and finish creating your Huntlo account:</p>
+      <p style="margin:0 0 20px;font-size:28px;font-weight:700;letter-spacing:0.28em;color:${HUNTLO_BRAND_BLUE};">${safeOtp}</p>
+      <p style="margin:0 0 8px;color:#555;font-size:14px;">This code expires in ${minutes} minutes.</p>
+      <p style="margin:0;color:#555;font-size:14px;">If you did not try to create a Huntlo account, you can ignore this email.</p>
+    </div>
+  `.trim();
+
+  return sendSystemMail({ to: input.to, subject, text, html });
+}

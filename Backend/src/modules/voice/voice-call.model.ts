@@ -22,6 +22,9 @@ export type VoiceCallStatus = (typeof VOICE_CALL_STATUSES)[number];
 export const VOICE_CALL_SOURCES = ['outreach', 'screening', 'legacy'] as const;
 export type VoiceCallSource = (typeof VOICE_CALL_SOURCES)[number];
 
+export const VOICE_CALL_PROVIDERS = ['hunar', 'zyastra'] as const;
+export type VoiceCallProvider = (typeof VOICE_CALL_PROVIDERS)[number];
+
 export type VoiceCallResult = {
   summary: string | null;
   interestLevel: string | null;
@@ -48,6 +51,8 @@ export type VoiceCallDocument = Document & {
   candidateId: mongoose.Types.ObjectId | null;
   callId: string;
   requestId: string;
+  /** Voice provider that placed the call (Hunar for +91, Zyastra otherwise). */
+  provider: VoiceCallProvider;
   agentId: string | null;
   contactName: string | null;
   toNumber: string;
@@ -130,6 +135,12 @@ const voiceCallSchema = new Schema<VoiceCallDocument>(
     },
     callId: { type: String, required: true, trim: true },
     requestId: { type: String, required: true, trim: true, index: true },
+    provider: {
+      type: String,
+      enum: VOICE_CALL_PROVIDERS,
+      default: 'hunar',
+      index: true,
+    },
     agentId: { type: String, default: null },
     contactName: { type: String, default: null },
     toNumber: { type: String, required: true },
@@ -173,20 +184,37 @@ export function pendingVoiceCallId(requestId: string, phoneDigits: string): stri
   return `pending:${requestId}:${phoneDigits}`;
 }
 
+const VOICE_CALL_TERMINAL_STATUSES = [
+  'completed',
+  'failed',
+  'cancelled',
+  'no_answer',
+  'busy',
+  'voicemail',
+] as const;
+
+/**
+ * True when this call attempt is done for billing / enrollment purposes.
+ * Completed/cancelled never wait on retries. Failed-ish statuses only wait when
+ * Hunar explicitly reports retries remaining or a scheduled next retry.
+ */
 export function isVoiceCallTerminal(input: {
   status: string;
   retriesLeft?: number | null;
   nextRetryAt?: Date | null;
 }): boolean {
   const status = String(input.status || '').toLowerCase();
+  if (!(VOICE_CALL_TERMINAL_STATUSES as readonly string[]).includes(status)) {
+    return false;
+  }
+  // Connected or cancelled — no further Hunar retries should block quota commit.
+  if (status === 'completed' || status === 'cancelled') return true;
+  if (input.nextRetryAt) return false;
   const retriesLeft =
     typeof input.retriesLeft === 'number' && Number.isFinite(input.retriesLeft)
       ? input.retriesLeft
       : 0;
-  if (retriesLeft > 0 || input.nextRetryAt) return false;
-  return ['completed', 'failed', 'cancelled', 'no_answer', 'busy', 'voicemail'].includes(
-    status
-  );
+  return retriesLeft <= 0;
 }
 
 export const VoiceCallModel: Model<VoiceCallDocument> =

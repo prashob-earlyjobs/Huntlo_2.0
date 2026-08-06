@@ -14,10 +14,16 @@ import { OutreachCampaignModel } from '../src/modules/outreach/campaign.model.js
 import { OutreachEnrollmentModel } from '../src/modules/outreach/enrollment.model.js';
 import { SavedCandidateModel } from '../src/modules/candidates/saved-candidate.model.js';
 import {
+  isVoiceCallTerminal,
   pendingVoiceCallId,
   VoiceCallModel,
 } from '../src/modules/voice/voice-call.model.js';
 import { AuditLogModel } from '../src/shared/audit/audit.service.js';
+import {
+  QuotaCounterModel,
+  UsageReservationModel,
+  quotaService,
+} from '../src/shared/usage/index.js';
 import { computeHunarWebhookSignature } from '../src/providers/hunar/hunar.webhook.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
 
@@ -90,7 +96,39 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
       SavedCandidateModel.deleteMany({}),
       VoiceCallModel.deleteMany({}),
       AuditLogModel.deleteMany({}),
+      QuotaCounterModel.deleteMany({}),
+      UsageReservationModel.deleteMany({}),
     ]);
+  });
+
+  it('treats completed/cancelled as terminal even when retriesLeft remains', () => {
+    expect(
+      isVoiceCallTerminal({ status: 'completed', retriesLeft: 2, nextRetryAt: null })
+    ).toBe(true);
+    expect(
+      isVoiceCallTerminal({ status: 'cancelled', retriesLeft: 1, nextRetryAt: null })
+    ).toBe(true);
+    expect(
+      isVoiceCallTerminal({
+        status: 'no_answer',
+        retriesLeft: 2,
+        nextRetryAt: null,
+      })
+    ).toBe(false);
+    expect(
+      isVoiceCallTerminal({
+        status: 'no_answer',
+        retriesLeft: 0,
+        nextRetryAt: null,
+      })
+    ).toBe(true);
+    expect(
+      isVoiceCallTerminal({
+        status: 'failed',
+        retriesLeft: 0,
+        nextRetryAt: new Date(),
+      })
+    ).toBe(false);
   });
 
   it('promotes pending VoiceCall stub on campaign call-status webhook', async () => {
@@ -289,5 +327,112 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
       'Bangalore, open to hybrid'
     );
     expect(updated!.qualificationState.answers['q-marriage']?.value).toBe('Single');
+  });
+
+  it('commits ai_voice_minutes on completed call even when retriesLeft was seeded', async () => {
+    const auth = await registerAndAuth(agent);
+    const candidate = await SavedCandidateModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Quota Doe',
+      email: 'quota@example.com',
+      phone: '+919876543212',
+      source: 'manual',
+      status: 'saved',
+    });
+
+    const campaign = await OutreachCampaignModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Voice Quota Campaign',
+      status: 'running',
+      channelConfig: {
+        email: { enabled: false, integrationId: null, senderEmail: null },
+        whatsapp: { enabled: false, integrationId: null },
+        ai_voice: { enabled: true, integrationId: null },
+        timezone: 'Asia/Kolkata',
+        sendWindow: { startHour: 9, endHour: 18, daysOfWeek: [1, 2, 3, 4, 5] },
+      },
+      sequenceSteps: [{ id: 'v1', order: 0, type: 'ai_voice', body: 'Hello' }],
+    });
+
+    const enrollment = await OutreachEnrollmentModel.create({
+      organizationId: auth.organizationId,
+      campaignId: campaign._id,
+      candidateId: candidate._id,
+      status: 'active',
+      contactAvailability: { email: true, phone: true, optedOut: false },
+    });
+
+    const requestId = `${String(campaign._id)}-req-quota`;
+    const digits = '919876543212';
+    const quotaKey = `voice:${requestId}:${digits}`;
+
+    await quotaService.reserveUsage({
+      organizationId: auth.organizationId,
+      metric: 'ai_voice_minutes',
+      quantity: 1,
+      idempotencyKey: quotaKey,
+      relatedEntityType: 'campaign',
+      relatedEntityId: String(campaign._id),
+    });
+
+    await VoiceCallModel.create({
+      organizationId: auth.organizationId,
+      source: 'outreach',
+      campaignId: campaign._id,
+      enrollmentId: enrollment._id,
+      candidateId: candidate._id,
+      callId: pendingVoiceCallId(requestId, digits),
+      requestId,
+      agentId: 'agent-quota',
+      contactName: 'Quota Doe',
+      toNumber: digits,
+      toNumberDigits: digits,
+      status: 'pending',
+      maxRetries: 2,
+      retriesLeft: 2,
+      quotaReservationKey: quotaKey,
+    });
+
+    const res = await postSignedHunarWebhook(
+      agent,
+      `/api/integrations/voice/hunar/call-status?campaignId=${String(campaign._id)}`,
+      {
+        call_id: 'hunar-call-quota-1',
+        request_id: requestId,
+        agent_id: 'agent-quota',
+        to_number: '+919876543212',
+        status: 'COMPLETED',
+        duration_seconds: 95,
+        retries_left: 2,
+      }
+    );
+
+    expect(res.status).toBe(200);
+
+    const row = await VoiceCallModel.findOne({
+      campaignId: campaign._id,
+      callId: 'hunar-call-quota-1',
+    });
+    expect(row).toBeTruthy();
+    expect(row!.status).toBe('completed');
+    expect(row!.retriesLeft).toBe(0);
+    expect(row!.durationMinutes).toBe(2);
+
+    const counter = await QuotaCounterModel.findOne({
+      organizationId: auth.organizationId,
+      metric: 'ai_voice_minutes',
+    });
+    expect(counter).toBeTruthy();
+    // 95s → 2 billable minutes (1 reserved + 1 extra)
+    expect(counter!.used).toBe(2);
+    expect(counter!.reserved).toBe(0);
+
+    const reservation = await UsageReservationModel.findOne({
+      organizationId: auth.organizationId,
+      idempotencyKey: quotaKey,
+    });
+    expect(reservation?.status).toBe('committed');
   });
 });

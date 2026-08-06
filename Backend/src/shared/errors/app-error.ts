@@ -74,6 +74,15 @@ export class AppError extends Error {
     });
   }
 
+  static trialExpired(
+    message = 'Your free trial has ended. Upgrade to keep using Huntlo.',
+    meta?: Record<string, unknown>
+  ): AppError {
+    return new AppError(402, 'TRIAL_EXPIRED', message, {
+      meta: { trialExpired: true, ...meta },
+    });
+  }
+
   static internal(message = 'Internal server error', cause?: unknown): AppError {
     return new AppError(500, 'INTERNAL_ERROR', message, {
       cause,

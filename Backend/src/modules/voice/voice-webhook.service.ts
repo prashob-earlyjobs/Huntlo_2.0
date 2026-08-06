@@ -187,6 +187,14 @@ function applyParsedToCall(row: VoiceCallDocument, kind: HunarWebhookKind, parse
       (parsed.raw as { next_retry_scheduled_at?: unknown }).next_retry_scheduled_at
     );
     row.nextRetryAt = nextRetry ? new Date(nextRetry) : row.nextRetryAt;
+
+    // Completed/cancelled calls must not stay blocked on stale retriesLeft from
+    // launch seeding or a prior no_answer webhook — otherwise ai_voice_minutes
+    // never commits (used stays 0).
+    if (row.status === 'completed' || row.status === 'cancelled') {
+      row.retriesLeft = 0;
+      row.nextRetryAt = null;
+    }
   }
 
   if (kind === 'call-recording' || parsed.recordingUrl) {

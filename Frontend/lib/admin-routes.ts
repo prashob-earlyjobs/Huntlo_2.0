@@ -2,7 +2,7 @@
  * Administration console routes — separate from the recruiter workspace.
  */
 export const ADMIN_ROUTES = {
-  dashboard: "/admin/dashboard",
+  dashboard: "/admin",
   users: "/admin/users",
   plans: "/admin/plans",
   usage: "/admin/usage",

@@ -14,6 +14,10 @@ import {
   type PricingPlanDocument,
 } from './pricing-plan.model.js';
 import { WorkspaceSubscriptionModel } from './subscription.model.js';
+import {
+  getWorkspaceSubscriptionAccess,
+  syncExpiredTrialSubscription,
+} from './trial-access.js';
 
 function formatInr(amount: number | null): string {
   if (amount == null) return 'Custom';
@@ -225,7 +229,17 @@ export class PlansService {
       organizationId,
       status: { $in: ['active', 'trialing', 'past_due'] },
     });
-    if (existing) return existing;
+    if (existing) {
+      return syncExpiredTrialSubscription(existing);
+    }
+
+    // Do not mint a fresh trial after an expired/cancelled one.
+    const previous = await WorkspaceSubscriptionModel.findOne({ organizationId }).sort({
+      createdAt: -1,
+    });
+    if (previous) {
+      return syncExpiredTrialSubscription(previous);
+    }
 
     const org = await OrganizationModel.findById(organizationId).select('plan');
     let plan: PricingPlanDocument | null = null;
@@ -278,7 +292,11 @@ export class PlansService {
           organizationId,
           status: { $in: ['active', 'trialing', 'past_due'] },
         });
-        if (retry) return retry;
+        if (retry) return syncExpiredTrialSubscription(retry);
+        const any = await WorkspaceSubscriptionModel.findOne({ organizationId }).sort({
+          createdAt: -1,
+        });
+        if (any) return syncExpiredTrialSubscription(any);
       }
       throw error;
     }
@@ -332,6 +350,8 @@ export class PlansService {
     const plan = await PricingPlanModel.findById(subscription.planId);
     if (!plan) throw AppError.notFound('Current plan not found');
 
+    const { trialExpired } = await getWorkspaceSubscriptionAccess(organizationId);
+
     const org = await OrganizationModel.findById(organizationId);
     const owner = org?.ownerUserId
       ? await UserModel.findById(org.ownerUserId).select('firstName lastName email')
@@ -348,6 +368,16 @@ export class PlansService {
     const priceValue =
       cycle === 'yearly' ? plan.prices.yearly : plan.prices.monthly;
 
+    const displayStatus = trialExpired
+      ? 'Trial ended'
+      : subscription.status === 'trialing'
+        ? 'Trial'
+        : subscription.status === 'active'
+          ? 'Active'
+          : subscription.status === 'past_due'
+            ? 'Past due'
+            : 'Cancelled';
+
     return {
       id: plan._id.toHexString(),
       name: plan.name,
@@ -360,17 +390,12 @@ export class PlansService {
       }),
       owner: owner ? `${owner.firstName} ${owner.lastName}`.trim() : 'Workspace owner',
       ownerEmail: owner?.email ?? '',
-      status:
-        subscription.status === 'trialing'
-          ? 'Trial'
-          : subscription.status === 'active'
-            ? 'Active'
-            : subscription.status === 'past_due'
-              ? 'Past due'
-              : 'Cancelled',
+      status: displayStatus,
+      trialExpired,
       price: formatInr(priceValue),
-      pricePeriod:
-        subscription.status === 'trialing'
+      pricePeriod: trialExpired
+        ? ' · trial ended — upgrade required'
+        : subscription.status === 'trialing'
           ? ` · ${plan.trialDays || DEFAULT_TRIAL_DAYS}-day trial`
           : cycle === 'yearly'
             ? '/ year'
@@ -383,6 +408,7 @@ export class PlansService {
         currentPeriodStart: subscription.currentPeriodStart.toISOString(),
         currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        trialExpired,
       },
       featureAccess: plan.featureAccess ?? {},
       limits: plan.limits ?? {},

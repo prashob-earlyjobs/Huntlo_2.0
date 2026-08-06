@@ -326,9 +326,16 @@ export function stepErrors(step: number, state: BuilderState): string[] {
         errors.push("Import a CSV/Excel file before continuing.");
       }
       if (
+        state.source === "Import from ATS" &&
+        (!state.sourceDetail || state.selectedCandidateIds.length === 0)
+      ) {
+        errors.push("Select an ATS job and import at least one applicant.");
+      }
+      if (
         state.audiencePreview &&
         state.audiencePreview.selected === 0 &&
-        state.source !== "CSV/Excel Import"
+        state.source !== "CSV/Excel Import" &&
+        state.source !== "Import from ATS"
       ) {
         errors.push("This audience has no candidates yet.");
       }

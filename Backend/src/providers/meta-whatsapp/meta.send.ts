@@ -89,6 +89,8 @@ export async function sendMetaWhatsAppTemplate(input: {
   templateName: string;
   languageCode: string;
   bodyParameters: string[];
+  /** Dynamic URL suffixes for CTA URL buttons (index 0 = first button). */
+  urlButtonParameters?: string[];
 }): Promise<{ messageId?: string }> {
   const to = digitsOnly(input.to);
   if (!to) {
@@ -97,24 +99,42 @@ export async function sendMetaWhatsAppTemplate(input: {
     });
   }
 
-  const components =
-    input.bodyParameters.length > 0
-      ? [
-          {
-            type: 'body',
-            parameters: input.bodyParameters.map((text) => ({
-              type: 'text',
-              text: String(text || '').slice(0, 1024) || '-',
-            })),
-          },
-        ]
-      : [];
+  const components: Array<Record<string, unknown>> = [];
+
+  if (input.bodyParameters.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: input.bodyParameters.map((text) => ({
+        type: 'text',
+        text: String(text || '').slice(0, 1024) || '-',
+      })),
+    });
+  }
+
+  const urlButtonParameters = input.urlButtonParameters || [];
+  urlButtonParameters.forEach((text, index) => {
+    const value = String(text || '').trim();
+    if (!value) return;
+    components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: String(index),
+      parameters: [
+        {
+          type: 'text',
+          // Meta URL button params are usually path/query suffixes.
+          text: value.slice(0, 1024),
+        },
+      ],
+    });
+  });
 
   beacon('template-send', {
     to: input.to,
     templateName: input.templateName,
     languageCode: input.languageCode,
     bodyParameters: input.bodyParameters,
+    urlButtonParameters,
   });
 
   const url = `${getMetaGraphBaseUrl()}/${encodeURIComponent(input.phoneNumberId)}/messages`;

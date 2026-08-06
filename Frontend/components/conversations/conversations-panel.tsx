@@ -15,6 +15,15 @@ import {
 import type { Conversation } from "@/lib/mock-conversations";
 import { cn } from "@/lib/utils";
 
+const PAGE_SIZE = 50;
+
+function mergeById(existing: Conversation[], incoming: Conversation[]) {
+  if (existing.length === 0) return incoming;
+  const seen = new Set(existing.map((row) => row.id));
+  const appended = incoming.filter((row) => !seen.has(row.id));
+  return appended.length === 0 ? existing : [...existing, ...appended];
+}
+
 export function ConversationsPanel({
   campaignId,
   candidateId,
@@ -31,23 +40,36 @@ export function ConversationsPanel({
   variant?: "full" | "embedded";
 }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+
+  const listParams = useCallback(
+    (pageNumber: number) => ({
+      campaignId,
+      candidateId,
+      jobId,
+      page: pageNumber,
+      limit: PAGE_SIZE,
+    }),
+    [campaignId, candidateId, jobId]
+  );
 
   const refresh = useCallback(
     async (opts?: { showLoading?: boolean }) => {
       const requestId = ++requestIdRef.current;
       if (opts?.showLoading) setLoading(true);
       try {
-        const rows = await conversationsApi.list({
-          campaignId,
-          candidateId,
-          jobId,
-          limit: 100,
-        });
+        const result = await conversationsApi.list(listParams(1));
         if (requestId !== requestIdRef.current) return;
-        setConversations(rows);
+        setConversations(result.items);
+        setPage(1);
+        setTotalPages(result.pagination.totalPages);
+        setTotal(result.pagination.total);
         setError(null);
       } catch (err) {
         if (requestId !== requestIdRef.current) return;
@@ -57,8 +79,30 @@ export function ConversationsPanel({
         if (requestId === requestIdRef.current) setLoading(false);
       }
     },
-    [campaignId, candidateId, jobId]
+    [listParams]
   );
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || page >= totalPages) return;
+    const nextPage = page + 1;
+    const requestId = ++requestIdRef.current;
+    setLoadingMore(true);
+    try {
+      const result = await conversationsApi.list(listParams(nextPage));
+      if (requestId !== requestIdRef.current) return;
+      setConversations((previous) => mergeById(previous, result.items));
+      setPage(result.pagination.page);
+      setTotalPages(result.pagination.totalPages);
+      setTotal(result.pagination.total);
+      setError(null);
+    } catch (err) {
+      if (requestId !== requestIdRef.current) return;
+      if (isAbortError(err)) return;
+      setError(getApiErrorMessage(err, "Unable to load more conversations."));
+    } finally {
+      if (requestId === requestIdRef.current) setLoadingMore(false);
+    }
+  }, [listParams, loadingMore, page, totalPages]);
 
   useEffect(() => {
     void refresh({ showLoading: true });
@@ -107,7 +151,7 @@ export function ConversationsPanel({
     return <ConversationInboxSkeleton className={className} />;
   }
 
-  if (error) {
+  if (error && conversations.length === 0) {
     return (
       <p role="alert" className={cn("p-4 text-sm text-destructive", className)}>
         {error}
@@ -132,6 +176,12 @@ export function ConversationsPanel({
       conversations={conversations}
       className={className}
       variant={variant}
+      hasMore={page < totalPages}
+      loadingMore={loadingMore}
+      totalCount={total}
+      onLoadMore={() => {
+        void loadMore();
+      }}
     />
   );
 }

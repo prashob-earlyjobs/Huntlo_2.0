@@ -20,6 +20,10 @@ import {
   getHunarVoicePersona,
   isHunarConfigured,
 } from '../../providers/hunar/hunar.config.js';
+import {
+  isZyastraConfigured,
+  triggerZyastraVoiceCall,
+} from '../../providers/zyastra/index.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { quotaService } from '../../shared/usage/index.js';
 import { normalizePhone } from '../../shared/validation/phone.js';
@@ -27,6 +31,7 @@ import { loadOutreachJobContext } from '../outreach/job-context.js';
 import {
   pendingVoiceCallId,
   VoiceCallModel,
+  type VoiceCallProvider,
   type VoiceCallSource,
 } from './voice-call.model.js';
 
@@ -297,7 +302,7 @@ export async function syncVoiceAgent(input: VoiceAgentConfigInput): Promise<{ ag
 
 export function toHunarMobile(phone: string): string | null {
   try {
-    // Hunar requires E.164 with leading '+' (e.g. +919876543210).
+    // Providers require E.164 with leading '+' (e.g. +919876543210).
     const normalized = normalizePhone(phone);
     const digits = normalized.replace(/\D/g, '');
     return digits.length >= 10 && normalized.startsWith('+') ? normalized : null;
@@ -306,17 +311,96 @@ export function toHunarMobile(phone: string): string | null {
   }
 }
 
+/** True when E.164 number is Indian (+91…). Used to route Hunar vs Zyastra. */
+export function isIndianE164(phone: string): boolean {
+  const mobile = toHunarMobile(phone);
+  if (!mobile) return false;
+  return mobile.startsWith('+91');
+}
+
+export type NormalizedVoiceContact = VoiceDialContact & {
+  mobile: string;
+  mobileDigits: string;
+  indian: boolean;
+};
+
+export function partitionVoiceContacts(contacts: VoiceDialContact[]): {
+  indian: NormalizedVoiceContact[];
+  international: NormalizedVoiceContact[];
+  skippedInvalid: number;
+} {
+  const indian: NormalizedVoiceContact[] = [];
+  const international: NormalizedVoiceContact[] = [];
+  let skippedInvalid = 0;
+  const seen = new Set<string>();
+
+  for (const contact of contacts) {
+    const mobile = toHunarMobile(contact.phone);
+    if (!mobile) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const mobileDigits = mobile.replace(/\D/g, '');
+    if (seen.has(mobileDigits)) {
+      skippedInvalid += 1;
+      continue;
+    }
+    seen.add(mobileDigits);
+    const row: NormalizedVoiceContact = {
+      ...contact,
+      mobile,
+      mobileDigits,
+      indian: mobile.startsWith('+91'),
+    };
+    if (row.indian) indian.push(row);
+    else international.push(row);
+  }
+
+  return { indian, international, skippedInvalid };
+}
+
+function splitName(fullName: string): { firstName: string; lastName?: string } {
+  const parts = String(fullName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return { firstName: 'Candidate' };
+  if (parts.length === 1) return { firstName: parts[0]! };
+  return { firstName: parts[0]!, lastName: parts.slice(1).join(' ') };
+}
+
+export async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next;
+      next += 1;
+      results[i] = await fn(items[i]!, i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export async function seedPendingVoiceCalls(input: {
   organizationId: string;
   source: VoiceCallSource;
   campaignId?: string | null;
   screeningId?: string | null;
   requestId: string;
-  agentId: string;
-  contacts: Array<VoiceDialContact & { mobileDigits: string }>;
+  agentId: string | null;
+  provider?: VoiceCallProvider;
+  contacts: Array<VoiceDialContact & { mobileDigits: string; callId?: string }>;
   maxRetries: number;
   quotaReservationKeys?: Map<string, string>;
+  status?: 'pending' | 'queued';
 }) {
+  const provider = input.provider || 'hunar';
   const docs = input.contacts.map((c) => ({
     organizationId: input.organizationId,
     source: input.source,
@@ -324,15 +408,18 @@ export async function seedPendingVoiceCalls(input: {
     screeningId: input.screeningId || null,
     enrollmentId: c.enrollmentId || null,
     candidateId: c.candidateId || null,
-    callId: pendingVoiceCallId(input.requestId, c.mobileDigits),
+    callId: c.callId || pendingVoiceCallId(input.requestId, c.mobileDigits),
     requestId: input.requestId,
+    provider,
     agentId: input.agentId,
     contactName: c.name || null,
     toNumber: c.mobileDigits,
     toNumberDigits: c.mobileDigits,
-    status: 'pending' as const,
+    status: input.status || ('pending' as const),
     maxRetries: input.maxRetries,
-    retriesLeft: input.maxRetries,
+    // Only Hunar webhooks should set retriesLeft; seeding maxRetries here blocked
+    // quota commit forever when the provider omitted retries_left.
+    retriesLeft: null,
     quotaReservationKey:
       input.quotaReservationKeys?.get(c.mobileDigits) ||
       `voice:${input.requestId}:${c.mobileDigits}`,
@@ -349,8 +436,8 @@ export async function seedPendingVoiceCalls(input: {
 }
 
 /**
- * Reserve 1 ai_voice_minute per dialable contact, sync agent if needed,
- * place bulk calls, and seed pending VoiceCall rows.
+ * Reserve 1 ai_voice_minute per dialable contact, place calls via Hunar (+91)
+ * and/or Zyastra (non-IN), and seed pending VoiceCall rows.
  */
 export async function launchBulkVoiceCalls(input: {
   organizationId: string;
@@ -358,53 +445,27 @@ export async function launchBulkVoiceCalls(input: {
   source: VoiceCallSource;
   campaignId?: string | null;
   screeningId?: string | null;
-  agentId: string;
+  /** Required when any contact is Indian (+91). */
+  agentId?: string | null;
   contacts: VoiceDialContact[];
   retryConfig?: HunarRetryConfig | null;
   requestId?: string | null;
+  /** Agent prompt / intro for Zyastra non-IN dials. */
+  agentPrompt?: string | null;
+  firstMessage?: string | null;
+  preferredLanguage?: string | null;
+  analysisVariables?: string[];
 }): Promise<{
   requestId: string;
   dialedCount: number;
-  agentId: string;
+  agentId: string | null;
   skippedInvalid: number;
+  hunarDialed: number;
+  zyastraDialed: number;
 }> {
-  if (!isHunarConfigured()) {
-    throw new AppError(
-      503,
-      'HUNAR_API_KEY_MISSING',
-      'Hunar voice API key is not configured. Set HUNAR_VOICE_API_KEY.'
-    );
-  }
-  if (!getPublicBaseOrThrow()) {
-    // getPublicBaseOrThrow always throws or returns true — kept for clarity
-  }
+  const { indian, international, skippedInvalid } = partitionVoiceContacts(input.contacts);
 
-  const callees: HunarCalleeRow[] = [];
-  const seeded: Array<VoiceDialContact & { mobileDigits: string }> = [];
-  let skippedInvalid = 0;
-
-  const seen = new Set<string>();
-  for (const contact of input.contacts) {
-    const mobile = toHunarMobile(contact.phone);
-    if (!mobile) {
-      skippedInvalid += 1;
-      continue;
-    }
-    const mobileDigits = mobile.replace(/\D/g, '');
-    if (seen.has(mobileDigits)) {
-      skippedInvalid += 1;
-      continue;
-    }
-    seen.add(mobileDigits);
-    callees.push({
-      callee_name: contact.name || 'Candidate',
-      mobile_number: mobile,
-      custom_data: contact.customData || {},
-    });
-    seeded.push({ ...contact, mobileDigits });
-  }
-
-  if (!callees.length) {
+  if (!indian.length && !international.length) {
     throw new AppError(
       400,
       'VOICE_NO_VALID_PHONES',
@@ -412,17 +473,45 @@ export async function launchBulkVoiceCalls(input: {
     );
   }
 
-  const requestId = (
+  if (indian.length > 0) {
+    if (!isHunarConfigured()) {
+      throw new AppError(
+        503,
+        'HUNAR_API_KEY_MISSING',
+        'Hunar voice API key is not configured. Set HUNAR_VOICE_API_KEY.'
+      );
+    }
+    if (!String(input.agentId || '').trim()) {
+      throw new AppError(
+        400,
+        'HUNAR_AGENT_ID_REQUIRED',
+        'Hunar voice agent id is required before launching Indian (+91) calls.'
+      );
+    }
+  }
+
+  if (international.length > 0 && !isZyastraConfigured()) {
+    throw new AppError(
+      503,
+      'ZYASTRA_API_KEY_MISSING',
+      'Non-Indian numbers require Zyastra. Set ZYASTRA_API_KEY and ZYASTRA_API_SECRET.'
+    );
+  }
+
+  getPublicBaseOrThrow();
+
+  const batchRequestId = (
     String(input.requestId || '').trim() ||
     `${input.campaignId || input.screeningId || 'voice'}-${randomUUID()}`
   )
     .replace(/[^a-zA-Z0-9_.-]/g, '-')
     .slice(0, 64);
   const retry = input.retryConfig || { maxRetryCount: 0, retryIntervalHours: 0 };
+  const allSeeded = [...indian, ...international];
 
   const reservationKeys = new Map<string, string>();
-  for (const row of seeded) {
-    const key = `voice:${requestId}:${row.mobileDigits}`;
+  for (const row of allSeeded) {
+    const key = `voice:${batchRequestId}:${row.mobileDigits}`;
     reservationKeys.set(row.mobileDigits, key);
     try {
       await quotaService.reserveUsage({
@@ -434,7 +523,6 @@ export async function launchBulkVoiceCalls(input: {
         relatedEntityId: String(input.campaignId || input.screeningId || ''),
       });
     } catch (error) {
-      // Roll back prior reservations on failure.
       for (const prior of reservationKeys.values()) {
         await quotaService
           .releaseUsage({
@@ -455,55 +543,137 @@ export async function launchBulkVoiceCalls(input: {
     }
   }
 
+  let hunarDialed = 0;
+  let zyastraDialed = 0;
+  let primaryRequestId = batchRequestId;
+  const agentId = String(input.agentId || '').trim() || null;
+
   try {
-    const bulk = await createHunarBulkCalls({
-      agentId: input.agentId,
-      campaignId: input.campaignId || undefined,
-      screeningId: input.screeningId || undefined,
-      callees,
-      requestId,
-      retryConfig: retry,
-    });
+    if (indian.length > 0) {
+      const callees: HunarCalleeRow[] = indian.map((c) => ({
+        callee_name: c.name || 'Candidate',
+        mobile_number: c.mobile,
+        custom_data: c.customData || {},
+      }));
 
-    await seedPendingVoiceCalls({
-      organizationId: input.organizationId,
-      source: input.source,
-      campaignId: input.campaignId,
-      screeningId: input.screeningId,
-      requestId: bulk.requestId,
-      agentId: input.agentId,
-      contacts: seeded,
-      maxRetries: retry.maxRetryCount || 0,
-      quotaReservationKeys: reservationKeys,
-    });
+      const bulk = await createHunarBulkCalls({
+        agentId: agentId!,
+        campaignId: input.campaignId || undefined,
+        screeningId: input.screeningId || undefined,
+        callees,
+        requestId: batchRequestId,
+        retryConfig: retry,
+      });
+      primaryRequestId = bulk.requestId || batchRequestId;
+      hunarDialed = bulk.dialedCount || callees.length;
 
-    log().info(
-      {
-        requestId: bulk.requestId,
-        dialedCount: bulk.dialedCount,
-        submittedCount: callees.length,
-        phones: callees.map((c) => c.mobile_number),
-        hunarResponse:
-          bulk.response && typeof bulk.response === 'object'
-            ? {
-                message: (bulk.response as { message?: unknown }).message,
-                status: (bulk.response as { status?: unknown }).status,
-                error: (bulk.response as { error?: unknown }).error,
-                dataKeys:
-                  (bulk.response as { data?: unknown }).data &&
-                  typeof (bulk.response as { data?: unknown }).data === 'object'
-                    ? Object.keys((bulk.response as { data: Record<string, unknown> }).data)
-                    : [],
-              }
-            : bulk.response,
+      await seedPendingVoiceCalls({
+        organizationId: input.organizationId,
         source: input.source,
         campaignId: input.campaignId,
         screeningId: input.screeningId,
-      },
-      'Hunar bulk voice launch accepted'
-    );
+        requestId: primaryRequestId,
+        agentId,
+        provider: 'hunar',
+        contacts: indian,
+        maxRetries: retry.maxRetryCount || 0,
+        quotaReservationKeys: reservationKeys,
+      });
 
-    if (bulk.dialedCount > 0) {
+      log().info(
+        {
+          requestId: primaryRequestId,
+          dialedCount: hunarDialed,
+          phones: callees.map((c) => c.mobile_number),
+          source: input.source,
+          provider: 'hunar',
+        },
+        'Hunar bulk voice launch accepted'
+      );
+    }
+
+    if (international.length > 0) {
+      const prompt =
+        String(input.agentPrompt || '').trim() ||
+        'You are a professional recruiter. Screen the candidate for the open role and collect notice period, CTC expectations, and interest.';
+      const firstMessage =
+        String(input.firstMessage || '').trim() ||
+        'Hello, am I speaking with {callee_name}?'.replace(
+          '{callee_name}',
+          international[0]?.name || 'there'
+        );
+
+      const results = await mapPool(international, 4, async (contact) => {
+        const { firstName, lastName } = splitName(contact.name);
+        const personalFirstMessage = firstMessage.includes('{callee_name}')
+          ? firstMessage.replace(/\{callee_name\}/g, contact.name || firstName)
+          : firstMessage;
+        const triggered = await triggerZyastraVoiceCall({
+          candidate: {
+            phoneNumber: contact.mobile,
+            firstName,
+            ...(lastName ? { lastName } : {}),
+          },
+          agent: {
+            prompt,
+            firstMessage: personalFirstMessage,
+            preferredLanguage: input.preferredLanguage || 'en-US',
+          },
+          voiceConfiguration: { engine: 'global-std', speed: 1.0 },
+          analysisVariables: input.analysisVariables,
+          metadata: {
+            source: input.source,
+            organizationId: input.organizationId,
+            ...(input.campaignId ? { campaignId: String(input.campaignId) } : {}),
+            ...(input.screeningId ? { screeningId: String(input.screeningId) } : {}),
+            ...(contact.enrollmentId ? { enrollmentId: String(contact.enrollmentId) } : {}),
+            ...(contact.candidateId ? { candidateId: String(contact.candidateId) } : {}),
+            batchRequestId,
+          },
+        });
+        return { contact, triggered };
+      });
+
+      zyastraDialed = results.length;
+      for (const { contact, triggered } of results) {
+        await seedPendingVoiceCalls({
+          organizationId: input.organizationId,
+          source: input.source,
+          campaignId: input.campaignId,
+          screeningId: input.screeningId,
+          requestId: triggered.requestId || batchRequestId,
+          agentId: null,
+          provider: 'zyastra',
+          contacts: [
+            {
+              ...contact,
+              callId: triggered.callId,
+            },
+          ],
+          maxRetries: 0,
+          quotaReservationKeys: reservationKeys,
+          status: 'queued',
+        });
+      }
+
+      if (!indian.length && results[0]?.triggered.requestId) {
+        primaryRequestId = results[0].triggered.requestId;
+      }
+
+      log().info(
+        {
+          batchRequestId,
+          dialedCount: zyastraDialed,
+          phones: international.map((c) => c.mobile),
+          source: input.source,
+          provider: 'zyastra',
+        },
+        'Zyastra voice launches accepted'
+      );
+    }
+
+    const dialedCount = hunarDialed + zyastraDialed;
+    if (dialedCount > 0) {
       void import('../admin/email-templates.service.js')
         .then(({ emailTemplatesService }) =>
           emailTemplatesService.onAiVoiceUsed({ userId: input.userId })
@@ -512,10 +682,12 @@ export async function launchBulkVoiceCalls(input: {
     }
 
     return {
-      requestId: bulk.requestId,
-      dialedCount: bulk.dialedCount,
-      agentId: input.agentId,
+      requestId: primaryRequestId,
+      dialedCount,
+      agentId,
       skippedInvalid,
+      hunarDialed,
+      zyastraDialed,
     };
   } catch (error) {
     for (const key of reservationKeys.values()) {
@@ -538,8 +710,8 @@ function getPublicBaseOrThrow(): true {
   if (!base) {
     throw new AppError(
       503,
-      'HUNAR_CALLBACK_URL_MISSING',
-      'PUBLIC_API_BASE_URL is not configured. Set it so Hunar can deliver voice call callbacks.'
+      'VOICE_CALLBACK_URL_MISSING',
+      'PUBLIC_API_BASE_URL is not configured. Set it so voice providers can deliver call callbacks.'
     );
   }
   return true;

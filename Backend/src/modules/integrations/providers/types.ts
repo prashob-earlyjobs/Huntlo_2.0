@@ -130,9 +130,58 @@ export type CandidateDataProvider = {
   disconnect?(ctx: ProviderContext): Promise<void>;
 };
 
+export type AtsJobSummary = {
+  id: string;
+  title: string;
+  status: string | null;
+  jobBoard: string | null;
+  location: string | null;
+};
+
+export type AtsApplicationSummary = {
+  id: string;
+  jobId: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  headline: string | null;
+  currentTitle: string | null;
+  currentCompany: string | null;
+  location: string | null;
+  experienceYears: number | null;
+  resumeUrl: string | null;
+  stage: string | null;
+};
+
+export type AtsProvider = {
+  readonly id: IntegrationProviderId;
+  connect?(ctx: ProviderContext, body: Record<string, unknown>): Promise<ProviderConnectResult>;
+  test(ctx: ProviderContext): Promise<ProviderTestResult>;
+  listJobs?(
+    ctx: ProviderContext,
+    query?: { page?: number; pageSize?: number; search?: string }
+  ): Promise<{
+    jobs: AtsJobSummary[];
+    page: number;
+    pageSize: number;
+    total: number | null;
+  }>;
+  listApplications?(
+    ctx: ProviderContext,
+    input: { jobId: string; page?: number; pageSize?: number }
+  ): Promise<{
+    applications: AtsApplicationSummary[];
+    page: number;
+    pageSize: number;
+    total: number | null;
+  }>;
+  disconnect?(ctx: ProviderContext): Promise<void>;
+};
+
 export type AnyIntegrationProvider =
   | EmailProvider
   | WhatsAppProvider
   | VoiceProvider
   | SchedulingProvider
-  | CandidateDataProvider;
+  | CandidateDataProvider
+  | AtsProvider;

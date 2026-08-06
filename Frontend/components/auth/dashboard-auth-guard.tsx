@@ -11,13 +11,23 @@ import {
   firstAccessibleRoute,
 } from "@/lib/access-control";
 import { postAuthPath } from "@/lib/auth-redirect";
+import { ROUTES } from "@/lib/routes";
 import { useAuth } from "@/providers/auth-provider";
+
+const TRIAL_GATE_ALLOWLIST = [ROUTES.plans, ROUTES.profile, ROUTES.settings];
+
+function isTrialGateAllowed(pathname: string): boolean {
+  return TRIAL_GATE_ALLOWLIST.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+}
 
 export function DashboardAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { sessionState, user, isMockMode, permissions } = useAuth();
+  const { sessionState, user, organization, isMockMode, permissions } = useAuth();
 
+  const trialExpired = Boolean(organization?.trialExpired);
   const accessDenied =
     sessionState === "authenticated" &&
     !canAccessPath(permissions, pathname);
@@ -37,11 +47,15 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
         router.replace("/onboarding");
         return;
       }
-      if (destination === "/admin/dashboard" && !pathname.startsWith("/admin")) {
-        router.replace("/admin/dashboard");
+      if (destination === "/admin" && !pathname.startsWith("/admin")) {
+        router.replace("/admin");
+        return;
+      }
+      if (trialExpired && !isTrialGateAllowed(pathname) && !pathname.startsWith("/admin")) {
+        router.replace(ROUTES.plans);
       }
     }
-  }, [sessionState, user, pathname, router, isMockMode]);
+  }, [sessionState, user, organization, pathname, router, isMockMode, trialExpired]);
 
   if (sessionState === "loading") {
     return (
@@ -95,6 +109,21 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
 
   if (user && !isMockMode && postAuthPath(user) === "/onboarding") {
     return null;
+  }
+
+  if (trialExpired && !isTrialGateAllowed(pathname) && !pathname.startsWith("/admin")) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background px-4">
+        <div className="max-w-md space-y-4 text-center">
+          <BrandLogo variant="compact" className="mx-auto" />
+          <h1 className="text-xl font-semibold">Your free trial has ended</h1>
+          <p className="text-sm text-muted-foreground">
+            Upgrade your plan to keep searching, outreaching, and screening candidates.
+          </p>
+          <Button render={<Link href={ROUTES.plans} />}>Upgrade plan</Button>
+        </div>
+      </div>
+    );
   }
 
   if (accessDenied) {

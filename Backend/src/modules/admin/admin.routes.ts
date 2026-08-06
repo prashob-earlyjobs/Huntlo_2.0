@@ -16,15 +16,19 @@ import {
   assignPlanSchema,
   createAdminUserSchema,
   createBlogSchema,
+  createWhatsAppTemplateSchema,
   listEmailTemplatesQuerySchema,
   patchPlatformSettingsSchema,
   resetPasswordSchema,
   sendEmailTemplateTestSchema,
+  sendWhatsAppTemplateTestSchema,
   updateAdminUserSchema,
   updateBlogSchema,
   updateEmailTemplateSchema,
+  updateWhatsAppTemplateSchema,
 } from './admin.validation.js';
 import { emailTemplatesService } from './email-templates.service.js';
+import { whatsappTemplatesService } from './whatsapp-templates.service.js';
 import { requireAdmin, requireAdminPermission } from './require-admin.js';
 import { utmService } from '../utm/utm.service.js';
 import {
@@ -628,6 +632,90 @@ adminConsoleRouter.post(
     await recordAdminMutation(req, {
       action: 'admin.email_template.test_sent',
       relatedEntityType: 'email_template',
+      relatedEntityId: String(req.params.id),
+      metadata: { to: data.to, sent: data.sent },
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/** WhatsApp message templates (admin-managed copy; delivery wiring separate) */
+adminConsoleRouter.get(
+  '/whatsapp-templates',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:read'),
+  asyncHandler(async (req, res) => {
+    const data = await whatsappTemplatesService.list();
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/whatsapp-templates',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:write'),
+  asyncHandler(async (req, res) => {
+    const body = createWhatsAppTemplateSchema.parse(req.body ?? {});
+    const data = await whatsappTemplatesService.create(body, req.auth!.sub);
+    await recordAdminMutation(req, {
+      action: 'admin.whatsapp_template.created',
+      relatedEntityType: 'whatsapp_template',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { statusCode: 201, meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/whatsapp-templates/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:read'),
+  asyncHandler(async (req, res) => {
+    const data = await whatsappTemplatesService.get(String(req.params.id));
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.patch(
+  '/whatsapp-templates/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:write'),
+  asyncHandler(async (req, res) => {
+    const body = updateWhatsAppTemplateSchema.parse(req.body ?? {});
+    const data = await whatsappTemplatesService.update(
+      String(req.params.id),
+      body,
+      req.auth!.sub
+    );
+    await recordAdminMutation(req, {
+      action: 'admin.whatsapp_template.updated',
+      relatedEntityType: 'whatsapp_template',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.delete(
+  '/whatsapp-templates/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:write'),
+  asyncHandler(async (req, res) => {
+    const data = await whatsappTemplatesService.remove(String(req.params.id));
+    await recordAdminMutation(req, {
+      action: 'admin.whatsapp_template.deleted',
+      relatedEntityType: 'whatsapp_template',
+      relatedEntityId: String(req.params.id),
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/whatsapp-templates/:id/send-test',
+  ...adminAuth,
+  requireAdminPermission('admin:email-templates:write'),
+  asyncHandler(async (req, res) => {
+    const body = sendWhatsAppTemplateTestSchema.parse(req.body ?? {});
+    const data = await whatsappTemplatesService.sendTest(String(req.params.id), body);
+    await recordAdminMutation(req, {
+      action: 'admin.whatsapp_template.test_sent',
+      relatedEntityType: 'whatsapp_template',
       relatedEntityId: String(req.params.id),
       metadata: { to: data.to, sent: data.sent },
     });
