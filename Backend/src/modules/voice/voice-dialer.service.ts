@@ -417,7 +417,9 @@ export async function seedPendingVoiceCalls(input: {
     toNumberDigits: c.mobileDigits,
     status: input.status || ('pending' as const),
     maxRetries: input.maxRetries,
-    retriesLeft: input.maxRetries,
+    // Only Hunar webhooks should set retriesLeft; seeding maxRetries here blocked
+    // quota commit forever when the provider omitted retries_left.
+    retriesLeft: null,
     quotaReservationKey:
       input.quotaReservationKeys?.get(c.mobileDigits) ||
       `voice:${input.requestId}:${c.mobileDigits}`,

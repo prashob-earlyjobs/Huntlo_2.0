@@ -15,6 +15,7 @@ import {
   resolvePermissions,
   type OrganizationRole,
 } from '../modules/organizations/permissions.js';
+import { assertTrialNotExpired } from '../modules/plans/trial-access.js';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -31,6 +32,26 @@ declare module 'express-serve-static-core' {
       ownerUserId: string | null;
     };
   }
+}
+
+/** Routes still allowed after trial ends (upgrade / account / admin). */
+function isTrialExpiredAllowlisted(req: Request): boolean {
+  const path = String(req.originalUrl || req.url || '').split('?')[0] || '';
+  return (
+    path.startsWith('/api/v1/plans') ||
+    path.startsWith('/api/v1/usage') ||
+    path.startsWith('/api/v1/billing') ||
+    path.startsWith('/api/v1/auth') ||
+    path.startsWith('/api/v1/profile') ||
+    path.startsWith('/api/v1/preferences') ||
+    path.startsWith('/api/v1/users') ||
+    path.startsWith('/api/v1/notifications') ||
+    path.startsWith('/api/v1/realtime') ||
+    path.startsWith('/api/v1/admin') ||
+    path.startsWith('/api/v1/onboarding') ||
+    path.startsWith('/api/v1/organization') ||
+    path.startsWith('/api/v1/settings')
+  );
 }
 
 async function assertActiveSession(sessionId: string): Promise<void> {
@@ -154,6 +175,10 @@ export const requireOrganization = asyncHandler(
       status: member.status,
     };
     req.organizationId = organization._id.toHexString();
+
+    if (!isTrialExpiredAllowlisted(req)) {
+      await assertTrialNotExpired(organization._id.toHexString());
+    }
 
     next();
   }

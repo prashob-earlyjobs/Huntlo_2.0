@@ -11,7 +11,8 @@ export type CurrentPlan = {
   renewalDate: string;
   owner: string;
   ownerEmail: string;
-  status: "Active" | "Trial" | "Past due" | "Cancelled";
+  status: "Active" | "Trial" | "Trial ended" | "Past due" | "Cancelled";
+  trialExpired?: boolean;
   price: string;
   pricePeriod: string;
   seats: string;
