@@ -9,3 +9,5 @@ logs/
 gemini-email-prompts.txt
 .DS_Store
 backups/
+dump.rdb
+*.rdb
