@@ -25,5 +25,13 @@ export { registerJobHandler, getJobHandler, clearJobHandlers } from './registry.
 export { createWorkerRunner } from './runner.js';
 export type { WorkerRunner } from './runner.js';
 export { registerAllJobHandlers, ensureRecurringSweepJobs } from './handlers.js';
+export {
+  BACKGROUND_JOB_RETENTION_DAYS,
+  purgeOldBackgroundJobs,
+} from './purge-old-jobs.js';
+export type {
+  PurgeOldJobsOptions,
+  PurgeOldJobsResult,
+} from './purge-old-jobs.js';
 export { getWorkerRuntimeConfig } from './config.js';
 export { WorkerMetrics } from './metrics.js';

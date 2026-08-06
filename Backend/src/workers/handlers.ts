@@ -8,6 +8,10 @@ import { processDueSchedulingJobs } from '../modules/scheduling/index.js';
 import { pollSourcingSessions } from '../modules/sourcing/index.js';
 import { reportsService } from '../modules/analytics/reports.service.js';
 import type { BackgroundJobType } from './job.model.js';
+import {
+  BACKGROUND_JOB_RETENTION_DAYS,
+  purgeOldBackgroundJobs,
+} from './purge-old-jobs.js';
 import { enqueueJob } from './queue.js';
 import {
   registerJobHandler,
@@ -217,6 +221,26 @@ const HANDLERS: Record<BackgroundJobType, JobHandler> = {
       rescheduleInMs: Number(ctx.payload.intervalMs ?? 60_000),
     };
   },
+
+  async 'jobs.purge_old'(ctx) {
+    const retentionDays = Number(
+      ctx.payload.retentionDays ?? BACKGROUND_JOB_RETENTION_DAYS
+    );
+    const outcome = await purgeOldBackgroundJobs({
+      retentionDays,
+      batchSize: Number(ctx.payload.batchSize ?? 5_000),
+      maxBatches: Number(ctx.payload.maxBatches ?? 100),
+    });
+    logger().info({ jobId: ctx.jobId, ...outcome }, 'jobs.purge_old completed');
+    // Drain backlog quickly; otherwise run once per day.
+    const idleIntervalMs = Number(
+      ctx.payload.intervalMs ?? 24 * 60 * 60 * 1000
+    );
+    return {
+      result: outcome,
+      rescheduleInMs: outcome.hasMore ? 60_000 : idleIntervalMs,
+    };
+  },
 };
 
 export function registerAllJobHandlers(): void {
@@ -286,6 +310,11 @@ export async function ensureRecurringSweepJobs(intervalMs: number): Promise<void
       idempotencyKey: 'sweep:email.sequence_sweep',
       intervalMs: Math.max(intervalMs, 60_000),
     },
+    {
+      type: 'jobs.purge_old',
+      idempotencyKey: 'sweep:jobs.purge_old',
+      intervalMs: 24 * 60 * 60 * 1000,
+    },
   ];
 
   for (const sweep of sweeps) {
@@ -293,7 +322,13 @@ export async function ensureRecurringSweepJobs(intervalMs: number): Promise<void
       type: sweep.type,
       idempotencyKey: sweep.idempotencyKey,
       priority: 50,
-      payload: { intervalMs: sweep.intervalMs, sweep: true },
+      payload: {
+        intervalMs: sweep.intervalMs,
+        sweep: true,
+        ...(sweep.type === 'jobs.purge_old'
+          ? { retentionDays: BACKGROUND_JOB_RETENTION_DAYS }
+          : {}),
+      },
       maxAttempts: 25,
     });
   }
