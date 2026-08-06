@@ -333,6 +333,7 @@ export const AUDIENCE_SOURCES = [
   "Saved List",
   "Sourcing Session",
   "CSV/Excel Import",
+  "Import from ATS",
   "Manual Add",
 ] as const;
 
@@ -375,6 +376,13 @@ export const AUDIENCE_STATS: Record<AudienceSource, AudienceStats> = {
     withPhone: 84,
     duplicates: 9,
     invalid: 4,
+  },
+  "Import from ATS": {
+    selected: 0,
+    withEmail: 0,
+    withPhone: 0,
+    duplicates: 0,
+    invalid: 0,
   },
   "Manual Add": {
     selected: 5,

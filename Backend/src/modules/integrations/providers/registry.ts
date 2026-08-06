@@ -10,6 +10,7 @@ import { huntloWhatsAppProvider } from './huntlo-whatsapp.provider.js';
 import { hunarProvider } from './hunar.provider.js';
 import { calendlyProvider } from './calendly.provider.js';
 import { futureJobsProvider } from './future-jobs.provider.js';
+import { zwayamAmplifyProvider } from './zwayam-amplify.provider.js';
 
 const PROVIDERS: Record<IntegrationProviderId, AnyIntegrationProvider> = {
   gmail: gmailProvider,
@@ -22,6 +23,7 @@ const PROVIDERS: Record<IntegrationProviderId, AnyIntegrationProvider> = {
   hunar: hunarProvider,
   calendly: calendlyProvider,
   'future-jobs': futureJobsProvider,
+  'zwayam-amplify': zwayamAmplifyProvider,
 };
 
 export function getProviderAdapter(provider: IntegrationProviderId): AnyIntegrationProvider {
@@ -121,5 +123,13 @@ export const PROVIDER_CATALOG: ProviderCatalogItem[] = [
     description: 'Candidate sourcing and contact enrichment.',
     authModes: ['platform'],
     configured: false,
+  },
+  {
+    id: 'zwayam-amplify',
+    name: 'Zwayam Amplify',
+    category: 'ats',
+    description: 'Import applicants from Naukri, IIMJobs, and Hirist via Amplify.',
+    authModes: ['credentials'],
+    configured: true,
   },
 ];

@@ -103,6 +103,12 @@ const envSchema = z.object({
 
   // Optional Gemini enhancement for sourcing interpret (no-op when empty)
   GEMINI_API_KEY: z.string().default(''),
+
+  // Zwayam Amplify (ATS / job-board apply bridge). Per-org API key is stored encrypted.
+  ZWAYAM_AMPLIFY_BASE_URL: z
+    .string()
+    .default('')
+    .transform((value) => value.replace(/\/$/, '')),
 });
 
 export type Env = z.infer<typeof envSchema>;

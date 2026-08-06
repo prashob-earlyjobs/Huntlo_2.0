@@ -21,6 +21,7 @@ import {
   loadAudiencePoolRows,
   statsFromPoolRows,
 } from "@/components/outreach/audience-resolve";
+import { AtsAudiencePicker } from "@/components/outreach/ats-audience-picker";
 import { Field, StepCard } from "@/components/outreach/builder-ui";
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
 import {
   candidatePoolApi,
   getApiErrorMessage,
+  integrationsApi,
   sourcingApi,
   type ApiPoolCandidate,
   type SourcingSessionApi,
@@ -84,6 +86,10 @@ const SOURCE_META: Record<
     icon: FileSpreadsheet,
     description: "Upload a file of candidates",
   },
+  "Import from ATS": {
+    icon: Plug,
+    description: "Pull applicants from a connected ATS",
+  },
   "Manual Add": {
     icon: UserPlus,
     description: "Hand-pick a few candidates",
@@ -95,11 +101,6 @@ const DISABLED_AUDIENCE_SOURCES = [
     id: "Upload resumes",
     icon: Upload,
     description: "Upload resumes to add candidates",
-  },
-  {
-    id: "Import from ATS",
-    icon: Plug,
-    description: "Pull candidates from a connected ATS",
   },
 ] as const;
 
@@ -340,6 +341,22 @@ export function AudienceStep({
   );
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [atsConnected, setAtsConnected] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void integrationsApi
+      .listAtsProviders()
+      .then((rows) => {
+        if (!cancelled) setAtsConnected(rows.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setAtsConnected(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -393,7 +410,32 @@ export function AudienceStep({
             (state.source === "CSV/Excel Import" &&
               Boolean(state.sourceDetail));
 
-          if (state.source === "Manual Add" || state.source === "Candidate Pool") {
+          if (state.source === "Import from ATS") {
+            if (state.selectedCandidateIds.length === 0) {
+              if (cancelled) return;
+              setPickerRows([]);
+              // Keep preview from AtsAudiencePicker import, or clear if empty.
+              if (!state.audiencePreview) {
+                update("audiencePreview", {
+                  selected: 0,
+                  withEmail: 0,
+                  withPhone: 0,
+                  duplicates: 0,
+                  invalid: 0,
+                });
+              }
+            } else {
+              const rows = await loadAudiencePoolRows({
+                source: state.source,
+                sourceDetail: state.sourceDetail,
+                selectedCandidateIds: state.selectedCandidateIds,
+                poolSearch: "",
+              });
+              if (cancelled) return;
+              setPickerRows(rows);
+              update("audiencePreview", statsFromPoolRows(rows));
+            }
+          } else if (state.source === "Manual Add" || state.source === "Candidate Pool") {
             const browse = await candidatePoolApi.listRaw({
               limit: 200,
               search: state.poolSearch.trim() || undefined,
@@ -587,23 +629,34 @@ export function AudienceStep({
             const meta = SOURCE_META[source];
             const Icon = meta.icon;
             const selected = state.source === source;
+            const atsLocked = source === "Import from ATS" && !atsConnected;
             return (
               <button
                 key={source}
                 type="button"
-                onClick={() => selectSource(source)}
+                disabled={atsLocked}
+                aria-disabled={atsLocked ? "true" : undefined}
+                onClick={() => {
+                  if (atsLocked) return;
+                  selectSource(source);
+                }}
                 className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
-                  selected
+                  "flex items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
+                  atsLocked
+                    ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
+                    : "cursor-pointer",
+                  !atsLocked && selected
                     ? "border-primary bg-brand-subtle"
-                    : "border-border bg-card hover:bg-muted/40"
+                    : !atsLocked
+                      ? "border-border bg-card hover:bg-muted/40"
+                      : null
                 )}
               >
                 <Icon
                   aria-hidden
                   className={cn(
                     "mt-0.5 size-4 shrink-0",
-                    selected ? "text-primary" : "text-muted-foreground"
+                    selected && !atsLocked ? "text-primary" : "text-muted-foreground"
                   )}
                 />
                 <span>
@@ -611,7 +664,9 @@ export function AudienceStep({
                     {source}
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {meta.description}
+                    {atsLocked
+                      ? "Connect an ATS in Integrations"
+                      : meta.description}
                   </span>
                 </span>
               </button>
@@ -824,6 +879,31 @@ export function AudienceStep({
             {showErrors && state.selectedCandidateIds.length === 0 ? (
               <p role="alert" className="text-sm text-destructive">
                 Import a CSV/Excel file before continuing.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {state.source === "Import from ATS" ? (
+          <div className="space-y-3">
+            <AtsAudiencePicker
+              sourceDetail={state.sourceDetail}
+              selectedCandidateIds={state.selectedCandidateIds}
+              onSourceDetailChange={(detail) => update("sourceDetail", detail)}
+              onSelectedIdsChange={(ids) => update("selectedCandidateIds", ids)}
+              onImported={(next) =>
+                update("audiencePreview", {
+                  selected: next.selected,
+                  withEmail: next.withEmail,
+                  withPhone: next.withPhone,
+                  duplicates: 0,
+                  invalid: 0,
+                })
+              }
+            />
+            {showErrors && state.selectedCandidateIds.length === 0 ? (
+              <p role="alert" className="text-sm text-destructive">
+                Select a job and import at least one applicant.
               </p>
             ) : null}
           </div>
