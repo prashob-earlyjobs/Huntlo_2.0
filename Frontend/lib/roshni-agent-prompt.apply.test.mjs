@@ -5,16 +5,26 @@
 
 function shouldApplyRemoteVoiceDefault(current, remote, options = {}) {
   const trimmed = String(current || "").trim();
+  const remoteTrimmed = String(remote || "").trim();
   if (!trimmed) return true;
   if (options.legacy && trimmed === options.legacy) return true;
   if (options.bundled && trimmed === options.bundled) return true;
-  if (trimmed === remote.trim()) return false;
+  if (
+    trimmed.includes("ROLE BRIEF & INTEREST CHECK") &&
+    remoteTrimmed.includes("SCREENING CONSENT") &&
+    trimmed.includes("You are Roshni")
+  ) {
+    return true;
+  }
+  if (trimmed === remoteTrimmed) return false;
   return false;
 }
 
 const bundled = "BUNDLED_PROMPT";
-const remote = "ADMIN_PROMPT";
+const remote = "ADMIN_PROMPT with SCREENING CONSENT";
 const legacy = "LEGACY_SCRIPT";
+const stale =
+  "You are Roshni\n3. ROLE BRIEF & INTEREST CHECK — Deliver the role brief.";
 
 const cases = [
   ["empty", shouldApplyRemoteVoiceDefault("", remote, { bundled, legacy }), true],
@@ -26,6 +36,11 @@ const cases = [
   [
     "legacy",
     shouldApplyRemoteVoiceDefault(legacy, remote, { bundled, legacy }),
+    true,
+  ],
+  [
+    "stale role brief",
+    shouldApplyRemoteVoiceDefault(stale, remote, { bundled, legacy }),
     true,
   ],
   [
