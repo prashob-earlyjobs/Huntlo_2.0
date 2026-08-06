@@ -404,3 +404,229 @@ curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731
 curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a731592ce684609a9d3cb54/profiles?page=1&limit=300' \
   -H 'Content-Type: application/json' \
   -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-06T12:30:47.791Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"email":"pmgokul7@gmail.com"}'
+# 2026-08-06T12:30:48.058Z POST /wl/scout-people/lookup response HTTP 200 267ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6a58c1a7cf1d26b417df3d4b",
+    "profile": {
+      "_id": "6a0d3f382b49de32d827af59",
+      "person_id": 91831837,
+      "__v": 0,
+      "all_degrees": [
+        "",
+        "Bachelor of computer applications -BCA"
+      ],
+      "all_employers": [
+        "Earlyjobs",
+        "IQ General Systems"
+      ],
+      "all_employers_company_id": [
+        3846481,
+        1089134
+      ],
+      "all_schools": [
+        "St thomas HSS Kelakam",
+        "Kannur University"
+      ],
+      "all_titles": [
+        "Full-stack Developer",
+        "Back End Developer"
+      ],
+      "createdAt": "2026-05-20T04:57:28.318Z",
+      "current_employers": [
+        {
+          "employer_name": "Earlyjobs",
+          "employer_linkedin_id": "101502390",
+          "employer_linkedin_description": "EarlyJobs is a platform initiated by Victaman Services Pvt. Ltd., designed to facilitate freelance recruiters to work remotely. Additionally, it serves as a resource for students pursuing a degree or MBA to get training and internship.",
+          "employer_logo_url": "https://media.licdn.com/dms/image/v2/D4D0BAQHYiqveWfyEvg/company-logo_200_200/company-logo_200_200/0/1705464483998?e=1748476800&v=beta&t=GHMKviWjyst_03XBJp85eEgKn706R5qv3NWXQEIgRSQ",
+          "employer_company_website_domain": [
+            "earlyjobs.ai"
+          ],
+          "employer_company_id": [
+            3846481
+          ],
+          "employee_position_id": 2797059500,
+          "employee_title": "Full-stack Developer",
+          "employee_description": "At EarlyJobs, I played a pivotal role as a Full-stack Developer, working on multiple projects from inception to deployment. My collaboration with a talented team allowed us to utilize advanced technologies like generative AI and online proctoring, ensuring we delivered high-quality solutions. This experience honed my skills in full-stack development and project execution, contributing to the company's innovative edge in the job market.",
+          "employee_location": "Bengaluru",
+          "start_date": "2024-09-01T00:00:00+00:00",
+          "end_date": null,
+          "domains": [
+            "earlyjobs.in",
+            "earlyjobs.ai"
+          ]
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "",
+          "institute_name": "St thomas HSS Kelakam",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "",
+          "institute_logo_url": "",
+          "field_of_study": "Business/Commerce, General",
+          "activities_and_societies": "",
+          "start_date": null,
+          "end_date": null
+        },
+        {
+          "degree_name": "Bachelor of computer applications -BCA",
+          "institute_name": "Kannur University",
+          "institute_linkedin_id": "8297674",
+          "institute_linkedin_url": "https://www.linkedin.com/school/8297674",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/D560BAQH2ceQoKhYjUg/company-logo_400_400/B56ZU3Nn5tHEAY-/0/1740388073555/kannur_university_logo?e=1781136000&v=beta&t=rOtGIgkWThHtCvgqoWtE9A_6V0MHl73vxilnvKe2WP4",
+          "field_of_study": "Information Technology",
+          "activities_and_societies": "",
+          "start_date": "2019-04-01T00:00:00+00:00",
+          "end_date": null
+        }
+      ],
+      "email": null,
+      "enriched_realtime": false,
+      "headline": "--",
+      "languages": [],
+      "lastFetchedAt": "2026-07-25T05:20:44.923Z",
+      "last_updated": "2026-07-19T20:59:44+00:00",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/gokul-pm-07a377212",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADXNqp4BZZzDXhJmaTSQGzhLGgxx3NKtFG8",
+      "location": "Bengaluru, Karnataka, India",
+      "name": "Gokul PM",
+      "num_of_connections": 348,
+      "past_employers": [
+        {
+          "employer_name": "IQ General Systems",
+          "employer_linkedin_id": "86395040",
+          "employer_linkedin_description": "IQ General Systems Private Limited offering services in Web Development, Mobile Applications and Graphic Designing.",
+          "employer_logo_url": "https://media.licdn.com/dms/image/v2/D4D0BAQHSVqE8QRVAOw/company-logo_200_200/company-logo_200_200/0/1664517166982?e=1743033600&v=beta&t=XFGgN3M-ry4kC3Gi_kD-MSQcfCgz_-ACYcr298Gh80E",
+          "employer_company_website_domain": [
+            "iqgeneral.com"
+          ],
+          "employer_company_id": [
+            1089134
+          ],
+          "employee_position_id": 2544021613,
+          "employee_title": "Back End Developer",
+          "employee_description": "",
+          "employee_location": "Coimbatore, Tamil Nadu, India",
+          "start_date": "2023-01-01T00:00:00+00:00",
+          "end_date": "2024-04-01T00:00:00+00:00",
+          "domains": [
+            "iqgeneral.com"
+          ]
+        }
+      ],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0a137752adab3949ebfacbdb9c1510fc3c5e14b1912662a46b9d588875d89044.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/C5603AQHWZBfIHoCgPw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1650374721231?e=1785974400&v=beta&t=MjyNapc_NHyz33tL5ZTkArrATMJQgXWGb8rBCrG30mg",
+      "score": 0.9,
+      "skills": [
+        "genarative AI",
+        "Next.js",
+        "Software Infrastructure",
+        "Internet Software",
+        "Mean Stack",
+        "Event-driven",
+        "Teamwork",
+        "Application Programming Interfaces (API)",
+        "Databases",
+        "API Development",
+        "Web Applications",
+        "Amazon Web Services (AWS)",
+        "RESTful WebServices",
+        "HTML",
+        "Object-Oriented Programming (OOP)",
+        "Software Development",
+        "Front-End Development",
+        "REST APIs",
+        "Critical Thinking",
+        "RESTful architecture",
+        "SQL",
+        "Representational State Transfer (REST)",
+        "Unit Testing",
+        "Asynchronous work",
+        "HTML5",
+        "JavaScript",
+        "Redux.js",
+        "Express.js",
+        "Shopify",
+        "Shopify Plus",
+        "Shopif",
+        "Customer Service",
+        "Project Management",
+        "Server Side Programming",
+        "Server Programming",
+        "Back-end Operations",
+        "Back-End Web Development",
+        "Web Application Development",
+        "Node.js",
+        "Cascading Style Sheets (CSS)",
+        "React.js",
+        "MongoDB",
+        "Linux"
+      ],
+      "summary": "",
+      "title": "Full-stack Developer",
+      "twitter_handle": "",
+      "updatedAt": "2026-07-25T05:20:44.923Z",
+      "github_profiles": null,
+      "lastFetchedWithScoutSocials": true,
+      "query_linkedin_profile_urn_or_slug": [
+        "gokul-pm-07a377212"
+      ],
+      "certifications": [],
+      "education_last_updated": "2026-05-20T05:00:27",
+      "employer_last_updated": "2026-06-24T21:11:31",
+      "first_name": "Gokul",
+      "flagship_profile_url": "https://www.linkedin.com/in/gokul-pm-07a377212",
+      "honors": [],
+      "last_name": "PM",
+      "location_details": {
+        "city": "Bengaluru",
+        "state": "Karnataka",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "num_of_followers": 347,
+      "open_to_cards": [],
+      "profile_last_updated": "2026-05-20T05:00:27",
+      "recently_changed_jobs": false,
+      "region": "Bengaluru, Karnataka, India",
+      "region_address_components": [
+        "Bengaluru",
+        "Bengaluru Urban",
+        "Bangalore Division",
+        "Karnataka",
+        "India"
+      ],
+      "updated_at": "2026-06-25T15:55:42",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 3
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "gokul@earlyjobs.in",
+          "pmgokul7@gmail.com",
+          "gokul@earlyjobs.ai"
+        ]
+      },
+      "phone": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "8592929642"
+        ]
+      }
+    },
+    "isExisting": true
+  },
+  "message": "Profile already scouted",
+  "status": "SUCCESS"
+}

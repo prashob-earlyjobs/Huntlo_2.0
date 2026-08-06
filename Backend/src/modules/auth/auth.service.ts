@@ -27,6 +27,7 @@ import {
 } from '../organizations/permissions.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { plansService } from '../plans/plans.service.js';
+import { getWorkspaceSubscriptionAccess } from '../plans/trial-access.js';
 import { utmService } from '../utm/utm.service.js';
 import { OnboardingModel } from './onboarding.model.js';
 import {
@@ -188,6 +189,19 @@ async function createSession(userId: mongoose.Types.ObjectId, meta: SessionMeta)
   return { session, refreshToken };
 }
 
+async function organizationAuthPayload(organization: OrganizationDocument) {
+  const access = await getWorkspaceSubscriptionAccess(organization._id.toHexString());
+  return {
+    id: organization._id.toHexString(),
+    name: organization.name,
+    plan: organization.plan,
+    initials: organization.initials,
+    trialExpired: access.trialExpired,
+    subscriptionStatus: access.subscription?.status ?? null,
+    trialEndsAt: access.subscription?.currentPeriodEnd?.toISOString() ?? null,
+  };
+}
+
 async function buildAuthResponse(userId: string, sessionId: string) {
   const user = await loadActiveUser(userId);
   const organization = await loadOrganization(user.organizationId);
@@ -204,12 +218,7 @@ async function buildAuthResponse(userId: string, sessionId: string) {
     accessToken,
     me: {
       user: toPublicUser(user, organization.plan),
-      organization: {
-        id: organization._id.toHexString(),
-        name: organization.name,
-        plan: organization.plan,
-        initials: organization.initials,
-      },
+      organization: await organizationAuthPayload(organization),
       permissions,
     },
   };
@@ -744,12 +753,7 @@ export class AuthService {
     const permissions = await resolveUserPermissions(user, organization._id);
     return {
       user: toPublicUser(user, organization.plan),
-      organization: {
-        id: organization._id.toHexString(),
-        name: organization.name,
-        plan: organization.plan,
-        initials: organization.initials,
-      },
+      organization: await organizationAuthPayload(organization),
       permissions,
     };
   }

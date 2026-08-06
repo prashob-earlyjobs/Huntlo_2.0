@@ -113,6 +113,10 @@ export type AuthOrganization = {
   name: string;
   plan: string;
   initials: string;
+  /** True when the workspace trial window has ended and upgrade is required. */
+  trialExpired?: boolean;
+  subscriptionStatus?: string | null;
+  trialEndsAt?: string | null;
 };
 
 export type AuthMeResponse = {
