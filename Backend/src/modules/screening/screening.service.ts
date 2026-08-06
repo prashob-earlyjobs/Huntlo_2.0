@@ -846,7 +846,7 @@ export const screeningService = {
       if (!(resultSchema.properties as Record<string, unknown>)[answerKey]) {
         (resultSchema.properties as Record<string, unknown>)[answerKey] = {
           type: 'string',
-          description: `Candidate's spoken answer for "${question.prompt}" (variable ${variable}). Use "Not provided" when unclear.`,
+          description: `Candidate's spoken answer for "${question.prompt}" (variable ${variable}). Use "Not Mentioned" when unclear.`,
         };
       }
     }

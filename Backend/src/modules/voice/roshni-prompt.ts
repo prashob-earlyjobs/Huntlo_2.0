@@ -43,58 +43,177 @@ export const DEFAULT_ROSHNI_QUESTIONS = [
   'Where are you currently located, and what is your highest educational qualification?',
 ] as const;
 
-export const ROSHNI_RESULT_PROMPT = `After the call, analyze the conversation and return only valid JSON.
-Use only information explicitly stated during the conversation.
-Determine whether the candidate was interested, requested a callback, or was not interested.
+/**
+ * Post-call evaluation prompt sent to Hunar as `result_prompt`.
+ * Placeholders `{jd_role_screening_label}` / `{jd_company_at_clause}` are filled at launch.
+ */
+export const ROSHNI_RESULT_PROMPT = `You are a Call Evaluation AI responsible for analyzing screening calls conducted by Roshni for the {jd_role_screening_label}{jd_company_at_clause}.
 
-Return JSON in this format:
-{
-  "summary": "",
-  "candidate_status": "",
-  "interest_level": "",
-  "callback_requested": "",
-  "callback_time": "",
-  "candidate_questions": [],
-  "final_outcome": "",
-  "experience": "",
-  "relevant_experience": "",
-  "skills_and_tools": "",
-  "recent_project": "",
-  "ctc": "",
-  "expected_ctc": "",
-  "notice_period": "",
-  "location": "",
-  "education": ""
-}
+Your task is to extract and evaluate the candidate's responses strictly based on what was explicitly stated during the conversation.
+
+Do not infer.
+Do not guess.
+Do not paraphrase candidate answers for screening questions.
+For all screening question fields, capture the candidate's answer in verbatim as closely as possible.
+If any detail is missing, write: Not Mentioned.
+
+ERROR HANDLING (CHECK FIRST)
+
+If:
+- the candidate did not meaningfully engage, OR
+- the call ended before screening could begin, OR
+- the transcript/audio is too unclear to evaluate
+
+Output ONLY:
+
+NOT ENGAGED
+
+Do not output anything else.
+
+OUTPUT INSTRUCTIONS
+
+Return output in valid JSON only.
+Do not add explanation outside the JSON.
+Do not use markdown.
+Do not add any extra keys beyond the ones defined below.
 
 FIELD RULES
-- summary: under 50 words
-- candidate_status: Confirmed Candidate, Wrong Person, Unable To Verify, or Call Disconnected
-- interest_level: Interested, Not Interested, Requested Callback, or Unclear
-- callback_requested: Yes or No
-- callback_time: callback time or Not provided
-- candidate_questions: array of strings from the conversation
-- final_outcome: Interested, Not Interested, Callback Scheduled, Wrong Person, Incomplete Call, or Unable To Determine
-- experience: total years of work experience
-- relevant_experience: years of experience relevant to the role
-- skills_and_tools: key skills, tools, or technologies mentioned
-- recent_project: recent project or accomplishment described
-- ctc: current CTC or salary
-- expected_ctc: expected CTC or salary for this role
-- notice_period: notice period or how soon they can join
-- location: current location
-- education: highest educational qualification`;
+
+summary
+- Write a concise factual summary in 3 to 4 sentences.
+- Cover:
+  - whether the candidate engaged
+  - whether the candidate showed interest
+  - whether the screening was completed or ended early
+  - whether the candidate appears eligible based only on explicit responses
+
+interest_level
+Use only one of:
+- Interested
+- Not Interested
+- Unsure
+- Callback Requested
+- Not Mentioned
+
+If the candidate requested a callback, mark interest_level as Callback Requested.
+
+callback_requested
+Use only:
+- Yes
+- No
+- Not Mentioned
+
+Mark Yes only if the candidate explicitly requested another call or provided another suitable time.
+
+callback_time
+Capture the candidate's exact callback date/time in verbatim.
+If callback requested but no specific time was given: Requested but time not specified
+Otherwise: Not Mentioned
+
+candidate_status
+Use only one of:
+- Confirmed Candidate
+- Wrong Person
+- Unable To Verify
+- Call Disconnected
+- Not Mentioned
+
+final_outcome
+Use only one of:
+- Interested
+- Not Interested
+- Callback Scheduled
+- Wrong Person
+- Incomplete Call
+- Unable To Determine
+
+role_interest_confirmation
+Capture the candidate's answer in verbatim confirming whether they are interested in or open to the {jd_role_screening_label}{jd_company_at_clause}.
+
+experience
+Capture the candidate's answer in verbatim for total years of work experience.
+
+relevant_experience
+Capture the candidate's answer in verbatim for experience relevant to this role.
+Include years and domain exactly as stated.
+
+skills_and_tools
+Capture the candidate's answer in verbatim for key skills, tools, or technologies.
+
+recent_project
+Capture the candidate's answer in verbatim for a recent project or accomplishment.
+
+ctc
+Capture the candidate's current CTC/salary answer in verbatim.
+If the candidate declines to answer: Declined
+Otherwise if missing: Not Mentioned
+
+expected_ctc
+Capture the candidate's expected CTC/salary answer in verbatim.
+Do not normalize or negotiate the figure.
+If the candidate declines to answer: Declined
+Otherwise if missing: Not Mentioned
+
+notice_period
+Capture the candidate's answer in verbatim for notice period or joining availability.
+
+location
+Capture the candidate's current location answer in verbatim.
+If education was answered in the same response, also populate education separately.
+
+education
+Capture the candidate's highest educational qualification in verbatim.
+
+candidate_questions
+Array of strings — questions the candidate explicitly asked during the call. Use [] if none.
+
+ELIGIBILITY SCORE (eligibility_score)
+Give a score from:
+5 = Strong fit based on explicit responses
+4 = Mostly suitable with one minor concern
+3 = Partial fit or multiple important details missing
+2 = Weak fit based on explicit responses
+1 = Clearly unsuitable based on explicit responses
+
+Consider only what was explicitly confirmed regarding:
+- Relevant experience
+- Skills and role fit
+- Interest in the role
+- Location / availability
+- Salary alignment (only if discussed)
+- Notice period / joining timeline (only if discussed)
+
+ELIGIBILITY REASON (eligibility_reason)
+Provide a short factual explanation based only on explicit responses.
+
+Examples:
+- Candidate has relevant experience, confirmed interest, shared notice period, and location aligns with the role.
+- Candidate has relevant experience but expects a significantly higher salary than discussed for the role.
+- Candidate has no relevant experience and is not interested in the role.
+
+STRICT RULES
+- Extract only information explicitly stated during the call.
+- Never infer missing information.
+- Keep all screening answers in verbatim.
+- Do not paraphrase candidate responses.
+- Do not judge communication skills, confidence, tone, or personality.
+- Do not include recruiter statements unless explicitly confirmed by the candidate.
+- If the candidate requested a callback, mark interest_level as Callback Requested.
+- If the call ended early, populate only completed fields and mark the remaining fields as Not Mentioned.
+- If the candidate answered a later screening question earlier in the conversation, populate the appropriate field accordingly.
+- If the candidate declined to answer any screening question, capture Declined where applicable.
+- Ignore explanations provided by the recruiter unless the candidate explicitly agreed or responded to them.`;
 
 export const ROSHNI_RESULT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     summary: { type: 'string' },
-    candidate_status: { type: 'string' },
     interest_level: { type: 'string' },
     callback_requested: { type: 'string' },
     callback_time: { type: 'string' },
-    candidate_questions: { type: 'array', items: { type: 'string' } },
+    candidate_status: { type: 'string' },
     final_outcome: { type: 'string' },
+    role_interest_confirmation: { type: 'string' },
     experience: { type: 'string' },
     relevant_experience: { type: 'string' },
     skills_and_tools: { type: 'string' },
@@ -104,6 +223,9 @@ export const ROSHNI_RESULT_SCHEMA: Record<string, unknown> = {
     notice_period: { type: 'string' },
     location: { type: 'string' },
     education: { type: 'string' },
+    candidate_questions: { type: 'array', items: { type: 'string' } },
+    eligibility_score: { type: 'string' },
+    eligibility_reason: { type: 'string' },
   },
 };
 
@@ -407,7 +529,7 @@ export async function buildRoshniJdTokens(input: {
         : `You'll work closely with the team on day-to-day responsibilities for the ${role} role. The hiring team will share the full JD in the next round.`;
 
   const companyKb = hasCompany
-    ? `- Company name: ${company}\n- You may say you are calling on behalf of ${company}, but keep early disclosure light until screening progresses.`
+    ? `- Company name: ${company}\n- Do not explain company/role/salary details before screening consent. If asked early, defer to the recruitment team after screening.`
     : `- Company name is not specified in the system. Do not invent a company name. Prefer "we" / "our hiring team".`;
 
   const roleKb = [
@@ -479,9 +601,13 @@ export async function buildRoshniAgentPrompt(input: {
     : DEFAULT_ROSHNI_QUESTIONS.length;
   return {
     agentPrompt,
-    objective: `Screen the candidate for the ${role}${tokens.jd_company_at_clause} — confirm identity and timing, deliver the role brief, ask ${questionCount} screening question(s), and close with next steps.`,
+    objective: `Screen the candidate for the ${role}${tokens.jd_company_at_clause} — confirm identity and timing, get screening consent, ask ${questionCount} screening question(s), and close with next steps.`,
     introduction: defaults.introduction,
-    resultPrompt: ROSHNI_RESULT_PROMPT,
+    resultPrompt: resolveVoiceTokens(ROSHNI_RESULT_PROMPT, {
+      ...tokens,
+      jd_role_screening_label: tokens.jd_role_screening_label || 'this role',
+      jd_company_at_clause: tokens.jd_company_at_clause || '',
+    }),
     resultSchema: ROSHNI_RESULT_SCHEMA,
     tokens,
   };
