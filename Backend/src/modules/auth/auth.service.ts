@@ -17,7 +17,7 @@ import {
   sendPasswordResetEmail,
   sendSignupOtpEmail,
 } from '../../providers/system-mail/system-mail.js';
-import { normalizeEmail } from '../../shared/validation/email.js';
+import { normalizeEmail, emailDomain } from '../../shared/validation/email.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
 import {
@@ -136,6 +136,39 @@ async function consumeSignupOtp(email: string, otp: string) {
   await record.save();
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Self-serve signup only: cap how many owner accounts may exist for one email domain.
+ * Team invites / admin-created users are not blocked by this check.
+ */
+async function assertSignupDomainAccountLimit(email: string) {
+  const domain = emailDomain(email);
+  if (!domain) {
+    throw AppError.badRequest('Invalid email address');
+  }
+
+  const maxAccounts = getEnv().AUTH_SIGNUP_MAX_ACCOUNTS_PER_DOMAIN;
+  const domainCount = await UserModel.countDocuments({
+    deletedAt: null,
+    role: 'owner',
+    email: { $regex: new RegExp(`@${escapeRegex(domain)}$`, 'i') },
+  });
+
+  if (domainCount >= maxAccounts) {
+    throw new AppError(
+      409,
+      'AUTH_DOMAIN_SIGNUP_LIMIT',
+      `This email domain already has the maximum of ${maxAccounts} Huntlo accounts. Ask a teammate for an invite, or contact support.`,
+      {
+        meta: { domain, limit: maxAccounts, used: domainCount },
+      }
+    );
+  }
+}
+
 async function createSession(userId: mongoose.Types.ObjectId, meta: SessionMeta) {
   const refreshToken = generateOpaqueToken(48);
   const refreshTokenHash = hashToken(refreshToken);
@@ -197,6 +230,8 @@ export class AuthService {
     if (existingUser) {
       throw new AppError(409, 'AUTH_EMAIL_ALREADY_EXISTS', 'An account with this email already exists');
     }
+
+    await assertSignupDomainAccountLimit(normalizedEmail);
 
     const env = getEnv();
     const ttlMinutes = env.AUTH_SIGNUP_OTP_TTL_MINUTES;
@@ -287,6 +322,8 @@ export class AuthService {
     if (existing) {
       throw new AppError(409, 'AUTH_EMAIL_ALREADY_EXISTS', 'An account with this email already exists');
     }
+
+    await assertSignupDomainAccountLimit(input.email);
 
     if (isSignupOtpRequired()) {
       if (!input.otp) {
