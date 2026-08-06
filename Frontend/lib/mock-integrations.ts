@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Banknote,
+  Briefcase,
   CalendarClock,
   Database,
   Mail,
@@ -17,6 +18,7 @@ export const INTEGRATION_CATEGORIES = [
   "WhatsApp",
   "AI Voice",
   "Scheduling",
+  "ATS",
   "Candidate Data",
   "Payments",
 ] as const;
@@ -54,6 +56,10 @@ export const CATEGORY_META: Record<
     icon: CalendarClock,
     description: "Share booking links after qualification",
   },
+  ATS: {
+    icon: Briefcase,
+    description: "Import applicants from connected ATS and job boards",
+  },
   "Candidate Data": {
     icon: Database,
     description: "Enrich profiles and sync candidate records",
@@ -86,7 +92,7 @@ export interface IntegrationProvider {
   usage: { label: string; value: string }[];
   connectionDetails: { label: string; value: string }[];
   isDefault: boolean;
-  configKind: "email" | "smtp" | "whatsapp" | "calendly" | "generic" | "voice" | "payments" | "data";
+  configKind: "email" | "smtp" | "whatsapp" | "calendly" | "zwayam" | "generic" | "voice" | "payments" | "data";
   /** Backend UserIntegration id when connected (live API). */
   integrationRecordId?: string;
   /** True when server has provider credentials configured. */
@@ -312,6 +318,27 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     ],
     isDefault: true,
     configKind: "calendly",
+  },
+  /* ATS — temporarily unavailable */
+  {
+    id: "zwayam-amplify",
+    name: "Zwayam Amplify",
+    description:
+      "Pull Naukri, IIMJobs, and Hirist applicants into Huntlo from Amplify jobs.",
+    category: "ATS",
+    status: "Not Connected",
+    connectedIdentity: null,
+    lastSynced: null,
+    docsLabel: "Zwayam Amplify docs",
+    initials: "Zw",
+    accent: "brand",
+    permissions: ["List Amplify jobs", "Read applications", "Import applicants"],
+    usage: [],
+    connectionDetails: [],
+    isDefault: false,
+    configKind: "zwayam",
+    serverConfigured: true,
+    inactive: true,
   },
   /* Payments */
   {

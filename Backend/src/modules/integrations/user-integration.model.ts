@@ -13,6 +13,7 @@ export const INTEGRATION_PROVIDERS = [
   'hunar',
   'calendly',
   'future-jobs',
+  'zwayam-amplify',
 ] as const;
 export type IntegrationProviderId = (typeof INTEGRATION_PROVIDERS)[number];
 
@@ -23,6 +24,7 @@ export const INTEGRATION_CATEGORIES = [
   'scheduling',
   'candidate_data',
   'payment',
+  'ats',
 ] as const;
 export type IntegrationCategory = (typeof INTEGRATION_CATEGORIES)[number];
 
@@ -47,6 +49,7 @@ export const PROVIDER_CATEGORY: Record<IntegrationProviderId, IntegrationCategor
   hunar: 'voice',
   calendly: 'scheduling',
   'future-jobs': 'candidate_data',
+  'zwayam-amplify': 'ats',
 };
 
 export type UserIntegrationDocument = Document & {

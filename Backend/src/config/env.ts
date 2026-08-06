@@ -51,6 +51,10 @@ const envSchema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   AUTH_MAX_LOGIN_ATTEMPTS: z.coerce.number().int().min(3).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
+  /** When unset: required in all envs except test. */
+  AUTH_SIGNUP_OTP_REQUIRED: booleanFromEnv.optional(),
+  AUTH_SIGNUP_OTP_TTL_MINUTES: z.coerce.number().int().min(1).default(30),
+  AUTH_SIGNUP_OTP_RESEND_SECONDS: z.coerce.number().int().min(1).default(30),
 
   // Platform transactional email (password reset, verification, etc.)
   SYSTEM_SMTP_HOST: z.string().optional(),
@@ -103,6 +107,12 @@ const envSchema = z.object({
 
   // Optional Gemini enhancement for sourcing interpret (no-op when empty)
   GEMINI_API_KEY: z.string().default(''),
+
+  // Zwayam Amplify (ATS / job-board apply bridge). Per-org API key is stored encrypted.
+  ZWAYAM_AMPLIFY_BASE_URL: z
+    .string()
+    .default('')
+    .transform((value) => value.replace(/\/$/, '')),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -139,4 +149,13 @@ export function isProduction(): boolean {
 
 export function isTest(): boolean {
   return getEnv().APP_ENV === 'test';
+}
+
+/** Signup email OTP is required outside tests unless AUTH_SIGNUP_OTP_REQUIRED overrides. */
+export function isSignupOtpRequired(): boolean {
+  const env = getEnv();
+  if (typeof env.AUTH_SIGNUP_OTP_REQUIRED === 'boolean') {
+    return env.AUTH_SIGNUP_OTP_REQUIRED;
+  }
+  return env.APP_ENV !== 'test';
 }

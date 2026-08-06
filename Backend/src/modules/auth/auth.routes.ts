@@ -16,12 +16,14 @@ import {
   requireAuth,
   resendVerification,
   resetPassword,
+  sendSignupOtp,
   updateMe,
   verifyEmail,
 } from './auth.controller.js';
 
 export const authRouter = Router();
 
+authRouter.post('/register/send-otp', sendSignupOtp);
 authRouter.post('/register', register);
 authRouter.post('/login', login);
 authRouter.post('/refresh', refresh);

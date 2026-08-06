@@ -148,7 +148,7 @@ export type CampaignCreateInput = {
   sourceModule?: "outreach" | "screening" | "huntlo360";
   campaignType?: "single_channel" | "multi_channel";
   candidateSource?: {
-    type?: "candidate_pool" | "saved_list" | "manual" | "job" | "import";
+    type?: "candidate_pool" | "saved_list" | "manual" | "job" | "import" | "ats";
     listId?: string | null;
     jobId?: string | null;
     candidateIds?: string[];

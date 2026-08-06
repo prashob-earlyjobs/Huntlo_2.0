@@ -74,6 +74,7 @@ const CATEGORY_UI: Record<string, IntegrationProvider["category"]> = {
   whatsapp: "WhatsApp",
   voice: "AI Voice",
   scheduling: "Scheduling",
+  ats: "ATS",
   candidate_data: "Candidate Data",
   payment: "Payments",
 };
@@ -117,7 +118,12 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
       usage: [],
       connectionDetails: [],
       isDefault: false,
-      configKind: "generic" as const,
+      configKind:
+        item.id === "zwayam-amplify"
+          ? ("zwayam" as const)
+          : item.id === "calendly"
+            ? ("calendly" as const)
+            : ("generic" as const),
     } satisfies IntegrationProvider);
 
   const displayName =
@@ -167,6 +173,53 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
   };
 }
 
+export type AtsConnectedProvider = {
+  provider: string;
+  name: string;
+  integrationId: string;
+  status: string;
+  displayName: string | null;
+  isDefault: boolean;
+};
+
+export type AtsJob = {
+  id: string;
+  title: string;
+  status: string | null;
+  jobBoard: string | null;
+  location: string | null;
+};
+
+export type AtsApplication = {
+  id: string;
+  jobId: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  headline: string | null;
+  currentTitle: string | null;
+  currentCompany: string | null;
+  location: string | null;
+  experienceYears: number | null;
+  resumeUrl: string | null;
+  stage: string | null;
+};
+
+export type AtsImportResult = {
+  provider: string;
+  jobId: string;
+  imported: number;
+  created: number;
+  updated: number;
+  missing: string[];
+  candidates: Array<{
+    id: string;
+    created: boolean;
+    applyId: string;
+    name: string;
+  }>;
+};
+
 export interface IntegrationsApi {
   listProviders(): Promise<IntegrationProvider[]>;
   listRaw(): Promise<IntegrationsListResponse>;
@@ -181,6 +234,25 @@ export interface IntegrationsApi {
   disconnect(id: string): Promise<void>;
   /** @deprecated Prefer disconnect by integration record id */
   disconnectByProvider(providerId: string): Promise<void>;
+  listAtsProviders(): Promise<AtsConnectedProvider[]>;
+  listAtsJobs(
+    provider: string,
+    query?: { page?: number; pageSize?: number; search?: string }
+  ): Promise<{ jobs: AtsJob[]; page: number; pageSize: number; total: number | null }>;
+  listAtsApplications(
+    provider: string,
+    jobId: string,
+    query?: { page?: number; pageSize?: number }
+  ): Promise<{
+    applications: AtsApplication[];
+    page: number;
+    pageSize: number;
+    total: number | null;
+  }>;
+  importAtsApplications(
+    provider: string,
+    body: { jobId: string; applicationIds: string[]; huntloJobId?: string | null }
+  ): Promise<AtsImportResult>;
 }
 
 const mockIntegrationsApi: IntegrationsApi = {
@@ -243,6 +315,30 @@ const mockIntegrationsApi: IntegrationsApi = {
   async disconnectByProvider() {
     await simulateMockLatency();
   },
+  async listAtsProviders() {
+    await simulateMockLatency();
+    return [];
+  },
+  async listAtsJobs() {
+    await simulateMockLatency();
+    return { jobs: [], page: 1, pageSize: 20, total: 0 };
+  },
+  async listAtsApplications() {
+    await simulateMockLatency();
+    return { applications: [], page: 1, pageSize: 50, total: 0 };
+  },
+  async importAtsApplications() {
+    await simulateMockLatency();
+    return {
+      provider: "zwayam-amplify",
+      jobId: "",
+      imported: 0,
+      created: 0,
+      updated: 0,
+      missing: [],
+      candidates: [],
+    };
+  },
 };
 
 const liveIntegrationsApi: IntegrationsApi = {
@@ -304,6 +400,49 @@ const liveIntegrationsApi: IntegrationsApi = {
         row.status !== "disabled"
     );
     if (match) await this.disconnect(match.id);
+  },
+  async listAtsProviders() {
+    const result = await apiClient.get<{ providers: AtsConnectedProvider[] }>(
+      "/integrations/ats"
+    );
+    return result.data.providers;
+  },
+  async listAtsJobs(provider, query = {}) {
+    const params = new URLSearchParams();
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    if (query.search) params.set("search", query.search);
+    const qs = params.toString();
+    const result = await apiClient.get<{
+      jobs: AtsJob[];
+      page: number;
+      pageSize: number;
+      total: number | null;
+    }>(`/integrations/ats/${encodeURIComponent(provider)}/jobs${qs ? `?${qs}` : ""}`);
+    return result.data;
+  },
+  async listAtsApplications(provider, jobId, query = {}) {
+    const params = new URLSearchParams();
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const qs = params.toString();
+    const result = await apiClient.get<{
+      applications: AtsApplication[];
+      page: number;
+      pageSize: number;
+      total: number | null;
+    }>(
+      `/integrations/ats/${encodeURIComponent(provider)}/jobs/${encodeURIComponent(jobId)}/applications${qs ? `?${qs}` : ""}`
+    );
+    return result.data;
+  },
+  async importAtsApplications(provider, body) {
+    const result = await apiClient.post<AtsImportResult>(
+      `/integrations/ats/${encodeURIComponent(provider)}/import`,
+      body,
+      { sensitive: true }
+    );
+    return result.data;
   },
 };
 

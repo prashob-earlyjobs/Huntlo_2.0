@@ -138,6 +138,7 @@ function catalogConfigured(provider: IntegrationProviderId): boolean {
       return Boolean(getZohoOAuthConfig());
     case 'smtp':
     case 'calendly':
+    case 'zwayam-amplify':
       return true;
     case 'meta-whatsapp':
       return Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN?.trim());
@@ -1004,5 +1005,143 @@ export const integrationsService = {
       status: { $in: ['connected', 'needs_attention'] },
     });
     return doc ? toSafeIntegration(doc) : null;
+  },
+
+  /** Connected ATS providers for the organization (any team member's connection). */
+  async listConnectedAts(organizationId: string, preferredUserId?: string) {
+    const docs = await UserIntegrationModel.find({
+      organizationId,
+      category: 'ats',
+      status: { $in: ['connected', 'needs_attention', 'testing'] },
+    }).sort({ isDefault: -1, updatedAt: -1 });
+
+    const byProvider = new Map<string, (typeof docs)[number]>();
+    for (const doc of docs) {
+      if (preferredUserId && String(doc.userId) === preferredUserId) {
+        byProvider.set(doc.provider, doc);
+        continue;
+      }
+      if (!byProvider.has(doc.provider)) byProvider.set(doc.provider, doc);
+    }
+
+    return [...byProvider.values()].map((doc) => ({
+      provider: doc.provider,
+      name:
+        (typeof doc.config?.providerLabel === 'string' && doc.config.providerLabel) ||
+        doc.displayName ||
+        PROVIDER_CATALOG.find((item) => item.id === doc.provider)?.name ||
+        doc.provider,
+      integrationId: String(doc._id),
+      status: doc.status,
+      displayName: doc.displayName,
+      isDefault: Boolean(doc.isDefault),
+    }));
+  },
+
+  async resolveAtsIntegration(
+    organizationId: string,
+    providerRaw: string,
+    preferredUserId?: string
+  ) {
+    const provider = assertProvider(providerRaw);
+    if (PROVIDER_CATEGORY[provider] !== 'ats') {
+      throw new AppError(400, 'NOT_ATS_PROVIDER', `${provider} is not an ATS integration.`);
+    }
+
+    const base = {
+      organizationId,
+      provider,
+      status: { $in: ['connected', 'needs_attention', 'testing'] },
+    };
+
+    let doc = preferredUserId
+      ? await UserIntegrationModel.findOne({ ...base, userId: preferredUserId }).sort({
+          isDefault: -1,
+          updatedAt: -1,
+        })
+      : null;
+    if (!doc) {
+      doc = await UserIntegrationModel.findOne(base).sort({ isDefault: -1, updatedAt: -1 });
+    }
+    if (!doc) {
+      throw new AppError(
+        404,
+        'ATS_NOT_CONNECTED',
+        `No connected ${provider} integration found. Connect it under Integrations → ATS.`
+      );
+    }
+    return doc;
+  },
+
+  async listAtsJobs(
+    organizationId: string,
+    userId: string,
+    providerRaw: string,
+    query: { page?: number; pageSize?: number; search?: string } = {}
+  ) {
+    const doc = await this.resolveAtsIntegration(organizationId, providerRaw, userId);
+    const adapter = getProviderAdapter(doc.provider);
+    if (!('listJobs' in adapter) || typeof adapter.listJobs !== 'function') {
+      throw new AppError(400, 'ATS_JOBS_UNSUPPORTED', 'This ATS provider cannot list jobs.');
+    }
+    const ctx = await buildProviderContext(doc);
+    try {
+      return await adapter.listJobs(ctx, query);
+    } catch (error) {
+      wrapProviderError(error);
+    }
+  },
+
+  async listAtsApplications(
+    organizationId: string,
+    userId: string,
+    providerRaw: string,
+    jobId: string,
+    query: { page?: number; pageSize?: number } = {}
+  ) {
+    const doc = await this.resolveAtsIntegration(organizationId, providerRaw, userId);
+    const adapter = getProviderAdapter(doc.provider);
+    if (!('listApplications' in adapter) || typeof adapter.listApplications !== 'function') {
+      throw new AppError(
+        400,
+        'ATS_APPLICATIONS_UNSUPPORTED',
+        'This ATS provider cannot list applications.'
+      );
+    }
+    const ctx = await buildProviderContext(doc);
+    try {
+      return await adapter.listApplications(ctx, { jobId, ...query });
+    } catch (error) {
+      wrapProviderError(error);
+    }
+  },
+
+  async importAtsApplications(
+    organizationId: string,
+    userId: string,
+    providerRaw: string,
+    input: { jobId: string; applicationIds: string[]; huntloJobId?: string | null }
+  ) {
+    const provider = assertProvider(providerRaw);
+    const doc = await this.resolveAtsIntegration(organizationId, provider, userId);
+    const adapter = getProviderAdapter(doc.provider);
+    if (!('listApplications' in adapter) || typeof adapter.listApplications !== 'function') {
+      throw new AppError(
+        400,
+        'ATS_APPLICATIONS_UNSUPPORTED',
+        'This ATS provider cannot list applications.'
+      );
+    }
+    const ctx = await buildProviderContext(doc);
+    const { atsImportService } = await import('./ats-import.service.js');
+    return atsImportService.importApplications({
+      organizationId,
+      userId,
+      provider,
+      jobId: input.jobId,
+      applicationIds: input.applicationIds,
+      huntloJobId: input.huntloJobId ?? null,
+      listApplications: (args) => adapter.listApplications!(ctx, args),
+    });
   },
 };

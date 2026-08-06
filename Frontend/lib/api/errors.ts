@@ -76,6 +76,12 @@ export function mapStatusToErrorCode(status: number, serverCode?: string): ApiEr
   if (serverCode === "VALIDATION_ERROR" || serverCode === "INVALID_SEARCH_PROMPT") {
     return "VALIDATION_ERROR";
   }
+  if (
+    serverCode === "RATE_LIMITED" ||
+    serverCode === "AUTH_OTP_RESEND_COOLDOWN"
+  ) {
+    return "RATE_LIMITED";
+  }
 
   switch (status) {
     case 401:
@@ -91,7 +97,9 @@ export function mapStatusToErrorCode(status: number, serverCode?: string): ApiEr
     case 402:
       return "QUOTA_EXCEEDED";
     case 429:
-      return "QUOTA_EXCEEDED";
+      return serverCode === "QUOTA_EXCEEDED" || serverCode === "SEARCH_QUOTA_EXHAUSTED"
+        ? "QUOTA_EXCEEDED"
+        : "RATE_LIMITED";
     case 500:
     case 502:
     case 503:
