@@ -73,6 +73,60 @@ export function createSmtpTransport(config: SmtpConfig) {
   });
 }
 
+/** Map nodemailer / server SMTP failures into clear UI-facing copy. */
+export function formatSmtpError(error: unknown): string {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Could not verify SMTP credentials. Check host, port, username, and password.';
+  const text = raw.replace(/\s+/g, ' ').trim();
+
+  if (
+    /smtpclientauthentication is disabled/i.test(text) ||
+    /smtp_auth_disabled/i.test(text) ||
+    /5\.7\.139/.test(text)
+  ) {
+    return [
+      'SMTP AUTH is disabled for this Microsoft mailbox.',
+      'A Microsoft 365 admin must enable Authenticated SMTP for this mailbox (or the organization).',
+      'Guide: https://aka.ms/smtp_auth_disabled',
+    ].join('\n');
+  }
+
+  if (/certificate|self[- ]signed|unable to verify the first certificate/i.test(text)) {
+    return [
+      'SMTP TLS certificate could not be verified.',
+      'Check the host name, or try SSL on port 465 if your provider requires it.',
+    ].join('\n');
+  }
+
+  if (/econnrefused|enotfound|getaddrinfo|etimedout|esocket|connection timed out/i.test(text)) {
+    return [
+      'Could not reach the SMTP server.',
+      'Check the host, port, and security settings (TLS 587 / SSL 465).',
+    ].join('\n');
+  }
+
+  if (
+    /invalid login|authentication (failed|unsuccessful)|username and password not accepted|535|534|5\.7\.8/i.test(
+      text
+    )
+  ) {
+    return [
+      'SMTP login failed.',
+      'Check username and password. For Microsoft or Google, use an app password if required, and confirm SMTP AUTH is enabled.',
+    ].join('\n');
+  }
+
+  if (/Invalid login:\s*/i.test(text)) {
+    return text.replace(/^Invalid login:\s*/i, 'SMTP login failed: ');
+  }
+
+  return text;
+}
+
 export async function verifySmtpCredentials(body: Record<string, unknown>): Promise<SmtpConfig> {
   const config = smtpConfigFromBody(body);
   assertSmtpConfig(config);
@@ -80,14 +134,7 @@ export async function verifySmtpCredentials(body: Record<string, unknown>): Prom
   try {
     await transport.verify();
   } catch (error) {
-    throw Object.assign(
-      new Error(
-        error instanceof Error
-          ? error.message
-          : 'Could not verify SMTP credentials. Check host, port, username, and password.'
-      ),
-      { statusCode: 400 }
-    );
+    throw Object.assign(new Error(formatSmtpError(error)), { statusCode: 400 });
   } finally {
     transport.close();
   }

@@ -11,7 +11,7 @@ import {
   Unplug,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Field, ToggleRow } from "@/components/outreach/builder-ui";
 import { Button } from "@/components/ui/button";
@@ -188,17 +188,126 @@ function ProviderCard({
 /* Config panels                                                        */
 /* ------------------------------------------------------------------ */
 
+type FlashTone = "success" | "error";
+
+/** Soften raw SMTP/provider failures for display (matches backend formatSmtpError). */
+function formatSmtpErrorMessage(raw: string): string {
+  const text = raw.replace(/\s+/g, " ").trim();
+  if (!text) return "Could not connect SMTP.";
+
+  if (
+    /smtpclientauthentication is disabled/i.test(text) ||
+    /smtp_auth_disabled/i.test(text) ||
+    /5\.7\.139/.test(text)
+  ) {
+    return [
+      "SMTP AUTH is disabled for this Microsoft mailbox.",
+      "A Microsoft 365 admin must enable Authenticated SMTP for this mailbox (or the organization).",
+      "Guide: https://aka.ms/smtp_auth_disabled",
+    ].join("\n");
+  }
+
+  if (/certificate|self[- ]signed|unable to verify the first certificate/i.test(text)) {
+    return [
+      "SMTP TLS certificate could not be verified.",
+      "Check the host name, or try SSL on port 465 if your provider requires it.",
+    ].join("\n");
+  }
+
+  if (/econnrefused|enotfound|getaddrinfo|etimedout|esocket|connection timed out/i.test(text)) {
+    return [
+      "Could not reach the SMTP server.",
+      "Check the host, port, and security settings (TLS 587 / SSL 465).",
+    ].join("\n");
+  }
+
+  if (
+    /invalid login|authentication (failed|unsuccessful)|username and password not accepted|535|534|5\.7\.8/i.test(
+      text
+    )
+  ) {
+    return [
+      "SMTP login failed.",
+      "Check username and password. For Microsoft or Google, use an app password if required, and confirm SMTP AUTH is enabled.",
+    ].join("\n");
+  }
+
+  return text;
+}
+
+function InlineAlert({
+  tone,
+  children,
+}: {
+  tone: FlashTone;
+  children: ReactNode;
+}) {
+  const lines =
+    typeof children === "string"
+      ? children
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+      : null;
+
+  return (
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className={cn(
+        "rounded-lg border px-3 py-2.5 text-sm break-words",
+        tone === "error"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : "border-success/30 bg-success/10 text-success"
+      )}
+    >
+      {lines && lines.length > 1 ? (
+        <div className="space-y-1">
+          <p className="font-medium leading-snug">{lines[0]}</p>
+          {lines.slice(1).map((line) => {
+            const guideMatch = line.match(/^Guide:\s*(https?:\/\/\S+)/i);
+            if (guideMatch) {
+              return (
+                <p key={line} className="text-[13px] leading-snug opacity-90">
+                  Guide:{" "}
+                  <a
+                    href={guideMatch[1]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    {guideMatch[1]}
+                  </a>
+                </p>
+              );
+            }
+            return (
+              <p key={line} className="text-[13px] leading-snug opacity-90">
+                {line}
+              </p>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="leading-snug whitespace-pre-wrap">{children}</p>
+      )}
+    </div>
+  );
+}
+
 function SmtpConfigPanel({
   providerId,
-  onSave,
+  onFeedback,
   onConnected,
 }: {
   providerId: string;
-  onSave: (message: string) => void;
+  onFeedback: (message: string, tone?: FlashTone) => void;
   onConnected: () => void;
 }) {
   const [form, setForm] = useState(SMTP_CONFIG_DEFAULTS);
   const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState<{ tone: FlashTone; text: string } | null>(
+    null
+  );
 
   return (
     <div className="space-y-3">
@@ -290,13 +399,14 @@ function SmtpConfigPanel({
           label="Password"
           htmlFor="smtp-pass"
           className="sm:col-span-2"
-          hint="Stored encrypted — leave blank to keep the existing password."
+          hint="Required to connect or update. Stored encrypted."
         >
           <Input
             id="smtp-pass"
             type="password"
             value={form.password}
             placeholder="••••••••"
+            autoComplete="new-password"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -330,6 +440,7 @@ function SmtpConfigPanel({
           />
         </Field>
       </div>
+      {alert ? <InlineAlert tone={alert.tone}>{alert.text}</InlineAlert> : null}
       <Button
         size="sm"
         className="w-full"
@@ -337,6 +448,7 @@ function SmtpConfigPanel({
         onClick={() => {
           void (async () => {
             setBusy(true);
+            setAlert(null);
             try {
               const security =
                 form.security === "SSL/TLS"
@@ -356,13 +468,21 @@ function SmtpConfigPanel({
                 imapPort: form.imapPort ? Number(form.imapPort) || 993 : undefined,
               });
               if (result.mode === "connected") {
-                onSave("SMTP connected.");
+                const text = "SMTP connected.";
+                setAlert({ tone: "success", text });
+                onFeedback(text, "success");
                 onConnected();
               } else {
-                onSave(result.message || "Could not connect SMTP.");
+                const text = formatSmtpErrorMessage(
+                  result.message || "Could not connect SMTP."
+                );
+                setAlert({ tone: "error", text });
+                onFeedback(text, "error");
               }
             } catch (error) {
-              onSave(getApiErrorMessage(error));
+              const text = formatSmtpErrorMessage(getApiErrorMessage(error));
+              setAlert({ tone: "error", text });
+              onFeedback(text, "error");
             } finally {
               setBusy(false);
             }
@@ -377,11 +497,11 @@ function SmtpConfigPanel({
 
 function WhatsAppConfigPanel({
   providerId,
-  onSave,
+  onFeedback,
   onConnected,
 }: {
   providerId: string;
-  onSave: (message: string) => void;
+  onFeedback: (message: string, tone?: FlashTone) => void;
   onConnected: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -540,17 +660,21 @@ function WhatsAppConfigPanel({
                   : { whatsappMode: "huntlo" };
               const result = await integrationsApi.connect(connectTarget, body);
               if (result.mode === "connected") {
-                onSave(
+                onFeedback(
                   mode === "huntlo"
                     ? "Huntlo WhatsApp connected (default)."
-                    : "WhatsApp connected."
+                    : "WhatsApp connected.",
+                  "success"
                 );
                 onConnected();
               } else {
-                onSave(result.message || "Could not connect WhatsApp.");
+                onFeedback(
+                  result.message || "Could not connect WhatsApp.",
+                  "error"
+                );
               }
             } catch (error) {
-              onSave(getApiErrorMessage(error));
+              onFeedback(getApiErrorMessage(error), "error");
             } finally {
               setBusy(false);
             }
@@ -568,10 +692,10 @@ function WhatsAppConfigPanel({
 }
 
 function CalendlyConfigPanel({
-  onSave,
+  onFeedback,
   onConnected,
 }: {
-  onSave: (message: string) => void;
+  onFeedback: (message: string, tone?: FlashTone) => void;
   onConnected: () => void;
 }) {
   const [token, setToken] = useState("");
@@ -616,13 +740,16 @@ function CalendlyConfigPanel({
                 personalAccessToken: token.trim(),
               });
               if (result.mode === "connected") {
-                onSave("Calendly connected.");
+                onFeedback("Calendly connected.", "success");
                 onConnected();
               } else {
-                onSave(result.message || "Could not connect Calendly.");
+                onFeedback(
+                  result.message || "Could not connect Calendly.",
+                  "error"
+                );
               }
             } catch (error) {
-              onSave(getApiErrorMessage(error));
+              onFeedback(getApiErrorMessage(error), "error");
             } finally {
               setBusy(false);
             }
@@ -726,13 +853,17 @@ function ConnectionDrawer({
   provider: IntegrationProvider | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onFlash: (message: string) => void;
+  onFlash: (message: string, tone?: FlashTone) => void;
   onRefresh: () => void;
 }) {
   const [testState, setTestState] = useState<TestState>("idle");
   const [testMessage, setTestMessage] = useState("");
   const [showConfig, setShowConfig] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [drawerAlert, setDrawerAlert] = useState<{
+    tone: FlashTone;
+    text: string;
+  } | null>(null);
 
   if (!provider) return null;
 
@@ -743,22 +874,32 @@ function ConnectionDrawer({
       provider.status === "Expired" ||
       provider.status === "Disabled");
 
+  function notify(text: string, tone: FlashTone = "success") {
+    setDrawerAlert({ tone, text });
+    onFlash(text, tone);
+  }
+
   async function runTest() {
     if (!provider?.integrationRecordId) return;
     setTestState("testing");
     try {
       const result = await integrationsApi.test(provider.integrationRecordId);
       setTestState(result.ok ? "success" : "error");
-      setTestMessage(result.message);
+      setTestMessage(
+        result.ok
+          ? result.message
+          : formatSmtpErrorMessage(result.message || "Test failed.")
+      );
       onRefresh();
     } catch (error) {
       setTestState("error");
-      setTestMessage(getApiErrorMessage(error));
+      setTestMessage(formatSmtpErrorMessage(getApiErrorMessage(error)));
     }
   }
 
   async function handleConnect(body: Record<string, unknown> = {}) {
     setBusy(true);
+    setDrawerAlert(null);
     try {
       const result = await integrationsApi.connect(provider!.id, body);
       if (result.mode === "oauth_redirect" && result.authorizeUrl) {
@@ -766,22 +907,24 @@ function ConnectionDrawer({
         return;
       }
       if (result.mode === "connected") {
-        onFlash(`${provider!.name} connected.`);
+        notify(`${provider!.name} connected.`, "success");
         onRefresh();
       } else if (provider!.id === "gmail") {
-        onFlash(
+        notify(
           result.message ||
-            "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the backend."
+            "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the backend.",
+          "error"
         );
       } else {
-        onFlash(
+        notify(
           result.message ||
-            `Open configuration to finish connecting ${provider!.name}.`
+            `Open configuration to finish connecting ${provider!.name}.`,
+          "error"
         );
         setShowConfig(true);
       }
     } catch (error) {
-      onFlash(getApiErrorMessage(error));
+      notify(getApiErrorMessage(error), "error");
     } finally {
       setBusy(false);
     }
@@ -805,7 +948,7 @@ function ConnectionDrawer({
     } else {
       await integrationsApi.disconnect(provider.integrationRecordId);
     }
-    onFlash(`Disconnected ${provider!.name}.`);
+    notify(`Disconnected ${provider!.name}.`, "success");
     onRefresh();
   }
 
@@ -817,6 +960,7 @@ function ConnectionDrawer({
           setTestState("idle");
           setTestMessage("");
           setShowConfig(true);
+          setDrawerAlert(null);
         }
         onOpenChange(next);
       }}
@@ -844,6 +988,10 @@ function ConnectionDrawer({
         </SheetHeader>
 
         <div className="space-y-5 px-4 pb-6">
+          {drawerAlert ? (
+            <InlineAlert tone={drawerAlert.tone}>{drawerAlert.text}</InlineAlert>
+          ) : null}
+
           {provider.status === "Needs Attention" || provider.status === "Expired" ? (
             <div
               role="alert"
@@ -903,10 +1051,11 @@ function ConnectionDrawer({
                 </p>
               ) : null}
               {testState === "error" ? (
-                <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
-                  <AlertTriangle aria-hidden className="size-3.5" />
-                  {testMessage || "Test failed — reconnect to renew credentials."}
-                </p>
+                <div className="mt-2">
+                  <InlineAlert tone="error">
+                    {testMessage || "Test failed — reconnect to renew credentials."}
+                  </InlineAlert>
+                </div>
               ) : null}
             </div>
           ) : null}
@@ -924,7 +1073,7 @@ function ConnectionDrawer({
                     clientId={gmailClientId}
                     busy={busy}
                     onCode={(code) => void handleGmailCode(code)}
-                    onError={(message) => onFlash(message)}
+                    onError={(message) => notify(message, "error")}
                   />
                 ) : (
                   <Button
@@ -945,7 +1094,7 @@ function ConnectionDrawer({
                       busy={busy}
                       reconnect
                       onCode={(code) => void handleGmailCode(code)}
-                      onError={(message) => onFlash(message)}
+                      onError={(message) => notify(message, "error")}
                     />
                   ) : usesConfigConnect ? (
                     <Button
@@ -976,7 +1125,7 @@ function ConnectionDrawer({
                     disabled={busy}
                     onClick={() => {
                       void handleDisconnect().catch((error) =>
-                        onFlash(getApiErrorMessage(error))
+                        notify(getApiErrorMessage(error), "error")
                       );
                     }}
                   >
@@ -1015,19 +1164,22 @@ function ConnectionDrawer({
                 provider.configKind === "smtp" ? (
                   <SmtpConfigPanel
                     providerId={provider.id}
-                    onSave={onFlash}
+                    onFeedback={notify}
                     onConnected={onRefresh}
                   />
                 ) : provider.configKind === "whatsapp" ? (
                   <WhatsAppConfigPanel
                     providerId={provider.id}
-                    onSave={onFlash}
+                    onFeedback={notify}
                     onConnected={onRefresh}
                   />
                 ) : provider.configKind === "zwayam" ? (
                   <ZwayamConfigPanel onSave={onFlash} onConnected={onRefresh} />
                 ) : (
-                  <CalendlyConfigPanel onSave={onFlash} onConnected={onRefresh} />
+                  <CalendlyConfigPanel
+                    onFeedback={notify}
+                    onConnected={onRefresh}
+                  />
                 )
               ) : null}
             </div>
@@ -1046,7 +1198,10 @@ export function IntegrationsWorkspace() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<IntegrationProvider | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{
+    text: string;
+    tone: FlashTone;
+  } | null>(null);
 
   async function refresh() {
     try {
@@ -1056,7 +1211,7 @@ export function IntegrationsWorkspace() {
         current ? next.find((item) => item.id === current.id) || current : null
       );
     } catch (error) {
-      setMessage(getApiErrorMessage(error));
+      setMessage({ text: getApiErrorMessage(error), tone: "error" });
     } finally {
       setLoading(false);
     }
@@ -1093,9 +1248,10 @@ export function IntegrationsWorkspace() {
     return { connected, attention, total: providers.length };
   }, [providers]);
 
-  function flash(text: string) {
-    setMessage(text);
-    window.setTimeout(() => setMessage(null), 2400);
+  function flash(text: string, tone: FlashTone = "success") {
+    setMessage({ text, tone });
+    const errorHoldMs = Math.min(14_000, 5_000 + text.length * 25);
+    window.setTimeout(() => setMessage(null), tone === "error" ? errorHoldMs : 2800);
   }
 
   function openProvider(provider: IntegrationProvider) {
@@ -1175,14 +1331,7 @@ export function IntegrationsWorkspace() {
         <p className="text-sm text-muted-foreground">Loading integrations…</p>
       ) : null}
 
-      {message ? (
-        <p
-          role="status"
-          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
-        >
-          {message}
-        </p>
-      ) : null}
+      {message ? <InlineAlert tone={message.tone}>{message.text}</InlineAlert> : null}
 
       {grouped.map(({ category: cat, providers: groupProviders }) =>
         groupProviders.length > 0 ? (
