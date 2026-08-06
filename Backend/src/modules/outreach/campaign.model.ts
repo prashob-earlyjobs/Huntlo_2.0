@@ -102,7 +102,7 @@ export type CampaignSequenceStep = {
 };
 
 export type CampaignCandidateSource = {
-  type: 'candidate_pool' | 'saved_list' | 'manual' | 'job' | 'import';
+  type: 'candidate_pool' | 'saved_list' | 'manual' | 'job' | 'import' | 'ats';
   listId: string | null;
   jobId: string | null;
   candidateIds: string[];
@@ -300,7 +300,7 @@ const outreachCampaignSchema = new Schema<OutreachCampaignDocument>(
         {
           type: {
             type: String,
-            enum: ['candidate_pool', 'saved_list', 'manual', 'job', 'import'],
+            enum: ['candidate_pool', 'saved_list', 'manual', 'job', 'import', 'ats'],
             default: 'manual',
           },
           listId: { type: String, default: null },

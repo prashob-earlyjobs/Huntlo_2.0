@@ -171,6 +171,17 @@ export type EmailTemplate = {
   updatedAt?: string;
 };
 
+export type WhatsAppTemplate = {
+  id: string;
+  key: string;
+  name: string;
+  metaTemplateName?: string | null;
+  bodyText: string;
+  enabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type AdminPendingTask = {
   id: string;
   queue: "background" | "outreach" | "campaign";
@@ -503,6 +514,29 @@ export interface AdminApi {
     id: string,
     input: { to: string; firstName?: string }
   ): Promise<{ sent: boolean; to: string; subject: string; mailConfigured: boolean }>;
+  listWhatsAppTemplates(): Promise<{ items: WhatsAppTemplate[] }>;
+  createWhatsAppTemplate(input: {
+    name: string;
+    bodyText?: string;
+    enabled?: boolean;
+  }): Promise<WhatsAppTemplate>;
+  updateWhatsAppTemplate(
+    id: string,
+    input: Record<string, unknown>
+  ): Promise<WhatsAppTemplate>;
+  deleteWhatsAppTemplate(id: string): Promise<{ deleted: boolean }>;
+  sendWhatsAppTemplateTest(
+    id: string,
+    input: { to: string; firstName?: string }
+  ): Promise<{
+    sent: boolean;
+    to: string;
+    metaTemplateName: string | null;
+    whatsappConfigured: boolean;
+    previewBody: string;
+    buttonLabel: string | null;
+    buttonUrl: string;
+  }>;
 }
 
 const liveAdminApi: AdminApi = {
@@ -774,7 +808,47 @@ const liveAdminApi: AdminApi = {
     }>(`/admin/email-templates/${id}/send-test`, input);
     return result.data;
   },
+  async listWhatsAppTemplates() {
+    const result = await apiClient.get<{ items: WhatsAppTemplate[] }>(
+      "/admin/whatsapp-templates"
+    );
+    return result.data;
+  },
+  async createWhatsAppTemplate(input) {
+    const result = await apiClient.post<WhatsAppTemplate>(
+      "/admin/whatsapp-templates",
+      input
+    );
+    return result.data;
+  },
+  async updateWhatsAppTemplate(id, input) {
+    const result = await apiClient.patch<WhatsAppTemplate>(
+      `/admin/whatsapp-templates/${id}`,
+      input
+    );
+    return result.data;
+  },
+  async deleteWhatsAppTemplate(id) {
+    const result = await apiClient.delete<{ deleted: boolean }>(
+      `/admin/whatsapp-templates/${id}`
+    );
+    return result.data;
+  },
+  async sendWhatsAppTemplateTest(id, input) {
+    const result = await apiClient.post<{
+      sent: boolean;
+      to: string;
+      metaTemplateName: string | null;
+      whatsappConfigured: boolean;
+      previewBody: string;
+      buttonLabel: string | null;
+      buttonUrl: string;
+    }>(`/admin/whatsapp-templates/${id}/send-test`, input);
+    return result.data;
+  },
 };
+
+let mockWhatsAppTemplates: WhatsAppTemplate[] = [];
 
 const mockAdminApi: AdminApi = {
   async getDashboard() {
@@ -1649,6 +1723,59 @@ const mockAdminApi: AdminApi = {
       to: input.to,
       subject: "Mock test email",
       mailConfigured: true,
+    };
+  },
+  async listWhatsAppTemplates() {
+    await simulateMockLatency();
+    return { items: [...mockWhatsAppTemplates] };
+  },
+  async createWhatsAppTemplate(input) {
+    await simulateMockLatency();
+    const created: WhatsAppTemplate = {
+      id: `wa-mock-${Date.now()}`,
+      key: `wa.${input.name.toLowerCase().replace(/\s+/g, "_").slice(0, 40)}`,
+      name: input.name,
+      bodyText: input.bodyText ?? "",
+      enabled: input.enabled !== undefined ? Boolean(input.enabled) : true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    mockWhatsAppTemplates = [created, ...mockWhatsAppTemplates];
+    return created;
+  },
+  async updateWhatsAppTemplate(id, input) {
+    await simulateMockLatency();
+    const index = mockWhatsAppTemplates.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error("WhatsApp template not found");
+    const existing = mockWhatsAppTemplates[index];
+    const updated: WhatsAppTemplate = {
+      ...existing,
+      name: String(input.name ?? existing.name),
+      bodyText: String(input.bodyText ?? existing.bodyText),
+      enabled:
+        input.enabled !== undefined ? Boolean(input.enabled) : existing.enabled,
+      updatedAt: new Date().toISOString(),
+    };
+    mockWhatsAppTemplates = mockWhatsAppTemplates.map((item) =>
+      item.id === id ? updated : item
+    );
+    return updated;
+  },
+  async deleteWhatsAppTemplate(id) {
+    await simulateMockLatency();
+    mockWhatsAppTemplates = mockWhatsAppTemplates.filter((item) => item.id !== id);
+    return { deleted: true };
+  },
+  async sendWhatsAppTemplateTest(_id, input) {
+    await simulateMockLatency();
+    return {
+      sent: true,
+      to: input.to,
+      metaTemplateName: "welcome_signup",
+      whatsappConfigured: true,
+      previewBody: `Hi ${input.firstName || "Alex"},\nWelcome to Huntlo\nYour 7-day trial is now active.\nLet's help you find your first candidate today.`,
+      buttonLabel: "Start Here",
+      buttonUrl: "https://example.com/login",
     };
   },
 };

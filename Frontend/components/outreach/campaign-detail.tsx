@@ -1666,8 +1666,8 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="sequence">Sequence</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+            {/* <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger> */}
           </TabsList>
         </div>
 
@@ -1714,7 +1714,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         <TabsContent value="analytics" className="pt-3">
           <AnalyticsTab campaign={campaign} />
         </TabsContent>
-        <TabsContent value="activity" className="pt-3">
+        {/* <TabsContent value="activity" className="pt-3">
           <ActivityTab
             activity={activity}
             state={activityState}
@@ -1729,7 +1729,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             message={rawMessage}
             onRetry={() => setReloadKey((k) => k + 1)}
           />
-        </TabsContent>
+        </TabsContent> */}
       </Tabs>
 
       <LaunchUnlockDialog

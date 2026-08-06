@@ -57,7 +57,8 @@ export type CandidateSource =
   | "People Scout"
   | "Import"
   | "Referral"
-  | "Manual";
+  | "Manual"
+  | "ATS";
 
 export interface OutreachHistoryEntry {
   id: string;
@@ -414,6 +415,7 @@ export const POOL_SOURCES: CandidateSource[] = [
   "Import",
   "Referral",
   "Manual",
+  "ATS",
 ];
 
 export const POOL_LOCATIONS = [

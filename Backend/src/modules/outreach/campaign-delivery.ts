@@ -31,6 +31,7 @@ import { quotaService } from '../../shared/usage/index.js';
 import { normalizePhone } from '../../shared/validation/phone.js';
 import {
   buildJdVoiceTokens,
+  isIndianE164,
   launchBulkVoiceCalls,
   normalizeVoiceRetryConfig,
   resolveIntroduction,
@@ -751,55 +752,61 @@ async function launchVoiceCall(input: {
 
   // Parallel enrollment jobs all load a stale campaign without agentId and race
   // on Hunar create (500). Ensure agent once under a per-campaign lock, then dial.
-  const agentId = await withCampaignVoiceAgentLock(campaignId, async () => {
-    const fresh = await OutreachCampaignModel.findById(campaignId)
-      .select('voiceAgentConfig')
-      .lean();
-    const existingAgentId =
-      typeof fresh?.voiceAgentConfig?.agentId === 'string'
-        ? String(fresh.voiceAgentConfig.agentId).trim()
-        : typeof input.campaign.voiceAgentConfig?.agentId === 'string'
-          ? String(input.campaign.voiceAgentConfig.agentId).trim()
-          : '';
+  // Non-Indian numbers use Zyastra and do not need a Hunar agent.
+  const needsHunar = isIndianE164(input.phone);
+  let agentId: string | null = null;
 
-    if (existingAgentId) {
-      if (!input.campaign.voiceAgentConfig) input.campaign.voiceAgentConfig = {};
-      input.campaign.voiceAgentConfig.agentId = existingAgentId;
-      return existingAgentId;
-    }
+  if (needsHunar) {
+    agentId = await withCampaignVoiceAgentLock(campaignId, async () => {
+      const fresh = await OutreachCampaignModel.findById(campaignId)
+        .select('voiceAgentConfig')
+        .lean();
+      const existingAgentId =
+        typeof fresh?.voiceAgentConfig?.agentId === 'string'
+          ? String(fresh.voiceAgentConfig.agentId).trim()
+          : typeof input.campaign.voiceAgentConfig?.agentId === 'string'
+            ? String(input.campaign.voiceAgentConfig.agentId).trim()
+            : '';
 
-    const synced = await syncVoiceAgent({
-      name: `${input.campaign.name} · voice`.slice(0, 80),
-      agentPrompt,
-      objective,
-      introduction,
-      resultPrompt: qualificationExtras.resultPrompt,
-      resultSchema: qualificationExtras.resultSchema,
-      voicePersona: getHunarVoicePersona(),
-      language: getHunarVoiceLanguage(),
-      existingAgentId: null,
+      if (existingAgentId) {
+        if (!input.campaign.voiceAgentConfig) input.campaign.voiceAgentConfig = {};
+        input.campaign.voiceAgentConfig.agentId = existingAgentId;
+        return existingAgentId;
+      }
+
+      const synced = await syncVoiceAgent({
+        name: `${input.campaign.name} · voice`.slice(0, 80),
+        agentPrompt,
+        objective,
+        introduction,
+        resultPrompt: qualificationExtras.resultPrompt,
+        resultSchema: qualificationExtras.resultSchema,
+        voicePersona: getHunarVoicePersona(),
+        language: getHunarVoiceLanguage(),
+        existingAgentId: null,
+      });
+
+      const nextConfig = {
+        ...(typeof fresh?.voiceAgentConfig === 'object' && fresh.voiceAgentConfig
+          ? fresh.voiceAgentConfig
+          : {}),
+        ...(input.campaign.voiceAgentConfig || {}),
+        agentId: synced.agentId,
+        objective,
+        introduction,
+        agentPrompt,
+        resultPrompt: qualificationExtras.resultPrompt,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await OutreachCampaignModel.updateOne(
+        { _id: campaignId },
+        { $set: { voiceAgentConfig: nextConfig } }
+      );
+      input.campaign.voiceAgentConfig = nextConfig;
+      return synced.agentId;
     });
-
-    const nextConfig = {
-      ...(typeof fresh?.voiceAgentConfig === 'object' && fresh.voiceAgentConfig
-        ? fresh.voiceAgentConfig
-        : {}),
-      ...(input.campaign.voiceAgentConfig || {}),
-      agentId: synced.agentId,
-      objective,
-      introduction,
-      agentPrompt,
-      resultPrompt: qualificationExtras.resultPrompt,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await OutreachCampaignModel.updateOne(
-      { _id: campaignId },
-      { $set: { voiceAgentConfig: nextConfig } }
-    );
-    input.campaign.voiceAgentConfig = nextConfig;
-    return synced.agentId;
-  });
+  }
 
   const retry = normalizeVoiceRetryConfig(
     (input.campaign.voiceAgentConfig?.retry as {
@@ -827,9 +834,16 @@ async function launchVoiceCall(input: {
       },
     ],
     retryConfig: retry,
+    agentPrompt,
+    firstMessage: introduction || undefined,
+    preferredLanguage: needsHunar ? undefined : 'en-US',
   });
 
-  return { messageId: launched.requestId, provider: 'hunar', script: agentPrompt };
+  return {
+    messageId: launched.requestId,
+    provider: launched.zyastraDialed > 0 && launched.hunarDialed === 0 ? 'zyastra' : 'hunar',
+    script: agentPrompt,
+  };
 }
 
 /**

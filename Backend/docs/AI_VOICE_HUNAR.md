@@ -31,7 +31,14 @@ Legacy aliases also accepted:
 
 Sequence `ai_voice` steps reuse the same dialer (pending VoiceCall stubs + webhooks).
 
-Screening launch remains on `POST /api/v1/screenings/:id/launch` and uses the same Hunar client + webhook stack.
+Screening launch remains on `POST /api/v1/screenings/:id/launch` and uses the same Hunar client + webhook stack for **Indian (+91)** numbers. Non-Indian numbers dial via Zyastra — see [AI_VOICE_ZYASTRA.md](./AI_VOICE_ZYASTRA.md).
+
+## Routing
+
+| Phone | Provider |
+|-------|----------|
+| `+91…` | Hunar |
+| Other E.164 | [Zyastra](./AI_VOICE_ZYASTRA.md) |
 
 ## Agent prompt (Roshni)
 

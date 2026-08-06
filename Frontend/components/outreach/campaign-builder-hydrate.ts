@@ -33,6 +33,7 @@ const SOURCE_FROM_API: Record<string, AudienceSource> = {
   candidate_pool: "Candidate Pool",
   saved_list: "Saved List",
   import: "CSV/Excel Import",
+  ats: "Import from ATS",
   manual: "Manual Add",
   job: "Candidate Pool",
 };

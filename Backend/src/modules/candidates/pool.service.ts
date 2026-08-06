@@ -65,6 +65,7 @@ const SOURCE_LABEL: Record<PoolSourceType, string> = {
   import: 'Import',
   referral: 'Referral',
   manual: 'Manual',
+  ats: 'ATS',
 };
 
 export function statusToPipelineStatus(status: string): string {

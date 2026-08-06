@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
+import { AtsAudiencePicker } from "@/components/outreach/ats-audience-picker";
 import {
   ErrorList,
   Field,
@@ -55,6 +56,7 @@ import {
 import {
   candidatePoolApi,
   getApiErrorMessage,
+  integrationsApi,
   jobsApi,
   schedulingApi,
   templatesApi,
@@ -87,7 +89,7 @@ type FlowJob = {
   location: string;
 };
 
-type CandidateSource = "pool" | "list" | "csv" | "manual";
+type CandidateSource = "pool" | "list" | "csv" | "manual" | "ats";
 
 interface FlowState {
   candidateIds: string[];
@@ -601,16 +603,13 @@ const CANDIDATE_SOURCES: Array<{
     description: "Create candidates and select them",
     icon: UserPlus,
   },
-];
-
-const DISABLED_CANDIDATE_SOURCES = [
   {
     id: "ats",
     label: "Import from ATS",
-    description: "Pull candidates from your ATS. Coming soon.",
+    description: "Pull applicants from a connected ATS",
     icon: Plug,
   },
-] as const;
+];
 
 function cleanField(value: string | null | undefined): string {
   const trimmed = String(value || "").trim();
@@ -739,6 +738,8 @@ export function ScheduleInterviewFlow({
     phone: "",
   });
   const [candidateQuery, setCandidateQuery] = useState("");
+  const [atsConnected, setAtsConnected] = useState(false);
+  const [atsSourceDetail, setAtsSourceDetail] = useState("");
   const [jobs, setJobs] = useState<FlowJob[]>([]);
   const [eventTypes, setEventTypes] = useState<CalendlyEventType[]>([]);
   const [messageTemplates, setMessageTemplates] = useState<OutreachTemplate[]>(
@@ -802,6 +803,22 @@ export function ScheduleInterviewFlow({
       });
     }
   }, [open, user?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void integrationsApi
+      .listAtsProviders()
+      .then((rows) => {
+        if (!cancelled) setAtsConnected(rows.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setAtsConnected(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -1363,64 +1380,47 @@ export function ScheduleInterviewFlow({
                     {CANDIDATE_SOURCES.map((source) => {
                       const Icon = source.icon;
                       const active = candidateSource === source.id;
+                      const atsLocked = source.id === "ats" && !atsConnected;
                       return (
                         <button
                           key={source.id}
                           type="button"
                           aria-pressed={active}
+                          disabled={atsLocked}
+                          aria-disabled={atsLocked ? "true" : undefined}
                           onClick={() => {
+                            if (atsLocked) return;
                             setCandidateSource(source.id);
                             setCandidateError(null);
                             setCandidateQuery("");
                             clearCandidateSelection();
+                            if (source.id !== "ats") setAtsSourceDetail("");
                           }}
                           className={cn(
                             "rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                            active
-                              ? "border-primary/50 bg-brand-subtle/40"
-                              : "border-border hover:bg-muted/40"
+                            atsLocked
+                              ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
+                              : active
+                                ? "border-primary/50 bg-brand-subtle/40"
+                                : "border-border hover:bg-muted/40"
                           )}
                         >
                           <Icon
                             aria-hidden
                             className={cn(
                               "mb-2 size-4",
-                              active ? "text-primary" : "text-muted-foreground"
+                              active && !atsLocked
+                                ? "text-primary"
+                                : "text-muted-foreground"
                             )}
                           />
                           <span className="block text-sm font-medium text-foreground">
                             {source.label}
                           </span>
                           <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {source.description}
-                          </span>
-                        </button>
-                      );
-                    })}
-                    {DISABLED_CANDIDATE_SOURCES.map((source) => {
-                      const Icon = source.icon;
-                      return (
-                        <button
-                          key={source.id}
-                          type="button"
-                          disabled
-                          aria-disabled="true"
-                          className="flex cursor-not-allowed flex-col rounded-lg border border-border bg-muted/30 p-3 text-left opacity-60"
-                        >
-                          <span className="mb-2 flex items-center justify-between gap-2">
-                            <Icon
-                              aria-hidden
-                              className="size-4 text-muted-foreground"
-                            />
-                            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                              Soon
-                            </span>
-                          </span>
-                          <span className="block text-sm font-medium text-foreground">
-                            {source.label}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {source.description}
+                            {atsLocked
+                              ? "Connect an ATS in Integrations"
+                              : source.description}
                           </span>
                         </button>
                       );
@@ -1526,6 +1526,48 @@ export function ScheduleInterviewFlow({
                         </Button>
                       </div>
                     </div>
+                  ) : null}
+
+                  {candidateSource === "ats" ? (
+                    <AtsAudiencePicker
+                      sourceDetail={atsSourceDetail}
+                      selectedCandidateIds={state.candidateIds}
+                      huntloJobId={state.jobId}
+                      onSourceDetailChange={setAtsSourceDetail}
+                      onSelectedIdsChange={(ids) => {
+                        update("candidateIds", ids);
+                      }}
+                      onImported={(result) => {
+                        void (async () => {
+                          const rows = await Promise.all(
+                            result.candidateIds.map((id) =>
+                              candidatePoolApi.getById(id).catch(() => null)
+                            )
+                          );
+                          const mapped = rows
+                            .filter(Boolean)
+                            .map((row) =>
+                              toFlowCandidate({
+                                id: row!.id,
+                                name: row!.name,
+                                currentRole: row!.currentRole || undefined,
+                                headline: row!.headline || undefined,
+                                currentCompany: row!.currentCompany || undefined,
+                                email: row!.email,
+                                phone: row!.phone,
+                              })
+                            );
+                          if (mapped.length === 0) return;
+                          setCandidates((previous) => {
+                            const merged = new Map(
+                              previous.map((row) => [row.id, row])
+                            );
+                            mapped.forEach((row) => merged.set(row.id, row));
+                            return Array.from(merged.values());
+                          });
+                        })();
+                      }}
+                    />
                   ) : null}
 
                   {candidateError ? (

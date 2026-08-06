@@ -762,6 +762,85 @@ function CalendlyConfigPanel({
   );
 }
 
+function ZwayamConfigPanel({
+  onSave,
+  onConnected,
+}: {
+  onSave: (message: string) => void;
+  onConnected: () => void;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-foreground">
+        Zwayam Amplify configuration
+      </h3>
+      <Field label="API key" htmlFor="zwayam-api-key">
+        <Input
+          id="zwayam-api-key"
+          type="password"
+          autoComplete="new-password"
+          value={apiKey}
+          onChange={(event) => setApiKey(event.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Get your Amplify API key from your Naukri account manager or{" "}
+          <a
+            href="https://developers.zwayam.com/amplify/zwayam-amplify"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Zwayam Amplify docs
+            <ExternalLink aria-hidden className="size-3" />
+            <span className="sr-only">(opens in a new tab)</span>
+          </a>
+          . Contact amplify@zwayam.com if you need a key.
+        </p>
+      </Field>
+      <Field label="Display name (optional)" htmlFor="zwayam-label">
+        <Input
+          id="zwayam-label"
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          placeholder="Zwayam Amplify"
+        />
+      </Field>
+      <Button
+        size="sm"
+        className="w-full"
+        disabled={busy || !apiKey.trim()}
+        onClick={() => {
+          void (async () => {
+            setBusy(true);
+            try {
+              const result = await integrationsApi.connect("zwayam-amplify", {
+                apiKey: apiKey.trim(),
+                displayName: displayName.trim() || undefined,
+              });
+              if (result.mode === "connected") {
+                onSave("Zwayam Amplify connected.");
+                onConnected();
+              } else {
+                onSave(result.message || "Could not connect Zwayam Amplify.");
+              }
+            } catch (error) {
+              onSave(getApiErrorMessage(error));
+            } finally {
+              setBusy(false);
+            }
+          })();
+        }}
+      >
+        {busy ? "Connecting…" : "Connect Zwayam Amplify"}
+      </Button>
+    </div>
+  );
+}
+
 type TestState = "idle" | "testing" | "success" | "error";
 
 function ConnectionDrawer({
@@ -860,7 +939,8 @@ function ConnectionDrawer({
   const usesConfigConnect =
     provider.configKind === "smtp" ||
     provider.configKind === "whatsapp" ||
-    provider.configKind === "calendly";
+    provider.configKind === "calendly" ||
+    provider.configKind === "zwayam";
 
   async function handleDisconnect() {
     if (!provider?.integrationRecordId) {
@@ -1067,7 +1147,8 @@ function ConnectionDrawer({
 
           {provider.configKind === "smtp" ||
           provider.configKind === "whatsapp" ||
-          provider.configKind === "calendly" ? (
+          provider.configKind === "calendly" ||
+          provider.configKind === "zwayam" ? (
             <div className="border-t border-border pt-4">
               <button
                 type="button"
@@ -1092,6 +1173,8 @@ function ConnectionDrawer({
                     onFeedback={notify}
                     onConnected={onRefresh}
                   />
+                ) : provider.configKind === "zwayam" ? (
+                  <ZwayamConfigPanel onSave={onFlash} onConnected={onRefresh} />
                 ) : (
                   <CalendlyConfigPanel
                     onFeedback={notify}

@@ -37,8 +37,8 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
         router.replace("/onboarding");
         return;
       }
-      if (destination === "/admin/dashboard" && !pathname.startsWith("/admin")) {
-        router.replace("/admin/dashboard");
+      if (destination === "/admin" && !pathname.startsWith("/admin")) {
+        router.replace("/admin");
       }
     }
   }, [sessionState, user, pathname, router, isMockMode]);

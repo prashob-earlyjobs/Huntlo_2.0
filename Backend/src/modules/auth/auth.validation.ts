@@ -45,6 +45,11 @@ export const registerSchema = z
     companyName: z.string().trim().min(1).max(120).optional(),
     organizationName: z.string().trim().min(1).max(120).optional(),
     mobile: z.string().trim().min(1).max(30).optional(),
+    otp: z
+      .string()
+      .trim()
+      .regex(/^\d{5}$/, 'OTP must be a 5-digit code')
+      .optional(),
     attribution: z
       .object({
         sessionId: z.string().trim().max(120).nullish(),
@@ -131,6 +136,20 @@ export const resetPasswordSchema = z.object({
 
 export const verifyEmailSchema = z.object({
   token: z.string().min(10),
+});
+
+export const sendSignupOtpSchema = z.object({
+  email: z
+    .string()
+    .email()
+    .superRefine((value, ctx) => {
+      if (!isWorkEmail(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Use a work email address. Personal email providers are not allowed.',
+        });
+      }
+    }),
 });
 
 export const updateMeSchema = z.object({
@@ -229,6 +248,7 @@ export type NormalizedRegisterInput = {
   lastName: string;
   companyName: string;
   mobile: string | null;
+  otp: string | null;
   attribution: {
     sessionId: string | null;
     visitorId: string | null;
@@ -293,6 +313,7 @@ export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): N
     lastName,
     companyName,
     mobile,
+    otp: input.otp?.trim() || null,
     attribution,
   };
 }

@@ -9,6 +9,8 @@ export {
   resolveVoiceTokens,
   sanitizeHunarPromptText,
   toHunarMobile,
+  isIndianE164,
+  partitionVoiceContacts,
   defaultResultPrompt,
   defaultResultSchema,
 } from './voice-dialer.service.js';
@@ -33,10 +35,15 @@ export {
 } from './roshni-prompt.js';
 export { processCampaignVoiceWebhook } from './voice-webhook.service.js';
 export {
+  processZyastraVoiceWebhook,
+  zyastraToHunarWebhookBodies,
+} from './zyastra-voice-webhook.service.js';
+export {
   applyVoiceResultToQualificationState,
   extendResultSchemaForQualificationQuestions,
   qualificationAnswerKey,
 } from './voice-qualification-sync.js';
 export { hunarVoiceWebhookRouter } from './hunar-voice-webhook.routes.js';
+export { zyastraVoiceWebhookRouter } from './zyastra-voice-webhook.routes.js';
 export { voiceRoutes } from './voice.routes.js';
 export { voiceDefaultsRouter } from './voice-defaults.routes.js';
