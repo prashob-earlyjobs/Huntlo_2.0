@@ -3,3 +3,8 @@ export { adminPlansRouter } from './admin-plans.routes.js';
 export { plansService } from './plans.service.js';
 export { PricingPlanModel } from './pricing-plan.model.js';
 export { WorkspaceSubscriptionModel } from './subscription.model.js';
+export {
+  assertTrialNotExpired,
+  getWorkspaceSubscriptionAccess,
+  syncExpiredTrialSubscription,
+} from './trial-access.js';

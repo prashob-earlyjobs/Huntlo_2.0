@@ -80,7 +80,7 @@ const channelConfigSchema = z.object({
 });
 
 const candidateSourceSchema = z.object({
-  type: z.enum(['candidate_pool', 'saved_list', 'manual', 'job', 'import']).optional(),
+  type: z.enum(['candidate_pool', 'saved_list', 'manual', 'job', 'import', 'ats']).optional(),
   listId: z.string().nullable().optional(),
   jobId: z.string().nullable().optional(),
   candidateIds: z.array(objectId).optional(),

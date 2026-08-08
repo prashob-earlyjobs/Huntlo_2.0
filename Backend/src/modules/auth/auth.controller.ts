@@ -19,11 +19,21 @@ import {
   registerSchema,
   resetPasswordSchema,
   setRefreshCookie,
+  sendSignupOtpSchema,
   updateMeSchema,
   verifyEmailSchema,
   onboardingPatchSchema,
   onboardingAnswersSchema,
 } from './auth.validation.js';
+
+export const sendSignupOtp = asyncHandler(async (req: Request, res: Response) => {
+  const input = sendSignupOtpSchema.parse(req.body);
+  const result = await authService.sendSignupOtp(input.email, {
+    ip: getClientIp(req),
+    userAgent: req.headers['user-agent'],
+  });
+  successResponse(res, result, { meta: { requestId: getRequestId(req) } });
+});
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const input = normalizeRegisterInput(registerSchema.parse(req.body));

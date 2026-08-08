@@ -5,7 +5,7 @@
 
 function postAuthPath(user) {
   if (!user) return "/login";
-  if (user.platformAdmin) return "/admin/dashboard";
+  if (user.platformAdmin) return "/admin";
   const accountRole = user.accountRole ?? (user.role === "owner" ? "owner" : "member");
   if (accountRole === "member") return "/dashboard";
   const incomplete =
@@ -28,7 +28,7 @@ function sanitizeInternalPath(path, fallback = "/dashboard") {
 
 function resolvePostAuthDestination(user, preferredPath) {
   const base = postAuthPath(user);
-  if (base === "/onboarding" || base === "/admin/dashboard" || base === "/login") return base;
+  if (base === "/onboarding" || base === "/admin" || base === "/login") return base;
   return sanitizeInternalPath(preferredPath, base);
 }
 
@@ -68,7 +68,7 @@ const cases = [
   [
     "admin -> admin dashboard",
     postAuthPath({ role: "owner", accountRole: "owner", platformAdmin: true, onboardingCompleted: false }),
-    "/admin/dashboard",
+    "/admin",
   ],
   [
     "member skips onboarding",

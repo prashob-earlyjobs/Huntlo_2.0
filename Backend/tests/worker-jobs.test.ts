@@ -337,4 +337,75 @@ describe('Background jobs — leases and concurrency', () => {
     },
     20_000
   );
+
+  it('purges terminal jobs older than 7 days and keeps active ones', async () => {
+    const { purgeOldBackgroundJobs } = await import(
+      '../src/workers/purge-old-jobs.js'
+    );
+
+    const old = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+    await BackgroundJobModel.insertMany([
+      {
+        type: 'usage.reset_period',
+        status: 'completed',
+        payload: {},
+        completedAt: old,
+        createdAt: old,
+        updatedAt: old,
+      },
+      {
+        type: 'usage.reset_period',
+        status: 'failed',
+        payload: {},
+        failedAt: old,
+        createdAt: old,
+        updatedAt: old,
+      },
+      {
+        type: 'usage.reset_period',
+        status: 'cancelled',
+        payload: {},
+        cancelledAt: old,
+        createdAt: old,
+        updatedAt: old,
+      },
+      {
+        type: 'usage.reset_period',
+        status: 'completed',
+        payload: {},
+        completedAt: recent,
+        createdAt: recent,
+        updatedAt: recent,
+      },
+      {
+        type: 'usage.reset_period',
+        status: 'pending',
+        payload: {},
+        createdAt: old,
+        updatedAt: old,
+      },
+      {
+        type: 'usage.reset_period',
+        status: 'retrying',
+        payload: {},
+        createdAt: old,
+        updatedAt: old,
+      },
+    ]);
+
+    const outcome = await purgeOldBackgroundJobs({ retentionDays: 7 });
+    expect(outcome.deleted).toBe(3);
+    expect(outcome.hasMore).toBe(false);
+
+    expect(await BackgroundJobModel.countDocuments({ status: 'completed' })).toBe(
+      1
+    );
+    expect(await BackgroundJobModel.countDocuments({ status: 'pending' })).toBe(1);
+    expect(await BackgroundJobModel.countDocuments({ status: 'retrying' })).toBe(
+      1
+    );
+    expect(await BackgroundJobModel.countDocuments()).toBe(3);
+  });
 });

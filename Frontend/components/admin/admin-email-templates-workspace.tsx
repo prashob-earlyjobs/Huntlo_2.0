@@ -1,9 +1,10 @@
 "use client";
 
 import { ChevronDown, Eye, Loader2, Send } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminBlogRichTextEditor } from "@/components/admin/admin-blog-rich-text-editor";
+import { AdminWhatsAppTemplatesPanel } from "@/components/admin/admin-whatsapp-templates-panel";
 import { Field } from "@/components/outreach/builder-ui";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -15,12 +16,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { adminApi, type EmailTemplate } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { buildEmailPreviewDocument } from "@/lib/email-layout";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+
+type ChannelTab = "email" | "whatsapp";
 
 type FormState = {
   subject: string;
@@ -106,6 +115,7 @@ function dayTimingLabel(template: EmailTemplate): string {
 
 export function AdminEmailTemplatesWorkspace() {
   const { user } = useAuth();
+  const [channel, setChannel] = useState<ChannelTab>("email");
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -113,11 +123,22 @@ export function AdminEmailTemplatesWorkspace() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [baseline, setBaseline] = useState<FormState | null>(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [testEmailOpen, setTestEmailOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const testEmailSeededRef = useRef(false);
 
   const dirty = Boolean(form && baseline && !formsEqual(form, baseline));
+
+  function handleChannelChange(next: string) {
+    if (next === channel) return;
+    if (next !== "email" && next !== "whatsapp") return;
+    if (dirty && !window.confirm("Discard unsaved changes?")) return;
+    if (dirty) closeExpanded();
+    setChannel(next);
+  }
 
   const enabledCount = useMemo(
     () => templates.filter((item) => item.enabled).length,
@@ -156,6 +177,12 @@ export function AdminEmailTemplatesWorkspace() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
+  useEffect(() => {
+    if (testEmailSeededRef.current || !user?.email) return;
+    testEmailSeededRef.current = true;
+    setTestEmail(user.email);
+  }, [user?.email]);
+
   function openTemplate(template: EmailTemplate) {
     const next = templateToForm(template);
     setExpandedId(template.id);
@@ -169,6 +196,7 @@ export function AdminEmailTemplatesWorkspace() {
     setExpandedId(null);
     setForm(null);
     setBaseline(null);
+    setTestEmailOpen(false);
     setPreviewOpen(false);
   }
 
@@ -224,7 +252,12 @@ export function AdminEmailTemplatesWorkspace() {
   }
 
   async function handleSendTest() {
-    if (!expandedId || !form || !user?.email) return;
+    const to = testEmail.trim();
+    if (!expandedId || !form) return;
+    if (!to) {
+      setError("Enter an email address to send a test email.");
+      return;
+    }
     if (dirty) {
       setSaving(true);
       setError(null);
@@ -254,8 +287,8 @@ export function AdminEmailTemplatesWorkspace() {
     setError(null);
     try {
       const result = await adminApi.sendEmailTemplateTest(expandedId, {
-        to: user.email,
-        firstName: user.firstName || "Alex",
+        to,
+        firstName: user?.firstName || "Alex",
       });
       if (!result.mailConfigured) {
         setError("SYSTEM_SMTP_* is not configured on the server.");
@@ -265,6 +298,7 @@ export function AdminEmailTemplatesWorkspace() {
         setError("Test email failed to send. Check SYSTEM_SMTP_* credentials.");
         return;
       }
+      setTestEmailOpen(false);
       setToast(`Test sent to ${result.to} via SYSTEM_SMTP.`);
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to send test email."));
@@ -276,8 +310,8 @@ export function AdminEmailTemplatesWorkspace() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Email templates"
-        description="Edit activation and lifecycle email copy. Delivery uses the same SYSTEM_SMTP path as forgot-password."
+        title="Message templates"
+        description="Edit activation and lifecycle copy by channel. Email uses SYSTEM_SMTP; WhatsApp templates are stored for delivery wiring."
       />
 
       {error ? (
@@ -297,223 +331,276 @@ export function AdminEmailTemplatesWorkspace() {
         </div>
       ) : null}
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            {enabledCount}/{templates.length || 0} enabled ·{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
-              {"{{firstName}}"}
-            </code>{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
-              {"{{email}}"}
-            </code>
-          </p>
-        </div>
+      <Tabs value={channel} onValueChange={handleChannelChange}>
+        <TabsList>
+          <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+        </TabsList>
 
-        {loading ? (
-          <div className="rounded-lg border border-border bg-card px-3 py-8 text-center text-sm text-muted-foreground">
-            Loading…
+        <TabsContent value="email" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              {enabledCount}/{templates.length || 0} enabled ·{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                {"{{firstName}}"}
+              </code>{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                {"{{email}}"}
+              </code>
+            </p>
           </div>
-        ) : templates.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card px-3 py-8 text-center text-sm text-muted-foreground">
-            No email templates yet.
-          </div>
-        ) : (
-          <ul className="overflow-hidden rounded-lg border border-border bg-card">
-            {templates.map((template, index) => {
-              const isOpen = expandedId === template.id;
-              const panelId = `email-tpl-panel-${template.id}`;
-              const showForm = isOpen && form;
 
-              return (
-                <li
-                  key={template.id}
-                  className={cn(
-                    "border-b border-border last:border-b-0",
-                    !template.enabled && !isOpen && "opacity-60"
-                  )}
-                >
-                  <button
-                    type="button"
-                    aria-expanded={isOpen}
-                    aria-controls={panelId}
-                    onClick={() => toggleExpand(template)}
+          {loading ? (
+            <div className="rounded-lg border border-border bg-card px-3 py-8 text-center text-sm text-muted-foreground">
+              Loading…
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="rounded-lg border border-border bg-card px-3 py-8 text-center text-sm text-muted-foreground">
+              No email templates yet.
+            </div>
+          ) : (
+            <ul className="overflow-hidden rounded-lg border border-border bg-card">
+              {templates.map((template, index) => {
+                const isOpen = expandedId === template.id;
+                const panelId = `email-tpl-panel-${template.id}`;
+                const showForm = isOpen && form;
+
+                return (
+                  <li
+                    key={template.id}
                     className={cn(
-                      "flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50",
-                      isOpen && "bg-muted/30"
+                      "border-b border-border last:border-b-0",
+                      !template.enabled && !isOpen && "opacity-60"
                     )}
                   >
-                    <span
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      aria-controls={panelId}
+                      onClick={() => toggleExpand(template)}
                       className={cn(
-                        "flex size-6 shrink-0 items-center justify-center rounded-md border text-[11px] font-semibold",
-                        template.enabled
-                          ? "border-primary/30 bg-primary/10 text-primary"
-                          : "border-border bg-muted text-muted-foreground"
+                        "flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50",
+                        isOpen && "bg-muted/30"
                       )}
-                      aria-hidden
                     >
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {template.name}
-                        </span>
-                        <span
-                          className={cn(
-                            "shrink-0 rounded px-1 py-px text-[10px] font-medium",
-                            template.enabled
-                              ? "bg-success/10 text-success"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {template.enabled ? "On" : "Off"}
-                        </span>
-                        {isOpen && dirty ? (
-                          <span className="shrink-0 rounded bg-warning/10 px-1 py-px text-[10px] font-medium text-warning">
-                            Unsaved
+                      <span
+                        className={cn(
+                          "flex size-6 shrink-0 items-center justify-center rounded-md border text-[11px] font-semibold",
+                          template.enabled
+                            ? "border-primary/30 bg-primary/10 text-primary"
+                            : "border-border bg-muted text-muted-foreground"
+                        )}
+                        aria-hidden
+                      >
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-sm font-medium text-foreground">
+                            {template.name}
                           </span>
-                        ) : null}
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {dayTimingLabel(template)}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      aria-hidden
-                      className={cn(
-                        "size-4 shrink-0 text-muted-foreground transition-transform",
-                        isOpen && "rotate-180"
-                      )}
-                    />
-                  </button>
-
-                  {showForm ? (
-                    <div
-                      id={panelId}
-                      className="space-y-3 border-t border-border bg-background/50 px-3 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-medium text-foreground">Enabled</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            Off emails are skipped at send time.
-                          </p>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded px-1 py-px text-[10px] font-medium",
+                              template.enabled
+                                ? "bg-success/10 text-success"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            {template.enabled ? "On" : "Off"}
+                          </span>
+                          {isOpen && dirty ? (
+                            <span className="shrink-0 rounded bg-warning/10 px-1 py-px text-[10px] font-medium text-warning">
+                              Unsaved
+                            </span>
+                          ) : null}
                         </div>
-                        <Switch
-                          checked={form.enabled}
-                          onCheckedChange={(checked) =>
-                            setForm((previous) =>
-                              previous ? { ...previous, enabled: checked } : previous
-                            )
-                          }
-                        />
+                        <p className="truncate text-xs text-muted-foreground">
+                          {dayTimingLabel(template)}
+                        </p>
                       </div>
+                      <ChevronDown
+                        aria-hidden
+                        className={cn(
+                          "size-4 shrink-0 text-muted-foreground transition-transform",
+                          isOpen && "rotate-180"
+                        )}
+                      />
+                    </button>
 
-                      <Field label="Subject">
-                        <Input
-                          value={form.subject}
-                          onChange={(event) =>
-                            setForm((previous) =>
-                              previous
-                                ? { ...previous, subject: event.target.value }
-                                : previous
-                            )
-                          }
-                          maxLength={300}
-                        />
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {PERSONALIZATION_TOKENS.map((item) => (
-                            <button
-                              key={item.token}
-                              type="button"
-                              onClick={() => insertToken(item.token)}
-                              className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                            >
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                      </Field>
-
-                      <Field label="Body">
-                        <AdminBlogRichTextEditor
-                          value={form.bodyHtml}
-                          onChange={(html) =>
-                            setForm((previous) =>
-                              previous ? { ...previous, bodyHtml: html } : previous
-                            )
-                          }
-                        />
-                      </Field>
-
-                      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                        <Button
-                          size="sm"
-                          onClick={() => void handleSave()}
-                          disabled={saving || sendingTest || !dirty}
-                          aria-busy={saving}
-                        >
-                          {saving ? "Saving…" : "Save"}
-                        </Button>
-                        <Button
-                          size="icon-xs"
-                          variant="outline"
-                          onClick={() => setPreviewOpen(true)}
-                          aria-label="Preview"
-                          title="Preview"
-                        >
-                          <Eye aria-hidden />
-                        </Button>
-                        <Button
-                          size="icon-xs"
-                          variant="outline"
-                          onClick={() => void handleSendTest()}
-                          disabled={saving || !user?.email}
-                          aria-busy={sendingTest}
-                          aria-label={sendingTest ? "Sending test…" : "Send test"}
-                          title={sendingTest ? "Sending…" : "Send test"}
-                        >
-                          {sendingTest ? (
-                            <Loader2 aria-hidden className="animate-spin" />
-                          ) : (
-                            <Send aria-hidden />
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={discardChanges}
-                          disabled={saving || sendingTest || !dirty}
-                        >
-                          Discard
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            if (
-                              dirty &&
-                              !window.confirm("Discard unsaved changes?")
-                            ) {
-                              return;
+                    {showForm ? (
+                      <div
+                        id={panelId}
+                        className="space-y-3 border-t border-border bg-background/50 px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-foreground">Enabled</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              Off emails are skipped at send time.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={form.enabled}
+                            onCheckedChange={(checked) =>
+                              setForm((previous) =>
+                                previous ? { ...previous, enabled: checked } : previous
+                              )
                             }
-                            closeExpanded();
-                          }}
-                          disabled={saving || sendingTest}
-                          className="ml-auto"
-                        >
-                          Close
-                        </Button>
+                          />
+                        </div>
+
+                        <Field label="Subject">
+                          <Input
+                            value={form.subject}
+                            onChange={(event) =>
+                              setForm((previous) =>
+                                previous
+                                  ? { ...previous, subject: event.target.value }
+                                  : previous
+                              )
+                            }
+                            maxLength={300}
+                          />
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {PERSONALIZATION_TOKENS.map((item) => (
+                              <button
+                                key={item.token}
+                                type="button"
+                                onClick={() => insertToken(item.token)}
+                                className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                              >
+                                {item.label}
+                              </button>
+                            ))}
+                          </div>
+                        </Field>
+
+                        <Field label="Body">
+                          <AdminBlogRichTextEditor
+                            value={form.bodyHtml}
+                            onChange={(html) =>
+                              setForm((previous) =>
+                                previous ? { ...previous, bodyHtml: html } : previous
+                              )
+                            }
+                          />
+                        </Field>
+
+                        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                          <Button
+                            size="sm"
+                            onClick={() => void handleSave()}
+                            disabled={saving || sendingTest || !dirty}
+                            aria-busy={saving}
+                          >
+                            {saving ? "Saving…" : "Save"}
+                          </Button>
+                          <Button
+                            size="icon-xs"
+                            variant="outline"
+                            onClick={() => setPreviewOpen(true)}
+                            aria-label="Preview"
+                            title="Preview"
+                          >
+                            <Eye aria-hidden />
+                          </Button>
+                          <Popover open={testEmailOpen} onOpenChange={setTestEmailOpen}>
+                            <PopoverTrigger
+                              render={
+                                <Button
+                                  size="icon-xs"
+                                  variant="outline"
+                                  disabled={saving || sendingTest}
+                                  aria-busy={sendingTest}
+                                  aria-label={sendingTest ? "Sending test…" : "Send test"}
+                                  title={sendingTest ? "Sending…" : "Send test"}
+                                />
+                              }
+                            >
+                              {sendingTest ? (
+                                <Loader2 aria-hidden className="animate-spin" />
+                              ) : (
+                                <Send aria-hidden />
+                              )}
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-72 p-3">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={testEmail}
+                                  onChange={(event) => setTestEmail(event.target.value)}
+                                  placeholder="alex@example.com"
+                                  maxLength={320}
+                                  type="email"
+                                  autoComplete="email"
+                                  onKeyDown={(event) => {
+                                    // Keep typing/backspace inside the popover input;
+                                    // don't let parent expand/collapse handlers steal keys.
+                                    event.stopPropagation();
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      void handleSendTest();
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  size="icon-xs"
+                                  onClick={() => void handleSendTest()}
+                                  disabled={saving || sendingTest}
+                                  aria-label={sendingTest ? "Sending test…" : "Send test"}
+                                  title={sendingTest ? "Sending…" : "Send test"}
+                                >
+                                  {sendingTest ? (
+                                    <Loader2 aria-hidden className="animate-spin" />
+                                  ) : (
+                                    <Send aria-hidden />
+                                  )}
+                                </Button>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={discardChanges}
+                            disabled={saving || sendingTest || !dirty}
+                          >
+                            Discard
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (
+                                dirty &&
+                                !window.confirm("Discard unsaved changes?")
+                              ) {
+                                return;
+                              }
+                              closeExpanded();
+                            }}
+                            disabled={saving || sendingTest}
+                            className="ml-auto"
+                          >
+                            Close
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </TabsContent>
+
+        <TabsContent value="whatsapp">
+          <AdminWhatsAppTemplatesPanel
+            onToast={setToast}
+            onError={setError}
+          />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="flex max-h-[90vh] flex-col gap-3 overflow-hidden sm:max-w-2xl">

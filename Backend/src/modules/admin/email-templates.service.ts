@@ -25,6 +25,7 @@ import {
   type PublicEmailTemplate,
 } from './email-template.model.js';
 import { EmailLifecycleSendModel } from './email-lifecycle-send.model.js';
+import { whatsappTemplatesService } from './whatsapp-templates.service.js';
 import { UserModel } from '../auth/user.model.js';
 import { RevealedContactModel } from '../candidates/revealed-contact.model.js';
 import { CandidateActivityModel } from '../candidates/candidate-activity.model.js';
@@ -579,6 +580,17 @@ export const emailTemplatesService = {
       // Event 03 — cool-off no-search nudge (2h after first session / signup login).
       void this.onFirstLogin({ userId: input.userId }).catch(() => undefined);
 
+      // Send/signup WhatsApp via approved Meta template (platform Huntlo WhatsApp).
+      void whatsappTemplatesService.onSignup({ userId: input.userId }).catch((error) => {
+        log().warn(
+          {
+            userId: input.userId,
+            err: error instanceof Error ? error.message : String(error),
+          },
+          'Signup WhatsApp lifecycle send failed'
+        );
+      });
+
       return enrollment;
     } catch (error: unknown) {
       // Race: unique index — treat as already enrolled
@@ -605,6 +617,9 @@ export const emailTemplatesService = {
     lifecycleProcessed?: number;
     lifecycleSent?: number;
     lifecycleSkipped?: number;
+    whatsappProcessed?: number;
+    whatsappSent?: number;
+    whatsappSkipped?: number;
   }> {
     await ensureEmailTemplatesSeeded();
     const now = new Date();
@@ -634,6 +649,7 @@ export const emailTemplatesService = {
     }
 
     const lifecycle = await this.processDueLifecycleSends(limit);
+    const whatsapp = await whatsappTemplatesService.processDueLifecycleSends(limit);
     return {
       processed,
       sent,
@@ -641,6 +657,9 @@ export const emailTemplatesService = {
       lifecycleProcessed: lifecycle.processed,
       lifecycleSent: lifecycle.sent,
       lifecycleSkipped: lifecycle.skipped,
+      whatsappProcessed: whatsapp.processed,
+      whatsappSent: whatsapp.sent,
+      whatsappSkipped: whatsapp.skipped,
     };
   },
 
@@ -803,6 +822,7 @@ export const emailTemplatesService = {
   async onFirstLogin(input: {
     userId: string | mongoose.Types.ObjectId;
   }): Promise<'scheduled' | 'skipped' | 'noop'> {
+    void whatsappTemplatesService.onFirstLogin({ userId: input.userId }).catch(() => undefined);
     if (await userHasStartedSearch(toObjectId(input.userId))) {
       return 'skipped';
     }
@@ -859,6 +879,7 @@ export const emailTemplatesService = {
   async onFirstReply(input: {
     userId: string | mongoose.Types.ObjectId;
   }): Promise<'scheduled' | 'skipped' | 'noop'> {
+    void whatsappTemplatesService.onFirstReply({ userId: input.userId }).catch(() => undefined);
     await this.cancelPendingLifecycle(
       input.userId,
       LIFECYCLE_TEMPLATE_KEYS.no_replies,
@@ -876,6 +897,7 @@ export const emailTemplatesService = {
   async onProfileUnlocked(input: {
     userId: string | mongoose.Types.ObjectId;
   }): Promise<'scheduled' | 'skipped' | 'noop'> {
+    void whatsappTemplatesService.onProfileUnlocked({ userId: input.userId }).catch(() => undefined);
     // Unlock also cancels the search→unlock nudge.
     await this.cancelPendingLifecycle(
       input.userId,

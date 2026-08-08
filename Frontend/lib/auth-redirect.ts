@@ -19,7 +19,7 @@ export function postAuthPath(user: PostAuthUser | null | undefined): string {
   if (!user) return "/login";
 
   if (user.platformAdmin) {
-    return "/admin/dashboard";
+    return "/admin";
   }
 
   const accountRole =
@@ -55,7 +55,7 @@ export function resolvePostAuthDestination(
   preferredPath?: string | null
 ): string {
   const base = postAuthPath(user);
-  if (base === "/onboarding" || base === "/admin/dashboard" || base === "/login") {
+  if (base === "/onboarding" || base === "/admin" || base === "/login") {
     return base;
   }
   return sanitizeInternalPath(preferredPath, base);

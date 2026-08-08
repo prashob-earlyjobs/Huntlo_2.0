@@ -210,7 +210,7 @@ function QuotaCard({
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span>{percent}% used</span>
-        <span>Resets {quota.resetDate}</span>
+        {/* <span>Resets {quota.resetDate}</span> */}
       </div>
 
       {state === "Limit exhausted" ? (
@@ -276,7 +276,7 @@ function PlanComparison({
   onSales,
 }: {
   tiers: PlanTier[];
-  onUpgrade: () => void;
+  onUpgrade: (planId: string) => void;
   onSales: () => void;
 }) {
   if (tiers.length === 0) {
@@ -362,7 +362,7 @@ function PlanComparison({
               disabled={tier.highlighted}
               onClick={() => {
                 if (tier.cta === "Contact Sales") onSales();
-                else onUpgrade();
+                else onUpgrade(tier.id);
               }}
             >
               {tier.cta}
@@ -533,36 +533,117 @@ function UsageHistoryTable() {
 
 function PlansDialogs({
   kind,
+  tiers,
+  selectedPlanId,
+  onSelectPlan,
   onClose,
   onConfirmUpgrade,
+  onSales,
   upgrading,
 }: {
   kind: DialogKind;
+  tiers: PlanTier[];
+  selectedPlanId: string | null;
+  onSelectPlan: (planId: string) => void;
   onClose: () => void;
   onConfirmUpgrade: () => void;
+  onSales: () => void;
   upgrading?: boolean;
 }) {
+  const choosable = tiers.filter(
+    (tier) =>
+      !tier.highlighted &&
+      tier.name.toLowerCase() !== "trial" &&
+      tier.id !== "trial" &&
+      tier.name.toLowerCase() !== "enterprise" &&
+      tier.id !== "enterprise" &&
+      tier.cta !== "Contact Sales"
+  );
+  const selected = choosable.find((tier) => tier.id === selectedPlanId) ?? null;
+
   return (
     <>
       <AlertDialog
         open={kind === "upgrade"}
         onOpenChange={(open) => !open && onClose()}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Upgrade plan?</AlertDialogTitle>
+            <AlertDialogTitle>Choose a plan</AlertDialogTitle>
             <AlertDialogDescription>
-              Checkout opens Razorpay for INR or Dodo Payments for USD. Your
-              plan activates only after the server verifies payment — the
-              browser alone cannot mark you as paid.
+              Select the plan you want to upgrade to, then continue to payment.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="grid max-h-[50vh] gap-2 overflow-y-auto py-1">
+            {choosable.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No upgrade plans are available right now.
+              </p>
+            ) : (
+              choosable.map((tier) => {
+                const isSelected = selectedPlanId === tier.id;
+                const isSales = tier.cta === "Contact Sales";
+                return (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => onSelectPlan(tier.id)}
+                    className={cn(
+                      "flex w-full cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
+                      isSelected
+                        ? "border-primary bg-brand-subtle/40 ring-1 ring-primary/30"
+                        : "border-border hover:bg-muted/40"
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">
+                        {tier.name}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {tier.description}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-sm font-semibold tabular-nums text-foreground">
+                        {tier.price}
+                      </span>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {isSales ? "Custom" : tier.priceNote || "Monthly"}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={upgrading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={upgrading} onClick={onConfirmUpgrade}>
-              <ArrowUpRight aria-hidden />
-              {upgrading ? "Starting checkout…" : "Continue to payment"}
-            </AlertDialogAction>
+            {selected?.cta === "Contact Sales" ? (
+              <AlertDialogAction
+                disabled={!selected}
+                onClick={() => {
+                  onClose();
+                  onSales();
+                }}
+              >
+                <Headphones aria-hidden />
+                Contact sales
+              </AlertDialogAction>
+            ) : (
+              <AlertDialogAction
+                disabled={upgrading || !selected}
+                onClick={onConfirmUpgrade}
+              >
+                <ArrowUpRight aria-hidden />
+                {upgrading
+                  ? "Starting checkout…"
+                  : selected
+                    ? `Continue with ${selected.name}`
+                    : "Select a plan"}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -630,9 +711,8 @@ function PlansDialogs({
               Payment failed
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Invoice INV-2026-05-001 for ₹24,999 could not be collected via Dodo
-              Payments. Update your payment method or retry — no live charge is
-              attempted in this preview.
+              Payment could not be completed. Update your payment method or
+              retry checkout.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -700,11 +780,29 @@ export function PlansWorkspace() {
   const [currentPlan, setCurrentPlan] = useState<CurrentPlan | null>(null);
   const [quotas, setQuotas] = useState<UsageQuota[]>([]);
   const [tiers, setTiers] = useState<PlanTier[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const planName = currentPlan?.name ?? "";
 
+  function openUpgradeChooser(planId?: string) {
+    const paid = tiers.filter(
+      (tier) =>
+        !tier.highlighted &&
+        tier.name.toLowerCase() !== "trial" &&
+        tier.id !== "trial" &&
+        tier.name.toLowerCase() !== "enterprise" &&
+        tier.id !== "enterprise" &&
+        tier.cta !== "Contact Sales"
+    );
+    setSelectedPlanId(
+      planId && paid.some((tier) => tier.id === planId)
+        ? planId
+        : paid[0]?.id ?? null
+    );
+    setDialog("upgrade");
+  }
   async function refreshPlan() {
     const [plan, usage, planTiers] = await Promise.all([
       plansApi.getCurrentPlan(),
@@ -794,13 +892,21 @@ export function PlansWorkspace() {
   async function handleUpgradeCheckout() {
     setUpgrading(true);
     try {
-      const tiers = await plansApi.listTiers();
+      const available = tiers.length > 0 ? tiers : await plansApi.listTiers();
       const target =
-        tiers.find((tier) => tier.name.toLowerCase() === "scale") ||
-        tiers.find((tier) => tier.name.toLowerCase() === "growth") ||
-        tiers[0];
+        available.find((tier) => tier.id === selectedPlanId) ||
+        available.find(
+          (tier) =>
+            !tier.highlighted &&
+            tier.name.toLowerCase() !== "trial" &&
+            tier.cta !== "Contact Sales"
+        );
       const planId = target?.id;
-      if (!planId) throw new Error("No upgrade plan available");
+      if (!planId) throw new Error("Select a plan to continue");
+      if (target.cta === "Contact Sales") {
+        setDialog("sales");
+        return;
+      }
       const checkoutCurrency = target.currency ?? "INR";
 
       const result = await plansApi.upgrade({
@@ -863,7 +969,7 @@ export function PlansWorkspace() {
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
-          onClick={() => setDialog("upgrade")}
+          onClick={() => openUpgradeChooser()}
         >
           <ArrowUpRight aria-hidden />
           Upgrade
@@ -902,6 +1008,25 @@ export function PlansWorkspace() {
         </p>
       ) : null}
 
+      {currentPlan?.trialExpired || currentPlan?.status === "Trial ended" ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3"
+        >
+          <AlertTriangle
+            aria-hidden
+            className="size-4 shrink-0 text-amber-700 dark:text-amber-400"
+          />
+          <p className="min-w-0 flex-1 text-sm text-foreground">
+            <span className="font-medium">Your free trial has ended.</span>{" "}
+            Upgrade to a paid plan to unlock the rest of Huntlo.
+          </p>
+          <Button size="xs" onClick={() => openUpgradeChooser()}>
+            Upgrade now
+          </Button>
+        </div>
+      ) : null}
+
       {/* Exhausted banner */}
       {exhaustedQuota ? (
         <div
@@ -936,42 +1061,55 @@ export function PlansWorkspace() {
                 <Badge
                   text={currentPlan.status}
                   className={
-                    currentPlan.status === "Trial"
-                      ? "bg-brand-subtle text-primary"
-                      : "bg-success/10 text-success"
+                    currentPlan.status === "Trial ended"
+                      ? "bg-destructive/10 text-destructive"
+                      : currentPlan.status === "Trial"
+                        ? "bg-brand-subtle text-primary"
+                        : "bg-success/10 text-success"
                   }
                 />
               </div>
               <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {(
                   [
-                    ["Billing cycle", currentPlan.billingCycle],
-                    ["Renewal date", currentPlan.renewalDate],
-                    [
-                      "Workspace owner",
-                      `${currentPlan.owner} · ${currentPlan.ownerEmail}`,
-                    ],
-                    ["Seats", currentPlan.seats],
+                    {
+                      label:
+                        currentPlan.status === "Trial" ||
+                        currentPlan.status === "Trial ended" ||
+                        currentPlan.trialExpired
+                          ? "Trial ends on"
+                          : "Renewal date",
+                      value: currentPlan.renewalDate,
+                    },
+                    {
+                      label: "Workspace owner",
+                      value: currentPlan.owner,
+                      title: currentPlan.ownerEmail,
+                    },
+                    { label: "Seats", value: currentPlan.seats },
                   ] as const
-                ).map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-xs text-muted-foreground">{label}</dt>
-                    <dd className="mt-0.5 text-sm font-medium text-foreground">
-                      {value}
+                ).map((row) => (
+                  <div key={row.label}>
+                    <dt className="text-xs text-muted-foreground">{row.label}</dt>
+                    <dd
+                      className="mt-0.5 text-sm font-medium text-foreground"
+                      title={"title" in row ? row.title : undefined}
+                    >
+                      {row.value}
                     </dd>
                   </div>
                 ))}
               </dl>
-              <p className="mt-3 text-sm text-muted-foreground">
+              {/* <p className="mt-3 text-sm text-muted-foreground">
                 <span className="font-semibold tabular-nums text-foreground">
                   {currentPlan.price}
                 </span>
                 {currentPlan.pricePeriod} · next invoice on{" "}
                 {currentPlan.renewalDate}
-              </p>
+              </p> */}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <Button size="sm" onClick={() => setDialog("upgrade")}>
+              <Button size="sm" onClick={() => openUpgradeChooser()}>
                 <ArrowUpRight aria-hidden />
                 Upgrade Plan
               </Button>
@@ -1011,15 +1149,15 @@ export function PlansWorkspace() {
         </div>
       </section>
 
-      <UsageTrendChart />
+      {/* <UsageTrendChart /> */}
 
       <PlanComparison
         tiers={tiers}
-        onUpgrade={() => setDialog("upgrade")}
+        onUpgrade={(planId) => openUpgradeChooser(planId)}
         onSales={() => setDialog("sales")}
       />
 
-      <Tabs defaultValue="billing">
+      {/* <Tabs defaultValue="billing">
         <TabsList>
           <TabsTrigger value="billing">Billing history</TabsTrigger>
           <TabsTrigger value="usage">Usage history</TabsTrigger>
@@ -1030,12 +1168,16 @@ export function PlansWorkspace() {
         <TabsContent value="usage" className="pt-3">
           <UsageHistoryTable />
         </TabsContent>
-      </Tabs>
+      </Tabs> */}
 
       <PlansDialogs
         kind={dialog}
+        tiers={tiers}
+        selectedPlanId={selectedPlanId}
         upgrading={upgrading}
+        onSelectPlan={setSelectedPlanId}
         onClose={() => setDialog(null)}
+        onSales={() => setDialog("sales")}
         onConfirmUpgrade={() => {
           void handleUpgradeCheckout();
         }}

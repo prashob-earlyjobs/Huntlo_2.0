@@ -14,9 +14,14 @@ import { integrationsService } from './integration.service.js';
 import {
   connectBodySchema,
   integrationIdParamSchema,
+  listAtsApplicationsQuerySchema,
+  listAtsJobsQuerySchema,
   listIntegrationsQuerySchema,
+  importAtsApplicationsBodySchema,
   patchIntegrationBodySchema,
   providerParamSchema,
+  atsProviderParamSchema,
+  atsJobParamSchema,
 } from './integration.validation.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
@@ -35,6 +40,72 @@ integrationsRouter.get(
       req.organizationId!,
       req.userId!,
       query
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/** Connected ATS providers for Import from ATS (must be before /:id). */
+integrationsRouter.get(
+  '/ats',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const data = await integrationsService.listConnectedAts(
+      req.organizationId!,
+      req.userId!
+    );
+    successResponse(res, { providers: data }, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+integrationsRouter.get(
+  '/ats/:provider/jobs',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { provider } = atsProviderParamSchema.parse(req.params);
+    const query = listAtsJobsQuerySchema.parse(req.query);
+    const data = await integrationsService.listAtsJobs(
+      req.organizationId!,
+      req.userId!,
+      provider,
+      query
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+integrationsRouter.get(
+  '/ats/:provider/jobs/:jobId/applications',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { provider, jobId } = atsJobParamSchema.parse(req.params);
+    const query = listAtsApplicationsQuerySchema.parse(req.query);
+    const data = await integrationsService.listAtsApplications(
+      req.organizationId!,
+      req.userId!,
+      provider,
+      jobId,
+      query
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+integrationsRouter.post(
+  '/ats/:provider/import',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const { provider } = atsProviderParamSchema.parse(req.params);
+    const body = importAtsApplicationsBodySchema.parse(req.body ?? {});
+    const data = await integrationsService.importAtsApplications(
+      req.organizationId!,
+      req.userId!,
+      provider,
+      body
     );
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })

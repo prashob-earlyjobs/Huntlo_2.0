@@ -87,7 +87,9 @@ export async function loadAudiencePoolRows(
 
   if (
     state.selectedCandidateIds.length > 0 &&
-    (state.source === "Manual Add" || state.source === "Candidate Pool")
+    (state.source === "Manual Add" ||
+      state.source === "Candidate Pool" ||
+      state.source === "Import from ATS")
   ) {
     const wanted = [...new Set(state.selectedCandidateIds)];
     const byId = new Map<string, ApiPoolCandidate>();
@@ -118,7 +120,7 @@ export async function loadAudiencePoolRows(
     );
 
     const missing = wanted.filter((id) => !byId.has(id));
-    if (missing.length > 0) {
+    if (missing.length > 0 && state.source !== "Import from ATS") {
       const all = await listAllPoolPages({
         search: state.poolSearch.trim() || undefined,
       });
@@ -357,7 +359,7 @@ export async function ensureSourcedCandidatesInPool(
 
 export function candidateSourceType(
   source: AudienceSource | null
-): "candidate_pool" | "saved_list" | "manual" | "import" {
+): "candidate_pool" | "saved_list" | "manual" | "import" | "ats" {
   switch (source) {
     case "Candidate Pool":
       return "candidate_pool";
@@ -365,6 +367,8 @@ export function candidateSourceType(
       return "saved_list";
     case "CSV/Excel Import":
       return "import";
+    case "Import from ATS":
+      return "ats";
     default:
       return "manual";
   }

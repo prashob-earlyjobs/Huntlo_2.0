@@ -11,6 +11,7 @@ export type ApiErrorCode =
   | "CONFLICT"
   | "VALIDATION_ERROR"
   | "QUOTA_EXCEEDED"
+  | "TRIAL_EXPIRED"
   | "RATE_LIMITED"
   | "PROVIDER_ERROR"
   | "INVITE_DELIVERY_FAILED"
@@ -67,6 +68,9 @@ export function mapStatusToErrorCode(status: number, serverCode?: string): ApiEr
   ) {
     return "QUOTA_EXCEEDED";
   }
+  if (serverCode === "TRIAL_EXPIRED") {
+    return "TRIAL_EXPIRED";
+  }
   if (serverCode === "PROVIDER_ERROR" || serverCode === "FUTURE_JOBS_UNAVAILABLE") {
     return "PROVIDER_ERROR";
   }
@@ -75,6 +79,12 @@ export function mapStatusToErrorCode(status: number, serverCode?: string): ApiEr
   }
   if (serverCode === "VALIDATION_ERROR" || serverCode === "INVALID_SEARCH_PROMPT") {
     return "VALIDATION_ERROR";
+  }
+  if (
+    serverCode === "RATE_LIMITED" ||
+    serverCode === "AUTH_OTP_RESEND_COOLDOWN"
+  ) {
+    return "RATE_LIMITED";
   }
 
   switch (status) {
@@ -89,9 +99,11 @@ export function mapStatusToErrorCode(status: number, serverCode?: string): ApiEr
     case 422:
       return "VALIDATION_ERROR";
     case 402:
-      return "QUOTA_EXCEEDED";
+      return serverCode === "TRIAL_EXPIRED" ? "TRIAL_EXPIRED" : "QUOTA_EXCEEDED";
     case 429:
-      return "QUOTA_EXCEEDED";
+      return serverCode === "QUOTA_EXCEEDED" || serverCode === "SEARCH_QUOTA_EXHAUSTED"
+        ? "QUOTA_EXCEEDED"
+        : "RATE_LIMITED";
     case 500:
     case 502:
     case 503:

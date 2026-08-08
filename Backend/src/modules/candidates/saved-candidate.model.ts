@@ -22,6 +22,7 @@ export const POOL_SOURCE_TYPES = [
   'import',
   'referral',
   'manual',
+  'ats',
 ] as const;
 
 export type PoolSourceType = (typeof POOL_SOURCE_TYPES)[number];

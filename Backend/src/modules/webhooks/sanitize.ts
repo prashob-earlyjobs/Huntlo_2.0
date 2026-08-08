@@ -166,6 +166,7 @@ const ALLOWED_HEADERS = [
   'x-webhook-signature',
   'x-hunar-signature',
   'x-hunar-webhook-secret',
+  'x-zyastra-signature',
   'x-webhook-secret',
   'calendly-webhook-signature',
   'webhook-id',

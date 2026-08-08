@@ -690,11 +690,19 @@ export function ConversationInbox({
   conversations,
   className,
   variant = "full",
+  hasMore = false,
+  loadingMore = false,
+  totalCount,
+  onLoadMore,
 }: {
   conversations: Conversation[];
   className?: string;
   /** Sidebar / profile embed — capped height, stacked list + thread. */
   variant?: "full" | "embedded";
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  totalCount?: number;
+  onLoadMore?: () => void;
 }) {
   const embedded = variant === "embedded";
   const { user } = useAuth();
@@ -1082,6 +1090,24 @@ export function ConversationInbox({
               })
             )}
           </ul>
+          {hasMore ? (
+            <div className="border-t border-border p-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="w-full"
+                disabled={loadingMore}
+                onClick={onLoadMore}
+              >
+                {loadingMore
+                  ? "Loading…"
+                  : totalCount != null
+                    ? `Load more (${conversations.length} of ${totalCount})`
+                    : "Load more"}
+              </Button>
+            </div>
+          ) : null}
         </ScrollArea>
       </div>
 

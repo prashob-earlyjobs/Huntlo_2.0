@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type { Conversation } from "./contracts";
+import type { PaginationMeta } from "./contracts/envelopes";
 import { createDomainService, simulateMockLatency } from "./service";
 import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
@@ -14,6 +15,11 @@ export type ConversationListParams = ApiQueryParams & {
   q?: string;
   page?: number;
   limit?: number;
+};
+
+export type ConversationListResult = {
+  items: Conversation[];
+  pagination: PaginationMeta;
 };
 
 export type AiDraftResult = {
@@ -45,7 +51,7 @@ export type ClassifyResult = {
 };
 
 export interface ConversationsApi {
-  list(params?: ConversationListParams): Promise<Conversation[]>;
+  list(params?: ConversationListParams): Promise<ConversationListResult>;
   getById(id: string): Promise<Conversation | null>;
   listMessages(id: string): Promise<unknown[]>;
   markRead(id: string): Promise<Conversation | void>;
@@ -88,7 +94,15 @@ const mockConversationsApi: ConversationsApi = {
     if (params?.candidateId) {
       rows = rows.filter((c) => c.candidateId === params.candidateId);
     }
-    return rows;
+    const limit = params?.limit ?? 50;
+    const page = params?.page ?? 1;
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const start = (page - 1) * limit;
+    return {
+      items: rows.slice(start, start + limit),
+      pagination: { page, limit, total, totalPages },
+    };
   },
   async getById(id) {
     await simulateMockLatency();
@@ -193,7 +207,16 @@ const liveConversationsApi: ConversationsApi = {
     const result = await apiClient.get<Conversation[]>(
       `/conversations${buildQueryString(params)}`
     );
-    return result.data;
+    const pagination = result.meta?.pagination;
+    return {
+      items: result.data,
+      pagination: pagination ?? {
+        page: params?.page ?? 1,
+        limit: params?.limit ?? 50,
+        total: result.data.length,
+        totalPages: 1,
+      },
+    };
   },
   async getById(id) {
     try {

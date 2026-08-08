@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { AdminDashboardWorkspace } from "@/components/admin/admin-dashboard-workspace";
+import { ADMIN_ROUTES } from "@/lib/admin-routes";
 
-export const metadata: Metadata = { title: "Dashboard" };
-
-export default function AdminDashboardPage() {
-  return <AdminDashboardWorkspace />;
+/** Legacy path — keep so old bookmarks land on the real admin dashboard. */
+export default function AdminDashboardRedirectPage() {
+  redirect(ADMIN_ROUTES.dashboard);
 }

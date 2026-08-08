@@ -123,10 +123,10 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         description: "Content and SEO",
       },
       {
-        title: "Email templates",
+        title: "Message templates",
         href: ADMIN_ROUTES.emailTemplates,
         icon: Mail,
-        description: "Post-signup drip content",
+        description: "Email and WhatsApp message copy",
       },
     ],
   },
