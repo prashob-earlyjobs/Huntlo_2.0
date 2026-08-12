@@ -92,13 +92,24 @@ export function inferAnswerFromRoshniFields(
   };
 
   if (/notice|how soon|join|available|availability/.test(p)) {
-    return pick('notice_period', 'noticePeriod');
+    return pick('notice_period', 'noticePeriod', 'notice_period_days', 'noticePeriodDays');
   }
   if (/ctc|salary|compensation|package|pay/.test(p)) {
     if (/expect|desired|looking|target/.test(p)) {
-      return pick('expected_ctc', 'expectedCtc');
+      return pick(
+        'expected_ctc',
+        'expectedCtc',
+        'expected_ctc_lpa',
+        'expectedCtcLpa'
+      );
     }
-    return pick('ctc', 'current_ctc', 'currentCtc');
+    return pick(
+      'ctc',
+      'current_ctc',
+      'currentCtc',
+      'current_ctc_lpa',
+      'currentCtcLpa'
+    );
   }
   if (/educat|degree|qualification|college/.test(p)) {
     return pick('education');
@@ -113,8 +124,15 @@ export function inferAnswerFromRoshniFields(
   if (/project|accomplish/.test(p)) {
     return pick('recent_project', 'recentProject');
   }
-  if (/location|hybrid|remote|work.?mode|relocat|wfh|wfo/.test(p)) {
-    return pick('location', 'current_location', 'work_mode', 'workplace');
+  if (/location|hybrid|remote|work.?mode|relocat|wfh|wfo|bengaluru|bangalore/.test(p)) {
+    return pick(
+      'location',
+      'current_location',
+      'work_mode',
+      'workplace',
+      'relocation_willingness',
+      'relocationWillingness'
+    );
   }
   return null;
 }

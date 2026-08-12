@@ -7,6 +7,8 @@ import {
   Check,
   CheckCheck,
   ChevronRight,
+  Download,
+  Eye,
   FileText,
   Mail,
   MessageCircle,
@@ -30,11 +32,18 @@ import {
   type FilterOption,
 } from "@/components/shared/filter-popover";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { conversationsApi } from "@/lib/api";
+import { apiClient, conversationsApi } from "@/lib/api";
 import type {
   Conversation,
+  ConversationAttachment,
   ConversationEvent,
 } from "@/lib/mock-conversations";
 import {
@@ -239,6 +248,356 @@ function formatAudioClock(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function attachmentApiPath(url: string): string {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("/api/v1/")) return trimmed.slice("/api/v1".length);
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      return new URL(trimmed).pathname.replace(/^\/api\/v1/, "") || trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function useAuthenticatedBlobUrl(
+  url: string | null | undefined,
+  preferredMimeType?: string | null
+) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const path = attachmentApiPath(url || "");
+    if (!path) {
+      setObjectUrl(null);
+      setFailed(false);
+      return;
+    }
+
+    let cancelled = false;
+    let created: string | null = null;
+    setFailed(false);
+    setObjectUrl(null);
+
+    void (async () => {
+      try {
+        const downloaded = await apiClient.download(path);
+        let blob = downloaded.blob;
+        const preferred = String(preferredMimeType || "").trim();
+        if (
+          preferred &&
+          (!blob.type || blob.type === "application/octet-stream")
+        ) {
+          blob = new Blob([blob], { type: preferred });
+        }
+        const next = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(next);
+          return;
+        }
+        created = next;
+        setObjectUrl(next);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [url, preferredMimeType]);
+
+  return { objectUrl, failed };
+}
+
+function MessageAttachmentView({
+  attachment,
+}: {
+  attachment: ConversationAttachment;
+}) {
+  const kind = String(attachment.kind || "").toLowerCase();
+  const mime = String(attachment.mimeType || "").toLowerCase();
+  const fileName = String(attachment.name || "").toLowerCase();
+  const isImage = kind === "image" || mime.startsWith("image/");
+  const isAudio = kind === "audio" || mime.startsWith("audio/");
+  const isVideo = kind === "video" || mime.startsWith("video/");
+  const isPdf =
+    mime === "application/pdf" ||
+    fileName.endsWith(".pdf");
+  const isDocument =
+    kind === "document" ||
+    kind === "file" ||
+    isPdf ||
+    (!isImage && !isAudio && !isVideo && Boolean(attachment.url));
+  const preferredMime =
+    isPdf
+      ? "application/pdf"
+      : mime || null;
+  const { objectUrl, failed } = useAuthenticatedBlobUrl(
+    attachment.url,
+    preferredMime
+  );
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  async function downloadFile() {
+    if (objectUrl) {
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = attachment.name || "attachment";
+      a.click();
+      return;
+    }
+    const path = attachmentApiPath(attachment.url || "");
+    if (!path) return;
+    try {
+      const downloaded = await apiClient.download(path);
+      const href = URL.createObjectURL(downloaded.blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = downloaded.filename || attachment.name || "attachment";
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch {
+      // ignore — UI already shows filename
+    }
+  }
+
+  function openExternalPreview() {
+    if (!objectUrl) return;
+    window.open(objectUrl, "_blank", "noopener,noreferrer");
+  }
+
+  if (attachment.url && isImage) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Image unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading image…
+        </span>
+      );
+    }
+    return (
+      <div className="mt-2 space-y-1.5">
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="block max-w-full overflow-hidden rounded-lg border border-border text-left transition-opacity hover:opacity-90"
+          aria-label={`View ${attachment.name || "image"}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={objectUrl}
+            alt={attachment.name || "Image"}
+            className="max-h-64 max-w-full object-contain"
+          />
+        </button>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => setPreviewOpen(true)}
+          >
+            <Eye aria-hidden className="size-3.5" />
+            View
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => void downloadFile()}
+          >
+            <Download aria-hidden className="size-3.5" />
+            Download
+          </Button>
+        </div>
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-h-[90vh] max-w-[min(96vw,52rem)] gap-3 overflow-hidden p-4 sm:p-5">
+            <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 pr-8">
+              <DialogTitle className="truncate text-sm font-medium">
+                {attachment.name || "Image"}
+              </DialogTitle>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 gap-1.5"
+                onClick={() => void downloadFile()}
+              >
+                <Download aria-hidden className="size-3.5" />
+                Download
+              </Button>
+            </DialogHeader>
+            <div className="flex max-h-[min(75vh,40rem)] items-center justify-center overflow-auto rounded-lg bg-muted/40 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={objectUrl}
+                alt={attachment.name || "Image"}
+                className="max-h-[min(72vh,38rem)] max-w-full object-contain"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  if (attachment.url && isAudio) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Audio unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading audio…
+        </span>
+      );
+    }
+    return (
+      <ChatRecordingPlayer url={objectUrl} durationLabel={attachment.size || ""} />
+    );
+  }
+
+  if (attachment.url && isVideo) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Video unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading video…
+        </span>
+      );
+    }
+    return (
+      <video
+        src={objectUrl}
+        controls
+        className="mt-2 max-h-64 max-w-full rounded-lg border border-border"
+      />
+    );
+  }
+
+  if (attachment.url && isDocument) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Document unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading document…
+        </span>
+      );
+    }
+
+    return (
+      <div className="mt-2 space-y-1.5">
+        <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground">
+          <FileText aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate">{attachment.name || "Document"}</span>
+          {attachment.size ? (
+            <span className="shrink-0 text-muted-foreground">{attachment.size}</span>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => {
+              if (isPdf) setPreviewOpen(true);
+              else openExternalPreview();
+            }}
+          >
+            <Eye aria-hidden className="size-3.5" />
+            View
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => void downloadFile()}
+          >
+            <Download aria-hidden className="size-3.5" />
+            Download
+          </Button>
+        </div>
+        {isPdf ? (
+          <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+            <DialogContent className="max-h-[92vh] max-w-[min(96vw,56rem)] gap-3 overflow-hidden p-4 sm:p-5">
+              <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 pr-8">
+                <DialogTitle className="truncate text-sm font-medium">
+                  {attachment.name || "Document"}
+                </DialogTitle>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0 gap-1.5"
+                  onClick={() => void downloadFile()}
+                >
+                  <Download aria-hidden className="size-3.5" />
+                  Download
+                </Button>
+              </DialogHeader>
+              <iframe
+                title={attachment.name || "Document preview"}
+                src={objectUrl}
+                className="h-[min(78vh,42rem)] w-full rounded-lg border border-border bg-background"
+              />
+            </DialogContent>
+          </Dialog>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void downloadFile()}
+      disabled={!attachment.url}
+      className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-left text-xs text-foreground disabled:opacity-60"
+    >
+      {attachment.url ? (
+        <Download aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+      ) : (
+        <Paperclip aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+      )}
+      <span className="min-w-0 truncate">{attachment.name}</span>
+      {attachment.size ? (
+        <span className="shrink-0 text-muted-foreground">{attachment.size}</span>
+      ) : null}
+    </button>
+  );
 }
 
 function ChatRecordingPlayer({
@@ -447,6 +806,13 @@ function EventBubble({ event }: { event: ConversationEvent }) {
     displayText = stripEmailQuotedReply(displayText);
   }
 
+  const hasMedia = (event.attachments?.length || 0) > 0;
+  const isMediaPlaceholder =
+    hasMedia &&
+    /^(?:\[Image\]|\[Audio\]|\[Video\]|\[Document:[^\]]*\])$/i.test(
+      displayText.trim()
+    );
+
   return (
     <div
       className={cn(
@@ -474,9 +840,11 @@ function EventBubble({ event }: { event: ConversationEvent }) {
           {event.subject}
         </p>
       ) : null}
-      <p className="mt-1 break-words text-sm leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
-        {displayText}
-      </p>
+      {!isMediaPlaceholder && displayText ? (
+        <p className="mt-1 break-words text-sm leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
+          {displayText}
+        </p>
+      ) : null}
       {event.delivery === "Failed" && event.error ? (
         <p
           role="alert"
@@ -485,20 +853,11 @@ function EventBubble({ event }: { event: ConversationEvent }) {
           {event.error}
         </p>
       ) : null}
-      {event.attachments?.map((attachment) => (
-        <span
-          key={attachment.name}
-          className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
-        >
-          <Paperclip
-            aria-hidden
-            className="size-3 shrink-0 text-muted-foreground"
-          />
-          <span className="min-w-0 truncate">{attachment.name}</span>
-          <span className="shrink-0 text-muted-foreground">
-            {attachment.size}
-          </span>
-        </span>
+      {event.attachments?.map((attachment, index) => (
+        <MessageAttachmentView
+          key={`${attachment.name}-${attachment.url || index}`}
+          attachment={attachment}
+        />
       ))}
       <p className="mt-1.5 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
         {event.time}

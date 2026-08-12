@@ -34,6 +34,9 @@ export type EventAuthor = "candidate" | "ai" | "recruiter" | "system";
 export interface ConversationAttachment {
   name: string;
   size: string;
+  url?: string | null;
+  mimeType?: string | null;
+  kind?: "image" | "audio" | "document" | "video" | "file" | string | null;
 }
 
 export interface VoiceSummary {

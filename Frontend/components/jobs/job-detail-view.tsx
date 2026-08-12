@@ -14,7 +14,6 @@ import {
   Users,
 } from "lucide-react";
 
-import { PipelineFunnel } from "@/components/dashboard/pipeline-funnel";
 import { ActivityTimeline } from "@/components/shared/activity-timeline";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { CandidateSummaryCard } from "@/components/shared/candidate-summary-card";
@@ -25,7 +24,6 @@ import { PageTabs } from "@/components/shared/page-tabs";
 import { SectionHeader } from "@/components/shared/section-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { JobAssessmentsTab } from "@/components/jobs/job-assessments-tab";
 import {
   Table,
@@ -138,6 +136,7 @@ function RoleOverview({ job }: { job: JobDetail }) {
   );
 }
 
+/* Placeholder — not shown until job.stats counters are updated by sourcing/outreach/screening.
 function HiringProgress({ job }: { job: JobDetail }) {
   const hireProgress = Math.min(
     100,
@@ -210,6 +209,7 @@ function CandidatePipelineSection({ job }: { job: JobDetail }) {
     </section>
   );
 }
+*/
 
 function RecentCandidatesSection({ job }: { job: JobDetail }) {
   return (
@@ -517,8 +517,10 @@ export function JobDetailView({ job }: { job: JobDetail }) {
       <div className="grid items-start gap-4 lg:grid-cols-12">
         <div className="space-y-4 lg:col-span-8">
           <RoleOverview job={job} />
+          {/* Placeholder UI — job.stats pipeline/hire counters are not fully wired yet.
           <HiringProgress job={job} />
           <CandidatePipelineSection job={job} />
+          */}
           <RecentCandidatesSection job={job} />
         </div>
 

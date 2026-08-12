@@ -45,8 +45,29 @@ Payload defaults for non-IN dials:
 
 Same `ai_voice_minutes` metric as Hunar: reserve 1 minute per dial, commit on terminal webhook.
 
+## Recording retrieval
+
+Webhook `data.recordingUrl` is often the auth-gated API path:
+
+`GET https://astraapi.zyvka.com/api/v1/external/voice/recording/{callId}`
+
+(requires `x-api-key` + `x-api-secret`).
+
+On `call.completed`, Huntlo:
+
+1. Calls that authenticated GET
+2. Stores a playable URL when Zyastra returns a redirect / signed URL
+3. Otherwise stores Huntlo’s proxy:
+
+`{PUBLIC_API_BASE_URL}/api/integrations/voice/zyastra/recording/{callId}`
+
+The proxy streams (or redirects) using Huntlo’s Zyastra credentials. It only serves `VoiceCall` rows with `provider: 'zyastra'`.
+
+Hunar recording handling is unchanged.
+
 ## Minimal test plan
 
 1. Unit: `isIndianE164`, Zyastra signature verify
 2. Mock Zyastra trigger + webhook for a non-`+91` outreach contact and a screening candidate
 3. Assert Hunar bulk is not called for those phones; `+91` still hits Hunar
+4. Mock recording GET → assert webhook stores proxy/signed URL; proxy route streams audio

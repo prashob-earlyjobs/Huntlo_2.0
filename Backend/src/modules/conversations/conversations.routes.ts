@@ -17,6 +17,7 @@ import {
   conversationIdParamSchema,
   listConversationsQuerySchema,
   listMessagesQuerySchema,
+  messageAttachmentParamSchema,
   noteBodySchema,
   qualificationAnswerBodySchema,
   replyBodySchema,
@@ -42,6 +43,42 @@ conversationsRouter.get(
     successResponse(res, data.items, {
       meta: { requestId: getRequestId(req), pagination: data.pagination },
     });
+  })
+);
+
+/** Authenticated binary download for inbound WhatsApp media (image/audio/document). */
+conversationsRouter.get(
+  '/messages/:messageId/attachments/:index',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { messageId, index } = messageAttachmentParamSchema.parse(req.params);
+    const file = await conversationsService.getMessageAttachment(
+      req.organizationId!,
+      messageId,
+      index
+    );
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(file.fileName)}"`
+    );
+    if (file.source === 'gcs' && file.stream) {
+      file.stream.on('error', () => {
+        if (!res.headersSent) {
+          res.status(502).end();
+        } else {
+          res.destroy();
+        }
+      });
+      file.stream.pipe(res);
+      return;
+    }
+    if (!file.absolutePath) {
+      res.status(404).end();
+      return;
+    }
+    res.sendFile(file.absolutePath);
   })
 );
 

@@ -6,6 +6,11 @@
 export const ZYASTRA_API_BASE_URL = 'https://astraapi.zyvka.com/api/v1/external';
 export const ZYASTRA_TRIGGER_URL = `${ZYASTRA_API_BASE_URL}/voice/trigger`;
 
+export function buildZyastraRecordingApiUrl(callId: string): string {
+  const id = String(callId || '').trim();
+  return `${ZYASTRA_API_BASE_URL}/voice/recording/${encodeURIComponent(id)}`;
+}
+
 export function getZyastraApiKey(): string {
   return String(process.env.ZYASTRA_API_KEY || '').trim();
 }
@@ -40,4 +45,17 @@ export function buildZyastraWebhookUrl(): string {
     throw err;
   }
   return `${base}/api/integrations/voice/zyastra`;
+}
+
+/** Huntlo proxy URL so browsers can play recordings without Zyastra API keys. */
+export function buildZyastraRecordingProxyUrl(callId: string): string {
+  const id = String(callId || '').trim();
+  if (!id) return '';
+  try {
+    return `${buildZyastraWebhookUrl()}/recording/${encodeURIComponent(id)}`;
+  } catch {
+    const base = getPublicApiBaseUrl();
+    if (!base) return '';
+    return `${base}/api/integrations/voice/zyastra/recording/${encodeURIComponent(id)}`;
+  }
 }

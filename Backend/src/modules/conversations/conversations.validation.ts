@@ -33,6 +33,11 @@ export const conversationIdParamSchema = z.object({
   id: objectId,
 });
 
+export const messageAttachmentParamSchema = z.object({
+  messageId: objectId,
+  index: z.coerce.number().int().min(0).max(50),
+});
+
 export const replyBodySchema = z.object({
   text: z.string().trim().min(1).max(20000),
   html: z.string().max(100000).optional(),
