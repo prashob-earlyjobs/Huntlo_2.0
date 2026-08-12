@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
 import { getLogger } from '../../config/logger.js';
 import {
   parseZyastraWebhookPayload,
+  resolveZyastraRecordingUrl,
   verifyZyastraWebhookAuthenticity,
   type ParsedZyastraWebhook,
 } from '../../providers/zyastra/index.js';
@@ -45,6 +46,49 @@ function mapZyastraStatus(event: string, status: string): string {
   return st || 'COMPLETED';
 }
 
+/**
+ * Zyastra analysis variables use *_days / *_lpa / relocation_* names.
+ * Alias them onto the Hunar/Roshni keys that qualification sync already reads.
+ */
+export function normalizeZyastraResultVariables(
+  variables: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...variables };
+  const setIfMissing = (key: string, value: unknown) => {
+    if (out[key] != null && String(out[key]).trim() !== '') return;
+    if (value == null) return;
+    const asText = typeof value === 'string' ? value.trim() : String(value).trim();
+    if (!asText || asText.toLowerCase() === 'null') return;
+    out[key] = asText;
+  };
+
+  setIfMissing('notice_period', out.notice_period_days ?? out.noticePeriodDays);
+  setIfMissing('noticePeriod', out.notice_period_days ?? out.noticePeriodDays);
+  setIfMissing('ctc', out.current_ctc_lpa ?? out.currentCtcLpa);
+  setIfMissing('current_ctc', out.current_ctc_lpa ?? out.currentCtcLpa);
+  setIfMissing('currentCtc', out.current_ctc_lpa ?? out.currentCtcLpa);
+  setIfMissing('expected_ctc', out.expected_ctc_lpa ?? out.expectedCtcLpa);
+  setIfMissing('expectedCtc', out.expected_ctc_lpa ?? out.expectedCtcLpa);
+  setIfMissing(
+    'location',
+    out.relocation_willingness ??
+      out.relocationWillingness ??
+      out.work_mode ??
+      out.workMode ??
+      out.current_location
+  );
+  setIfMissing(
+    'work_mode',
+    out.relocation_willingness ?? out.relocationWillingness ?? out.workMode
+  );
+  setIfMissing(
+    'interest_level',
+    out.candidate_interest_score ?? out.candidateInterestScore
+  );
+
+  return out;
+}
+
 /** Build one or more Hunar-shaped webhook bodies from a single Zyastra event. */
 export function zyastraToHunarWebhookBodies(
   parsed: ParsedZyastraWebhook
@@ -69,9 +113,9 @@ export function zyastraToHunarWebhookBodies(
     String(parsed.event).toLowerCase() === 'call.failed' || status === 'FAILED';
 
   if (isTerminalSuccess) {
-    const result: Record<string, unknown> = {
+    const result: Record<string, unknown> = normalizeZyastraResultVariables({
       ...parsed.variables,
-    };
+    });
     if (parsed.summary) result.summary = parsed.summary;
     if (parsed.transcript) result.transcript = parsed.transcript;
 
@@ -110,7 +154,7 @@ export function zyastraToHunarWebhookBodies(
     bodies[0]!.body = {
       ...base,
       status: 'FAILED',
-      result: parsed.variables,
+      result: normalizeZyastraResultVariables({ ...parsed.variables }),
       summary: parsed.summary || undefined,
     };
   }
@@ -157,6 +201,29 @@ export async function processZyastraVoiceWebhook(input: {
   const parsed = parseZyastraWebhookPayload(input.body);
   if (!parsed.callId) {
     throw new AppError(400, 'CALL_ID_REQUIRED', 'callId is required');
+  }
+
+  const mappedStatus = mapZyastraStatus(String(parsed.event), parsed.status);
+  const isTerminalSuccess =
+    String(parsed.event).toLowerCase() === 'call.completed' || mappedStatus === 'COMPLETED';
+
+  // Authenticated recording GET (Zyastra-only). Prefer playable/proxy URL over auth-gated API path.
+  if (isTerminalSuccess) {
+    const webhookRecordingUrl = parsed.recordingUrl;
+    parsed.recordingUrl = await resolveZyastraRecordingUrl({
+      callId: parsed.callId,
+      webhookRecordingUrl,
+    });
+    if (parsed.recordingUrl !== webhookRecordingUrl) {
+      log().info(
+        {
+          callId: parsed.callId,
+          fromWebhook: Boolean(webhookRecordingUrl),
+          resolved: parsed.recordingUrl,
+        },
+        'Zyastra recording URL resolved'
+      );
+    }
   }
 
   log().info(

@@ -30,6 +30,7 @@ import {
   ROSHNI_INTRODUCTION,
 } from '../voice/roshni-prompt.js';
 import {
+  isIndianE164,
   mapPool,
   resolveIntroduction,
   resolveVoiceTokens,
@@ -747,7 +748,7 @@ export const screeningService = {
     for (const candidate of pool) {
       const mobile = toHunarMobile(String(candidate.phone || ''));
       if (!mobile) continue;
-      if (mobile.startsWith('+91')) hasIndian = true;
+      if (isIndianE164(mobile)) hasIndian = true;
       else hasInternational = true;
     }
     if (hasIndian && !isHunarConfigured()) {
@@ -950,7 +951,7 @@ export const screeningService = {
         name: candidate.name || 'Candidate',
         mobile,
         mobileDigits: mobile.replace(/\D/g, ''),
-        indian: mobile.startsWith('+91'),
+        indian: isIndianE164(mobile),
         candidateId: String(row.candidateId),
       });
     }
