@@ -570,7 +570,7 @@ function JobStep({
               value={state.jobId}
               invalid={showErrors && !state.jobId}
               placeholder="Search jobs…"
-              onChange={(jobId) => update("jobId", jobId)}
+              onChange={(jobId) => update("jobId", jobId ?? "")}
             />
             {showErrors && !state.jobId ? (
               <p role="alert" className="text-xs text-destructive">
