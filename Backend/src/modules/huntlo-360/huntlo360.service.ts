@@ -7,6 +7,7 @@ import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { quotaService } from '../../shared/usage/index.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
+import { enrichCampaignContactsForLaunch } from '../outreach/campaign-launch-reveal.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import {
@@ -19,6 +20,7 @@ import {
 } from './workflow.model.js';
 import { compileCampaignPayload } from './compiler.js';
 import { applyWorkflowTransition, refreshStageStats } from './transitions.js';
+import { flowSupportService } from './flow-support.service.js';
 import type {
   createWorkflowSchema,
   listCandidatesQuerySchema,
@@ -83,13 +85,18 @@ async function loadWorkflow(organizationId: string, id: string) {
   return doc;
 }
 
-function toDisplay(doc: Huntlo360WorkflowDocument, extras: {
-  ownerName: string;
-  jobTitle: string | null;
-}) {
+async function toDisplay(
+  doc: Huntlo360WorkflowDocument,
+  extras: {
+    ownerName: string;
+    jobTitle: string | null;
+    includeSupport?: boolean;
+  }
+) {
   const channels: Array<'Email' | 'WhatsApp'> = [];
   if (doc.outreachConfig.emailEnabled) channels.push('Email');
   if (doc.outreachConfig.whatsappEnabled) channels.push('WhatsApp');
+  if (doc.outreachConfig.aiVoiceEnabled) channels.push('AI Voice');
 
   const statusMap: Record<string, string> = {
     draft: 'Draft',
@@ -100,7 +107,7 @@ function toDisplay(doc: Huntlo360WorkflowDocument, extras: {
     failed: 'Failed',
   };
 
-  return {
+  const base = {
     id: String(doc._id),
     organizationId: String(doc.organizationId),
     name: doc.name,
@@ -133,11 +140,41 @@ function toDisplay(doc: Huntlo360WorkflowDocument, extras: {
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };
+
+  if (!extras.includeSupport) return base;
+
+  const support = await flowSupportService.getByWorkflow(String(doc._id));
+  return {
+    ...base,
+    supportingIds: flowSupportService.toDisplay(support),
+  };
 }
 
 function mergeConfigs(doc: Huntlo360WorkflowDocument, input: UpdateInput | CreateInput) {
   if (input.outreachConfig) {
-    doc.outreachConfig = { ...doc.outreachConfig, ...input.outreachConfig };
+    const next = { ...doc.outreachConfig, ...input.outreachConfig };
+    if (input.outreachConfig.followUps) {
+      next.followUps = input.outreachConfig.followUps.map((entry, index) => {
+        if (typeof entry === 'string') {
+          return {
+            body: entry,
+            delayDays: index === 0 ? 2 : 3,
+            delayUnit: 'days' as const,
+            templateId: null,
+          };
+        }
+        return {
+          body: String(entry.body || ''),
+          delayDays: Math.max(0, Number(entry.delayDays ?? (index === 0 ? 2 : 3)) || 0),
+          delayUnit:
+            entry.delayUnit === 'hours' || entry.delayUnit === 'minutes'
+              ? entry.delayUnit
+              : ('days' as const),
+          templateId: entry.templateId ? String(entry.templateId) : null,
+        };
+      });
+    }
+    doc.outreachConfig = next;
   }
   if (input.qualificationConfig) {
     doc.qualificationConfig = {
@@ -189,11 +226,31 @@ async function syncCampaignFromWorkflow(
       String(workflow.campaignId),
       payload
     );
+    await flowSupportService
+      .ensure({
+        organizationId,
+        workflowId: String(workflow._id),
+        jobId: workflow.jobId ? String(workflow.jobId) : null,
+        campaignId: String(workflow.campaignId),
+        candidateListId: workflow.candidateSource?.listId || null,
+        candidateIds: workflow.candidateSource?.candidateIds || [],
+      })
+      .catch(() => undefined);
     return String(workflow.campaignId);
   }
   const campaign = await campaignsService.create(organizationId, userId, payload);
   workflow.campaignId = new mongoose.Types.ObjectId(campaign.id);
   await workflow.save();
+  await flowSupportService
+    .ensure({
+      organizationId,
+      workflowId: String(workflow._id),
+      jobId: workflow.jobId ? String(workflow.jobId) : null,
+      campaignId: campaign.id,
+      candidateListId: workflow.candidateSource?.listId || null,
+      candidateIds: workflow.candidateSource?.candidateIds || [],
+    })
+    .catch(() => undefined);
   return campaign.id;
 }
 
@@ -238,7 +295,26 @@ export const huntlo360Service = {
     return toDisplay(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
+  },
+
+  async supportingIds(organizationId: string, id: string) {
+    await loadWorkflow(organizationId, id);
+    const support = await flowSupportService.getByWorkflow(id);
+    return (
+      flowSupportService.toDisplay(support) || {
+        workflowId: id,
+        jobId: null,
+        campaignId: null,
+        candidateListId: null,
+        candidateIds: [],
+        enrollmentIds: [],
+        screeningIds: [],
+        assessmentCandidateIds: [],
+        scheduleCandidateIds: [],
+      }
+    );
   },
 
   async create(organizationId: string, userId: string, input: CreateInput) {
@@ -270,12 +346,21 @@ export const huntlo360Service = {
     mergeConfigs(doc, input);
     await doc.save();
 
+    await flowSupportService.ensure({
+      organizationId,
+      workflowId: String(doc._id),
+      jobId: doc.jobId ? String(doc.jobId) : null,
+      candidateListId: doc.candidateSource?.listId || null,
+      candidateIds: doc.candidateSource?.candidateIds || [],
+    });
+
     // Compile linked campaign (draft) without launching
     await syncCampaignFromWorkflow(organizationId, userId, doc);
 
     return toDisplay(doc, {
       ownerName: await ownerName(ownerUserId),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
   },
 
@@ -303,6 +388,7 @@ export const huntlo360Service = {
     return toDisplay(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
   },
 
@@ -346,7 +432,11 @@ export const huntlo360Service = {
         message: 'No job is linked to this workflow.',
       });
     }
-    if (!doc.outreachConfig.emailEnabled && !doc.outreachConfig.whatsappEnabled) {
+    if (
+      !doc.outreachConfig.emailEnabled &&
+      !doc.outreachConfig.whatsappEnabled &&
+      !doc.outreachConfig.aiVoiceEnabled
+    ) {
       issues.push({
         id: 'channels',
         severity: 'error',
@@ -430,6 +520,21 @@ export const huntlo360Service = {
       });
     }
 
+    // Unlock email/phone before workflow validate — otherwise sourced audiences
+    // fail NO_EMAIL_CONTACTS / NO_PHONE_CONTACTS and never reach campaign launch.
+    const campaignDoc = await OutreachCampaignModel.findOne({
+      _id: campaignId,
+      organizationId,
+      deletedAt: null,
+    });
+    if (campaignDoc) {
+      await enrichCampaignContactsForLaunch({
+        organizationId,
+        userId,
+        campaign: campaignDoc,
+      });
+    }
+
     const validation = await this.validate(organizationId, userId, id);
     if (!validation.ok) {
       throw new AppError(400, 'LAUNCH_VALIDATION_FAILED', 'Workflow failed launch validation.', {
@@ -471,6 +576,27 @@ export const huntlo360Service = {
       );
     }
 
+    await flowSupportService
+      .ensure({
+        organizationId,
+        workflowId: id,
+        jobId: doc.jobId ? String(doc.jobId) : null,
+        campaignId,
+        candidateListId: doc.candidateSource?.listId || null,
+        candidateIds: [
+          ...(doc.candidateSource?.candidateIds || []),
+          ...enrollments.map((e) => String(e.candidateId)),
+        ],
+      })
+      .catch(() => undefined);
+    await flowSupportService
+      .addIds(id, {
+        enrollmentIds: enrollments.map((e) => String(e._id)),
+        candidateIds: enrollments.map((e) => String(e.candidateId)),
+        campaignId,
+      })
+      .catch(() => undefined);
+
     doc.status = 'running';
     doc.launchedAt = doc.launchedAt || new Date();
     doc.pausedAt = null;
@@ -481,6 +607,7 @@ export const huntlo360Service = {
     return toDisplay(await loadWorkflow(organizationId, id), {
       ownerName: await ownerName(String(doc.ownerUserId)),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
   },
 

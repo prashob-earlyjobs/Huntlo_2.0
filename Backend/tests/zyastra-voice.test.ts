@@ -368,6 +368,126 @@ describe('Zyastra routing + webhook', () => {
         fetchSpy.mockRestore();
       }
     });
+
+    it('parses snake_case recording_url and nested variable bags', () => {
+      const parsed = parseZyastraWebhookPayload({
+        event: 'call.completed',
+        data: {
+          call_id: 'zy-snake',
+          status: 'completed',
+          duration_seconds: 42,
+          recording_url: 'https://cdn.example.com/us-call.mp3',
+          call_transcript: 'Notice period is two weeks',
+          analysisVariables: {
+            notice_period: { value: '2 weeks' },
+            interest_level: 'high',
+          },
+          metadata: { campaignId: 'camp-1' },
+        },
+      });
+      expect(parsed.callId).toBe('zy-snake');
+      expect(parsed.recordingUrl).toBe('https://cdn.example.com/us-call.mp3');
+      expect(parsed.transcript).toContain('two weeks');
+      expect(parsed.durationSeconds).toBe(42);
+      expect(parsed.variables.notice_period).toBe('2 weeks');
+      expect(parsed.variables.interest_level).toBe('high');
+
+      const bodies = zyastraToHunarWebhookBodies(parsed);
+      const recording = bodies.find((b) => b.kind === 'call-recording');
+      expect(recording?.body.recording_url).toBe('https://cdn.example.com/us-call.mp3');
+      const result = bodies.find((b) => b.kind === 'call-result')!.body.result as Record<
+        string,
+        unknown
+      >;
+      expect(result.notice_period).toBe('2 weeks');
+    });
+
+    it('normalizes Zyastra notice_period_days / relocation_willingness into qualification fields', () => {
+      const parsed = parseZyastraWebhookPayload({
+        event: 'call.completed',
+        data: {
+          callId: 'zy-alias',
+          status: 'completed',
+          variables: {
+            notice_period_days: 100,
+            relocation_willingness: false,
+            summary: 'Long notice, no hybrid',
+          },
+          metadata: { campaignId: 'camp-1' },
+        },
+      });
+      const bodies = zyastraToHunarWebhookBodies(parsed);
+      const result = bodies.find((b) => b.kind === 'call-result')!.body.result as Record<
+        string,
+        unknown
+      >;
+      expect(result.notice_period).toBe('100');
+      expect(result.location).toBe('No');
+      expect(result.relocation_willingness).toBe('No');
+    });
+  });
+
+  it('passes analysisVariables on US launch-voice dials', async () => {
+    const { token, organizationId, userId } = await registerAndAuth(agent);
+
+    const candidate = await SavedCandidateModel.create({
+      organizationId,
+      ownerUserId: userId,
+      name: 'US Candidate',
+      phone: '+14155552671',
+      sourceType: 'manual',
+      status: 'saved',
+    });
+
+    const campaign = await OutreachCampaignModel.create({
+      organizationId,
+      ownerUserId: userId,
+      name: 'Zyastra analysis vars',
+      status: 'draft',
+      channelConfig: {
+        email: { enabled: false, integrationId: null, senderEmail: null },
+        whatsapp: { enabled: false, integrationId: null },
+        ai_voice: { enabled: true, integrationId: null },
+        timezone: 'Asia/Kolkata',
+        sendWindow: { startHour: 9, endHour: 18, daysOfWeek: [1, 2, 3, 4, 5] },
+      },
+      sequenceSteps: [{ id: 'v1', order: 0, type: 'ai_voice', body: 'Hello' }],
+      voiceAgentConfig: {
+        agentId: 'unused-for-us',
+        agentPrompt: 'Screen for the role.',
+        introduction: 'Hello?',
+      },
+      qualificationConfig: {
+        enabled: true,
+        questions: [
+          {
+            id: 'notice',
+            prompt: 'What is your notice period?',
+            required: true,
+          },
+        ],
+      },
+    });
+
+    await OutreachEnrollmentModel.create({
+      organizationId,
+      campaignId: campaign._id,
+      candidateId: candidate._id,
+      status: 'active',
+      contactAvailability: { email: true, phone: true, optedOut: false },
+    });
+
+    const res = await agent
+      .post(`/api/v1/outreach/campaigns/${campaign._id}/launch-voice`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(zyastraClient.triggerZyastraVoiceCall).toHaveBeenCalled();
+    const triggerArg = vi.mocked(zyastraClient.triggerZyastraVoiceCall).mock.calls[0]![0];
+    expect(triggerArg.analysisVariables).toEqual(
+      expect.arrayContaining(['notice_period', 'summary', 'notice_answer'])
+    );
   });
 
   it('launch-voice dials non-IN via Zyastra and skips Hunar bulk', async () => {

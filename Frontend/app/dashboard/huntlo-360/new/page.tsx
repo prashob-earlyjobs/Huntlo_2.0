@@ -14,7 +14,7 @@ export default function NewWorkflowPage() {
     <>
       <PageHeader
         title="Create Workflow"
-        description="Seven steps from job to scheduled interviews. No messages or calls are sent from this preview."
+        description="Four simple steps — set up the role, write messages, filter & book, then launch. Nothing is sent until you launch."
         actions={
           <Button
             size="sm"

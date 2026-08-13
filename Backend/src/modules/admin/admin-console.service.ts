@@ -529,7 +529,17 @@ export const adminConsoleService = {
 
     org.plan = (pricing?.name as typeof org.plan) || (normalized as typeof org.plan);
     await org.save();
-    await plansService.ensureSubscription(org._id.toHexString());
+
+    const orgId = org._id.toHexString();
+    const subscription = await plansService.ensureSubscription(orgId);
+    if (pricing && subscription.planId.toHexString() !== pricing._id.toHexString()) {
+      subscription.planId = pricing._id;
+      // Paid admin assignment exits trial so Scale/Enterprise featureAccess applies.
+      if (subscription.status === 'trialing' && !pricing.isTrialPlan && pricing.code !== 'trial') {
+        subscription.status = 'active';
+      }
+      await subscription.save();
+    }
     return this.getUser(id);
   },
 

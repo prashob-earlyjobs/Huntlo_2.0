@@ -18,6 +18,8 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { processHunarWebhook } from '../screening/webhook.service.js';
 import { VoiceCallModel } from './voice-call.model.js';
 import { processCampaignVoiceWebhook } from './voice-webhook.service.js';
+import { normalizeVoiceAnalysisVariables } from './voice-qualification-sync.js';
+import { fetchZyastraCall, fetchZyastraRecordingUrl } from '../../providers/zyastra/zyastra.client.js';
 
 const log = () => getLogger().child({ component: 'zyastra-voice-webhook' });
 
@@ -113,9 +115,11 @@ export function zyastraToHunarWebhookBodies(
     String(parsed.event).toLowerCase() === 'call.failed' || status === 'FAILED';
 
   if (isTerminalSuccess) {
-    const result: Record<string, unknown> = normalizeZyastraResultVariables({
-      ...parsed.variables,
-    });
+    const result: Record<string, unknown> = normalizeVoiceAnalysisVariables(
+      normalizeZyastraResultVariables({
+        ...parsed.variables,
+      })
+    );
     if (parsed.summary) result.summary = parsed.summary;
     if (parsed.transcript) result.transcript = parsed.transcript;
 
@@ -203,12 +207,45 @@ export async function processZyastraVoiceWebhook(input: {
     throw new AppError(400, 'CALL_ID_REQUIRED', 'callId is required');
   }
 
+  // Webhook often omits recording / late variables — enrich from call details API.
+  if (!parsed.recordingUrl || Object.keys(parsed.variables).length === 0) {
+    try {
+      const details = await fetchZyastraCall(parsed.callId);
+      if (details) {
+        if (!parsed.recordingUrl && details.recordingUrl) {
+          parsed.recordingUrl = details.recordingUrl;
+        }
+        if (!parsed.transcript && details.transcript) {
+          parsed.transcript = details.transcript;
+        }
+        if (!parsed.summary && details.summary) {
+          parsed.summary = details.summary;
+        }
+        if (parsed.durationSeconds == null && details.durationSeconds != null) {
+          parsed.durationSeconds = details.durationSeconds;
+        }
+        if (Object.keys(details.variables).length > 0) {
+          parsed.variables = { ...details.variables, ...parsed.variables };
+        }
+      }
+      if (!parsed.recordingUrl) {
+        const fromRecordingEndpoint = await fetchZyastraRecordingUrl(parsed.callId);
+        if (fromRecordingEndpoint) parsed.recordingUrl = fromRecordingEndpoint;
+      }
+    } catch (err) {
+      log().warn(
+        { callId: parsed.callId, err: err instanceof Error ? err.message : String(err) },
+        'Zyastra call enrichment failed'
+      );
+    }
+  }
+
   const mappedStatus = mapZyastraStatus(String(parsed.event), parsed.status);
-  const isTerminalSuccess =
+  const isTerminalSuccessForRecording =
     String(parsed.event).toLowerCase() === 'call.completed' || mappedStatus === 'COMPLETED';
 
   // Authenticated recording GET (Zyastra-only). Prefer playable/proxy URL over auth-gated API path.
-  if (isTerminalSuccess) {
+  if (isTerminalSuccessForRecording) {
     const webhookRecordingUrl = parsed.recordingUrl;
     parsed.recordingUrl = await resolveZyastraRecordingUrl({
       callId: parsed.callId,

@@ -1,67 +1,198 @@
 import type { Huntlo360WorkflowDocument } from './workflow.model.js';
+import {
+  getApprovedTemplate,
+  getDefaultTemplateForSlot,
+  type WhatsAppTemplateSlot,
+} from '../outreach/whatsapp-template-catalogue.js';
+
+type OutreachChannel = 'email' | 'whatsapp' | 'ai_voice';
+type DelayUnit = 'days' | 'hours' | 'minutes';
+
+type SequenceStep = {
+  id: string;
+  order: number;
+  type: 'email' | 'whatsapp' | 'wait' | 'ai_voice' | 'scheduling_link';
+  delayDays: number;
+  delayUnit: DelayUnit;
+  templateId: string | null;
+  subject: string | null;
+  body: string | null;
+  stopOnReply: boolean;
+  note: string | null;
+};
+
+type NormalizedFollowUp = {
+  body: string;
+  delayDays: number;
+  delayUnit: DelayUnit;
+  templateId: string | null;
+};
+
+function preferredChannel(
+  order: Huntlo360WorkflowDocument['outreachConfig']['channelOrder']
+): OutreachChannel {
+  if (order === 'whatsapp_first') return 'whatsapp';
+  if (order === 'voice_first') return 'ai_voice';
+  return 'email';
+}
+
+function enabledChannels(workflow: Huntlo360WorkflowDocument): OutreachChannel[] {
+  const flags: Record<OutreachChannel, boolean> = {
+    email: Boolean(workflow.outreachConfig.emailEnabled),
+    whatsapp: Boolean(workflow.outreachConfig.whatsappEnabled),
+    ai_voice: Boolean(workflow.outreachConfig.aiVoiceEnabled),
+  };
+  const preferred = preferredChannel(workflow.outreachConfig.channelOrder);
+  const ordered: OutreachChannel[] = [];
+  if (flags[preferred]) ordered.push(preferred);
+  for (const channel of ['email', 'whatsapp', 'ai_voice'] as const) {
+    if (channel !== preferred && flags[channel]) ordered.push(channel);
+  }
+  return ordered;
+}
+
+function normalizeFollowUps(
+  raw: Huntlo360WorkflowDocument['outreachConfig']['followUps'] | unknown
+): NormalizedFollowUp[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw.map((entry, index) => {
+    if (typeof entry === 'string') {
+      return {
+        body: entry,
+        delayDays: index === 0 ? 2 : 3,
+        delayUnit: 'days' as const,
+        templateId: null,
+      };
+    }
+    const row = entry as {
+      body?: string;
+      delayDays?: number;
+      delayUnit?: DelayUnit;
+      templateId?: string | null;
+    };
+    const unit =
+      row.delayUnit === 'hours' || row.delayUnit === 'minutes' ? row.delayUnit : 'days';
+    return {
+      body: String(row.body || ''),
+      delayDays: Math.max(0, Number(row.delayDays ?? (index === 0 ? 2 : 3)) || 0),
+      delayUnit: unit,
+      templateId: row.templateId ? String(row.templateId) : null,
+    };
+  });
+}
+
+function slotForWhatsAppStep(whatsappStepIndex: number): WhatsAppTemplateSlot {
+  if (whatsappStepIndex <= 0) return 'opening';
+  if (whatsappStepIndex === 1) return 'no_reply_1';
+  return 'no_reply_2';
+}
+
+function resolveWhatsAppStep(input: {
+  templateId?: string | null;
+  body?: string | null;
+  whatsappStepIndex: number;
+}): { templateId: string; body: string } {
+  const slot = slotForWhatsAppStep(input.whatsappStepIndex);
+  const fromId = input.templateId ? getApprovedTemplate(String(input.templateId)) : null;
+  const picked = fromId || getDefaultTemplateForSlot(slot);
+  if (picked) {
+    return { templateId: picked.id, body: picked.body };
+  }
+  return {
+    templateId: String(input.templateId || ''),
+    body: String(input.body || ''),
+  };
+}
 
 /** Compile workflow outreach config into campaign sequence steps (no duplicate engine). */
 export function compileCampaignSequence(workflow: Huntlo360WorkflowDocument) {
-  const steps: Array<{
-    id: string;
-    order: number;
-    type: 'email' | 'whatsapp' | 'wait' | 'ai_voice' | 'scheduling_link';
-    delayDays: number;
-    delayUnit: 'days' | 'hours' | 'minutes';
-    subject: string | null;
-    body: string | null;
-    stopOnReply: boolean;
-    note: string | null;
-  }> = [];
-
-  const emailFirst = workflow.outreachConfig.channelOrder !== 'whatsapp_first';
+  const steps: SequenceStep[] = [];
+  const channels = enabledChannels(workflow);
   let order = 0;
+  let whatsappStepIndex = 0;
 
-  const opening = workflow.outreachConfig.openingMessage || 'Hi {{first_name}}, interested in {{job_title}}?';
-  const followUps = workflow.outreachConfig.followUps?.length
-    ? workflow.outreachConfig.followUps
-    : ['Just checking in on {{job_title}}, {{first_name}}.'];
+  const opening =
+    workflow.outreachConfig.openingMessage ||
+    'Hi {{first_name}}, interested in {{job_title}}?';
+  const followUps = normalizeFollowUps(workflow.outreachConfig.followUps);
+  const effectiveFollowUps =
+    followUps.length > 0
+      ? followUps
+      : channels.includes('email') || channels.includes('whatsapp')
+        ? [
+            {
+              body: 'Just checking in on {{job_title}}, {{first_name}}.',
+              delayDays: 2,
+              delayUnit: 'days' as const,
+              templateId: null,
+            },
+          ]
+        : [];
 
-  function pushChannel(type: 'email' | 'whatsapp', body: string, delayDays: number) {
+  function pushChannel(
+    type: OutreachChannel,
+    body: string,
+    delayDays: number,
+    delayUnit: DelayUnit = 'days',
+    templateId: string | null = null
+  ) {
+    let resolvedTemplateId = templateId;
+    let resolvedBody = body;
+    if (type === 'whatsapp') {
+      const resolved = resolveWhatsAppStep({
+        templateId:
+          templateId ||
+          (whatsappStepIndex === 0
+            ? workflow.outreachConfig.openingWhatsAppTemplateId
+            : null),
+        body,
+        whatsappStepIndex,
+      });
+      resolvedTemplateId = resolved.templateId || null;
+      resolvedBody = resolved.body;
+      whatsappStepIndex += 1;
+    }
+
     steps.push({
       id: `step-${order + 1}`,
       order,
       type,
       delayDays,
-      delayUnit: 'days',
+      delayUnit,
+      templateId: resolvedTemplateId,
       subject: type === 'email' ? 'Quick question, {{first_name}}' : null,
-      body,
+      // AI Voice: empty body → delivery uses Roshni (Hunar/Zyastra). Non-empty = call notes.
+      body: type === 'ai_voice' ? (resolvedBody.trim() ? resolvedBody : null) : resolvedBody,
       stopOnReply: workflow.outreachConfig.stopOnReply !== false,
-      note: null,
+      note: type === 'ai_voice' ? 'Huntlo Voice AI (Hunar / Zyastra)' : null,
     });
     order += 1;
   }
 
-  if (emailFirst) {
-    if (workflow.outreachConfig.emailEnabled) pushChannel('email', opening, 0);
-    else if (workflow.outreachConfig.whatsappEnabled) pushChannel('whatsapp', opening, 0);
-  } else {
-    if (workflow.outreachConfig.whatsappEnabled) pushChannel('whatsapp', opening, 0);
-    else if (workflow.outreachConfig.emailEnabled) pushChannel('email', opening, 0);
-  }
+  if (channels.length === 0) return steps;
 
-  followUps.forEach((body, index) => {
-    const delayDays = index === 0 ? 2 : 3;
-    if (workflow.outreachConfig.emailEnabled && workflow.outreachConfig.whatsappEnabled) {
-      const alternate =
-        emailFirst
-          ? index % 2 === 0
-            ? 'whatsapp'
-            : 'email'
-          : index % 2 === 0
-            ? 'email'
-            : 'whatsapp';
-      pushChannel(alternate, body, delayDays);
-    } else if (workflow.outreachConfig.emailEnabled) {
-      pushChannel('email', body, delayDays);
-    } else if (workflow.outreachConfig.whatsappEnabled) {
-      pushChannel('whatsapp', body, delayDays);
-    }
+  pushChannel(
+    channels[0]!,
+    opening,
+    0,
+    'days',
+    channels[0] === 'whatsapp'
+      ? workflow.outreachConfig.openingWhatsAppTemplateId || null
+      : null
+  );
+
+  effectiveFollowUps.forEach((followUp, index) => {
+    const channel =
+      channels.length === 1
+        ? channels[0]!
+        : channels[(index + 1) % channels.length]!;
+    pushChannel(
+      channel,
+      followUp.body,
+      followUp.delayDays,
+      followUp.delayUnit,
+      channel === 'whatsapp' ? followUp.templateId : null
+    );
   });
 
   // Screening + scheduling are orchestrated by Huntlo 360 transitions —
@@ -70,12 +201,24 @@ export function compileCampaignSequence(workflow: Huntlo360WorkflowDocument) {
 }
 
 export function compileCampaignPayload(workflow: Huntlo360WorkflowDocument) {
+  const emailOn = Boolean(workflow.outreachConfig.emailEnabled);
+  const whatsappOn = Boolean(workflow.outreachConfig.whatsappEnabled);
+  const voiceOn = Boolean(workflow.outreachConfig.aiVoiceEnabled);
+  const enabledCount = [emailOn, whatsappOn, voiceOn].filter(Boolean).length;
+  const explicitType = workflow.outreachConfig.campaignType;
+  const campaignType =
+    explicitType === 'single_channel' || explicitType === 'multi_channel'
+      ? explicitType
+      : enabledCount > 1
+        ? 'multi_channel'
+        : 'single_channel';
+
   return {
     name: workflow.name,
     jobId: workflow.jobId ? String(workflow.jobId) : null,
     ownerUserId: String(workflow.ownerUserId),
     sourceModule: 'huntlo360' as const,
-    campaignType: 'multi_channel' as const,
+    campaignType,
     candidateSource: {
       type: (workflow.candidateSource.type || 'manual') as
         | 'candidate_pool'
@@ -89,19 +232,33 @@ export function compileCampaignPayload(workflow: Huntlo360WorkflowDocument) {
       label: workflow.candidateSource.label,
     },
     channelConfig: {
-      email: { enabled: Boolean(workflow.outreachConfig.emailEnabled) },
-      whatsapp: { enabled: Boolean(workflow.outreachConfig.whatsappEnabled) },
-      ai_voice: { enabled: false },
+      email: { enabled: emailOn },
+      whatsapp: { enabled: whatsappOn },
+      ai_voice: { enabled: voiceOn },
       timezone: 'Asia/Kolkata',
       sendWindow: { startHour: 9, endHour: 18, daysOfWeek: [1, 2, 3, 4, 5] },
     },
     sequenceSteps: compileCampaignSequence(workflow),
-    // Qualification, screening, and scheduling are orchestrated by Huntlo 360
-    // transitions — keep the linked campaign focused on outreach delivery.
+    // Qualification Q&A still runs on the linked campaign after reply
+    // (inbound-sync → processQualificationAfterReply). Screening/scheduling
+    // remain orchestrated by Huntlo 360 transitions.
     qualificationConfig: {
-      enabled: false,
-      questions: [],
-      aiReplyEnabled: false,
+      enabled: workflow.qualificationConfig?.enabled !== false,
+      questions: (workflow.qualificationConfig?.questions || [])
+        .filter((q) => String(q?.prompt || '').trim())
+        .map((q) => ({
+          id: String(q.id),
+          prompt: String(q.prompt).trim(),
+          answerType: String(q.answerType || 'Text'),
+          knockout: Boolean(q.knockout),
+          knockoutCondition:
+            typeof (q as { knockoutCondition?: string | null }).knockoutCondition === 'string'
+              ? (q as { knockoutCondition?: string }).knockoutCondition || null
+              : null,
+        })),
+      aiReplyEnabled: workflow.qualificationConfig?.aiReplyEnabled !== false,
+      takeoverCondition: workflow.qualificationConfig?.handoffCondition || null,
+      autoScreening: false,
     },
     schedulingConfig: {
       enabled: false,

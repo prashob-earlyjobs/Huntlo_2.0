@@ -104,30 +104,133 @@ export function verifyZyastraWebhookAuthenticity(input: {
   return { ok: true };
 }
 
+/** Prefer first non-empty string among candidate keys (camelCase + snake_case). */
+function pickString(source: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = asString(source[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function pickNumber(source: Record<string, unknown>, ...keys: string[]): number | null {
+  for (const key of keys) {
+    const n = asNumber(source[key]);
+    if (n != null) return n;
+    const asStr = asString(source[key]);
+    if (asStr) {
+      const parsed = Number(asStr);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+}
+
+/**
+ * Zyastra may send recording as camelCase, snake_case, or a nested `{ url }` object.
+ * Also accept common aliases seen in post-call webhooks.
+ */
+export function extractZyastraRecordingUrl(
+  data: Record<string, unknown>,
+  root: Record<string, unknown> = {}
+): string {
+  const nestedRecording = asRecord(data.recording || data.callRecording || root.recording);
+  return (
+    pickString(
+      data,
+      'recordingUrl',
+      'recording_url',
+      'callRecordingUrl',
+      'call_recording_url',
+      'recordingLink',
+      'recording_link',
+      'audioUrl',
+      'audio_url'
+    ) ||
+    pickString(nestedRecording, 'url', 'recordingUrl', 'recording_url', 'href') ||
+    pickString(
+      root,
+      'recordingUrl',
+      'recording_url',
+      'callRecordingUrl',
+      'call_recording_url'
+    )
+  );
+}
+
+/** Flatten analysis/variable bags; unwrap `{ value }` objects when present. */
+export function extractZyastraVariables(
+  data: Record<string, unknown>,
+  root: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const bags = [
+    asRecord(data.variables),
+    asRecord(data.analysisVariables),
+    asRecord(data.extractedVariables),
+    asRecord(data.analysis),
+    asRecord(data.postCallAnalysis),
+    asRecord(data.post_call_analysis),
+    asRecord(root.variables),
+    asRecord(root.analysisVariables),
+  ];
+
+  const out: Record<string, unknown> = {};
+  for (const bag of bags) {
+    for (const [key, value] of Object.entries(bag)) {
+      if (value == null) continue;
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        const nested = asRecord(value);
+        if ('value' in nested) {
+          out[key] = nested.value;
+          continue;
+        }
+      }
+      // Prefer first non-empty assignment; later bags can fill gaps.
+      if (!(key in out) || out[key] === '' || out[key] == null) {
+        out[key] = value;
+      }
+    }
+  }
+  return out;
+}
+
 export function parseZyastraWebhookPayload(body: unknown): ParsedZyastraWebhook {
   const raw = asRecord(body);
-  const data = asRecord(raw.data);
-  const candidate = asRecord(data.candidate);
-  const variables = asRecord(data.variables);
-  const metadata = asRecord(data.metadata);
+  // Some deliveries nest under `data`; others flatten onto the root.
+  const data = Object.keys(asRecord(raw.data)).length > 0 ? asRecord(raw.data) : raw;
+  const candidate = asRecord(data.candidate || raw.candidate);
+  const variables = extractZyastraVariables(data, raw);
+  const metadata = {
+    ...asRecord(raw.metadata),
+    ...asRecord(data.metadata),
+  };
+
+  const transcript =
+    pickString(data, 'transcript', 'call_transcript', 'callTranscript') ||
+    pickString(raw, 'transcript', 'call_transcript', 'callTranscript') ||
+    null;
 
   return {
-    event: asString(raw.event) || 'call.completed',
-    eventId: asString(raw.eventId),
-    timestamp: asString(raw.timestamp),
-    callId: asString(data.callId),
-    callReferenceId: asString(data.callReferenceId),
-    status: asString(data.status),
-    durationSeconds: asNumber(data.durationSeconds),
-    phoneNumber: asString(candidate.phoneNumber),
-    firstName: asString(candidate.firstName),
-    lastName: asString(candidate.lastName),
-    transcript:
-      typeof data.transcript === 'string' && data.transcript.trim()
-        ? data.transcript.trim()
-        : null,
-    recordingUrl: asString(data.recordingUrl),
-    summary: asString(data.summary),
+    event: asString(raw.event) || asString(data.event) || 'call.completed',
+    eventId: pickString(raw, 'eventId', 'event_id') || pickString(data, 'eventId', 'event_id'),
+    timestamp: pickString(raw, 'timestamp') || pickString(data, 'timestamp'),
+    callId: pickString(data, 'callId', 'call_id') || pickString(raw, 'callId', 'call_id'),
+    callReferenceId:
+      pickString(data, 'callReferenceId', 'call_reference_id', 'requestId', 'request_id') ||
+      pickString(raw, 'callReferenceId', 'call_reference_id', 'requestId', 'request_id'),
+    status: pickString(data, 'status') || pickString(raw, 'status'),
+    durationSeconds:
+      pickNumber(data, 'durationSeconds', 'duration_seconds', 'durationSec', 'duration_sec') ??
+      pickNumber(raw, 'durationSeconds', 'duration_seconds', 'durationSec', 'duration_sec'),
+    phoneNumber:
+      pickString(candidate, 'phoneNumber', 'phone_number', 'phone') ||
+      pickString(data, 'phoneNumber', 'phone_number', 'to_number', 'toNumber'),
+    firstName: pickString(candidate, 'firstName', 'first_name'),
+    lastName: pickString(candidate, 'lastName', 'last_name'),
+    transcript: transcript || null,
+    recordingUrl: extractZyastraRecordingUrl(data, raw),
+    summary: pickString(data, 'summary', 'call_summary', 'callSummary') ||
+      pickString(raw, 'summary', 'call_summary', 'callSummary'),
     variables,
     metadata,
     raw,

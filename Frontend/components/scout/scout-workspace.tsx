@@ -365,7 +365,7 @@ export function ScoutWorkspace() {
           </p>
         ) : null}
 
-        <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-3 sm:items-start">
           <UsageProgress
             metric={{
               id: "lookups",
@@ -375,23 +375,29 @@ export function ScoutWorkspace() {
               unit: "lookups",
             }}
           />
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Coins aria-hidden className="size-3.5 shrink-0" />
-            <span>
-              <span className="font-medium tabular-nums text-foreground">
-                {quota.costPerLookup} credits
-              </span>{" "}
-              per lookup — failed lookups are never charged
-            </span>
+          <div className="space-y-1.5 text-xs">
+            <p className="font-medium text-foreground">Credit cost</p>
+            <p className="flex items-start gap-2 text-muted-foreground">
+              <Coins aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                <span className="font-medium tabular-nums text-foreground">
+                  {quota.costPerLookup} credits
+                </span>{" "}
+                per lookup — failed lookups are never charged
+              </span>
+            </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <History aria-hidden className="size-3.5 shrink-0" />
-            <span>
-              <span className="font-medium tabular-nums text-foreground">
-                {recent.length} lookups
-              </span>{" "}
-              in recent history
-            </span>
+          <div className="space-y-1.5 text-xs">
+            <p className="font-medium text-foreground">Recent activity</p>
+            <p className="flex items-start gap-2 text-muted-foreground">
+              <History aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                <span className="font-medium tabular-nums text-foreground">
+                  {recent.length} lookups
+                </span>{" "}
+                in recent history
+              </span>
+            </p>
           </div>
         </div>
 

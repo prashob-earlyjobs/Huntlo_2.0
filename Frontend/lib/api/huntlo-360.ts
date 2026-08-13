@@ -34,7 +34,7 @@ export type ApiHuntlo360Workflow = {
   status: WorkflowStatus | string;
   statusRaw: ApiWorkflowStatus | string;
   campaignId: string | null;
-  channels: Array<"Email" | "WhatsApp">;
+  channels: Array<"Email" | "WhatsApp" | "AI Voice">;
   candidates: number;
   replied: number;
   qualified: number;
@@ -91,11 +91,22 @@ export type WorkflowCreateInput = {
     label?: string | null;
   };
   outreachConfig?: {
+    campaignType?: "single_channel" | "multi_channel";
     emailEnabled?: boolean;
     whatsappEnabled?: boolean;
-    channelOrder?: "email_first" | "whatsapp_first";
+    aiVoiceEnabled?: boolean;
+    channelOrder?: "email_first" | "whatsapp_first" | "voice_first";
     openingMessage?: string | null;
-    followUps?: string[];
+    openingWhatsAppTemplateId?: string | null;
+    followUps?: Array<
+      | string
+      | {
+          body: string;
+          delayDays?: number;
+          delayUnit?: "days" | "hours" | "minutes";
+          templateId?: string | null;
+        }
+    >;
     stopOnReply?: boolean;
     stopOnOptOut?: boolean;
   };
@@ -205,7 +216,8 @@ export function toWorkflow360(row: ApiHuntlo360Workflow): Workflow360 {
     jobTitle: row.jobTitle,
     candidates: row.candidates ?? 0,
     channels: (row.channels || []).filter(
-      (c): c is "Email" | "WhatsApp" => c === "Email" || c === "WhatsApp"
+      (c): c is "Email" | "WhatsApp" | "AI Voice" =>
+        c === "Email" || c === "WhatsApp" || c === "AI Voice"
     ),
     replied: row.replied ?? 0,
     qualified: row.qualified ?? 0,
@@ -401,6 +413,7 @@ const mockHuntlo360Api: Huntlo360Api = {
       channels: [
         ...(input.outreachConfig?.emailEnabled !== false ? (["Email"] as const) : []),
         ...(input.outreachConfig?.whatsappEnabled ? (["WhatsApp"] as const) : []),
+        ...(input.outreachConfig?.aiVoiceEnabled ? (["AI Voice"] as const) : []),
       ],
       candidates: input.candidateSource?.candidateIds?.length ?? 0,
       replied: 0,

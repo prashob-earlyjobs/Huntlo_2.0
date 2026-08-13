@@ -15,15 +15,20 @@ export {
   fetchZyastraRecording,
   resolveZyastraRecordingUrl,
   triggerZyastraVoiceCall,
+  fetchZyastraCall,
+  fetchZyastraRecordingUrl,
   zyastraClient,
   type ZyastraRecordingFetchResult,
   type ZyastraTriggerCandidate,
   type ZyastraTriggerInput,
   type ZyastraTriggerResult,
+  type ZyastraCallDetails,
 } from './zyastra.client.js';
 
 export {
   parseZyastraWebhookPayload,
+  extractZyastraRecordingUrl,
+  extractZyastraVariables,
   verifyZyastraWebhook,
   verifyZyastraWebhookAuthenticity,
   type ParsedZyastraWebhook,

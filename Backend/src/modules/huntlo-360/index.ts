@@ -6,3 +6,5 @@ export {
   Huntlo360CandidateStateModel,
   Huntlo360TransitionModel,
 } from './candidate-state.model.js';
+export { Huntlo360FlowSupportModel } from './flow-support.model.js';
+export { flowSupportService } from './flow-support.service.js';

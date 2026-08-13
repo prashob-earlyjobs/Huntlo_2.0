@@ -675,7 +675,12 @@ export function CampaignBuilder({
       {current === 0 ? (
         <SetupStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
       ) : current === 1 ? (
-        <AudienceStep state={state} update={update} showErrors={showErrors} />
+        <AudienceStep
+          state={state}
+          update={update}
+          showErrors={showErrors}
+          relatedJobId={state.jobId || null}
+        />
       ) : current === 2 ? (
         <ChannelsStep state={state} update={update} showErrors={showErrors} />
       ) : current === 3 ? (
