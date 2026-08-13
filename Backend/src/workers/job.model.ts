@@ -15,6 +15,7 @@ export const BACKGROUND_JOB_TYPES = [
   'integration.health_check',
   'webhook.retry',
   'email.sequence_sweep',
+  'jobs.purge_old',
 ] as const;
 export type BackgroundJobType = (typeof BACKGROUND_JOB_TYPES)[number];
 

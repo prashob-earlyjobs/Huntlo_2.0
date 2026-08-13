@@ -27,7 +27,13 @@ function isProvided(value: string): boolean {
   const v = value.trim();
   if (!v) return false;
   const lower = v.toLowerCase();
-  return lower !== 'not provided' && lower !== 'n/a' && lower !== 'na' && lower !== 'none';
+  return (
+    lower !== 'not provided' &&
+    lower !== 'not mentioned' &&
+    lower !== 'n/a' &&
+    lower !== 'na' &&
+    lower !== 'none'
+  );
 }
 
 /** Stable Hunar result-schema key for a qualification question id. */
@@ -92,31 +98,28 @@ export function inferAnswerFromRoshniFields(
       'noticeDays'
     );
   }
-  if (/location|hybrid|remote|work.?mode|relocat|wfh|wfo|bengaluru|bangalore|open to working/.test(p)) {
-    return pick(
-      'location',
-      'work_mode',
-      'workplace',
-      'relocation_willingness',
-      'relocationWillingness',
-      'open_to_relocate',
-      'openToRelocate',
-      'hybrid_willingness',
-      'hybridWillingness'
-    );
-  }
   if (/ctc|salary|compensation|package|pay/.test(p)) {
     if (/expect|desired|looking|target|annual/.test(p)) {
       return pick(
         'expected_ctc',
         'expectedCtc',
+        'expected_ctc_lpa',
+        'expectedCtcLpa',
         'expected_compensation',
         'expectedCompensation',
         'expected_salary',
         'expectedSalary'
       );
     }
-    return pick('ctc', 'current_ctc', 'currentCtc', 'compensation', 'salary');
+    return pick(
+      'ctc',
+      'current_ctc',
+      'currentCtc',
+      'current_ctc_lpa',
+      'currentCtcLpa',
+      'compensation',
+      'salary'
+    );
   }
   if (/educat|degree|qualification|college/.test(p)) {
     return pick('education');
@@ -130,6 +133,21 @@ export function inferAnswerFromRoshniFields(
   }
   if (/project|accomplish/.test(p)) {
     return pick('recent_project', 'recentProject');
+  }
+  if (/location|hybrid|remote|work.?mode|relocat|wfh|wfo|bengaluru|bangalore|open to working/.test(p)) {
+    return pick(
+      'location',
+      'current_location',
+      'currentLocation',
+      'work_mode',
+      'workplace',
+      'relocation_willingness',
+      'relocationWillingness',
+      'open_to_relocate',
+      'openToRelocate',
+      'hybrid_willingness',
+      'hybridWillingness'
+    );
   }
   return null;
 }
@@ -261,7 +279,7 @@ export function extendResultSchemaForQualificationQuestions(
     if (!properties[answerKey]) {
       properties[answerKey] = {
         type: 'string',
-        description: `Candidate's spoken answer for "${prompt}". Use "Not provided" when unclear.`,
+        description: `Candidate's spoken answer for "${prompt}". Use "Not Mentioned" when unclear.`,
       };
     }
     answerFields.push(`"${answerKey}": string — answer to "${prompt}"`);

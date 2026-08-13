@@ -23,7 +23,8 @@ import {
   isIndianE164,
   partitionVoiceContacts,
 } from '../src/modules/voice/voice-dialer.service.js';
-import { zyastraToHunarWebhookBodies } from '../src/modules/voice/zyastra-voice-webhook.service.js';
+import { zyastraToHunarWebhookBodies, normalizeZyastraResultVariables } from '../src/modules/voice/zyastra-voice-webhook.service.js';
+import { applyVoiceResultToQualificationState } from '../src/modules/voice/voice-qualification-sync.js';
 import { AuditLogModel } from '../src/shared/audit/audit.service.js';
 import * as hunarClient from '../src/providers/hunar/hunar.client.js';
 import * as zyastraClient from '../src/providers/zyastra/zyastra.client.js';
@@ -84,15 +85,44 @@ vi.mock('../src/providers/zyastra/zyastra.client.js', async () => {
   const actual = await vi.importActual<
     typeof import('../src/providers/zyastra/zyastra.client.js')
   >('../src/providers/zyastra/zyastra.client.js');
-  return {
-    ...actual,
-    triggerZyastraVoiceCall: vi.fn(async (input: { candidate: { phoneNumber: string } }) => ({
+
+  const triggerZyastraVoiceCall = vi.fn(
+    async (input: { candidate: { phoneNumber: string } }) => ({
       requestId: `zy-req-${input.candidate.phoneNumber.replace(/\D/g, '')}`,
       callId: `zy-call-${input.candidate.phoneNumber.replace(/\D/g, '')}`,
       callReferenceId: `zy-ref-${input.candidate.phoneNumber.replace(/\D/g, '')}`,
       status: 'queued',
       response: { ok: true },
-    })),
+    })
+  );
+
+  const resolveZyastraRecordingUrl = vi.fn(
+    async (input: { callId: string; webhookRecordingUrl?: string | null }) => {
+      const fallback = String(input.webhookRecordingUrl || '').trim();
+      if (fallback && !fallback.includes('/voice/recording/')) return fallback;
+      return `http://localhost:4000/api/integrations/voice/zyastra/recording/${input.callId}`;
+    }
+  );
+
+  const fetchZyastraRecording = vi.fn(async () => ({
+    ok: true as const,
+    kind: 'binary' as const,
+    contentType: 'audio/mpeg',
+    body: Buffer.from('fake-mp3'),
+    statusCode: 200,
+  }));
+
+  return {
+    ...actual,
+    triggerZyastraVoiceCall,
+    resolveZyastraRecordingUrl,
+    fetchZyastraRecording,
+    zyastraClient: {
+      ...actual.zyastraClient,
+      triggerZyastraVoiceCall,
+      resolveZyastraRecordingUrl,
+      fetchZyastraRecording,
+    },
   };
 });
 
@@ -142,6 +172,8 @@ describe('Zyastra routing + webhook', () => {
     vi.mocked(hunarClient.createHunarBulkCalls).mockClear();
     vi.mocked(hunarClient.createHunarVoiceAgent).mockClear();
     vi.mocked(zyastraClient.triggerZyastraVoiceCall).mockClear();
+    vi.mocked(zyastraClient.resolveZyastraRecordingUrl).mockClear();
+    vi.mocked(zyastraClient.fetchZyastraRecording).mockClear();
     await Promise.all([
       UserModel.deleteMany({}),
       UserSessionModel.deleteMany({}),
@@ -162,17 +194,25 @@ describe('Zyastra routing + webhook', () => {
     it('isIndianE164 and partitionVoiceContacts', () => {
       expect(isIndianE164('+919876543210')).toBe(true);
       expect(isIndianE164('+14155552671')).toBe(false);
+      // US NANP with area code 620 contains digits "91" but must NOT route to Hunar
+      expect(isIndianE164('+16209129239')).toBe(false);
+      expect(isIndianE164('+14066922124')).toBe(false);
       expect(isIndianE164('not-a-phone')).toBe(false);
 
       const { indian, international, skippedInvalid } = partitionVoiceContacts([
         { name: 'IN', phone: '+919876543210' },
         { name: 'US', phone: '+14155552671' },
+        { name: 'US620', phone: '+16209129239' },
         { name: 'Bad', phone: 'abc' },
         { name: 'Dup', phone: '+919876543210' },
       ]);
       expect(indian).toHaveLength(1);
-      expect(international).toHaveLength(1);
+      expect(international).toHaveLength(2);
       expect(skippedInvalid).toBe(2);
+      expect(international.map((c) => c.mobile).sort()).toEqual([
+        '+14155552671',
+        '+16209129239',
+      ]);
     });
 
     it('verifies Zyastra webhook signature', () => {
@@ -197,7 +237,12 @@ describe('Zyastra routing + webhook', () => {
           transcript: 'Hello',
           recordingUrl: 'https://example.com/r.mp3',
           summary: 'Interested',
-          variables: { ctc: '20 LPA', notice_period: '30 days' },
+          variables: {
+            notice_period_days: 1000,
+            relocation_willingness: 'No',
+            expected_ctc_lpa: null,
+            current_ctc_lpa: 18,
+          },
           metadata: { campaignId: 'abc' },
         },
       });
@@ -207,7 +252,121 @@ describe('Zyastra routing + webhook', () => {
       );
       const resultBody = bodies.find((b) => b.kind === 'call-result')!.body;
       expect(resultBody.call_id).toBe('zy-1');
-      expect((resultBody.result as { ctc: string }).ctc).toBe('20 LPA');
+      const result = resultBody.result as Record<string, unknown>;
+      expect(result.notice_period).toBe('1000');
+      expect(result.location).toBe('No');
+      expect(result.ctc).toBe('18');
+      expect(result.relocation_willingness).toBe('No');
+    });
+
+    it('maps Zyastra analysis variables into qualification answers', () => {
+      const enrollment = {
+        qualificationState: { status: 'pending', answers: {} },
+      } as unknown as import('../src/modules/outreach/enrollment.model.js').OutreachEnrollmentDocument;
+
+      const updated = applyVoiceResultToQualificationState({
+        campaign: {
+          qualificationConfig: {
+            questions: [
+              {
+                id: 'q-1',
+                prompt: 'What is your notice period (in days)?',
+                answerType: 'Number',
+                knockout: true,
+                knockoutCondition: 'Reject if more than 60',
+              },
+              {
+                id: 'q-2',
+                prompt: 'Are you open to working from Bengaluru (hybrid, 2 days a week)?',
+                answerType: 'Yes / No',
+                knockout: true,
+                knockoutCondition: 'Reject if No',
+              },
+              {
+                id: 'q-3',
+                prompt: 'What is your expected annual compensation?',
+                answerType: 'Short text',
+                knockout: false,
+              },
+            ],
+          },
+        },
+        enrollment,
+        result: normalizeZyastraResultVariables({
+          notice_period_days: 1000,
+          relocation_willingness: 'No',
+          expected_ctc_lpa: null,
+        }),
+      });
+
+      expect(updated).toBe(true);
+      expect(enrollment.qualificationState.status).toBe('rejected');
+      const answers = enrollment.qualificationState.answers as Record<
+        string,
+        { value?: string }
+      >;
+      expect(answers['q-1']?.value).toBe('1000');
+      expect(answers['q-2']?.value).toBe('No');
+    });
+
+    it('resolves auth-gated recording URL to Huntlo proxy', async () => {
+      const actual = await vi.importActual<
+        typeof import('../src/providers/zyastra/zyastra.client.js')
+      >('../src/providers/zyastra/zyastra.client.js');
+
+      const callId = 'cmsih9grs09zxlmi7bl5up0nb';
+      const authUrl = `https://astraapi.zyvka.com/api/v1/external/voice/recording/${callId}`;
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(
+          new Response(JSON.stringify({ message: 'unauthorized without follow' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
+
+      try {
+        const resolved = await actual.resolveZyastraRecordingUrl({
+          callId,
+          webhookRecordingUrl: authUrl,
+        });
+        expect(resolved).toBe(
+          `http://localhost:4000/api/integrations/voice/zyastra/recording/${callId}`
+        );
+        expect(fetchSpy).toHaveBeenCalled();
+        const [url, init] = fetchSpy.mock.calls[0]!;
+        expect(String(url)).toContain(`/voice/recording/${callId}`);
+        expect((init as RequestInit).headers).toMatchObject({
+          'x-api-key': 'zy-key',
+          'x-api-secret': 'zy-secret',
+        });
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it('returns empty recording URL when Zyastra has no recording', async () => {
+      const actual = await vi.importActual<
+        typeof import('../src/providers/zyastra/zyastra.client.js')
+      >('../src/providers/zyastra/zyastra.client.js');
+
+      const callId = 'cmsino-recording';
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({ error: 'No recording available for this call' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      try {
+        const resolved = await actual.resolveZyastraRecordingUrl({
+          callId,
+          webhookRecordingUrl: '',
+        });
+        expect(resolved).toBe('');
+      } finally {
+        fetchSpy.mockRestore();
+      }
     });
 
     it('parses snake_case recording_url and nested variable bags', () => {
@@ -538,6 +697,28 @@ describe('Zyastra routing + webhook', () => {
     expect(updated?.callStatus).toBe('completed');
     expect(updated?.durationSeconds).toBe(120);
     expect(updated?.transcript).toContain('30 days');
+    expect(zyastraClient.resolveZyastraRecordingUrl).toHaveBeenCalled();
+  });
+
+  it('proxies Zyastra recording via authenticated GET', async () => {
+    const mongoose = await import('mongoose');
+    const callId = 'zy-rec-proxy-1';
+    await VoiceCallModel.create({
+      organizationId: new mongoose.Types.ObjectId(),
+      source: 'screening',
+      callId,
+      requestId: 'zy-req-proxy-1',
+      provider: 'zyastra',
+      status: 'completed',
+      toNumber: '+14155552671',
+      toNumberDigits: '14155552671',
+    });
+
+    const res = await agent.get(`/api/integrations/voice/zyastra/recording/${callId}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/audio\/mpeg/);
+    expect(Buffer.from(res.body).toString()).toBe('fake-mp3');
+    expect(zyastraClient.fetchZyastraRecording).toHaveBeenCalledWith(callId);
   });
 
   it('rejects invalid Zyastra signature in prod-like env', async () => {

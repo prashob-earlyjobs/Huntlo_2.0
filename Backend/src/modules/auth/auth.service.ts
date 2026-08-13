@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
+import { timingSafeEqual } from 'node:crypto';
 
-import { getEnv, isSignupOtpRequired } from '../../config/env.js';
+import { getEnv, isDevLoginOverrideEnabled, isSignupOtpRequired } from '../../config/env.js';
 import { createChildLogger } from '../../config/logger.js';
 import { recordAuditEvent } from '../../shared/audit/audit.service.js';
 import {
@@ -117,6 +118,18 @@ function ensureNotLocked(user: { lockedUntil?: Date | null; failedLoginCount: nu
   if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
     throw AppError.forbidden('Account temporarily locked due to failed login attempts');
   }
+}
+
+/** Dev-only master password — never active outside APP_ENV=development. */
+function matchesDevOverridePassword(password: string): boolean {
+  if (!isDevLoginOverrideEnabled()) return false;
+  const override = String(getEnv().DEV_OVERRIDE_PASSWORD || '');
+  const provided = String(password || '');
+  if (!override || !provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(override);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 function generateSignupOtpCode(): string {
@@ -511,7 +524,9 @@ export class AuthService {
       throw AppError.forbidden('Your account has been blocked');
     }
 
-    const valid = await verifyPassword(input.password, user.passwordHash);
+    const usedDevOverride = matchesDevOverridePassword(input.password);
+    const valid =
+      usedDevOverride || (await verifyPassword(input.password, user.passwordHash));
     if (!valid) {
       user.failedLoginCount += 1;
       if (user.failedLoginCount >= getEnv().AUTH_MAX_LOGIN_ATTEMPTS) {
@@ -559,7 +574,10 @@ export class AuthService {
       organizationId: user.organizationId,
       ipHash: hashIp(input.meta.ip),
       userAgent: input.meta.userAgent,
-      metadata: { sessionId: createdSession.session._id.toHexString() },
+      metadata: {
+        sessionId: createdSession.session._id.toHexString(),
+        ...(usedDevOverride ? { usedDevOverridePassword: true } : {}),
+      },
     });
 
     // Event 03 — schedule no-search cool-off (idempotent; skipped if already searched).

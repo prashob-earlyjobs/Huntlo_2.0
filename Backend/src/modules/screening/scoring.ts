@@ -93,18 +93,40 @@ export function mapEvaluationScores(input: {
 
 /** Heuristic only over known Hunar result keys from EJHunterLanding. */
 function deriveScoreFromOutcome(result: Record<string, unknown>): number | null {
-  const interest = String(result.interest_level || '').trim().toLowerCase();
+  const eligibility = Number(
+    result.eligibility_score ?? result.eligibilityScore ?? NaN
+  );
+  if (Number.isFinite(eligibility) && eligibility >= 1 && eligibility <= 5) {
+    // Map 1–5 eligibility band onto roughly 20–100 for shortlist thresholds.
+    return Math.round(eligibility * 20);
+  }
+
+  const interest = String(
+    result.interest_level || result.interest || ''
+  )
+    .trim()
+    .toLowerCase();
   const outcome = String(result.final_outcome || '').trim().toLowerCase();
   const status = String(result.candidate_status || '').trim().toLowerCase();
 
+  if (String(result.summary || '').trim().toUpperCase() === 'NOT ENGAGED') {
+    return 20;
+  }
   if (interest.includes('high') || outcome.includes('interested') || status.includes('interested')) {
     return 85;
   }
-  if (interest.includes('medium') || interest.includes('maybe') || outcome.includes('callback')) {
+  if (
+    interest.includes('medium') ||
+    interest.includes('maybe') ||
+    interest.includes('unsure') ||
+    interest.includes('callback') ||
+    outcome.includes('callback')
+  ) {
     return 70;
   }
   if (
     interest.includes('low') ||
+    interest.includes('not interested') ||
     outcome.includes('not_interested') ||
     outcome.includes('not interested') ||
     status.includes('not_interested')
@@ -120,8 +142,18 @@ function deriveRecommendation(
   minScore: number
 ): string | null {
   if (result) {
+    if (String(result.summary || '').trim().toUpperCase() === 'NOT ENGAGED') {
+      return 'review';
+    }
     const outcome = String(result.final_outcome || '').trim().toLowerCase();
-    if (outcome.includes('not_interested') || outcome.includes('not interested')) {
+    const interest = String(result.interest_level || result.interest || '')
+      .trim()
+      .toLowerCase();
+    if (
+      outcome.includes('not_interested') ||
+      outcome.includes('not interested') ||
+      interest.includes('not interested')
+    ) {
       return 'reject';
     }
   }
@@ -135,10 +167,21 @@ function deriveRecommendation(
 
   if (result) {
     const outcome = String(result.final_outcome || '').trim().toLowerCase();
-    if (outcome.includes('interested') || outcome.includes('shortlist')) {
+    const interest = String(result.interest_level || result.interest || '')
+      .trim()
+      .toLowerCase();
+    if (outcome.includes('interested') || outcome.includes('shortlist') || interest === 'interested') {
       return 'shortlist';
     }
-    if (outcome.includes('callback') || String(result.callback_requested || '').trim()) {
+    const callbackRaw = result.callback_requested ?? result.callbackRequested;
+    const callbackYes =
+      callbackRaw === true ||
+      String(callbackRaw || '')
+        .trim()
+        .toLowerCase() === 'yes' ||
+      interest.includes('callback') ||
+      outcome.includes('callback');
+    if (callbackYes) {
       return 'review';
     }
   }

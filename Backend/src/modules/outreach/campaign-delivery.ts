@@ -757,6 +757,16 @@ async function launchVoiceCall(input: {
   // on Hunar create (500). Ensure agent once under a per-campaign lock, then dial.
   // Non-Indian numbers use Zyastra and do not need a Hunar agent.
   const needsHunar = isIndianE164(input.phone);
+  getLogger().info(
+    {
+      campaignId,
+      enrollmentId: input.enrollmentId,
+      phone: input.phone,
+      needsHunar,
+      isIndianE164: needsHunar,
+    },
+    'Campaign voice dial routing decision'
+  );
   let agentId: string | null = null;
 
   if (needsHunar) {
@@ -840,8 +850,27 @@ async function launchVoiceCall(input: {
     agentPrompt,
     firstMessage: introduction || undefined,
     preferredLanguage: needsHunar ? undefined : 'en-US',
-    // Required for Zyastra post-call extraction → qualification sync.
-    analysisVariables: analysisVariablesFromResultSchema(qualificationExtras.resultSchema),
+    // Zyastra extracts these; include schema keys + common Roshni/Zyastra aliases.
+    analysisVariables: needsHunar
+      ? undefined
+      : Array.from(
+          new Set([
+            ...analysisVariablesFromResultSchema(qualificationExtras.resultSchema),
+            ...Object.keys(
+              (qualificationExtras.resultSchema.properties as Record<string, unknown>) || {}
+            ),
+            'notice_period',
+            'notice_period_days',
+            'current_ctc',
+            'current_ctc_lpa',
+            'expected_ctc',
+            'expected_ctc_lpa',
+            'location',
+            'relocation_willingness',
+            'work_mode',
+            'summary',
+          ])
+        ),
   });
 
   return {

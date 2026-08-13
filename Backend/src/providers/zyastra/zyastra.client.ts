@@ -1,5 +1,7 @@
 import { getLogger } from '../../config/logger.js';
 import {
+  buildZyastraRecordingApiUrl,
+  buildZyastraRecordingProxyUrl,
   buildZyastraWebhookUrl,
   getZyastraApiKey,
   getZyastraApiSecret,
@@ -46,12 +48,39 @@ export type ZyastraTriggerResult = {
   response: unknown;
 };
 
-function zyastraHeaders(): Record<string, string> {
+export type ZyastraRecordingFetchResult =
+  | {
+      ok: true;
+      kind: 'redirect';
+      url: string;
+      statusCode: number;
+    }
+  | {
+      ok: true;
+      kind: 'json-url';
+      url: string;
+      statusCode: number;
+    }
+  | {
+      ok: true;
+      kind: 'binary';
+      contentType: string;
+      body: Buffer;
+      statusCode: number;
+    }
+  | {
+      ok: false;
+      statusCode: number;
+      message: string;
+      details?: unknown;
+    };
+
+function zyastraAuthHeaders(extra?: Record<string, string>): Record<string, string> {
   return {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
+    Accept: 'application/json, audio/*, */*',
     'x-api-key': getZyastraApiKey(),
     'x-api-secret': getZyastraApiSecret(),
+    ...extra,
   };
 }
 
@@ -85,6 +114,165 @@ function sanitizePayloadForLog(payload: Record<string, unknown>): Record<string,
       ...(webhook.secret ? { secret: '[redacted]' } : {}),
     },
   };
+}
+
+function extractUrlFromRecordingJson(body: unknown): string {
+  const root = asRecord(body);
+  const data = asRecord(root.data);
+  return (
+    asString(data.url) ||
+    asString(data.recordingUrl) ||
+    asString(data.recording_url) ||
+    asString(root.url) ||
+    asString(root.recordingUrl) ||
+    asString(root.recording_url)
+  );
+}
+
+function normalizeUrlPath(url: string): string {
+  return asString(url).split('?')[0]?.replace(/\/$/, '') || '';
+}
+
+function isZyastraAuthRecordingUrl(url: string, callId: string): boolean {
+  const candidate = normalizeUrlPath(url);
+  if (!candidate || !callId) return false;
+  return candidate === normalizeUrlPath(buildZyastraRecordingApiUrl(callId));
+}
+
+/**
+ * Authenticated recording retrieval:
+ * GET /api/v1/external/voice/recording/{callId}
+ * with x-api-key + x-api-secret.
+ */
+export async function fetchZyastraRecording(
+  callId: string
+): Promise<ZyastraRecordingFetchResult> {
+  const id = String(callId || '').trim();
+  if (!id) {
+    return { ok: false, statusCode: 400, message: 'callId is required' };
+  }
+  if (!isZyastraConfigured()) {
+    return {
+      ok: false,
+      statusCode: 503,
+      message: 'Zyastra voice API is not configured.',
+    };
+  }
+
+  const url = buildZyastraRecordingApiUrl(id);
+  log().info({ callId: id, url }, 'Zyastra recording API request');
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: zyastraAuthHeaders(),
+      redirect: 'manual',
+    });
+
+    if (res.status >= 300 && res.status < 400) {
+      const location = asString(res.headers.get('location'));
+      if (location) {
+        const absolute = location.startsWith('http')
+          ? location
+          : new URL(location, ZYASTRA_TRIGGER_URL).toString();
+        return { ok: true, kind: 'redirect', url: absolute, statusCode: res.status };
+      }
+    }
+
+    const contentType = asString(res.headers.get('content-type')).toLowerCase();
+    if (!res.ok) {
+      const details = contentType.includes('json')
+        ? await res.json().catch(() => ({}))
+        : await res.text().catch(() => '');
+      const message =
+        asString(asRecord(details).message) ||
+        asString(asRecord(details).error) ||
+        `Zyastra recording API failed (${res.status})`;
+      log().warn(
+        { callId: id, statusCode: res.status, details },
+        'Zyastra recording API failed'
+      );
+      return { ok: false, statusCode: res.status, message, details };
+    }
+
+    if (contentType.includes('application/json')) {
+      const json = await res.json().catch(() => ({}));
+      const found = extractUrlFromRecordingJson(json);
+      if (found) {
+        return { ok: true, kind: 'json-url', url: found, statusCode: res.status };
+      }
+      return {
+        ok: false,
+        statusCode: res.status,
+        message: 'Zyastra recording JSON response did not include a URL',
+        details: json,
+      };
+    }
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return {
+      ok: true,
+      kind: 'binary',
+      contentType: contentType || 'audio/mpeg',
+      body: buffer,
+      statusCode: res.status,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Zyastra recording fetch failed';
+    log().error({ callId: id, err: error }, 'Zyastra recording API error');
+    return { ok: false, statusCode: 502, message };
+  }
+}
+
+/**
+ * Prefer a playable URL for storage:
+ * 1) redirect / JSON signed URL from authenticated GET
+ * 2) Huntlo proxy URL when a recording exists (binary or auth-gated API path)
+ * 3) webhook-provided public recordingUrl fallback
+ *
+ * Returns empty string when Zyastra has no recording — do not invent a proxy URL
+ * or the conversation player will show a broken control.
+ */
+export async function resolveZyastraRecordingUrl(input: {
+  callId: string;
+  webhookRecordingUrl?: string | null;
+}): Promise<string> {
+  const callId = String(input.callId || '').trim();
+  const fallback = String(input.webhookRecordingUrl || '').trim();
+  const proxyUrl = callId ? buildZyastraRecordingProxyUrl(callId) : '';
+  const authGatedFallback = Boolean(fallback && isZyastraAuthRecordingUrl(fallback, callId));
+
+  if (!callId) return fallback;
+
+  if (!isZyastraConfigured()) {
+    if (authGatedFallback) return proxyUrl || '';
+    return fallback || '';
+  }
+
+  const fetched = await fetchZyastraRecording(callId);
+  if (fetched.ok && (fetched.kind === 'redirect' || fetched.kind === 'json-url')) {
+    if (isZyastraAuthRecordingUrl(fetched.url, callId)) {
+      return proxyUrl || '';
+    }
+    return fetched.url;
+  }
+
+  // Binary body means a recording exists; browsers must use our credentialed proxy.
+  if (fetched.ok && fetched.kind === 'binary') {
+    return proxyUrl || '';
+  }
+
+  // Auth-gated webhook URL and a known callId → proxy (recording may still exist).
+  if (authGatedFallback && proxyUrl) {
+    return proxyUrl;
+  }
+
+  // Public webhook URL (not our API path).
+  if (fallback && !authGatedFallback) {
+    return fallback;
+  }
+
+  return '';
 }
 
 /**
@@ -153,7 +341,12 @@ export async function triggerZyastraVoiceCall(
 
   const res = await fetch(ZYASTRA_TRIGGER_URL, {
     method: 'POST',
-    headers: zyastraHeaders(),
+    headers: {
+      ...zyastraAuthHeaders({
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      }),
+    },
     body: JSON.stringify(payload),
   });
   const body = await res.json().catch(() => ({}));
@@ -219,6 +412,8 @@ export const zyastraClient = {
   triggerZyastraVoiceCall,
   fetchZyastraCall,
   fetchZyastraRecordingUrl,
+  fetchZyastraRecording,
+  resolveZyastraRecordingUrl,
   isZyastraConfigured,
 };
 

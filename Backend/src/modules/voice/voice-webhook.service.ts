@@ -48,6 +48,16 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
 }
 
+function isTruthyCallback(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  const raw = asString(value).toLowerCase();
+  if (!raw || raw === 'no' || raw === 'false' || raw === '0' || raw === 'not mentioned' || raw === 'n/a') {
+    return false;
+  }
+  if (raw === 'yes' || raw === 'true' || raw === '1') return true;
+  return Boolean(value);
+}
+
 function parseCallResult(result: Record<string, unknown> | null) {
   if (!result) {
     return {
@@ -70,21 +80,45 @@ function parseCallResult(result: Record<string, unknown> | null) {
   const questions = result.candidate_questions ?? result.candidateQuestions;
   const objections = result.objections_or_concerns ?? result.objectionsOrConcerns;
   return {
-    summary: asString(result.summary) || null,
+    summary:
+      asString(result.summary || result.call_summary || result.callSummary) || null,
     interestLevel:
-      asString(result.interest_level || result.interestLevel || result.interested) || null,
+      asString(
+        result.interest_level ||
+          result.interestLevel ||
+          result.interest ||
+          result.interested
+      ) || null,
     candidateStatus:
       asString(result.candidate_status || result.candidateStatus) || null,
     finalOutcome: asString(result.final_outcome || result.finalOutcome) || null,
-    callbackRequested: Boolean(result.callback_requested ?? result.callbackRequested),
-    callbackTime: asString(result.callback_time || result.callbackTime) || null,
+    callbackRequested: isTruthyCallback(
+      result.callback_requested ??
+        result.callbackRequested ??
+        result.call_back_requested ??
+        result.callBackRequested
+    ),
+    callbackTime:
+      asString(
+        result.callback_time ||
+          result.callbackTime ||
+          result.call_back_date_time ||
+          result.callBackDateTime
+      ) || null,
     candidateQuestions: Array.isArray(questions)
       ? questions.map((q) => asString(q)).filter(Boolean)
       : [],
     objectionsOrConcerns: Array.isArray(objections)
       ? objections.map((q) => asString(q)).filter(Boolean)
       : [],
-    ctc: asString(result.ctc || result.current_ctc || result.currentCtc) || null,
+    ctc:
+      asString(
+        result.ctc ||
+          result.current_ctc ||
+          result.currentCtc ||
+          result.current_ctc_lpa ||
+          result.currentCtcLpa
+      ) || null,
     noticePeriod:
       asString(
         result.notice_period ||
@@ -98,6 +132,8 @@ function parseCallResult(result: Record<string, unknown> | null) {
     location: (() => {
       const raw =
         result.location ??
+        result.current_location ??
+        result.currentLocation ??
         result.work_mode ??
         result.relocation_willingness ??
         result.relocationWillingness;

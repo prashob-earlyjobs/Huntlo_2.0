@@ -11,3 +11,10 @@ gemini-email-prompts.txt
 backups/
 dump.rdb
 *.rdb
+
+# GCP / cloud credentials — never commit
+secrets/
+**/secrets/
+*service-account*.json
+*-firebase-adminsdk-*.json
+huntlo-*-*.json

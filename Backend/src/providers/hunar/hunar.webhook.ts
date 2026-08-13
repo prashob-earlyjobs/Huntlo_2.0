@@ -98,8 +98,46 @@ export function parseHunarWebhookPayload(
   body: unknown
 ): ParsedHunarWebhook {
   const raw = asRecord(body);
-  const resultObj = asRecord(raw.result);
-  const hasResult = Object.keys(resultObj).length > 0;
+  let resultObj = asRecord(raw.result);
+  let hasResult = Object.keys(resultObj).length > 0;
+
+  // Hunar / evaluation model may return plain "NOT ENGAGED" instead of JSON.
+  if (!hasResult && typeof raw.result === 'string') {
+    const text = raw.result.trim();
+    if (/^NOT ENGAGED$/i.test(text)) {
+      resultObj = {
+        not_engaged: true,
+        summary: 'NOT ENGAGED',
+        interest_level: 'Not Mentioned',
+        callback_requested: 'Not Mentioned',
+        callback_time: 'Not Mentioned',
+        candidate_status: 'Unable To Verify',
+        final_outcome: 'Unable To Determine',
+        role_interest_confirmation: 'Not Mentioned',
+        experience: 'Not Mentioned',
+        relevant_experience: 'Not Mentioned',
+        skills_and_tools: 'Not Mentioned',
+        recent_project: 'Not Mentioned',
+        ctc: 'Not Mentioned',
+        expected_ctc: 'Not Mentioned',
+        notice_period: 'Not Mentioned',
+        location: 'Not Mentioned',
+        education: 'Not Mentioned',
+        candidate_questions: [],
+        eligibility_score: '1',
+        eligibility_reason: 'Candidate did not meaningfully engage or screening could not begin.',
+      };
+      hasResult = true;
+    } else {
+      try {
+        const parsed = JSON.parse(text) as unknown;
+        resultObj = asRecord(parsed);
+        hasResult = Object.keys(resultObj).length > 0;
+      } catch {
+        // leave empty
+      }
+    }
+  }
 
   return {
     kind,
@@ -318,9 +356,12 @@ export function mapHunarCallStatus(status: string, answeredBy?: string): string 
     case 'CANCELED':
       return 'cancelled';
     case 'FAILED':
+    case 'NOT_CONNECTED':
+    case 'DISCONNECTED':
       return 'failed';
     default:
-      return normalized ? normalized.toLowerCase() : 'queued';
+      // Never pass through raw provider strings — VoiceCall.status is a strict enum.
+      return 'failed';
   }
 }
 

@@ -37,6 +37,7 @@ export { processCampaignVoiceWebhook } from './voice-webhook.service.js';
 export {
   processZyastraVoiceWebhook,
   zyastraToHunarWebhookBodies,
+  normalizeZyastraResultVariables,
 } from './zyastra-voice-webhook.service.js';
 export {
   analysisVariablesFromResultSchema,

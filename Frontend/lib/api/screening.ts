@@ -393,19 +393,28 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
     concerns: asStringList(extracted.concerns),
     keyAnswers: keyAnswersFromExtracted,
     salaryExpectation: String(
-      extracted.salary || extracted.salary_expectation || extracted.ctc || "—"
+      extracted.salary ||
+        extracted.salary_expectation ||
+        extracted.ctc ||
+        extracted.current_ctc ||
+        extracted.expected_ctc ||
+        "—"
     ),
     noticePeriod: String(
       extracted.notice_period || extracted.notice_period_answer || "—"
     ),
     preferredLocation: String(
       extracted.location ||
+        extracted.current_location ||
         extracted.preferred_location ||
         extracted.location_answer ||
         "—"
     ),
     candidateInterest: String(
-      extracted.interest_level || extracted.final_outcome || "—"
+      extracted.interest_level ||
+        extracted.interest ||
+        extracted.final_outcome ||
+        "—"
     ),
     categories: breakdownCategories,
     knockouts: mapKnockoutResults(row),

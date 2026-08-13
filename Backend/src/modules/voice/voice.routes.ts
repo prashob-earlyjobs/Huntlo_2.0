@@ -38,7 +38,7 @@ const voiceAgentBodySchema = z.object({
   /** When omitted, Huntlo builds the full Roshni screening agent prompt from the campaign JD. */
   agentPrompt: z.string().max(60000).optional().nullable(),
   useRoshni: z.boolean().optional(),
-  resultPrompt: z.string().max(8000).optional().nullable(),
+  resultPrompt: z.string().max(20000).optional().nullable(),
   resultFields: z.array(z.string()).max(40).optional(),
   tone: z.enum(['professional', 'friendly', 'direct']).optional(),
   language: z.string().max(40).optional().nullable(),

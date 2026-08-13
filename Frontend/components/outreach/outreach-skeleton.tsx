@@ -7,7 +7,7 @@ export function OutreachMetricsSkeleton({ className }: { className?: string }) {
     <div
       aria-busy
       className={cn(
-        "overflow-hidden rounded-lg border border-border",
+        "shrink-0 overflow-hidden rounded-lg border border-border",
         className
       )}
     >
