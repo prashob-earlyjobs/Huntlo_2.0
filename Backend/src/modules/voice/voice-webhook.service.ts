@@ -84,11 +84,26 @@ function parseCallResult(result: Record<string, unknown> | null) {
     objectionsOrConcerns: Array.isArray(objections)
       ? objections.map((q) => asString(q)).filter(Boolean)
       : [],
-    ctc: asString(result.ctc) || null,
-    noticePeriod: asString(result.notice_period || result.noticePeriod) || null,
-    skills: asString(result.skills) || null,
+    ctc: asString(result.ctc || result.current_ctc || result.currentCtc) || null,
+    noticePeriod:
+      asString(
+        result.notice_period ||
+          result.noticePeriod ||
+          result.notice_period_days ||
+          result.noticePeriodDays ||
+          result.notice_days
+      ) || null,
+    skills: asString(result.skills || result.skills_and_tools) || null,
     education: asString(result.education) || null,
-    location: asString(result.location) || null,
+    location: (() => {
+      const raw =
+        result.location ??
+        result.work_mode ??
+        result.relocation_willingness ??
+        result.relocationWillingness;
+      if (typeof raw === 'boolean') return raw ? 'Yes' : 'No';
+      return asString(raw) || null;
+    })(),
     raw: result,
   };
 }

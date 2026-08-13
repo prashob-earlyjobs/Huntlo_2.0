@@ -74,15 +74,7 @@ function LoginForm() {
           />
         </div>
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="password">Password</Label>
-            <Link
-              href="/forgot-password"
-              className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Forgot password?
-            </Link>
-          </div>
+          <Label htmlFor="password">Password</Label>
           <div className="relative">
             <Input
               id="password"
@@ -110,12 +102,22 @@ function LoginForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        New to Huntlo?{" "}
-        <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
-          Create an account
-        </Link>
-      </p>
+      <div className="mt-6 space-y-3 text-center text-sm text-muted-foreground">
+        <p>
+          <Link
+            href="/forgot-password"
+            className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </p>
+        <p>
+          New to Huntlo?{" "}
+          <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
+            Create an account
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

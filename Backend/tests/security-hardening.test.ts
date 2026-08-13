@@ -80,7 +80,7 @@ describe('Security hardening', () => {
     expect(weak.status).toBe(400);
   });
 
-  it('invalidates access tokens after logout', async () => {
+  it('clears refresh cookie on logout; access JWT remains valid until expiry', async () => {
     const user = await registerUser(agent, `logout-${Date.now()}@huntlo.ai`);
 
     const meBefore = await agent
@@ -91,10 +91,15 @@ describe('Security hardening', () => {
     const logout = await agent.post('/api/v1/auth/logout');
     expect(logout.status).toBe(200);
 
+    // Short-lived access JWTs are not bound to refresh-session revocation.
     const meAfter = await agent
       .get('/api/v1/auth/me')
       .set('Authorization', `Bearer ${user.token}`);
-    expect(meAfter.status).toBe(401);
+    expect(meAfter.status).toBe(200);
+
+    // Refresh cookie is cleared — cannot mint a new access token.
+    const refresh = await agent.post('/api/v1/auth/refresh');
+    expect(refresh.status).toBe(401);
   });
 
   it('does not auto-rejoin removed organization members', async () => {
@@ -284,5 +289,60 @@ describe('Security hardening', () => {
     });
     expect((counter?.used || 0) + (counter?.reserved || 0)).toBeGreaterThan(0);
     void orgA;
+  });
+
+  it('keeps prior access token valid after refresh rotation', async () => {
+    const email = `at-keep-${Date.now()}@huntlo.ai`;
+    const registered = await registerUser(agent, email);
+    const oldToken = registered.token;
+
+    await agent.post('/api/v1/auth/refresh').expect(200);
+
+    const me = await agent
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${oldToken}`)
+      .expect(200);
+    expect(me.body.data.user.email).toBe(email.toLowerCase());
+  });
+
+  it('stale refresh after re-login does not revoke the new session', async () => {
+    const email = `reuse-safe-${Date.now()}@huntlo.ai`;
+    const password = 'Password123!';
+    const registered = await registerUser(agent, email);
+
+    const loginA = await agent.post('/api/v1/auth/login').send({ email, password });
+    expect(loginA.status).toBe(200);
+    const cookiesA = loginA.headers['set-cookie'] as string[] | undefined;
+    expect(cookiesA?.length).toBeTruthy();
+    const cookieHeaderA = (cookiesA ?? []).map((c) => String(c).split(';')[0]).join('; ');
+
+    // Rotate once so cookiesA becomes a revoked parent with replacedBySessionId.
+    await request(app).post('/api/v1/auth/refresh').set('Cookie', cookieHeaderA).expect(200);
+
+    // Expire the rotation grace window on the parent session.
+    await UserSessionModel.updateMany(
+      {
+        userId: registered.userId,
+        replacedBySessionId: { $ne: null },
+        revokedAt: { $ne: null },
+      },
+      { $set: { revokedAt: new Date(Date.now() - 120_000) } }
+    );
+
+    // Newer login must survive replay of the pre-rotation cookie.
+    const loginB = await agent.post('/api/v1/auth/login').send({ email, password });
+    expect(loginB.status).toBe(200);
+    const tokenB = loginB.body.data.accessToken as string;
+
+    const staleRefresh = await request(app)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', cookieHeaderA);
+    expect(staleRefresh.status).toBe(401);
+
+    const me = await agent
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(200);
+    expect(me.body.data.user.email).toBe(email.toLowerCase());
   });
 });

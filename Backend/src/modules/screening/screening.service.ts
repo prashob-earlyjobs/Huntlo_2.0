@@ -29,6 +29,7 @@ import {
   buildRoshniAgentPrompt,
   ROSHNI_INTRODUCTION,
 } from '../voice/roshni-prompt.js';
+import { analysisVariablesFromResultSchema } from '../voice/voice-qualification-sync.js';
 import {
   mapPool,
   resolveIntroduction,
@@ -907,7 +908,9 @@ export const screeningService = {
       resultPrompt: sanitizeHunarPromptText(resultPrompt),
       resultSchema,
       voicePersona: doc.voice || getHunarVoicePersona(),
-      language: doc.language || getHunarVoiceLanguage(),
+      language: doc.language
+        ? String(doc.language).trim().toUpperCase()
+        : getHunarVoiceLanguage(),
     };
 
     const candidateIds =
@@ -1050,9 +1053,7 @@ export const screeningService = {
     }
 
     if (internationalCallees.length > 0) {
-      const analysisVariables = Object.keys(
-        (resultSchema.properties as Record<string, unknown>) || {}
-      );
+      const analysisVariables = analysisVariablesFromResultSchema(resultSchema);
       const results = await mapPool(internationalCallees, 4, async (callee) => {
         const nameParts = String(callee.name || '')
           .trim()
@@ -1401,7 +1402,7 @@ export const screeningService = {
     return this.getResult(organizationId, id);
   },
 
-  /** Used by Huntlo 360 orchestration — creates screening + candidate without dialing. */
+  /** Used by Huntlo 360 orchestration — creates screening + candidate rows (dial via facade). */
   async ensureWorkflowCandidate(input: {
     organizationId: string;
     workflowId: string;
@@ -1428,7 +1429,9 @@ export const screeningService = {
         campaignId: input.campaignId || null,
         sourceModule: 'huntlo360',
         name: input.name,
-        language: input.language || getHunarVoiceLanguage(),
+        language: input.language
+          ? String(input.language).trim().toUpperCase()
+          : getHunarVoiceLanguage(),
         voice: getHunarVoicePersona(),
         questions: input.questions.map((prompt, index) => ({
           id: `q-${index + 1}`,
@@ -1448,6 +1451,12 @@ export const screeningService = {
         status: 'draft',
         stats: defaultScreeningStats(),
       });
+    } else if (input.language) {
+      const normalized = String(input.language).trim().toUpperCase();
+      if (screening.language !== normalized) {
+        screening.language = normalized;
+        await screening.save();
+      }
     }
 
     const row = await ScreeningCandidateModel.findOneAndUpdate(

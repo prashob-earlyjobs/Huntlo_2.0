@@ -144,7 +144,18 @@ export function mapApiErrorToUiState(error: unknown): ApiUiState {
 }
 
 export function getApiErrorMessage(error: unknown, fallback = "Something went wrong"): string {
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    const message = error.message;
+    if (
+      error.statusCode === 401 &&
+      /missing access token|session has been revoked|invalid refresh token|missing refresh token|refresh token reuse/i.test(
+        message
+      )
+    ) {
+      return "Your session expired. Please sign in again.";
+    }
+    return message;
+  }
   if (error instanceof Error) return error.message;
   return fallback;
 }

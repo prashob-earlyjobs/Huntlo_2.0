@@ -37,6 +37,7 @@ export type Huntlo360WorkflowDocument = Document & {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled: boolean;
     handoffCondition: string | null;
@@ -79,11 +80,19 @@ export type Huntlo360WorkflowDocument = Document & {
     bookingExpiryHours: number;
   };
   outreachConfig: {
+    campaignType: 'single_channel' | 'multi_channel';
     emailEnabled: boolean;
     whatsappEnabled: boolean;
-    channelOrder: 'email_first' | 'whatsapp_first';
+    aiVoiceEnabled: boolean;
+    channelOrder: 'email_first' | 'whatsapp_first' | 'voice_first';
     openingMessage: string | null;
-    followUps: string[];
+    openingWhatsAppTemplateId: string | null;
+    followUps: Array<{
+      body: string;
+      delayDays: number;
+      delayUnit: 'days' | 'hours' | 'minutes';
+      templateId?: string | null;
+    }>;
     stopOnReply: boolean;
     stopOnOptOut: boolean;
   };
@@ -265,25 +274,52 @@ const huntlo360WorkflowSchema = new Schema<Huntlo360WorkflowDocument>(
     outreachConfig: {
       type: new Schema(
         {
+          campaignType: {
+            type: String,
+            enum: ['single_channel', 'multi_channel'],
+            default: 'single_channel',
+          },
           emailEnabled: { type: Boolean, default: true },
           whatsappEnabled: { type: Boolean, default: false },
+          aiVoiceEnabled: { type: Boolean, default: false },
           channelOrder: {
             type: String,
-            enum: ['email_first', 'whatsapp_first'],
+            enum: ['email_first', 'whatsapp_first', 'voice_first'],
             default: 'email_first',
           },
           openingMessage: { type: String, default: null },
-          followUps: { type: [String], default: [] },
+          openingWhatsAppTemplateId: { type: String, default: null },
+          followUps: {
+            type: [
+              new Schema(
+                {
+                  body: { type: String, default: '' },
+                  delayDays: { type: Number, default: 2 },
+                  delayUnit: {
+                    type: String,
+                    enum: ['days', 'hours', 'minutes'],
+                    default: 'days',
+                  },
+                  templateId: { type: String, default: null },
+                },
+                { _id: false }
+              ),
+            ],
+            default: [],
+          },
           stopOnReply: { type: Boolean, default: true },
           stopOnOptOut: { type: Boolean, default: true },
         },
         { _id: false }
       ),
       default: () => ({
+        campaignType: 'single_channel',
         emailEnabled: true,
         whatsappEnabled: false,
+        aiVoiceEnabled: false,
         channelOrder: 'email_first',
         openingMessage: null,
+        openingWhatsAppTemplateId: null,
         followUps: [],
         stopOnReply: true,
         stopOnOptOut: true,

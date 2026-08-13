@@ -126,7 +126,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Orbit,
         description: "Unified multi-channel engagement",
         featureLabel: "New",
-        disabled: true,
       },
       {
         title: "Templates",

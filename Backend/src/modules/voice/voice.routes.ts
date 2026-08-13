@@ -24,6 +24,10 @@ import {
   syncVoiceAgent,
 } from './voice-dialer.service.js';
 import { buildRoshniAgentPrompt, qualificationQuestionsForRoshni } from './roshni-prompt.js';
+import {
+  analysisVariablesFromResultSchema,
+  extendResultSchemaForQualificationQuestions,
+} from './voice-qualification-sync.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
 const managePerm = requirePermission('outreach:manage', 'outreach:view');
@@ -327,6 +331,14 @@ voiceRoutes.post(
         ? String(campaign.voiceAgentConfig.introduction)
         : undefined;
 
+    const qualificationExtras = extendResultSchemaForQualificationQuestions(
+      defaultResultSchema(),
+      typeof campaign.voiceAgentConfig?.resultPrompt === 'string'
+        ? String(campaign.voiceAgentConfig.resultPrompt)
+        : null,
+      campaign.qualificationConfig?.questions || []
+    );
+
     const launched = await launchBulkVoiceCalls({
       organizationId,
       userId,
@@ -338,6 +350,7 @@ voiceRoutes.post(
       agentPrompt,
       firstMessage,
       preferredLanguage: indian.length === contacts.length ? undefined : 'en-US',
+      analysisVariables: analysisVariablesFromResultSchema(qualificationExtras.resultSchema),
     });
 
     if (campaign.status === 'draft' || campaign.status === 'scheduled') {

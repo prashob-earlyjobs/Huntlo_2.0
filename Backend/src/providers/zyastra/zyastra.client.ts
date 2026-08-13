@@ -5,6 +5,7 @@ import {
   getZyastraApiSecret,
   getZyastraWebhookSecret,
   isZyastraConfigured,
+  ZYASTRA_API_BASE_URL,
   ZYASTRA_TRIGGER_URL,
 } from './zyastra.config.js';
 
@@ -216,5 +217,96 @@ export async function triggerZyastraVoiceCall(
 
 export const zyastraClient = {
   triggerZyastraVoiceCall,
+  fetchZyastraCall,
+  fetchZyastraRecordingUrl,
   isZyastraConfigured,
 };
+
+export type ZyastraCallDetails = {
+  callId: string;
+  callReferenceId: string;
+  status: string;
+  durationSeconds: number | null;
+  transcript: string | null;
+  recordingUrl: string;
+  summary: string;
+  variables: Record<string, unknown>;
+  raw: unknown;
+};
+
+/** GET /voice/call/:callId — post-call details (recording may arrive later than webhook). */
+export async function fetchZyastraCall(callId: string): Promise<ZyastraCallDetails | null> {
+  const id = String(callId || '').trim();
+  if (!id || !isZyastraConfigured()) return null;
+
+  const res = await fetch(`${ZYASTRA_API_BASE_URL}/voice/call/${encodeURIComponent(id)}`, {
+    method: 'GET',
+    headers: zyastraHeaders(),
+  });
+  if (!res.ok) {
+    log().warn(
+      { callId: id, statusCode: res.status },
+      'Zyastra call details fetch failed'
+    );
+    return null;
+  }
+  const body = await res.json().catch(() => ({}));
+  const root = asRecord(body);
+  const data = asRecord(root.data);
+  const recording =
+    asString(data.recordingUrl) ||
+    asString(data.recording_url) ||
+    asString(asRecord(data.recording).url);
+  return {
+    callId: asString(data.callId) || id,
+    callReferenceId: asString(data.callReferenceId),
+    status: asString(data.status),
+    durationSeconds: asNumber(data.durationSeconds) ?? asNumber(data.duration_seconds),
+    transcript:
+      typeof data.transcript === 'string' && data.transcript.trim()
+        ? data.transcript.trim()
+        : null,
+    recordingUrl: recording,
+    summary: asString(data.summary),
+    variables: {
+      ...asRecord(data.variables),
+      ...asRecord(data.analysisVariables),
+      ...asRecord(data.extractedVariables),
+    },
+    raw: body,
+  };
+}
+
+/** GET /voice/recording/:callId — returns null when provider has no recording yet. */
+export async function fetchZyastraRecordingUrl(callId: string): Promise<string | null> {
+  const id = String(callId || '').trim();
+  if (!id || !isZyastraConfigured()) return null;
+
+  const res = await fetch(`${ZYASTRA_API_BASE_URL}/voice/recording/${encodeURIComponent(id)}`, {
+    method: 'GET',
+    headers: zyastraHeaders(),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    log().warn(
+      { callId: id, statusCode: res.status },
+      'Zyastra recording fetch failed'
+    );
+    return null;
+  }
+  const body = await res.json().catch(() => ({}));
+  const root = asRecord(body);
+  const data = asRecord(root.data);
+  return (
+    asString(data.recordingUrl) ||
+    asString(data.recording_url) ||
+    asString(data.url) ||
+    asString(root.recordingUrl) ||
+    asString(root.url) ||
+    null
+  );
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}

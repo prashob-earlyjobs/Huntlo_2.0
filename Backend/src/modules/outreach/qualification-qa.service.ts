@@ -1427,6 +1427,12 @@ async function completeQualification(input: {
           : 'Conversation handed to recruiter',
     metadata: { reason: input.reason || null },
   }).catch(() => undefined);
+
+  await notifyHuntlo360QualificationComplete({
+    campaign,
+    enrollment,
+    status,
+  });
 }
 
 function shouldHandOffAfterQuestions(config: QualificationConfig): boolean {
@@ -1696,6 +1702,127 @@ async function maybeAnswerCandidateQuestion(input: {
 }
 
 /**
+ * Huntlo 360 used to compile campaigns with qualification disabled. Repair
+ * linked campaigns from the workflow config so reply → Q&A works.
+ */
+async function ensureHuntlo360QualificationConfig(
+  campaign: OutreachCampaignDocument
+): Promise<QualificationConfig> {
+  const current = (campaign.qualificationConfig || {
+    enabled: true,
+    questions: [],
+    aiReplyEnabled: true,
+  }) as QualificationConfig;
+  const hasQuestions = Array.isArray(current.questions) && current.questions.length > 0;
+  if (current.enabled !== false && hasQuestions) return current;
+  if (campaign.sourceModule !== 'huntlo360') return current;
+
+  const { Huntlo360WorkflowModel } = await import('../huntlo-360/workflow.model.js');
+  const workflow = await Huntlo360WorkflowModel.findOne({
+    campaignId: campaign._id,
+    deletedAt: null,
+  }).select('qualificationConfig');
+
+  const wf = workflow?.qualificationConfig;
+  if (!wf) return current;
+
+  const questions = (wf.questions || [])
+    .filter((q) => String(q?.prompt || '').trim())
+    .map((q) => ({
+      id: String(q.id),
+      prompt: String(q.prompt).trim(),
+      answerType: String(q.answerType || 'Text'),
+      knockout: Boolean(q.knockout),
+      knockoutCondition:
+        typeof (q as { knockoutCondition?: string | null }).knockoutCondition === 'string'
+          ? (q as { knockoutCondition?: string }).knockoutCondition || null
+          : null,
+    }));
+
+  if (!questions.length && wf.enabled === false) return current;
+
+  campaign.qualificationConfig = {
+    enabled: wf.enabled !== false,
+    questions,
+    aiReplyEnabled: wf.aiReplyEnabled !== false,
+    takeoverCondition: wf.handoffCondition || null,
+    autoScreening: false,
+  };
+  campaign.markModified('qualificationConfig');
+  await campaign.save();
+
+  log().info(
+    {
+      campaignId: String(campaign._id),
+      questionCount: questions.length,
+      enabled: campaign.qualificationConfig.enabled,
+    },
+    'Hydrated Huntlo 360 qualification config onto campaign'
+  );
+
+  return campaign.qualificationConfig as QualificationConfig;
+}
+
+async function notifyHuntlo360QualificationComplete(input: {
+  campaign: OutreachCampaignDocument;
+  enrollment: OutreachEnrollmentDocument;
+  status: 'qualified' | 'rejected' | 'handed_off';
+}) {
+  if (input.campaign.sourceModule !== 'huntlo360') return;
+  const { Huntlo360WorkflowModel } = await import('../huntlo-360/workflow.model.js');
+  const { applyWorkflowTransition } = await import('../huntlo-360/transitions.js');
+
+  const workflow = await Huntlo360WorkflowModel.findOne({
+    organizationId: input.campaign.organizationId,
+    campaignId: input.campaign._id,
+    deletedAt: null,
+    status: { $in: ['running', 'paused'] },
+  }).select('_id');
+  if (!workflow) return;
+
+  const event =
+    input.status === 'qualified'
+      ? 'qualification_pass'
+      : input.status === 'rejected'
+        ? 'qualification_fail'
+        : 'qualification_incomplete';
+
+  await applyWorkflowTransition({
+    organizationId: String(input.campaign.organizationId),
+    workflowId: String(workflow._id),
+    candidateId: String(input.enrollment.candidateId),
+    event,
+    idempotencyKey: `qual:${String(input.campaign._id)}:${String(input.enrollment.candidateId)}:${event}`,
+    qualificationStatus: input.status === 'handed_off' ? 'handed_off' : input.status,
+    metadata: { source: 'qualification-qa' },
+  })
+    .then((result) => {
+      log().info(
+        {
+          campaignId: String(input.campaign._id),
+          enrollmentId: String(input.enrollment._id),
+          workflowId: String(workflow._id),
+          event,
+          duplicate: result.duplicate,
+          toStage: result.toStage,
+        },
+        'Huntlo 360 qualification transition applied'
+      );
+    })
+    .catch((error) => {
+    log().warn(
+      {
+        err: error,
+        campaignId: String(input.campaign._id),
+        enrollmentId: String(input.enrollment._id),
+        event,
+      },
+      'Huntlo 360 qualification transition failed'
+    );
+  });
+}
+
+/**
  * Drive qualification Q&A after an inbound reply has been classified.
  */
 export async function processQualificationAfterReply(input: {
@@ -1721,11 +1848,7 @@ export async function processQualificationAfterReply(input: {
     'processQualificationAfterReply start'
   );
 
-  const config = (input.campaign.qualificationConfig || {
-    enabled: true,
-    questions: [],
-    aiReplyEnabled: true,
-  }) as QualificationConfig;
+  const config = await ensureHuntlo360QualificationConfig(input.campaign);
 
   // Qualification + AI reply are always-on in the product UI. Only skip when the
   // campaign has no questions AND was explicitly disabled (legacy).
@@ -1817,6 +1940,11 @@ export async function processQualificationAfterReply(input: {
       },
       'Qualification skipped — enrollment already complete for this outreach cycle'
     );
+    await notifyHuntlo360QualificationComplete({
+      campaign: input.campaign,
+      enrollment,
+      status: qualStatus === 'rejected' ? 'rejected' : 'qualified',
+    });
     return { action: 'skipped_already_complete' };
   }
 

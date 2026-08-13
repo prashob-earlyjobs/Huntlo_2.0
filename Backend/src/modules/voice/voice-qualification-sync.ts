@@ -12,10 +12,6 @@ import type { OutreachCampaignDocument } from '../outreach/campaign.model.js';
 import type { OutreachEnrollmentDocument } from '../outreach/enrollment.model.js';
 import { ROSHNI_RESULT_PROMPT, ROSHNI_RESULT_SCHEMA } from './roshni-prompt.js';
 
-function asString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
-}
-
 function answerValue(entry: unknown): string {
   if (entry == null) return '';
   if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
@@ -71,7 +67,7 @@ function answerKeysForQuestion(question: QuestionLike): string[] {
   return keys;
 }
 
-/** Map free-text prompt → static Roshni result fields (for agents not yet re-synced). */
+/** Map free-text prompt → static Roshni / Zyastra result fields. */
 export function inferAnswerFromRoshniFields(
   prompt: string,
   result: Record<string, unknown>
@@ -79,23 +75,48 @@ export function inferAnswerFromRoshniFields(
   const p = prompt.toLowerCase();
   const pick = (...keys: string[]) => {
     for (const key of keys) {
-      const value = asString(result[key]);
+      if (!(key in result)) continue;
+      const value = formatAnswerForQualification(result[key]);
       if (isProvided(value)) return value;
     }
     return null;
   };
 
   if (/notice|how soon|join|available|availability/.test(p)) {
-    return pick('notice_period', 'noticePeriod');
+    return pick(
+      'notice_period',
+      'noticePeriod',
+      'notice_period_days',
+      'noticePeriodDays',
+      'notice_days',
+      'noticeDays'
+    );
   }
-  if (/location|hybrid|remote|work.?mode|relocat|wfh|wfo/.test(p)) {
-    return pick('location', 'work_mode', 'workplace');
+  if (/location|hybrid|remote|work.?mode|relocat|wfh|wfo|bengaluru|bangalore|open to working/.test(p)) {
+    return pick(
+      'location',
+      'work_mode',
+      'workplace',
+      'relocation_willingness',
+      'relocationWillingness',
+      'open_to_relocate',
+      'openToRelocate',
+      'hybrid_willingness',
+      'hybridWillingness'
+    );
   }
   if (/ctc|salary|compensation|package|pay/.test(p)) {
-    if (/expect|desired|looking|target/.test(p)) {
-      return pick('expected_ctc', 'expectedCtc');
+    if (/expect|desired|looking|target|annual/.test(p)) {
+      return pick(
+        'expected_ctc',
+        'expectedCtc',
+        'expected_compensation',
+        'expectedCompensation',
+        'expected_salary',
+        'expectedSalary'
+      );
     }
-    return pick('ctc', 'current_ctc', 'currentCtc');
+    return pick('ctc', 'current_ctc', 'currentCtc', 'compensation', 'salary');
   }
   if (/educat|degree|qualification|college/.test(p)) {
     return pick('education');
@@ -113,20 +134,109 @@ export function inferAnswerFromRoshniFields(
   return null;
 }
 
+/**
+ * Normalize provider-specific analysis keys (esp. Zyastra) into Roshni-compatible
+ * fields so qualification sync and callResult parsing stay consistent.
+ */
+export function normalizeVoiceAnalysisVariables(
+  input: Record<string, unknown> | null | undefined
+): Record<string, unknown> {
+  const src = { ...(input || {}) };
+  const out: Record<string, unknown> = { ...src };
+
+  const notice =
+    src.notice_period ??
+    src.noticePeriod ??
+    src.notice_period_days ??
+    src.noticePeriodDays ??
+    src.notice_days ??
+    src.noticeDays;
+  if (notice != null && notice !== '') {
+    const formatted = formatAnswerForQualification(notice);
+    if (isProvided(formatted)) {
+      out.notice_period = formatted;
+      out.noticePeriod = formatted;
+    }
+  }
+
+  const location =
+    src.location ??
+    src.work_mode ??
+    src.workplace ??
+    src.relocation_willingness ??
+    src.relocationWillingness ??
+    src.open_to_relocate ??
+    src.openToRelocate ??
+    src.hybrid_willingness ??
+    src.hybridWillingness;
+  if (location != null && location !== '') {
+    const formatted = formatAnswerForQualification(location);
+    if (isProvided(formatted)) {
+      out.location = formatted;
+      // Keep boolean-ish yes/no visible under the original key too.
+      if ('relocation_willingness' in src || 'relocationWillingness' in src) {
+        out.relocation_willingness = formatted;
+      }
+    }
+  }
+
+  const expected =
+    src.expected_ctc ??
+    src.expectedCtc ??
+    src.expected_compensation ??
+    src.expectedCompensation ??
+    src.expected_salary ??
+    src.expectedSalary;
+  if (expected != null && expected !== '') {
+    const formatted = formatAnswerForQualification(expected);
+    if (isProvided(formatted)) {
+      out.expected_ctc = formatted;
+      out.expectedCtc = formatted;
+    }
+  }
+
+  return out;
+}
+
+function formatAnswerForQualification(entry: unknown): string {
+  if (typeof entry === 'boolean') return entry ? 'Yes' : 'No';
+  if (typeof entry === 'number' && Number.isFinite(entry)) return String(entry);
+  return answerValue(entry);
+}
+
 export function extractQualificationAnswer(
   question: QuestionLike,
   result: Record<string, unknown>
 ): string | null {
+  const normalized = normalizeVoiceAnalysisVariables(result);
   for (const key of answerKeysForQuestion(question)) {
-    if (!(key in result)) continue;
-    const value = asString(result[key]);
+    if (!(key in normalized)) continue;
+    const value = formatAnswerForQualification(normalized[key]);
     if (isProvided(value)) return value;
   }
   const prompt = String(question.prompt || '').trim();
   if (prompt) {
-    return inferAnswerFromRoshniFields(prompt, result);
+    return inferAnswerFromRoshniFields(prompt, normalized);
   }
   return null;
+}
+
+/** Keys to request from Zyastra `analysisVariables` (mirrors Hunar result schema). */
+export function analysisVariablesFromResultSchema(
+  schema: Record<string, unknown> | null | undefined
+): string[] {
+  const properties = asRecord(
+    schema && typeof schema === 'object' ? (schema as { properties?: unknown }).properties : null
+  );
+  const keys = Object.keys(properties).filter(Boolean);
+  return keys.length > 0 ? keys : Object.keys((ROSHNI_RESULT_SCHEMA.properties as object) || {});
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
 }
 
 /** Extend Roshni result_schema / result_prompt with per-question answer keys. */

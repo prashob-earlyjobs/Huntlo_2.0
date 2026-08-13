@@ -141,6 +141,44 @@ export async function verifySmtpCredentials(body: Record<string, unknown>): Prom
   return config;
 }
 
+export type SmtpSendResult = {
+  messageId?: string;
+  accepted?: string[];
+  rejected?: string[];
+  response?: string;
+  envelopeFrom?: string;
+};
+
+/** Serialize nodemailer / SMTP errors for diagnostic logs (no secrets). */
+export function smtpErrorDetails(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) {
+    return { message: String(error) };
+  }
+  const err = error as Error & {
+    code?: string;
+    command?: string;
+    response?: string;
+    responseCode?: number;
+    errno?: number;
+    syscall?: string;
+    address?: string;
+    port?: number;
+  };
+  return {
+    message: err.message,
+    name: err.name,
+    code: err.code ?? null,
+    command: err.command ?? null,
+    response: err.response ?? null,
+    responseCode: err.responseCode ?? null,
+    errno: err.errno ?? null,
+    syscall: err.syscall ?? null,
+    address: err.address ?? null,
+    port: err.port ?? null,
+    formatted: formatSmtpError(error),
+  };
+}
+
 export async function sendSmtpMail(input: {
   config: SmtpConfig;
   to: string;
@@ -149,7 +187,7 @@ export async function sendSmtpMail(input: {
   html?: string;
   inReplyTo?: string | null;
   references?: string | null;
-}): Promise<{ messageId?: string }> {
+}): Promise<SmtpSendResult> {
   assertSmtpConfig(input.config);
   const transport = createSmtpTransport(input.config);
   try {
@@ -164,7 +202,26 @@ export async function sendSmtpMail(input: {
       inReplyTo: input.inReplyTo || undefined,
       references: input.references || undefined,
     });
-    return { messageId: typeof info.messageId === 'string' ? info.messageId : undefined };
+    return {
+      messageId: typeof info.messageId === 'string' ? info.messageId : undefined,
+      accepted: Array.isArray(info.accepted)
+        ? info.accepted.map((v) => String(v))
+        : undefined,
+      rejected: Array.isArray(info.rejected)
+        ? info.rejected.map((v) => String(v))
+        : undefined,
+      response: typeof info.response === 'string' ? info.response : undefined,
+      envelopeFrom:
+        info.envelope && typeof info.envelope.from === 'string'
+          ? info.envelope.from
+          : undefined,
+    };
+  } catch (error) {
+    const details = smtpErrorDetails(error);
+    throw Object.assign(new Error(String(details.formatted || details.message)), {
+      cause: error,
+      smtp: details,
+    });
   } finally {
     transport.close();
   }

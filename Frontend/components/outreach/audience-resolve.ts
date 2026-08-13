@@ -3,7 +3,12 @@ import {
   sourcingApi,
   type ApiPoolCandidate,
   type PoolListParams,
+  type SourcedCandidateApi,
 } from "@/lib/api";
+import {
+  fetchMoreCandidates,
+  getStoredSessionCandidates,
+} from "@/lib/api/candidate-search";
 import type { AudienceStats } from "@/lib/mock-outreach";
 import type { AudienceSource } from "@/lib/mock-outreach";
 
@@ -41,6 +46,86 @@ export function statsFromPoolRows(rows: ApiPoolCandidate[]): AudienceStats {
 function normalizeLinkedin(url: string | null | undefined): string | null {
   if (!url) return null;
   return url.trim().toLowerCase().replace(/\/+$/, "");
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/** Paginate `/sourcing/sessions/:id/results` until exhausted. */
+export async function listAllSessionResults(
+  sessionId: string
+): Promise<SourcedCandidateApi[]> {
+  return sourcingApi.getSessionResults(sessionId);
+}
+
+/**
+ * Advance polling / fetch-more so audience enrollment sees the full session
+ * (Apply often returns the first page only, e.g. 11 of 35).
+ */
+export async function hydrateSourcingSessionResults(
+  sessionId: string
+): Promise<SourcedCandidateApi[]> {
+  try {
+    await sourcingApi.getProgress(sessionId);
+  } catch {
+    // Progress poll is best-effort; still read whatever is stored.
+  }
+
+  try {
+    let stored = await getStoredSessionCandidates(sessionId, {
+      all: true,
+      limit: 300,
+    });
+    let attempts = 0;
+    while ((stored.canFetchMore || stored.polling) && attempts < 8) {
+      attempts += 1;
+      if (stored.canFetchMore) {
+        await fetchMoreCandidates(sessionId, { page: 1, limit: 300 });
+      } else if (stored.polling) {
+        await sourcingApi.getProgress(sessionId).catch(() => undefined);
+        await sleep(1200);
+      }
+      stored = await getStoredSessionCandidates(sessionId, {
+        all: true,
+        limit: 300,
+      });
+    }
+  } catch {
+    // Fall through to results endpoint.
+  }
+
+  return listAllSessionResults(sessionId);
+}
+
+function mapSourcedToAudienceRow(
+  result: SourcedCandidateApi,
+  sessionId: string,
+  pool?: ApiPoolCandidate | null
+): ApiPoolCandidate {
+  return {
+    id: pool?.id || result.id,
+    name: pool?.name || result.name,
+    email: pool?.email ?? null,
+    phone: pool?.phone ?? null,
+    linkedinUrl: pool?.linkedinUrl || result.linkedinUrl,
+    headline: pool?.headline ?? result.headline,
+    currentTitle: pool?.currentTitle ?? result.title,
+    currentCompany: pool?.currentCompany ?? result.company,
+    location: pool?.location ?? result.location,
+    experienceYears: pool?.experienceYears ?? result.experienceYears,
+    skills: pool?.skills?.length ? pool.skills : result.skills,
+    status: pool?.status ?? "new",
+    pipelineStatus: pool?.pipelineStatus ?? "New",
+    sourceType: "sourcing",
+    sourceId: sessionId,
+    externalCandidateId:
+      pool?.externalCandidateId || result.externalCandidateId,
+    emailRevealed: Boolean(pool?.emailRevealed || pool?.email),
+    phoneRevealed: Boolean(pool?.phoneRevealed || pool?.phone),
+  };
 }
 
 /** Paginate pool list until exhausted (backend max page size is 200). */
@@ -141,35 +226,38 @@ export async function loadAudiencePoolRows(
   }
 
   if (state.source === "Sourcing Session" && state.sourceDetail) {
-    // Prefer already-synced pool rows for this session.
-    const existing = await listAllPoolPages({ sourceType: "sourcing" });
-    const fromSession = existing.filter(
-      (row) => row.sourceId === state.sourceDetail
-    );
-    if (fromSession.length > 0) return fromSession;
+    const sessionId = state.sourceDetail;
+    const results = await hydrateSourcingSessionResults(sessionId);
 
-    // Fall back to session result count with empty contacts (not yet in pool).
-    const results = await sourcingApi.getSessionResults(state.sourceDetail);
-    return results.map((result) => ({
-      id: result.id,
-      name: result.name,
-      email: null,
-      phone: null,
-      linkedinUrl: result.linkedinUrl,
-      headline: result.headline,
-      currentTitle: result.title,
-      currentCompany: result.company,
-      location: result.location,
-      experienceYears: result.experienceYears,
-      skills: result.skills,
-      status: "new",
-      pipelineStatus: "New",
-      sourceType: "sourcing",
-      sourceId: state.sourceDetail,
-      externalCandidateId: result.externalCandidateId,
-      emailRevealed: false,
-      phoneRevealed: false,
-    }));
+    // Enrich with any already-synced pool contacts, but never truncate to the
+    // partial pool subset (that caused 11 shown when search had 35).
+    const poolRows = await listAllPoolPages({ sourceType: "sourcing" });
+    const byExternal = new Map<string, ApiPoolCandidate>();
+    const byLinkedin = new Map<string, ApiPoolCandidate>();
+    const bySourceMatch: ApiPoolCandidate[] = [];
+    for (const row of poolRows) {
+      if (row.sourceId === sessionId) bySourceMatch.push(row);
+      if (row.externalCandidateId) {
+        byExternal.set(row.externalCandidateId, row);
+      }
+      const linkedin = normalizeLinkedin(row.linkedinUrl);
+      if (linkedin) byLinkedin.set(linkedin, row);
+    }
+
+    if (results.length === 0) {
+      return bySourceMatch;
+    }
+
+    return results.map((result) => {
+      const linkedin = normalizeLinkedin(result.linkedinUrl);
+      const pool =
+        (result.externalCandidateId
+          ? byExternal.get(result.externalCandidateId)
+          : undefined) ||
+        (linkedin ? byLinkedin.get(linkedin) : undefined) ||
+        null;
+      return mapSourcedToAudienceRow(result, sessionId, pool);
+    });
   }
 
   return [];
@@ -240,7 +328,8 @@ export async function ensureSourcedCandidatesInPool(
     externalCandidateId?: string | null;
   }> = []
 ): Promise<string[]> {
-  const results = await sourcingApi.getSessionResults(sessionId);
+  // Full session first — Apply often stores page 1 only until fetch-more runs.
+  const results = await hydrateSourcingSessionResults(sessionId);
 
   const wanted =
     sourcedCandidateIds && sourcedCandidateIds.length > 0

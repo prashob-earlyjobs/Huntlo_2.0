@@ -10,6 +10,7 @@ import {
   Huntlo360CandidateStateModel,
   Huntlo360TransitionModel,
   type ExceptionCode,
+  type Huntlo360CandidateStateDocument,
   type WorkflowStage,
 } from './candidate-state.model.js';
 import {
@@ -17,6 +18,7 @@ import {
   defaultStageStats,
   type Huntlo360WorkflowDocument,
 } from './workflow.model.js';
+import { flowSupportService } from './flow-support.service.js';
 
 export type TransitionEvent =
   | 'positive_reply'
@@ -157,6 +159,46 @@ function resolveNextStage(
   }
 }
 
+async function ensureScreeningLaunchForTransition(input: {
+  organizationId: string;
+  workflowId: string;
+  candidateId: string;
+  workflow: Huntlo360WorkflowDocument;
+  state: Huntlo360CandidateStateDocument;
+  timezone?: string | null;
+}) {
+  const { screening, candidate } = await screeningFacade.createSession({
+    organizationId: input.organizationId,
+    workflowId: input.workflowId,
+    campaignId: input.workflow.campaignId ? String(input.workflow.campaignId) : null,
+    candidateId: input.candidateId,
+    enrollmentId: input.state.enrollmentId ? String(input.state.enrollmentId) : null,
+    ownerUserId: String(input.workflow.ownerUserId),
+    minScore: input.workflow.screeningConfig.minScore,
+    language: input.workflow.screeningConfig.language
+      ? String(input.workflow.screeningConfig.language).trim().toUpperCase()
+      : null,
+    questions: input.workflow.screeningConfig.questions || [],
+    attempts: input.workflow.screeningConfig.attempts,
+    timezone: input.timezone,
+  });
+  // Candidate-state tracks the per-candidate screening row; enrollment links the batch.
+  input.state.screeningId = candidate._id;
+  input.state.screeningStatus = 'scheduled';
+  await flowSupportService
+    .addIds(input.workflowId, { screeningIds: [String(screening._id)] })
+    .catch(() => undefined);
+  if (input.state.enrollmentId) {
+    await OutreachEnrollmentModel.findByIdAndUpdate(input.state.enrollmentId, {
+      $set: {
+        'screeningState.status': 'scheduled',
+        'screeningState.screeningId': String(screening._id),
+      },
+    });
+  }
+  return { screening, candidate };
+}
+
 export async function applyWorkflowTransition(input: TransitionInput) {
   const existing = await Huntlo360TransitionModel.findOne({
     organizationId: input.organizationId,
@@ -165,6 +207,33 @@ export async function applyWorkflowTransition(input: TransitionInput) {
   }).lean();
   if (existing) {
     const state = await Huntlo360CandidateStateModel.findById(existing.candidateStateId);
+    // Earlier builds moved candidates to screening without scheduling a Hunar dial.
+    // Re-fire createSession (idempotent) so qualification_pass always launches.
+    if (
+      state &&
+      existing.toStage === 'screening' &&
+      input.event === 'qualification_pass' &&
+      (!state.screeningId ||
+        !state.screeningStatus ||
+        ['pending', 'scheduled', 'queued'].includes(String(state.screeningStatus)))
+    ) {
+      const workflow = await Huntlo360WorkflowModel.findOne({
+        _id: input.workflowId,
+        organizationId: input.organizationId,
+        deletedAt: null,
+      });
+      if (workflow?.screeningConfig?.enabled) {
+        await ensureScreeningLaunchForTransition({
+          organizationId: input.organizationId,
+          workflowId: input.workflowId,
+          candidateId: input.candidateId,
+          workflow,
+          state,
+          timezone: null,
+        });
+        await state.save();
+      }
+    }
     return {
       duplicate: true,
       transitionId: String(existing._id),
@@ -196,30 +265,21 @@ export async function applyWorkflowTransition(input: TransitionInput) {
     input.toStage
   );
 
-  // Side effects for stage entry (facades — not full engines)
-  if (resolved.stage === 'screening' && fromStage !== 'screening') {
-    const session = await screeningFacade.createSession({
+  // Side effects for stage entry (facades — not full engines).
+  // Also re-ensure launch when already on screening via qualification_pass
+  // (e.g. prior transition created rows but never dialed).
+  if (
+    resolved.stage === 'screening' &&
+    (fromStage !== 'screening' || input.event === 'qualification_pass')
+  ) {
+    await ensureScreeningLaunchForTransition({
       organizationId: input.organizationId,
       workflowId: input.workflowId,
-      campaignId: workflow.campaignId ? String(workflow.campaignId) : null,
       candidateId: input.candidateId,
-      enrollmentId: state.enrollmentId ? String(state.enrollmentId) : null,
-      ownerUserId: String(workflow.ownerUserId),
-      minScore: workflow.screeningConfig.minScore,
-      language: workflow.screeningConfig.language,
-      questions: workflow.screeningConfig.questions || [],
-      attempts: workflow.screeningConfig.attempts,
+      workflow,
+      state,
+      timezone: null,
     });
-    state.screeningId = session._id;
-    state.screeningStatus = 'scheduled';
-    if (state.enrollmentId) {
-      await OutreachEnrollmentModel.findByIdAndUpdate(state.enrollmentId, {
-        $set: {
-          'screeningState.status': 'scheduled',
-          'screeningState.screeningId': String(session._id),
-        },
-      });
-    }
   }
 
   if (
@@ -258,6 +318,11 @@ export async function applyWorkflowTransition(input: TransitionInput) {
     if (invited) {
       state.assessmentCandidateId = invited._id;
       state.assessmentStatus = invited.invitationStatus || 'invited';
+      await flowSupportService
+        .addIds(input.workflowId, {
+          assessmentCandidateIds: [String(invited._id)],
+        })
+        .catch(() => undefined);
     }
   }
 
@@ -280,6 +345,11 @@ export async function applyWorkflowTransition(input: TransitionInput) {
     });
     state.scheduleCandidateId = link._id;
     state.schedulingStatus = 'link_sent';
+    await flowSupportService
+      .addIds(input.workflowId, {
+        scheduleCandidateIds: [String(link._id)],
+      })
+      .catch(() => undefined);
     if (state.enrollmentId) {
       await OutreachEnrollmentModel.findByIdAndUpdate(state.enrollmentId, {
         $set: {

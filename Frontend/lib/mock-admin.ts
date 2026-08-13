@@ -866,6 +866,7 @@ export const ADMIN_CANDIDATES: AdminCandidate[] = [
 export type AdminCampaignStatus =
   | "Running"
   | "Paused"
+  | "Draft"
   | "Queued"
   | "Completed"
   | "Failed";
