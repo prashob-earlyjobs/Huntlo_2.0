@@ -114,7 +114,7 @@ export interface Workflow360 {
   jobId: string | null;
   jobTitle: string | null;
   candidates: number;
-  channels: ("Email" | "WhatsApp")[];
+  channels: ("Email" | "WhatsApp" | "AI Voice")[];
   replied: number;
   qualified: number;
   screened: number;

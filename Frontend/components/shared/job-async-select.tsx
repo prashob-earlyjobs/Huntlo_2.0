@@ -14,7 +14,8 @@ export type JobOption = {
 };
 
 function toOption(job: Pick<JobListItem, "id" | "title" | "location" | "status">): JobOption {
-  const location = job.location && job.location !== "—" ? job.location : "";
+  const rawLocation = String(job.location || "").trim();
+  const location = rawLocation && rawLocation !== "—" ? rawLocation : "";
   return {
     value: job.id,
     label: location ? `${job.title} · ${location}` : job.title,
