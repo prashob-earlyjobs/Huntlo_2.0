@@ -12,6 +12,10 @@ backups/
 dump.rdb
 *.rdb
 
-# Local cloud credentials — never commit
+# GCP / cloud credentials — never commit
 secrets/
+**/secrets/
 gcs-service-account.json
+*service-account*.json
+*-firebase-adminsdk-*.json
+huntlo-*-*.json

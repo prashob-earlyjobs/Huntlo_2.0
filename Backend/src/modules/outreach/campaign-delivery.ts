@@ -16,6 +16,10 @@ import {
   sendMetaWhatsAppTemplate,
   sendMetaWhatsAppText,
 } from '../../providers/meta-whatsapp/meta.send.js';
+import {
+  buildMetaTemplateBodyParameters,
+  findApprovedMetaTemplate,
+} from '../../providers/meta-whatsapp/meta.templates.js';
 import { stampWhatsAppOutboundRoute } from '../webhooks/whatsapp-outbound-route.service.js';
 import { sendOutlookMail } from '../../providers/outlook/outlook.send.js';
 import { refreshOutlookAccessToken } from '../../providers/outlook/outlook.oauth.js';
@@ -600,6 +604,38 @@ async function sendWhatsAppViaIntegration(input: {
       });
     }
 
+    if (input.templateId) {
+      const metaTemplate = await findApprovedMetaTemplate(String(input.templateId));
+      if (metaTemplate) {
+        const bodyParameters = isForceTestWhatsAppTemplate()
+          ? []
+          : buildMetaTemplateBodyParameters(metaTemplate.variableCount, mergeContext);
+        logger.info(
+          {
+            mode: 'template',
+            templateName: metaTemplate.name,
+            languageCode: metaTemplate.language,
+            bodyParameters,
+            to: input.to,
+          },
+          'Sending Meta WhatsApp template'
+        );
+        const result = await sendMetaWhatsAppTemplate({
+          phoneNumberId,
+          accessToken,
+          to: input.to,
+          templateName: isForceTestWhatsAppTemplate() ? 'hello_world' : metaTemplate.name,
+          languageCode: metaTemplate.language,
+          bodyParameters,
+        });
+        return finish({
+          messageId: result.messageId,
+          provider: secrets.provider,
+          mode: 'template',
+        });
+      }
+    }
+
     if (!body.trim()) {
       throw Object.assign(
         new Error(
@@ -754,6 +790,16 @@ async function launchVoiceCall(input: {
   // on Hunar create (500). Ensure agent once under a per-campaign lock, then dial.
   // Non-Indian numbers use Zyastra and do not need a Hunar agent.
   const needsHunar = isIndianE164(input.phone);
+  getLogger().info(
+    {
+      campaignId,
+      enrollmentId: input.enrollmentId,
+      phone: input.phone,
+      needsHunar,
+      isIndianE164: needsHunar,
+    },
+    'Campaign voice dial routing decision'
+  );
   let agentId: string | null = null;
 
   if (needsHunar) {
@@ -837,6 +883,26 @@ async function launchVoiceCall(input: {
     agentPrompt,
     firstMessage: introduction || undefined,
     preferredLanguage: needsHunar ? undefined : 'en-US',
+    // Zyastra extracts these; include Roshni + qualification keys and Zyastra aliases.
+    analysisVariables: needsHunar
+      ? undefined
+      : Array.from(
+          new Set([
+            ...Object.keys(
+              (qualificationExtras.resultSchema.properties as Record<string, unknown>) || {}
+            ),
+            'notice_period',
+            'notice_period_days',
+            'current_ctc',
+            'current_ctc_lpa',
+            'expected_ctc',
+            'expected_ctc_lpa',
+            'location',
+            'relocation_willingness',
+            'work_mode',
+            'summary',
+          ])
+        ),
   });
 
   return {
@@ -1148,4 +1214,71 @@ export async function executeCampaignMessageStep(input: {
     );
     throw error;
   }
+}
+
+/** Ad-hoc WhatsApp template send used by post-qualification hiring flows. */
+export async function sendHiringFlowWhatsAppTemplate(input: {
+  organizationId: string;
+  userId: string;
+  campaignId: string;
+  enrollmentId: string;
+  to: string;
+  templateId: string;
+  body: string;
+  mergeContext: Record<string, string>;
+}): Promise<{ providerMessageId?: string; provider: string }> {
+  const integration = await resolveIntegration(
+    input.organizationId,
+    input.userId,
+    'whatsapp',
+    null
+  );
+  if (!integration) {
+    throw Object.assign(new Error('No connected WhatsApp integration for hiring flow.'), {
+      statusCode: 400,
+    });
+  }
+  const sent = await sendWhatsAppViaIntegration({
+    secrets: integration.secrets,
+    to: input.to,
+    body: input.body,
+    templateId: input.templateId,
+    mergeContext: input.mergeContext,
+    organizationId: input.organizationId,
+    campaignId: input.campaignId,
+    enrollmentId: input.enrollmentId,
+  });
+  return { providerMessageId: sent.messageId, provider: sent.provider };
+}
+
+/** Ad-hoc WhatsApp free-text send used by hiring-flow question steps. */
+export async function sendHiringFlowWhatsAppText(input: {
+  organizationId: string;
+  userId: string;
+  campaignId: string;
+  enrollmentId: string;
+  to: string;
+  body: string;
+}): Promise<{ providerMessageId?: string; provider: string }> {
+  const integration = await resolveIntegration(
+    input.organizationId,
+    input.userId,
+    'whatsapp',
+    null
+  );
+  if (!integration) {
+    throw Object.assign(new Error('No connected WhatsApp integration for hiring flow.'), {
+      statusCode: 400,
+    });
+  }
+  const sent = await sendWhatsAppViaIntegration({
+    secrets: integration.secrets,
+    to: input.to,
+    body: input.body,
+    templateId: null,
+    organizationId: input.organizationId,
+    campaignId: input.campaignId,
+    enrollmentId: input.enrollmentId,
+  });
+  return { providerMessageId: sent.messageId, provider: sent.provider };
 }

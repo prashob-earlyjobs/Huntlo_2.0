@@ -10,6 +10,7 @@ import {
   List,
   Loader2,
   Pencil,
+  RefreshCw,
   Rows3,
   Search,
   Send,
@@ -25,6 +26,16 @@ import { CandidateTable } from "@/components/sessions/candidate-table";
 import type { RevealState } from "@/components/sessions/contact-reveal";
 import { FilterPanel } from "@/components/search/filter-panel";
 import { EmptyState } from "@/components/shared/empty-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,9 +60,12 @@ import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-detai
 import {
   applyCandidateSearch,
   getCandidateDetails,
+  getSourcingSessionProfiles,
   saveSearch,
   unsaveSearch,
+  type CandidateSearchSummary,
 } from "@/lib/api/candidate-search";
+import { mapApiCandidateToSessionCandidate } from "@/lib/api/sourcing";
 import {
   FILTER_SECTIONS,
   INTERPRETED_FILTER_STATE,
@@ -260,6 +274,12 @@ export function SessionResults({
   );
   const [rerunningSearch, setRerunningSearch] = useState(false);
   const [rerunError, setRerunError] = useState<string | null>(null);
+  const [rerunModeOpen, setRerunModeOpen] = useState(false);
+  const [rerunMode, setRerunMode] = useState<"new" | "existing">("new");
+  const [refreshingProfiles, setRefreshingProfiles] = useState(false);
+  const [refreshProfilesError, setRefreshProfilesError] = useState<string | null>(
+    null
+  );
   const [searchSaved, setSearchSaved] = useState(
     Boolean(session.isSavedSearch && session.savedListId)
   );
@@ -685,16 +705,62 @@ export function SessionResults({
     });
   }
 
-  async function rerunSearch() {
+  async function refreshProfilesOnce() {
+    if (refreshingProfiles) return;
+    setRefreshingProfiles(true);
+    setRefreshProfilesError(null);
+    try {
+      const result = await getSourcingSessionProfiles(session.id, {
+        force: true,
+        page: 1,
+        limit: 300,
+      });
+      const mapped = (result.candidates ?? []).map(
+        (candidate: CandidateSearchSummary) =>
+          mapApiCandidateToSessionCandidate({
+            id: candidate.id,
+            sourcingSessionId: candidate.sourcingSessionId,
+            externalCandidateId: candidate.candidateId,
+            name: candidate.name,
+            headline: candidate.headline ?? null,
+            linkedinUrl: candidate.linkedinProfileUrl ?? candidate.linkedinUrl ?? null,
+            profilePictureUrl: candidate.profilePictureUrl ?? null,
+            title: candidate.currentRole,
+            company: candidate.currentCompany,
+            location: candidate.location,
+            experienceYears: candidate.experienceYears,
+            skills: candidate.skills ?? [],
+            educationPreview: candidate.educationPreview ?? [],
+            profileSignals: candidate.profileSignals ?? [],
+            rank: candidate.rank ?? 0,
+            matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
+            saved: candidate.saved,
+            lists: candidate.lists ?? [],
+          })
+      );
+      setLocalCandidates(mapped);
+      setProgressCount(mapped.length);
+      setInitialLoading(false);
+    } catch (error) {
+      setRefreshProfilesError(getApiErrorMessage(error));
+    } finally {
+      setRefreshingProfiles(false);
+    }
+  }
+
+  async function rerunSearch(mode: "new" | "existing") {
     if (rerunningSearch) return;
     setRerunningSearch(true);
     setRerunError(null);
+    setRerunModeOpen(false);
     try {
       const result = await applyCandidateSearch({
         prompt: session.query,
         filterForm: filtersToProviderPayload(searchFilters),
+        sessionId: mode === "existing" ? session.id : "",
         page: 1,
         limit: 300,
+        jobId: session.relatedJobId,
       });
       const savedSessionId =
         "savedSessionId" in result ? result.savedSessionId : undefined;
@@ -715,7 +781,11 @@ export function SessionResults({
         // Navigation still succeeds when browser storage is unavailable.
       }
       setFilterDrawerOpen(false);
-      router.push(sessionDetailPath(savedSessionId));
+      if (mode === "existing" && savedSessionId === session.id) {
+        router.refresh();
+      } else {
+        router.push(sessionDetailPath(savedSessionId));
+      }
     } catch (error) {
       setRerunError(getApiErrorMessage(error));
       setRerunningSearch(false);
@@ -835,6 +905,11 @@ export function SessionResults({
           {revealError}
         </p>
       ) : null}
+      {refreshProfilesError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {refreshProfilesError}
+        </p>
+      ) : null}
       {outreachError ? (
         <p role="alert" className="text-sm text-destructive">
           {outreachError}
@@ -890,6 +965,22 @@ export function SessionResults({
                 {activeFilterCount}
               </span>
             ) : null}
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={refreshingProfiles}
+            aria-busy={refreshingProfiles}
+            onClick={() => void refreshProfilesOnce()}
+          >
+            {refreshingProfiles ? (
+              <Loader2 aria-hidden className="animate-spin" />
+            ) : (
+              <RefreshCw aria-hidden />
+            )}
+            {refreshingProfiles ? "Refreshing…" : "Refresh"}
           </Button>
 
           <Select
@@ -1143,7 +1234,11 @@ export function SessionResults({
             ) : null}
             <Button
               type="button"
-              onClick={() => void rerunSearch()}
+              onClick={() => {
+                setRerunError(null);
+                setRerunMode("new");
+                setRerunModeOpen(true);
+              }}
               disabled={rerunningSearch}
             >
               {rerunningSearch ? (
@@ -1156,6 +1251,81 @@ export function SessionResults({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={rerunModeOpen} onOpenChange={setRerunModeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>How should we run this search?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Choose whether to keep results on this session or start a new one
+              in your history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2 py-1" role="radiogroup" aria-label="Search again mode">
+            <label
+              className={cn(
+                "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors",
+                rerunMode === "new"
+                  ? "border-primary/40 bg-brand-subtle/30"
+                  : "border-border hover:bg-muted/40"
+              )}
+            >
+              <input
+                type="radio"
+                name="rerun-mode"
+                className="mt-0.5 size-3.5 accent-primary"
+                checked={rerunMode === "new"}
+                onChange={() => setRerunMode("new")}
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">
+                  Create a new search
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Adds a new item to search history. Owner: you (signed-in user).
+                </span>
+              </span>
+            </label>
+            <label
+              className={cn(
+                "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors",
+                rerunMode === "existing"
+                  ? "border-primary/40 bg-brand-subtle/30"
+                  : "border-border hover:bg-muted/40"
+              )}
+            >
+              <input
+                type="radio"
+                name="rerun-mode"
+                className="mt-0.5 size-3.5 accent-primary"
+                checked={rerunMode === "existing"}
+                onChange={() => setRerunMode("existing")}
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">
+                  Update this search
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Reuses this session and refreshes its results. Owner stays{" "}
+                  {session.owner}.
+                </span>
+              </span>
+            </label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rerunningSearch}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={rerunningSearch}
+              onClick={(event) => {
+                event.preventDefault();
+                void rerunSearch(rerunMode);
+              }}
+            >
+              {rerunningSearch ? "Searching…" : "Run search"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <CandidateDrawer
         candidate={drawerCandidate}

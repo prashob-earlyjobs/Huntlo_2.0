@@ -14,8 +14,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -285,51 +284,10 @@ export function OutreachWorkspace({
   const [ownerFilter, setOwnerFilter] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState("any");
   const [message, setMessage] = useState<string | null>(null);
-  const [isScrolling, setIsScrolling] = useState(false);
-  const scrollIdleTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setCampaigns(initialCampaigns);
   }, [initialCampaigns]);
-
-  useEffect(() => {
-    if (pagination.totalPages <= 1) return;
-
-    function getScrollParent(node: HTMLElement | null): HTMLElement | Window {
-      let current = node;
-      while (current) {
-        const { overflowY } = window.getComputedStyle(current);
-        if (
-          (overflowY === "auto" || overflowY === "scroll") &&
-          current.scrollHeight > current.clientHeight
-        ) {
-          return current;
-        }
-        current = current.parentElement;
-      }
-      return window;
-    }
-
-    const target = getScrollParent(document.querySelector("main"));
-    const onScroll = () => {
-      setIsScrolling(true);
-      if (scrollIdleTimer.current != null) {
-        window.clearTimeout(scrollIdleTimer.current);
-      }
-      scrollIdleTimer.current = window.setTimeout(() => {
-        setIsScrolling(false);
-        scrollIdleTimer.current = null;
-      }, 180);
-    };
-
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      target.removeEventListener("scroll", onScroll);
-      if (scrollIdleTimer.current != null) {
-        window.clearTimeout(scrollIdleTimer.current);
-      }
-    };
-  }, [pagination.totalPages]);
 
   function setAll(next: OutreachCampaign[]) {
     setCampaigns(next);
@@ -614,18 +572,18 @@ export function OutreachWorkspace({
             </div>
             {pagination.totalPages > 1 ? (
               <div
-                className={cn(
-                  "fixed bottom-5 right-5 z-40 transition-opacity duration-200 sm:bottom-6 sm:right-6",
-                  isScrolling ? "opacity-40" : "opacity-100"
-                )}
+                className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                 role="navigation"
                 aria-label="Campaign pages"
               >
-                <div className="flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-md backdrop-blur-sm">
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  Page {pagination.page} of {pagination.totalPages}
+                </p>
+                <div className="flex flex-wrap items-center gap-1">
                   <Button
                     type="button"
                     size="icon-sm"
-                    variant="ghost"
+                    variant="outline"
                     aria-label="Previous page"
                     disabled={pagination.page <= 1}
                     onClick={() =>
@@ -649,7 +607,7 @@ export function OutreachWorkspace({
                           type="button"
                           size="icon-sm"
                           variant={
-                            item === pagination.page ? "secondary" : "ghost"
+                            item === pagination.page ? "secondary" : "outline"
                           }
                           aria-label={`Page ${item}`}
                           aria-current={
@@ -664,7 +622,7 @@ export function OutreachWorkspace({
                   <Button
                     type="button"
                     size="icon-sm"
-                    variant="ghost"
+                    variant="outline"
                     aria-label="Next page"
                     disabled={pagination.page >= pagination.totalPages}
                     onClick={() =>

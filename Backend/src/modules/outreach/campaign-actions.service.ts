@@ -133,6 +133,16 @@ export const campaignActionsService = {
           reason: 'Recruiter marked the candidate as qualified.',
         };
         await enrollment.save();
+        if (campaign.qualificationConfig?.autoWhatsAppAfterQualification) {
+          try {
+            const { startHiringFlowAfterQualification } = await import(
+              './hiring-flow-runtime.service.js'
+            );
+            await startHiringFlowAfterQualification({ campaign, enrollment });
+          } catch {
+            // Never fail the recruiter action if post-qual WhatsApp fails.
+          }
+        }
         break;
       case 'disqualify':
         enrollment.qualificationState = {

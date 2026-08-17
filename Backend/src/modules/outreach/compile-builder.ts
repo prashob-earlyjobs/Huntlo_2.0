@@ -290,6 +290,12 @@ export function compileBuilderToCampaign(campaign: OutreachCampaignDocument): Co
             qualRaw.aiReplyEnabled === undefined ? true : Boolean(qualRaw.aiReplyEnabled),
           takeoverCondition: pickString(qualRaw.takeoverCondition),
           autoScreening: Boolean(qualRaw.autoScreening),
+          autoWhatsAppAfterQualification: Boolean(
+            qualRaw.autoWhatsAppAfterQualification
+          ),
+          hiringFlowId: pickString(qualRaw.hiringFlowId) || null,
+          autoWhatsAppTemplateId:
+            pickString(qualRaw.autoWhatsAppTemplateId) || null,
         }
       : campaign.qualificationConfig;
 

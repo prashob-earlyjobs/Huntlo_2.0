@@ -191,6 +191,9 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
       autoScreening: state.autoScreening,
+      autoWhatsAppAfterQualification: state.autoWhatsAppAfterQualification,
+      hiringFlowId: state.hiringFlowId,
+      autoWhatsAppTemplateId: state.autoWhatsAppTemplateId,
     },
     schedulingConfig: {
       enabled: state.autoCalendly,

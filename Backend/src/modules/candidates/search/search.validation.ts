@@ -65,6 +65,11 @@ export const autocompleteQuerySchema = z.object({
 export const sessionProfilesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(100).default(1),
   limit: z.coerce.number().int().min(1).max(300).default(20),
+  /** Skip Mongo cache and pull profiles from Future Jobs once (no polling). */
+  force: z
+    .union([z.literal('1'), z.literal('true'), z.literal(true), z.literal(1)])
+    .optional()
+    .transform((v) => v === '1' || v === 'true' || v === true || v === 1),
 });
 
 export const storedCandidatesQuerySchema = z.object({

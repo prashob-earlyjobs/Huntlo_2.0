@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ErrorList, Field, StepCard, ToggleRow } from "@/components/outreach/builder-ui";
 import type {
@@ -11,13 +11,32 @@ import type {
 import { stepErrors } from "@/components/outreach/builder-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getApiErrorMessage, outreachApi } from "@/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  getApiErrorMessage,
+  hiringFlowsApi,
+  outreachApi,
+  type ApiHiringFlow,
+} from "@/lib/api";
 import {
   MAX_QUALIFICATION_QUESTIONS,
   suggestQuestionTitle,
   type AnswerType,
   type QualificationQuestion,
 } from "@/lib/mock-outreach";
+import {
+  getDefaultPostQualificationWhatsAppTemplate,
+  getWhatsAppTemplateById,
+  listPostQualificationWhatsAppTemplates,
+} from "@/lib/whatsapp-outreach";
+import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 function mapAnswerType(raw: string): AnswerType {
   const value = raw.toLowerCase();
@@ -41,6 +60,35 @@ export function QualificationStep({
   const errors = showErrors ? stepErrors(4, state) : [];
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [hiringFlows, setHiringFlows] = useState<ApiHiringFlow[]>([]);
+  const [hiringFlowsLoading, setHiringFlowsLoading] = useState(false);
+  const whatsappTemplates = listPostQualificationWhatsAppTemplates();
+  const selectedWhatsAppTemplate =
+    getWhatsAppTemplateById(state.autoWhatsAppTemplateId || "resume_share") ??
+    getDefaultPostQualificationWhatsAppTemplate() ??
+    whatsappTemplates[0] ??
+    null;
+  const selectedHiringFlow =
+    hiringFlows.find((flow) => flow.id === state.hiringFlowId) || null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setHiringFlowsLoading(true);
+    void hiringFlowsApi
+      .list({ limit: 100 })
+      .then((items) => {
+        if (!cancelled) setHiringFlows(items);
+      })
+      .catch(() => {
+        if (!cancelled) setHiringFlows([]);
+      })
+      .finally(() => {
+        if (!cancelled) setHiringFlowsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function setQuestions(questions: QualificationQuestion[]) {
     update("questions", questions.slice(0, MAX_QUALIFICATION_QUESTIONS));
@@ -289,6 +337,15 @@ export function QualificationStep({
           </h3>
           <div className="grid gap-2 lg:grid-cols-2">
             <ToggleRow
+              id="qual-auto-whatsapp"
+              label="Auto-send WhatsApp"
+              description="After qualification, run a hiring flow (or a single WhatsApp template)."
+              checked={state.autoWhatsAppAfterQualification}
+              onChange={(checked) =>
+                update("autoWhatsAppAfterQualification", checked)
+              }
+            />
+            <ToggleRow
               id="qual-auto-screening"
               label="Auto-start AI screening"
               description="When a candidate qualifies, schedule them for AI voice screening."
@@ -303,6 +360,102 @@ export function QualificationStep({
               onChange={(checked) => update("autoCalendly", checked)}
             />
           </div>
+          {state.autoWhatsAppAfterQualification ? (
+            <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-3">
+              <Field
+                label="Hiring flow"
+                hint="Preferred. Create playbooks under Templates."
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={state.hiringFlowId || "__none__"}
+                    onValueChange={(value) =>
+                      update(
+                        "hiringFlowId",
+                        !value || value === "__none__" ? null : value
+                      )
+                    }
+                    disabled={hiringFlowsLoading}
+                  >
+                    <SelectTrigger className="w-full max-w-md">
+                      <SelectValue placeholder="Select a hiring flow">
+                        {hiringFlowsLoading
+                          ? "Loading flows…"
+                          : selectedHiringFlow
+                            ? selectedHiringFlow.name
+                            : "Template only (no flow)"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Template only (no flow)</SelectItem>
+                      {hiringFlows.map((flow) => (
+                        <SelectItem key={flow.id} value={flow.id}>
+                          {flow.name}
+                          <span className="ml-1 text-muted-foreground">
+                            ({flow.steps.length} steps)
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    nativeButton={false}
+                    render={<Link href={ROUTES.templates} target="_blank" />}
+                  >
+                    Manage
+                  </Button>
+                </div>
+              </Field>
+              {!state.hiringFlowId ? (
+                <Field
+                  label="Fallback WhatsApp template"
+                  hint="Used when no hiring flow is selected."
+                >
+                  <Select
+                    value={selectedWhatsAppTemplate?.id ?? "resume_share"}
+                    onValueChange={(value) =>
+                      update("autoWhatsAppTemplateId", value || null)
+                    }
+                  >
+                    <SelectTrigger className="w-full max-w-md">
+                      <SelectValue placeholder="Select a WhatsApp template">
+                        {selectedWhatsAppTemplate
+                          ? `${selectedWhatsAppTemplate.name} (${selectedWhatsAppTemplate.metaName})`
+                          : null}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {whatsappTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                          <span className="ml-1 text-muted-foreground">
+                            ({template.metaName})
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ) : selectedHiringFlow ? (
+                <p className="text-xs text-muted-foreground">
+                  Starts with{" "}
+                  {selectedHiringFlow.steps.find(
+                    (step) => step.id === selectedHiringFlow.entryStepId
+                  )?.label ||
+                    selectedHiringFlow.steps[0]?.label ||
+                    "first step"}
+                  · {selectedHiringFlow.steps.length} steps
+                </p>
+              ) : null}
+              {!state.hiringFlowId && selectedWhatsAppTemplate ? (
+                <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                  {selectedWhatsAppTemplate.body}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
     </StepCard>

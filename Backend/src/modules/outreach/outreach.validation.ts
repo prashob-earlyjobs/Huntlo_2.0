@@ -141,3 +141,55 @@ export const validateVariablesSchema = z.object({
 export const idParamSchema = z.object({
   id: objectId,
 });
+
+/* ------------------------------------------------------------------ */
+/* Hiring flows (Templates playbooks)                                   */
+/* ------------------------------------------------------------------ */
+
+const hiringFlowBranchSchema = z.object({
+  match: z.enum(['yes', 'no', 'contains', 'any']),
+  value: z.string().trim().max(200).nullable().optional(),
+  nextStepId: z.string().trim().min(1).max(64),
+});
+
+const hiringFlowStepSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  type: z.enum(['send_whatsapp_template', 'ask_question', 'branch']),
+  label: z.string().trim().max(160).nullable().optional(),
+  whatsappTemplateId: z.string().trim().max(120).nullable().optional(),
+  prompt: z.string().trim().max(2000).nullable().optional(),
+  answerType: z.string().trim().max(40).nullable().optional(),
+  knockout: z.boolean().optional(),
+  knockoutCondition: z.string().trim().max(500).nullable().optional(),
+  nextStepId: z.string().trim().max(64).nullable().optional(),
+  branches: z.array(hiringFlowBranchSchema).max(20).optional(),
+});
+
+export const listHiringFlowsQuerySchema = z.object({
+  status: z.enum(['draft', 'active', 'archived']).optional(),
+  category: z.string().trim().max(80).optional(),
+  q: z.string().trim().max(120).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const createHiringFlowSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(1000).nullable().optional(),
+  category: z.string().trim().max(80).optional(),
+  status: z.enum(['draft', 'active', 'archived']).optional(),
+  steps: z.array(hiringFlowStepSchema).max(40).optional(),
+  entryStepId: z.string().trim().max(64).nullable().optional(),
+  useBlueCollarPreset: z.boolean().optional(),
+});
+
+export const updateHiringFlowSchema = createHiringFlowSchema.partial();
+
+export const orgUpdateHiringFlowSchema = z.object({
+  description: z.string().trim().max(1000).nullable().optional(),
+  steps: z.array(hiringFlowStepSchema).max(40).optional(),
+});
+
+export const assignHiringFlowSchema = z.object({
+  organizationIds: z.array(objectId).max(500),
+});

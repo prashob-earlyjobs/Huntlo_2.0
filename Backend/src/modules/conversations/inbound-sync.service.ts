@@ -33,6 +33,18 @@ import {
 import { ReplyClassificationModel } from './reply-classification.model.js';
 import { processQualificationAfterReply } from '../outreach/qualification-qa.service.js';
 
+export type NormalizedInboundAttachment = {
+  kind: 'image' | 'audio' | 'document' | 'video' | 'file';
+  name: string;
+  mediaId?: string | null;
+  mimeType?: string | null;
+  caption?: string | null;
+  size?: string | null;
+  /** Set after download — absolute or relative storage key. */
+  storageKey?: string | null;
+  url?: string | null;
+};
+
 export type NormalizedInboundMessage = {
   organizationId: string;
   provider: MessageProvider;
@@ -46,6 +58,7 @@ export type NormalizedInboundMessage = {
   subject?: string | null;
   bodyText: string;
   bodyHtml?: string | null;
+  attachments?: NormalizedInboundAttachment[];
   receivedAt?: Date;
   deliveryStatus?: DeliveryStatus;
   campaignId?: string | null;
@@ -1354,6 +1367,15 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     }
   }
   const receivedAt = input.receivedAt || new Date();
+  const stubAttachments = (input.attachments || []).map((a) => ({
+    name: a.name,
+    url: a.url || null,
+    size: a.size || null,
+    mimeType: a.mimeType || null,
+    kind: a.kind || null,
+    storageKey: a.storageKey || null,
+    mediaId: a.mediaId || null,
+  }));
   let message;
   try {
     message = await ConversationMessageModel.create({
@@ -1372,6 +1394,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       deliveryStatus: input.deliveryStatus || 'delivered',
       messageType: 'message',
       aiGenerated: false,
+      attachments: stubAttachments,
       receivedAt,
       sentAt: null,
     });
@@ -1390,6 +1413,31 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       };
     }
     throw error;
+  }
+
+  if (
+    input.channel === 'whatsapp' &&
+    stubAttachments.some((a) => a.mediaId) &&
+    (input.provider === 'meta-whatsapp' || input.provider === 'huntlo-whatsapp')
+  ) {
+    try {
+      const { hydrateInboundWhatsAppMedia } = await import('./provider-sync.js');
+      const hydrated = await hydrateInboundWhatsAppMedia({
+        organizationId: input.organizationId,
+        messageId: String(message._id),
+        phoneNumberId: input.to,
+        attachments: input.attachments || [],
+      });
+      message.attachments = hydrated;
+      await message.save();
+    } catch (error) {
+      getLogger()
+        .child({ component: 'inbound-sync' })
+        .warn(
+          { err: error, messageId: String(message._id) },
+          'WhatsApp inbound media hydration failed'
+        );
+    }
   }
 
   thread.unreadCount = (thread.unreadCount || 0) + 1;

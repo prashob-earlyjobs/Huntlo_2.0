@@ -193,5 +193,12 @@ export function builderStateFromCampaign(
         : TAKEOVER_CONDITIONS[2],
     autoScreening: Boolean(campaign.qualificationConfig?.autoScreening),
     autoCalendly: Boolean(campaign.schedulingConfig?.enabled),
+    autoWhatsAppAfterQualification: Boolean(
+      campaign.qualificationConfig?.autoWhatsAppAfterQualification
+    ),
+    autoWhatsAppTemplateId:
+      campaign.qualificationConfig?.autoWhatsAppTemplateId ||
+      base.autoWhatsAppTemplateId,
+    hiringFlowId: campaign.qualificationConfig?.hiringFlowId || null,
   };
 }

@@ -19,6 +19,7 @@ import {
   type SequenceStepType,
 } from "@/lib/mock-outreach";
 import {
+  getDefaultPostQualificationWhatsAppTemplate,
   getDefaultWhatsAppTemplate,
   isApprovedWhatsAppTemplateId,
   type WhatsAppTemplateSlot,
@@ -61,6 +62,10 @@ export interface BuilderState {
   takeoverCondition: string;
   autoScreening: boolean;
   autoCalendly: boolean;
+  autoWhatsAppAfterQualification: boolean;
+  autoWhatsAppTemplateId: string | null;
+  /** Templates hiring flow to run after qualification. */
+  hiringFlowId: string | null;
 }
 
 const CHANNEL_STEP_TYPE: Record<OutreachChannel, SequenceStepType> = {
@@ -254,6 +259,10 @@ export function initialBuilderState(): BuilderState {
     takeoverCondition: TAKEOVER_CONDITIONS[1],
     autoScreening: false,
     autoCalendly: false,
+    autoWhatsAppAfterQualification: false,
+    autoWhatsAppTemplateId:
+      getDefaultPostQualificationWhatsAppTemplate()?.id ?? "resume_share",
+    hiringFlowId: null,
   };
 }
 
