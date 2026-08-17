@@ -27,11 +27,27 @@ export const screeningFacade = {
     ownerUserId?: string | null;
     minScore: number;
     language?: string | null;
-    questions: string[];
+    questions: Array<
+      | string
+      | {
+          id?: string;
+          prompt?: string;
+          knockout?: boolean;
+          knockoutCondition?: string | null;
+        }
+    >;
+    knockouts?: string[];
     attempts: number;
     timezone?: string | null;
   }) {
-    const questions = (input.questions || []).map((q) => String(q || '').trim()).filter(Boolean);
+    const questions =
+      (input.questions || []).length > 0
+        ? input.questions
+        : [
+            'Walk me through your most recent role and what you were responsible for.',
+            'Why are you interested in this opportunity right now?',
+            'What is your notice period, and when could you start?',
+          ];
     const { screening, candidate } = await screeningService.ensureWorkflowCandidate({
       organizationId: input.organizationId,
       workflowId: input.workflowId,
@@ -41,14 +57,8 @@ export const screeningFacade = {
       ownerUserId: input.ownerUserId,
       name: `Huntlo 360 screening · ${input.workflowId}`,
       language: input.language,
-      questions:
-        questions.length > 0
-          ? questions
-          : [
-              'Walk me through your most recent role and what you were responsible for.',
-              'Why are you interested in this opportunity right now?',
-              'What is your notice period, and when could you start?',
-            ],
+      questions,
+      knockouts: input.knockouts,
       attempts: input.attempts,
       minScore: input.minScore,
     });
@@ -68,6 +78,8 @@ export const screeningFacade = {
   ) {
     const session = await ScreeningCandidateModel.findById(sessionId);
     if (!session) return null;
+    // Webhook already wrote the real Hunar result — don't overwrite it.
+    if (session.completedAt) return session;
     session.overallScore = input.score;
     session.attempts = Math.max(session.attempts, 1);
     session.summary = input.summary || null;

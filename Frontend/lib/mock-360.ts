@@ -113,6 +113,7 @@ export interface Workflow360 {
   name: string;
   jobId: string | null;
   jobTitle: string | null;
+  campaignId?: string | null;
   candidates: number;
   channels: ("Email" | "WhatsApp" | "AI Voice")[];
   replied: number;
@@ -659,10 +660,22 @@ export const SCREENING_LANGUAGES = ["English", "Hindi", "Kannada", "Tamil"] as c
 export const VOICE_TONES = ["Professional", "Friendly", "Energetic"] as const;
 
 export const DEFAULT_SCREENING_QUESTIONS = [
-  "Walk me through your current role and main responsibilities.",
-  "Which distributed-systems problems have you owned end to end?",
-  "What is your notice period and expected compensation?",
-];
+  {
+    id: "sq-1",
+    text: "Walk me through your current role and main responsibilities.",
+    knockoutAnswer: "No relevant experience",
+  },
+  {
+    id: "sq-2",
+    text: "Are you open to working hybrid / from the office for this role?",
+    knockoutAnswer: "No",
+  },
+  {
+    id: "sq-3",
+    text: "What is your notice period and expected compensation?",
+    knockoutAnswer: "More than 90 days",
+  },
+] as const;
 
 export const EVALUATION_FIELDS_360 = [
   "Communication",

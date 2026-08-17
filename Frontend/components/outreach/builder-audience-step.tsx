@@ -521,14 +521,11 @@ export function AudienceStep({
       cancelled = true;
       window.clearTimeout(handle);
     };
-    // `update` is recreated each render; selection is tracked via joined ids.
+    // `update` is recreated each render. Do NOT depend on selectedCandidateIds —
+    // selection changes update preview via handleCandidateSelectionChange and
+    // would otherwise flash "Loading…" / remount the picker on every click.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    state.source,
-    state.sourceDetail,
-    state.poolSearch,
-    state.selectedCandidateIds.join(","),
-  ]);
+  }, [state.source, state.sourceDetail, state.poolSearch]);
 
   function handleCandidateSelectionChange(ids: string[]) {
     update("selectedCandidateIds", ids);

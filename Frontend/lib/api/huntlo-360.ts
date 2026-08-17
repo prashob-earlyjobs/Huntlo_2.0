@@ -61,6 +61,7 @@ export type ApiHuntlo360Candidate = {
   qualificationStatus: string;
   screeningId: string | null;
   screeningStatus: string;
+  screeningScore: number | null;
   recruiterDecision: string | null;
   scheduleCandidateId: string | null;
   schedulingStatus: string;
@@ -118,6 +119,7 @@ export type WorkflowCreateInput = {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled?: boolean;
     handoffCondition?: string | null;
@@ -127,7 +129,16 @@ export type WorkflowCreateInput = {
     enabled?: boolean;
     language?: string | null;
     voiceTone?: string | null;
-    questions?: string[];
+    questions?: Array<
+      | string
+      | {
+          id?: string;
+          prompt: string;
+          knockout?: boolean;
+          knockoutCondition?: string | null;
+        }
+    >;
+    knockouts?: string[];
     evaluationFields?: string[];
     attempts?: number;
     attemptIntervalHours?: number;
@@ -214,6 +225,7 @@ export function toWorkflow360(row: ApiHuntlo360Workflow): Workflow360 {
     name: row.name,
     jobId: row.jobId,
     jobTitle: row.jobTitle,
+    campaignId: row.campaignId ?? null,
     candidates: row.candidates ?? 0,
     channels: (row.channels || []).filter(
       (c): c is "Email" | "WhatsApp" | "AI Voice" =>
@@ -272,7 +284,9 @@ function mapDecision(status: string | null): WorkflowCandidate["decision"] {
   const map: Record<string, WorkflowCandidate["decision"]> = {
     pending: "Pending",
     shortlisted: "Shortlisted",
+    shortlist: "Shortlisted",
     rejected: "Rejected",
+    reject: "Rejected",
   };
   return map[status] || "Pending";
 }
@@ -280,6 +294,8 @@ function mapDecision(status: string | null): WorkflowCandidate["decision"] {
 function mapScheduling(status: string): WorkflowCandidate["scheduling"] {
   const map: Record<string, WorkflowCandidate["scheduling"]> = {
     not_started: "Not sent",
+    link_pending: "Not sent",
+    pending: "Not sent",
     link_sent: "Link sent",
     sent: "Link sent",
     booked: "Booked",
@@ -290,6 +306,10 @@ function mapScheduling(status: string): WorkflowCandidate["scheduling"] {
 }
 
 export function toWorkflowCandidate(row: ApiHuntlo360Candidate): WorkflowCandidate {
+  const score =
+    typeof row.screeningScore === "number" && Number.isFinite(row.screeningScore)
+      ? row.screeningScore
+      : null;
   return {
     id: row.id,
     candidateId: row.candidateId,
@@ -297,8 +317,8 @@ export function toWorkflowCandidate(row: ApiHuntlo360Candidate): WorkflowCandida
     outreachStatus: mapOutreach(row.outreachStatus),
     interest: mapInterest(row.interestStatus),
     qualification: mapQualification(row.qualificationStatus),
-    screeningScore: null,
-    screeningNote: row.screeningStatus || null,
+    screeningScore: score,
+    screeningNote: row.screeningStatus ? titleCase(row.screeningStatus) : null,
     decision: mapDecision(row.recruiterDecision),
     scheduling: mapScheduling(row.schedulingStatus),
     lastActivity: formatRelative(row.lastTransitionAt),

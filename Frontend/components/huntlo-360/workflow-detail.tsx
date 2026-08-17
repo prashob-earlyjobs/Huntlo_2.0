@@ -557,6 +557,7 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
   const [providerBanner, setProviderBanner] = useState(false);
   const [candidates, setCandidates] = useState<WorkflowCandidate[]>([]);
   const [exceptions, setExceptions] = useState<WorkflowException[]>([]);
+  const [candidatesLoaded, setCandidatesLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -570,6 +571,7 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
         if (cancelled) return;
         setCandidates(nextCandidates);
         setExceptions(nextExceptions);
+        setCandidatesLoaded(true);
         setProviderBanner(
           nextExceptions.some((item) => item.kind === "Provider disconnected")
         );
@@ -577,6 +579,7 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
         if (!cancelled) {
           setCandidates([]);
           setExceptions([]);
+          setCandidatesLoaded(true);
         }
       }
     })();
@@ -790,10 +793,19 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
           <CandidatesTab candidates={candidates} />
         </TabsContent>
         <TabsContent value="conversations" className="pt-3">
-          <ConversationsPanel
-            jobId={workflow.jobId ?? undefined}
-            emptyDescription="Replies from candidates in this workflow will appear here."
-          />
+          {candidatesLoaded ? (
+            <ConversationsPanel
+              campaignId={workflow.campaignId ?? undefined}
+              candidateIds={candidates
+                .map((row) => row.candidateId)
+                .filter((id): id is string => Boolean(id))}
+              emptyDescription="Replies from candidates in this workflow will appear here."
+            />
+          ) : (
+            <p className="px-1 py-6 text-sm text-muted-foreground">
+              Loading conversations…
+            </p>
+          )}
         </TabsContent>
         <TabsContent value="screening" className="pt-3">
           <ScreeningTab />
