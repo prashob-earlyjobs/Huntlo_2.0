@@ -83,7 +83,21 @@ export const createWorkflowSchema = z.object({
       enabled: z.boolean().optional(),
       language: z.string().nullable().optional(),
       voiceTone: z.string().nullable().optional(),
-      questions: z.array(z.string()).optional(),
+      questions: z
+        .array(
+          z.union([
+            z.string().trim().min(1).max(1000),
+            z.object({
+              id: z.string().optional(),
+              prompt: z.string().min(1).max(1000),
+              knockout: z.boolean().optional(),
+              knockoutCondition: z.string().max(500).nullable().optional(),
+            }),
+          ])
+        )
+        .max(20)
+        .optional(),
+      knockouts: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
       evaluationFields: z.array(z.string()).optional(),
       attempts: z.number().int().min(1).max(10).optional(),
       attemptIntervalHours: z.number().int().min(1).max(168).optional(),

@@ -10,6 +10,8 @@ import { campaignsService } from '../outreach/campaigns.service.js';
 import { enrichCampaignContactsForLaunch } from '../outreach/campaign-launch-reveal.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { ScreeningCandidateModel } from '../screening/screening-candidate.model.js';
+import { ScheduleCandidateModel } from '../scheduling/scheduling.facade.js';
 import {
   Huntlo360CandidateStateModel,
 } from './candidate-state.model.js';
@@ -35,6 +37,58 @@ type UpdateInput = z.infer<typeof updateWorkflowSchema>;
 type ListQuery = z.infer<typeof listWorkflowsQuerySchema>;
 type ListCandidatesQuery = z.infer<typeof listCandidatesQuerySchema>;
 type TransitionBody = z.infer<typeof transitionBodySchema>;
+
+function screeningStatusFromCall(callStatus: string | null | undefined): string | null {
+  switch (callStatus) {
+    case 'completed':
+      return 'completed';
+    case 'no_answer':
+    case 'voicemail':
+      return 'unanswered';
+    case 'failed':
+    case 'cancelled':
+    case 'busy':
+      return 'failed';
+    case 'in_progress':
+    case 'ringing':
+      return 'in_progress';
+    case 'queued':
+      return 'scheduled';
+    default:
+      return null;
+  }
+}
+
+function screeningStatusRank(status: string | null | undefined): number {
+  switch (status) {
+    case 'completed':
+    case 'failed':
+    case 'unanswered':
+      return 3;
+    case 'in_progress':
+    case 'ringing':
+      return 2;
+    case 'scheduled':
+    case 'queued':
+    case 'pending':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function displaySchedulingStatus(
+  stateStatus: string | null | undefined,
+  schedule: { status?: string | null; inviteDeliveredAt?: Date | null } | null
+): string {
+  if (stateStatus === 'booked' || schedule?.status === 'booked') return 'booked';
+  if (stateStatus === 'expired' || schedule?.status === 'expired') return 'expired';
+  if (schedule?.inviteDeliveredAt || schedule?.status === 'link_sent') {
+    return schedule?.inviteDeliveredAt ? 'link_sent' : 'link_pending';
+  }
+  if (stateStatus === 'link_sent' && !schedule?.inviteDeliveredAt) return 'not_started';
+  return stateStatus || 'not_started';
+}
 
 async function ownerName(userId: string) {
   const user = await UserModel.findById(userId).select('firstName lastName').lean();
@@ -185,10 +239,21 @@ function mergeConfigs(doc: Huntlo360WorkflowDocument, input: UpdateInput | Creat
     };
   }
   if (input.screeningConfig) {
+    const questions =
+      input.screeningConfig.questions ?? doc.screeningConfig.questions;
+    const derivedKnockouts = (questions || [])
+      .map((entry) => {
+        if (typeof entry === 'string') return null;
+        return String(entry.knockoutCondition || '').trim() || null;
+      })
+      .filter((value): value is string => Boolean(value));
+    const explicitKnockouts =
+      input.screeningConfig.knockouts ?? doc.screeningConfig.knockouts ?? [];
     doc.screeningConfig = {
       ...doc.screeningConfig,
       ...input.screeningConfig,
-      questions: input.screeningConfig.questions ?? doc.screeningConfig.questions,
+      questions,
+      knockouts: [...new Set([...derivedKnockouts, ...explicitKnockouts])],
       evaluationFields:
         input.screeningConfig.evaluationFields ?? doc.screeningConfig.evaluationFields,
     };
@@ -685,8 +750,59 @@ export const huntlo360Service = {
       .lean();
     const byId = new Map(candidates.map((c) => [String(c._id), c]));
 
+    const screeningIds = rows.map((r) => r.screeningId).filter(Boolean);
+    const scheduleIds = rows.map((r) => r.scheduleCandidateId).filter(Boolean);
+    const candidateObjectIds = rows.map((r) => r.candidateId);
+    const screeningFilter =
+      screeningIds.length > 0
+        ? {
+            $or: [
+              { workflowId: id, candidateId: { $in: candidateObjectIds } },
+              { _id: { $in: screeningIds } },
+            ],
+          }
+        : { workflowId: id, candidateId: { $in: candidateObjectIds } };
+    const [screeningRows, scheduleRows] = await Promise.all([
+      candidateObjectIds.length
+        ? ScreeningCandidateModel.find(screeningFilter)
+            .select('candidateId callStatus overallScore recruiterDecision recommendation summary updatedAt')
+            .sort({ updatedAt: -1 })
+            .lean()
+        : Promise.resolve([]),
+      scheduleIds.length
+        ? ScheduleCandidateModel.find({ _id: { $in: scheduleIds } })
+            .select('status inviteDeliveredAt')
+            .lean()
+        : Promise.resolve([]),
+    ]);
+    const screeningById = new Map(screeningRows.map((s) => [String(s._id), s]));
+    const screeningByCandidate = new Map<string, (typeof screeningRows)[number]>();
+    for (const s of screeningRows) {
+      const key = String(s.candidateId);
+      if (!screeningByCandidate.has(key)) screeningByCandidate.set(key, s);
+    }
+    const scheduleById = new Map(scheduleRows.map((s) => [String(s._id), s]));
+
     const items = rows.map((row) => {
       const c = byId.get(String(row.candidateId));
+      const screening =
+        (row.screeningId ? screeningById.get(String(row.screeningId)) : null) ||
+        screeningByCandidate.get(String(row.candidateId)) ||
+        null;
+      const schedule = row.scheduleCandidateId
+        ? scheduleById.get(String(row.scheduleCandidateId))
+        : null;
+      const liveScreeningStatus = screeningStatusFromCall(screening?.callStatus);
+      const screeningStatus =
+        screeningStatusRank(liveScreeningStatus) >= screeningStatusRank(row.screeningStatus)
+          ? liveScreeningStatus || row.screeningStatus
+          : row.screeningStatus;
+      const recruiterDecision =
+        row.recruiterDecision && row.recruiterDecision !== 'pending'
+          ? row.recruiterDecision
+          : screening?.recruiterDecision && screening.recruiterDecision !== 'pending'
+            ? screening.recruiterDecision
+            : row.recruiterDecision;
       return {
         id: String(row._id),
         candidateId: String(row.candidateId),
@@ -700,12 +816,13 @@ export const huntlo360Service = {
         interestStatus: row.interestStatus,
         qualificationStatus: row.qualificationStatus,
         screeningId: row.screeningId ? String(row.screeningId) : null,
-        screeningStatus: row.screeningStatus,
-        recruiterDecision: row.recruiterDecision,
+        screeningStatus,
+        screeningScore: screening?.overallScore ?? row.screeningScore ?? null,
+        recruiterDecision,
         scheduleCandidateId: row.scheduleCandidateId
           ? String(row.scheduleCandidateId)
           : null,
-        schedulingStatus: row.schedulingStatus,
+        schedulingStatus: displaySchedulingStatus(row.schedulingStatus, schedule || null),
         exceptionCode: row.exceptionCode,
         exceptionDetail: row.exceptionDetail,
         enrollmentId: row.enrollmentId ? String(row.enrollmentId) : null,
@@ -801,6 +918,7 @@ export const huntlo360Service = {
             interestStatus: result.state.interestStatus,
             qualificationStatus: result.state.qualificationStatus,
             screeningStatus: result.state.screeningStatus,
+            screeningScore: result.state.screeningScore ?? null,
             schedulingStatus: result.state.schedulingStatus,
             exceptionCode: result.state.exceptionCode,
             recruiterDecision: result.state.recruiterDecision,
