@@ -147,7 +147,7 @@ async function toDisplay(
     includeSupport?: boolean;
   }
 ) {
-  const channels: Array<'Email' | 'WhatsApp'> = [];
+  const channels: Array<'Email' | 'WhatsApp' | 'AI Voice'> = [];
   if (doc.outreachConfig.emailEnabled) channels.push('Email');
   if (doc.outreachConfig.whatsappEnabled) channels.push('WhatsApp');
   if (doc.outreachConfig.aiVoiceEnabled) channels.push('AI Voice');
@@ -206,29 +206,33 @@ async function toDisplay(
 
 function mergeConfigs(doc: Huntlo360WorkflowDocument, input: UpdateInput | CreateInput) {
   if (input.outreachConfig) {
-    const next = { ...doc.outreachConfig, ...input.outreachConfig };
-    if (input.outreachConfig.followUps) {
-      next.followUps = input.outreachConfig.followUps.map((entry, index) => {
-        if (typeof entry === 'string') {
+    const { followUps: followUpInput, ...outreachRest } = input.outreachConfig;
+    const followUps = followUpInput
+      ? followUpInput.map((entry, index) => {
+          if (typeof entry === 'string') {
+            return {
+              body: entry,
+              delayDays: index === 0 ? 2 : 3,
+              delayUnit: 'days' as const,
+              templateId: null,
+            };
+          }
           return {
-            body: entry,
-            delayDays: index === 0 ? 2 : 3,
-            delayUnit: 'days' as const,
-            templateId: null,
+            body: String(entry.body || ''),
+            delayDays: Math.max(0, Number(entry.delayDays ?? (index === 0 ? 2 : 3)) || 0),
+            delayUnit:
+              entry.delayUnit === 'hours' || entry.delayUnit === 'minutes'
+                ? entry.delayUnit
+                : ('days' as const),
+            templateId: entry.templateId ? String(entry.templateId) : null,
           };
-        }
-        return {
-          body: String(entry.body || ''),
-          delayDays: Math.max(0, Number(entry.delayDays ?? (index === 0 ? 2 : 3)) || 0),
-          delayUnit:
-            entry.delayUnit === 'hours' || entry.delayUnit === 'minutes'
-              ? entry.delayUnit
-              : ('days' as const),
-          templateId: entry.templateId ? String(entry.templateId) : null,
-        };
-      });
-    }
-    doc.outreachConfig = next;
+        })
+      : doc.outreachConfig.followUps;
+    doc.outreachConfig = {
+      ...doc.outreachConfig,
+      ...outreachRest,
+      followUps,
+    };
   }
   if (input.qualificationConfig) {
     doc.qualificationConfig = {
