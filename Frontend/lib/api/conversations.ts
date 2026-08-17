@@ -2,10 +2,9 @@ import { apiClient } from "./client";
 import type { Conversation } from "./contracts";
 import type { PaginationMeta } from "./contracts/envelopes";
 import { createDomainService, simulateMockLatency } from "./service";
-import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
 
-export type ConversationListParams = ApiQueryParams & {
+export type ConversationListParams = {
   channel?: string;
   status?: string;
   campaignId?: string;
