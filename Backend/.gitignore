@@ -11,3 +11,7 @@ gemini-email-prompts.txt
 backups/
 dump.rdb
 *.rdb
+
+# Local cloud credentials — never commit
+secrets/
+gcs-service-account.json

@@ -20,18 +20,25 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   destructive = false,
   onConfirm,
+  open: openProp,
+  onOpenChange,
 }: {
-  trigger: React.ReactElement
+  trigger?: React.ReactElement | null
   title: string
   description: string
   confirmLabel?: string
   destructive?: boolean
   onConfirm: () => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = React.useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
+  const isControlled = openProp !== undefined
+  const open = isControlled ? openProp : uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger render={trigger} />
+      {trigger && !isControlled ? <AlertDialogTrigger render={trigger} /> : null}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
