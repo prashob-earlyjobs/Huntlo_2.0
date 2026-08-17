@@ -167,6 +167,9 @@ export type QualificationConfig = {
   aiReplyEnabled?: boolean;
   takeoverCondition?: string | null;
   autoScreening?: boolean;
+  autoWhatsAppAfterQualification?: boolean;
+  hiringFlowId?: string | null;
+  autoWhatsAppTemplateId?: string | null;
 };
 
 function answerValue(entry: unknown): string {
@@ -1373,6 +1376,19 @@ async function completeQualification(input: {
   }
 
   const config = campaign.qualificationConfig as QualificationConfig;
+  if (status === 'qualified' && config.autoWhatsAppAfterQualification) {
+    try {
+      const { startHiringFlowAfterQualification } = await import(
+        './hiring-flow-runtime.service.js'
+      );
+      await startHiringFlowAfterQualification({ campaign, enrollment });
+    } catch (error) {
+      log().warn(
+        { err: error, enrollmentId: String(enrollment._id), campaignId: String(campaign._id) },
+        'Post-qualification hiring flow start failed'
+      );
+    }
+  }
   if (status === 'qualified' && config.autoScreening) {
     try {
       const { screeningId } = await enrollQualifiedCandidateInCampaignScreening({
@@ -1778,8 +1794,14 @@ export async function processQualificationAfterReply(input: {
       });
 
   const qualStatus = String(enrollment.qualificationState?.status || '');
+  const hiringFlowStatus = String(enrollment.hiringFlowState?.status || '');
   // Any reply after a fresh campaign send (before screening Qs) starts a new cycle.
-  const needsFreshCycle = Boolean(latestOutreach) && !qualAfterOutreach;
+  // Do not treat post-qualification hiring-flow WhatsApp as a new outreach cycle.
+  const needsFreshCycle =
+    Boolean(latestOutreach) &&
+    !qualAfterOutreach &&
+    !['qualified', 'rejected'].includes(qualStatus) &&
+    !['waiting_reply', 'active'].includes(hiringFlowStatus);
 
   if (needsFreshCycle) {
     const hadStaleProgress =
@@ -1810,6 +1832,30 @@ export async function processQualificationAfterReply(input: {
     }
     await enrollment.save();
   } else if (qualStatus === 'qualified' || qualStatus === 'rejected') {
+    if (
+      qualStatus === 'qualified' &&
+      enrollment.hiringFlowState?.status === 'waiting_reply'
+    ) {
+      try {
+        const { advanceHiringFlowOnReply } = await import(
+          './hiring-flow-runtime.service.js'
+        );
+        const advanced = await advanceHiringFlowOnReply({
+          campaign: input.campaign,
+          enrollment,
+          replyText: input.bodyText,
+        });
+        return {
+          action: advanced.advanced ? 'hiring_flow_advanced' : 'hiring_flow_noop',
+        };
+      } catch (error) {
+        log().warn(
+          { err: error, enrollmentId: input.enrollmentId },
+          'Hiring flow advance after reply failed'
+        );
+        return { action: 'hiring_flow_failed' };
+      }
+    }
     log().info(
       {
         enrollmentId: input.enrollmentId,

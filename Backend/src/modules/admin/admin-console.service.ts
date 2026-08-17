@@ -30,8 +30,9 @@ import {
   toPublicOrganization,
 } from '../organizations/organization.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
-import { plansService } from '../plans/plans.service.js';
 import { PricingPlanModel } from '../plans/pricing-plan.model.js';
+import { WorkspaceSubscriptionModel } from '../plans/subscription.model.js';
+import { PlanHistoryModel } from '../billing/plan-history.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { SourcingSessionModel } from '../sourcing/sourcing-session.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
@@ -521,15 +522,71 @@ export const adminConsoleService = {
     if (!org) throw AppError.notFound('Organization not found');
 
     const normalized = plan.trim();
-    const pricing =
-      (await PricingPlanModel.findOne({
-        $or: [{ code: normalized.toLowerCase() }, { name: normalized }],
-        active: true,
-      })) || null;
+    const pricing = await PricingPlanModel.findOne({
+      $or: [{ code: normalized.toLowerCase() }, { name: normalized }],
+      active: true,
+    });
+    if (!pricing) {
+      throw AppError.badRequest(`Unknown or inactive plan: ${normalized}`);
+    }
 
-    org.plan = (pricing?.name as typeof org.plan) || (normalized as typeof org.plan);
+    org.plan = pricing.name;
     await org.save();
-    await plansService.ensureSubscription(org._id.toHexString());
+
+    user.planId = pricing._id;
+    await user.save();
+
+    const existing = await WorkspaceSubscriptionModel.findOne({
+      organizationId: org._id,
+      status: { $in: ['active', 'trialing', 'past_due'] },
+    }).sort({ createdAt: -1 });
+
+    const isTrial = Boolean(pricing.isTrialPlan) || pricing.code === 'trial';
+    const start = new Date();
+    const end = new Date(start);
+    if (isTrial) {
+      const trialDays = pricing.trialDays > 0 ? pricing.trialDays : 7;
+      end.setUTCDate(end.getUTCDate() + trialDays);
+    } else {
+      end.setUTCMonth(end.getUTCMonth() + 1);
+    }
+
+    const planIdBefore = existing?.planId ?? null;
+    const previousPlan = planIdBefore
+      ? await PricingPlanModel.findById(planIdBefore).select('code')
+      : null;
+
+    if (existing) {
+      existing.planId = pricing._id;
+      existing.status = isTrial ? 'trialing' : 'active';
+      existing.currentPeriodStart = start;
+      existing.currentPeriodEnd = end;
+      existing.cancelAtPeriodEnd = false;
+      await existing.save();
+    } else {
+      await WorkspaceSubscriptionModel.create({
+        organizationId: org._id,
+        planId: pricing._id,
+        billingProvider: 'manual',
+        billingCycle: 'monthly',
+        status: isTrial ? 'trialing' : 'active',
+        currentPeriodStart: start,
+        currentPeriodEnd: end,
+        cancelAtPeriodEnd: false,
+      });
+    }
+
+    await PlanHistoryModel.create({
+      organizationId: org._id,
+      userId: user._id,
+      planIdBefore,
+      planIdAfter: pricing._id,
+      planCodeBefore: previousPlan?.code ?? null,
+      planCodeAfter: pricing.code,
+      paymentOrderId: null,
+      reason: 'admin_assign',
+    });
+
     return this.getUser(id);
   },
 

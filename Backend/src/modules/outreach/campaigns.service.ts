@@ -578,6 +578,11 @@ export const campaignsService = {
         aiReplyEnabled: input.qualificationConfig.aiReplyEnabled ?? true,
         takeoverCondition: input.qualificationConfig.takeoverCondition ?? null,
         autoScreening: input.qualificationConfig.autoScreening ?? false,
+        autoWhatsAppAfterQualification:
+          input.qualificationConfig.autoWhatsAppAfterQualification ?? false,
+        hiringFlowId: input.qualificationConfig.hiringFlowId ?? null,
+        autoWhatsAppTemplateId:
+          input.qualificationConfig.autoWhatsAppTemplateId ?? null,
       };
     }
     if (input.schedulingConfig !== undefined) {

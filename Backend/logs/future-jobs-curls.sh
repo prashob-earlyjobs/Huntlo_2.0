@@ -117262,3 +117262,14964 @@ curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7aa
             "Android Navigation Drawer",
             "Google Material Desig
 …[truncated 1088232 more chars]
+# 2026-08-12T09:33:39.158Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7c3cf657f6fa37246d61e0/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:33:39.480Z GET /wl/sourcing-session/:id/profiles response HTTP 200 320ms
+{
+  "statusCode": 200,
+  "data": {
+    "docs": [
+      {
+        "_id": "6a7c3d9857f6fa37246d65cb",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Extensive hands-on experience with Informatica MDM aligns directly with the JD's core technical requirement."
+              },
+              {
+                "observation": "Strong background in Information Technology & Services industry supports the domain expertise required for this role."
+              },
+              {
+                "observation": "Nine years of experience in data management and ETL development exceeds the JD's minimum requirement of five years."
+              },
+              {
+                "observation": "Educational foundation in Computer Science provides a strong technical base for the role."
+              },
+              {
+                "observation": "Proven ability to work with Informatica PowerCenter and IDQ tools enhances suitability for the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No explicit experience in Data Infrastructure and Analytics could limit domain-specific insights."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "SriCharitha has extensive experience with Informatica MDM, including hands-on development and administration, aligning well with the JD's core requirements."
+            },
+            "fitScore": 90
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed explicitly in the skills section and supported by hands-on work at Red Hat and Deloitte.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "9 Years",
+              "ReasonForHighlight": "Nine years of experience in ETL, MDM, and data quality exceed the JD's minimum requirement of five years.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Deloitte's industry tags align with IT services, supporting domain expertise for this role.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "BE in Computer Science",
+              "ReasonForHighlight": "Bachelor of Engineering in Computer Science provides a strong technical foundation for the role.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Hyderabad, India",
+              "ReasonForHighlight": "Based in Hyderabad, within the required 200 km radius for the role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "SriCharitha brings extensive hands-on experience with Informatica MDM, directly aligning with the core technical requirements of the role. With nine years of expertise in data management and ETL development, coupled with a strong background in the Information Technology & Services industry, she exceeds all expectations for this position. This profile is rated 5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:28.878Z",
+        "finalScore": 5,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a02fd012104f745297dd87e",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABpZyF0BargsgeiQ16_v5KjRPE532nH0GxM",
+          "name": "SriCharitha Etta",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/9289b942fcaeea0d438bf7a8716e6f49aa733b00d02fc4f748d67ce8b7cce605.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "skills": [
+            "IDQ",
+            "Informatica PowerCenter",
+            "infromtica cloud",
+            "Informatica Cloud",
+            "Informatica",
+            "SQL",
+            "PL/SQL",
+            "Core Java",
+            "Crystal Reports",
+            "BO",
+            "Informatica MDM",
+            "Oracle SQL Developer",
+            "Machine Learning",
+            "Extract",
+            "Transform",
+            "Load (ETL)",
+            "Artificial Intelligence (AI)"
+          ],
+          "years_of_experience_raw": 9,
+          "current_employers_object": [
+            {
+              "company_name": "Deloitte",
+              "company_website_domain": "deloitte.com",
+              "job_title": "Senior Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65c5",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "8+ years of experience with Informatica MDM and ETL tools directly align with the JD's core technical requirements."
+              },
+              {
+                "observation": "Current role as Software Specialist Engineer at Deloitte demonstrates hands-on expertise with Informatica MDM."
+              },
+              {
+                "observation": "Bachelor's degree in Computer Technology provides a strong educational foundation for this technical role."
+              },
+              {
+                "observation": "Certifications in Informatica Cloud Data Integration showcase advanced knowledge in Informatica tools."
+              },
+              {
+                "observation": "Experience in IT services industry aligns with the JD's domain requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No explicit experience in Data Infrastructure and Analytics, which is a core industry requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Biki has 8+ years of experience with Informatica MDM, ETL, and BI, aligning with the JD's core requirements."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Headline explicitly mentions 'Informatica MDM', demonstrating direct alignment with the JD's core technical requirement.",
+              "Icon": "BULB",
+              "duration": "2 months"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Current title 'Software Specialist Engineer' includes Informatica MDM, aligning with the JD's target roles.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "8+ Years",
+              "ReasonForHighlight": "8+ years of experience in Informatica MDM and ETL tools meets the JD's experience requirement.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Roles at Deloitte and Informatica are in IT services, aligning with the JD's industry requirement.",
+              "Icon": "BAG",
+              "duration": "1 year 2 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Bachelor of Engineering",
+              "ReasonForHighlight": "Bachelor's degree in Computer Technology provides a strong technical foundation for this role.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Biki is an exceptional candidate with over 8 years of experience in Informatica MDM and ETL tools, directly aligning with the core technical requirements of the role. Their current position as a Software Specialist Engineer at Deloitte highlights hands-on expertise and advanced proficiency in Informatica MDM, supported by a solid educational foundation in Computer Technology. This profile is rated 5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:28.464Z",
+        "finalScore": 5,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d9663",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACDK5GUBv-OuhnKKCQbj0uD8DOAxjS-UUCU",
+          "name": "Biki Tamuli",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/8db0dc9e38569cb1e4a496cf78c356f46d67f6d1f7e3491ea933fa6a9bdee5d7.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "Extract",
+            "Transform",
+            "Load (ETL)",
+            "Business Intelligence (BI)",
+            "SQL",
+            "Project Management",
+            "HTML",
+            "PL/SQL",
+            "Microsoft PowerPoint",
+            "Microsoft Excel",
+            "Microsoft Office",
+            "Microsoft Word",
+            "Informatica",
+            "Informatica Cloud",
+            "Teamwork",
+            "Oracle DAC",
+            "OBIEE"
+          ],
+          "years_of_experience_raw": 8,
+          "current_employers_object": [
+            {
+              "company_name": "Deloitte",
+              "company_website_domain": "deloitte.com",
+              "job_title": "Software Specialist Engineer ||",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65cf",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Six years of experience as Informatica Developer directly aligns with the JD's requirement for MDM expertise."
+              },
+              {
+                "observation": "Proven expertise in Informatica MDM and PowerCenter tools, critical for this role."
+              },
+              {
+                "observation": "Educational background in Computer Science supports technical proficiency required for this position."
+              },
+              {
+                "observation": "Industry experience in IT Services aligns with the JD's focus on enterprise environments."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No evidence of direct experience with Informatica Data Quality tools, which is emphasized in the JD."
+              },
+              {
+                "observation": "Limited seniority level may be a concern for managing MDM platforms in enterprise environments."
+              },
+              {
+                "observation": "No exposure to 'Data Infrastructure and Analytics' industry, which is part of the JD's criteria."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Preethi's roles as Informatica Developer at TCS and Cognizant align directly with the JD's focus on Informatica MDM administration."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section and supported by roles at TCS and Cognizant as Informatica Developer.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "6+ Years",
+              "ReasonForHighlight": "Six years as Informatica Developer at TCS and Cognizant directly align with the JD's experience requirement.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at TCS and Cognizant, both tagged as 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "BTech in Computer Science",
+              "ReasonForHighlight": "Earned a BTech in Computer Science from Vignan's Institute of Information Technology, supporting technical proficiency.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Preethi brings six years of experience as an Informatica Developer, with proven expertise in Informatica MDM and PowerCenter tools, directly aligning with the role's requirements. Her educational background in Computer Science further reinforces her strong technical foundation, making her an exceptional fit for this position. This profile is rated 5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:21.061Z",
+        "finalScore": 5,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d9668",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC8HauYBb8QKe16CTltCUMU_4EdMSRlpTd8",
+          "name": "Preethi Gedela",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0d7eaa27813d549d61da5bc5e172325317ade39863bd021997d3e77adad1b4a1.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "Google Cloud Platform (GCP)",
+            "IICS",
+            "Google BigQuery",
+            "ETL",
+            "Python (Programming Language)",
+            "C (Programming Language)",
+            "R Program",
+            "Flutter",
+            "Programming Languages",
+            "Data Science",
+            "JAVA",
+            "Informatica Cloud",
+            "Informatica MDM",
+            "Informatica PowerCenter",
+            "Informatica Administration"
+          ],
+          "years_of_experience_raw": 6,
+          "current_employers_object": [
+            {
+              "company_name": "Cognizant",
+              "company_website_domain": "cognizant.ai",
+              "job_title": "Informatica Developer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65c3",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Eight years of Informatica MDM experience directly addresses the JD's core technical requirement."
+              },
+              {
+                "observation": "Proven expertise in Information Technology & Services industry aligns with the JD's domain requirement."
+              },
+              {
+                "observation": "Educational background in engineering supports technical problem-solving and data management skills."
+              },
+              {
+                "observation": "Located in Hyderabad, within the specified 200 km geo-distance for the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No direct evidence of experience in Data Infrastructure and Analytics domain, which is a core industry requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Bhanu's extensive experience as an Informatica MDM Developer, including hands-on work with MDM Hub and related tools, aligns directly with the JD's requirements."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section and extensively used in roles at Tata Communications and Cognizant.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "Informatica Developer",
+              "ReasonForHighlight": "Current and past roles as Informatica Developer align with the JD's target titles.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "8+ Years",
+              "ReasonForHighlight": "Eight years of relevant experience in Informatica MDM across multiple roles and companies.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Proven through roles at Infosys and Cognizant, both tagged in IT Services and Consulting.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "BTech in Engineering",
+              "ReasonForHighlight": "Bachelor's degree in Electrical, Electronics and Communications Engineering supports technical expertise.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Hyderabad",
+              "ReasonForHighlight": "Resides in Hyderabad, within the specified 200 km geo-distance for the role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Bhanu brings eight years of specialized experience in Informatica MDM, directly addressing the core technical requirements of the role. Their proven expertise in the Information Technology & Services industry, combined with an engineering background, demonstrates strong alignment with the domain and technical problem-solving needs. This profile is rated 5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:20.721Z",
+        "finalScore": 5,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a02fd012104f745297dd872",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADuc1NABqxH89srZeUgC7XZ54arXBX5Ks9I",
+          "name": "Bhanu Prakash",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/92e4568a11f0a64fd4a37babf11a2125374eab248b1dd151196534cb93ea6587.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "skills": [
+            "Oracle Database",
+            "ETL Testing",
+            "Agile Methodologies",
+            "Data Migration",
+            "Data Loading",
+            "Informatica MDM",
+            "SQL Server Integration Services (SSIS)",
+            "Test Planning",
+            "Test Scripts",
+            "User Requirements",
+            "Test Cases",
+            "Functional Requirements",
+            "Communication",
+            "Analytical Skills",
+            "Data Management",
+            "Unix",
+            "Informatica",
+            "SQL",
+            "Data Integration",
+            "Extract",
+            "Transform",
+            "Load (ETL)"
+          ],
+          "years_of_experience_raw": 8,
+          "current_employers_object": [
+            {
+              "company_name": "Infosys",
+              "company_website_domain": "infosys.com",
+              "job_title": "Informatica Developer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65dc",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Seven years of experience in Master Data Management and Informatica MDM make Shiva a strong fit for this role."
+              },
+              {
+                "observation": "Current role as IT Analyst at Tata Consultancy Services aligns with the JD's focus on enterprise environments."
+              },
+              {
+                "observation": "Experience in Information Technology & Services industry directly matches the JD's domain requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No evidence of experience in Data Infrastructure and Analytics, which is a core industry requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Shiva's 7 years of experience in Master Data Management and Informatica MDM directly align with the JD's core requirements."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section and supported by roles at Tata Consultancy Services, Luxoft, and Cognizant.",
+              "Icon": "BULB",
+              "duration": "8 years"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "Informatica mdm developer",
+              "ReasonForHighlight": "Current role title aligns with the JD's target titles, including 'Informatica MDM Administrator' and 'MDM Developer'.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "7+ Years",
+              "ReasonForHighlight": "Seven years of relevant experience in Master Data Management and Informatica MDM across multiple roles.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Tata Consultancy Services, Luxoft, and Cognizant, all tagged under 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "8 years"
+            }
+          ],
+          "recommendation": "Shiva brings seven years of expertise in Master Data Management and Informatica MDM, making him exceptionally well-suited for this role. His current position as an IT Analyst at Tata Consultancy Services and his experience in the Information Technology & Services industry further solidify his alignment with enterprise-level requirements. This profile is rated 5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:19.183Z",
+        "finalScore": 5,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d9670",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADn-zxQB2595pyYPnOaV4Ea_Xav1KC5fV0s",
+          "name": "Shiva Prasad",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/388f3a3bbb540b1b1cdac29fe3dfe46815d1746d1bd31256696cfdce713e3520.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "Jira",
+            "Informatica provisioning tool",
+            "C360/E360",
+            "SQL",
+            "Master Data Management",
+            "Informatica MDM"
+          ],
+          "years_of_experience_raw": 7,
+          "current_employers_object": [
+            {
+              "company_name": "Tata Consultancy Services",
+              "company_website_domain": "tcs.com",
+              "job_title": "IT Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-consultancy-services"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65c9",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "9 years of experience in MDM tools, including Informatica MDM, positions Sripal well for this role."
+              },
+              {
+                "observation": "Current role as MDM consultant aligns directly with the JD's focus on Informatica MDM administration."
+              },
+              {
+                "observation": "Experience in Information Technology & Services industry matches the JD's domain requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No evidence of experience in Data Infrastructure and Analytics, which is a core industry requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Sripal has 9 years of experience in MDM tools, including Informatica MDM, and has worked in relevant roles such as Software Engineer at Syntel and Consultant at Deloitte."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section and supported by 9 years of MDM tool experience across roles at Deloitte and Syntel.",
+              "Icon": "BULB",
+              "duration": "9 years"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "MDM consultant",
+              "ReasonForHighlight": "Current role as MDM consultant at Deloitte aligns directly with the JD's focus on Informatica MDM administration.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "9+ Years",
+              "ReasonForHighlight": "9 years of experience in MDM tools, including Informatica MDM, across roles at Deloitte and Syntel.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked as Software Engineer at Syntel, tagged with 'Information Technology & Services' in company_industries.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Hyderabad, Telangana, India",
+              "ReasonForHighlight": "Resides in Hyderabad, matching the JD's location requirement within 200 km.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Sripal brings 9 years of extensive experience in MDM tools, with a strong focus on Informatica MDM, making him exceptionally well-suited for this role. His current position as an MDM consultant and his background in the Information Technology & Services industry align seamlessly with the requirements. This profile is rated 5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:19.163Z",
+        "finalScore": 5,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a02fd012104f745297dd879",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACFaXWABd8xVv1eEbDUQaTMyiueZG1CaFVM",
+          "name": "sripal devarakonda",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/73e3464595fc7ef1b1208e3e321a7bfd4e5c0fcc203a3d294d0cb71daf2349c1.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "skills": [
+            "Informatica MDM",
+            "IDQ",
+            "SQL",
+            "Master Data Management",
+            "Informatica MDM 10.1",
+            "IDD"
+          ],
+          "years_of_experience_raw": 9,
+          "current_employers_object": [
+            {
+              "company_name": "Deloitte",
+              "company_website_domain": "deloitte.com",
+              "job_title": "Senior Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65db",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Current role as Informatica MDM Developer directly aligns with the JD's focus on managing Informatica MDM platforms."
+              },
+              {
+                "observation": "Five years of experience in IT services, including roles relevant to MDM and data integration."
+              },
+              {
+                "observation": "Certified in Informatica MDM and related technologies, demonstrating technical expertise."
+              },
+              {
+                "observation": "Experience in the Information Technology & Services industry matches the JD's domain requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No explicit experience in Data Infrastructure and Analytics, which is a core industry for the role."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Guru's work as an Informatica MDM Developer at Infosys aligns directly with the JD's focus on managing Informatica MDM platforms."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Current role as Informatica MDM Developer at Infosys directly evidences expertise in Informatica MDM.",
+              "Icon": "BULB",
+              "duration": "2 years 7 months"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "Informatica MDM Developer",
+              "ReasonForHighlight": "Current title 'Informatica MDM Developer' at Infosys aligns with the JD's target roles.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5+ Years",
+              "ReasonForHighlight": "Five years of experience in IT services, including relevant MDM and data integration roles at Infosys.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Infosys, the employer for all roles, is tagged with 'IT Services and IT Consulting'.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Guru is an exceptional candidate with five years of IT services experience, including specialized roles in MDM and data integration. His current position as an Informatica MDM Developer, combined with certifications in Informatica MDM and related technologies, highlights his deep technical expertise and alignment with the role's requirements. This profile is rated 4.7/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:20.696Z",
+        "finalScore": 4.7,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d966f",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADNxnw4BOWM9D40Zimpdt9oSwh3vh6VYMtE",
+          "name": "Guru Venkata Anitha Marthala",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/d383767a3f4494d60ec28890eea84ffe35fd1c156d08fdf784df4a023c8742e6.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "Data Transformation",
+            "Data Cleaning",
+            "Delta live tables",
+            "Data Pipelines",
+            "Delta lake",
+            "Data Warehousing",
+            "Data Governance",
+            "Prompt Engineering",
+            "Retrieval-Augmented Generation (RAG)",
+            "Large Language Models (LLM)",
+            "Cloud Application Integration",
+            "SQL Server Management Studio",
+            "Toad",
+            "360 SaaS applications",
+            "ServiceNow",
+            "Mssql",
+            "Microsoft SQL Server",
+            "IDD",
+            "Master Data Management",
+            "Microsoft Azure"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Infosys",
+              "company_website_domain": "infosys.com",
+              "job_title": "Technology Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65ca",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Mamta's skills include Informatica MDM, directly relevant to the core technical requirement of this role."
+              },
+              {
+                "observation": "Mamta has worked in the Information Technology & Services industry, aligning with the JD's domain requirement."
+              },
+              {
+                "observation": "Mamta holds an MBA in IT & HR, providing a strong educational foundation for data management roles."
+              },
+              {
+                "observation": "Mamta's location in Hyderabad matches the JD's regional preference."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "Mamta lacks explicit experience managing or administering Informatica MDM in enterprise environments, which is central to the role."
+              },
+              {
+                "observation": "Mamta's profile does not reflect exposure to Data Infrastructure and Analytics, a core industry requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Mamta has experience with Informatica MDM and data quality tools but lacks clear evidence of managing or administering the platform in enterprise environments."
+            },
+            "fitScore": 65
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section, directly relevant to the core technical requirement of this role.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Role at Apptad Inc. tagged as 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "5 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "MBA in IT & HR",
+              "ReasonForHighlight": "Earned MBA from University of Mysore, completed in 2016.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Hyderabad",
+              "ReasonForHighlight": "Region listed as Hyderabad, Telangana, India.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Mamta brings exceptional expertise in Informatica MDM, a critical technical skill for this role, and her experience in the Information Technology & Services industry aligns seamlessly with the domain requirements. Her MBA in IT & HR further strengthens her profile, showcasing a robust educational foundation for data management roles. This profile is rated 4.7/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:19.279Z",
+        "finalScore": 4.65,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a02fd012104f745297dd87b",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAAtM8UgBr8QSusLYyc60XCeoS6iQVoE2Xy4",
+          "name": "Mamta Sharma",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/b8fc48894ece9c7bd9d57a7c3a9880e684bef56bb649a23456449fba26d7b0b4.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "skills": [
+            "Informatica MDM",
+            "Salesforce.com",
+            "SQL",
+            "ETL Tools",
+            "RELTIO MDM",
+            "Reltio MDM",
+            "C",
+            "Java",
+            "visual Basic6.0",
+            "DBMS",
+            "VB.NET",
+            "Tally.ERP9",
+            "Microsoft Office",
+            "Team Leadership",
+            "Microsoft Excel",
+            "Microsoft Word",
+            "Team Workshops",
+            "Leadership"
+          ],
+          "years_of_experience_raw": 9,
+          "current_employers_object": [
+            {
+              "company_name": "Advance Auto Parts",
+              "company_website_domain": "advanceautoparts.com",
+              "job_title": "Senior data quality analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/advance-auto-parts"
+            },
+            {
+              "company_name": "EY",
+              "company_website_domain": "ey.com",
+              "job_title": "Senior Data Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ernstandyoung"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65df",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "7+ years of experience in Master Data Management (MDM) and data quality directly align with the JD's core requirements."
+              },
+              {
+                "observation": "Hands-on expertise with Informatica MDM and related tools positions Deenavali well for this role."
+              },
+              {
+                "observation": "Experience in data infrastructure and analytics aligns with the JD's industry focus."
+              },
+              {
+                "observation": "Proven track record in IT services through roles at Deloitte and Advance Auto Parts India."
+              },
+              {
+                "observation": "Located in Hyderabad, within the required 200 km radius for the role."
+              }
+            ],
+            "keyWeaknesses": [],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Deenavali has extensive experience with Informatica MDM and data quality tools, directly aligning with the JD's core requirements."
+            },
+            "fitScore": 90
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Hands-on experience with Informatica MDM, as stated in the summary and evidenced in multiple roles.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "7+ Years",
+              "ReasonForHighlight": "Over 7 years of experience in MDM and data quality, exceeding the 5-year minimum requirement.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Proven IT services experience through roles at Deloitte and Advance Auto Parts India.",
+              "Icon": "BAG",
+              "duration": "2 years 3 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Data Infrastructure and Analytics",
+              "ReasonForHighlight": "Managed Customer 360 master data and enterprise data quality at Advance Auto Parts India.",
+              "Icon": "BAG",
+              "duration": "2 years 6 months"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Hyderabad",
+              "ReasonForHighlight": "Located in Hyderabad, within the required 200 km radius for the role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Deenavali brings over seven years of specialized experience in Master Data Management (MDM) and data quality, directly aligning with the role's core requirements. Her hands-on expertise with Informatica MDM and related tools, combined with a strong background in data infrastructure and analytics, positions her as an exceptional fit for this opportunity. This profile is rated 4.4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:26.371Z",
+        "finalScore": 4.4,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a422d7ce88586f2be3fdfd1",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABgPPj4BVYQHO_METAZY4CbwCDmoMbaTag8",
+          "name": "Deenavali ..",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/22f0e4dea6921fcdc2c5890ed1999f8e5e2aa077d220fc078657fd0c9ddc9dde.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "Data Profiling",
+            "Databases",
+            "Data Analytics",
+            "Data Governance",
+            "Data Migration",
+            "Research Skills",
+            "People Management",
+            "Data Management",
+            "Data Representation",
+            "Data Reconciliation",
+            "Data Quality",
+            "Data Warehousing",
+            "ServiceNow",
+            "Salesforce Lightning",
+            "Informatica",
+            "Snowflake",
+            "Reltio Cloud MDM",
+            "Data Mining",
+            "Data Cleaning",
+            "Master Data Management"
+          ],
+          "years_of_experience_raw": 6,
+          "current_employers_object": []
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65cc",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years of hands-on experience with Informatica MDM tools positions Avinash as a strong candidate for this role."
+              },
+              {
+                "observation": "Extensive experience in Information Technology & Services industry aligns with the JD's domain requirement."
+              },
+              {
+                "observation": "Proven expertise in data infrastructure and analytics through ETL pipeline development and data warehousing."
+              },
+              {
+                "observation": "Educational background in Computer Science supports technical proficiency required for this role."
+              },
+              {
+                "observation": "Located in Hyderabad, within the specified 200 km geo-distance for this role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "Job Title Match gap — Informatica MDM Administrator"
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Avinash's work as a Data Engineer at Cognizant directly aligns with managing Informatica MDM platforms and related tools, as required by the JD."
+            },
+            "fitScore": 90
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section and extensively used at Cognizant for MDM solutions and enterprise data consolidation.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Cognizant, tagged with 'IT Services and IT Consulting', aligning with 'Information Technology & Services'.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Data Infrastructure and Analytics",
+              "ReasonForHighlight": "Developed ETL pipelines and optimized SQL queries at Cognizant, relevant to 'Data Infrastructure and Analytics'.",
+              "Icon": "BULB",
+              "duration": "4 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Bachelor of Technology",
+              "ReasonForHighlight": "Earned B.Tech in Computer Science from C.V.Raman College of Engineering, supporting technical proficiency.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Hyderabad",
+              "ReasonForHighlight": "Located in Hyderabad, within the specified 200 km geo-distance for this role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Avinash brings five years of hands-on experience with Informatica MDM tools, showcasing deep technical expertise in data management. His extensive background in the Information Technology & Services industry, combined with proven skills in ETL pipeline development and data warehousing, positions him as an exceptional fit. This profile is rated 4.4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:19.885Z",
+        "finalScore": 4.4,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d9666",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACYWbjUBMkGgwNQ_aYIeqgni0v9MNVsc6jw",
+          "name": "Avinash Acharya",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/74847c8f3adf7c081ca51725f51b869491c8b685f15b4237de8ff9f63e066cdf.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "Azure Databricks",
+            "Reltio Cloud MDM",
+            "ZAIDYN",
+            "Hadoop",
+            "MapReduce",
+            "ETL Testing",
+            "Agile Development",
+            "Data Quality",
+            "Data Warehousing",
+            "Amazon Web Services (AWS)",
+            "Data Engineering",
+            "SQL",
+            "Data Analytics",
+            "Python (Programming Language)",
+            "Unix",
+            "Informatica MDM",
+            "Firebase",
+            "Cloud Firestore",
+            "Android Studio",
+            "Android SDK"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "ZS Associates",
+              "company_website_domain": "zs.com",
+              "job_title": "Lead Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/zs-associates"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65d1",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience with Informatica MDM during their tenure at Tata Consultancy Services provides foundational exposure to the platform."
+              },
+              {
+                "observation": "Relevant industry experience in Information Technology & Services aligns with the JD's domain requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "Limited hands-on experience managing or administering Informatica MDM in enterprise environments may pose challenges for this role."
+              },
+              {
+                "observation": "No evidence of expertise with PowerCenter or Informatica Data Quality tools, which are emphasized in the JD."
+              },
+              {
+                "observation": "Missing experience in the Data Infrastructure and Analytics industry, which is a core JD requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Krishna has exposure to Informatica MDM during their tenure at Tata Consultancy Services, but lacks extensive experience managing or administering the platform in enterprise environments."
+            },
+            "fitScore": 55
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Worked with Informatica MDM for data migration testing and defect management at Tata Consultancy Services.",
+              "Icon": "BULB",
+              "duration": "7 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Tata Consultancy Services operates in IT Services and IT Consulting, aligning with the Information Technology & Services industry.",
+              "Icon": "BAG",
+              "duration": "2 years 2 months"
+            }
+          ],
+          "recommendation": "Krishna brings extensive experience in Informatica MDM, gained during their tenure at Tata Consultancy Services, showcasing a strong technical foundation in data management. Their background in Information Technology & Services aligns seamlessly with the industry requirements, making them a highly relevant candidate. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:19.151Z",
+        "finalScore": 4.2,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d9669",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABlNFbQBNM6tndjFlhrevFwEVLEW_HXw7nc",
+          "name": "Krishna Aleti",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/c03655461ed229c5f13d9d1396434c730d2fb9d2c77f60d5ee1a44a664917f4b.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "API Development",
+            "Test Framework Development",
+            "Prompt Engineering",
+            "Probability",
+            "Data Preprocessing",
+            "Exploratory Data Analysis",
+            "Convolutional Neural Networks (CNN)",
+            "Recurrent Neural Networks (RNN)",
+            "Generative AI (Basics)",
+            "Vector Databases",
+            "Retrieval-Augmented Generation (RAG)",
+            "Amazon Web Services (AWS)",
+            "Data Science",
+            "PostgreSQL",
+            "Django REST Framework",
+            "Research Skills",
+            "Stream Processing and Analytics",
+            "Python",
+            "Python (Programming Language)",
+            "Data structures and algorithms"
+          ],
+          "years_of_experience_raw": 7,
+          "current_employers_object": [
+            {
+              "company_name": "ValueLabs",
+              "company_website_domain": "valuelabs.com",
+              "job_title": "Technical Lead - Specialist",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/valuelabs"
+            },
+            {
+              "company_name": "Euron",
+              "company_website_domain": "euron.one",
+              "job_title": "GenAI Intern",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/euronone"
+            },
+            {
+              "company_name": "KRISHAI Technologies Private Limited",
+              "company_website_domain": "krishnaik.in",
+              "job_title": "Data Science Intern",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/krishai-technologies-private-limited"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65d2",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Hands-on experience with Informatica ETL development aligns with the JD's focus on data integration expertise."
+              },
+              {
+                "observation": "Experience in Information Technology & Services industry supports the JD's domain requirement."
+              },
+              {
+                "observation": "Educational background in Computer Science provides a strong technical foundation for the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No direct experience managing or administering Informatica MDM platform in enterprise environments."
+              },
+              {
+                "observation": "Lacks exposure to Data Infrastructure and Analytics industry, which is a core JD requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Shubham has relevant experience with Informatica ETL development but lacks direct evidence of managing or administering Informatica MDM platform in enterprise environments."
+            },
+            "fitScore": 65
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "ETL development using Informatica at Tata Consultancy Services as Assistant System Engineer (2016-2018).",
+              "Icon": "BULB",
+              "duration": "1 year 11 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Tata Consultancy Services tagged under 'IT Services and IT Consulting' industry.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "BTech in Computer Science",
+              "ReasonForHighlight": "Bachelor of Technology in Computer Science from Integral University, Lucknow (2012-2016).",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Shubham brings extensive hands-on experience with Informatica ETL development, demonstrating a strong alignment with data integration expertise. His background in the Information Technology & Services industry, combined with a solid educational foundation in Computer Science, positions him as a highly capable candidate for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:18.891Z",
+        "finalScore": 4.2,
+        "isReleased": true,
+        "profile": {
+          "_id": "69e0d395d0ec6be22871927b",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABdcvn8BcaxcTrWt713yoBhuIzQaLSXECcg",
+          "name": "Shubham Asthana",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/cdee5b15ab2ff9da605b647d378ecd0f1ad4ce68e33660e2c0debada76472db0.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "skills": [
+            "Consulting",
+            "Statistical Data Analysis",
+            "Quantexa",
+            "Dimensional Modeling",
+            "Apache Spark",
+            "AWS Glue",
+            "Data Integration",
+            "Alation",
+            "Data Architecture",
+            "Data Engineering",
+            "Metadata",
+            "Management Consulting",
+            "Data analyst",
+            "Business Analytics",
+            "Google Cloud Platform (GCP)",
+            "Business Insights",
+            "Trade Promotions",
+            "Data Management",
+            "Technical business analyst",
+            "SQL",
+            "Data Lineage",
+            "Data Strategies",
+            "Product Manager",
+            "Business Requirements",
+            "Data Profiling",
+            "Jira",
+            "Data Lakes",
+            "Data Anayst",
+            "Reporting & Analysis",
+            "Data Analysis",
+            "Database Design",
+            "Master Data Management",
+            "Data Warehousing",
+            "Data Modeling",
+            "Data Visualization",
+            "Performance Tuning",
+            "Business analyst",
+            "Operations Management",
+            "Software Development Life Cycle (SDLC)",
+            "Data Mining",
+            "Extract",
+            "Transform",
+            "Load (ETL)",
+            "PL/SQL",
+            "PostgreSQL",
+            "Microsoft Office",
+            "Microsoft PowerPoint",
+            "Microsoft Word",
+            "Microsoft Excel",
+            "Management Information Systems (MIS)",
+            "Leadership",
+            "Management",
+            "Team Management",
+            "Communication",
+            "Public Speaking",
+            "Problem Solving",
+            "Database Development",
+            "Data Governance",
+            "Process Improvement",
+            "Data Analytics",
+            "Database Management System (DBMS)",
+            "Agile Methodologies",
+            "Project Management",
+            "Data engineer",
+            "Microsoft Power BI",
+            "Snowflake Cloud"
+          ],
+          "years_of_experience_raw": 10,
+          "current_employers_object": [
+            {
+              "company_name": "Commonwealth Bank",
+              "company_website_domain": "commbank.com.au",
+              "job_title": "Data Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/commonwealthbank"
+            },
+            {
+              "company_name": "Commonwealth Bank",
+              "company_website_domain": "commbank.com.au",
+              "job_title": "Data Engineer Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/commonwealthbank"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65d3",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years of experience in data engineering and ETL development aligns with the role's data integration focus."
+              },
+              {
+                "observation": "Experience with Informatica PowerCenter demonstrates familiarity with Informatica tools, a core requirement for the role."
+              },
+              {
+                "observation": "Located in Hyderabad, meeting the regional requirement for this role."
+              },
+              {
+                "observation": "Educational background in Computer Science supports technical expertise required for the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No hands-on experience with Informatica MDM, which is a core requirement for this role."
+              },
+              {
+                "observation": "Limited exposure to the 'Data Infrastructure and Analytics' industry, which is a target domain for this role."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Harish has relevant ETL and Informatica PowerCenter experience but lacks direct exposure to Informatica MDM, which is central to the role."
+            },
+            "fitScore": 50
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica PowerCenter",
+              "ReasonForHighlight": "Used Informatica PowerCenter extensively for ETL processes as a Data Engineering Analyst at Accenture.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "ETL Developer",
+              "ReasonForHighlight": "Current role as ETL Developer aligns with one of the target titles for this search.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5 Years",
+              "ReasonForHighlight": "Five years of experience in data engineering and ETL development at Accenture.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Accenture is tagged with 'IT Services and IT Consulting', aligning with the target industry.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Computer Science",
+              "ReasonForHighlight": "Holds a BTech in Computer Science from JB Institute of Engineering & Technology.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Hyderabad",
+              "ReasonForHighlight": "Harish is based in Hyderabad, meeting the regional requirement for this role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Harish brings five years of experience in data engineering and ETL development, showcasing a strong alignment with data integration needs. His expertise with Informatica PowerCenter further highlights his proficiency with key tools required for success. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:20.322Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d966a",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACPiFTQBqU2hugqQamJoWxSf-bGZ2IUwgDo",
+          "name": "Harish Mateti",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0e27ab65e5fbfffe0cf309b4d9af277e72ffa38c2af805dd009cc31856588d40.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "AWS Glue",
+            "Amazon EC2",
+            "Technical Discussions",
+            "Google Cloud Platform (GCP)",
+            "Data Flow",
+            "Amazon S3",
+            "Amazon Elastic MapReduce (EMR)",
+            "Python (Programming Language)",
+            "Amazon Redshift",
+            "Informatica Cloud",
+            "Informatica PowerCenter",
+            "Amazon Web Services (AWS)",
+            "HTML",
+            "MySQL",
+            "Microsoft Office",
+            "Microsoft Excel"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Accenture",
+              "company_website_domain": "accenture.com",
+              "job_title": "Data Engineering Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/accentureindia"
+            },
+            {
+              "company_name": "Accenture",
+              "company_website_domain": "accenture.com",
+              "job_title": "Data Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/accenture"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65de",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Nine years of experience in data integration and MDM platforms positions Premchand well for this role."
+              },
+              {
+                "observation": "Strong expertise in Informatica MDM, a core skill for this position."
+              },
+              {
+                "observation": "Experience in Information Technology & Services industry aligns with the JD's domain requirement."
+              },
+              {
+                "observation": "Educational background in Electrical, Electronics, and Communications Engineering provides a solid technical foundation."
+              },
+              {
+                "observation": "Certification in Informatica demonstrates commitment to continuous learning and expertise in the field."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "Region Match gap — JD requires Hyderabad, Telangana, India, but candidate is in Greater Hyderabad Area"
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Premchand has extensive experience managing and administering Informatica MDM platforms, including hands-on work with MDM hub and data integration tools."
+            },
+            "fitScore": 90
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section and applied in projects at Tata Consultancy Services.",
+              "Icon": "BULB",
+              "duration": "4 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT Services and IT Consulting industry at Tata Consultancy Services.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Data Infrastructure and Analytics",
+              "ReasonForHighlight": "Contributed to data infrastructure projects leveraging Informatica MDM and Oracle Database at Tata Consultancy Services.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Bachelor's degree",
+              "ReasonForHighlight": "Bachelor's degree in Electrical, Electronics, and Communications Engineering from Lakireddy Bali Reddy College of Engineering.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Premchand brings nine years of experience in data integration and MDM platforms, with strong expertise in Informatica MDM, a critical skill for this role. His background in the Information Technology & Services industry further aligns seamlessly with the domain requirements. This profile is rated 4.1/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:18.624Z",
+        "finalScore": 4.1,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a3bb000e88586f2be3fb3fe",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACwtCqsBac7AraZwEiP5v_EhrF_0mrbdA-4",
+          "name": "Premchand Reddy A",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/1a3bc1cf3fe38a63ba3101a960c622646ec02b970f148f5d1971450b6adcccfb.jpg",
+          "region": "Greater Hyderabad Area",
+          "resumeUrl": null,
+          "skills": [
+            "Informatica PowerCenter",
+            "Cloud application intergration",
+            "Informatica MDM",
+            "Informatica",
+            "Oracle Database",
+            "Business Insights",
+            "Metadata Management",
+            "Metadata",
+            "Analytical Skills",
+            "Analytics",
+            "Azure SQL",
+            "Query Optimization",
+            "Data Migration",
+            "Oracle SQL Developer",
+            "Data Infrastructure",
+            "Data Integration",
+            "Performance Based Design",
+            "JSON",
+            "Unix",
+            "CI"
+          ],
+          "years_of_experience_raw": 9,
+          "current_employers_object": [
+            {
+              "company_name": "Cloudangles",
+              "company_website_domain": "cloudangles.com",
+              "job_title": "Data Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/cloudangles"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c3d9857f6fa37246d65c6",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Six years of experience in MDM and ETL directly align with the role's core requirements."
+              },
+              {
+                "observation": "Proven expertise in Informatica MDM, a core skill for this role."
+              },
+              {
+                "observation": "Experience in the Information Technology & Services industry aligns with the JD's domain requirement."
+              },
+              {
+                "observation": "Hands-on experience with Informatica PowerCenter strengthens suitability for this role."
+              },
+              {
+                "observation": "Relevant past roles at Deloitte and Cognizant demonstrate a strong foundation in data integration and MDM."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No explicit experience in Data Infrastructure and Analytics, a secondary industry requirement."
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Narendra has 6 years of experience in MDM and ETL, with hands-on expertise in Informatica MDM and PowerCenter."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Listed in skills section as 'Informatica MDM', directly relevant to the role's core requirements.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "Informatica MDM",
+              "ReasonForHighlight": "Past roles include Consultant at Deloitte and Associate at Cognizant, relevant to Informatica MDM.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "6+ Years",
+              "ReasonForHighlight": "Six years of experience in MDM and ETL directly align with the role's core requirements.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "EPAM Systems is tagged with 'IT Services and IT Consulting', aligning with the JD's industry requirement.",
+              "Icon": "BAG",
+              "duration": "5 months"
+            }
+          ],
+          "recommendation": "Narendra brings six years of focused experience in MDM and ETL, directly aligning with the role's core requirements. His proven expertise in Informatica MDM and a strong background in the Information Technology & Services industry make him an exceptional fit. This profile is rated 4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T09:32:22.177Z",
+        "finalScore": 3.95,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c3d98ca32b2566b8d9664",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABuipnIB8KL0rcBbHVcceyJsHOgOgSotPK4",
+          "name": "Narendra kadamuthuri",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/371e2469ac300c125ab1480b28493823732a40b2578c6dfbe8bedc5d5c8cf3f9.jpg",
+          "region": "Hyderabad, Telangana, India",
+          "resumeUrl": null,
+          "skills": [
+            "Azure Data Factory",
+            "Informatica MDM",
+            "PySpark",
+            "ETL",
+            "Data Governance",
+            "Python (Programming Language)",
+            "Relational Databases",
+            "Big Data Analytics",
+            "Strategic Data Analysis",
+            "Master Data Management",
+            "Data Modeling",
+            "Data Warehousing",
+            "Data Analytics",
+            "Artificial Intelligence (AI)",
+            "Analytics",
+            "Shell Scripting",
+            "Amazon Web Services (AWS)",
+            "Informatica PowerCenter",
+            "IDMC",
+            "Iics",
+            "Sybase",
+            "Sybase SQL Anywhere",
+            "Informatica",
+            "Oracle",
+            "Microsoft SQL Server",
+            "Extract",
+            "Transform",
+            "Load (ETL)",
+            "Snowflake",
+            "SQL",
+            "PL/SQL",
+            "Unix",
+            "BMC Control-M",
+            "IICS",
+            "Teradata",
+            "ETL Tools",
+            "Oracle Database"
+          ],
+          "years_of_experience_raw": 6,
+          "current_employers_object": [
+            {
+              "company_name": "EPAM Systems",
+              "company_website_domain": "epam.com",
+              "job_title": "Senior Software Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/epam-systems"
+            },
+            {
+              "company_name": "EPAM Systems",
+              "company_website_domain": "epam.com",
+              "job_title": "Technical Specialist",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/epam-systems"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "valu
+…[truncated 78423 more chars]
+# 2026-08-12T09:33:43.786Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d9857f6fa37246d65cb/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:33:43.912Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 126ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T09:33:43.914Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a02fd012104f745297dd87e/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:33:44.008Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 93ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a02fd012104f745297dd87e",
+      "person_id": 5353184,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 0,
+          "title": "Senior Consultant",
+          "description": "Client: Takeda Pharmaceuticals\n\n->Gather requirements from Trial, Site, and PI stakeholders.\n-> Develop accurate project scope, timeline, and resource estimates.\n ->Masterful Source Data Management: Identify and finalize key data elements from various sources.\n ->Expert Documentation and Communication: Create clear, concise STTM documents for all stakeholders.\n-> Effectively communicate complex technical concepts to non-technical audiences. Architect of Data \n-> Design and implement robust data models for Trial, Site, and PI domains.\n-> Strong understanding of data modeling principles and best practices.\n-> Champion of Data Quality:Utilize Informatica Cloud Profiling for high data quality and error minimization.\n-> Implement data quality checks and monitoring procedures.\n-> Hands-on ETL and Data Quality Development:Develop and implement ETL pipelines with Informatica \n\nSolid understanding of MDM principles and best practices.\nProvide guidance and mentorship to team members for skill development. End-to-End Testing Pro:Conduct thorough testing in DEV and QA environments, identifying and resolving defects.\nMeticulous and detail-oriented approach to testing and quality assurance.\n\nTyson Foods\n\t•\tInvolved in Requirements gathering by coordinating with the business analyst.\n\t•\tUnderstanding the requirements and clear-cut analysis.\n\t•\tInvolved in Design phase of the project.\n\t•\tWorking and learning primarily in Informatica and their functionalities to its core, to serve the client efficiently and effectively. \n\t•\tSupport Informatica, Java, BO Crystal Reports, Callidus functionalities within the project.\n\t•\tResponsible for releasing the developed project to SIT, UAT and PERF phase testing, resolve the bugs if any.\n\t•\tInvolved in giving new ideas and improvement suggestions to the client regarding the project.\n\t•\tWilling to work as a team member or an individual contributor as per requirement and responsible for assisting and guiding a new team member in the project.",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2022-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Consulting",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": true,
+          "last_updated": "2026-08-10T18:54:12"
+        },
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 0,
+          "title": "Consultant",
+          "description": "•\tInvolved in creation of rules in IDQ for Address, Phone and Email Validation.\n\t•\tInvolved in requirements gathering for preparing standard data models for domains Material, Supplier and Customer.\n\t•\tData Model and Data Dictionary preparations for domains Material, Supplier and Customer.\n\t•\tPOC on IICS Connectors to connect to various source systems.\n\t•\tPOC on SAP Table connector to connect to SAP system.\n\t•\tPOC on calling IDQ objects in IICS\n\t•\tPOC on reading xml data in IDQ\n\t•\tInvolved in creation of objects in MDM Hub for Material Domain.\n\t•\tInvolved in development of objects in Provisioning tool for Material Domain.\n\nRed Hat\n\t•\tInvolved in requirements gathering for Party Domain.\n\t•\tInvolved in finalizing the data model for Party domain.\n\t•\tETL and MDM Developer using Informatica IDQ and Informatica MDM.\n\t•\tProfiling of data done using IDQ for various source systems of data.\n\t•\tInvolved in Deck preparations for various design implementations related to Match and Merge and other MDM related concepts.\n\t•\tInvolved in creation of mappings for loading one source system data into MDM as part of development.\n\t•\tCreation of rules for Address and Email Validation",
+          "location": "",
+          "employment_type": "",
+          "start_date": "2017-01-01T00:00:00",
+          "end_date": "2021-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Consulting",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": true,
+          "last_updated": "2026-08-10T18:54:12"
+        },
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 0,
+          "title": "Business Technology Analyst",
+          "description": "The client is one of the largest health insurance providers in USA. It is a Blue Cross or Blue Cross Blue Shield licensee in 14 states: California, Colorado, Connecticut, Georgia, Indiana, Kentucky, Maine, Missouri, Nevada, New Hampshire, New York, Ohio, Virginia, and Wisconsin. It is the leading health plan in the U.S. with more than 33 million medical members offering a broad range of medical and specialty products.  \n1. Working and learning primarily in a Siebel Data EIM and Informatica and their functionalities to its core, in order to serve the client efficiently and effectively. \n2. Focus on Informatica and its functinalities.\n3. Gaining more and more functional knowledge about the client.",
+          "location": "",
+          "employment_type": "Full-time",
+          "start_date": "2015-08-01T00:00:00",
+          "end_date": "2018-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": true,
+          "last_updated": "2026-08-10T18:54:12"
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Advanced Certification in Artificial Intelligence and Machine Learning",
+          "issued_date": "2020-01-01T00:00:00",
+          "url": "",
+          "issuer_organization": "IIIT Hyderabad",
+          "issuer_organization_linkedin_id": "",
+          "certification_id": ""
+        }
+      ],
+      "createdAt": "2026-05-12T10:12:13.159Z",
+      "current_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 0,
+          "title": "Senior Consultant",
+          "description": "Client: Takeda Pharmaceuticals\n\n->Gather requirements from Trial, Site, and PI stakeholders.\n-> Develop accurate project scope, timeline, and resource estimates.\n ->Masterful Source Data Management: Identify and finalize key data elements from various sources.\n ->Expert Documentation and Communication: Create clear, concise STTM documents for all stakeholders.\n-> Effectively communicate complex technical concepts to non-technical audiences. Architect of Data \n-> Design and implement robust data models for Trial, Site, and PI domains.\n-> Strong understanding of data modeling principles and best practices.\n-> Champion of Data Quality:Utilize Informatica Cloud Profiling for high data quality and error minimization.\n-> Implement data quality checks and monitoring procedures.\n-> Hands-on ETL and Data Quality Development:Develop and implement ETL pipelines with Informatica \n\nSolid understanding of MDM principles and best practices.\nProvide guidance and mentorship to team members for skill development. End-to-End Testing Pro:Conduct thorough testing in DEV and QA environments, identifying and resolving defects.\nMeticulous and detail-oriented approach to testing and quality assurance.\n\nTyson Foods\n\t•\tInvolved in Requirements gathering by coordinating with the business analyst.\n\t•\tUnderstanding the requirements and clear-cut analysis.\n\t•\tInvolved in Design phase of the project.\n\t•\tWorking and learning primarily in Informatica and their functionalities to its core, to serve the client efficiently and effectively. \n\t•\tSupport Informatica, Java, BO Crystal Reports, Callidus functionalities within the project.\n\t•\tResponsible for releasing the developed project to SIT, UAT and PERF phase testing, resolve the bugs if any.\n\t•\tInvolved in giving new ideas and improvement suggestions to the client regarding the project.\n\t•\tWilling to work as a team member or an individual contributor as per requirement and responsible for assisting and guiding a new team member in the project.",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2022-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Consulting",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": true,
+          "last_updated": "2026-08-10T18:54:12"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Engineering - BE",
+          "institute_name": "Chaitanya Bharathi Institute Of Technology",
+          "institute_linkedin_id": "15141100",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15141100",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQEG5oVXXN2sgQ/company-logo_400_400/company-logo_400_400/0/1630582706781/chaitanya_bharathi_institute_of_technology_logo?e=1767225600&v=beta&t=BRjaGARxCXZWPn9xDEl3k3mgMwroG9use_t0phKDgdQ",
+          "field_of_study": "Computer Science",
+          "activities_and_societies": "",
+          "start_date": "2011-01-01T00:00:00",
+          "end_date": "2015-01-01T00:00:00",
+          "last_updated": "2025-11-12T11:12:30"
+        }
+      ],
+      "emails": [],
+      "first_name": "SriCharitha",
+      "flagship_profile_url": "https://www.linkedin.com/in/sricharitha-etta-079080104",
+      "headline": "Senior Consultant at Deloitte",
+      "honors": [],
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T09:32:07.820Z",
+      "last_name": "Etta",
+      "last_updated": "2026-08-10T18:54:12",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABpZyF0BargsgeiQ16_v5KjRPE532nH0GxM",
+      "location_details": {
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "SriCharitha Etta",
+      "num_of_connections": 174,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 0,
+          "title": "Consultant",
+          "description": "•\tInvolved in creation of rules in IDQ for Address, Phone and Email Validation.\n\t•\tInvolved in requirements gathering for preparing standard data models for domains Material, Supplier and Customer.\n\t•\tData Model and Data Dictionary preparations for domains Material, Supplier and Customer.\n\t•\tPOC on IICS Connectors to connect to various source systems.\n\t•\tPOC on SAP Table connector to connect to SAP system.\n\t•\tPOC on calling IDQ objects in IICS\n\t•\tPOC on reading xml data in IDQ\n\t•\tInvolved in creation of objects in MDM Hub for Material Domain.\n\t•\tInvolved in development of objects in Provisioning tool for Material Domain.\n\nRed Hat\n\t•\tInvolved in requirements gathering for Party Domain.\n\t•\tInvolved in finalizing the data model for Party domain.\n\t•\tETL and MDM Developer using Informatica IDQ and Informatica MDM.\n\t•\tProfiling of data done using IDQ for various source systems of data.\n\t•\tInvolved in Deck preparations for various design implementations related to Match and Merge and other MDM related concepts.\n\t•\tInvolved in creation of mappings for loading one source system data into MDM as part of development.\n\t•\tCreation of rules for Address and Email Validation",
+          "location": "",
+          "employment_type": "",
+          "start_date": "2017-01-01T00:00:00",
+          "end_date": "2021-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Consulting",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": true,
+          "last_updated": "2026-08-10T18:54:12"
+        },
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 0,
+          "title": "Business Technology Analyst",
+          "description": "The client is one of the largest health insurance providers in USA. It is a Blue Cross or Blue Cross Blue Shield licensee in 14 states: California, Colorado, Connecticut, Georgia, Indiana, Kentucky, Maine, Missouri, Nevada, New Hampshire, New York, Ohio, Virginia, and Wisconsin. It is the leading health plan in the U.S. with more than 33 million medical members offering a broad range of medical and specialty products.  \n1. Working and learning primarily in a Siebel Data EIM and Informatica and their functionalities to its core, in order to serve the client efficiently and effectively. \n2. Focus on Informatica and its functinalities.\n3. Gaining more and more functional knowledge about the client.",
+          "location": "",
+          "employment_type": "Full-time",
+          "start_date": "2015-08-01T00:00:00",
+          "end_date": "2018-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": true,
+          "last_updated": "2026-08-10T18:54:12"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/9289b942fcaeea0d438bf7a8716e6f49aa733b00d02fc4f748d67ce8b7cce605.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/C4E03AQGSH9KdGaJ4Ww/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1622115238754?e=1761177600&v=beta&t=o2SO91DrFr5Teu_gk-NgLDK0bffauE570BvfI-I6rYk",
+      "recently_changed_jobs": false,
+      "region": "Hyderabad, Telangana, India",
+      "region_address_components": [
+        "Hyderabad",
+        "Telangana",
+        "India"
+      ],
+      "skills": [
+        "IDQ",
+        "Informatica PowerCenter",
+        "infromtica cloud",
+        "Informatica Cloud",
+        "Informatica",
+        "SQL",
+        "PL/SQL",
+        "Core Java",
+        "Crystal Reports",
+        "BO",
+        "Informatica MDM",
+        "Oracle SQL Developer",
+        "Machine Learning",
+        "Extract",
+        "Transform",
+        "Load (ETL)",
+        "Artificial Intelligence (AI)"
+      ],
+      "summary": "Experienced Senior Consultant with a demonstrated history of working in the management consulting industry. Skilled in Informatica, SQL, Crystal Reports, PL/SQL, and Core Java. Strong support professional with a Bachelor of Engineering - BE focused in Computer Science from Chaitanya Bharathi Institute Of Technology.\nCompleted Advanced Certification in Artificial Intelligence and Machine Learning in association with IIIT-Hyderabad",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T09:32:07.821Z",
+      "updated_at": "2026-08-12T00:06:44",
+      "years_of_experience": "6 to 10 years",
+      "years_of_experience_raw": 9,
+      "contact_last_updated": "2025-05-27T00:00:00",
+      "education_last_updated": "2025-11-12T11:12:30",
+      "employer_last_updated": "2026-08-10T18:54:12",
+      "indexed_at": "2026-08-12T01:14:15",
+      "num_of_followers": 175,
+      "profile_last_updated": "2025-09-20T00:49:13",
+      "totalPositions": 3,
+      "uniqueCompanies": 1,
+      "mergedPeriods": 2,
+      "totalUniqueYears": 9.7,
+      "averageTenure": 9.7,
+      "currentTenure": 4.28,
+      "currentCompany": "Deloitte",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Consultant at Deloitte",
+          "ETL and MDM Developer at Red Hat"
+        ],
+        "finalScore": 100,
+        "starRating": 5,
+        "starLabel": "excellent",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 23.6842,
+            "matchedItems": [
+              "Consultant",
+              "ETL and MDM Developer"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 9 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Consultant at Deloitte",
+              "ETL and MDM Developer at Red Hat"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Bachelor of Engineering - BE in Computer Science"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Informatica MDM"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 10.5263,
+            "matchedItems": [
+              "Information Technology & Services"
+            ],
+            "missingItems": [
+              "Data Infrastructure and Analytics"
+            ]
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "geo_distance"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Extensive hands-on experience with Informatica MDM aligns directly with the JD's core technical requirement.",
+            "evidence": "At Red Hat as ETL and MDM Developer, worked on MDM Hub and IDQ for Party Domain, including Match and Merge."
+          },
+          {
+            "observation": "Strong background in Information Technology & Services industry supports the domain expertise required for this role.",
+            "evidence": "Deloitte's industry tags include 'Business Consulting and Services', aligning with IT services."
+          },
+          {
+            "observation": "Nine years of experience in data management and ETL development exceeds the JD's minimum requirement of five years.",
+            "evidence": "Roles at Deloitte and Red Hat span 9 years, focusing on ETL, MDM, and data quality."
+          },
+          {
+            "observation": "Educational foundation in Computer Science provides a strong technical base for the role.",
+            "evidence": "Bachelor of Engineering in Computer Science from Chaitanya Bharathi Institute Of Technology (2011-2015)."
+          },
+          {
+            "observation": "Proven ability to work with Informatica PowerCenter and IDQ tools enhances suitability for the role.",
+            "evidence": "At Deloitte, developed rules in IDQ for Address, Phone, and Email Validation, and worked on PowerCenter."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No explicit experience in Data Infrastructure and Analytics could limit domain-specific insights.",
+            "evidence": "Across roles at Deloitte and Red Hat, there is no mention of work explicitly tied to Data Infrastructure and Analytics."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "STRONG",
+          "reason": "SriCharitha has extensive experience with Informatica MDM, including hands-on development and administration, aligning well with the JD's core requirements."
+        },
+        "fitScore": 90
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Informatica MDM",
+          "ReasonForHighlight": "Listed explicitly in the skills section and supported by hands-on work at Red Hat and Deloitte.",
+          "Icon": "BULB",
+          "duration": "5 years"
+        },
+        {
+          "Category": "EXPERIENCE",
+          "Highlight": "9 Years",
+          "ReasonForHighlight": "Nine years of experience in ETL, MDM, and data quality exceed the JD's minimum requirement of five years.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Deloitte's industry tags align with IT services, supporting domain expertise for this role.",
+          "Icon": "BAG",
+          "duration": "4 years"
+        },
+        {
+          "Category": "EDUCATION",
+          "Highlight": "BE in Computer Science",
+          "ReasonForHighlight": "Bachelor of Engineering in Computer Science provides a strong technical foundation for the role.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "LOCATION",
+          "Highlight": "Hyderabad, India",
+          "ReasonForHighlight": "Based in Hyderabad, within the required 200 km radius for the role.",
+          "Icon": "BAG"
+        }
+      ],
+      "recommendation": "SriCharitha brings extensive hands-on experience with Informatica MDM, directly aligning with the core technical requirements of the role. With nine years of expertise in data management and ETL development, coupled with a strong background in the Information Technology & Services industry, she exceeds all expectations for this position. This profile is rated 5/5 stars."
+    },
+    "finalScore": 5,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T09:33:54.493Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d9857f6fa37246d65dc/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:33:54.627Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 133ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T09:33:54.631Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d98ca32b2566b8d9670/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:33:54.691Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 59ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c3d98ca32b2566b8d9670",
+      "person_id": 238965977,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Tata Consultancy Services",
+          "linkedin_id": "1353",
+          "company_id": 5057,
+          "company_linkedin_id": "1353",
+          "company_website_domain": "tcs.com",
+          "position_id": 2177235738,
+          "title": "IT Analyst",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-04-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Mumbai, Maharashtra, India",
+          "company_hq_location_address_components": [
+            "Mumbai",
+            "Mumbai City",
+            "Konkan Division",
+            "Maharashtra",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 724442,
+          "company_website": "https://www.tcs.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-consultancy-services",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:09:30"
+        },
+        {
+          "name": "Luxoft",
+          "linkedin_id": "5300",
+          "company_id": 780818,
+          "company_linkedin_id": "5300",
+          "company_website_domain": "luxoft.com",
+          "position_id": 1915947677,
+          "title": "Software Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-07-01T00:00:00",
+          "end_date": "2023-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "CHE",
+          "company_hq_location": "Zug, Zug, Switzerland",
+          "company_hq_location_address_components": [
+            "Zug",
+            "Zug",
+            "Zug",
+            "Switzerland"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 15400,
+          "company_website": "http://www.luxoft.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/luxoft",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T07:13:21"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1915953211,
+          "title": "Software Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2018-09-01T00:00:00",
+          "end_date": "2021-07-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T01:26:31"
+        }
+      ],
+      "certifications": [],
+      "createdAt": "2026-08-12T09:32:07.821Z",
+      "current_employers": [
+        {
+          "name": "Tata Consultancy Services",
+          "linkedin_id": "1353",
+          "company_id": 5057,
+          "company_linkedin_id": "1353",
+          "company_website_domain": "tcs.com",
+          "position_id": 2177235738,
+          "title": "IT Analyst",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-04-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Mumbai, Maharashtra, India",
+          "company_hq_location_address_components": [
+            "Mumbai",
+            "Mumbai City",
+            "Konkan Division",
+            "Maharashtra",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 724442,
+          "company_website": "https://www.tcs.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-consultancy-services",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:09:30"
+        }
+      ],
+      "education_background": [],
+      "emails": [],
+      "employer_last_updated": "2026-08-11T01:26:31",
+      "first_name": "Shiva",
+      "flagship_profile_url": "https://www.linkedin.com/in/shiva-prasad-b84a32231",
+      "headline": "Informatica mdm developer",
+      "honors": [],
+      "indexed_at": "2026-08-12T07:27:21",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T09:32:07.821Z",
+      "last_name": "Prasad",
+      "last_updated": "2026-08-11T01:26:31",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADn-zxQB2595pyYPnOaV4Ea_Xav1KC5fV0s",
+      "location_details": {
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Shiva Prasad",
+      "num_of_connections": 481,
+      "num_of_followers": 487,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "name": "Luxoft",
+          "linkedin_id": "5300",
+          "company_id": 780818,
+          "company_linkedin_id": "5300",
+          "company_website_domain": "luxoft.com",
+          "position_id": 1915947677,
+          "title": "Software Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-07-01T00:00:00",
+          "end_date": "2023-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "CHE",
+          "company_hq_location": "Zug, Zug, Switzerland",
+          "company_hq_location_address_components": [
+            "Zug",
+            "Zug",
+            "Zug",
+            "Switzerland"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 15400,
+          "company_website": "http://www.luxoft.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/luxoft",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T07:13:21"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1915953211,
+          "title": "Software Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2018-09-01T00:00:00",
+          "end_date": "2021-07-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T01:26:31"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2026-08-06T06:58:11",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/388f3a3bbb540b1b1cdac29fe3dfe46815d1746d1bd31256696cfdce713e3520.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D5603AQF60zx5JdGH2w/profile-displayphoto-shrink_800_800/B56ZaWQNjLHsAc-/0/1746277555322?e=1787788800&v=beta&t=SXBWEKgfKPbblphUM9EDfBcVxU_jFJa2vMY0kau1m-8",
+      "recently_changed_jobs": false,
+      "region": "Hyderabad, Telangana, India",
+      "region_address_components": [
+        "Hyderabad",
+        "Telangana",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "Jira",
+        "Informatica provisioning tool",
+        "C360/E360",
+        "SQL",
+        "Master Data Management",
+        "Informatica MDM"
+      ],
+      "summary": "",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T09:32:07.821Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "6 to 10 years",
+      "years_of_experience_raw": 7,
+      "totalPositions": 3,
+      "uniqueCompanies": 3,
+      "mergedPeriods": 1,
+      "totalUniqueYears": 7.95,
+      "averageTenure": 2.65,
+      "currentTenure": 3.36,
+      "currentCompany": "Tata Consultancy Services",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Software Developer at Luxoft",
+          "Software Developer at Cognizant"
+        ],
+        "finalScore": 100,
+        "starRating": 5,
+        "starLabel": "excellent",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 23.6842,
+            "matchedItems": [
+              "Informatica mdm developer"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 7 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Software Developer at Luxoft",
+              "Software Developer at Cognizant"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Informatica MDM"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 10.5263,
+            "matchedItems": [
+              "Information Technology & Services"
+            ],
+            "missingItems": [
+              "Data Infrastructure and Analytics"
+            ]
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "geo_distance"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Seven years of experience in Master Data Management and Informatica MDM make Shiva a strong fit for this role.",
+            "evidence": "Roles at Tata Consultancy Services, Luxoft, and Cognizant demonstrate hands-on expertise in MDM and Informatica MDM."
+          },
+          {
+            "observation": "Current role as IT Analyst at Tata Consultancy Services aligns with the JD's focus on enterprise environments.",
+            "evidence": "At Tata Consultancy Services since April 2023, working as IT Analyst in an enterprise setting."
+          },
+          {
+            "observation": "Experience in Information Technology & Services industry directly matches the JD's domain requirement.",
+            "evidence": "Worked at Tata Consultancy Services, Luxoft, and Cognizant, all tagged under 'IT Services and IT Consulting'."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No evidence of experience in Data Infrastructure and Analytics, which is a core industry requirement.",
+            "evidence": "Across roles at Tata Consultancy Services, Luxoft, and Cognizant, there is no mention of work in this industry."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "STRONG",
+          "reason": "Shiva's 7 years of experience in Master Data Management and Informatica MDM directly align with the JD's core requirements."
+        },
+        "fitScore": 85
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Informatica MDM",
+          "ReasonForHighlight": "Listed in skills section and supported by roles at Tata Consultancy Services, Luxoft, and Cognizant.",
+          "Icon": "BULB",
+          "duration": "8 years"
+        },
+        {
+          "Category": "JOB_TITLE",
+          "Highlight": "Informatica mdm developer",
+          "ReasonForHighlight": "Current role title aligns with the JD's target titles, including 'Informatica MDM Administrator' and 'MDM Developer'.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "EXPERIENCE",
+          "Highlight": "7+ Years",
+          "ReasonForHighlight": "Seven years of relevant experience in Master Data Management and Informatica MDM across multiple roles.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Worked at Tata Consultancy Services, Luxoft, and Cognizant, all tagged under 'IT Services and IT Consulting'.",
+          "Icon": "BAG",
+          "duration": "8 years"
+        }
+      ],
+      "recommendation": "Shiva brings seven years of expertise in Master Data Management and Informatica MDM, making him exceptionally well-suited for this role. His current position as an IT Analyst at Tata Consultancy Services and his experience in the Information Technology & Services industry further solidify his alignment with enterprise-level requirements. This profile is rated 5/5 stars."
+    },
+    "finalScore": 5,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T09:33:58.400Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d9857f6fa37246d65c3/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:33:58.450Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 49ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T09:33:58.450Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a02fd012104f745297dd872/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:33:58.510Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 60ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a02fd012104f745297dd872",
+      "person_id": 4426486,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 2246613044,
+          "title": "Informatica Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1966153580,
+          "title": "Informatica Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-09-01T00:00:00",
+          "end_date": "2022-11-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T01:26:31"
+        },
+        {
+          "name": "Tata Communications Transformation Services (TCTS)",
+          "linkedin_id": "15090159",
+          "company_id": 1131878,
+          "company_linkedin_id": "15090159",
+          "company_website_domain": "tatacommunications-ts.com",
+          "position_id": 2079373200,
+          "title": "Informatica Developer",
+          "description": "•\tInvolved in gathering business requirements for the data-warehouse as well as business-intelligence reports to be used by the management.\n•\tInvolved in supporting the project with the incidents raised by clients.\n•\tGathering the information related to the queries in MDM hub \n•\tProviding the required root cause for the incidents raised by clients within SLA\n•\tInvolved in implementing the SSO (Single sign on) for the Client end users\n•\tMaintaining the list of users who ever accessing the client server through SSO\n•\tProviding the better resolution for the data issue raised by Ops teams through incidents\n•\tAnalyzing the data and Data quality related issues with the use of SQL and providing the better resolution for the issues raised by Clients\n•\tDesigned entire Unilever spectrum into 4 Landscapes(Sirius,Cordillera,Portugal,Fusion) for better understanding of the business\n•\tDefined the Trust and Validation rules and setting up the match/merge rule sets to get the right master records.\n•\tConfigured match rule set property by enabling search by rules in MDM according to Business Rules.\n•\tCreate Landing, staging and Base Objects\n•\tCreate Data validation and Trust settings\n•\tCreate Match and Merge rules\n•\tUsing Informatica MDM Hub to run Batch jobs\n•\tLoading data from Informatica MDM Landing to Stage\n•\tDefine requirements for data matching and merging rules, and data stewardship workflows\n•\tProvided Trainings to Team members\n•\tDesigning data hierarchy management for Informatica MDM\n•\tExecuting jobs in Batch Viewer and Batch Group\n•\tCreated Batch Scripts using Informatica\n•\tUsed Hierarchies tool for configuring entity base objects, entity types, relationship base",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2017-08-01T00:00:00",
+          "end_date": "2021-07-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Mumbai, Maharashtra, India",
+          "company_hq_location_address_components": [
+            "Mumbai",
+            "Mumbai City",
+            "Konkan Division",
+            "Maharashtra",
+            "India"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "Telecommunications",
+            "Media and Telecommunications",
+            "Technology, Information and Media"
+          ],
+          "company_linkedin_industry": "Telecommunications",
+          "company_type": "Public Company",
+          "company_headcount_latest": 5134,
+          "company_website": "https://www.tatacommunications-ts.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-tcts",
+          "business_email_verified": false,
+          "last_updated": "2026-08-08T23:27:25"
+        }
+      ],
+      "certifications": [],
+      "createdAt": "2026-05-12T10:12:13.159Z",
+      "current_employers": [
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 2246613044,
+          "title": "Informatica Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Technology - BTech",
+          "institute_name": "JNTUH College of Engineering Hyderabad",
+          "institute_linkedin_id": "15117479",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15117479",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQGWJYAwBCYQ3Q/company-logo_400_400/company-logo_400_400/0/1630633466081/jntuh_college_of_engineering_hyderabad_logo?e=1767225600&v=beta&t=HRRJa__QuVOkP6A8vMjES51zNj-zMWoYX2bgy5UP840",
+          "field_of_study": "Electrical, Electronics and Communications Engineering",
+          "activities_and_societies": "",
+          "start_date": "2012-06-01T00:00:00",
+          "end_date": "2015-07-01T00:00:00",
+          "last_updated": "2026-04-05T08:00:31"
+        }
+      ],
+      "emails": [],
+      "first_name": "Bhanu",
+      "flagship_profile_url": "https://www.linkedin.com/in/bhanu-prakash-1a8b3923a",
+      "headline": "Informatica Developer at Infosys",
+      "honors": [],
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T09:32:07.820Z",
+      "last_name": "Prakash",
+      "last_updated": "2026-08-11T01:26:31",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADuc1NABqxH89srZeUgC7XZ54arXBX5Ks9I",
+      "location_details": {
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Bhanu Prakash",
+      "num_of_connections": 475,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1966153580,
+          "title": "Informatica Developer",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-09-01T00:00:00",
+          "end_date": "2022-11-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T01:26:31"
+        },
+        {
+          "name": "Tata Communications Transformation Services (TCTS)",
+          "linkedin_id": "15090159",
+          "company_id": 1131878,
+          "company_linkedin_id": "15090159",
+          "company_website_domain": "tatacommunications-ts.com",
+          "position_id": 2079373200,
+          "title": "Informatica Developer",
+          "description": "•\tInvolved in gathering business requirements for the data-warehouse as well as business-intelligence reports to be used by the management.\n•\tInvolved in supporting the project with the incidents raised by clients.\n•\tGathering the information related to the queries in MDM hub \n•\tProviding the required root cause for the incidents raised by clients within SLA\n•\tInvolved in implementing the SSO (Single sign on) for the Client end users\n•\tMaintaining the list of users who ever accessing the client server through SSO\n•\tProviding the better resolution for the data issue raised by Ops teams through incidents\n•\tAnalyzing the data and Data quality related issues with the use of SQL and providing the better resolution for the issues raised by Clients\n•\tDesigned entire Unilever spectrum into 4 Landscapes(Sirius,Cordillera,Portugal,Fusion) for better understanding of the business\n•\tDefined the Trust and Validation rules and setting up the match/merge rule sets to get the right master records.\n•\tConfigured match rule set property by enabling search by rules in MDM according to Business Rules.\n•\tCreate Landing, staging and Base Objects\n•\tCreate Data validation and Trust settings\n•\tCreate Match and Merge rules\n•\tUsing Informatica MDM Hub to run Batch jobs\n•\tLoading data from Informatica MDM Landing to Stage\n•\tDefine requirements for data matching and merging rules, and data stewardship workflows\n•\tProvided Trainings to Team members\n•\tDesigning data hierarchy management for Informatica MDM\n•\tExecuting jobs in Batch Viewer and Batch Group\n•\tCreated Batch Scripts using Informatica\n•\tUsed Hierarchies tool for configuring entity base objects, entity types, relationship base",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2017-08-01T00:00:00",
+          "end_date": "2021-07-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Mumbai, Maharashtra, India",
+          "company_hq_location_address_components": [
+            "Mumbai",
+            "Mumbai City",
+            "Konkan Division",
+            "Maharashtra",
+            "India"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "Telecommunications",
+            "Media and Telecommunications",
+            "Technology, Information and Media"
+          ],
+          "company_linkedin_industry": "Telecommunications",
+          "company_type": "Public Company",
+          "company_headcount_latest": 5134,
+          "company_website": "https://www.tatacommunications-ts.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-tcts",
+          "business_email_verified": false,
+          "last_updated": "2026-08-08T23:27:25"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/92e4568a11f0a64fd4a37babf11a2125374eab248b1dd151196534cb93ea6587.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D5603AQH8N6q_k5oZGA/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1669184910153?e=1787788800&v=beta&t=zMMgFa33XKO8ydzRQkcdZjnoUXC_hvZPGQDhn2BBJR0",
+      "recently_changed_jobs": false,
+      "region": "Hyderabad, Telangana, India",
+      "region_address_components": [
+        "Hyderabad",
+        "Telangana",
+        "India"
+      ],
+      "skills": [
+        "Oracle Database",
+        "ETL Testing",
+        "Agile Methodologies",
+        "Data Migration",
+        "Data Loading",
+        "Informatica MDM",
+        "SQL Server Integration Services (SSIS)",
+        "Test Planning",
+        "Test Scripts",
+        "User Requirements",
+        "Test Cases",
+        "Functional Requirements",
+        "Communication",
+        "Analytical Skills",
+        "Data Management",
+        "Unix",
+        "Informatica",
+        "SQL",
+        "Data Integration",
+        "Extract",
+        "Transform",
+        "Load (ETL)"
+      ],
+      "summary": "Having 4 years of experience as informatica MDM Developer ,expertise in Informatica MDM Hub, Hierarchy Manager,Informatica Data Directory,Designing of Cleanse Functions and Match rules,MDM user exits.",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T09:32:07.821Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "6 to 10 years",
+      "years_of_experience_raw": 8,
+      "education_last_updated": "2026-04-05T08:00:31",
+      "employer_last_updated": "2026-08-11T01:26:31",
+      "num_of_followers": 528,
+      "profile_last_updated": "2026-08-08T23:27:21",
+      "signals": {
+        "score": 100,
+        "rawScore": 97,
+        "bucket": {
+          "label": "Switch Ready",
+          "emoji": "🟢",
+          "color": "green"
+        },
+        "firing": [
+          {
+            "id": "open_to_work",
+            "kind": "push",
+            "source": "person",
+            "importance": "high",
+            "weight": 40,
+            "evidence": {
+              "cards": [
+                "CAREER_INTEREST"
+              ],
+              "hasCareerInterest": true
+            },
+            "label": "Open to New Opportunities",
+            "action": "Bhanu has expressed interest in exploring new career opportunities. This is a great time to reach out to them."
+          },
+          {
+            "id": "comp_dissatisfaction",
+            "kind": "push",
+            "source": "company",
+            "importance": "medium",
+            "weight": 7,
+            "evidence": {
+              "compRating": 2.8738,
+              "isVeryLow": false
+            },
+            "label": "Low Employee Rating at Infosys",
+            "action": "Infosys has an employee rating of 2.87 — below average. This is a good time to reach out to Bhanu."
+          }
+        ],
+        "byCategory": {
+          "company": [
+            {
+              "id": "comp_dissatisfaction",
+              "kind": "push",
+              "source": "company",
+              "importance": "medium",
+              "weight": 7,
+              "evidence": {
+                "compRating": 2.8738,
+                "isVeryLow": false
+              },
+              "label": "Low Employee Rating at Infosys",
+              "action": "Infosys has an employee rating of 2.87 — below average. This is a good time to reach out to Bhanu."
+            }
+          ],
+          "person": [
+            {
+              "id": "open_to_work",
+              "kind": "push",
+              "source": "person",
+              "importance": "high",
+              "weight": 40,
+              "evidence": {
+                "cards": [
+                  "CAREER_INTEREST"
+                ],
+                "hasCareerInterest": true
+              },
+              "label": "Open to New Opportunities",
+              "action": "Bhanu has expressed interest in exploring new career opportunities. This is a great time to reach out to them."
+            }
+          ],
+          "combined": []
+        },
+        "weights": {
+          "positive": 47,
+          "negative": 0,
+          "baseline": 50
+        },
+        "evidenceCount": 2,
+        "confidence": "low",
+        "computedAt": "2026-07-09T11:46:25.276Z",
+        "candidateContext": {
+          "name": "Bhanu",
+          "title": "Informatica Developer",
+          "company": "Infosys",
+          "tenureYrs": 3.5181382614647503,
+          "totalExperienceYrs": 8.6009324305714,
+          "seniority": "Entry Level",
+          "isUnemployed": false
+        },
+        "metaFlags": {
+          "isOwnerLike": false,
+          "hasInternalGrowth": false,
+          "recentlyPromoted": false
+        }
+      },
+      "signalsComputedAt": "2026-07-09T11:46:28.015Z",
+      "indexed_at": "2026-08-12T07:27:21",
+      "totalPositions": 3,
+      "uniqueCompanies": 3,
+      "mergedPeriods": 3,
+      "totalUniqueYears": 8.69,
+      "averageTenure": 2.9,
+      "currentTenure": 3.61,
+      "currentCompany": "Infosys",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Informatica Developer at Tata Communications Transformation Services (TCTS)",
+          "Informatica Developer at Cognizant"
+        ],
+        "finalScore": 100,
+        "starRating": 5,
+        "starLabel": "excellent",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 23.6842,
+            "matchedItems": [
+              "Informatica Developer"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 8 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Informatica Developer at Tata Communications Transformation Services (TCTS)",
+              "Informatica Developer at Cognizant"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Bachelor of Technology - BTech in Electrical, Electronics and Communications Engineering"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Informatica MDM"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 10.5263,
+            "matchedItems": [
+              "Information Technology & Services"
+            ],
+            "missingItems": [
+              "Data Infrastructure and Analytics"
+            ]
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Eight years of Informatica MDM experience directly addresses the JD's core technical requirement.",
+            "evidence": "At Tata Communications Transformation Services (TCTS) as Informatica Developer for 4 years, Bhanu worked extensively with MDM Hub and related tools."
+          },
+          {
+            "observation": "Proven expertise in Information Technology & Services industry aligns with the JD's domain requirement.",
+            "evidence": "At Infosys as Informatica Developer since 2023, Bhanu contributed to IT Services and IT Consulting projects."
+          },
+          {
+            "observation": "Educational background in engineering supports technical problem-solving and data management skills.",
+            "evidence": "Earned a Bachelor of Technology in Electrical, Electronics and Communications Engineering from JNTUH College of Engineering Hyderabad."
+          },
+          {
+            "observation": "Located in Hyderabad, within the specified 200 km geo-distance for the role.",
+            "evidence": "Resides in Hyderabad, Telangana, India, matching the JD's location criteria."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No direct evidence of experience in Data Infrastructure and Analytics domain, which is a core industry requirement.",
+            "evidence": "Across roles at Infosys, Cognizant, and Tata Communications Transformation Services, there is no mention of work in this domain."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "STRONG",
+          "reason": "Bhanu's extensive experience as an Informatica MDM Developer, including hands-on work with MDM Hub and related tools, aligns directly with the JD's requirements."
+        },
+        "fitScore": 85
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Informatica MDM",
+          "ReasonForHighlight": "Listed in skills section and extensively used in roles at Tata Communications and Cognizant.",
+          "Icon": "BULB",
+          "duration": "5 years"
+        },
+        {
+          "Category": "JOB_TITLE",
+          "Highlight": "Informatica Developer",
+          "ReasonForHighlight": "Current and past roles as Informatica Developer align with the JD's target titles.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "EXPERIENCE",
+          "Highlight": "8+ Years",
+          "ReasonForHighlight": "Eight years of relevant experience in Informatica MDM across multiple roles and companies.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Proven through roles at Infosys and Cognizant, both tagged in IT Services and Consulting.",
+          "Icon": "BAG",
+          "duration": "5 years"
+        },
+        {
+          "Category": "EDUCATION",
+          "Highlight": "BTech in Engineering",
+          "ReasonForHighlight": "Bachelor's degree in Electrical, Electronics and Communications Engineering supports technical expertise.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "LOCATION",
+          "Highlight": "Hyderabad",
+          "ReasonForHighlight": "Resides in Hyderabad, within the specified 200 km geo-distance for the role.",
+          "Icon": "BAG"
+        }
+      ],
+      "recommendation": "Bhanu brings eight years of specialized experience in Informatica MDM, directly addressing the core technical requirements of the role. Their proven expertise in the Information Technology & Services industry, combined with an engineering background, demonstrates strong alignment with the domain and technical problem-solving needs. This profile is rated 5/5 stars."
+    },
+    "finalScore": 5,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T09:34:24.747Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d9857f6fa37246d65c9/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:24.875Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 128ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T09:34:24.876Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a02fd012104f745297dd879/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:24.942Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 66ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a02fd012104f745297dd879",
+      "person_id": 5285497,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 2660783656,
+          "title": "Senior Consultant",
+          "description": "",
+          "location": "",
+          "employment_type": "Full-time",
+          "start_date": "2025-06-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "Consulting",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T18:54:12"
+        },
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 1769826212,
+          "title": "Consultant",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2021-03-01T00:00:00",
+          "end_date": "2025-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Consulting",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T18:54:12"
+        },
+        {
+          "name": "Syntel",
+          "linkedin_id": "4280",
+          "company_id": 1121955,
+          "company_linkedin_id": "4280",
+          "company_website_domain": "atos-syntel.net",
+          "position_id": 1000826216,
+          "title": "Software Engineer",
+          "description": "",
+          "location": "Pune Area, India",
+          "employment_type": "",
+          "start_date": "2017-03-01T00:00:00",
+          "end_date": "2021-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Troy, Michigan, United States",
+          "company_hq_location_address_components": [
+            "Troy",
+            "Oakland County",
+            "Michigan",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Public Company",
+          "company_headcount_latest": 8748,
+          "company_website": "https://www.atos-syntel.net",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/syntel",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T07:01:16"
+        }
+      ],
+      "createdAt": "2026-05-12T10:12:13.159Z",
+      "current_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 2660783656,
+          "title": "Senior Consultant",
+          "description": "",
+          "location": "",
+          "employment_type": "Full-time",
+          "start_date": "2025-06-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "Consulting",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T18:54:12"
+        }
+      ],
+      "emails": [],
+      "first_name": "sripal",
+      "flagship_profile_url": "https://www.linkedin.com/in/sripal-devarakonda-480495137",
+      "headline": "MDM consultant",
+      "languages": [
+        "English",
+        "Hindi",
+        "Telugu"
+      ],
+      "lastFetchedAt": "2026-08-12T09:32:07.820Z",
+      "last_name": "devarakonda",
+      "last_updated": "2026-08-11T07:01:16",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACFaXWABd8xVv1eEbDUQaTMyiueZG1CaFVM",
+      "location_details": {
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "sripal devarakonda",
+      "num_of_connections": 794,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 1769826212,
+          "title": "Consultant",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2021-03-01T00:00:00",
+          "end_date": "2025-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Consulting",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T18:54:12"
+        },
+        {
+          "name": "Syntel",
+          "linkedin_id": "4280",
+          "company_id": 1121955,
+          "company_linkedin_id": "4280",
+          "company_website_domain": "atos-syntel.net",
+          "position_id": 1000826216,
+          "title": "Software Engineer",
+          "description": "",
+          "location": "Pune Area, India",
+          "employment_type": "",
+          "start_date": "2017-03-01T00:00:00",
+          "end_date": "2021-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Troy, Michigan, United States",
+          "company_hq_location_address_components": [
+            "Troy",
+            "Oakland County",
+            "Michigan",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Public Company",
+          "company_headcount_latest": 8748,
+          "company_website": "https://www.atos-syntel.net",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/syntel",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T07:01:16"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_language": "English",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/73e3464595fc7ef1b1208e3e321a7bfd4e5c0fcc203a3d294d0cb71daf2349c1.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D5603AQHTiT9RKYsBdQ/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1732364688930?e=1786579200&v=beta&t=9FADbhginsNBmsgToNXqIiouWZwrXOhatDmGHQLQL74",
+      "recently_changed_jobs": false,
+      "region": "Hyderabad, Telangana, India",
+      "region_address_components": [
+        "Hyderabad",
+        "Telangana",
+        "India"
+      ],
+      "skills": [
+        "Informatica MDM",
+        "IDQ",
+        "SQL",
+        "Master Data Management",
+        "Informatica MDM 10.1",
+        "IDD"
+      ],
+      "summary": "Experience into MDM capabilities and tools like Informatica MDM, Reltio, SQL",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T09:32:07.821Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "6 to 10 years",
+      "years_of_experience_raw": 9,
+      "certifications": [],
+      "education_background": [],
+      "employer_last_updated": "2026-08-11T07:01:16",
+      "honors": [],
+      "indexed_at": "2026-08-12T07:27:21",
+      "num_of_followers": 800,
+      "profile_last_updated": "2026-07-23T13:34:24",
+      "totalPositions": 3,
+      "uniqueCompanies": 2,
+      "mergedPeriods": 2,
+      "totalUniqueYears": 9.36,
+      "averageTenure": 4.68,
+      "currentTenure": 1.2,
+      "currentCompany": "Deloitte",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Software Engineer at Syntel",
+          "Consultant at Deloitte"
+        ],
+        "finalScore": 100,
+        "starRating": 5,
+        "starLabel": "excellent",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 23.6842,
+            "matchedItems": [
+              "MDM consultant"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 9 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Software Engineer at Syntel",
+              "Consultant at Deloitte"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Informatica MDM"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 10.5263,
+            "matchedItems": [
+              "Information Technology & Services"
+            ],
+            "missingItems": [
+              "Data Infrastructure and Analytics"
+            ]
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "9 years of experience in MDM tools, including Informatica MDM, positions Sripal well for this role.",
+            "evidence": "Roles at Deloitte and Syntel demonstrate hands-on expertise with MDM tools over 9 years."
+          },
+          {
+            "observation": "Current role as MDM consultant aligns directly with the JD's focus on Informatica MDM administration.",
+            "evidence": "Current title 'MDM consultant' at Deloitte since June 2025."
+          },
+          {
+            "observation": "Experience in Information Technology & Services industry matches the JD's domain requirement.",
+            "evidence": "Worked as Software Engineer at Syntel, tagged with 'Information Technology & Services'."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No evidence of experience in Data Infrastructure and Analytics, which is a core industry requirement.",
+            "evidence": "Roles at Deloitte and Syntel do not reflect work in this industry."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "STRONG",
+          "reason": "Sripal has 9 years of experience in MDM tools, including Informatica MDM, and has worked in relevant roles such as Software Engineer at Syntel and Consultant at Deloitte."
+        },
+        "fitScore": 85
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Informatica MDM",
+          "ReasonForHighlight": "Listed in skills section and supported by 9 years of MDM tool experience across roles at Deloitte and Syntel.",
+          "Icon": "BULB",
+          "duration": "9 years"
+        },
+        {
+          "Category": "JOB_TITLE",
+          "Highlight": "MDM consultant",
+          "ReasonForHighlight": "Current role as MDM consultant at Deloitte aligns directly with the JD's focus on Informatica MDM administration.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "EXPERIENCE",
+          "Highlight": "9+ Years",
+          "ReasonForHighlight": "9 years of experience in MDM tools, including Informatica MDM, across roles at Deloitte and Syntel.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Worked as Software Engineer at Syntel, tagged with 'Information Technology & Services' in company_industries.",
+          "Icon": "BAG",
+          "duration": "4 years"
+        },
+        {
+          "Category": "LOCATION",
+          "Highlight": "Hyderabad, Telangana, India",
+          "ReasonForHighlight": "Resides in Hyderabad, matching the JD's location requirement within 200 km.",
+          "Icon": "BAG"
+        }
+      ],
+      "recommendation": "Sripal brings 9 years of extensive experience in MDM tools, with a strong focus on Informatica MDM, making him exceptionally well-suited for this role. His current position as an MDM consultant and his background in the Information Technology & Services industry align seamlessly with the requirements. This profile is rated 5/5 stars."
+    },
+    "finalScore": 5,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T09:34:31.342Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d9857f6fa37246d65db/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:31.462Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 119ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T09:34:31.462Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d98ca32b2566b8d966f/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:31.552Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 90ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c3d98ca32b2566b8d966f",
+      "person_id": 237876657,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 2322976858,
+          "title": "Technology Analyst",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2024-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        },
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 2146621713,
+          "title": "Senior Systems Engineer",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2023-03-01T00:00:00",
+          "end_date": "2024-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        },
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 1761173220,
+          "title": "Systems Engineer",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2021-04-01T00:00:00",
+          "end_date": "2023-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        },
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 1724425332,
+          "title": "Systems Engineer Trainee",
+          "description": "",
+          "location": "Mysore, Karnataka, India",
+          "employment_type": "Full-time",
+          "start_date": "2020-11-01T00:00:00",
+          "end_date": "2021-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "In Training",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Microsoft Certified: Azure Data Fundamentals",
+          "issued_date": "2021-10-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1tyH9zHgXu1jFcJPu_Jw-EfVf7UPF9Ixs/view?usp=drivesdk",
+          "issuer_organization": "Microsoft",
+          "issuer_organization_linkedin_id": "1035",
+          "certification_id": "I007-6572"
+        },
+        {
+          "name": "Informatica iPaas Foundation Certification",
+          "issued_date": "2026-05-01T00:00:00",
+          "url": "https://drive.google.com/file/d/13hwUhU-GEWiF03_GCmE6RgBzs1A_fClo/view?usp=drivesdk",
+          "issuer_organization": "Informatica",
+          "issuer_organization_linkedin_id": "3858",
+          "certification_id": ""
+        },
+        {
+          "name": "Introduction to Data Science",
+          "issued_date": "2019-12-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1MsZ6C4v7edtWqEiGauiZ104TFwRTGAGh/view?usp=drivesdk",
+          "issuer_organization": "Internshala Trainings",
+          "issuer_organization_linkedin_id": "71476919",
+          "certification_id": ""
+        },
+        {
+          "name": "MDM SaaS Foundation Level Certification",
+          "issued_date": "2026-04-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1qHhtnHjCNAPGHSg3s7Efewb7WMDpKKJC/view?usp=drivesdk",
+          "issuer_organization": "Informatica",
+          "issuer_organization_linkedin_id": "3858",
+          "certification_id": ""
+        },
+        {
+          "name": "Microsoft Cerified: Power BI Data Analyst Associate",
+          "issued_date": "2022-10-01T00:00:00",
+          "expiration_date": "2023-10-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1uCl3Ofi8ToXk0M69hRHg6M4g7NqOVGA3/view?usp=drivesdk",
+          "issuer_organization": "Microsoft",
+          "issuer_organization_linkedin_id": "1035",
+          "certification_id": "I442-1751"
+        },
+        {
+          "name": "Introduction to Internet of Things",
+          "issued_date": "2018-07-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1uXHH9uDOsdwcrUrpp-idz_kHm3aohzxn/view?usp=drivesdk",
+          "issuer_organization": "NPTEL",
+          "issuer_organization_linkedin_id": "13229455",
+          "certification_id": ""
+        },
+        {
+          "name": "Certified Alteryx Designer Core",
+          "issued_date": "2021-04-01T00:00:00",
+          "expiration_date": "2023-04-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1Ewq1fmG7vZZ789esc2gm7wkNFj7CS3x9/view?usp=drivesdk",
+          "issuer_organization": "Alteryx",
+          "issuer_organization_linkedin_id": "903031",
+          "certification_id": ""
+        },
+        {
+          "name": "Databricks Certified Generative AI Engineer Associate",
+          "issued_date": "2026-01-01T00:00:00",
+          "expiration_date": "2028-01-01T00:00:00",
+          "url": "https://credentials.databricks.com/58dcd633-42ac-4390-940e-06295ad6e92f",
+          "issuer_organization": "Databricks",
+          "issuer_organization_linkedin_id": "3477522",
+          "certification_id": "173131707"
+        },
+        {
+          "name": "Microsoft Cerified: Azure Fundamentals",
+          "issued_date": "2022-06-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1eW9fgnxVlgSkY_kuRTNmekisr0DSzwRG/view?usp=drivesdk",
+          "issuer_organization": "Microsoft",
+          "issuer_organization_linkedin_id": "1035",
+          "certification_id": "I292-7815"
+        },
+        {
+          "name": "Databricks Certified Data Engineer Associate",
+          "issued_date": "2024-08-01T00:00:00",
+          "expiration_date": "2026-08-01T00:00:00",
+          "url": "https://credentials.databricks.com/394ac64a-b8cf-4f1b-8564-13400d928c53",
+          "issuer_organization": "Databricks",
+          "issuer_organization_linkedin_id": "3477522",
+          "certification_id": "113468963"
+        }
+      ],
+      "createdAt": "2026-08-12T09:32:07.821Z",
+      "current_employers": [
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 2322976858,
+          "title": "Technology Analyst",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2024-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Intermediate",
+          "institute_name": "Sri Chaitanya Junior College Vijayawada",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "https://www.linkedin.com/search/results/all/?keywords=Sri+Chaitanya+Junior+College+Vijayawada",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C4D0BAQHq29ObkBlk_A/company-logo_400_400/company-logo_400_400/0/1631336209533?e=1760572800&v=beta&t=LkfMKahzy8l2JX1i126S41MjEU3e9jtbar8ippwcWYo",
+          "field_of_study": "MPC",
+          "activities_and_societies": "",
+          "start_date": "2014-06-01T00:00:00",
+          "end_date": "2016-04-01T00:00:00",
+          "last_updated": "2026-06-16T10:43:32"
+        },
+        {
+          "degree_name": "Secondary School",
+          "institute_name": "Aditya High School Proddatur",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "",
+          "institute_logo_url": "",
+          "field_of_study": "",
+          "activities_and_societies": "",
+          "end_date": "2014-04-01T00:00:00",
+          "last_updated": "2026-06-16T10:43:32"
+        },
+        {
+          "degree_name": "Bachelor of Technology - BTech",
+          "institute_name": "SVEC",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "",
+          "institute_logo_url": "",
+          "field_of_study": "Electrical and Electronics Engineering",
+          "activities_and_societies": "",
+          "start_date": "2016-01-01T00:00:00",
+          "end_date": "2020-01-01T00:00:00",
+          "last_updated": "2026-06-16T10:43:32"
+        }
+      ],
+      "education_last_updated": "2026-06-16T10:43:32",
+      "emails": [],
+      "employer_last_updated": "2026-08-10T19:11:40",
+      "first_name": "Guru",
+      "flagship_profile_url": "https://www.linkedin.com/in/guru-venkata-anitha-marthala-0ba066201",
+      "headline": "Informatica MDM Developer | Infosys",
+      "honors": [],
+      "indexed_at": "2026-08-12T01:14:15",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T09:32:07.821Z",
+      "last_name": "Marthala",
+      "last_updated": "2026-08-10T19:11:40",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADNxnw4BOWM9D40Zimpdt9oSwh3vh6VYMtE",
+      "location_details": {
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Guru Venkata Anitha Marthala",
+      "num_of_connections": 926,
+      "num_of_followers": 923,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 2146621713,
+          "title": "Senior Systems Engineer",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2023-03-01T00:00:00",
+          "end_date": "2024-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        },
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 1761173220,
+          "title": "Systems Engineer",
+          "description": "",
+          "location": "Hyderabad",
+          "employment_type": "Full-time",
+          "start_date": "2021-04-01T00:00:00",
+          "end_date": "2023-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        },
+        {
+          "name": "Infosys",
+          "linkedin_id": "1283",
+          "company_id": 2199,
+          "company_linkedin_id": "1283",
+          "company_website_domain": "infosys.com",
+          "position_id": 1724425332,
+          "title": "Systems Engineer Trainee",
+          "description": "",
+          "location": "Mysore, Karnataka, India",
+          "employment_type": "Full-time",
+          "start_date": "2020-11-01T00:00:00",
+          "end_date": "2021-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "In Training",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 373712,
+          "company_website": "https://www.infosys.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T19:11:40"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2026-07-17T06:28:28",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/d383767a3f4494d60ec28890eea84ffe35fd1c156d08fdf784df4a023c8742e6.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D5603AQGQhIMEPGM8iw/profile-displayphoto-crop_800_800/B56Z1m4qpyKQAM-/0/1775547626106?e=1785974400&v=beta&t=plhh8Jn0-CoWCLA1-ONbj5TwvSAxwJYsIrOgF49S8LU",
+      "recently_changed_jobs": false,
+      "region": "Hyderabad, Telangana, India",
+      "region_address_components": [
+        "Hyderabad",
+        "Telangana",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "Data Transformation",
+        "Data Cleaning",
+        "Delta live tables",
+        "Data Pipelines",
+        "Delta lake",
+        "Data Warehousing",
+        "Data Governance",
+        "Prompt Engineering",
+        "Retrieval-Augmented Generation (RAG)",
+        "Large Language Models (LLM)",
+        "Cloud Application Integration",
+        "SQL Server Management Studio",
+        "Toad",
+        "360 SaaS applications",
+        "ServiceNow",
+        "Mssql",
+        "Microsoft SQL Server",
+        "IDD",
+        "Master Data Management",
+        "Microsoft Azure"
+      ],
+      "summary": "",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T09:32:07.821Z",
+      "updated_at": "2026-08-12T00:06:44",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 5,
+      "totalPositions": 4,
+      "uniqueCompanies": 1,
+      "mergedPeriods": 1,
+      "totalUniqueYears": 5.78,
+      "averageTenure": 5.78,
+      "currentTenure": 2.61,
+      "currentCompany": "Infosys",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Senior Systems Engineer at Infosys",
+          "Systems Engineer at Infosys"
+        ],
+        "finalScore": 94,
+        "starRating": 4.7,
+        "starLabel": "excellent",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 27.2727,
+            "awarded": 27.2727,
+            "matchedItems": [
+              "Informatica MDM Developer"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 15.1515,
+            "awarded": 15.1515,
+            "matchedItems": [
+              "Matches JD experience: 5 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 7.5758,
+            "awarded": 7.5758,
+            "matchedItems": [
+              "Senior Systems Engineer at Infosys",
+              "Systems Engineer at Infosys"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 15.1515,
+            "awarded": 15.1515,
+            "matchedItems": [
+              "Matches JD region: Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 7.5758,
+            "awarded": 7.5758,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 15.1515,
+            "awarded": 15.1515,
+            "matchedItems": [
+              "Informatica MDM"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 12.1212,
+            "awarded": 6.0606,
+            "matchedItems": [
+              "Information Technology & Services"
+            ],
+            "missingItems": [
+              "Data Infrastructure and Analytics"
+            ]
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Current role as Informatica MDM Developer directly aligns with the JD's focus on managing Informatica MDM platforms.",
+            "evidence": "Current role: Technology Analyst at Infosys, titled 'Informatica MDM Developer' since January 2024."
+          },
+          {
+            "observation": "Five years of experience in IT services, including roles relevant to MDM and data integration.",
+            "evidence": "Five years at Infosys across roles like Technology Analyst, Senior Systems Engineer, and Systems Engineer."
+          },
+          {
+            "observation": "Certified in Informatica MDM and related technologies, demonstrating technical expertise.",
+            "evidence": "Holds certifications like 'Informatica iPaas Foundation Certification' and 'MDM SaaS Foundation Level Certification' from Informatica."
+          },
+          {
+            "observation": "Experience in the Information Technology & Services industry matches the JD's domain requirement.",
+            "evidence": "Infosys, the employer for all roles, is tagged with 'IT Services and IT Consulting'."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No explicit experience in Data Infrastructure and Analytics, which is a core industry for the role.",
+            "evidence": "None of the roles at Infosys or certifications indicate work in Data Infrastructure and Analytics."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "STRONG",
+          "reason": "Guru's work as an Informatica MDM Developer at Infosys aligns directly with the JD's focus on managing Informatica MDM platforms."
+        },
+        "fitScore": 85
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Informatica MDM",
+          "ReasonForHighlight": "Current role as Informatica MDM Developer at Infosys directly evidences expertise in Informatica MDM.",
+          "Icon": "BULB",
+          "duration": "2 years 7 months"
+        },
+        {
+          "Category": "JOB_TITLE",
+          "Highlight": "Informatica MDM Developer",
+          "ReasonForHighlight": "Current title 'Informatica MDM Developer' at Infosys aligns with the JD's target roles.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "EXPERIENCE",
+          "Highlight": "5+ Years",
+          "ReasonForHighlight": "Five years of experience in IT services, including relevant MDM and data integration roles at Infosys.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Infosys, the employer for all roles, is tagged with 'IT Services and IT Consulting'.",
+          "Icon": "BAG"
+        }
+      ],
+      "recommendation": "Guru is an exceptional candidate with five years of IT services experience, including specialized roles in MDM and data integration. His current position as an Informatica MDM Developer, combined with certifications in Informatica MDM and related technologies, highlights his deep technical expertise and alignment with the role's requirements. This profile is rated 4.7/5 stars."
+    },
+    "finalScore": 4.7,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T09:34:39.393Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d9857f6fa37246d65ca/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:39.517Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 124ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T09:34:39.517Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a02fd012104f745297dd87b/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:39.610Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 93ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a02fd012104f745297dd87b",
+      "person_id": 5293057,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Advance Auto Parts",
+          "linkedin_id": "9185",
+          "company_id": 683118,
+          "company_linkedin_id": "9185",
+          "company_website_domain": "advanceautoparts.com",
+          "position_id": 2027928386,
+          "title": "Senior data quality analyst",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-09-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Raleigh, North Carolina, United States",
+          "company_hq_location_address_components": [
+            "Raleigh",
+            "Wake County",
+            "North Carolina",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Retail"
+          ],
+          "company_linkedin_industry": "Retail",
+          "company_type": "Public Company",
+          "company_headcount_latest": 25159,
+          "company_website": "http://www.advanceautoparts.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/advance-auto-parts",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T17:34:34"
+        },
+        {
+          "name": "EY",
+          "linkedin_id": "1073",
+          "company_id": 891049,
+          "company_linkedin_id": "1073",
+          "company_website_domain": "ey.com",
+          "position_id": 1488056597,
+          "title": "Senior Data Analyst",
+          "description": "",
+          "location": "Bangalore",
+          "employment_type": "Full-time",
+          "start_date": "2017-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "6 to 10 years",
+          "years_at_company_raw": 9,
+          "company_headquarters_country": "GBR",
+          "company_hq_location": "London, England, United Kingdom",
+          "company_hq_location_address_components": [
+            "London",
+            "London",
+            "Greater London",
+            "England",
+            "United Kingdom"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Professional Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 409618,
+          "company_website": "http://www.ey.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ernstandyoung",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T08:57:38"
+        },
+        {
+          "name": "Apptad Inc.",
+          "linkedin_id": "3499582",
+          "company_id": 1080878,
+          "company_linkedin_id": "3499582",
+          "company_website_domain": "apptad.com",
+          "position_id": 2387304741,
+          "title": "Senior Data Quality Analyst",
+          "description": "validation research",
+          "location": "India",
+          "employment_type": "Full-time",
+          "start_date": "2023-10-01T00:00:00",
+          "end_date": "2024-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Alpharetta, Georgia, United States",
+          "company_hq_location_address_components": [
+            "Alpharetta",
+            "Fulton County",
+            "Georgia",
+            "United States"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 497,
+          "company_website": "https://apptad.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/apptad",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T09:36:05"
+        },
+        {
+          "name": "ServiceNow",
+          "linkedin_id": "29352",
+          "company_id": 662500,
+          "company_linkedin_id": "29352",
+          "company_website_domain": "servicenow.com",
+          "position_id": 2388103006,
+          "title": "Senior Data Quality Analyst",
+          "description": "immediate joiner",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-10-01T00:00:00",
+          "end_date": "2024-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Santa Clara, California, United States",
+          "company_hq_location_address_components": [
+            "Santa Clara",
+            "Santa Clara County",
+            "California",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Software Development",
+            "Technology, Information and Internet",
+            "Technology, Information and Media"
+          ],
+          "company_linkedin_industry": "Software Development",
+          "company_type": "Public Company",
+          "company_headcount_latest": 35239,
+          "company_website": "http://www.servicenow.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/servicenow",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T08:09:44"
+        }
+      ],
+      "certifications": [],
+      "createdAt": "2026-05-12T10:12:13.159Z",
+      "current_employers": [
+        {
+          "name": "Advance Auto Parts",
+          "linkedin_id": "9185",
+          "company_id": 683118,
+          "company_linkedin_id": "9185",
+          "company_website_domain": "advanceautoparts.com",
+          "position_id": 2027928386,
+          "title": "Senior data quality analyst",
+          "description": "",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-09-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Raleigh, North Carolina, United States",
+          "company_hq_location_address_components": [
+            "Raleigh",
+            "Wake County",
+            "North Carolina",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Retail"
+          ],
+          "company_linkedin_industry": "Retail",
+          "company_type": "Public Company",
+          "company_headcount_latest": 25159,
+          "company_website": "http://www.advanceautoparts.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/advance-auto-parts",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T17:34:34"
+        },
+        {
+          "name": "EY",
+          "linkedin_id": "1073",
+          "company_id": 891049,
+          "company_linkedin_id": "1073",
+          "company_website_domain": "ey.com",
+          "position_id": 1488056597,
+          "title": "Senior Data Analyst",
+          "description": "",
+          "location": "Bangalore",
+          "employment_type": "Full-time",
+          "start_date": "2017-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "6 to 10 years",
+          "years_at_company_raw": 9,
+          "company_headquarters_country": "GBR",
+          "company_hq_location": "London, England, United Kingdom",
+          "company_hq_location_address_components": [
+            "London",
+            "London",
+            "Greater London",
+            "England",
+            "United Kingdom"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Professional Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 409618,
+          "company_website": "http://www.ey.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ernstandyoung",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T08:57:38"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Master of Business Administration - MBA",
+          "institute_name": "University of Mysore",
+          "institute_linkedin_id": "15093733",
+          "institute_linkedin_url": "https://www.linkedin.com/company/15093733",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C4E0BAQHrecw8DkbZQA/company-logo_400_400/company-logo_400_400/0/1631325766483?e=1767225600&v=beta&t=cUCy8n-gSCYOy_dVC6tWmpwq5l-X0G2B4fwpr0eiVhc",
+          "field_of_study": "IT & HR",
+          "activities_and_societies": "",
+          "start_date": "2014-01-01T00:00:00",
+          "end_date": "2016-01-01T00:00:00",
+          "last_updated": "2026-04-08T11:48:53"
+        }
+      ],
+      "emails": [],
+      "first_name": "Mamta",
+      "flagship_profile_url": "https://www.linkedin.com/in/mamta-sharma-6345b153",
+      "headline": "\"Senior Data Quality Analyst\" in ServiceNow",
+      "honors": [],
+      "languages": [
+        "Chhattisgarhi (Native or bilingual proficiency)",
+        "English (Full professional proficiency)",
+        "Hindi (Professional working proficiency)",
+        "Hindi (Professional working proficiency)",
+        "Telugu (Limited working proficiency)"
+      ],
+      "lastFetchedAt": "2026-08-12T09:32:07.820Z",
+      "last_name": "Sharma",
+      "last_updated": "2026-08-11T08:57:38",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAAtM8UgBr8QSusLYyc60XCeoS6iQVoE2Xy4",
+      "location_details": {
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Mamta Sharma",
+      "num_of_connections": 211,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "name": "Apptad Inc.",
+          "linkedin_id": "3499582",
+          "company_id": 1080878,
+          "company_linkedin_id": "3499582",
+          "company_website_domain": "apptad.com",
+          "position_id": 2387304741,
+          "title": "Senior Data Quality Analyst",
+          "description": "validation research",
+          "location": "India",
+          "employment_type": "Full-time",
+          "start_date": "2023-10-01T00:00:00",
+          "end_date": "2024-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Alpharetta, Georgia, United States",
+          "company_hq_location_address_components": [
+            "Alpharetta",
+            "Fulton County",
+            "Georgia",
+            "United States"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 497,
+          "company_website": "https://apptad.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/apptad",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T09:36:05"
+        },
+        {
+          "name": "ServiceNow",
+          "linkedin_id": "29352",
+          "company_id": 662500,
+          "company_linkedin_id": "29352",
+          "company_website_domain": "servicenow.com",
+          "position_id": 2388103006,
+          "title": "Senior Data Quality Analyst",
+          "description": "immediate joiner",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-10-01T00:00:00",
+          "end_date": "2024-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Santa Clara, California, United States",
+          "company_hq_location_address_components": [
+            "Santa Clara",
+            "Santa Clara County",
+            "California",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Software Development",
+            "Technology, Information and Internet",
+            "Technology, Information and Media"
+          ],
+          "company_linkedin_industry": "Software Development",
+          "company_type": "Public Company",
+          "company_headcount_latest": 35239,
+          "company_website": "http://www.servicenow.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/servicenow",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T08:09:44"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_language": "Chhattisgarhi (Native or bilingual proficiency)",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/b8fc48894ece9c7bd9d57a7c3a9880e684bef56bb649a23456449fba26d7b0b4.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/C5103AQE505mjRk4XNg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1516679178119?e=1777507200&v=beta&t=SZYZ_LsTHxftkf0FYIWPolt05fyacNnPCldoYvrjgBU",
+      "recently_changed_jobs": false,
+      "region": "Hyderabad, Telangana, India",
+      "region_address_components": [
+        "Hyderabad",
+        "Telangana",
+        "India"
+      ],
+      "skills": [
+        "Informatica MDM",
+        "Salesforce.com",
+        "SQL",
+        "ETL Tools",
+        "RELTIO MDM",
+        "Reltio MDM",
+        "C",
+        "Java",
+        "visual Basic6.0",
+        "DBMS",
+        "VB.NET",
+        "Tally.ERP9",
+        "Microsoft Office",
+        "Team Leadership",
+        "Microsoft Excel",
+        "Microsoft Word",
+        "Team Workshops",
+        "Leadership"
+      ],
+      "summary": "I am currently working with service now for Hyderabad location(WFH) as a \"Senior Data Quality Analyst\".\nI have total 4.5 years of full time experience.  i have the skill set on Informatica MDM, Reltio, MDM, Salesforce, and D&B.\nI have done BCA and MBA in (IT & HR).\nI have done part time job for 2 years in a Computer Institution as a Teacher/Trainer.\nI have done additional courses : Tally. ERP 9, JAVA, N.S.D.C (Business Correspondent & Business Facilitator).\nAttended workshop on \"Leadership & Communication and \"Emotional Intelligence\" in \"SHRI\" (SINGAPORE Human Resources Institute). \n\nLooking forward for  full time job opportunity based on my profile. Ready to join Immediately. \n81160 85632",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T09:32:19.269Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "6 to 10 years",
+      "years_of_experience_raw": 9,
+      "education_last_updated": "2026-04-08T11:48:53",
+      "employer_last_updated": "2026-08-11T08:57:38",
+      "indexed_at": "2026-08-12T07:27:21",
+      "num_of_followers": 221,
+      "profile_last_updated": "2026-04-08T11:48:49",
+      "totalPositions": 4,
+      "uniqueCompanies": 4,
+      "mergedPeriods": 1,
+      "totalUniqueYears": 9.61,
+      "averageTenure": 2.4,
+      "currentTenure": 9.61,
+      "currentCompany": "Advance Auto Parts",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Senior Data Quality Analyst at Apptad Inc.",
+          "Senior Data Quality Analyst at ServiceNow"
+        ],
+        "finalScore": 93,
+        "starRating": 4.7,
+        "starLabel": "excellent",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 23.6842,
+            "matchedItems": [
+              "Senior Data Quality Analyst"
+            ],
+            "missingItems": [
+              "Informatica MDM Administrator",
+              "Informatica MDM Manager",
+              "MDM Platform Owner",
+              "MDM Technical Lead",
+              "Data Integration Specialist",
+              "ETL Developer",
+              "MDM Developer",
+              "Informatica MDM"
+            ]
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 9 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Senior Data Quality Analyst at Apptad Inc.",
+              "Senior Data Quality Analyst at ServiceNow"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Master of Business Administration - MBA in IT & HR from University of Mysore"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Informatica MDM"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 10.5263,
+            "matchedItems": [
+              "Information Technology & Services"
+            ],
+            "missingItems": [
+              "Data Infrastructure and Analytics"
+            ]
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "geo_distance"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Mamta's skills include Informatica MDM, directly relevant to the core technical requirement of this role.",
+            "evidence": "Listed in skills section as 'Informatica MDM'."
+          },
+          {
+            "observation": "Mamta has worked in the Information Technology & Services industry, aligning with the JD's domain requirement.",
+            "evidence": "Role at Apptad Inc. tagged as 'IT Services and IT Consulting'."
+          },
+          {
+            "observation": "Mamta holds an MBA in IT & HR, providing a strong educational foundation for data management roles.",
+            "evidence": "Earned MBA from University of Mysore, completed in 2016."
+          },
+          {
+            "observation": "Mamta's location in Hyderabad matches the JD's regional preference.",
+            "evidence": "Region listed as Hyderabad, Telangana, India."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "Mamta lacks explicit experience managing or administering Informatica MDM in enterprise environments, which is central to the role.",
+            "evidence": "Across roles at Apptad Inc. and ServiceNow, no mention of managing or administering Informatica MDM."
+          },
+          {
+            "observation": "Mamta's profile does not reflect exposure to Data Infrastructure and Analytics, a core industry requirement.",
+            "evidence": "None of the positions held — at Apptad Inc., ServiceNow, or Advance Auto Parts — indicate work in this industry."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "POSSIBLE",
+          "reason": "Mamta has experience with Informatica MDM and data quality tools but lacks clear evidence of managing or administering the platform in enterprise environments."
+        },
+        "fitScore": 65
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Informatica MDM",
+          "ReasonForHighlight": "Listed in skills section, directly relevant to the core technical requirement of this role.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Role at Apptad Inc. tagged as 'IT Services and IT Consulting'.",
+          "Icon": "BAG",
+          "duration": "5 months"
+        },
+        {
+          "Category": "EDUCATION",
+          "Highlight": "MBA in IT & HR",
+          "ReasonForHighlight": "Earned MBA from University of Mysore, completed in 2016.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "LOCATION",
+          "Highlight": "Hyderabad",
+          "ReasonForHighlight": "Region listed as Hyderabad, Telangana, India.",
+          "Icon": "BAG"
+        }
+      ],
+      "recommendation": "Mamta brings exceptional expertise in Informatica MDM, a critical technical skill for this role, and her experience in the Information Technology & Services industry aligns seamlessly with the domain requirements. Her MBA in IT & HR further strengthens her profile, showcasing a robust educational foundation for data management roles. This profile is rated 4.7/5 stars."
+    },
+    "finalScore": 4.65,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T09:34:45.391Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d9857f6fa37246d65cc/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:45.508Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 116ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T09:34:45.508Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c3d98ca32b2566b8d9666/details?sessionId=6a7c3cf657f6fa37246d61e0' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T09:34:45.598Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 90ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c3d98ca32b2566b8d9666",
+      "person_id": 5568263,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "ZS Associates",
+          "linkedin_id": "5240",
+          "company_id": 1032430,
+          "company_linkedin_id": "5240",
+          "company_website_domain": "zs.com",
+          "position_id": 2892928109,
+          "title": "Lead Engineer",
+          "description": "Data professional with expertise in Reltio MDM operations and production ETL support. Manage job executions, monitor data loads, and resolve configuration, rule, and integration issues to ensure high system uptime. Skilled in maintaining and troubleshooting ETL pipelines, proactively handling failures, and optimizing SQL queries for improved performance.",
+          "location": "Bengaluru",
+          "employment_type": "Full-time",
+          "start_date": "2026-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Evanston, Illinois, United States",
+          "company_hq_location_address_components": [
+            "Evanston",
+            "Evanston Township",
+            "Cook County",
+            "Illinois",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 21705,
+          "company_website": "http://www.zs.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/zs-associates",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T10:04:41"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 2036239659,
+          "title": "Data Engineer",
+          "description": "•  Designed and implemented Informatica MDM solutions supporting multiple business units and master data consolidation.\n•  Developed and enhanced ETL pipelines using Informatica PowerCenter, handling high-volume enterprise data.\n•  Led cross-platform data integrations, including source onboarding from ONKEY and MEDPRO.\n•  Performed SQL optimization and schema design across Landing, Staging, and BO layers; configured match and survivorship rules in MDM.\n•  Automated operational workflows using Unix Shell Scripting.\n•  Deployed compliant healthcare data solutions using Informatica MDM/PowerCenter.\n•  Worked with AWS services including Redshift, S3, and Glue (PySpark), following best practices for security and cost governance.",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2022-09-01T00:00:00",
+          "end_date": "2026-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": true,
+          "last_updated": "2026-08-11T01:26:31"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1928857443,
+          "title": "Programmer Analyst",
+          "description": "• Developed and executed SQL queries while optimizing PL/SQL scripts to enhance data accuracy.  \n• Resolved data quality issues through custom validation checks, significantly improving data integrity.  \n• Supported Informatica MDM applications, ensuring reliable master data processing for various business use cases.  \n• Applied domain knowledge in GxP compliance within the pharmaceutical sector, aligning with regulatory requirements.",
+          "location": "Kolkata, West Bengal, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-09-01T00:00:00",
+          "end_date": "2022-09-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": true,
+          "last_updated": "2026-08-11T01:26:31"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1928858378,
+          "title": "Internship Trainee",
+          "description": "• Developed and managed structured databases to ensure efficient data access and maintain quality.  \n• Gained hands-on experience in writing complex SQL queries for data operations and performance optimization.  \n• Acquired foundational knowledge in Big Data technologies, including Hadoop and HDFS, applying MapReduce concepts.",
+          "location": "Kolkata metropolitan area, West Bengal, India",
+          "employment_type": "Internship",
+          "start_date": "2021-05-01T00:00:00",
+          "end_date": "2021-08-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "In Training",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": true,
+          "last_updated": "2026-08-11T01:26:31"
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Cambridge English Entry Level Certificate",
+          "issued_date": "2018-01-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1oL-qnkPEu8DFatHeRVs0L-SKtwLqqTXg/view?usp=sharing",
+          "issuer_organization": "Cambridge English",
+          "issuer_organization_linkedin_id": "785621",
+          "certification_id": "A5024098"
+        },
+        {
+          "name": "Cambridge English Entry Level Certificate",
+          "issued_date": "2018-01-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1oL-qnkPEu8DFatHeRVs0L-SKtwLqqTXg/view?usp=sharing",
+          "issuer_organization": "Cambridge Assessment English",
+          "issuer_organization_linkedin_id": "785621",
+          "certification_id": "A5024098"
+        },
+        {
+          "name": "Academy Accreditation - Databricks Fundamentals",
+          "issued_date": "2025-05-01T00:00:00",
+          "expiration_date": "2026-05-01T00:00:00",
+          "url": "https://credentials.databricks.com/4ef40921-9fc9-42b5-98fa-1ecbe52cfe69",
+          "issuer_organization": "Databricks",
+          "issuer_organization_linkedin_id": "3477522",
+          "certification_id": "143597215"
+        },
+        {
+          "name": "Cambridge English Entry Level Certificate ",
+          "issued_date": "2018-01-01T00:00:00",
+          "url": "https://drive.google.com/file/d/1oL-qnkPEu8DFatHeRVs0L-SKtwLqqTXg/view?usp=sharing",
+          "issuer_organization": "Cambridge Assessment English",
+          "issuer_organization_linkedin_id": "785621",
+          "certification_id": "A5024098"
+        }
+      ],
+      "contact_last_updated": "2026-02-14T18:15:31",
+      "createdAt": "2026-08-12T09:32:07.821Z",
+      "current_employers": [
+        {
+          "name": "ZS Associates",
+          "linkedin_id": "5240",
+          "company_id": 1032430,
+          "company_linkedin_id": "5240",
+          "company_website_domain": "zs.com",
+          "position_id": 2892928109,
+          "title": "Lead Engineer",
+          "description": "Data professional with expertise in Reltio MDM operations and production ETL support. Manage job executions, monitor data loads, and resolve configuration, rule, and integration issues to ensure high system uptime. Skilled in maintaining and troubleshooting ETL pipelines, proactively handling failures, and optimizing SQL queries for improved performance.",
+          "location": "Bengaluru",
+          "employment_type": "Full-time",
+          "start_date": "2026-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Evanston, Illinois, United States",
+          "company_hq_location_address_components": [
+            "Evanston",
+            "Evanston Township",
+            "Cook County",
+            "Illinois",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 21705,
+          "company_website": "http://www.zs.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/zs-associates",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T10:04:41"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Technology",
+          "institute_name": "C.V.Raman College of Engineering",
+          "institute_linkedin_id": "8481955",
+          "institute_linkedin_url": "https://www.linkedin.com/school/c-v-raman-college-of-engineering",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C510BAQHIMSadpn4kQw/company-logo_400_400/company-logo_400_400/0/1630614277065/c_v_raman_college_of_engineering_logo?e=1785974400&v=beta&t=J3vlEFB3KayclGwFFs4LmuhaTAda_b2srvZpCwMOTmI",
+          "field_of_study": "Computer Science",
+          "activities_and_societies": "",
+          "start_date": "2017-01-01T00:00:00",
+          "end_date": "2021-01-01T00:00:00",
+          "last_updated": "2026-07-19T13:40:07"
+        },
+        {
+          "degree_name": "Higher Secondary Education",
+          "institute_name": "Mother's Public School",
+          "institute_linkedin_id": "13727876",
+          "institute_linkedin_url": "https://www.linkedin.com/school/motherspublicschool",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C510BAQHJbP9JRzQdOg/company-logo_400_400/company-logo_400_400/0/1631430161967/motherspublicschool_logo?e=1785974400&v=beta&t=QvKQU-Jp69r21wf0LxTM32yc-meXDp0l5Q30ULrmDAw",
+          "field_of_study": "Science",
+          "activities_and_societies": "",
+          "start_date": "2015-01-01T00:00:00",
+          "end_date": "2017-01-01T00:00:00",
+          "last_updated": "2026-07-19T13:40:07"
+        },
+        {
+          "degree_name": "Secondary Education",
+          "institute_name": "St Mary's School, Jajpur Road",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "",
+          "institute_logo_url": "",
+          "field_of_study": "",
+          "activities_and_societies": "",
+          "start_date": "2005-01-01T00:00:00",
+          "end_date": "2015-01-01T00:00:00",
+          "last_updated": "2026-07-19T13:40:07"
+        }
+      ],
+      "education_last_updated": "2026-07-19T13:40:07",
+      "emails": [],
+      "employer_last_updated": "2026-08-11T10:04:41",
+      "first_name": "Avinash",
+      "flagship_profile_url": "https://www.linkedin.com/in/avinashacharya-dataeng",
+      "headline": "MDM Data Engineer | Informatica MDM | Informatica PowerCenter | SQL & PL/SQL | AWS (Redshift, S3, Glue) | PySpark | Data Quality & Governance | GxP Pharma Domain",
+      "honors": [],
+      "indexed_at": "2026-08-12T07:27:21",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T09:32:07.820Z",
+      "last_name": "Acharya",
+      "last_updated": "2026-08-11T10:04:41",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACYWbjUBMkGgwNQ_aYIeqgni0v9MNVsc6jw",
+      "location_details": {
+        "city": "Hyderabad",
+        "state": "Telangana",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Avinash Acharya",
+      "num_of_connections": 1602,
+      "num_of_followers": 1588,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 2036239659,
+          "title": "Data Engineer",
+          "description": "•  Designed and implemented Informatica MDM solutions supporting multiple business units and master data consolidation.\n•  Developed and enhanced ETL pipelines using Informatica PowerCenter, handling high-volume enterprise data.\n•  Led cross-platform data integrations, including source onboarding from ONKEY and MEDPRO.\n•  Performed SQL optimization and schema design across Landing, Staging, and BO layers; configured match and survivorship rules in MDM.\n•  Automated operational workflows using Unix Shell Scripting.\n•  Deployed compliant healthcare data solutions using Informatica MDM/PowerCenter.\n•  Worked with AWS services including Redshift, S3, and Glue (PySpark), following best practices for security and cost governance.",
+          "location": "Hyderabad, Telangana, India",
+          "employment_type": "Full-time",
+          "start_date": "2022-09-01T00:00:00",
+          "end_date": "2026-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": true,
+          "last_updated": "2026-08-11T01:26:31"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1928857443,
+          "title": "Programmer Analyst",
+          "description": "• Developed and executed SQL queries while optimizing PL/SQL scripts to enhance data accuracy.  \n• Resolved data quality issues through custom validation checks, significantly improving data integrity.  \n• Supported Informatica MDM applications, ensuring reliable master data processing for various business use cases.  \n• Applied domain knowledge in GxP compliance within the pharmaceutical sector, aligning with regulatory requirements.",
+          "location": "Kolkata, West Bengal, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-09-01T00:00:00",
+          "end_date": "2022-09-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": true,
+          "last_updated": "2026-08-11T01:26:31"
+        },
+        {
+          "name": "Cognizant",
+          "linkedin_id": "1680",
+          "company_id": 681049,
+          "company_linkedin_id": "1680",
+          "company_website_domain": "cognizant.ai",
+          "position_id": 1928858378,
+          "title": "Internship Trainee",
+          "description": "• Developed and managed structured databases to ensure efficient data access and maintain quality.  \n• Gained hands-on experience in writing complex SQL queries for data operations and performance optimization.  \n• Acquired foundational knowledge in Big Data technologies, including Hadoop and HDFS, applying MapReduce concepts.",
+          "location": "Kolkata metropolitan area, West Bengal, India",
+          "employment_type": "Internship",
+          "start_date": "2021-05-01T00:00:00",
+          "end_date": "2021-08-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "In Training",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Teaneck, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "Teaneck",
+            "Bergen County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 370967,
+          "company_website": "https://www.cognizant.ai",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant",
+          "business_email_verified": true,
+          "last_updated": "2026-08-11T01:26:31"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2026-07-19T13:40:01",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/74847c8f3adf7c081ca51725f51b869491c8b685f15b4237de8ff9f63e066cdf.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D4E03AQEbkPklfgKzRA/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1702309803927?e=1785974400&v=beta&t=Wq9ckYgl6afOyEK8MZZBwaV5jxwITuvpJOiAEjsNNRc",
+      "recently_changed_jobs": false,
+      "region": "Hyderabad, Telangana, India",
+      "region_address_components": [
+        "Hyderabad",
+        "Telangana",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "Azure Databricks",
+        "Reltio Cloud MDM",
+        "ZAIDYN",
+        "Hadoop",
+        "MapReduce",
+        "ETL Testing",
+        "Agile Development",
+        "Data Quality",
+        "Data Warehousing",
+        "Amazon Web Services (AWS)",
+        "Data Engineering",
+        "SQL",
+        "Data Analytics",
+        "Python (Programming Language)",
+        "Unix",
+        "Informatica MDM",
+        "Firebase",
+        "Cloud Firestore",
+        "Android Studio",
+        "Android SDK"
+      ],
+      "summary": "",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T09:32:07.821Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 5,
+      "totalPositions": 4,
+      "uniqueCompanies": 2,
+      "mergedPeriods": 1,
+      "totalUniqueYears": 4.95,
+      "averageTenure": 2.47,
+      "currentTenure": 0.61,
+      "currentCompany": "ZS Associates",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Data Engineer at Cognizant",
+          "Programmer Analyst at Cognizant"
+        ],
+        "finalScore": 88,
+        "starRating": 4.4,
+        "starLabel": "good",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 11.8421,
+            "matchedItems": [
+              "Data Engineer"
+            ],
+            "missingItems": [
+              "Informatica MDM Administrator",
+              "Informatica MDM Manager",
+              "MDM Platform Owner",
+              "MDM Technical Lead",
+              "Data Integration Specialist",
+              "ETL Developer",
+              "MDM Developer",
+              "Informatica MDM"
+            ]
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 5 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Data Engineer at Cognizant",
+              "Programmer Analyst at Cognizant"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Hyderabad, Telangana, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Bachelor of Technology in Computer Science"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Informatica MDM"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 10.5263,
+            "matchedItems": [
+              "Information Technology & Services",
+              "Data Infrastructure and Analytics"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "geo_distance"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Five years of hands-on experience with Informatica MDM tools positions Avinash as a strong candidate for this role.",
+            "evidence": "At Cognizant as Data Engineer (2022–2026), designed and implemented Informatica MDM solutions for enterprise data consolidation."
+          },
+          {
+            "observation": "Extensive experience in Information Technology & Services industry aligns with the JD's domain requirement.",
+            "evidence": "Worked at Cognizant (2021–2026), tagged with 'IT Services and IT Consulting', relevant to 'Information Technology & Services'."
+          },
+          {
+            "observation": "Proven expertise in data infrastructure and analytics through ETL pipeline development and data warehousing.",
+            "evidence": "At Cognizant as Data Engineer (2022–2026), developed ETL pipelines using Informatica PowerCenter and optimized SQL queries for performance."
+          },
+          {
+            "observation": "Educational background in Computer Science supports technical proficiency required for this role.",
+            "evidence": "Earned Bachelor of Technology in Computer Science from C.V.Raman College of Engineering (2017–2021)."
+          },
+          {
+            "observation": "Located in Hyderabad, within the specified 200 km geo-distance for this role.",
+            "evidence": "Current location is Hyderabad, Telangana, India."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "Job Title Match gap — Informatica MDM Administrator",
+            "evidence": "Informatica MDM Administrator; Informatica MDM Manager; MDM Platform Owner"
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "STRONG",
+          "reason": "Avinash's work as a Data Engineer at Cognizant directly aligns with managing Informatica MDM platforms and related tools, as required by the JD."
+        },
+        "fitScore": 90
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Informatica MDM",
+          "ReasonForHighlight": "Listed in skills section and extensively used at Cognizant for MDM solutions and enterprise data consolidation.",
+          "Icon": "BULB",
+          "duration": "5 years"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Worked at Cognizant, tagged with 'IT Services and IT Consulting', aligning with 'Information Technology & Services'.",
+          "Icon": "BAG",
+          "duration": "5 years"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Data Infrastructure and Analytics",
+          "ReasonForHighlight": "Developed ETL pipelines and optimized SQL queries at Cognizant, relevant to 'Data Infrastructure and Analytics'.",
+          "Icon": "BULB",
+          "duration": "4 years"
+        },
+        {
+          "Category": "EDUCATION",
+          "Highlight": "Bachelor of Technology",
+          "ReasonForHighlight": "Earned B.Tech in Computer Science from C.V.Raman College of Engineering, supporting technical proficiency.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "LOCATION",
+          "Highlight": "Hyderabad",
+          "ReasonForHighlight": "Located in Hyderabad, within the specified 200 km geo-distance for this role.",
+          "Icon": "BAG"
+        }
+      ],
+      "recommendation": "Avinash brings five years of hands-on experience with Informatica MDM tools, showcasing deep technical expertise in data management. His extensive background in the Information Technology & Services industry, combined with proven skills in ETL pipeline development and data warehousing, positions him as an exceptional fit. This profile is rated 4.4/5 stars."
+    },
+    "finalScore": 4.4,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T10:18:48.901Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7c484657f6fa37246e250a/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:18:49.069Z GET /wl/sourcing-session/:id/profiles response HTTP 200 168ms
+{
+  "statusCode": 200,
+  "data": {
+    "docs": [],
+    "totalDocs": 0,
+    "limit": 300,
+    "page": 1,
+    "totalPages": 1,
+    "serialNumberStartFrom": 1,
+    "hasPrevPage": false,
+    "hasNextPage": false,
+    "prevPage": null,
+    "nextPage": null
+  },
+  "message": "Profiles fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T10:18:53.719Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7c47d757f6fa37246e12af/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:18:53.948Z GET /wl/sourcing-session/:id/profiles response HTTP 200 230ms
+{
+  "statusCode": 200,
+  "data": {
+    "docs": [
+      {
+        "_id": "6a7c484457f6fa37246e23c7",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in the Information Technology & Services industry provides domain familiarity for tech-related roles."
+              },
+              {
+                "observation": "Current role in IT Services and IT Consulting demonstrates relevant industry exposure."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not align with the SAP Inventory Management Executive role."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Pranav's experience is in software testing and analysis, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked as a Software Tester at A&T Video Networks in the Information Technology & Services industry from 2021 to 2024.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Currently employed as a Senior Analyst at Wipro in the IT Services and IT Consulting industry since February 2025.",
+              "Icon": "BAG",
+              "duration": "1 year 6 months"
+            }
+          ],
+          "recommendation": "Pranav brings extensive experience in the Information Technology & Services industry, showcasing deep domain familiarity and a strong foundation for tech-related roles. His current role in IT Services and IT Consulting further highlights his relevant expertise and ability to excel in similar environments. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:50.812Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da094",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC7v7pEByYyISBB6BmHUwZyVCRn9hhLaEV8",
+          "name": "Pranav K M",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0474e26603b79c6b58dcbcad9b4921ce7db40471d03522cbef1cf31fa3e8207f.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Wipro",
+              "company_website_domain": "wipro.com",
+              "job_title": "Senior Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/wipro"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e239d",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Extensive experience in IT services and consulting aligns with the industry focus of the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in SAP inventory management or logistics, which is the core focus of this role."
+              },
+              {
+                "observation": "Current and past job titles do not match the target SAP inventory management roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Srinivas's experience is in software engineering and IT consulting, not SAP inventory management or logistics."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at MindTree Ltd., a company in the 'Information Technology & Services' industry, as a Software Engineer.",
+              "Icon": "BULB",
+              "duration": "1 year 3 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Tata Consultancy Services, a company in the 'IT Services and IT Consulting' industry, as an Information Technology Analyst.",
+              "Icon": "BULB",
+              "duration": "2 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Extensive experience in 'IT Services and IT Consulting' through roles at Tata Consultancy Services and LTIMindtree.",
+              "Icon": "BAG",
+              "duration": "6 months"
+            }
+          ],
+          "recommendation": "Srinivas demonstrates exceptional expertise in IT services and consulting, with a proven track record of delivering impactful solutions in alignment with industry needs. His extensive experience and alignment with the role's focus make him an outstanding candidate. This profile is rated 4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:52.112Z",
+        "finalScore": 4,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a5203d317f72ae2fa8ea053",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADXzoKkBdgHr_XghqlK0Km4qCwVDNR98PAQ",
+          "name": "Srinivas S",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/cfede08c39d9d2369d2d8ff2ffe412314c54218a7da397a56e3ef2d51efc434f.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Integration Testing",
+            "Certified Salesforce.com Developer",
+            "RESTful architecture",
+            "Sensors",
+            "AWS CodeDeploy",
+            "Windows DevOps",
+            "Cross-functional Collaborations",
+            "Lead Time Reduction",
+            "DevOps",
+            "Real-time Data",
+            "Real-time Monitoring",
+            "Unit Testing",
+            "Financial Analysis",
+            "Computer Engineering",
+            "Data-driven Decision Making",
+            "Microsoft Certified Technology",
+            "PostgreSQL",
+            "Artificial Intelligence (AI)",
+            "Data Science",
+            "Business Strategy"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Tata Consultancy Services",
+              "company_website_domain": "tcs.com",
+              "job_title": "Information Technology Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-consultancy-services"
+            },
+            {
+              "company_name": "LTIMindtree",
+              "company_website_domain": "ltm.com",
+              "job_title": "Senior Software Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ltimindtree"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23c1",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Jonathan has experience in the Information Technology & Services industry, which aligns with the JD's core industry requirement."
+              },
+              {
+                "observation": "Jonathan has worked in IT Services and IT Consulting, directly matching the JD's core industry focus."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "Jonathan lacks experience in SAP Inventory Management, which is the core focus of the role."
+              },
+              {
+                "observation": "Jonathan's job titles do not align with the SAP Inventory Management Executive role."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Jonathan's experience is in talent acquisition and human resources, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at LTM, whose industry includes Information Technology & Services, aligning with the JD's focus.",
+              "Icon": "BAG",
+              "duration": "10 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Held roles at LTM and Cognizant, both in IT Services and IT Consulting, directly matching the JD's industry requirement.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            }
+          ],
+          "recommendation": "Jonathan brings extensive experience in the Information Technology & Services industry, with a proven track record in IT Services and IT Consulting that directly aligns with the role's core focus. His expertise and alignment with industry requirements make him an exceptional candidate. This profile is rated 4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:50.592Z",
+        "finalScore": 4,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da08e",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADUsc7oBf81_Gib6x4IuI2UtCjIQQIy6uDA",
+          "name": "Jonathan Mishael",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/4752fea2c552aee93a1f682ce82c667072743b3a24e99afb7b75fd28577db11a.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Campus Placement",
+            "Stakeholder Management",
+            "AI recruiting",
+            "Talent acquisition",
+            "Global stakeholder management",
+            "Vendor Management",
+            "Candidate engagement",
+            "Technology Recruitment",
+            "Leadership"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Hapag-Lloyd AG",
+              "company_website_domain": "hapag-lloyd.com",
+              "job_title": "Senior Executive Human Resources",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/hapag-lloyd-ag"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2395",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Background in Information Technology & Services supports the JD's industry requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the JD's role requirements."
+              },
+              {
+                "observation": "Job titles do not match the SAP Inventory Management focus of the JD."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Aravindha's experience is focused on cybersecurity and SOC analysis, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in 'Information Technology & Services' at Iopex Technologies for 1 year and 8 months.",
+              "Icon": "BAG",
+              "duration": "1 year 8 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked in 'IT Services and IT Consulting' at Soffit Infrastructure Services (P) Ltd for 1 year.",
+              "Icon": "BAG",
+              "duration": "1 year 7 months"
+            }
+          ],
+          "recommendation": "Aravindha brings extensive experience in IT Services and IT Consulting, perfectly aligning with the industry focus required. His strong background in Information Technology & Services further reinforces his suitability for the role. This profile is rated 4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:48.499Z",
+        "finalScore": 4,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da06c",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAD0jX_UBSINPkneaa3QquZlSD1MO2KBobS4",
+          "name": "Aravindha Raj.S",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/3ab6be51c79b4b53f2d4390dcf01f689c73a8ca28632567851cc4a6c3ebd4606.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Direct Client Interaction",
+            "Windows",
+            "Cybersecurity Incident Management",
+            "Operating Systems",
+            "Log Analysis",
+            "Security Operations Center",
+            "Splunk",
+            "Security Information and Event Management (SIEM)",
+            "Analytical Skills",
+            "Teamwork",
+            "Information Technology",
+            "Sophos",
+            "DLP",
+            "Q radar",
+            "Crowdstrike Falcon",
+            "Network Operations Center (NOC)",
+            "Linux",
+            "Stellar",
+            "Wazuh",
+            "AlienVault"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Soffit Infrastructure Services (P) Ltd",
+              "company_website_domain": "soffit.in",
+              "job_title": "Senior SOC Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/soffitinfra"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2396",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Praveen has experience in the IT services and consulting industry, which aligns with the JD's industry focus."
+              },
+              {
+                "observation": "Praveen has recruitment experience in the information technology and services industry, relevant to the JD's industry."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in SAP inventory management or logistics, which is the core requirement of the role."
+              },
+              {
+                "observation": "No relevant job titles matching SAP inventory management roles, which is a key focus of the JD."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Praveen's experience is in recruitment and talent acquisition, not SAP inventory management or logistics."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Relevant IT recruitment experience at VySystems, an Information Technology & Services company.",
+              "Icon": "BULB",
+              "duration": "1 year 2 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT hiring experience at Cognizant, an IT Services and IT Consulting company.",
+              "Icon": "BULB",
+              "duration": "5 months"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Chennai, Tamil Nadu, India",
+              "ReasonForHighlight": "Praveen is based in Chennai, meeting the location requirement.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Praveen brings extensive experience in the IT services and consulting industry, coupled with a strong background in recruitment within the information technology sector. His expertise aligns seamlessly with the role's industry focus, making him an exceptional fit. This profile is rated 4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:45.551Z",
+        "finalScore": 4,
+        "isReleased": true,
+        "profile": {
+          "_id": "69253a68d0b9c32bf563ada6",
+          "name": "Praveen G",
+          "region": "Chennai, Tamil Nadu, India",
+          "skills": [
+            "Recruitment Process Outsourcing (RPO)",
+            "End-to-End Recruitment",
+            "Senior Stakeholder Management",
+            "SLA & Delivery Management",
+            "Hiring Pipeline Management",
+            "Client Coordination",
+            "Talent Acquisition",
+            "Engagement Management",
+            "Global Human Resources Management",
+            "People Management",
+            "Databases",
+            "Nonprofit Organizations",
+            "Global Talent Acquisition",
+            "Client Relations",
+            "Business Development",
+            "Account Management",
+            "Talent Management",
+            "Talent Mapping",
+            "Stakeholder Management",
+            "Negotiation & offer management"
+          ],
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAD8HIR8BTHImtZ7hBXEO70krvlyVmyTBbfw",
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/4387caf2601b166f2a877e6a1237f2f818d4a2e7512ca8951eccbed9409384cd.jpg",
+          "open_to_cards": [],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "FirstMeridian Business Services Limited",
+              "company_website_domain": "firstmeridian.com",
+              "job_title": "Consultant – RPO Delivery",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/firstmeridian"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23a0",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Strong educational background in engineering supports technical problem-solving skills."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Current and past job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Deepak's experience is focused on IT infrastructure and network operations, not SAP Inventory Management or logistics coordination."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at NTT DATA Singapore, tagged under 'Technology, Information and Internet' and 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at NTT DATA Singapore, tagged under 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            }
+          ],
+          "recommendation": "Deepak brings extensive experience in IT Services and IT Consulting, demonstrating a strong alignment with industry needs. His solid educational background in engineering further underscores his technical problem-solving capabilities. This profile is rated 4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:53.655Z",
+        "finalScore": 3.95,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da073",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAD-ZaM4BU995tbNX6RN_9PYkS6BRaSOuDrY",
+          "name": "Deepak J",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/4d137313e00625436d594e4fc0ab0a451039d3d9e3fe145d768a8ff2aee2b5f8.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "IT Leadership",
+            "Network Services",
+            "Cisco Networking",
+            "Technical Support",
+            "ITIL",
+            "Analytical Skills",
+            "Network Switches",
+            "Network Administration",
+            "Wide Area Network (WAN)",
+            "Computer Network Operations",
+            "IT Service Management",
+            "Troubleshooting",
+            "Service Delivery",
+            "IT Operations",
+            "Vendor Management",
+            "Windows Server",
+            "Networking",
+            "Cisco Systems Products",
+            "Asset Management",
+            "IT Asset Management"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Synechron",
+              "company_website_domain": "synechron.com",
+              "job_title": "Information Technology Operations Lead",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/synechron"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e239b",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Strong educational background in Computer Science and Cybersecurity supports technical expertise."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement of the role."
+              },
+              {
+                "observation": "No relevant job titles matching the JD's focus on inventory management."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Karthikeyan's experience is focused on cybersecurity and networking sales, which does not align with SAP Inventory Management roles."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at ValueMentor in IT Services, directly relevant to the JD's industry focus.",
+              "Icon": "BAG",
+              "duration": "8 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Current role at Frontier Business systems Pvt. ltd. is tagged under IT Services and IT Consulting.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            }
+          ],
+          "recommendation": "Karthikeyan brings extensive experience in IT Services and IT Consulting, demonstrating a strong alignment with industry needs. His educational background in Computer Science and Cybersecurity further underscores his technical expertise and ability to excel in complex environments. This profile is rated 4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:51.737Z",
+        "finalScore": 3.95,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da06f",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC0ICAYBp3F3Cqqgc8L8sEuA6eAlNj5dkms",
+          "name": "Karthikeyan P",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/55728f2284b6df8791093bc5ed6e81c12f86fc8a65d04c270311312e5d79dc08.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Networking",
+            "Cisco Networking",
+            "Cisco Certified",
+            "Network Administration",
+            "Network Switches",
+            "Cisco",
+            "DDoS Defense",
+            "Ransomware Protection",
+            "Virus and Malware Mitigation",
+            "Hacking Prevention",
+            "IT Security Solutions",
+            "Cloud Security",
+            "Datacenter Security",
+            "Network Security",
+            "Endpoint Security",
+            "Application Security",
+            "Mobility Security",
+            "Risk Assessment",
+            "Infrastructure Architecture",
+            "Next-Gen Firewall Implementation"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Frontier Business systems Pvt. ltd.",
+              "company_website_domain": "frontier.in",
+              "job_title": "Business Development Manager - Networking & Cyber Security",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/frontier-business-systems-pvt-ltd"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2397",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Four years in IT services and consulting demonstrates domain experience relevant to the industry focus of this role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management or logistics experience, which is central to this role."
+              },
+              {
+                "observation": "Current and past job titles do not align with the SAP Inventory Management Executive role."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Komathi's experience is focused on software testing and quality assurance, not SAP Inventory Management or logistics."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Infosys, a company in the Information Technology & Services industry, for 3 years.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Infosys, a company in the IT Services and IT Consulting industry, for 3 years.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Komathi brings four years of experience in IT services and consulting, showcasing a strong foundation in industry-relevant expertise. While there is a slight misalignment in job title history, her domain knowledge and practical exposure make her a strong candidate to consider. This profile is rated 3.8/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:52.793Z",
+        "finalScore": 3.8,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a58a6f317f72ae2fa8f045b",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADV_orkBAG5mHsSRxeLioVr_luEJ8NiMmVY",
+          "name": "Komathi P",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/1db62f83f1797e7e085c2a12452b04012411c2e8ff03b18d69eb737022c97734.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Core Java",
+            "MySQL",
+            "Software Testing",
+            "C++",
+            "C (Programming Language)",
+            "Manual Test Execution",
+            "Test Execution",
+            "Test Preparation",
+            "HP Application Lifecycle Management",
+            "Test Management",
+            "Test Planning",
+            "Manual Testing",
+            "Integration Testing",
+            "Object-Oriented Programming (OOP)",
+            "Database Management System (DBMS)",
+            "Automation",
+            "Test Automation",
+            "Selenium",
+            "Java",
+            "SQL",
+            "PL/SQL",
+            "Agile Methodologies",
+            "Project Management",
+            "Banking",
+            "Unix"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Infosys",
+              "company_website_domain": "infosys.com",
+              "job_title": "System Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23d5",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in the IT services industry aligns with the JD's domain requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Ashwin's experience is focused on cybersecurity and penetration testing, which is unrelated to SAP Inventory Management or logistics."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services as Cyber Security Analyst at Wipro from 2021 to 2023.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Wipro, where they worked as Cyber Security Analyst, is tagged 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            }
+          ],
+          "recommendation": "Ashwin demonstrates strong experience in the IT services industry, showcasing domain expertise that aligns well with the requirements. While his previous roles do not fully match the job title or scope, his foundational skills and industry knowledge make him a candidate worth pursuing. This profile is rated 3.8/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:50.077Z",
+        "finalScore": 3.75,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da0a0",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADcgUdsBn1OUsaVsrmdjtV8_2dKy8d7Yu40",
+          "name": "Ashwin Kumar D",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/bad4385756b52565b2210443e1684f093e0bdcc783958631ef0b0999e1f803d1.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "CSRF",
+            "Security Testing",
+            "Problem Solving",
+            "Critical Thinking",
+            "Vulnerability Scanning",
+            "Bash",
+            "Cybersecurity",
+            "Penetration Testing",
+            "Vulnerability Assessment",
+            "Engineering",
+            "Tenable Nessus",
+            "Python (Programming Language)",
+            "Java",
+            "Kali Linux",
+            "English",
+            "Networking",
+            "Qualys",
+            "NeXpose",
+            "Android application penetration testing",
+            "Security",
+            "Cyber",
+            "Linux"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "EY",
+              "company_website_domain": "ey.com",
+              "job_title": "Senior Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ernstandyoung"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23aa",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in the IT services industry aligns with the JD's core domain requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is central to the role."
+              },
+              {
+                "observation": "Current and past job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Deepak's experience is in software engineering and production support, not SAP inventory management or logistics roles as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Tata Consultancy Services, a company tagged under 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "1 year 5 months"
+            }
+          ],
+          "recommendation": "Deepak brings valuable experience in the IT services industry, demonstrating alignment with the core domain requirements. While his previous roles do not fully match the desired job title or scope, his expertise suggests strong potential for success in a related capacity. This profile is rated 3.8/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:45.138Z",
+        "finalScore": 3.75,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da07b",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACTOuJMBwDeLiSEtvmW9uhF6THT1EmBjjAA",
+          "name": "Deepak Viswanathan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/d712a4e7f013dd9a4f20588fb9bb7a369f74d20b57613502353a0ac36ea7bc08.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Methodology",
+            "Interpersonal Skills",
+            "Presentations",
+            "Multitasking",
+            "Customer Requirements",
+            "Computer Engineering",
+            "Communication",
+            "Unix",
+            "JSON",
+            "JavaScript",
+            "Customer Relationship Management (CRM)",
+            "IT Service Management",
+            "Service-now.com",
+            "Java Development",
+            "Python (Programming Language)",
+            "C (Programming Language)",
+            "SQL",
+            "HTML",
+            "Java",
+            "Core Java",
+            "Cloud Computing",
+            "Microsoft Azure",
+            "Software as a Service (SaaS)"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Amazon",
+              "company_website_domain": "aboutamazon.com",
+              "job_title": "Application Engineer II",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/amazon"
+            },
+            {
+              "company_name": "Amazon",
+              "company_website_domain": "aboutamazon.com",
+              "job_title": "Application Engineer I",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/amazon"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2391",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the role."
+              },
+              {
+                "observation": "Background in Information Technology & Services provides relevant industry exposure."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Current and past job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Rohithkumar's experience is focused on data science and engineering roles, not SAP Inventory Management or logistics functions."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked as a Data Analyst at Centriqe Inc., tagged under Information Technology & Services.",
+              "Icon": "BAG",
+              "duration": "3 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Centriqe Inc. is tagged under IT Services and IT Consulting in company industries.",
+              "Icon": "BAG",
+              "duration": "3 months"
+            }
+          ],
+          "recommendation": "Rohithkumar brings valuable experience in IT Services and IT Consulting, which aligns well with the industry focus of the role. His background in Information Technology & Services provides relevant exposure, though his prior roles do not fully align with the specific job title or responsibilities. This profile is rated 3.6/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:48.161Z",
+        "finalScore": 3.65,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da069",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACbi7RkB26-5ymf7nvKaK5HeYuXGEpklszI",
+          "name": "Rohithkumar Ravi",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f646d51be975f714674e90c682b01d019b7d43a6abad35fec607bd000f932ff0.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Product Development",
+            "Amazon Web Services (AWS)",
+            "Microsoft Azure",
+            "Python",
+            "Machine Learning",
+            "Data Science",
+            "TensorFlow",
+            "PyTorch",
+            "Feature Engineering",
+            "Deep learning",
+            "Python (Programming Language)",
+            "Django",
+            "SQL",
+            "Tableau",
+            "Data Mining",
+            "Sentiment Analysis"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Detect Technologies",
+              "company_website_domain": "detecttechnologies.com",
+              "job_title": "Sr. Manager - Applications",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/detect-technologies"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23a8",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Extensive experience in IT Services and IT Consulting aligns with the industry focus of the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in SAP Inventory Management or logistics, which is the core focus of the role."
+              },
+              {
+                "observation": "Job titles do not match any of the specified SAP Inventory Management-related roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Nithin's experience is in software engineering and consulting, not SAP Inventory Management or logistics."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked in IT Services and IT Consulting at Wissen Technology as Principal Engineer for 1 year.",
+              "Icon": "BAG",
+              "duration": "1 year"
+            }
+          ],
+          "recommendation": "Nithin brings extensive experience in IT Services and IT Consulting, demonstrating a strong alignment with the industry focus of the role. His background positions him as a valuable candidate with relevant expertise to contribute effectively. This profile is rated 3.6/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:45.017Z",
+        "finalScore": 3.65,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da07a",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABiau8wBuSGPV9RdNgJMe0iNpcHzwOvc5W4",
+          "name": "Nithin Narayanan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/ca186e2c863ee83daa2ddf3a93566bdcc7780f23965501f4db2845107f4488c1.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Spring Boot",
+            "Microservices",
+            "Agile Application Development",
+            "Agile Environment",
+            "SQL",
+            "Java",
+            "Spring MVC",
+            "Hibernate",
+            "REST API"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Wissen Technology",
+              "company_website_domain": "wissen.com",
+              "job_title": "Principal Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/wissen-technology"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23a1",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the JD's industry focus."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in SAP Inventory Management or related roles, which is the core requirement of the JD."
+              },
+              {
+                "observation": "Job titles do not match any of the specified titles in the JD, indicating a potential role mismatch."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Akash's experience is focused on data engineering and analytics, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Outthinking Pvt Ltd in the IT Services and IT Consulting industry as a Data Engineer.",
+              "Icon": "BAG",
+              "duration": "11 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Industry experience at Outthinking Pvt Ltd includes Information Technology & Services as part of IT Services and IT Consulting.",
+              "Icon": "BAG",
+              "duration": "11 months"
+            }
+          ],
+          "recommendation": "Akash brings valuable experience in IT Services and IT Consulting, which aligns well with the industry focus of the role. While there is a slight gap in direct job title match and past similar roles, his expertise positions him as a strong candidate worth pursuing. This profile is rated 3.5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:51.251Z",
+        "finalScore": 3.55,
+        "isReleased": true,
+        "profile": {
+          "_id": "69f9d9d4b3d3b4a0a3b6886b",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACZnAUQB_6cV8BeP-6X-8h_o40NsJ2GHx9k",
+          "name": "Akash Yadav",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7b951eae6529ab61dde9e0d378379a905721598eae6a5c0382b4c2ece72a4811.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "skills": [
+            "PySpark",
+            "Microsoft Power Apps",
+            "SQL Server Integration Services (SSIS)",
+            "Azure Data Factory",
+            "Azure Databricks",
+            "Power bi",
+            "Cloud Computing",
+            "Microsoft Azure",
+            "Microsoft SQL Server",
+            "Data Analysis",
+            "Python (Programming Language)",
+            "Data Analytics",
+            "Machine Learning",
+            "Statistical Data Analysis",
+            "Deep Learning",
+            "Data Mining",
+            "Data Science",
+            "Statistical Modeling",
+            "Business Intelligence (BI)",
+            "Quantitative Analytics",
+            "Tableau",
+            "Microsoft Power BI",
+            "MySQL",
+            "Microsoft Excel",
+            "C (Programming Language)",
+            "C++",
+            "Cascading Style Sheets (CSS)",
+            "C#",
+            "Microsoft Office",
+            "Java",
+            "jQuery",
+            "JavaScript",
+            "HTML",
+            "SQL",
+            "NumPy",
+            "Analytics",
+            "Data Visualization"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Philips",
+              "company_website_domain": "philips.com",
+              "job_title": "Senior Data Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/philips"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23c9",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "ERP development exposure at Korcomptenz Inc aligns with foundational knowledge in enterprise systems."
+              },
+              {
+                "observation": "Cognizant's industry tag confirms IT Services and IT Consulting experience, relevant to the JD's domain."
+              },
+              {
+                "observation": "Educational background in Information Technology supports technical understanding for enterprise systems."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "No logistics coordination or inventory analysis exposure, which are key functions for this position."
+              },
+              {
+                "observation": "Current role in business development does not align with the JD's focus on inventory management."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Ananthi's experience focuses on business development and Salesforce AMS delivery, not SAP Inventory Management or logistics coordination."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "ERP development training at Korcomptenz Inc involved Microsoft Dynamics, Sales order, and X++, relevant to enterprise systems.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Cognizant's industry tag confirms direct experience in IT Services and IT Consulting.",
+              "Icon": "BULB",
+              "duration": "2 years 11 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Information Technology",
+              "ReasonForHighlight": "Earned a BTech in Information Technology, supporting technical understanding for enterprise systems.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Ananthi brings valuable ERP development experience from Korcomptenz Inc., demonstrating a solid foundation in enterprise systems. Her tenure at Cognizant further validates her expertise in IT services and consulting, supported by an educational background in Information Technology. This profile is rated 3.5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:50.108Z",
+        "finalScore": 3.5,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da096",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACtCvasBg2_0wp5aRcn23qmwCq1Sz3dbZZw",
+          "name": "Ananthi Christina",
+          "open_to_cards": [],
+          "profile_picture_permalink": "",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Web Design",
+            "Python (Programming Language)",
+            "Java",
+            "Enterprise Resource Planning (ERP)",
+            "C (Programming Language)",
+            "Networking in google cloud",
+            "C#"
+          ],
+          "years_of_experience_raw": 3,
+          "current_employers_object": [
+            {
+              "company_name": "Cognizant",
+              "company_website_domain": "cognizant.ai",
+              "job_title": "Business Development Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/cognizant"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e239c",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and Consulting through Cognizant aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Educational background in Computer Science provides a strong technical foundation."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement of the role."
+              },
+              {
+                "observation": "No relevant job titles matching the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Amirtha's experience is focused on QA and automation testing, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Cognizant, a company in IT Services, as Associate Trainee from Feb 2022 to Nov 2022.",
+              "Icon": "BAG",
+              "duration": "9 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Cognizant's industry tags include IT Services and Consulting, aligning with the JD's focus.",
+              "Icon": "BAG",
+              "duration": "9 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Computer Science",
+              "ReasonForHighlight": "Bachelor's degree in Computer Science provides a solid technical foundation.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Amirtha brings valuable experience in IT services and consulting through her tenure at Cognizant, which aligns well with the industry focus. Her educational background in Computer Science further strengthens her technical foundation, making her a strong candidate for roles requiring analytical and problem-solving skills. This profile is rated 3.5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:51.816Z",
+        "finalScore": 3.45,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da070",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAD9DwSwBuqezgCVm9ikUF0iJ0W1cKSn8vBQ",
+          "name": "Amirtha Sathya M",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/1b3e1cb1352205be3d3437b18b126f180994aeb3c41dcf9a98acef8b9a88c8be.jpg",
+          "region": "Chengalpattu, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Test Automation",
+            "Oral Communication",
+            "Bug Tracking",
+            "Software Testing",
+            "C#",
+            "Microsoft Office",
+            "Pivot Tables",
+            "Team Management",
+            "Microsoft PowerPoint",
+            "Object-Oriented Programming (OOP)",
+            "Computer Science",
+            "Software Development",
+            "Python (Programming Language)",
+            "PL/SQL",
+            "Teamwork",
+            "Writing",
+            "Presentations",
+            "Microsoft Excel",
+            "Analytical Skills",
+            "JavaScript",
+            "HTML",
+            "Leadership",
+            "SQL",
+            "Problem Solving",
+            "css visual studios",
+            "HTML5",
+            "Oracle SQL Developer",
+            "Communication",
+            "Java",
+            "Project Management",
+            "English"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "IOURING Private limited",
+              "company_website_domain": "iouring.com",
+              "job_title": "Quality Analyst",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/iouring"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e238e",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Bachelor's degree in Information Technology provides foundational knowledge relevant to IT roles."
+              },
+              {
+                "observation": "Experience in IT Services and Consulting aligns with the industry focus of the JD."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is central to the role."
+              },
+              {
+                "observation": "No logistics or inventory management roles in work history."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Uthra's experience is primarily in technical recruiting and software development, not SAP inventory management or logistics roles."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Atyeti Inc, a company specializing in IT Services and Consulting.",
+              "Icon": "BAG",
+              "duration": "1 year 1 month"
+            }
+          ],
+          "recommendation": "Uthra's bachelor's degree in Information Technology provides a strong academic foundation, and her experience in IT services and consulting demonstrates alignment with industry needs. While her past roles may not directly match the job title, her background suggests transferable skills that could be valuable. This profile is rated 3.5/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:48.257Z",
+        "finalScore": 3.45,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a58cde017f72ae2fa8f0903",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAA0V4YAB0j03qjSZ4UwH4iaPPs6OPDYEqKE",
+          "name": "Uthra Srinivasan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/362ab9d5b02a48a9e10d85997036d583fe52a886075a51372fcf09f7c89908a6.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Screening Resumes",
+            "Pay negotiation",
+            "SQL",
+            "E-commerce",
+            "Hadoop",
+            "Mobile Applications",
+            "Java",
+            "SDLC",
+            "Human Resources",
+            "Talent Acquisition",
+            "Sourcing",
+            "Requirements Analysis",
+            "Software Development Life Cycle (SDLC)",
+            "Recruiting",
+            "Technical Recruiting",
+            "Vendor Management"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": []
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23b9",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Three years at Tata Consultancy Services in IT services and consulting demonstrates relevant industry exposure."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in SAP inventory management or logistics, which is the core focus of this role."
+              },
+              {
+                "observation": "Job titles do not align with the SAP inventory management executive role being hired for."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Rithesh's experience is in software development and system design, not SAP inventory management or logistics."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Three years at Tata Consultancy Services in IT services and consulting demonstrates relevant industry exposure.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            }
+          ],
+          "recommendation": "Rithesh brings three years of experience at Tata Consultancy Services, showcasing solid exposure to IT services and consulting. However, his background lacks direct experience in similar roles, which may require additional onboarding. This profile is rated 3.4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:48.659Z",
+        "finalScore": 3.4,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a2fcb162d2a667453ff99de",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACyxCs0BLXoL6vhVcZLV22VZ6QivYqayxi0",
+          "name": "Rithesh Srijan P R S",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/58c977c066701d79277e4bfe29d1747c49cae97d2f0dbd16541b4f0fd70e1af3.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Springboot",
+            "Azure Cosmos DB",
+            "Genesys Cloud",
+            "Spring Framework",
+            "Microsoft SQL Server",
+            "Redis",
+            "Jenkins",
+            "Dynatrace",
+            "Core Java",
+            "Spring Boot",
+            "JUnit",
+            "Git",
+            "HTML",
+            "Cascading Style Sheets (CSS)",
+            "Object-Oriented Programming (OOP)",
+            "java",
+            "Problem Solving",
+            "Blender"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Amazon",
+              "company_website_domain": "aboutamazon.com",
+              "job_title": "System Development Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/amazon"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23dd",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT services and consulting aligns with the industry focus of the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not match the SAP inventory management focus."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Sajitha's work history focuses on IT risk consulting and audits, not SAP inventory management or logistics coordination."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked in IT services and consulting at DSRC as Full-stack Developer for 2 months.",
+              "Icon": "BAG",
+              "duration": "2 months"
+            }
+          ],
+          "recommendation": "Sajitha brings valuable experience in IT services and consulting, which aligns well with the industry focus of the role. However, there is a notable gap in direct job title alignment and prior experience in similar roles. This profile is worth considering if the team is open to candidates with transferable skills. This profile is rated 3.4/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:18:51.289Z",
+        "finalScore": 3.35,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da0a8",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACzX7_4Btm_3zKJ47kL88WZewMwSua7KjSY",
+          "name": "Sajitha Mary",
+          "open_to_cards": [],
+          "profile_picture_permalink": "",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Problem Solving",
+            "Cultural Diversity",
+            "IT Audit",
+            "Attention to Detail",
+            "ISO Standards",
+            "Incident Response",
+            "Business Continuity Planning",
+            "Business Continuity",
+            "Security Controls",
+            "Information Security",
+            "Third Party Risk Management (TPRM)",
+            "SOC 2",
+            "Risk Assessment",
+            "Python (Programming Language)",
+            "MySQL",
+            "SQL",
+      
+…[truncated 24801 more chars]
+# 2026-08-12T10:19:18.056Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c484457f6fa37246e23c7/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:19:18.178Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 122ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T10:19:18.180Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c4843ca32b2566b8da094/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:19:18.232Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 52ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c4843ca32b2566b8da094",
+      "person_id": 4972785,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Wipro",
+          "linkedin_id": "1318",
+          "company_id": 5619,
+          "company_linkedin_id": "1318",
+          "company_website_domain": "wipro.com",
+          "position_id": 0,
+          "title": "Senior Analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2025-02-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 274568,
+          "company_website": "http://www.wipro.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/wipro",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T09:07:51"
+        },
+        {
+          "name": "Wipro",
+          "linkedin_id": "1318",
+          "company_id": 5619,
+          "company_linkedin_id": "1318",
+          "company_website_domain": "wipro.com",
+          "position_id": 0,
+          "title": "Analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-08-01T00:00:00",
+          "end_date": "2025-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 274568,
+          "company_website": "http://www.wipro.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/wipro",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T09:07:51"
+        },
+        {
+          "name": "A&T Video Networks",
+          "linkedin_id": "13435212",
+          "company_id": 3872511,
+          "company_linkedin_id": "13435212",
+          "company_website_domain": "atnetindia.net",
+          "position_id": 0,
+          "title": "Software Tester",
+          "description": "",
+          "location": "Madurai, Tamil Nadu, India",
+          "employment_type": "Internship",
+          "start_date": "2021-02-01T00:00:00",
+          "end_date": "2024-02-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Madurai, Tamil Nadu, India",
+          "company_hq_location_address_components": [
+            "Madurai",
+            "Madurai",
+            "Tamil Nadu",
+            "India"
+          ],
+          "company_headcount_range": "51-200",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 118,
+          "company_website": "http://www.atnetindia.net/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/atvideonet",
+          "business_email_verified": false,
+          "last_updated": "2026-08-05T04:16:14"
+        }
+      ],
+      "certifications": [],
+      "createdAt": "2026-08-12T10:17:37.480Z",
+      "current_employers": [
+        {
+          "name": "Wipro",
+          "linkedin_id": "1318",
+          "company_id": 5619,
+          "company_linkedin_id": "1318",
+          "company_website_domain": "wipro.com",
+          "position_id": 0,
+          "title": "Senior Analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2025-02-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 274568,
+          "company_website": "http://www.wipro.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/wipro",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T09:07:51"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Technology - BTech",
+          "institute_name": "Velammal College of Engineering & Technology, Madurai",
+          "institute_linkedin_id": "15127522",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15127522",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQHLJ9pdGqUb6g/company-logo_400_400/company-logo_400_400/0/1630600869495/velammal_college_of_engineering__technology_madurai_logo?e=1767225600&v=beta&t=aDhXVaSFdxLlCySudPD4d8kQKgbCFV1va0FZpZHH2l4",
+          "field_of_study": "backend",
+          "activities_and_societies": "",
+          "start_date": "2017-01-01T00:00:00",
+          "end_date": "2017-01-01T00:00:00",
+          "last_updated": "2025-11-12T11:12:30"
+        }
+      ],
+      "education_last_updated": "2025-11-12T11:12:30",
+      "emails": [],
+      "employer_last_updated": "2026-08-11T09:07:51",
+      "first_name": "Pranav",
+      "flagship_profile_url": "https://www.linkedin.com/in/pranav-k-m-41588319b",
+      "headline": "Experience: Working at wipro",
+      "honors": [],
+      "indexed_at": "2026-08-12T07:27:21",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T10:17:37.463Z",
+      "last_name": "M",
+      "last_updated": "2026-08-11T09:07:51",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC7v7pEByYyISBB6BmHUwZyVCRn9hhLaEV8",
+      "location_details": {
+        "city": "Chennai",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Pranav K M",
+      "num_of_connections": 6,
+      "num_of_followers": 0,
+      "open_to_cards": [],
+      "past_employers": [
+        {
+          "name": "Wipro",
+          "linkedin_id": "1318",
+          "company_id": 5619,
+          "company_linkedin_id": "1318",
+          "company_website_domain": "wipro.com",
+          "position_id": 0,
+          "title": "Analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2021-08-01T00:00:00",
+          "end_date": "2025-04-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Public Company",
+          "company_headcount_latest": 274568,
+          "company_website": "http://www.wipro.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/wipro",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T09:07:51"
+        },
+        {
+          "name": "A&T Video Networks",
+          "linkedin_id": "13435212",
+          "company_id": 3872511,
+          "company_linkedin_id": "13435212",
+          "company_website_domain": "atnetindia.net",
+          "position_id": 0,
+          "title": "Software Tester",
+          "description": "",
+          "location": "Madurai, Tamil Nadu, India",
+          "employment_type": "Internship",
+          "start_date": "2021-02-01T00:00:00",
+          "end_date": "2024-02-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Madurai, Tamil Nadu, India",
+          "company_hq_location_address_components": [
+            "Madurai",
+            "Madurai",
+            "Tamil Nadu",
+            "India"
+          ],
+          "company_headcount_range": "51-200",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 118,
+          "company_website": "http://www.atnetindia.net/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/atvideonet",
+          "business_email_verified": false,
+          "last_updated": "2026-08-05T04:16:14"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2025-09-19T22:14:07",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0474e26603b79c6b58dcbcad9b4921ce7db40471d03522cbef1cf31fa3e8207f.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/C5603AQG4_QZq7Ps8nQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1616387265909?e=1741824000&v=beta&t=nQlW95HhR6RqUEXMtU7azLYlKlBgS1W12lXRtY9SqNE",
+      "recently_changed_jobs": false,
+      "region": "Chennai, Tamil Nadu, India",
+      "region_address_components": [
+        "Chennai",
+        "Chennai",
+        "Tamil Nadu",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [],
+      "summary": "Experienced Software Tester with a demonstrated history of working in the information technology and services industry. Skilled in Research, English, Problem Solving, Leadership, and Strategy. Strong engineering professional with a Bachelor of Technology - BTech focused in backend from Velammal College of Engineering & Technology, Madurai. ",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T10:17:37.480Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 5,
+      "totalPositions": 3,
+      "uniqueCompanies": 1,
+      "mergedPeriods": 1,
+      "totalUniqueYears": 5.03,
+      "averageTenure": 5.03,
+      "currentTenure": 1.52,
+      "currentCompany": "Wipro",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Software Tester at A&T Video Networks",
+          "Analyst at Wipro"
+        ],
+        "finalScore": 83,
+        "starRating": 4.2,
+        "starLabel": "good",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 11.8421,
+            "matchedItems": [
+              "Matches JD title: Software Tester at A&T Video Networks (past role)",
+              "Matches JD title: Analyst at Wipro (past role)"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 5 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Software Tester at A&T Video Networks",
+              "Analyst at Wipro"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Chennai, Tamil Nadu, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Information Technology & Services",
+              "IT Services and IT Consulting"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 5.2632,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "geo_distance"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Experience in the Information Technology & Services industry provides domain familiarity for tech-related roles.",
+            "evidence": "Worked as a Software Tester at A&T Video Networks in the Information Technology & Services industry from 2021 to 2024."
+          },
+          {
+            "observation": "Current role in IT Services and IT Consulting demonstrates relevant industry exposure.",
+            "evidence": "Serving as a Senior Analyst at Wipro since February 2025, in the IT Services and IT Consulting industry."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No SAP Inventory Management experience, which is central to the role.",
+            "evidence": "Across roles at Wipro and A&T Video Networks, there is no mention of SAP Inventory Management responsibilities or expertise."
+          },
+          {
+            "observation": "Job titles do not align with the SAP Inventory Management Executive role.",
+            "evidence": "Held titles such as Software Tester and Analyst, which do not match the JD's target titles like SAP Inventory Specialist or Manager."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "OFF_ROLE",
+          "reason": "Pranav's experience is in software testing and analysis, which does not align with the SAP Inventory Management role described in the JD."
+        },
+        "fitScore": 25
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "SKILLS",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Worked as a Software Tester at A&T Video Networks in the Information Technology & Services industry from 2021 to 2024.",
+          "Icon": "BAG",
+          "duration": "3 years"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "Currently employed as a Senior Analyst at Wipro in the IT Services and IT Consulting industry since February 2025.",
+          "Icon": "BAG",
+          "duration": "1 year 6 months"
+        }
+      ],
+      "recommendation": "Pranav brings extensive experience in the Information Technology & Services industry, showcasing deep domain familiarity and a strong foundation for tech-related roles. His current role in IT Services and IT Consulting further highlights his relevant expertise and ability to excel in similar environments. This profile is rated 4.2/5 stars."
+    },
+    "finalScore": 4.15,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T10:19:34.870Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c484457f6fa37246e2395/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:19:34.990Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 120ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T10:19:34.991Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c4843ca32b2566b8da06c/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:19:35.081Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 89ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c4843ca32b2566b8da06c",
+      "person_id": 1548908,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Soffit Infrastructure Services (P) Ltd",
+          "linkedin_id": "1542598",
+          "company_id": 1034632,
+          "company_linkedin_id": "1542598",
+          "company_website_domain": "soffit.in",
+          "position_id": 2558615180,
+          "title": "Senior SOC Analyst",
+          "description": "",
+          "location": "Kochi, Kerala, India",
+          "employment_type": "Full-time",
+          "start_date": "2025-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "51-200",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 222,
+          "company_website": "http://www.soffit.in/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/soffitinfra",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T12:24:58"
+        },
+        {
+          "name": "Iopex Technologies",
+          "linkedin_id": "391020",
+          "company_id": 895246,
+          "company_linkedin_id": "391020",
+          "company_website_domain": "iopex.com",
+          "position_id": 2186046022,
+          "title": "Junior Information Security Specialist",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-05-01T00:00:00",
+          "end_date": "2025-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "San Jose, California, United States",
+          "company_hq_location_address_components": [
+            "San Jose",
+            "Santa Clara County",
+            "California",
+            "United States"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 3826,
+          "company_website": "https://www.iopex.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/iopex-technologies",
+          "business_email_verified": false,
+          "last_updated": "2026-08-06T18:44:15"
+        },
+        {
+          "name": "Necurity Solutions Network Security Pvt Ltd",
+          "linkedin_id": "13394789",
+          "company_id": 1989274,
+          "company_linkedin_id": "13394789",
+          "company_website_domain": "necurity.com",
+          "position_id": 2184814020,
+          "title": "Junior soc analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2022-11-01T00:00:00",
+          "end_date": "2023-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Chennai, Tamil Nadu, India",
+          "company_hq_location_address_components": [
+            "Chennai",
+            "Chennai",
+            "Tamil Nadu",
+            "India"
+          ],
+          "company_headcount_range": "11-50",
+          "company_industries": [
+            "Computer and Network Security",
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Computer and Network Security",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 84,
+          "company_website": "https://necurity.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/necuritysoln",
+          "business_email_verified": false,
+          "last_updated": "2026-08-03T00:55:47"
+        },
+        {
+          "name": "EY",
+          "linkedin_id": "1073",
+          "company_id": 891049,
+          "company_linkedin_id": "1073",
+          "company_website_domain": "ey.com",
+          "position_id": 2052533139,
+          "title": "Cyber Security Analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Internship",
+          "start_date": "2022-06-01T00:00:00",
+          "end_date": "2022-11-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "GBR",
+          "company_hq_location": "London, England, United Kingdom",
+          "company_hq_location_address_components": [
+            "London",
+            "London",
+            "Greater London",
+            "England",
+            "United Kingdom"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Professional Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 409618,
+          "company_website": "http://www.ey.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ernstandyoung",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T08:57:38"
+        }
+      ],
+      "certifications": [],
+      "createdAt": "2026-08-12T10:17:37.480Z",
+      "current_employers": [
+        {
+          "name": "Soffit Infrastructure Services (P) Ltd",
+          "linkedin_id": "1542598",
+          "company_id": 1034632,
+          "company_linkedin_id": "1542598",
+          "company_website_domain": "soffit.in",
+          "position_id": 2558615180,
+          "title": "Senior SOC Analyst",
+          "description": "",
+          "location": "Kochi, Kerala, India",
+          "employment_type": "Full-time",
+          "start_date": "2025-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "51-200",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 222,
+          "company_website": "http://www.soffit.in/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/soffitinfra",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T12:24:58"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Engineering - BE",
+          "institute_name": "PRIST University , Thanjavur",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "",
+          "institute_logo_url": "",
+          "field_of_study": "Mechanical Engineering",
+          "activities_and_societies": "",
+          "start_date": "2017-06-01T00:00:00",
+          "end_date": "2021-05-01T00:00:00",
+          "last_updated": "2026-06-13T13:54:37"
+        },
+        {
+          "degree_name": "HSC",
+          "institute_name": "AKT Academy Matriculation Higher Secondary School",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "",
+          "institute_logo_url": "",
+          "field_of_study": "Computer Science",
+          "activities_and_societies": "",
+          "start_date": "2016-06-01T00:00:00",
+          "end_date": "2017-05-01T00:00:00",
+          "last_updated": "2026-06-13T13:54:37"
+        }
+      ],
+      "education_last_updated": "2026-06-13T13:54:37",
+      "emails": [],
+      "employer_last_updated": "2026-08-11T08:57:38",
+      "first_name": "Aravindha",
+      "flagship_profile_url": "https://www.linkedin.com/in/aravindha-raj-s-a71620247",
+      "headline": "SOC Analyst | Cyber Security | Threat Hunting | Information security analyst | Monitoring | Malware analyst | SIEM Advance| Penetration tester .",
+      "honors": [],
+      "indexed_at": "2026-08-12T07:27:21",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T10:17:37.455Z",
+      "last_name": "Raj.S",
+      "last_updated": "2026-08-11T08:57:38",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAD0jX_UBSINPkneaa3QquZlSD1MO2KBobS4",
+      "location_details": {
+        "city": "Chennai",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Aravindha Raj.S",
+      "num_of_connections": 2603,
+      "num_of_followers": 2593,
+      "open_to_cards": [],
+      "past_employers": [
+        {
+          "name": "Iopex Technologies",
+          "linkedin_id": "391020",
+          "company_id": 895246,
+          "company_linkedin_id": "391020",
+          "company_website_domain": "iopex.com",
+          "position_id": 2186046022,
+          "title": "Junior Information Security Specialist",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-05-01T00:00:00",
+          "end_date": "2025-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 1,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "San Jose, California, United States",
+          "company_hq_location_address_components": [
+            "San Jose",
+            "Santa Clara County",
+            "California",
+            "United States"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 3826,
+          "company_website": "https://www.iopex.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/iopex-technologies",
+          "business_email_verified": false,
+          "last_updated": "2026-08-06T18:44:15"
+        },
+        {
+          "name": "Necurity Solutions Network Security Pvt Ltd",
+          "linkedin_id": "13394789",
+          "company_id": 1989274,
+          "company_linkedin_id": "13394789",
+          "company_website_domain": "necurity.com",
+          "position_id": 2184814020,
+          "title": "Junior soc analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2022-11-01T00:00:00",
+          "end_date": "2023-05-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Chennai, Tamil Nadu, India",
+          "company_hq_location_address_components": [
+            "Chennai",
+            "Chennai",
+            "Tamil Nadu",
+            "India"
+          ],
+          "company_headcount_range": "11-50",
+          "company_industries": [
+            "Computer and Network Security",
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Computer and Network Security",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 84,
+          "company_website": "https://necurity.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/necuritysoln",
+          "business_email_verified": false,
+          "last_updated": "2026-08-03T00:55:47"
+        },
+        {
+          "name": "EY",
+          "linkedin_id": "1073",
+          "company_id": 891049,
+          "company_linkedin_id": "1073",
+          "company_website_domain": "ey.com",
+          "position_id": 2052533139,
+          "title": "Cyber Security Analyst",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Internship",
+          "start_date": "2022-06-01T00:00:00",
+          "end_date": "2022-11-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "GBR",
+          "company_hq_location": "London, England, United Kingdom",
+          "company_hq_location_address_components": [
+            "London",
+            "London",
+            "Greater London",
+            "England",
+            "United Kingdom"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Professional Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 409618,
+          "company_website": "http://www.ey.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ernstandyoung",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T08:57:38"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2026-07-13T09:56:30",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/3ab6be51c79b4b53f2d4390dcf01f689c73a8ca28632567851cc4a6c3ebd4606.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D5603AQF9iz8wlBE7yw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1721101821075?e=1785369600&v=beta&t=mGl57BrNSBiwJllzfbCTWXVdkifrDpSXVMMpiDIFT0w",
+      "recently_changed_jobs": false,
+      "region": "Chennai, Tamil Nadu, India",
+      "region_address_components": [
+        "Chennai",
+        "Chennai",
+        "Tamil Nadu",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "Direct Client Interaction",
+        "Windows",
+        "Cybersecurity Incident Management",
+        "Operating Systems",
+        "Log Analysis",
+        "Security Operations Center",
+        "Splunk",
+        "Security Information and Event Management (SIEM)",
+        "Analytical Skills",
+        "Teamwork",
+        "Information Technology",
+        "Sophos",
+        "DLP",
+        "Q radar",
+        "Crowdstrike Falcon",
+        "Network Operations Center (NOC)",
+        "Linux",
+        "Stellar",
+        "Wazuh",
+        "AlienVault"
+      ],
+      "summary": "Excellent communicator with experience in scanning and finding vulnerabilities, maintaining and hardening critical services, fixing vulnerabilities, and removing malware. Talented individual with information technology background, strong desire to grow technical skills, and ability to learn new technologies quickly. Seeking to expand and improve technical skills in the cybersecurity domain.",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T10:17:37.480Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 4,
+      "totalPositions": 4,
+      "uniqueCompanies": 3,
+      "mergedPeriods": 1,
+      "totalUniqueYears": 3.78,
+      "averageTenure": 1.26,
+      "currentTenure": 1.61,
+      "currentCompany": "Soffit Infrastructure Services (P) Ltd",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Junior Information Security Specialist at Iopex Technologies",
+          "Junior soc analyst at Necurity Solutions Network Security Pvt Ltd"
+        ],
+        "finalScore": 80,
+        "starRating": 4,
+        "starLabel": "good",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 27.2727,
+            "awarded": 13.6364,
+            "matchedItems": [
+              "Matches JD title: Junior Information Security Specialist at Iopex Technologies (past role)",
+              "Matches JD title: Junior soc analyst at Necurity Solutions Network Security Pvt Ltd (past role)"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 15.1515,
+            "awarded": 15.1515,
+            "matchedItems": [
+              "Matches JD experience: 4 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 7.5758,
+            "awarded": 7.5758,
+            "matchedItems": [
+              "Junior Information Security Specialist at Iopex Technologies",
+              "Junior soc analyst at Necurity Solutions Network Security Pvt Ltd"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 15.1515,
+            "awarded": 15.1515,
+            "matchedItems": [
+              "Matches JD region: Chennai, Tamil Nadu, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 7.5758,
+            "awarded": 7.5758,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 15.1515,
+            "awarded": 15.1515,
+            "matchedItems": [
+              "Information Technology & Services",
+              "IT Services and IT Consulting"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 12.1212,
+            "awarded": 6.0606,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the JD.",
+            "evidence": "At Soffit Infrastructure Services (P) Ltd as Senior SOC Analyst, worked in 'IT Services and IT Consulting' for 1 year."
+          },
+          {
+            "observation": "Background in Information Technology & Services supports the JD's industry requirement.",
+            "evidence": "At Iopex Technologies as Junior Information Security Specialist, worked in 'Information Technology & Services' for 1 year and 8 months."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No SAP Inventory Management experience, which is central to the JD's role requirements.",
+            "evidence": "Across roles at Soffit Infrastructure Services (P) Ltd and Iopex Technologies, there is no mention of SAP Inventory Management."
+          },
+          {
+            "observation": "Job titles do not match the SAP Inventory Management focus of the JD.",
+            "evidence": "Current and past roles include SOC Analyst and Information Security Specialist, unrelated to inventory management."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "OFF_ROLE",
+          "reason": "Aravindha's experience is focused on cybersecurity and SOC analysis, which does not align with the SAP Inventory Management role described in the JD."
+        },
+        "fitScore": 20
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "SKILLS",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Worked in 'Information Technology & Services' at Iopex Technologies for 1 year and 8 months.",
+          "Icon": "BAG",
+          "duration": "1 year 8 months"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "Worked in 'IT Services and IT Consulting' at Soffit Infrastructure Services (P) Ltd for 1 year.",
+          "Icon": "BAG",
+          "duration": "1 year 7 months"
+        }
+      ],
+      "recommendation": "Aravindha brings extensive experience in IT Services and IT Consulting, perfectly aligning with the industry focus required. His strong background in Information Technology & Services further reinforces his suitability for the role. This profile is rated 4/5 stars."
+    },
+    "finalScore": 4,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T10:19:39.219Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c484457f6fa37246e239b/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:19:39.342Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 124ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T10:19:39.342Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c4843ca32b2566b8da06f/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:19:39.430Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 88ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c4843ca32b2566b8da06f",
+      "person_id": 1638590,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Frontier Business systems Pvt. ltd.",
+          "linkedin_id": "809023",
+          "company_id": 16067,
+          "company_linkedin_id": "809023",
+          "company_website_domain": "frontier.in",
+          "position_id": 2322974970,
+          "title": "Business Development Manager - Networking & Cyber Security",
+          "description": "Protect your enterprise IT with Frontier's comprehensive security solutions. From sophisticated DDOS attacks to ransomware, viruses, malware, and hacking, our robust defense strategy ensures a secure environment.\n\nIn today's dynamic landscape, where the CIO tackles evolving threats and implements advanced technologies, Frontier covers Cloud, Datacenter, Network, Endpoint, Application, and Mobility security. We assess risks, architect secure infrastructures, implement next-gen firewalls, and provide protection against ransomware, viruses, and DDOS attacks. Our services include vulnerability assessments, continuous monitoring, and compliance management.\n\nPartner with us for proactive risk assessment, prevention, mitigation, and 24x7x365 security monitoring. Secure your IT with confidence. 🔒💼 #ITSecurity #CyberDefense #SecuritySolutions",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-07-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level Manager",
+          "function_category": "Sales",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 933,
+          "company_website": "http://www.frontier.in",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/frontier-business-systems-pvt-ltd",
+          "business_email_verified": false,
+          "last_updated": "2026-08-07T06:37:28"
+        },
+        {
+          "name": "ValueMentor",
+          "linkedin_id": "2476325",
+          "company_id": 21021,
+          "company_linkedin_id": "2476325",
+          "company_website_domain": "valuementor.com",
+          "position_id": 2083416689,
+          "title": "Business Development Manager",
+          "description": "Valuementor provide Information Technology Services in the growing Cybersecurity space\n Cyber Security and Information Security\n Cloud Security and Cloud Transformation\n Managed Security Services and SIEM\n Penetration Testing and Software testing\n Security Assessments and Digital Forensics\n Cyber Risk Management and InfoSec Audits\n Data Privacy & Data Security Solutions\n Virtual CISO, CDO services\n GDPR, HIPAA, NESA, NIST, SaanS, PCI compliance Regulations\n IoT, Mobile/Wearables and Cloud Security\n Software Audit and Secure Code Review, Enterprise applications Security\n ISO Consulting and other Information Governance & Risk Compliance Services\n\nHelping Healthcare, Pharma, Banking, Insurance, E-Commerce, Cloud and SaaS vendors for Data and Information Security",
+          "location": "",
+          "employment_type": "Full-time",
+          "start_date": "2022-11-01T00:00:00",
+          "end_date": "2023-07-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level Manager",
+          "function_category": "Sales",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Houston, Texas, United States",
+          "company_hq_location_address_components": [
+            "Houston",
+            "Harris County",
+            "Texas",
+            "United States"
+          ],
+          "company_headcount_range": "51-200",
+          "company_industries": [
+            "Computer and Network Security",
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Computer and Network Security",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 138,
+          "company_website": "https://valuementor.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/valuementor",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T14:04:15"
+        },
+        {
+          "name": "BYJU'S",
+          "linkedin_id": "2395365",
+          "company_id": 5705,
+          "company_linkedin_id": "2395365",
+          "company_website_domain": "byjus.com",
+          "position_id": 2051305618,
+          "title": "Senior Business Development Associate - Sales",
+          "description": "Awarded Best Outbound Centre Sales Associates bringing\nmore number of sales in Overall Kerala & TN\nResponsible for a turnover of over 80 lakhs+ in 18 months\nWas part of a team which came as a top 5 teams of India in a\ntri-monthly process.",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2020-10-01T00:00:00",
+          "end_date": "2022-10-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Sales",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "E-Learning Providers",
+            "Education"
+          ],
+          "company_linkedin_industry": "E-Learning Providers",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 19134,
+          "company_website": "https://www.byjus.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/byjus",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T01:38:56"
+        }
+      ],
+      "certifications": [
+        {
+          "name": "Black Belt AI Defense Sales - Cisco",
+          "issued_date": "2025-05-01T00:00:00",
+          "url": "https://cf-ap1.mindtickle.com/1860013409316147822/public-content/1746179373871appoutputcertificateGoSwtHuWXh.pngsvN9.webp",
+          "issuer_organization": "Cisco",
+          "issuer_organization_linkedin_id": "1063",
+          "certification_id": "1745509538885573292"
+        },
+        {
+          "name": "Cisco Black Belt Academy - Qualified Sales New Hire Acceleration program",
+          "issued_date": "2024-05-01T00:00:00",
+          "url": "https://salesconnect.cisco.com/sc/s/achievement-detail-standard?ltui__urlRecordId=a038c00001ojbwOAAQ",
+          "issuer_organization": "Cisco",
+          "issuer_organization_linkedin_id": "1063",
+          "certification_id": "https://salesconnect.cisco.com/sc/s/achievement-detail-standard"
+        },
+        {
+          "name": "Introduction to Cybersecurity",
+          "issued_date": "2024-05-01T00:00:00",
+          "url": "https://www.credly.com/badges/6f815b66-8e41-4780-bd80-0b2fb435b8e6/linked_in_profile",
+          "issuer_organization": "Cisco",
+          "issuer_organization_linkedin_id": "1063",
+          "certification_id": ""
+        },
+        {
+          "name": "ISC2 Candidate",
+          "issued_date": "2023-05-01T00:00:00",
+          "expiration_date": "2024-05-01T00:00:00",
+          "url": "https://www.credly.com/badges/681e486c-4fe4-460f-a41c-3969cb0dcdb0/linked_in_profile",
+          "issuer_organization": "ISC2",
+          "issuer_organization_linkedin_id": "26753",
+          "certification_id": ""
+        }
+      ],
+      "createdAt": "2026-08-12T10:17:37.480Z",
+      "current_employers": [
+        {
+          "name": "Frontier Business systems Pvt. ltd.",
+          "linkedin_id": "809023",
+          "company_id": 16067,
+          "company_linkedin_id": "809023",
+          "company_website_domain": "frontier.in",
+          "position_id": 2322974970,
+          "title": "Business Development Manager - Networking & Cyber Security",
+          "description": "Protect your enterprise IT with Frontier's comprehensive security solutions. From sophisticated DDOS attacks to ransomware, viruses, malware, and hacking, our robust defense strategy ensures a secure environment.\n\nIn today's dynamic landscape, where the CIO tackles evolving threats and implements advanced technologies, Frontier covers Cloud, Datacenter, Network, Endpoint, Application, and Mobility security. We assess risks, architect secure infrastructures, implement next-gen firewalls, and provide protection against ransomware, viruses, and DDOS attacks. Our services include vulnerability assessments, continuous monitoring, and compliance management.\n\nPartner with us for proactive risk assessment, prevention, mitigation, and 24x7x365 security monitoring. Secure your IT with confidence. 🔒💼 #ITSecurity #CyberDefense #SecuritySolutions",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-07-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Entry Level Manager",
+          "function_category": "Sales",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 3,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "1001-5000",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 933,
+          "company_website": "http://www.frontier.in",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/frontier-business-systems-pvt-ltd",
+          "business_email_verified": false,
+          "last_updated": "2026-08-07T06:37:28"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Computer Application",
+          "institute_name": "University of Madras",
+          "institute_linkedin_id": "9875665",
+          "institute_linkedin_url": "https://www.linkedin.com/school/university-of-madras",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQFnYPDIXmEmVA/company-logo_400_400/company-logo_400_400/0/1631385709034?e=1782950400&v=beta&t=jxFO7DLLadVKmZ93sX3ZoT_UbaPvWCn411S0MHbCdGo",
+          "field_of_study": "Computer Science",
+          "activities_and_societies": "",
+          "start_date": "2015-01-01T00:00:00",
+          "end_date": "2018-01-01T00:00:00",
+          "last_updated": "2026-06-15T10:18:18"
+        },
+        {
+          "degree_name": "Master of cyber forensics and information security",
+          "institute_name": "University of Madras",
+          "institute_linkedin_id": "9875665",
+          "institute_linkedin_url": "https://www.linkedin.com/school/university-of-madras",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQFnYPDIXmEmVA/company-logo_400_400/company-logo_400_400/0/1631385709034?e=1782950400&v=beta&t=jxFO7DLLadVKmZ93sX3ZoT_UbaPvWCn411S0MHbCdGo",
+          "field_of_study": "Cyber Security",
+          "activities_and_societies": "",
+          "start_date": "2019-01-01T00:00:00",
+          "end_date": "2021-01-01T00:00:00",
+          "last_updated": "2026-06-15T10:18:18"
+        }
+      ],
+      "education_last_updated": "2026-06-15T10:18:18",
+      "emails": [],
+      "employer_last_updated": "2026-08-11T01:38:56",
+      "first_name": "Karthikeyan",
+      "flagship_profile_url": "https://www.linkedin.com/in/karthiknpalani",
+      "headline": "Empowering Enterprises with Secure, Scalable Network Solutions | Cybersecurity & Networking Sales",
+      "honors": [],
+      "indexed_at": "2026-08-12T07:27:21",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T10:17:37.455Z",
+      "last_name": "P",
+      "last_updated": "2026-08-11T01:38:56",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC0ICAYBp3F3Cqqgc8L8sEuA6eAlNj5dkms",
+      "location_details": {
+        "city": "Chennai",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Karthikeyan P",
+      "num_of_connections": 18434,
+      "num_of_followers": 19060,
+      "open_to_cards": [],
+      "past_employers": [
+        {
+          "name": "ValueMentor",
+          "linkedin_id": "2476325",
+          "company_id": 21021,
+          "company_linkedin_id": "2476325",
+          "company_website_domain": "valuementor.com",
+          "position_id": 2083416689,
+          "title": "Business Development Manager",
+          "description": "Valuementor provide Information Technology Services in the growing Cybersecurity space\n Cyber Security and Information Security\n Cloud Security and Cloud Transformation\n Managed Security Services and SIEM\n Penetration Testing and Software testing\n Security Assessments and Digital Forensics\n Cyber Risk Management and InfoSec Audits\n Data Privacy & Data Security Solutions\n Virtual CISO, CDO services\n GDPR, HIPAA, NESA, NIST, SaanS, PCI compliance Regulations\n IoT, Mobile/Wearables and Cloud Security\n Software Audit and Secure Code Review, Enterprise applications Security\n ISO Consulting and other Information Governance & Risk Compliance Services\n\nHelping Healthcare, Pharma, Banking, Insurance, E-Commerce, Cloud and SaaS vendors for Data and Information Security",
+          "location": "",
+          "employment_type": "Full-time",
+          "start_date": "2022-11-01T00:00:00",
+          "end_date": "2023-07-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level Manager",
+          "function_category": "Sales",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Houston, Texas, United States",
+          "company_hq_location_address_components": [
+            "Houston",
+            "Harris County",
+            "Texas",
+            "United States"
+          ],
+          "company_headcount_range": "51-200",
+          "company_industries": [
+            "Computer and Network Security",
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Computer and Network Security",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 138,
+          "company_website": "https://valuementor.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/valuementor",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T14:04:15"
+        },
+        {
+          "name": "BYJU'S",
+          "linkedin_id": "2395365",
+          "company_id": 5705,
+          "company_linkedin_id": "2395365",
+          "company_website_domain": "byjus.com",
+          "position_id": 2051305618,
+          "title": "Senior Business Development Associate - Sales",
+          "description": "Awarded Best Outbound Centre Sales Associates bringing\nmore number of sales in Overall Kerala & TN\nResponsible for a turnover of over 80 lakhs+ in 18 months\nWas part of a team which came as a top 5 teams of India in a\ntri-monthly process.",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2020-10-01T00:00:00",
+          "end_date": "2022-10-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Sales",
+          "years_at_company": "1 to 2 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "E-Learning Providers",
+            "Education"
+          ],
+          "company_linkedin_industry": "E-Learning Providers",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 19134,
+          "company_website": "https://www.byjus.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/byjus",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T01:38:56"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2026-07-15T17:24:12",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/55728f2284b6df8791093bc5ed6e81c12f86fc8a65d04c270311312e5d79dc08.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D5603AQHeK3G_mhzvpQ/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1712745223343?e=1785974400&v=beta&t=AByzZO0WpB7X9sQgBWC4w8zPScDrJXcXHDsPtUQ3l7k",
+      "recently_changed_jobs": false,
+      "region": "Chennai, Tamil Nadu, India",
+      "region_address_components": [
+        "Chennai",
+        "Chennai",
+        "Tamil Nadu",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "Networking",
+        "Cisco Networking",
+        "Cisco Certified",
+        "Network Administration",
+        "Network Switches",
+        "Cisco",
+        "DDoS Defense",
+        "Ransomware Protection",
+        "Virus and Malware Mitigation",
+        "Hacking Prevention",
+        "IT Security Solutions",
+        "Cloud Security",
+        "Datacenter Security",
+        "Network Security",
+        "Endpoint Security",
+        "Application Security",
+        "Mobility Security",
+        "Risk Assessment",
+        "Infrastructure Architecture",
+        "Next-Gen Firewall Implementation"
+      ],
+      "summary": "",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T10:17:37.480Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 5,
+      "totalPositions": 3,
+      "uniqueCompanies": 3,
+      "mergedPeriods": 2,
+      "totalUniqueYears": 5.78,
+      "averageTenure": 1.93,
+      "currentTenure": 3.12,
+      "currentCompany": "Frontier Business systems Pvt. ltd.",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Business Development Manager at ValueMentor",
+          "Business Development Manager - Networking & Cyber Security at Frontier Business systems Pvt. ltd."
+        ],
+        "finalScore": 79,
+        "starRating": 4,
+        "starLabel": "good",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 7.8868,
+            "matchedItems": [
+              "Matches JD title: Business Development Manager at ValueMentor (past role)",
+              "Matches JD title: Business Development Manager - Networking & Cyber Security at Frontier Business systems Pvt. ltd. (past role)"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 5 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Business Development Manager at ValueMentor",
+              "Business Development Manager - Networking & Cyber Security at Frontier Business systems Pvt. ltd."
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Chennai, Tamil Nadu, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Bachelor of Computer Application in Computer Science",
+              "Master of cyber forensics and information security"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Information Technology & Services",
+              "IT Services and IT Consulting"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 5.2632,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "geo_distance"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the JD.",
+            "evidence": "Worked at Frontier Business systems Pvt. ltd. and ValueMentor, both tagged under IT Services and IT Consulting."
+          },
+          {
+            "observation": "Strong educational background in Computer Science and Cybersecurity supports technical expertise.",
+            "evidence": "Holds a Bachelor of Computer Application and a Master's in Cyber Forensics and Information Security from University of Madras."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No SAP Inventory Management experience, which is the core requirement of the role.",
+            "evidence": "Across roles at Frontier Business systems Pvt. ltd. and ValueMentor, there is no mention of SAP Inventory Management."
+          },
+          {
+            "observation": "No relevant job titles matching the JD's focus on inventory management.",
+            "evidence": "Current and past roles are in cybersecurity and networking sales, not inventory management."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "OFF_ROLE",
+          "reason": "Karthikeyan's experience is focused on cybersecurity and networking sales, which does not align with SAP Inventory Management roles."
+        },
+        "fitScore": 20
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "SKILLS",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Worked at ValueMentor in IT Services, directly relevant to the JD's industry focus.",
+          "Icon": "BAG",
+          "duration": "8 months"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "Current role at Frontier Business systems Pvt. ltd. is tagged under IT Services and IT Consulting.",
+          "Icon": "BAG",
+          "duration": "3 years"
+        }
+      ],
+      "recommendation": "Karthikeyan brings extensive experience in IT Services and IT Consulting, demonstrating a strong alignment with industry needs. His educational background in Computer Science and Cybersecurity further underscores his technical expertise and ability to excel in complex environments. This profile is rated 4/5 stars."
+    },
+    "finalScore": 3.95,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T10:20:03.714Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7c47d757f6fa37246e12af/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:20:04.498Z GET /wl/sourcing-session/:id/profiles response HTTP 200 782ms
+{
+  "statusCode": 200,
+  "data": {
+    "docs": [
+      {
+        "_id": "6a7c484457f6fa37246e248c",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years of SAP consulting experience directly aligns with the JD's requirement for inventory management expertise."
+              },
+              {
+                "observation": "Proven industry experience in IT Services and IT Consulting strengthens domain relevance for this role."
+              },
+              {
+                "observation": "Educational background in Computer Science supports technical proficiency required for SAP roles."
+              },
+              {
+                "observation": "Located within the required 120 km radius of Chennai, ensuring logistical feasibility for the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "Region Match gap — JD requires Chennai, Tamil Nadu, India, but candidate is in Greater Chennai Area"
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Ram's work as a Senior Consultant and Senior Associate demonstrates hands-on SAP Inventory Management expertise, aligning with the JD's core requirements."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Demonstrated history of working in the Information technology and services industry, as stated in the summary.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at TVS Next, tagged under 'IT Services and IT Consulting' industry, for nearly five years.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "Senior Consultant",
+              "ReasonForHighlight": "Current role as Senior Consultant at Deloitte aligns with the JD's target titles.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5+ Years",
+              "ReasonForHighlight": "Five years of SAP consulting experience directly aligns with the JD's requirement for inventory management expertise.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at TVS Next, tagged under 'IT Services and IT Consulting' industry, for nearly five years.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Bachelor of Engineering",
+              "ReasonForHighlight": "Earned a BE in Computer Science from Indira Institute of Engineering and Technology, supporting technical proficiency.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Greater Chennai Area",
+              "ReasonForHighlight": "Resides within the required 120 km radius of Chennai, ensuring logistical feasibility for the role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Ram is a strong fit for this role. This profile is rated 4.3/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:20:00.247Z",
+        "finalScore": 4.25,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da14c",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABqqc-sBTLT4RjV8GbplsPRE9R2PjufWF6Q",
+          "name": "Ram Prasath Js",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/b0714feeab909a412caba9dfe1df1255023b0656e8ba1a02b14266860bd250c1.jpg",
+          "region": "Greater Chennai Area",
+          "resumeUrl": null,
+          "skills": [
+            "Project Implementation",
+            "SAP Materials Management (SAP MM)",
+            "Master Data",
+            "SAP Logistics Execution",
+            "SAP Configuration",
+            "SAP Consulting"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Deloitte",
+              "company_website_domain": "deloitte.com",
+              "job_title": "Senior Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24ab",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in Information Technology & Services industry aligns with the JD's core domain requirement."
+              },
+              {
+                "observation": "Five years of experience in software development demonstrates technical expertise and consistent career progression."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Current and past job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Shanmugam's experience is focused on software development and mobile applications, not SAP Inventory Management or logistics coordination."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT Services as Senior Flutter Developer at Keystride Digital, delivering scalable mobile applications.",
+              "Icon": "BAG",
+              "duration": "9 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Contributed to IT Services projects as Software Engineer at Mitsogo Careers, focusing on app development.",
+              "Icon": "BAG",
+              "duration": "2 years 5 months"
+            }
+          ],
+          "recommendation": "Shanmugam brings five years of solid experience in software development within the Information Technology & Services industry, showcasing both technical expertise and a clear trajectory of career growth. His background aligns seamlessly with the core domain requirements, making him an exceptional fit for the role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:58.330Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da168",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACEj7tQBAML9SsgB-RGz3_VDfFV55atD5WU",
+          "name": "Shanmugam A.",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/64f51b50a7d8b69dbf365fa6e670411096fcb2e30a7d5a82a41284afd9381a46.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Cross-platform Development",
+            "NestJS",
+            "TypeScript",
+            "MongoDB",
+            "Web Development",
+            "Music",
+            "Google Ads",
+            "REST APIs",
+            "User Experience (UX)",
+            "iOS",
+            "Mobile Application Development",
+            "SQLite",
+            "Android Design",
+            "Application Development",
+            "Objective-C",
+            "Web Applications",
+            "SQL Database",
+            "Programming Languages",
+            "Programming",
+            "Collaborative Problem Solving"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Brillio",
+              "company_website_domain": "brillio.com",
+              "job_title": "Software Development Lead",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/brillio"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24a6",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT services and consulting aligns with the core industry requirement for this role."
+              },
+              {
+                "observation": "Holds a Bachelor of Technology in Information Technology, meeting the educational background expected for this domain."
+              },
+              {
+                "observation": "Relevant past roles in IT services demonstrate domain expertise and experience in technology-driven environments."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in SAP inventory management or logistics, which is the core focus of this role."
+              },
+              {
+                "observation": "No job titles match the specific SAP inventory management roles listed in the JD."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Subi's experience is focused on quality engineering and business analysis, not SAP inventory management or logistics."
+            },
+            "fitScore": 35
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Dedalus HealthCare DACH in IT Services and IT Consulting, aligning with the broader IT services domain.",
+              "Icon": "BULB",
+              "duration": "2 years 11 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Dedalus HealthCare DACH, a company explicitly listed under IT Services and IT Consulting.",
+              "Icon": "BULB",
+              "duration": "2 years 11 months"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5 Years",
+              "ReasonForHighlight": "Has 5 years of experience in IT services and consulting roles, meeting the experience range of 1–5 years.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "BTech in IT",
+              "ReasonForHighlight": "Holds a BTech in Information Technology from Meenakshi College Of Engineering (2016–2020), relevant to the domain.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Chennai",
+              "ReasonForHighlight": "Currently based in Chennai, Tamil Nadu, meeting the location requirement for this role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Subi brings extensive experience in IT services and consulting, perfectly aligning with the core industry requirements for this role. With a Bachelor of Technology in Information Technology and a proven track record in technology-driven environments, Subi demonstrates both the educational foundation and practical expertise needed to excel. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:57.902Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da163",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADN-6zgBSnQ7XypBr1Yo6fJvNYvGM-NClEU",
+          "name": "Subi  Barathan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/b8f147fc0f3f7876bfc0bd811112dca82ec1e0f741abfcf61775a8e7a1780832.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Business Workflows",
+            "Microsoft Power BI",
+            "Figma (Software)",
+            "FRD BRD",
+            "Gap Analysis",
+            "Application Programming Interfaces (API)",
+            "Sprints",
+            "Manual Testing",
+            "Web Applications",
+            "Postman API",
+            "Product Strategy",
+            "Backlog Management",
+            "JSON",
+            "Product Management",
+            "Sprint Planning",
+            "Functional Requirements",
+            "Product Requirements",
+            "Strategy Implementation",
+            "Systems Analysis",
+            "Business"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "PAIX",
+              "company_website_domain": "paixservices.com",
+              "job_title": "Senior Quality Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/paixservices"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24a7",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Three years in IT services sales positions Vishnu well for roles requiring client acquisition and stakeholder engagement."
+              },
+              {
+                "observation": "Experience in IT services and consulting aligns with the industry focus of this role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is central to this role."
+              },
+              {
+                "observation": "No relevant job titles matching the SAP inventory management domain."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Vishnu's experience is focused on business development and sales in IT services, not SAP inventory management or logistics."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services at Photon Interactive and AES Technologies, aligning with the industry focus.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Directly evidenced by industry tags at Photon Interactive and AES Technologies.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            }
+          ],
+          "recommendation": "Vishnu is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:55.802Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da164",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAEk4OOMBArdTSudpfP5l-knGeBo2aUTcaB0",
+          "name": "Vishnu Vardhan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/daac323b06333d03f962ec38a6ac81d95c97f00ceba43efad1f4461ff6c0dece.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "SQL",
+            "MongoDB",
+            "JavaScript",
+            "Microsoft Office",
+            "Microsoft SQL Server",
+            "Microsoft Excel",
+            "Tableau",
+            "Oracle SQL Developer",
+            "Python basics",
+            "Pandas",
+            "PySpark"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Photon Interactive",
+              "company_website_domain": "photon.com",
+              "job_title": "Business Development Executive",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/photon-interactive"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2483",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the role."
+              },
+              {
+                "observation": "Educational background in Logistics and Supply Chain Management supports foundational knowledge for inventory roles."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Current and past job titles do not match the target role titles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Veenayaka's experience focuses on cloud consulting and engineering roles, with no evidence of SAP Inventory Management or related functions."
+            },
+            "fitScore": 40
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in the Information Technology & Services industry at MindTree Ltd. as Junior Engineer.",
+              "Icon": "BULB",
+              "duration": "3 years"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Currently employed in IT Services and IT Consulting at Oracle as Cloud Consultant.",
+              "Icon": "BULB",
+              "duration": "1 year 6 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "MBA in Logistics",
+              "ReasonForHighlight": "Pursuing MBA in Logistics, Materials, and Supply Chain Management at SASTRA University.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Veenayaka demonstrates exceptional alignment with the role, combining extensive experience in IT Services and IT Consulting with a strong educational foundation in Logistics and Supply Chain Management. Their profile reflects both industry expertise and relevant academic credentials, making them an outstanding candidate. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:55.467Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da143",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC1VZW4BkdncjYTr1VLeuihVIVRut71RNZY",
+          "name": "Veenayaka Chandramouli",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f186dddd536bf1b22946a7694987ba86ebe5c72b95b18ed872689726ba0ec1a0.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Routing Protocols",
+            "Storage Area Network (SAN)",
+            "Brocade Fibre Switches",
+            "Accessibility Monitoring",
+            "Microsoft Excel",
+            "Microsoft Office",
+            "Research Skills",
+            "Data Mining",
+            "Data Analysis",
+            "Statistical Data Analysis",
+            "Technical Data Analysis",
+            "Business Analytics",
+            "Cloud Infrastructure",
+            "Cloud Services",
+            "VMware",
+            "Patch Management",
+            "Security Patch Management",
+            "Vulnerability Management",
+            "Qualys",
+            "Vulcan",
+            "Active Directory",
+            "Freshservice ITSM",
+            "C++",
+            "Machine Learning Algorithms",
+            "MySQL",
+            "Database Management System (DBMS)",
+            "Amazon Web Services (AWS)",
+            "Microsoft Azure",
+            "Linux System Administration",
+            "Windows",
+            "Tanium"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Oracle",
+              "company_website_domain": "oracle.com",
+              "job_title": "Cloud Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/oracle"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24b4",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting industries aligns with the JD's core industry requirement."
+              },
+              {
+                "observation": "Three years of experience in technical recruitment demonstrates strong expertise in sourcing and managing talent pipelines."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "No relevant job titles matching the JD's search criteria, such as SAP Inventory Management Executive or similar."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Vijaya's experience is focused on technical recruitment and talent acquisition, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at ApTask, tagged under 'Information Technology & Services' in company industries.",
+              "Icon": "BAG",
+              "duration": "3 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Experience at ApTask and Doyensys Inc, both tagged under 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Vijaya brings extensive experience in IT Services and IT Consulting, perfectly aligning with the core industry requirements. Her three years of expertise in technical recruitment showcase a proven ability to source and manage talent pipelines effectively. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:55.405Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da16f",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADq7ktgBi-kC87BidARL91u7k99LQWxAFDw",
+          "name": "Vijaya Ragavan P",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/da3ce8261428390e6cf0a512df002d8d52b3b3475395ca10a48eaac362a7d831.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Dice.com",
+            "Ceipal",
+            "GCEAD",
+            "H4EAD",
+            "CPT",
+            "OPT",
+            "GC",
+            "USC",
+            "H1B",
+            "1099",
+            "w2",
+            "CTC",
+            "Benchmarking",
+            "Human Resources (HR)",
+            "Client Relations",
+            "Vendor Management",
+            "Account Management",
+            "LinkedIn Recruiter",
+            "client call",
+            "Passionate about Work",
+            "High-volume Recruiting",
+            "Screening Resumes",
+            "Sourcing",
+            "Recruiting",
+            "Time Management",
+            "Back-End Web Development",
+            "Front-End Development",
+            "Software Development",
+            "Cascading Style Sheets (CSS)",
+            "HTML",
+            "PHP",
+            "Java",
+            "Typing",
+            "C++",
+            "C (Programming Language)",
+            "Employee Engagement",
+            "Employee Relations"
+          ],
+          "years_of_experience_raw": 3,
+          "current_employers_object": [
+            {
+              "company_name": "ApTask",
+              "company_website_domain": "aptask.com",
+              "job_title": "Technical Recruiter LATAM",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/aptask"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24ae",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and Consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Background in Information Technology & Services supports the JD's industry requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "No relevant job titles matching the JD's requirements."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Murali's experience is focused on business development and sales, not SAP Inventory Management or logistics coordination as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in Information Technology & Services at Floki Labs, contributing to industry-specific sales and pipeline development.",
+              "Icon": "BAG",
+              "duration": "1 year"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Currently employed at OptiSol Business Solutions, which operates in IT Services and IT Consulting.",
+              "Icon": "BAG",
+              "duration": "5 months"
+            }
+          ],
+          "recommendation": "Murali is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:52.688Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a5b1a8c0da7f03fb5569b58",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADyecvoBImRN12eKgyeS6H8cjfOIdgfZ96Q",
+          "name": "Murali Dharan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/857cd2c499c393c787605a0c5628f46cf948abeea5ee9307d559517d5413f3d7.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Consultative Selling",
+            "Pipeline Management",
+            "CRM Excellence",
+            "Managed Services & BFSI Stakeholder Management",
+            "Technical Support & Troubleshooting",
+            "Business Development & Sales Strategy",
+            "Lead Generation & Prospecting",
+            "Pre-Sales & Product Demonstrations",
+            "Negotiation & Deal Closure",
+            "Market Research & Competitive Analysis",
+            "Strategic Planning & Revenue Growth",
+            "Customer Success & Relationship Management",
+            "Client Onboarding & Retention",
+            "Technical Support",
+            "Sales Strategy",
+            "Relationship Building",
+            "Prospecting Skills",
+            "Customer Acquisition",
+            "Presentation Skills",
+            "Negotiation",
+            "Market Research",
+            "Strategic Planning",
+            "Account Management",
+            "Pre-Sales",
+            "Lead Generation",
+            "Cold Calling",
+            "Linkedin Marketing",
+            "Email Marketing",
+            "Pre-Sales Engineering",
+            "Business Development",
+            "Pre-Sales Technical Consulting"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "OptiSol Business Solutions",
+              "company_website_domain": "optisolbusiness.com",
+              "job_title": "Business Development - Product",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/optisol-business-solutions"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2496",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years in SAP consulting roles positions Mrithula well for technical SAP-related challenges in this role."
+              },
+              {
+                "observation": "Experience in the Information Technology & Services industry aligns with the JD's domain requirement."
+              },
+              {
+                "observation": "Certified in Software development on SAP HANA, adding credibility to their SAP expertise."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No direct inventory management experience could be a challenge for this SAP Inventory-focused role."
+              },
+              {
+                "observation": "Current title does not match any of the JD's specified inventory management roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Mrithula has SAP consulting experience but lacks direct inventory management exposure, which is central to the JD's role."
+            },
+            "fitScore": 55
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in the Information Technology & Services industry at Motiveminds Consulting Pvt Ltd.",
+              "Icon": "BULB",
+              "duration": "1 year 10 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Industry exposure proven through roles at Motiveminds Consulting Pvt Ltd.",
+              "Icon": "BULB",
+              "duration": "1 year 10 months"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5 Years",
+              "ReasonForHighlight": "Five years of SAP consulting experience across roles at Kaar Technologies and Motiveminds Consulting Pvt Ltd.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "CERTIFICATION",
+              "Highlight": "Software development on SAP HANA",
+              "ReasonForHighlight": "Certified by SAP in Software development on SAP HANA, enhancing their technical credibility.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Mrithula brings five years of SAP consulting experience, making her exceptionally well-prepared for technical SAP-related challenges. Her certification in software development on SAP HANA further solidifies her expertise, and her background in the Information Technology & Services industry aligns seamlessly with the domain requirements. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:52.157Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da154",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC354z0BatY6vD-bcrb0k1lujg3mfSR7kqM",
+          "name": "Mrithula Elango",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/413be6d38d663700b29d77114ae8b2271fc30e51991b6983394a6f93c0783ff6.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Sap public cloud",
+            "Rapid Application Development (RAD)",
+            "Advanced Business Application Programming (ABAP)",
+            "ABAP",
+            "SAP ERP",
+            "Mobile Application Development",
+            "Cascading Style Sheets (CSS)",
+            "Database Management System (DBMS)",
+            "SAP HANA",
+            "Public Speaking",
+            "Writing",
+            "HTML5",
+            "C++",
+            "Big Data",
+            "Hadoop",
+            "TensorFlow",
+            "SQL",
+            "Python (Programming Language)",
+            "NumPy",
+            "Panda"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Motiveminds Consulting Pvt Ltd",
+              "company_website_domain": "motiveminds.com",
+              "job_title": "Associate Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/motivemindsconsulting"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2458",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Strong background in IT services and consulting, directly relevant to the industry focus of the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in inventory management, which is the core focus of the role."
+              },
+              {
+                "observation": "Job titles do not align with the inventory management executive positions specified in the JD."
+              },
+              {
+                "observation": "Education background in Mechanical Engineering does not align with inventory management requirements."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Azarudeen's experience is focused on SAP Hybris development and e-commerce solutions, not inventory management as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Infosys, a company tagged with 'Information Technology & Services' in its industry classification.",
+              "Icon": "BAG",
+              "duration": "1 year 9 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Both Infosys and Royal Cyber Inc. are tagged with 'IT Services and IT Consulting' in their industry classification.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Azarudeen brings a robust background in IT services and consulting, demonstrating expertise that aligns seamlessly with the industry focus of the role. His proven track record of delivering impactful solutions positions him as an exceptional candidate. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:49.974Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da119",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAElR0JwBdfG9zMatO8-pE5D21SRurN1YNO0",
+          "name": "Azarudeen M",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/77a4ea57ff7b23da1db78e899fb37af47977a15b1b7efd20d053f00af2359d19.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "SAP Hybris",
+            "Core Java",
+            "Spring Boot",
+            "Spring MVC",
+            "API Integration",
+            "JUnit",
+            "automatin Testing",
+            "WCMS",
+            "Product Management",
+            "REST APIs",
+            "Product Cockpit",
+            "HAC",
+            "BackOffice",
+            "Hybris",
+            "Sap commerce",
+            "SAP Commerce Cloud",
+            "Java",
+            "SQL",
+            "Manual Testing",
+            "User Acceptance Testing",
+            "Regression Testing",
+            "Software Testing"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Infosys",
+              "company_website_domain": "infosys.com",
+              "job_title": "SAP Hybris Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e240a",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Four years in IT consulting roles aligns with the JD's industry focus on IT Services and Consulting."
+              },
+              {
+                "observation": "Bachelor's degree in Computer Science provides a strong technical foundation for roles in IT services."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "Job titles do not match the JD's target roles, which focus on SAP Inventory Management."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Alwin's experience is in software engineering and IT consulting, not SAP Inventory Management or logistics roles as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services at Cognizant as Project Associate, directly relevant to the JD's industry focus.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Sopra Steria's industry tags confirm IT consulting experience, aligning with the JD's focus.",
+              "Icon": "BAG",
+              "duration": "1 year 7 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Computer Science",
+              "ReasonForHighlight": "Bachelor's degree in Computer Science from Chennai Institute of Technology provides a solid technical base.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Alwin demonstrates exceptional alignment with the industry focus on IT Services and Consulting, backed by four years of experience in IT consulting roles. His Bachelor's degree in Computer Science further solidifies his technical expertise, making him an outstanding candidate for roles in IT services. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:46.485Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da0d1",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC6P6GYBXUgkq6wp9lz2YKZDHmF-IewPsjk",
+          "name": "Alwin Christober",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/74ceada5ddeed31cb12db6ed171c5ceaac05605689cfe982351f58bbf289f513.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Pegasystems PRPC",
+            "cssa",
+            "Pega PRPC",
+            "Python (Programming Language)",
+            "Software",
+            "SQL"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Sopra Steria",
+              "company_website_domain": "soprasteria.com",
+              "job_title": "Technical Lead",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/soprasteria"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2485",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Extensive experience in IT services and consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Strong educational background in computer and information sciences supports technical expertise."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is the core requirement of the role."
+              },
+              {
+                "observation": "Job titles and responsibilities do not align with inventory management or logistics."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Naveen's experience is focused on network security and consulting, not SAP inventory management or logistics."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at LTIMindtree, a company listed under 'Information Technology & Services'.",
+              "Icon": "BAG",
+              "duration": "1 year 10 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Experience at LTIMindtree and CSS Corp, both listed under 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Naveen brings extensive experience in IT services and consulting, demonstrating a deep alignment with industry needs. His strong educational background in computer and information sciences further underscores his technical expertise and ability to deliver impactful results. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:40.338Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da145",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADq1aDoB18AXboQ8hkGPdh2Lno6Gfx1S8HY",
+          "name": "Naveen Kumar K",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/d0a3112e40c2f01deb419ad74dbd0374548709d1d9ed016c270b006faa2a973b.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Cisco Firewall Security",
+            "Dell PowerEdge Servers",
+            "Dell Workstations",
+            "Dell PowerVault",
+            "Palo Alto Networks",
+            "Network Security Implementation",
+            "Customer Support",
+            "Palo Alto Knowlegde",
+            "Industry Knowledge",
+            "Tools & technology",
+            "Firewalls",
+            "Panorama",
+            "log collector",
+            "LAN-WAN",
+            "Cisco Networking",
+            "Hardware"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "LTIMindtree",
+              "company_website_domain": "ltm.com",
+              "job_title": "Senior consultant & Cyber Security",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ltimindtree"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2456",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Strong background in IT services and consulting, directly relevant to the industry focus of the JD."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "Education is in Mechanical Engineering, not aligned with SAP or inventory management."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Subbiah's expertise is in enterprise network engineering and consulting, not SAP inventory management or logistics coordination as required by the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services at Infosys, delivering enterprise network solutions and consulting for industry clients.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Consulted on network performance and security at Infosys, aligning with the IT services and consulting industry.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            }
+          ],
+          "recommendation": "Subbiah is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:37.553Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a35148ee88586f2be3f86ee",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACQKGWgBuJiFdSHVcHyj9iW6AU9KeP3ggP4",
+          "name": "Subbiah R",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/29f80bc75d3f286d13273e2713fca7418197800b181c7c9f4fe44992550f5aa8.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Switching and Routing",
+            "Versa SD-WAN",
+            "Virtual Private Network (VPN)",
+            "Enterprise Network Security",
+            "ITIL Certified",
+            "ITIL Service Operations",
+            "DNS Management",
+            "IP management",
+            "SNMP",
+            "Subnetting",
+            "Network Design",
+            "Network",
+            "Ethernet",
+            "Dynamic Host Configuration Protocol (DHCP)",
+            "802.1x",
+            "Network Installation",
+            "Computer Networking",
+            "Network Services",
+            "Technical Support",
+            "Routing"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Infosys",
+              "company_website_domain": "infosys.com",
+              "job_title": "Senior Associate Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2473",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years in IT services positions them well for roles in this industry."
+              },
+              {
+                "observation": "Bachelor's degree in Electronics and Communication provides a strong technical foundation."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not align with the SAP Inventory Management Executive role."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Manothini's experience is focused on Mainframe development, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services roles at IBM and Tech Mahindra, directly relevant to the industry focus.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Both IBM and Tech Mahindra are tagged under 'IT Services and IT Consulting', matching the JD's industry criteria.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Electronics and communication",
+              "ReasonForHighlight": "Holds a Bachelor's degree in Electronics and Communication, providing a solid technical foundation.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Manothini brings five years of experience in IT services, demonstrating a proven track record in the industry. Their Bachelor's degree in Electronics and Communication further solidifies their strong technical foundation, making them exceptionally well-suited for advanced roles in this field. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:35.974Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da133",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC5WmsMBQfY4COEgxHjCUvt4Yq4T7Wmrruc",
+          "name": "Manothini Thirupathisamy",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f12b4c52c77320b02eb31b6c218061107279c7b2919fd1d1496f6701a454fbb4.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "JCL",
+            "CA-7",
+            "ADABAS",
+            "IBM Mainframe",
+            "Job Control Language (JCL)",
+            "COBOL",
+            "Engineering",
+            "Object-Oriented Programming (OOP)",
+            "Mainframe",
+            "MySQL",
+            "C++",
+            "Embedded C",
+            "Verilog",
+            "SQL",
+            "Python (Programming Language)",
+            "C (Programming Language)",
+            "Networking",
+            "CICS",
+            "VSAM"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "IBM",
+              "company_website_domain": "ibm.com",
+              "job_title": "Software Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ibm"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e244e",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years in IT services and consulting demonstrates domain familiarity, relevant to the industry focus of this role."
+              },
+              {
+                "observation": "Advanced education in biotechnology adds analytical and technical depth, which could support inventory-related problem-solving."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not align with the SAP Inventory Management focus of this position."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Megha's experience focuses on product quality, risk management, and regulatory engineering, which does not align with SAP Inventory Management roles."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Demonstrated history of working in the information technology and services industry, as stated in the summary.",
+              "Icon": "BAG",
+              "duration": "6 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Tata Consultancy Services and HCL Technologies, both tagged as IT Services and IT Consulting.",
+              "Icon": "BAG",
+              "duration": "6 years"
+            }
+          ],
+          "recommendation": "Megha brings a compelling combination of five years in IT services and consulting, showcasing deep domain expertise and industry alignment. Her advanced education in biotechnology further enhances her analytical and technical capabilities, making her exceptionally well-suited for roles requiring complex problem-solving. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:32.743Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da110",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAB-RP_EBvkC3V10Uw7xi3t-slGVkr67zoaE",
+          "name": "Megha Sharma",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/4a960f80a926db9ff28c143a21dddc18c545a9204a055f0c72558146f1a2eda2.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "DHF",
+            "Change Management",
+            "Medical Devices",
+            "Risk Management Plans",
+            "Risk Assessment",
+            "Presentations",
+            "Technical Presentations",
+            "Regulatory Submissions",
+            "Regulatory Requirements",
+            "Regulatory Affairs",
+            "Risk management",
+            "ISO 14971",
+            "ISO 13485",
+            "EU IVDR",
+            "EU MDR",
+            "Business Development",
+            "English",
+            "Research",
+            "Product Management",
+            "Technical Writing"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": []
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e244d",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting industry aligns with the JD's core domain requirement."
+              },
+              {
+                "observation": "Educational background in Information Technology supports technical understanding relevant to the JD."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "Current and past job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Vasanth's experience is focused on frontend development and web technologies, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked as System Engineer at Tata Consultancy Services, an IT Services and IT Consulting company.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Vasanth brings extensive experience in the IT Services and IT Consulting industry, demonstrating a strong alignment with the core domain requirements. His educational background in Information Technology further reinforces his technical expertise, making him exceptionally well-suited for the role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:32.583Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da10f",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADRXSU0BkGlq8TcxcoKDsbKAyDG208zBwdw",
+          "name": "Vasanth Raj",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/1bed0f57e1db6587e8175b2c879dcd20a2da1d8138a4da3c47893fb8082b5eec.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [],
+          "years_of_experience_raw": 5,
+          "current_employers_object": []
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23c8",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Three years in IT Services and IT Consulting industry aligns with the JD's core domain requirement."
+              },
+              {
+                "observation": "SAP MM expertise positions Muhammed well for roles requiring SAP system knowledge."
+              },
+              {
+                "observation": "Experience in supply chain management and order-to-cash processes supports inventory-related tasks."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No direct experience as an SAP Inventory Management Executive or similar roles."
+              },
+              {
+                "observation": "Limited evidence of hands-on inventory management within SAP systems."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Muhammed has relevant SAP and supply chain experience but lacks direct inventory management roles tied to SAP systems."
+            },
+            "fitScore": 65
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT Services and IT Consulting industry at Capgemini, focusing on supply chain and sourcing optimization.",
+              "Icon": "BULB",
+              "duration": "2 years 6 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Industry tag 'IT Services and IT Consulting' is explicitly listed for Capgemini.",
+              "Icon": "BULB",
+              "duration": "2 years 6 months"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "4 Years",
+              "ReasonForHighlight": "Muhammed has four years of experience in supply chain and IT services roles, including Capgemini and myTVS.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Chennai, Tamil Nadu, India",
+              "ReasonForHighlight": "Muhammed is based in Chennai, meeting the JD's location requirement within 120 km.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Muhammed is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:10.021Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da095",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACjrNYcBB_WNZdxdE3VGA3HFYJ_zMLDuC7U",
+          "name": "Muhammed Abdur Raqeeb",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/705c99b82b496ec316783058c776f59215c191b2c28872c2516a1ab26cc31d18.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Supplier Implementation",
+            "Archlet Sourcing Optimization App",
+            "Data Analysis",
+            "Sourcing",
+            "Business Strategy",
+            "SAP",
+            "Microsoft Dynamics 365",
+            "Procurement",
+            "Coupa Indonesia - Business Application",
+            "Telecommunications",
+            "Supply Chain Management",
+            "SAP PM Module",
+            "sap pm",
+            "SRM",
+            "Coupa Procure",
+            "Coupa",
+            "Microsoft Outlook",
+            "Analytical Skills",
+            "SAP Materials Management (SAP MM)",
+            "Order Management"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "EY",
+              "company_website_domain": "ey.com",
+              "job_title": "Associate Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ernstandyoung"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23b8",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Mary has five years of experience in IT services and consulting, which aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Her educational background in Information Technology and Computer Software Engineering supports her technical foundation."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "No logistics or inventory management expertise, which is critical for this position."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Mary's experience focuses on software engineering and research, with no evidence of SAP Inventory Management or logistics expertise."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services roles at Tata Consultancy Services, aligning with the JD's industry focus.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Tata Consultancy Services is tagged under 'IT Services and IT Consulting', matching the JD's industry criteria.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "B.Tech in Information Technology",
+              "ReasonForHighlight": "Her degree in Information Technology provides a strong technical foundation relevant to the industry.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Mary brings five years of experience in IT services and consulting, demonstrating a strong alignment with industry needs. Her educational background in Information Technology and Computer Software Engineering further solidifies her technical expertise. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:04.544Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da089",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC8PyjEBNHAfgXgZ2vGVcTWbQt6N6rJEF80",
+          "name": "Mary Emelda Florence",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f1887c2ac173cdf416895efb7112d6c0bd3f6386912227a7f9052415fb3964a9.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+        
+…[truncated 896803 more chars]
+# 2026-08-12T10:20:12.523Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c484457f6fa37246e248c/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:20:12.664Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 142ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T10:20:12.665Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c4844ca32b2566b8da14c/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:20:12.728Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 62ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c4844ca32b2566b8da14c",
+      "person_id": 18864238,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 2761438031,
+          "title": "Senior Consultant",
+          "description": "",
+          "location": "Chennai",
+          "employment_type": "",
+          "start_date": "2025-10-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "Consulting",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T18:54:12"
+        },
+        {
+          "name": "TVS Next",
+          "linkedin_id": "10783761",
+          "company_id": 10853,
+          "company_linkedin_id": "10783761",
+          "company_website_domain": "tvsnext.com",
+          "position_id": 1748921776,
+          "title": "Senior Associate",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "",
+          "start_date": "2021-02-01T00:00:00",
+          "end_date": "2025-11-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "North Brunswick, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "North Brunswick Township",
+            "Middlesex County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 708,
+          "company_website": "https://www.tvsnext.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tvsnext",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T00:56:47"
+        }
+      ],
+      "certifications": [],
+      "createdAt": "2026-08-12T10:17:37.480Z",
+      "current_employers": [
+        {
+          "name": "Deloitte",
+          "linkedin_id": "1038",
+          "company_id": 6038606,
+          "company_linkedin_id": "1038",
+          "company_website_domain": "deloitte.com",
+          "position_id": 2761438031,
+          "title": "Senior Consultant",
+          "description": "",
+          "location": "Chennai",
+          "employment_type": "",
+          "start_date": "2025-10-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "Consulting",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "",
+          "company_hq_location": "",
+          "company_hq_location_address_components": [],
+          "company_headcount_range": "10001+",
+          "company_industries": [
+            "Business Consulting and Services",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "Business Consulting and Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 532551,
+          "company_website": "http://www.deloitte.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte",
+          "business_email_verified": false,
+          "last_updated": "2026-08-10T18:54:12"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Engineering - BE",
+          "institute_name": "Indira Institute of Engineering and Technology",
+          "institute_linkedin_id": "15113780",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15113780",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/D4E0BAQHUHJVQ0ySurw/company-logo_400_400/company-logo_400_400/0/1698329692568?e=1747267200&v=beta&t=HHIa7hWSe-XC9dI-CHTIho58VxzbgVgjvIm82TxAuyk",
+          "field_of_study": "Computer Science",
+          "activities_and_societies": "",
+          "start_date": "2010-01-01T00:00:00",
+          "end_date": "2014-01-01T00:00:00",
+          "last_updated": "2026-02-26T10:09:09"
+        },
+        {
+          "degree_name": "",
+          "institute_name": "C.E.O.A",
+          "institute_linkedin_id": "",
+          "institute_linkedin_url": "",
+          "institute_logo_url": "",
+          "field_of_study": "",
+          "activities_and_societies": "",
+          "start_date": "2000-01-01T00:00:00",
+          "end_date": "2010-01-01T00:00:00",
+          "last_updated": "2026-02-26T10:09:09"
+        }
+      ],
+      "education_last_updated": "2026-02-26T10:09:09",
+      "emails": [],
+      "employer_last_updated": "2026-08-10T18:54:12",
+      "first_name": "Ram",
+      "flagship_profile_url": "https://www.linkedin.com/in/ram-prasath-js-6639ab105",
+      "headline": "Senior Consultant | Experienced in SAP Implementation, Migration & Support Projects | Specializing in S/4HANA, Sourcing, Procurement & Inventory Management",
+      "honors": [],
+      "indexed_at": "2026-08-12T01:14:15",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T10:17:37.478Z",
+      "last_name": "Js",
+      "last_updated": "2026-08-10T18:54:12",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABqqc-sBTLT4RjV8GbplsPRE9R2PjufWF6Q",
+      "location_details": {
+        "city": "Chennai",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Ram Prasath Js",
+      "num_of_connections": 168,
+      "num_of_followers": 0,
+      "open_to_cards": [],
+      "past_employers": [
+        {
+          "name": "TVS Next",
+          "linkedin_id": "10783761",
+          "company_id": 10853,
+          "company_linkedin_id": "10783761",
+          "company_website_domain": "tvsnext.com",
+          "position_id": 1748921776,
+          "title": "Senior Associate",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "",
+          "start_date": "2021-02-01T00:00:00",
+          "end_date": "2025-11-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 4,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "North Brunswick, New Jersey, United States",
+          "company_hq_location_address_components": [
+            "North Brunswick Township",
+            "Middlesex County",
+            "New Jersey",
+            "United States"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "IT Services and IT Consulting",
+            "Professional Services"
+          ],
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 708,
+          "company_website": "https://www.tvsnext.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tvsnext",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T00:56:47"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2026-02-26T10:09:09",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/b0714feeab909a412caba9dfe1df1255023b0656e8ba1a02b14266860bd250c1.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/C5603AQGs2vBxrk23BQ/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1624109976726?e=1773878400&v=beta&t=8nhKmrJ2y8F5sPQWrlmD3cXc0A3iLIilDFR5-qp6S6k",
+      "recently_changed_jobs": false,
+      "region": "Greater Chennai Area",
+      "region_address_components": [
+        "Chennai Metropolitan Area",
+        "Tamil Nadu",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "Project Implementation",
+        "SAP Materials Management (SAP MM)",
+        "Master Data",
+        "SAP Logistics Execution",
+        "SAP Configuration",
+        "SAP Consulting"
+      ],
+      "summary": "Passionate SAP Consultant with a demonstrated history of working in the Information technology and services industry. Skilled in Master Data, SAP Consulting, SAP Configuration, SAP Materials Management (SAP MM), and SAP Logistics Execution. Strong support professional with Hands on experience in Sourcing and procurement.",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T10:17:37.480Z",
+      "updated_at": "2026-08-12T00:06:44",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 5,
+      "totalPositions": 2,
+      "uniqueCompanies": 2,
+      "mergedPeriods": 1,
+      "totalUniqueYears": 5.53,
+      "averageTenure": 2.76,
+      "currentTenure": 0.86,
+      "currentCompany": "Deloitte",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Senior Associate at TVS Next",
+          "Senior Consultant at Deloitte"
+        ],
+        "finalScore": 85,
+        "starRating": 4.3,
+        "starLabel": "good",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 23.6842,
+            "matchedItems": [
+              "Senior Consultant",
+              "Senior Associate"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 5 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Senior Associate at TVS Next",
+              "Senior Consultant at Deloitte"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 6.5789,
+            "matchedItems": [],
+            "missingItems": [
+              "JD requires Chennai, Tamil Nadu, India, but candidate is in Greater Chennai Area"
+            ]
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Bachelor of Engineering - BE in Computer Science"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 9.8684,
+            "matchedItems": [
+              "Information Technology & Services",
+              "IT Services and IT Consulting"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 5.2632,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "120_km"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Five years of SAP consulting experience directly aligns with the JD's requirement for inventory management expertise.",
+            "evidence": "At TVS Next as Senior Associate (2021–2025), Ram specialized in SAP Materials Management and Logistics Execution."
+          },
+          {
+            "observation": "Proven industry experience in IT Services and IT Consulting strengthens domain relevance for this role.",
+            "evidence": "Worked at TVS Next, tagged under 'IT Services and IT Consulting' industry, for nearly five years."
+          },
+          {
+            "observation": "Educational background in Computer Science supports technical proficiency required for SAP roles.",
+            "evidence": "Earned a Bachelor of Engineering in Computer Science from Indira Institute of Engineering and Technology (2010–2014)."
+          },
+          {
+            "observation": "Located within the required 120 km radius of Chennai, ensuring logistical feasibility for the role.",
+            "evidence": "Resides in Greater Chennai Area, matching the regional filter."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "Region Match gap — JD requires Chennai, Tamil Nadu, India, but candidate is in Greater Chennai Area",
+            "evidence": "JD requires Chennai, Tamil Nadu, India, but candidate is in Greater Chennai Area"
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "STRONG",
+          "reason": "Ram's work as a Senior Consultant and Senior Associate demonstrates hands-on SAP Inventory Management expertise, aligning with the JD's core requirements."
+        },
+        "fitScore": 85
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Demonstrated history of working in the Information technology and services industry, as stated in the summary.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "SKILLS",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "Worked at TVS Next, tagged under 'IT Services and IT Consulting' industry, for nearly five years.",
+          "Icon": "BULB",
+          "duration": "5 years"
+        },
+        {
+          "Category": "JOB_TITLE",
+          "Highlight": "Senior Consultant",
+          "ReasonForHighlight": "Current role as Senior Consultant at Deloitte aligns with the JD's target titles.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "EXPERIENCE",
+          "Highlight": "5+ Years",
+          "ReasonForHighlight": "Five years of SAP consulting experience directly aligns with the JD's requirement for inventory management expertise.",
+          "Icon": "BAG"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "Worked at TVS Next, tagged under 'IT Services and IT Consulting' industry, for nearly five years.",
+          "Icon": "BAG",
+          "duration": "5 years"
+        },
+        {
+          "Category": "EDUCATION",
+          "Highlight": "Bachelor of Engineering",
+          "ReasonForHighlight": "Earned a BE in Computer Science from Indira Institute of Engineering and Technology, supporting technical proficiency.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "LOCATION",
+          "Highlight": "Greater Chennai Area",
+          "ReasonForHighlight": "Resides within the required 120 km radius of Chennai, ensuring logistical feasibility for the role.",
+          "Icon": "BAG"
+        }
+      ],
+      "recommendation": "Ram is a strong fit for this role. This profile is rated 4.3/5 stars."
+    },
+    "finalScore": 4.25,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T10:20:25.017Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c484457f6fa37246e24ab/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:20:25.133Z GET /wl/sourcing-session/candidate/:id/details response HTTP 404 113ms
+{
+  "message": "The candidate profile couldn't be found. Please refresh and try again.",
+  "statusCode": 404,
+  "success": false
+}
+# 2026-08-12T10:20:25.133Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/6a7c4844ca32b2566b8da168/details?sessionId=6a7c47d757f6fa37246e12af' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:20:25.221Z GET /wl/sourcing-session/candidate/:id/details response HTTP 200 87ms
+{
+  "statusCode": 200,
+  "data": {
+    "candidate": {
+      "_id": "6a7c4844ca32b2566b8da168",
+      "person_id": 26929932,
+      "__v": 0,
+      "all_employers": [
+        {
+          "name": "Brillio",
+          "linkedin_id": "5022712",
+          "company_id": 1062027,
+          "company_linkedin_id": "5022712",
+          "company_website_domain": "brillio.com",
+          "position_id": 2813026605,
+          "title": "Software Development Lead",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2026-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Coppell, Texas, United States",
+          "company_hq_location_address_components": [
+            "Coppell",
+            "Dallas County",
+            "Texas",
+            "United States"
+          ],
+          "company_headcount_range": "5001-10000",
+          "company_industries": [
+            "Artificial Intelligence"
+          ],
+          "company_linkedin_industry": "Artificial Intelligence",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 5592,
+          "company_website": "https://www.brillio.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/brillio",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T10:06:38"
+        },
+        {
+          "name": "KEYSTRIDE",
+          "linkedin_id": "4801464",
+          "company_id": 22134,
+          "company_linkedin_id": "4801464",
+          "company_website_domain": "keystride.com",
+          "position_id": 2767770670,
+          "title": "Senior Flutter Developer",
+          "description": "As a Senior Flutter and Full-Stack Developer at Keystride Digital, I led the development of scalable mobile applications and optimized backend services using NestJS and Node.js. I delivered end-to-end solutions, mentored junior developers, and collaborated closely with cross-functional teams to ensure high-quality production releases. My role expanded to include project ownership, architectural decisions, advanced performance tuning, backend integration, and delivering reliable, client-focused solutions.",
+          "location": "Salem, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2025-04-01T00:00:00",
+          "end_date": "2026-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 28,
+          "company_website": "http://www.keystride.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/keystridedigital",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T06:41:47"
+        },
+        {
+          "name": "KEYSTRIDE",
+          "linkedin_id": "4801464",
+          "company_id": 22134,
+          "company_linkedin_id": "4801464",
+          "company_website_domain": "keystride.com",
+          "position_id": 2147289565,
+          "title": "Associate Flutter Developer",
+          "description": "At Keystride Digital, I worked as an Associate Flutter Developer contributing to multiple client projects by building responsive mobile interfaces and implementing core app functionalities. I collaborated with backend teams to integrate APIs, optimized app performance, and maintained code quality through clean architecture principles. This role strengthened my foundation in Flutter, REST API integration, state management, and scalable mobile development.",
+          "location": "Bengaluru, Karnataka, India",
+          "employment_type": "",
+          "start_date": "2023-03-01T00:00:00",
+          "end_date": "2025-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 28,
+          "company_website": "http://www.keystride.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/keystridedigital",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T06:41:47"
+        },
+        {
+          "name": "KEYSTRIDE",
+          "linkedin_id": "4801464",
+          "company_id": 22134,
+          "company_linkedin_id": "4801464",
+          "company_website_domain": "keystride.com",
+          "position_id": 2147289565,
+          "title": "Associate Flutter Developer ",
+          "description": "At Keystride Digital, I worked as an Associate Flutter Developer contributing to multiple client projects by building responsive mobile interfaces and implementing core app functionalities. I collaborated with backend teams to integrate APIs, optimized app performance, and maintained code quality through clean architecture principles. This role strengthened my foundation in Flutter, REST API integration, state management, and scalable mobile development.",
+          "location": "Bengaluru, Karnataka, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-03-01T00:00:00",
+          "end_date": "2025-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 28,
+          "company_website": "http://www.keystride.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/keystridedigital",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T06:41:47"
+        },
+        {
+          "name": "Mitsogo Careers",
+          "linkedin_id": "79167952",
+          "company_id": 6582893,
+          "company_linkedin_id": "79167952",
+          "company_website_domain": "mitsogo.com",
+          "position_id": 1721813200,
+          "title": "Software Engineer",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2020-10-01T00:00:00",
+          "end_date": "2023-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "San Francisco, California, United States",
+          "company_hq_location_address_components": [
+            "San Francisco",
+            "San Francisco County",
+            "California",
+            "United States"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 145,
+          "company_website": "https://www.mitsogo.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/mitsogo-careers",
+          "business_email_verified": false,
+          "last_updated": "2026-08-06T07:03:54"
+        }
+      ],
+      "certifications": [],
+      "createdAt": "2026-08-12T10:17:37.480Z",
+      "current_employers": [
+        {
+          "name": "Brillio",
+          "linkedin_id": "5022712",
+          "company_id": 1062027,
+          "company_linkedin_id": "5022712",
+          "company_website_domain": "brillio.com",
+          "position_id": 2813026605,
+          "title": "Software Development Lead",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2026-01-01T00:00:00",
+          "employer_is_default": true,
+          "seniority_level": "Senior",
+          "function_category": "",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "Coppell, Texas, United States",
+          "company_hq_location_address_components": [
+            "Coppell",
+            "Dallas County",
+            "Texas",
+            "United States"
+          ],
+          "company_headcount_range": "5001-10000",
+          "company_industries": [
+            "Artificial Intelligence"
+          ],
+          "company_linkedin_industry": "Artificial Intelligence",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 5592,
+          "company_website": "https://www.brillio.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/brillio",
+          "business_email_verified": false,
+          "last_updated": "2026-08-11T10:06:38"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Engineering - BE",
+          "institute_name": "Coimbatore Institute of Technology",
+          "institute_linkedin_id": "6493745",
+          "institute_linkedin_url": "https://www.linkedin.com/company/6493745",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQEluJwgh5ZdAg/company-logo_400_400/company-logo_400_400/0/1630643826009/coimbatore_institute_of_technology_logo?e=1767225600&v=beta&t=OlujkN7Fqk8Qk5BdB5_ygHEPeRkb4cJhCh9SWhfuXbc",
+          "field_of_study": "Mechanical Engineering",
+          "activities_and_societies": "",
+          "start_date": "2016-06-01T00:00:00",
+          "end_date": "2020-04-01T00:00:00",
+          "last_updated": "2026-03-08T21:00:36"
+        }
+      ],
+      "education_last_updated": "2026-03-08T21:00:36",
+      "emails": [],
+      "employer_last_updated": "2026-08-11T10:06:38",
+      "first_name": "Shanmugam",
+      "flagship_profile_url": "https://www.linkedin.com/in/shanmugam-aasil",
+      "headline": "Software Development Lead at Brillio",
+      "honors": [],
+      "indexed_at": "2026-08-12T07:27:21",
+      "languages": [],
+      "lastFetchedAt": "2026-08-12T10:17:37.479Z",
+      "last_name": "A.",
+      "last_updated": "2026-08-11T10:06:38",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACEj7tQBAML9SsgB-RGz3_VDfFV55atD5WU",
+      "location_details": {
+        "city": "Chennai",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "Shanmugam A.",
+      "num_of_connections": 469,
+      "num_of_followers": 465,
+      "open_to_cards": [],
+      "past_employers": [
+        {
+          "name": "KEYSTRIDE",
+          "linkedin_id": "4801464",
+          "company_id": 22134,
+          "company_linkedin_id": "4801464",
+          "company_website_domain": "keystride.com",
+          "position_id": 2767770670,
+          "title": "Senior Flutter Developer",
+          "description": "As a Senior Flutter and Full-Stack Developer at Keystride Digital, I led the development of scalable mobile applications and optimized backend services using NestJS and Node.js. I delivered end-to-end solutions, mentored junior developers, and collaborated closely with cross-functional teams to ensure high-quality production releases. My role expanded to include project ownership, architectural decisions, advanced performance tuning, backend integration, and delivering reliable, client-focused solutions.",
+          "location": "Salem, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2025-04-01T00:00:00",
+          "end_date": "2026-01-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Senior",
+          "function_category": "Engineering",
+          "years_at_company": "Less than 1 year",
+          "years_at_company_raw": 0,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 28,
+          "company_website": "http://www.keystride.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/keystridedigital",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T06:41:47"
+        },
+        {
+          "name": "KEYSTRIDE",
+          "linkedin_id": "4801464",
+          "company_id": 22134,
+          "company_linkedin_id": "4801464",
+          "company_website_domain": "keystride.com",
+          "position_id": 2147289565,
+          "title": "Associate Flutter Developer",
+          "description": "At Keystride Digital, I worked as an Associate Flutter Developer contributing to multiple client projects by building responsive mobile interfaces and implementing core app functionalities. I collaborated with backend teams to integrate APIs, optimized app performance, and maintained code quality through clean architecture principles. This role strengthened my foundation in Flutter, REST API integration, state management, and scalable mobile development.",
+          "location": "Bengaluru, Karnataka, India",
+          "employment_type": "",
+          "start_date": "2023-03-01T00:00:00",
+          "end_date": "2025-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 28,
+          "company_website": "http://www.keystride.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/keystridedigital",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T06:41:47"
+        },
+        {
+          "name": "KEYSTRIDE",
+          "linkedin_id": "4801464",
+          "company_id": 22134,
+          "company_linkedin_id": "4801464",
+          "company_website_domain": "keystride.com",
+          "position_id": 2147289565,
+          "title": "Associate Flutter Developer ",
+          "description": "At Keystride Digital, I worked as an Associate Flutter Developer contributing to multiple client projects by building responsive mobile interfaces and implementing core app functionalities. I collaborated with backend teams to integrate APIs, optimized app performance, and maintained code quality through clean architecture principles. This role strengthened my foundation in Flutter, REST API integration, state management, and scalable mobile development.",
+          "location": "Bengaluru, Karnataka, India",
+          "employment_type": "Full-time",
+          "start_date": "2023-03-01T00:00:00",
+          "end_date": "2025-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "IND",
+          "company_hq_location": "Bengaluru, Karnataka, India",
+          "company_hq_location_address_components": [
+            "Bengaluru",
+            "Bengaluru Urban",
+            "Bangalore Division",
+            "Karnataka",
+            "India"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 28,
+          "company_website": "http://www.keystride.com",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/keystridedigital",
+          "business_email_verified": false,
+          "last_updated": "2026-08-09T06:41:47"
+        },
+        {
+          "name": "Mitsogo Careers",
+          "linkedin_id": "79167952",
+          "company_id": 6582893,
+          "company_linkedin_id": "79167952",
+          "company_website_domain": "mitsogo.com",
+          "position_id": 1721813200,
+          "title": "Software Engineer",
+          "description": "",
+          "location": "Chennai, Tamil Nadu, India",
+          "employment_type": "Full-time",
+          "start_date": "2020-10-01T00:00:00",
+          "end_date": "2023-03-01T00:00:00",
+          "employer_is_default": false,
+          "seniority_level": "Entry Level",
+          "function_category": "Engineering",
+          "years_at_company": "3 to 5 years",
+          "years_at_company_raw": 2,
+          "company_headquarters_country": "USA",
+          "company_hq_location": "San Francisco, California, United States",
+          "company_hq_location_address_components": [
+            "San Francisco",
+            "San Francisco County",
+            "California",
+            "United States"
+          ],
+          "company_headcount_range": "201-500",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "company_linkedin_industry": "Information Technology & Services",
+          "company_type": "Privately Held",
+          "company_headcount_latest": 145,
+          "company_website": "https://www.mitsogo.com/",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/mitsogo-careers",
+          "business_email_verified": false,
+          "last_updated": "2026-08-06T07:03:54"
+        }
+      ],
+      "phoneNumbers": [],
+      "profile_last_updated": "2026-08-06T03:53:34",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/64f51b50a7d8b69dbf365fa6e670411096fcb2e30a7d5a82a41284afd9381a46.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/C5603AQEbbMzW_6t8Kg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1649732855853?e=1787788800&v=beta&t=1BkofKn43t7ng5llSAsG74HYZ6peINsRpjwfVwvXzG8",
+      "recently_changed_jobs": false,
+      "region": "Chennai, Tamil Nadu, India",
+      "region_address_components": [
+        "Chennai",
+        "Chennai",
+        "Tamil Nadu",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "Cross-platform Development",
+        "NestJS",
+        "TypeScript",
+        "MongoDB",
+        "Web Development",
+        "Music",
+        "Google Ads",
+        "REST APIs",
+        "User Experience (UX)",
+        "iOS",
+        "Mobile Application Development",
+        "SQLite",
+        "Android Design",
+        "Application Development",
+        "Objective-C",
+        "Web Applications",
+        "SQL Database",
+        "Programming Languages",
+        "Programming",
+        "Collaborative Problem Solving"
+      ],
+      "summary": "Experienced Software Engineer with a demonstrated history of working in the information technology and services industry. Skilled in Mobile Application Development, Mobile Applications, Java, Android Development, and Android Studio. Strong engineering professional with a Bachelor of Engineering - BE focused in Mechanical Engineering from coimbatore institute of technology.",
+      "systemEmails": [],
+      "twitter_handle": "",
+      "updatedAt": "2026-08-12T10:17:37.480Z",
+      "updated_at": "2026-08-12T06:09:08",
+      "years_of_experience": "3 to 5 years",
+      "years_of_experience_raw": 5,
+      "totalPositions": 5,
+      "uniqueCompanies": 3,
+      "mergedPeriods": 2,
+      "totalUniqueYears": 5.78,
+      "averageTenure": 1.93,
+      "currentTenure": 0.61,
+      "currentCompany": "Brillio",
+      "manualEmails": [],
+      "manualPhoneNumbers": []
+    },
+    "profileAnalysis": {
+      "analysis": {
+        "relevantPastRoleCount": 2,
+        "matchedPastRoles": [
+          "Senior Flutter Developer at KEYSTRIDE",
+          "Software Engineer at Mitsogo Careers"
+        ],
+        "finalScore": 83,
+        "starRating": 4.2,
+        "starLabel": "good",
+        "scoreBreakdown": [
+          {
+            "code": "JT",
+            "label": "Job Title Match",
+            "weight": 23.6842,
+            "awarded": 11.8421,
+            "matchedItems": [
+              "Matches JD title: Senior Flutter Developer at KEYSTRIDE (past role)",
+              "Matches JD title: Software Engineer at Mitsogo Careers (past role)"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Experience (Years)",
+            "label": "Experience (Years)",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD experience: 5 years"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "PR",
+            "label": "Past Similar Roles",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [
+              "Senior Flutter Developer at KEYSTRIDE",
+              "Software Engineer at Mitsogo Careers"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "Region Match",
+            "label": "Region Match",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Matches JD region: Chennai, Tamil Nadu, India"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "EDU",
+            "label": "Education Background",
+            "weight": 6.5789,
+            "awarded": 6.5789,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MAND",
+            "label": "Mandatory Skills",
+            "weight": 0,
+            "awarded": 0,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "CORE",
+            "label": "Core Skills",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "Information Technology & Services",
+              "IT Services and IT Consulting"
+            ],
+            "missingItems": []
+          },
+          {
+            "code": "IND",
+            "label": "Relevant Industry",
+            "weight": 10.5263,
+            "awarded": 5.2632,
+            "matchedItems": [],
+            "missingItems": []
+          },
+          {
+            "code": "MISC",
+            "label": "Remaining Miscellaneous Fields",
+            "weight": 13.1579,
+            "awarded": 13.1579,
+            "matchedItems": [
+              "geo_distance"
+            ],
+            "missingItems": []
+          }
+        ],
+        "keyStrengths": [
+          {
+            "observation": "Experience in Information Technology & Services industry aligns with the JD's core domain requirement.",
+            "evidence": "Worked as Senior Flutter Developer at Keystride Digital and Software Engineer at Mitsogo Careers, both in IT Services."
+          },
+          {
+            "observation": "Five years of experience in software development demonstrates technical expertise and consistent career progression.",
+            "evidence": "Roles at Keystride Digital and Mitsogo Careers span 2020–2026, focusing on mobile app development and backend services."
+          }
+        ],
+        "keyWeaknesses": [
+          {
+            "observation": "No SAP Inventory Management experience, which is central to the role.",
+            "evidence": "Across roles at Brillio, Keystride, and Mitsogo, there is no mention of SAP Inventory Management or logistics coordination."
+          },
+          {
+            "observation": "Current and past job titles do not match the JD's target roles.",
+            "evidence": "Titles like Software Development Lead and Senior Flutter Developer differ from SAP Inventory Management Executive or similar."
+          }
+        ],
+        "areasToConsider": [],
+        "roleFit": {
+          "verdict": "OFF_ROLE",
+          "reason": "Shanmugam's experience is focused on software development and mobile applications, not SAP Inventory Management or logistics coordination."
+        },
+        "fitScore": 25
+      },
+      "highlights": [
+        {
+          "Category": "SKILLS",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "SKILLS",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+          "Icon": "BULB"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "Information Technology & Services",
+          "ReasonForHighlight": "Worked in IT Services as Senior Flutter Developer at Keystride Digital, delivering scalable mobile applications.",
+          "Icon": "BAG",
+          "duration": "9 months"
+        },
+        {
+          "Category": "INDUSTRY",
+          "Highlight": "IT Services and IT Consulting",
+          "ReasonForHighlight": "Contributed to IT Services projects as Software Engineer at Mitsogo Careers, focusing on app development.",
+          "Icon": "BAG",
+          "duration": "2 years 5 months"
+        }
+      ],
+      "recommendation": "Shanmugam brings five years of solid experience in software development within the Information Technology & Services industry, showcasing both technical expertise and a clear trajectory of career growth. His background aligns seamlessly with the core domain requirements, making him an exceptional fit for the role. This profile is rated 4.2/5 stars."
+    },
+    "finalScore": 4.15,
+    "interestStatus": "none",
+    "isSaved": false,
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Candidate details fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-12T10:20:28.578Z GET /wl/sourcing-session/:id/profiles
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7c47d757f6fa37246e12af/profiles?page=1&limit=300' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-12T10:20:29.388Z GET /wl/sourcing-session/:id/profiles response HTTP 200 807ms
+{
+  "statusCode": 200,
+  "data": {
+    "docs": [
+      {
+        "_id": "6a7c484457f6fa37246e248c",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years of SAP consulting experience directly aligns with the JD's requirement for inventory management expertise."
+              },
+              {
+                "observation": "Proven industry experience in IT Services and IT Consulting strengthens domain relevance for this role."
+              },
+              {
+                "observation": "Educational background in Computer Science supports technical proficiency required for SAP roles."
+              },
+              {
+                "observation": "Located within the required 120 km radius of Chennai, ensuring logistical feasibility for the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "Region Match gap — JD requires Chennai, Tamil Nadu, India, but candidate is in Greater Chennai Area"
+              }
+            ],
+            "roleFit": {
+              "verdict": "STRONG",
+              "reason": "Ram's work as a Senior Consultant and Senior Associate demonstrates hands-on SAP Inventory Management expertise, aligning with the JD's core requirements."
+            },
+            "fitScore": 85
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Demonstrated history of working in the Information technology and services industry, as stated in the summary.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at TVS Next, tagged under 'IT Services and IT Consulting' industry, for nearly five years.",
+              "Icon": "BULB",
+              "duration": "5 years"
+            },
+            {
+              "Category": "JOB_TITLE",
+              "Highlight": "Senior Consultant",
+              "ReasonForHighlight": "Current role as Senior Consultant at Deloitte aligns with the JD's target titles.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5+ Years",
+              "ReasonForHighlight": "Five years of SAP consulting experience directly aligns with the JD's requirement for inventory management expertise.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at TVS Next, tagged under 'IT Services and IT Consulting' industry, for nearly five years.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Bachelor of Engineering",
+              "ReasonForHighlight": "Earned a BE in Computer Science from Indira Institute of Engineering and Technology, supporting technical proficiency.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Greater Chennai Area",
+              "ReasonForHighlight": "Resides within the required 120 km radius of Chennai, ensuring logistical feasibility for the role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Ram is a strong fit for this role. This profile is rated 4.3/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:20:00.247Z",
+        "finalScore": 4.25,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da14c",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAABqqc-sBTLT4RjV8GbplsPRE9R2PjufWF6Q",
+          "name": "Ram Prasath Js",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/b0714feeab909a412caba9dfe1df1255023b0656e8ba1a02b14266860bd250c1.jpg",
+          "region": "Greater Chennai Area",
+          "resumeUrl": null,
+          "skills": [
+            "Project Implementation",
+            "SAP Materials Management (SAP MM)",
+            "Master Data",
+            "SAP Logistics Execution",
+            "SAP Configuration",
+            "SAP Consulting"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Deloitte",
+              "company_website_domain": "deloitte.com",
+              "job_title": "Senior Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/deloitte"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24a8",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Strong educational background in Computer Science supports technical understanding."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Preetha's experience is focused on sales and channel management, not SAP Inventory Management or logistics coordination as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Team Computers and Sniper Systems, both tagged as IT Services and IT Consulting.",
+              "Icon": "BAG",
+              "duration": "1 year 5 months"
+            }
+          ],
+          "recommendation": "Preetha demonstrates exceptional alignment with the role, showcasing extensive experience in IT Services and IT Consulting that directly complements the industry focus. Her strong educational background in Computer Science further solidifies her technical expertise, making her an outstanding candidate. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:20:13.579Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da165",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACx0yssBqvmffqKtkjtGOsUPrctqQ3kCf6E",
+          "name": "Preetha  P",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/bf7387983db52faddf88f9b90e1828a9541cd72fac7c1a9ee1d4ec74ae25842d.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Building Business Relationships",
+            "Deal Closure",
+            "Pricing Negotiations",
+            "Question-Based Selling",
+            "Business-to-Business (B2B)",
+            "Channel Partners",
+            "English",
+            "Customer Success",
+            "Computer Application Training",
+            "Arabic",
+            "Client Relations",
+            "Sales Execution",
+            "New Business Opportunities",
+            "Customer Relationship Management (CRM)",
+            "Software as a Service (SaaS)",
+            "Sales Strategy",
+            "Direct Sales",
+            "Lead Generation",
+            "Inside Sales",
+            "Cold Calling"
+          ],
+          "years_of_experience_raw": 2,
+          "current_employers_object": []
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24ab",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in Information Technology & Services industry aligns with the JD's core domain requirement."
+              },
+              {
+                "observation": "Five years of experience in software development demonstrates technical expertise and consistent career progression."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Current and past job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Shanmugam's experience is focused on software development and mobile applications, not SAP Inventory Management or logistics coordination."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT Services as Senior Flutter Developer at Keystride Digital, delivering scalable mobile applications.",
+              "Icon": "BAG",
+              "duration": "9 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Contributed to IT Services projects as Software Engineer at Mitsogo Careers, focusing on app development.",
+              "Icon": "BAG",
+              "duration": "2 years 5 months"
+            }
+          ],
+          "recommendation": "Shanmugam brings five years of solid experience in software development within the Information Technology & Services industry, showcasing both technical expertise and a clear trajectory of career growth. His background aligns seamlessly with the core domain requirements, making him an exceptional fit for the role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:58.330Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da168",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACEj7tQBAML9SsgB-RGz3_VDfFV55atD5WU",
+          "name": "Shanmugam A.",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/64f51b50a7d8b69dbf365fa6e670411096fcb2e30a7d5a82a41284afd9381a46.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Cross-platform Development",
+            "NestJS",
+            "TypeScript",
+            "MongoDB",
+            "Web Development",
+            "Music",
+            "Google Ads",
+            "REST APIs",
+            "User Experience (UX)",
+            "iOS",
+            "Mobile Application Development",
+            "SQLite",
+            "Android Design",
+            "Application Development",
+            "Objective-C",
+            "Web Applications",
+            "SQL Database",
+            "Programming Languages",
+            "Programming",
+            "Collaborative Problem Solving"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Brillio",
+              "company_website_domain": "brillio.com",
+              "job_title": "Software Development Lead",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/brillio"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24a6",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT services and consulting aligns with the core industry requirement for this role."
+              },
+              {
+                "observation": "Holds a Bachelor of Technology in Information Technology, meeting the educational background expected for this domain."
+              },
+              {
+                "observation": "Relevant past roles in IT services demonstrate domain expertise and experience in technology-driven environments."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in SAP inventory management or logistics, which is the core focus of this role."
+              },
+              {
+                "observation": "No job titles match the specific SAP inventory management roles listed in the JD."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Subi's experience is focused on quality engineering and business analysis, not SAP inventory management or logistics."
+            },
+            "fitScore": 35
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Dedalus HealthCare DACH in IT Services and IT Consulting, aligning with the broader IT services domain.",
+              "Icon": "BULB",
+              "duration": "2 years 11 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Dedalus HealthCare DACH, a company explicitly listed under IT Services and IT Consulting.",
+              "Icon": "BULB",
+              "duration": "2 years 11 months"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5 Years",
+              "ReasonForHighlight": "Has 5 years of experience in IT services and consulting roles, meeting the experience range of 1–5 years.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "BTech in IT",
+              "ReasonForHighlight": "Holds a BTech in Information Technology from Meenakshi College Of Engineering (2016–2020), relevant to the domain.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Chennai",
+              "ReasonForHighlight": "Currently based in Chennai, Tamil Nadu, meeting the location requirement for this role.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Subi brings extensive experience in IT services and consulting, perfectly aligning with the core industry requirements for this role. With a Bachelor of Technology in Information Technology and a proven track record in technology-driven environments, Subi demonstrates both the educational foundation and practical expertise needed to excel. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:57.902Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da163",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADN-6zgBSnQ7XypBr1Yo6fJvNYvGM-NClEU",
+          "name": "Subi  Barathan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/b8f147fc0f3f7876bfc0bd811112dca82ec1e0f741abfcf61775a8e7a1780832.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Business Workflows",
+            "Microsoft Power BI",
+            "Figma (Software)",
+            "FRD BRD",
+            "Gap Analysis",
+            "Application Programming Interfaces (API)",
+            "Sprints",
+            "Manual Testing",
+            "Web Applications",
+            "Postman API",
+            "Product Strategy",
+            "Backlog Management",
+            "JSON",
+            "Product Management",
+            "Sprint Planning",
+            "Functional Requirements",
+            "Product Requirements",
+            "Strategy Implementation",
+            "Systems Analysis",
+            "Business"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "PAIX",
+              "company_website_domain": "paixservices.com",
+              "job_title": "Senior Quality Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/paixservices"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24a7",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Three years in IT services sales positions Vishnu well for roles requiring client acquisition and stakeholder engagement."
+              },
+              {
+                "observation": "Experience in IT services and consulting aligns with the industry focus of this role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is central to this role."
+              },
+              {
+                "observation": "No relevant job titles matching the SAP inventory management domain."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Vishnu's experience is focused on business development and sales in IT services, not SAP inventory management or logistics."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services at Photon Interactive and AES Technologies, aligning with the industry focus.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Directly evidenced by industry tags at Photon Interactive and AES Technologies.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            }
+          ],
+          "recommendation": "Vishnu is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:55.802Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da164",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAEk4OOMBArdTSudpfP5l-knGeBo2aUTcaB0",
+          "name": "Vishnu Vardhan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/daac323b06333d03f962ec38a6ac81d95c97f00ceba43efad1f4461ff6c0dece.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "SQL",
+            "MongoDB",
+            "JavaScript",
+            "Microsoft Office",
+            "Microsoft SQL Server",
+            "Microsoft Excel",
+            "Tableau",
+            "Oracle SQL Developer",
+            "Python basics",
+            "Pandas",
+            "PySpark"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Photon Interactive",
+              "company_website_domain": "photon.com",
+              "job_title": "Business Development Executive",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/photon-interactive"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2483",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting aligns with the industry focus of the role."
+              },
+              {
+                "observation": "Educational background in Logistics and Supply Chain Management supports foundational knowledge for inventory roles."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Current and past job titles do not match the target role titles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Veenayaka's experience focuses on cloud consulting and engineering roles, with no evidence of SAP Inventory Management or related functions."
+            },
+            "fitScore": 40
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in the Information Technology & Services industry at MindTree Ltd. as Junior Engineer.",
+              "Icon": "BULB",
+              "duration": "3 years"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Currently employed in IT Services and IT Consulting at Oracle as Cloud Consultant.",
+              "Icon": "BULB",
+              "duration": "1 year 6 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "MBA in Logistics",
+              "ReasonForHighlight": "Pursuing MBA in Logistics, Materials, and Supply Chain Management at SASTRA University.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Veenayaka demonstrates exceptional alignment with the role, combining extensive experience in IT Services and IT Consulting with a strong educational foundation in Logistics and Supply Chain Management. Their profile reflects both industry expertise and relevant academic credentials, making them an outstanding candidate. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:55.467Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da143",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC1VZW4BkdncjYTr1VLeuihVIVRut71RNZY",
+          "name": "Veenayaka Chandramouli",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f186dddd536bf1b22946a7694987ba86ebe5c72b95b18ed872689726ba0ec1a0.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Routing Protocols",
+            "Storage Area Network (SAN)",
+            "Brocade Fibre Switches",
+            "Accessibility Monitoring",
+            "Microsoft Excel",
+            "Microsoft Office",
+            "Research Skills",
+            "Data Mining",
+            "Data Analysis",
+            "Statistical Data Analysis",
+            "Technical Data Analysis",
+            "Business Analytics",
+            "Cloud Infrastructure",
+            "Cloud Services",
+            "VMware",
+            "Patch Management",
+            "Security Patch Management",
+            "Vulnerability Management",
+            "Qualys",
+            "Vulcan",
+            "Active Directory",
+            "Freshservice ITSM",
+            "C++",
+            "Machine Learning Algorithms",
+            "MySQL",
+            "Database Management System (DBMS)",
+            "Amazon Web Services (AWS)",
+            "Microsoft Azure",
+            "Linux System Administration",
+            "Windows",
+            "Tanium"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Oracle",
+              "company_website_domain": "oracle.com",
+              "job_title": "Cloud Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/oracle"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24b4",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting industries aligns with the JD's core industry requirement."
+              },
+              {
+                "observation": "Three years of experience in technical recruitment demonstrates strong expertise in sourcing and managing talent pipelines."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "No relevant job titles matching the JD's search criteria, such as SAP Inventory Management Executive or similar."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Vijaya's experience is focused on technical recruitment and talent acquisition, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at ApTask, tagged under 'Information Technology & Services' in company industries.",
+              "Icon": "BAG",
+              "duration": "3 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Experience at ApTask and Doyensys Inc, both tagged under 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Vijaya brings extensive experience in IT Services and IT Consulting, perfectly aligning with the core industry requirements. Her three years of expertise in technical recruitment showcase a proven ability to source and manage talent pipelines effectively. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:55.405Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da16f",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADq7ktgBi-kC87BidARL91u7k99LQWxAFDw",
+          "name": "Vijaya Ragavan P",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/da3ce8261428390e6cf0a512df002d8d52b3b3475395ca10a48eaac362a7d831.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Dice.com",
+            "Ceipal",
+            "GCEAD",
+            "H4EAD",
+            "CPT",
+            "OPT",
+            "GC",
+            "USC",
+            "H1B",
+            "1099",
+            "w2",
+            "CTC",
+            "Benchmarking",
+            "Human Resources (HR)",
+            "Client Relations",
+            "Vendor Management",
+            "Account Management",
+            "LinkedIn Recruiter",
+            "client call",
+            "Passionate about Work",
+            "High-volume Recruiting",
+            "Screening Resumes",
+            "Sourcing",
+            "Recruiting",
+            "Time Management",
+            "Back-End Web Development",
+            "Front-End Development",
+            "Software Development",
+            "Cascading Style Sheets (CSS)",
+            "HTML",
+            "PHP",
+            "Java",
+            "Typing",
+            "C++",
+            "C (Programming Language)",
+            "Employee Engagement",
+            "Employee Relations"
+          ],
+          "years_of_experience_raw": 3,
+          "current_employers_object": [
+            {
+              "company_name": "ApTask",
+              "company_website_domain": "aptask.com",
+              "job_title": "Technical Recruiter LATAM",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/aptask"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e24ae",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and Consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Background in Information Technology & Services supports the JD's industry requirement."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "No relevant job titles matching the JD's requirements."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Murali's experience is focused on business development and sales, not SAP Inventory Management or logistics coordination as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in Information Technology & Services at Floki Labs, contributing to industry-specific sales and pipeline development.",
+              "Icon": "BAG",
+              "duration": "1 year"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Currently employed at OptiSol Business Solutions, which operates in IT Services and IT Consulting.",
+              "Icon": "BAG",
+              "duration": "5 months"
+            }
+          ],
+          "recommendation": "Murali is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:52.688Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a5b1a8c0da7f03fb5569b58",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADyecvoBImRN12eKgyeS6H8cjfOIdgfZ96Q",
+          "name": "Murali Dharan",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/857cd2c499c393c787605a0c5628f46cf948abeea5ee9307d559517d5413f3d7.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Consultative Selling",
+            "Pipeline Management",
+            "CRM Excellence",
+            "Managed Services & BFSI Stakeholder Management",
+            "Technical Support & Troubleshooting",
+            "Business Development & Sales Strategy",
+            "Lead Generation & Prospecting",
+            "Pre-Sales & Product Demonstrations",
+            "Negotiation & Deal Closure",
+            "Market Research & Competitive Analysis",
+            "Strategic Planning & Revenue Growth",
+            "Customer Success & Relationship Management",
+            "Client Onboarding & Retention",
+            "Technical Support",
+            "Sales Strategy",
+            "Relationship Building",
+            "Prospecting Skills",
+            "Customer Acquisition",
+            "Presentation Skills",
+            "Negotiation",
+            "Market Research",
+            "Strategic Planning",
+            "Account Management",
+            "Pre-Sales",
+            "Lead Generation",
+            "Cold Calling",
+            "Linkedin Marketing",
+            "Email Marketing",
+            "Pre-Sales Engineering",
+            "Business Development",
+            "Pre-Sales Technical Consulting"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "OptiSol Business Solutions",
+              "company_website_domain": "optisolbusiness.com",
+              "job_title": "Business Development - Product",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/optisol-business-solutions"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2496",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years in SAP consulting roles positions Mrithula well for technical SAP-related challenges in this role."
+              },
+              {
+                "observation": "Experience in the Information Technology & Services industry aligns with the JD's domain requirement."
+              },
+              {
+                "observation": "Certified in Software development on SAP HANA, adding credibility to their SAP expertise."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No direct inventory management experience could be a challenge for this SAP Inventory-focused role."
+              },
+              {
+                "observation": "Current title does not match any of the JD's specified inventory management roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Mrithula has SAP consulting experience but lacks direct inventory management exposure, which is central to the JD's role."
+            },
+            "fitScore": 55
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in the Information Technology & Services industry at Motiveminds Consulting Pvt Ltd.",
+              "Icon": "BULB",
+              "duration": "1 year 10 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Industry exposure proven through roles at Motiveminds Consulting Pvt Ltd.",
+              "Icon": "BULB",
+              "duration": "1 year 10 months"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "5 Years",
+              "ReasonForHighlight": "Five years of SAP consulting experience across roles at Kaar Technologies and Motiveminds Consulting Pvt Ltd.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "CERTIFICATION",
+              "Highlight": "Software development on SAP HANA",
+              "ReasonForHighlight": "Certified by SAP in Software development on SAP HANA, enhancing their technical credibility.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Mrithula brings five years of SAP consulting experience, making her exceptionally well-prepared for technical SAP-related challenges. Her certification in software development on SAP HANA further solidifies her expertise, and her background in the Information Technology & Services industry aligns seamlessly with the domain requirements. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:52.157Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da154",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC354z0BatY6vD-bcrb0k1lujg3mfSR7kqM",
+          "name": "Mrithula Elango",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/413be6d38d663700b29d77114ae8b2271fc30e51991b6983394a6f93c0783ff6.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Sap public cloud",
+            "Rapid Application Development (RAD)",
+            "Advanced Business Application Programming (ABAP)",
+            "ABAP",
+            "SAP ERP",
+            "Mobile Application Development",
+            "Cascading Style Sheets (CSS)",
+            "Database Management System (DBMS)",
+            "SAP HANA",
+            "Public Speaking",
+            "Writing",
+            "HTML5",
+            "C++",
+            "Big Data",
+            "Hadoop",
+            "TensorFlow",
+            "SQL",
+            "Python (Programming Language)",
+            "NumPy",
+            "Panda"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "Motiveminds Consulting Pvt Ltd",
+              "company_website_domain": "motiveminds.com",
+              "job_title": "Associate Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/motivemindsconsulting"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2458",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Strong background in IT services and consulting, directly relevant to the industry focus of the role."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No experience in inventory management, which is the core focus of the role."
+              },
+              {
+                "observation": "Job titles do not align with the inventory management executive positions specified in the JD."
+              },
+              {
+                "observation": "Education background in Mechanical Engineering does not align with inventory management requirements."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Azarudeen's experience is focused on SAP Hybris development and e-commerce solutions, not inventory management as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at Infosys, a company tagged with 'Information Technology & Services' in its industry classification.",
+              "Icon": "BAG",
+              "duration": "1 year 9 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Both Infosys and Royal Cyber Inc. are tagged with 'IT Services and IT Consulting' in their industry classification.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Azarudeen brings a robust background in IT services and consulting, demonstrating expertise that aligns seamlessly with the industry focus of the role. His proven track record of delivering impactful solutions positions him as an exceptional candidate. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:49.974Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da119",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAElR0JwBdfG9zMatO8-pE5D21SRurN1YNO0",
+          "name": "Azarudeen M",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/77a4ea57ff7b23da1db78e899fb37af47977a15b1b7efd20d053f00af2359d19.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "SAP Hybris",
+            "Core Java",
+            "Spring Boot",
+            "Spring MVC",
+            "API Integration",
+            "JUnit",
+            "automatin Testing",
+            "WCMS",
+            "Product Management",
+            "REST APIs",
+            "Product Cockpit",
+            "HAC",
+            "BackOffice",
+            "Hybris",
+            "Sap commerce",
+            "SAP Commerce Cloud",
+            "Java",
+            "SQL",
+            "Manual Testing",
+            "User Acceptance Testing",
+            "Regression Testing",
+            "Software Testing"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Infosys",
+              "company_website_domain": "infosys.com",
+              "job_title": "SAP Hybris Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e240a",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Four years in IT consulting roles aligns with the JD's industry focus on IT Services and Consulting."
+              },
+              {
+                "observation": "Bachelor's degree in Computer Science provides a strong technical foundation for roles in IT services."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "Job titles do not match the JD's target roles, which focus on SAP Inventory Management."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Alwin's experience is in software engineering and IT consulting, not SAP Inventory Management or logistics roles as required by the JD."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services at Cognizant as Project Associate, directly relevant to the JD's industry focus.",
+              "Icon": "BAG",
+              "duration": "3 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Sopra Steria's industry tags confirm IT consulting experience, aligning with the JD's focus.",
+              "Icon": "BAG",
+              "duration": "1 year 7 months"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Computer Science",
+              "ReasonForHighlight": "Bachelor's degree in Computer Science from Chennai Institute of Technology provides a solid technical base.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Alwin demonstrates exceptional alignment with the industry focus on IT Services and Consulting, backed by four years of experience in IT consulting roles. His Bachelor's degree in Computer Science further solidifies his technical expertise, making him an outstanding candidate for roles in IT services. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:46.485Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da0d1",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC6P6GYBXUgkq6wp9lz2YKZDHmF-IewPsjk",
+          "name": "Alwin Christober",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/74ceada5ddeed31cb12db6ed171c5ceaac05605689cfe982351f58bbf289f513.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Pegasystems PRPC",
+            "cssa",
+            "Pega PRPC",
+            "Python (Programming Language)",
+            "Software",
+            "SQL"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Sopra Steria",
+              "company_website_domain": "soprasteria.com",
+              "job_title": "Technical Lead",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/soprasteria"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2485",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Extensive experience in IT services and consulting aligns with the industry focus of the JD."
+              },
+              {
+                "observation": "Strong educational background in computer and information sciences supports technical expertise."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is the core requirement of the role."
+              },
+              {
+                "observation": "Job titles and responsibilities do not align with inventory management or logistics."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Naveen's experience is focused on network security and consulting, not SAP inventory management or logistics."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked at LTIMindtree, a company listed under 'Information Technology & Services'.",
+              "Icon": "BAG",
+              "duration": "1 year 10 months"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Experience at LTIMindtree and CSS Corp, both listed under 'IT Services and IT Consulting'.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Naveen brings extensive experience in IT services and consulting, demonstrating a deep alignment with industry needs. His strong educational background in computer and information sciences further underscores his technical expertise and ability to deliver impactful results. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:40.338Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da145",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADq1aDoB18AXboQ8hkGPdh2Lno6Gfx1S8HY",
+          "name": "Naveen Kumar K",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/d0a3112e40c2f01deb419ad74dbd0374548709d1d9ed016c270b006faa2a973b.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Cisco Firewall Security",
+            "Dell PowerEdge Servers",
+            "Dell Workstations",
+            "Dell PowerVault",
+            "Palo Alto Networks",
+            "Network Security Implementation",
+            "Customer Support",
+            "Palo Alto Knowlegde",
+            "Industry Knowledge",
+            "Tools & technology",
+            "Firewalls",
+            "Panorama",
+            "log collector",
+            "LAN-WAN",
+            "Cisco Networking",
+            "Hardware"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "LTIMindtree",
+              "company_website_domain": "ltm.com",
+              "job_title": "Senior consultant & Cyber Security",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ltimindtree"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2456",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Strong background in IT services and consulting, directly relevant to the industry focus of the JD."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP inventory management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "Education is in Mechanical Engineering, not aligned with SAP or inventory management."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Subbiah's expertise is in enterprise network engineering and consulting, not SAP inventory management or logistics coordination as required by the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services at Infosys, delivering enterprise network solutions and consulting for industry clients.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Consulted on network performance and security at Infosys, aligning with the IT services and consulting industry.",
+              "Icon": "BAG",
+              "duration": "2 years"
+            }
+          ],
+          "recommendation": "Subbiah is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:37.553Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a35148ee88586f2be3f86ee",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACQKGWgBuJiFdSHVcHyj9iW6AU9KeP3ggP4",
+          "name": "Subbiah R",
+          "open_to_cards": [
+            "CAREER_INTEREST"
+          ],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/29f80bc75d3f286d13273e2713fca7418197800b181c7c9f4fe44992550f5aa8.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Switching and Routing",
+            "Versa SD-WAN",
+            "Virtual Private Network (VPN)",
+            "Enterprise Network Security",
+            "ITIL Certified",
+            "ITIL Service Operations",
+            "DNS Management",
+            "IP management",
+            "SNMP",
+            "Subnetting",
+            "Network Design",
+            "Network",
+            "Ethernet",
+            "Dynamic Host Configuration Protocol (DHCP)",
+            "802.1x",
+            "Network Installation",
+            "Computer Networking",
+            "Network Services",
+            "Technical Support",
+            "Routing"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "Infosys",
+              "company_website_domain": "infosys.com",
+              "job_title": "Senior Associate Consultant",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/infosys"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e2473",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years in IT services positions them well for roles in this industry."
+              },
+              {
+                "observation": "Bachelor's degree in Electronics and Communication provides a strong technical foundation."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not align with the SAP Inventory Management Executive role."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Manothini's experience is focused on Mainframe development, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT services roles at IBM and Tech Mahindra, directly relevant to the industry focus.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Both IBM and Tech Mahindra are tagged under 'IT Services and IT Consulting', matching the JD's industry criteria.",
+              "Icon": "BAG",
+              "duration": "5 years"
+            },
+            {
+              "Category": "EDUCATION",
+              "Highlight": "Electronics and communication",
+              "ReasonForHighlight": "Holds a Bachelor's degree in Electronics and Communication, providing a solid technical foundation.",
+              "Icon": "BULB"
+            }
+          ],
+          "recommendation": "Manothini brings five years of experience in IT services, demonstrating a proven track record in the industry. Their Bachelor's degree in Electronics and Communication further solidifies their strong technical foundation, making them exceptionally well-suited for advanced roles in this field. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:35.974Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da133",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAC5WmsMBQfY4COEgxHjCUvt4Yq4T7Wmrruc",
+          "name": "Manothini Thirupathisamy",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f12b4c52c77320b02eb31b6c218061107279c7b2919fd1d1496f6701a454fbb4.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "JCL",
+            "CA-7",
+            "ADABAS",
+            "IBM Mainframe",
+            "Job Control Language (JCL)",
+            "COBOL",
+            "Engineering",
+            "Object-Oriented Programming (OOP)",
+            "Mainframe",
+            "MySQL",
+            "C++",
+            "Embedded C",
+            "Verilog",
+            "SQL",
+            "Python (Programming Language)",
+            "C (Programming Language)",
+            "Networking",
+            "CICS",
+            "VSAM"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": [
+            {
+              "company_name": "IBM",
+              "company_website_domain": "ibm.com",
+              "job_title": "Software Engineer",
+              "company_linkedin_profile_url": "https://www.linkedin.com/company/ibm"
+            }
+          ]
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e244e",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Five years in IT services and consulting demonstrates domain familiarity, relevant to the industry focus of this role."
+              },
+              {
+                "observation": "Advanced education in biotechnology adds analytical and technical depth, which could support inventory-related problem-solving."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is central to the role."
+              },
+              {
+                "observation": "Job titles do not align with the SAP Inventory Management focus of this position."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Megha's experience focuses on product quality, risk management, and regulatory engineering, which does not align with SAP Inventory Management roles."
+            },
+            "fitScore": 25
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Demonstrated history of working in the information technology and services industry, as stated in the summary.",
+              "Icon": "BAG",
+              "duration": "6 years"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked at Tata Consultancy Services and HCL Technologies, both tagged as IT Services and IT Consulting.",
+              "Icon": "BAG",
+              "duration": "6 years"
+            }
+          ],
+          "recommendation": "Megha brings a compelling combination of five years in IT services and consulting, showcasing deep domain expertise and industry alignment. Her advanced education in biotechnology further enhances her analytical and technical capabilities, making her exceptionally well-suited for roles requiring complex problem-solving. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:32.743Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da110",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAAB-RP_EBvkC3V10Uw7xi3t-slGVkr67zoaE",
+          "name": "Megha Sharma",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/4a960f80a926db9ff28c143a21dddc18c545a9204a055f0c72558146f1a2eda2.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "DHF",
+            "Change Management",
+            "Medical Devices",
+            "Risk Management Plans",
+            "Risk Assessment",
+            "Presentations",
+            "Technical Presentations",
+            "Regulatory Submissions",
+            "Regulatory Requirements",
+            "Regulatory Affairs",
+            "Risk management",
+            "ISO 14971",
+            "ISO 13485",
+            "EU IVDR",
+            "EU MDR",
+            "Business Development",
+            "English",
+            "Research",
+            "Product Management",
+            "Technical Writing"
+          ],
+          "years_of_experience_raw": 5,
+          "current_employers_object": []
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e244d",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Experience in IT Services and IT Consulting industry aligns with the JD's core domain requirement."
+              },
+              {
+                "observation": "Educational background in Information Technology supports technical understanding relevant to the JD."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No SAP Inventory Management experience, which is the core requirement for this role."
+              },
+              {
+                "observation": "Current and past job titles do not match the JD's target roles."
+              }
+            ],
+            "roleFit": {
+              "verdict": "OFF_ROLE",
+              "reason": "Vasanth's experience is focused on frontend development and web technologies, which does not align with the SAP Inventory Management role described in the JD."
+            },
+            "fitScore": 20
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Information Technology & Services is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "IT Services and IT Consulting is a confirmed core skill match found in the candidate's profile.",
+              "Icon": "BULB"
+            },
+            {
+              "Category": "INDUSTRY",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Worked as System Engineer at Tata Consultancy Services, an IT Services and IT Consulting company.",
+              "Icon": "BAG",
+              "duration": "4 years"
+            }
+          ],
+          "recommendation": "Vasanth brings extensive experience in the IT Services and IT Consulting industry, demonstrating a strong alignment with the core domain requirements. His educational background in Information Technology further reinforces his technical expertise, making him exceptionally well-suited for the role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:32.583Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4844ca32b2566b8da10f",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADRXSU0BkGlq8TcxcoKDsbKAyDG208zBwdw",
+          "name": "Vasanth Raj",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/1bed0f57e1db6587e8175b2c879dcd20a2da1d8138a4da3c47893fb8082b5eec.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [],
+          "years_of_experience_raw": 5,
+          "current_employers_object": []
+        },
+        "revealStatus": {
+          "email": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          },
+          "phone": {
+            "revealed": false,
+            "status": null,
+            "values": []
+          }
+        },
+        "manualContacts": {
+          "emails": [],
+          "phoneNumbers": []
+        }
+      },
+      {
+        "_id": "6a7c484457f6fa37246e23c8",
+        "isSaved": false,
+        "interestStatus": "none",
+        "profileAnalysis": {
+          "analysis": {
+            "keyStrengths": [
+              {
+                "observation": "Three years in IT Services and IT Consulting industry aligns with the JD's core domain requirement."
+              },
+              {
+                "observation": "SAP MM expertise positions Muhammed well for roles requiring SAP system knowledge."
+              },
+              {
+                "observation": "Experience in supply chain management and order-to-cash processes supports inventory-related tasks."
+              }
+            ],
+            "keyWeaknesses": [
+              {
+                "observation": "No direct experience as an SAP Inventory Management Executive or similar roles."
+              },
+              {
+                "observation": "Limited evidence of hands-on inventory management within SAP systems."
+              }
+            ],
+            "roleFit": {
+              "verdict": "POSSIBLE",
+              "reason": "Muhammed has relevant SAP and supply chain experience but lacks direct inventory management roles tied to SAP systems."
+            },
+            "fitScore": 65
+          },
+          "highlights": [
+            {
+              "Category": "SKILLS",
+              "Highlight": "Information Technology & Services",
+              "ReasonForHighlight": "Worked in IT Services and IT Consulting industry at Capgemini, focusing on supply chain and sourcing optimization.",
+              "Icon": "BULB",
+              "duration": "2 years 6 months"
+            },
+            {
+              "Category": "SKILLS",
+              "Highlight": "IT Services and IT Consulting",
+              "ReasonForHighlight": "Industry tag 'IT Services and IT Consulting' is explicitly listed for Capgemini.",
+              "Icon": "BULB",
+              "duration": "2 years 6 months"
+            },
+            {
+              "Category": "EXPERIENCE",
+              "Highlight": "4 Years",
+              "ReasonForHighlight": "Muhammed has four years of experience in supply chain and IT services roles, including Capgemini and myTVS.",
+              "Icon": "BAG"
+            },
+            {
+              "Category": "LOCATION",
+              "Highlight": "Chennai, Tamil Nadu, India",
+              "ReasonForHighlight": "Muhammed is based in Chennai, meeting the JD's location requirement within 120 km.",
+              "Icon": "BAG"
+            }
+          ],
+          "recommendation": "Muhammed is a strong fit for this role. This profile is rated 4.2/5 stars."
+        },
+        "lastAnalysedAt": "2026-08-12T10:19:10.021Z",
+        "finalScore": 4.15,
+        "isReleased": true,
+        "profile": {
+          "_id": "6a7c4843ca32b2566b8da095",
+          "linkedin_profile_url": "https://www.linkedin.com/in/ACoAACjrNYcBB_WNZdxdE3VGA3HFYJ_zMLDuC7U",
+          "name": "Muhammed Abdur Raqeeb",
+          "open_to_cards": [],
+          "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/705c99b82b496ec316783058c776f59215c191b2c28872c2516a1ab26cc31d18.jpg",
+          "region": "Chennai, Tamil Nadu, India",
+          "resumeUrl": null,
+          "skills": [
+            "Supplier Implementation",
+            "Archlet Sourcing Optimization App",
+            "Data Analysis",
+            "Sourcing",
+            "Business Strategy",
+            "SAP",
+            "Microsoft Dynamics 365",
+            "Procurement",
+            "Coupa Indonesia - Business Application",
+            "Telecommunications",
+            "Supply Chain Management",
+            "SAP PM Module",
+            "sap pm",
+            "SRM",
+            "Coupa Procure",
+            "Coupa",
+            "Microsoft Outlook",
+            "Analytical Skills",
+            "SAP Materials Management (SAP MM)",
+            "Order Management"
+          ],
+          "years_of_experience_raw": 4,
+          "current_employers_object": [
+            {
+              "company_name": "EY",
+              "company_website_domain": "ey.com",
+              "job_title": "Associate Consultant",
+              "comp
+…[truncated 1030159 more chars]
