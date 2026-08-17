@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { Plus, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 
+import {
+  firstInvalidJobFieldId,
+  MAX_JOB_OPENINGS,
+  validateJobForm,
+  type JobFormFieldErrors,
+  type JobFormFieldKey,
+} from "@/components/jobs/job-form-validation";
 import { AutocompleteCombobox } from "@/components/search/filter-controls";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { FormSection } from "@/components/shared/form-section";
@@ -40,7 +47,8 @@ import {
 import { ROUTES, jobDetailPath, searchPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
-type FieldErrors = Partial<Record<"title" | "department" | "location" | "openings", string>>;
+type FieldErrors = JobFormFieldErrors;
+type FieldKey = JobFormFieldKey;
 
 interface JobFormState {
   title: string;
@@ -342,14 +350,69 @@ export function JobForm() {
   const [form, setForm] = useState<JobFormState>(INITIAL_STATE);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touchedPublish, setTouchedPublish] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [saving, setSaving] = useState<"draft" | "publish" | "source" | null>(null);
   const [jdText, setJdText] = useState("");
   const [parsingJd, setParsingJd] = useState(false);
   const [jdError, setJdError] = useState<string | null>(null);
   const [jdSummary, setJdSummary] = useState<string | null>(null);
 
+  function clearFieldError(key: FieldKey) {
+    setErrors((previous) => {
+      if (!previous[key]) return previous;
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+  }
+
   function update<K extends keyof JobFormState>(key: K, value: JobFormState[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
+    if (
+      key === "title" ||
+      key === "department" ||
+      key === "location" ||
+      key === "openings" ||
+      key === "experienceMin" ||
+      key === "experienceMax" ||
+      key === "minSalary" ||
+      key === "maxSalary"
+    ) {
+      const errorKey: FieldKey =
+        key === "experienceMin" || key === "experienceMax"
+          ? "experienceMax"
+          : key === "minSalary" || key === "maxSalary"
+            ? "maxSalary"
+            : key;
+      clearFieldError(errorKey);
+    }
+  }
+
+  function showValidationErrors(nextErrors: FieldErrors) {
+    setErrors(nextErrors);
+    setTouchedPublish(true);
+    const focusId = firstInvalidJobFieldId(nextErrors);
+    document
+      .getElementById("job-basic-details")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (focusId) {
+      window.setTimeout(() => {
+        const el = document.getElementById(focusId);
+        if (el && "focus" in el && typeof el.focus === "function") {
+          el.focus();
+        }
+      }, 150);
+    }
+  }
+
+  function requestPublish() {
+    const nextErrors = validateJobForm(form, "publish");
+    if (Object.keys(nextErrors).length > 0) {
+      showValidationErrors(nextErrors);
+      return;
+    }
+    setTouchedPublish(false);
+    setPublishConfirmOpen(true);
   }
 
   async function autofillFromJd() {
@@ -366,6 +429,7 @@ export function JobForm() {
       setForm((previous) => applyParsedJd(previous, parsed));
       setJdSummary(parsed.summary || "Fields filled from the pasted JD.");
       setErrors({});
+      setTouchedPublish(false);
       document
         .getElementById("job-basic-details")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -376,30 +440,14 @@ export function JobForm() {
     }
   }
 
-  function validate(): FieldErrors {
-    const next: FieldErrors = {};
-    if (!form.title.trim()) next.title = "Job title is required.";
-    if (!form.department) next.department = "Select a department.";
-    if (!form.location) next.location = "Select a location.";
-    const openings = Number(form.openings);
-    if (!form.openings || Number.isNaN(openings) || openings < 1) {
-      next.openings = "Enter at least 1 opening.";
-    }
-    return next;
-  }
-
   async function persist(mode: "draft" | "publish" | "source") {
-    const nextErrors = validate();
-    setErrors(nextErrors);
-    setTouchedPublish(mode !== "draft");
-
-    if (mode !== "draft" && Object.keys(nextErrors).length > 0) {
-      document
-        .getElementById("job-basic-details")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const nextErrors = validateJobForm(form, mode);
+    if (Object.keys(nextErrors).length > 0) {
+      showValidationErrors(nextErrors);
       return;
     }
 
+    setTouchedPublish(false);
     setSaving(mode);
     try {
       const created = await jobsApi.create({
@@ -407,7 +455,7 @@ export function JobForm() {
         department: form.department || null,
         employmentType: form.employmentType,
         workplaceType: form.workplaceType,
-        location: form.location || undefined,
+        location: form.location.trim() || undefined,
         experienceMin: Number(form.experienceMin) || 0,
         experienceMax: Number(form.experienceMax) || 0,
         requiredSkills: normalizeSkillList(form.requiredSkills),
@@ -441,9 +489,13 @@ export function JobForm() {
       }
       router.push(mode === "draft" ? ROUTES.jobs : jobDetailPath(created.id));
     } catch (error) {
+      setTouchedPublish(true);
       setErrors({
         title: getApiErrorMessage(error, "Unable to save job."),
       });
+      document
+        .getElementById("job-basic-details")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     } finally {
       setSaving(null);
     }
@@ -468,16 +520,21 @@ export function JobForm() {
               destructive
               onConfirm={() => router.push(ROUTES.jobs)}
             />
+            <Button
+              size="sm"
+              type="button"
+              disabled={saving !== null}
+              onClick={requestPublish}
+            >
+              {saving === "publish" ? "Publishing…" : "Publish Job"}
+            </Button>
             <ConfirmDialog
-              trigger={
-                <Button size="sm" type="button" disabled={saving !== null}>
-                  {saving === "publish" ? "Publishing…" : "Publish Job"}
-                </Button>
-              }
+              open={publishConfirmOpen}
+              onOpenChange={setPublishConfirmOpen}
               title="Publish this job?"
               description="Publishing makes the requirement available for sourcing, outreach and scheduling across your workspace."
               confirmLabel="Publish Job"
-              onConfirm={() => persist("publish")}
+              onConfirm={() => void persist("publish")}
             />
           </div>
         }
@@ -488,7 +545,7 @@ export function JobForm() {
           role="alert"
           className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          Fix the highlighted fields in Role details before publishing.
+          Fix the highlighted fields before publishing.
         </div>
       ) : null}
 
@@ -496,7 +553,7 @@ export function JobForm() {
         className="space-y-7"
         onSubmit={(event) => {
           event.preventDefault();
-          persist("publish");
+          requestPublish();
         }}
       >
         <FormSection
@@ -641,9 +698,12 @@ export function JobForm() {
                 id="openings"
                 type="number"
                 min={1}
+                max={MAX_JOB_OPENINGS}
+                step={1}
                 value={form.openings}
                 onChange={(event) => update("openings", event.target.value)}
                 aria-invalid={Boolean(errors.openings)}
+                aria-describedby={errors.openings ? "openings-error" : undefined}
               />
             </Field>
             <Field id="location" label="Location" required error={errors.location}>
@@ -672,17 +732,28 @@ export function JobForm() {
                 id="experienceMin"
                 type="number"
                 min={0}
+                max={50}
                 value={form.experienceMin}
                 onChange={(event) => update("experienceMin", event.target.value)}
+                aria-invalid={Boolean(errors.experienceMax)}
               />
             </Field>
-            <Field id="experienceMax" label="Maximum experience (years)">
+            <Field
+              id="experienceMax"
+              label="Maximum experience (years)"
+              error={errors.experienceMax}
+            >
               <Input
                 id="experienceMax"
                 type="number"
                 min={0}
+                max={50}
                 value={form.experienceMax}
                 onChange={(event) => update("experienceMax", event.target.value)}
+                aria-invalid={Boolean(errors.experienceMax)}
+                aria-describedby={
+                  errors.experienceMax ? "experienceMax-error" : undefined
+                }
               />
             </Field>
             <div className="sm:col-span-2">
@@ -842,9 +913,10 @@ export function JobForm() {
                 value={form.minSalary}
                 onChange={(event) => update("minSalary", event.target.value)}
                 placeholder="3200000"
+                aria-invalid={Boolean(errors.maxSalary)}
               />
             </Field>
-            <Field id="maxSalary" label="Maximum salary">
+            <Field id="maxSalary" label="Maximum salary" error={errors.maxSalary}>
               <Input
                 id="maxSalary"
                 type="number"
@@ -852,6 +924,8 @@ export function JobForm() {
                 value={form.maxSalary}
                 onChange={(event) => update("maxSalary", event.target.value)}
                 placeholder="4800000"
+                aria-invalid={Boolean(errors.maxSalary)}
+                aria-describedby={errors.maxSalary ? "maxSalary-error" : undefined}
               />
             </Field>
             <Field id="currency" label="Currency">
