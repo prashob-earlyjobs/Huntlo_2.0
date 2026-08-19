@@ -10,6 +10,7 @@ import {
   Pencil,
   Phone,
   Play,
+  Rocket,
   Trash2,
   UserPlus,
   Users,
@@ -37,9 +38,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
-import { getApiErrorMessage, screeningApi } from "@/lib/api";
+import { getApiErrorDetails, getApiErrorMessage, screeningApi } from "@/lib/api";
 import {
   BATCH_SETTINGS,
   type CallStatus,
@@ -58,6 +64,7 @@ const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
 const CALL_CLASSES: Record<CallStatus, string> = {
   Queued: "bg-muted text-muted-foreground",
+  Invited: "bg-info/10 text-info",
   Ringing: "bg-info/10 text-info",
   Completed: "bg-success/10 text-success",
   "No answer": "bg-warning/10 text-warning",
@@ -95,7 +102,7 @@ function OverviewTab({ batch }: { batch: ScreeningBatch }) {
     },
     { label: "Shortlisted", value: String(batch.shortlisted) },
     {
-      label: "Dial attempts",
+      label: batch.mode === "video" ? "Invitations" : "Dial attempts",
       value: String(batch.attempts),
     },
   ];
@@ -118,12 +125,18 @@ function OverviewTab({ batch }: { batch: ScreeningBatch }) {
         ))}
       </div>
 
-      <ResultsWorkspace screeningId={batch.id} />
+      <ResultsWorkspace screeningId={batch.id} mode={batch.mode} />
     </div>
   );
 }
 
-function CandidatesTab({ screeningId }: { screeningId: string }) {
+function CandidatesTab({
+  screeningId,
+  mode,
+}: {
+  screeningId: string;
+  mode: "voice" | "video";
+}) {
   const [results, setResults] = useState<ScreeningResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -205,9 +218,13 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className={HEAD}>Candidate</TableHead>
-            <TableHead className={HEAD}>Call status</TableHead>
-            <TableHead className={HEAD}>Attempts</TableHead>
-            <TableHead className={HEAD}>Duration</TableHead>
+            <TableHead className={HEAD}>
+              {mode === "video" ? "Invitation status" : "Call status"}
+            </TableHead>
+            <TableHead className={HEAD}>
+              {mode === "video" ? "Invite attempts" : "Attempts"}
+            </TableHead>
+            {mode === "video" ? null : <TableHead className={HEAD}>Duration</TableHead>}
             <TableHead className={`${HEAD} text-right`}>Score</TableHead>
             <TableHead className={HEAD}>Last activity</TableHead>
             <TableHead className={`${HEAD} w-10 text-right`}>
@@ -237,22 +254,49 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
                     </span>
                   )}
                 </div>
+                {result.error ? (
+                  <p className="mt-1 text-xs text-destructive">
+                    {result.error}
+                  </p>
+                ) : null}
               </TableCell>
               <TableCell className="py-2.5">
-                <Badge
-                  text={result.callStatus}
-                  className={
-                    CALL_CLASSES[result.callStatus] ??
-                    "bg-muted text-muted-foreground"
-                  }
-                />
+                {result.recommendation === "Needs review" &&
+                result.recommendationTooltip ? (
+                  <Tooltip>
+                    <TooltipTrigger className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                      <Badge
+                        text={result.callStatus}
+                        className={
+                          CALL_CLASSES[result.callStatus] ??
+                          "bg-muted text-muted-foreground"
+                        }
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {result.recommendationTooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Badge
+                    text={result.callStatus}
+                    className={
+                      CALL_CLASSES[result.callStatus] ??
+                      "bg-muted text-muted-foreground"
+                    }
+                  />
+                )}
               </TableCell>
               <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
-                {result.attemptsUsed}/{result.attemptsMax}
+                {mode === "video"
+                  ? result.attemptsUsed
+                  : `${result.attemptsUsed}/${result.attemptsMax}`}
               </TableCell>
-              <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
-                {result.duration || "—"}
-              </TableCell>
+              {mode === "video" ? null : (
+                <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
+                  {result.duration || "—"}
+                </TableCell>
+              )}
               <TableCell className="py-2.5 text-right text-sm font-medium tabular-nums">
                 {result.overallScore > 0 ? (
                   <Link
@@ -357,11 +401,37 @@ function SettingsTab() {
 export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
   const [status, setStatus] = useState<ScreeningBatchStatus>(batch.status);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackTone, setFeedbackTone] = useState<"success" | "error">(
+    "success"
+  );
   const [activeTab, setActiveTab] = useState("overview");
+  const [launching, setLaunching] = useState(false);
 
-  function flash(text: string) {
+  function flash(text: string, tone: "success" | "error" = "success") {
+    setFeedbackTone(tone);
     setFeedback(text);
-    window.setTimeout(() => setFeedback(null), 2400);
+    window.setTimeout(() => setFeedback(null), tone === "error" ? 8000 : 4000);
+  }
+
+  async function launchScreening() {
+    setLaunching(true);
+    try {
+      const updated = await screeningApi.launchBatch(batch.id);
+      setStatus(updated.status);
+      flash(
+        batch.mode === "video"
+          ? "Video interview invitations are sending."
+          : "Screening launched — calls will start for candidates with a phone number."
+      );
+    } catch (err) {
+      const details = getApiErrorDetails(err);
+      flash(
+        details[0] || getApiErrorMessage(err, "Unable to launch screening."),
+        "error"
+      );
+    } finally {
+      setLaunching(false);
+    }
   }
 
   return (
@@ -374,6 +444,9 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
                 {batch.name}
               </h1>
               <CampaignStatusBadge status={status} />
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {batch.mode === "video" ? "Video" : "Voice"}
+              </span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               {batch.jobId && batch.jobTitle ? (
@@ -397,7 +470,16 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {status === "Running" ? (
+            {status === "Draft" || status === "Scheduled" ? (
+              <Button
+                size="sm"
+                disabled={launching}
+                onClick={() => void launchScreening()}
+              >
+                <Rocket aria-hidden />
+                {launching ? "Launching…" : "Launch screening"}
+              </Button>
+            ) : status === "Running" ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -488,31 +570,42 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
 
         {feedback ? (
           <p
-            role="status"
-            className="mt-3 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+            role={feedbackTone === "error" ? "alert" : "status"}
+            className={
+              feedbackTone === "error"
+                ? "mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                : "mt-3 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+            }
           >
             {feedback}
           </p>
         ) : null}
       </header>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs
+        value={batch.mode === "video" && activeTab === "settings" ? "overview" : activeTab}
+        onValueChange={setActiveTab}
+      >
         <div className="overflow-x-auto">
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+            {batch.mode === "video" ? null : (
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            )}
           </TabsList>
         </div>
         <TabsContent value="overview" className="pt-3">
           <OverviewTab batch={batch} />
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
-          <CandidatesTab screeningId={batch.id} />
+          <CandidatesTab screeningId={batch.id} mode={batch.mode} />
         </TabsContent>
-        <TabsContent value="settings" className="pt-3">
-          <SettingsTab />
-        </TabsContent>
+        {batch.mode === "video" ? null : (
+          <TabsContent value="settings" className="pt-3">
+            <SettingsTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

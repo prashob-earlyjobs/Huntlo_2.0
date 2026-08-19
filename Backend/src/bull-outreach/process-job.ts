@@ -327,7 +327,9 @@ async function runLaunchScreening(mongoJobId: string) {
     String(job.organizationId),
     String(screening.ownerUserId),
     screeningId,
-    candidateIds.length > 0 ? { candidateIds } : undefined
+    candidateIds.length > 0
+      ? { candidateIds, runInWorker: true }
+      : { runInWorker: true }
   );
 
   job.status = 'done';
@@ -372,6 +374,10 @@ export async function processBullJob(mongoJobId: string): Promise<void> {
     const isConfigValidationError =
       errorCode === 'HUNAR_API_ERROR' &&
       (statusCode === 400 || statusCode === 422);
+    const isNonRetryableVideoLaunch =
+      errorCode === 'HYREFAST_INVITE_FAILED' ||
+      errorCode === 'CANDIDATE_CONDITION_WARNING' ||
+      (statusCode === 409 && errorCode === 'HYREFAST_API_ERROR');
 
     logger.warn({ err: error, mongoJobId }, 'Bull outreach job failed');
     const fresh = await BullOutreachJobModel.findById(mongoJobId);
@@ -379,7 +385,7 @@ export async function processBullJob(mongoJobId: string): Promise<void> {
 
     // Deterministic provider validation errors should not burn retries or kill the
     // enrollment (that cancels later steps for the same candidate).
-    if (isConfigValidationError) {
+    if (isConfigValidationError || isNonRetryableVideoLaunch) {
       fresh.status = 'failed';
       fresh.lastError = message;
       await fresh.save();

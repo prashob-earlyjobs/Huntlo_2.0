@@ -54,6 +54,16 @@ screeningRouter.get(
   })
 );
 
+screeningRouter.get(
+  '/owners',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const data = await screeningService.listOwners(req.organizationId!);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
 screeningRouter.post(
   '/',
   ...orgAuth,
@@ -139,6 +149,47 @@ screeningRouter.post(
       req.userId!,
       id,
       'call_again'
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+screeningRouter.post(
+  '/results/:id/resend-invite',
+  ...orgAuth,
+  launchPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = resultIdParamSchema.parse(req.params);
+    const data = await screeningService.resendInterviewInvite(
+      req.organizationId!,
+      req.userId!,
+      id
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+screeningRouter.post(
+  '/results/:id/interview-link',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = resultIdParamSchema.parse(req.params);
+    const data = await screeningService.getInterviewLink(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+screeningRouter.post(
+  '/results/:id/retry-invite',
+  ...orgAuth,
+  launchPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = resultIdParamSchema.parse(req.params);
+    const data = await screeningService.retryInterviewInvite(
+      req.organizationId!,
+      req.userId!,
+      id
     );
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })

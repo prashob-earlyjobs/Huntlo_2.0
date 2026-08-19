@@ -298,6 +298,7 @@ export class ApiClient {
         statusCode: response.status,
         code,
         details: errorBody?.error.details,
+        meta: errorBody?.error.meta,
         requestId: errorBody?.requestId ?? requestId,
         retryAfter: parseRetryAfter(response.headers.get("Retry-After")),
       });

@@ -2,17 +2,20 @@
 
 import {
   Copy,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   MoreHorizontal,
   Pause,
   Play,
+  Rocket,
   Search,
   Trash2,
   AudioLines,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
@@ -49,11 +52,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getApiErrorMessage, screeningApi } from "@/lib/api";
+import {
+  getApiErrorDetails,
+  getApiErrorMessage,
+  screeningApi,
+  type PaginationMeta,
+} from "@/lib/api";
 import { type ScreeningBatch } from "@/lib/mock-screening";
 import { jobDetailPath, ROUTES, screeningDetailPath } from "@/lib/routes";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
+const DEFAULT_PAGE_SIZE = 10;
+const EMPTY_PAGINATION: PaginationMeta = {
+  page: 1,
+  limit: DEFAULT_PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+};
+
+function toApiStatus(status: string): string {
+  return status.trim().toLowerCase();
+}
+
+function getPageItems(
+  current: number,
+  total: number
+): Array<number | "ellipsis"> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, index) => index + 1);
+  }
+
+  const items: Array<number | "ellipsis"> = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+
+  if (start > 2) items.push("ellipsis");
+  for (let page = start; page <= end; page += 1) items.push(page);
+  if (end < total - 1) items.push("ellipsis");
+  items.push(total);
+  return items;
+}
 
 const STATUS_OPTIONS: FilterOption[] = [
   "Running",
@@ -68,7 +106,7 @@ function ScreeningRowActions({
   onAction,
 }: {
   batch: ScreeningBatch;
-  onAction: (message: string) => void;
+  onAction: (message: string, tone?: "success" | "error") => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -91,14 +129,36 @@ function ScreeningRowActions({
             <Eye aria-hidden />
             View screening
           </DropdownMenuItem>
-          {batch.status === "Running" ? (
+          {batch.status === "Draft" || batch.status === "Scheduled" ? (
+            <DropdownMenuItem
+              onClick={() =>
+                void screeningApi
+                  .launchBatch(batch.id)
+                  .then(() => onAction(`Launched “${batch.name}”.`))
+                  .catch((err) => {
+                    const details = getApiErrorDetails(err);
+                    onAction(
+                      details[0] ||
+                        getApiErrorMessage(err, "Unable to launch screening."),
+                      "error"
+                    );
+                  })
+              }
+            >
+              <Rocket aria-hidden />
+              Launch
+            </DropdownMenuItem>
+          ) : batch.status === "Running" ? (
             <DropdownMenuItem
               onClick={() =>
                 void screeningApi
                   .pauseBatch(batch.id)
                   .then(() => onAction(`Paused “${batch.name}”.`))
                   .catch((err) =>
-                    onAction(getApiErrorMessage(err, "Unable to pause screening."))
+                    onAction(
+                      getApiErrorMessage(err, "Unable to pause screening."),
+                      "error"
+                    )
                   )
               }
             >
@@ -112,7 +172,10 @@ function ScreeningRowActions({
                   .resumeBatch(batch.id)
                   .then(() => onAction(`Resumed “${batch.name}”.`))
                   .catch((err) =>
-                    onAction(getApiErrorMessage(err, "Unable to resume screening."))
+                    onAction(
+                      getApiErrorMessage(err, "Unable to resume screening."),
+                      "error"
+                    )
                   )
               }
             >
@@ -165,18 +228,45 @@ function ScreeningRowActions({
 
 export function ScreeningHome() {
   const [batches, setBatches] = useState<ScreeningBatch[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_PAGINATION);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<string[]>([]);
+  const [owners, setOwners] = useState<{ id: string; name: string }[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = query.trim();
+      setDebouncedQuery((previous) => {
+        if (previous !== next) setPage(1);
+        return next;
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   const refresh = useCallback(async () => {
-    const next = await screeningApi.listBatches({ limit: 100 });
-    setBatches(next);
+    const next = await screeningApi.listBatchesPage({
+      page,
+      limit: DEFAULT_PAGE_SIZE,
+      ...(debouncedQuery ? { q: debouncedQuery } : {}),
+      ...(statusFilter.length > 0
+        ? { status: statusFilter.map(toApiStatus).join(",") }
+        : {}),
+      ...(ownerFilter.length > 0 ? { ownerUserId: ownerFilter.join(",") } : {}),
+    });
+    setBatches(next.items);
+    setPagination(next.pagination);
+    const nextPage = Number(next.pagination.page) || 1;
+    if (nextPage !== page) setPage(nextPage);
     setError(null);
-  }, []);
+  }, [page, debouncedQuery, statusFilter, ownerFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +277,8 @@ export function ScreeningHome() {
       } catch (err) {
         if (cancelled) return;
         setError(getApiErrorMessage(err, "Unable to load screenings."));
+        setBatches([]);
+        setPagination(EMPTY_PAGINATION);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -196,43 +288,39 @@ export function ScreeningHome() {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void screeningApi
+      .listOwners()
+      .then((next) => {
+        if (!cancelled) setOwners(next);
+      })
+      .catch(() => {
+        if (!cancelled) setOwners([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useRealtimeRefresh("screening.result.updated", () => {
     void refresh().catch(() => undefined);
   });
 
-  const owners = useMemo(
-    () => [...new Set(batches.map((batch) => batch.owner))],
-    [batches]
-  );
-
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return batches.filter((batch) => {
-      if (
-        normalized &&
-        !`${batch.name} ${batch.jobTitle ?? ""} ${batch.owner}`
-          .toLowerCase()
-          .includes(normalized)
-      )
-        return false;
-      if (statusFilter.length > 0 && !statusFilter.includes(batch.status))
-        return false;
-      if (ownerFilter.length > 0 && !ownerFilter.includes(batch.owner))
-        return false;
-      return true;
-    });
-  }, [batches, query, statusFilter, ownerFilter]);
-
   const hasFilters =
     Boolean(query) || statusFilter.length > 0 || ownerFilter.length > 0;
 
-  function flash(text: string) {
+  function flash(text: string, tone: "success" | "error" = "success") {
+    setMessageTone(tone);
     setMessage(text);
-    window.setTimeout(() => setMessage(null), 2400);
+    window.setTimeout(() => setMessage(null), tone === "error" ? 8000 : 2400);
   }
 
-  async function reloadWithMessage(messageText: string) {
-    flash(messageText);
+  async function reloadWithMessage(
+    messageText: string,
+    tone: "success" | "error" = "success"
+  ) {
+    flash(messageText, tone);
     try {
       await refresh();
     } catch {
@@ -262,28 +350,30 @@ export function ScreeningHome() {
               label="Status"
               options={STATUS_OPTIONS}
               selected={statusFilter}
-              onToggle={(id) =>
+              onToggle={(id) => {
+                setPage(1);
                 setStatusFilter((previous) =>
                   previous.includes(id)
                     ? previous.filter((value) => value !== id)
                     : [...previous, id]
-                )
-              }
+                );
+              }}
             />
             <FilterPopover
               label="Owner"
               options={owners.map((owner) => ({
-                id: owner,
-                label: owner,
+                id: owner.id,
+                label: owner.name,
               }))}
               selected={ownerFilter}
-              onToggle={(id) =>
+              onToggle={(id) => {
+                setPage(1);
                 setOwnerFilter((previous) =>
                   previous.includes(id)
                     ? previous.filter((value) => value !== id)
                     : [...previous, id]
-                )
-              }
+                );
+              }}
             />
             {hasFilters ? (
               <Button
@@ -291,8 +381,10 @@ export function ScreeningHome() {
                 variant="ghost"
                 onClick={() => {
                   setQuery("");
+                  setDebouncedQuery("");
                   setStatusFilter([]);
                   setOwnerFilter([]);
+                  setPage(1);
                 }}
               >
                 <X aria-hidden />
@@ -311,8 +403,12 @@ export function ScreeningHome() {
 
       {message ? (
         <p
-          role="status"
-          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+          role={messageTone === "error" ? "alert" : "status"}
+          className={
+            messageTone === "error"
+              ? "rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              : "rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+          }
         >
           {message}
         </p>
@@ -322,7 +418,7 @@ export function ScreeningHome() {
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium tabular-nums text-foreground">
-              {filtered.length}
+              {pagination.total.toLocaleString("en-IN")}
             </span>{" "}
             screenings
           </p>
@@ -356,7 +452,7 @@ export function ScreeningHome() {
               ))}
             </div>
           </div>
-        ) : filtered.length > 0 ? (
+        ) : batches.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <caption className="sr-only">
@@ -380,7 +476,7 @@ export function ScreeningHome() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((batch) => (
+                {batches.map((batch) => (
                   <TableRow key={batch.id}>
                     <TableCell className="py-2.5">
                       <Link
@@ -389,6 +485,9 @@ export function ScreeningHome() {
                       >
                         {batch.name}
                       </Link>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {batch.mode === "video" ? "Video" : "Voice"}
+                      </p>
                     </TableCell>
                     <TableCell className="py-2.5 whitespace-nowrap">
                       {batch.jobId && batch.jobTitle ? (
@@ -443,7 +542,10 @@ export function ScreeningHome() {
                       {batch.owner}
                     </TableCell>
                     <TableCell className="py-2.5 text-right">
-                      <ScreeningRowActions batch={batch} onAction={(text) => void reloadWithMessage(text)} />
+                      <ScreeningRowActions
+                        batch={batch}
+                        onAction={(text, tone) => void reloadWithMessage(text, tone)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -460,6 +562,68 @@ export function ScreeningHome() {
             className="m-4 border-0"
           />
         )}
+        {!loading && pagination.total > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              {`Showing ${
+                (pagination.page - 1) * pagination.limit + 1
+              }–${Math.min(
+                pagination.page * pagination.limit,
+                pagination.total
+              )} of ${pagination.total.toLocaleString("en-IN")}`}
+            </p>
+            <div className="flex items-center gap-1" role="navigation" aria-label="Screening pages">
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-label="Previous page"
+                disabled={loading || pagination.page <= 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              >
+                <ChevronLeft aria-hidden />
+              </Button>
+              {getPageItems(pagination.page, pagination.totalPages).map(
+                (item, index) =>
+                  item === "ellipsis" ? (
+                    <span
+                      key={`ellipsis-${index}`}
+                      className="px-1.5 text-xs text-muted-foreground"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <Button
+                      key={item}
+                      type="button"
+                      size="icon-sm"
+                      variant={item === pagination.page ? "secondary" : "outline"}
+                      aria-label={`Page ${item}`}
+                      aria-current={item === pagination.page ? "page" : undefined}
+                      disabled={loading}
+                      onClick={() => setPage(item)}
+                    >
+                      {item}
+                    </Button>
+                  )
+              )}
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-label="Next page"
+                disabled={loading || pagination.page >= pagination.totalPages}
+                onClick={() =>
+                  setPage((value) =>
+                    Math.min(pagination.totalPages, value + 1)
+                  )
+                }
+              >
+                <ChevronRight aria-hidden />
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );

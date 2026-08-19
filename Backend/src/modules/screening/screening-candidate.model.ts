@@ -1,7 +1,11 @@
 import mongoose, { type Document, type Model, Schema } from 'mongoose';
 
+import type { ScreeningLogEntry } from './screening.model.js';
+import type { ScreeningMode } from './screening.model.js';
+
 export const CALL_STATUSES = [
   'queued',
+  'invited',
   'ringing',
   'in_progress',
   'completed',
@@ -26,6 +30,7 @@ export type ScreeningCandidateDocument = Document & {
   organizationId: mongoose.Types.ObjectId;
   screeningId: mongoose.Types.ObjectId;
   candidateId: mongoose.Types.ObjectId;
+  mode: ScreeningMode;
   workflowId: mongoose.Types.ObjectId | null;
   enrollmentId: mongoose.Types.ObjectId | null;
   providerCallId: string | null;
@@ -48,6 +53,26 @@ export type ScreeningCandidateDocument = Document & {
   quotaCommittedMinutes: number;
   completedAt: Date | null;
   error: string | null;
+  logs: ScreeningLogEntry[];
+  audio: {
+    requestId: string | null;
+    callId: string | null;
+    providerStatus: string | null;
+    lifecycleStatus: string | null;
+    durationSeconds: number | null;
+    transcript: string | null;
+    recordingReference: string | null;
+    summary: string | null;
+    quotaReservationKey: string | null;
+    quotaCommittedMinutes: number;
+  };
+  video: {
+    jobId: string | null;
+    applicationId: string | null;
+    invitationStatus: string | null;
+    invitationError: string | null;
+    logs: ScreeningLogEntry[];
+  };
   createdAt: Date;
   updatedAt: Date;
 };
@@ -72,6 +97,7 @@ const screeningCandidateSchema = new Schema<ScreeningCandidateDocument>(
       required: true,
       index: true,
     },
+    mode: { type: String, enum: ['voice', 'video'], default: 'voice', index: true },
     workflowId: { type: Schema.Types.ObjectId, ref: 'Huntlo360Workflow', default: null },
     enrollmentId: { type: Schema.Types.ObjectId, ref: 'OutreachEnrollment', default: null },
     providerCallId: { type: String, default: null, index: true },
@@ -114,6 +140,62 @@ const screeningCandidateSchema = new Schema<ScreeningCandidateDocument>(
     quotaCommittedMinutes: { type: Number, default: 0 },
     completedAt: { type: Date, default: null },
     error: { type: String, default: null },
+    logs: {
+      type: [
+        {
+          at: { type: Date, required: true },
+          event: { type: String, required: true },
+          message: { type: String, default: null },
+          request: { type: Schema.Types.Mixed, default: null },
+          response: { type: Schema.Types.Mixed, default: null },
+          error: { type: String, default: null },
+        },
+      ],
+      default: [],
+    },
+    audio: {
+      type: {
+        requestId: { type: String, default: null },
+        callId: { type: String, default: null },
+        providerStatus: { type: String, default: null },
+        lifecycleStatus: { type: String, default: null },
+        durationSeconds: { type: Number, default: null },
+        transcript: { type: String, default: null },
+        recordingReference: { type: String, default: null },
+        summary: { type: String, default: null },
+        quotaReservationKey: { type: String, default: null },
+        quotaCommittedMinutes: { type: Number, default: 0 },
+      },
+      default: undefined,
+    },
+    video: {
+      type: {
+        jobId: { type: String, default: null },
+        applicationId: { type: String, default: null },
+        invitationStatus: { type: String, default: null },
+        invitationError: { type: String, default: null },
+        logs: {
+          type: [
+            {
+              at: { type: Date, required: true },
+              event: { type: String, required: true },
+              message: { type: String, default: null },
+              request: { type: Schema.Types.Mixed, default: null },
+              response: { type: Schema.Types.Mixed, default: null },
+              error: { type: String, default: null },
+            },
+          ],
+          default: [],
+        },
+      },
+      default: () => ({
+        jobId: null,
+        applicationId: null,
+        invitationStatus: null,
+        invitationError: null,
+        logs: [],
+      }),
+    },
   },
   { timestamps: true }
 );

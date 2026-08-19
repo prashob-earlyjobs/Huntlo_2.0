@@ -13770,3 +13770,419 @@ curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7c1
             "status": null,
   
 …[truncated 100460 more chars]
+# 2026-08-18T05:20:53.881Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"node js developer from bangalore","linkedin_profile_url":""}'
+# 2026-08-18T05:20:54.241Z POST /wl/sourcing-session/get-annotation response HTTP 500 360ms
+{
+  "statusCode": 500,
+  "data": null,
+  "message": "We couldn't read the job description. Try uploading a different file or pasting the text.",
+  "status": "ERROR"
+}
+# 2026-08-18T05:20:55.251Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"node js developer from bangalore","linkedin_profile_url":""}'
+# 2026-08-18T05:20:55.409Z POST /wl/sourcing-session/get-annotation response HTTP 500 158ms
+{
+  "statusCode": 500,
+  "data": null,
+  "message": "We couldn't read the job description. Try uploading a different file or pasting the text.",
+  "status": "ERROR"
+}
+# 2026-08-18T05:20:57.412Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"node js developer from bangalore","linkedin_profile_url":""}'
+# 2026-08-18T05:20:57.572Z POST /wl/sourcing-session/get-annotation response HTTP 500 160ms
+{
+  "statusCode": 500,
+  "data": null,
+  "message": "We couldn't read the job description. Try uploading a different file or pasting the text.",
+  "status": "ERROR"
+}
+# 2026-08-18T05:27:00.307Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"node js developer from kannur","linkedin_profile_url":""}'
+# 2026-08-18T05:27:00.683Z POST /wl/sourcing-session/get-annotation response HTTP 500 377ms
+{
+  "statusCode": 500,
+  "data": null,
+  "message": "We couldn't read the job description. Try uploading a different file or pasting the text.",
+  "status": "ERROR"
+}
+# 2026-08-18T05:27:01.695Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"node js developer from kannur","linkedin_profile_url":""}'
+# 2026-08-18T05:27:01.860Z POST /wl/sourcing-session/get-annotation response HTTP 500 166ms
+{
+  "statusCode": 500,
+  "data": null,
+  "message": "We couldn't read the job description. Try uploading a different file or pasting the text.",
+  "status": "ERROR"
+}
+# 2026-08-18T05:27:03.865Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"node js developer from kannur","linkedin_profile_url":""}'
+# 2026-08-18T05:27:04.028Z POST /wl/sourcing-session/get-annotation response HTTP 500 164ms
+{
+  "statusCode": 500,
+  "data": null,
+  "message": "We couldn't read the job description. Try uploading a different file or pasting the text.",
+  "status": "ERROR"
+}
+# 2026-08-18T06:04:00.146Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://se.linkedin.com/in/aswinpcdev"}'
+# 2026-08-18T06:04:00.337Z POST /wl/scout-people/lookup response HTTP 422 192ms
+{
+  "message": "Received Data is not valid",
+  "statusCode": 422,
+  "success": false,
+  "errors": [
+    {
+      "linkedin_url": "Invalid LinkedIn profile URL (spaces are not allowed in the URL)"
+    }
+  ]
+}
+# 2026-08-18T06:04:15.017Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/aswinpcdev"}'
+# 2026-08-18T06:04:16.229Z POST /wl/scout-people/lookup response HTTP 200 1213ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6a83f5e0f8709a7dab4c6e3b",
+    "profile": {
+      "_id": "6a51da5617f72ae2fa8e966c",
+      "person_id": 136589423,
+      "__v": 0,
+      "all_employers": [
+        "Brototype",
+        "Inexoft Technologies Pvt Ltd"
+      ],
+      "certifications": [],
+      "createdAt": "2026-07-11T05:53:24.091Z",
+      "current_employers": [],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Technology - BTech",
+          "institute_name": "Cochin University of Science and Technology",
+          "institute_linkedin_id": "785953",
+          "institute_linkedin_url": "https://www.linkedin.com/school/cochin-university-of-science-and-technology",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/D560BAQEHLvWSGOMfVA/company-logo_400_400/B56Zxc7nb7K0AY-/0/1771085659056/cochin_university_of_science_and_technology_logo?e=1785974400&v=beta&t=xxYtbJqLKl57bWbvdfu_YWlcFbpy1_R872_zcmJB2WE",
+          "field_of_study": "Computer Science",
+          "activities_and_societies": "",
+          "start_date": "2018-08-01T00:00:00+00:00",
+          "end_date": "2022-05-01T00:00:00+00:00"
+        },
+        {
+          "degree_name": "",
+          "institute_name": "St. Michael's Anglo Indian Higher Secondary School",
+          "institute_linkedin_id": "69603402",
+          "institute_linkedin_url": "https://www.linkedin.com/school/st-michael-s-anglo-indian-higher-secondary-school",
+          "institute_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQFBFuE4H99Qfg/company-logo_400_400/company-logo_400_400/0/1630643110605?e=1785974400&v=beta&t=eJ4M51VaQBeMa_saMRa8oxWT1xJfYG0srH_WwlPKkYs",
+          "field_of_study": "",
+          "activities_and_societies": "",
+          "start_date": null,
+          "end_date": null
+        }
+      ],
+      "education_last_updated": "2026-07-19T04:38:17",
+      "employer_last_updated": "2026-07-19T04:38:16",
+      "first_name": "ASWIN",
+      "flagship_profile_url": "https://www.linkedin.com/in/aswinpcdev",
+      "githubProfiles": [],
+      "headline": "Full Stack Developer | CSE | CUSAT 22 | Node.js | React.js | MongoDB | JavaScript | TypeScript | Express.js | Tailwind CSS | Docker | HTML/CSS | AWS | Clean Architecture |",
+      "honors": [],
+      "languages": [],
+      "lastFetchedAt": "2026-08-18T06:04:16.446Z",
+      "last_name": "C",
+      "last_updated": "2026-08-14T02:45:26+00:00",
+      "linkedin_profile_url": "https://www.linkedin.com/in/ACoAADPgjIkBgziuj5zONIPeyeel8A_MJyqzktU",
+      "location_details": {
+        "city": "Kannur",
+        "state": "Kerala",
+        "country": "India",
+        "continent": "Asia"
+      },
+      "name": "ASWIN P C",
+      "num_of_connections": 836,
+      "num_of_followers": 849,
+      "open_to_cards": [
+        "CAREER_INTEREST"
+      ],
+      "past_employers": [
+        {
+          "employer_name": "Inexoft Technologies Pvt Ltd",
+          "employer_linkedin_id": "72003955",
+          "employer_linkedin_description": "WORKING TOGETHER TO GET IT RIGHTSoftware development is what Inexoft Technologies professionally does for the last ten years. We are experts in rapid custom development of web-based, distributed and standalone applications designed to meet your organization’s specific requirements and business needs with best quality.We have a wide range of software products that meets the requirements of clients in different fields. Our product list includes Hospital management software, C&F and wholesale trading software, Inventory management solutions, ERP applications, Payroll management software, CRM applications, Online accounting software, Ksheerasoft Automatic Milk Collection Unit and many. We also deliver expert Software Consulting Services, Website Designing and Development, E-Commerce Application Development, CMS Applications etc.  Our corporate office is located at Bangalore and having software development centers at Kannur, Trivandrum and Thrissur in Kerala.",
+          "employer_logo_url": "https://media.licdn.com/dms/image/v2/C560BAQEAMShHsO5Vmg/company-logo_400_400/company-logo_400_400/0/1630670982250?e=1787788800&v=beta&t=ICUGNWtXwch_JgCMBUK9ujoqP_idPyYqhJxgcNOgIds",
+          "employer_company_website_domain": [
+            "inexoft.com"
+          ],
+          "employer_company_id": [
+            4004444
+          ],
+          "employee_position_id": 2481981158,
+          "employee_title": "Node.js developer",
+          "employee_description": "",
+          "employee_location": "Kannur, Kerala, India",
+          "start_date": "2024-09-01T00:00:00+00:00",
+          "end_date": "2025-03-01T00:00:00+00:00",
+          "domains": [
+            "inexoft.com"
+          ]
+        },
+        {
+          "employer_name": "Brototype",
+          "employer_linkedin_id": "31276398",
+          "employer_linkedin_description": "Want to recruit Software Developers for your company?From BROTOTYPE you can hire Software Developers with ease.We have competent Software Developers who can start working in your company without any prior training!Our results speak more than words!⚡500+ Companies hired from us.⚡2200+ Candidates have been recruited.Why hire from us?✅Recruit freshers with 1 year of hands-on coding experience.✅Future-proof your organization by recruiting individuals who can self-learn any skill.✅Experience hassle-free hiring for free.✅Hire in bulk for multiple domains.✅Candidates here are also trained in soft skills to ensure a proper fit for your company.✅Immediate joiners.Contact us to recruit the best talent👇For Enquires, Contact:  Umar Muqthar - 99955 91614Website: https://brototype.com/hire-from-us/",
+          "employer_logo_url": "https://media.licdn.com/dms/image/v2/C4D0BAQEWqmtyVtZl7Q/company-logo_200_200/company-logo_200_200/0/1653839709668/brototype_logo?e=1749081600&v=beta&t=y452K1qAADLPuiFPMDBP2tID7bhTQHETamUJB27z30o",
+          "employer_company_website_domain": [
+            "brototype.com"
+          ],
+          "employer_company_id": [
+            1052684
+          ],
+          "employee_position_id": 2316118456,
+          "employee_title": "Full-stack Developer",
+          "employee_description": "",
+          "employee_location": "Kozhikode, Kerala, India",
+          "start_date": "2023-08-01T00:00:00+00:00",
+          "end_date": "2024-06-01T00:00:00+00:00",
+          "domains": [
+            "brototype.com"
+          ]
+        }
+      ],
+      "profile_last_updated": "2026-07-19T04:38:13",
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/361db098e5087829a4401317600f850b51c50930a629abb9dca85591866faa69.jpg",
+      "profile_picture_url": "https://media.licdn.com/dms/image/v2/D5603AQEPEp2_4HsDBQ/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1704517290799?e=1785974400&v=beta&t=ZpQpI1PsL8qOtDCvB_nwiYMy_RyZGY06cCx9-cp31pE",
+      "recently_changed_jobs": false,
+      "region": "Kannur, Kerala, India",
+      "region_address_components": [
+        "Kannur",
+        "Kannur",
+        "Kerala",
+        "India"
+      ],
+      "resumeUrl": null,
+      "skills": [
+        "XML",
+        "Application Programming Interfaces (API)",
+        "Programming Languages",
+        "Programming",
+        "Databases",
+        "Creative Problem Solving",
+        "Data Structures",
+        "Software Development",
+        "Back-End Web Development",
+        "Object-Oriented Programming (OOP)",
+        "Bootstrap (Framework)",
+        "Front-End Development",
+        "User Interface Design",
+        "Software Design",
+        "Web Development",
+        "HTML5",
+        "Computer Science",
+        "Cascading Style Sheets (CSS)",
+        "Style Sheets",
+        "Cascading"
+      ],
+      "summary": "🚀 MERN Stack Developer | Turning Ideas into Code 🚀\n\nHey, I'm Aswin, a passionate MERN Stack Developer. From server logic to sleek UIs, I bring ideas to life with MongoDB, Express.js, React, and Node.js.\n\nWhy Connect?\n🌐 Full stack expertise\n🛠️ Problem-solving mindset\n📈 Always learning\n\nLet's connect and create something amazing together!\n\n#MERNStack #Developer #Innovation",
+      "twitter_handle": "",
+      "updatedAt": "2026-08-18T06:04:16.446Z",
+      "updated_at": "2026-07-20T12:05:52",
+      "years_of_experience": "1 to 2 years",
+      "years_of_experience_raw": 1,
+      "all_degrees": [
+        "Bachelor of Technology - BTech",
+        ""
+      ],
+      "all_employers_company_id": [
+        1052684,
+        4004444
+      ],
+      "all_schools": [
+        "Cochin University of Science and Technology",
+        "St. Michael's Anglo Indian Higher Secondary School"
+      ],
+      "all_titles": [
+        "Full-stack Developer",
+        "Node.js developer"
+      ],
+      "email": "aswinpc9@gmail.com",
+      "enriched_realtime": false,
+      "github_profiles": null,
+      "lastFetchedWithScoutSocials": true,
+      "linkedin_flagship_url": "https://www.linkedin.com/in/aswinpcdev",
+      "location": "Kannur, Kerala, India",
+      "query_linkedin_profile_urn_or_slug": [
+        "aswinpcdev"
+      ],
+      "title": null
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-18T06:04:23.378Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_profile_url":"https://www.linkedin.com/in/ACoAADPgjIkBgziuj5zONIPeyeel8A_MJyqzktU","revealContactType":["email"]}'
+# 2026-08-18T06:04:23.526Z POST /wl/scout-people/reveal-contacts response HTTP 200 148ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6a51da5617f72ae2fa8e966c",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "aswinpc9@gmail.com"
+        ]
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-18T06:04:32.755Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_profile_url":"https://www.linkedin.com/in/ACoAADPgjIkBgziuj5zONIPeyeel8A_MJyqzktU","revealContactType":["phone"]}'
+# 2026-08-18T06:04:34.282Z POST /wl/scout-people/reveal-contacts response HTTP 200 1527ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6a51da5617f72ae2fa8e966c",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "aswinpc9@gmail.com"
+        ]
+      },
+      "phone": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "8289878619"
+        ]
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-08-18T12:35:00.976Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies.","linkedin_profile_url":""}'
+# 2026-08-18T12:35:32.035Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies.","linkedin_profile_url":""}'
+# 2026-08-18T12:36:04.061Z POST /wl/sourcing-session/get-annotation
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/get-annotation' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"userText":"Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies.","linkedin_profile_url":""}'
+# 2026-08-18T12:36:04.267Z POST /wl/sourcing-session/get-annotation response HTTP 200 205ms
+{
+  "statusCode": 200,
+  "data": {
+    "all_employers.company_industries": {
+      "presence": false,
+      "value": []
+    },
+    "education_background.degree_name": {
+      "presence": false,
+      "value": [
+        null
+      ]
+    },
+    "education_background.field_of_study": {
+      "presence": false,
+      "value": []
+    },
+    "years_of_experience_raw": {
+      "presence": true,
+      "value": [
+        4,
+        7
+      ]
+    },
+    "current_employers.title": {
+      "presence": false,
+      "value": []
+    },
+    "region": {
+      "presence": true,
+      "value": [
+        "Bengaluru, Karnataka, India"
+      ]
+    },
+    "country_region": {
+      "presence": true,
+      "value": [
+        "India"
+      ]
+    },
+    "skills": {
+      "presence": true,
+      "value": {
+        "mandatory": [
+          "Node.js",
+          "AWS",
+          "SaaS"
+        ],
+        "core": [],
+        "secondary": []
+      }
+    },
+    "jobRequirements": null
+  },
+  "message": "Gemini response appended with LinkedIn fields.",
+  "status": "SUCCESS"
+}

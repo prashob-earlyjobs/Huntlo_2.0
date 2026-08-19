@@ -7,16 +7,16 @@ import {
   Briefcase,
   CheckCircle2,
   ListChecks,
+  Loader2,
   Pencil,
   Plus,
   Rocket,
-  Save,
   Trash2,
   Users,
   Video,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolveAudienceCandidateIds } from "@/components/outreach/audience-resolve";
 import { AudienceStep } from "@/components/outreach/builder-audience-step";
@@ -38,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   getApiErrorMessage,
+  getApiErrorDetails,
   jobsApi,
   screeningApi,
   teamApi,
@@ -161,7 +162,7 @@ type Update = <K extends keyof BuilderState>(
   value: BuilderState[K]
 ) => void;
 
-const STEPS = [
+const VOICE_STEPS = [
   { id: "details", title: "Screening Details" },
   { id: "candidates", title: "Candidate Selection" },
   { id: "agent", title: "Agent Configuration" },
@@ -169,16 +170,26 @@ const STEPS = [
   { id: "evaluation", title: "Evaluation" },
   { id: "call", title: "Call Settings" },
   { id: "review", title: "Review and Launch" },
-];
+] as const;
 
-function stepErrors(step: number, state: BuilderState): string[] {
+const VIDEO_STEPS = [
+  { id: "details", title: "Screening Details" },
+  { id: "candidates", title: "Candidate Selection" },
+  { id: "review", title: "Review and Launch" },
+] as const;
+
+function builderSteps(mode: BuilderState["screeningMode"]) {
+  return mode === "video" ? VIDEO_STEPS : VOICE_STEPS;
+}
+
+function stepErrors(stepId: string, state: BuilderState): string[] {
   const errors: string[] = [];
-  if (step === 0) {
+  if (stepId === "details") {
     if (!state.name.trim()) errors.push("Screening name is required.");
     if (!state.ownerUserId) errors.push("Select the campaign owner.");
     if (!state.jobId) errors.push("Select the related job.");
   }
-  if (step === 1) {
+  if (stepId === "candidates") {
     if (!state.source) {
       errors.push("Choose where screening candidates come from.");
     } else if (state.source === "Saved List" && !state.sourceDetail) {
@@ -203,16 +214,16 @@ function stepErrors(step: number, state: BuilderState): string[] {
       errors.push("This audience has no candidates yet.");
     }
   }
-  if (step === 2) {
+  if (stepId === "agent") {
     if (!state.introduction.trim()) errors.push("Introduction script is required.");
     if (!state.agentPrompt.trim()) errors.push("Agent prompt is required.");
   }
-  if (step === 3) {
+  if (stepId === "questions") {
     if (state.questions.every((question) => !question.text.trim())) {
       errors.push("Add at least one screening question.");
     }
   }
-  if (step === 4) {
+  if (stepId === "evaluation") {
     const score = Number(state.minShortlistScore);
     if (Number.isNaN(score) || score < 0 || score > 100) {
       errors.push("Minimum shortlist score must be between 0 and 100.");
@@ -222,15 +233,18 @@ function stepErrors(step: number, state: BuilderState): string[] {
 }
 
 function allErrors(state: BuilderState): string[] {
-  return [0, 1, 2, 3, 4, 5].flatMap((step) => stepErrors(step, state));
+  return builderSteps(state.screeningMode).flatMap((step) =>
+    stepErrors(step.id, state)
+  );
 }
 
 /** Highest step index reachable: all prior steps must be valid. */
 function maxReachableStep(state: BuilderState): number {
-  for (let index = 0; index < STEPS.length; index += 1) {
-    if (stepErrors(index, state).length > 0) return index;
+  const steps = builderSteps(state.screeningMode);
+  for (let index = 0; index < steps.length; index += 1) {
+    if (stepErrors(steps[index].id, state).length > 0) return index;
   }
-  return STEPS.length - 1;
+  return steps.length - 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -275,7 +289,11 @@ function DetailsStep({
   return (
     <StepCard
       title="Screening Details"
-      description="Name the batch, connect it to a job, and decide who owns the calls."
+      description={
+        state.screeningMode === "video"
+          ? "Name the batch, connect it to a job, and decide who owns this video screening."
+          : "Name the batch, connect it to a job, and decide who owns the calls."
+      }
     >
       <Field label="Screening type" required className="pt-2 pb-3">
         <div
@@ -296,9 +314,10 @@ function DetailsStep({
               {
                 value: "video" as const,
                 title: "Video screening",
-                description: "Async video interviews. Coming soon.",
+                description:
+                  "Async video interviews via Hyrefast. Candidates get an interview link by email.",
                 icon: Video,
-                disabled: true,
+                disabled: false,
               },
             ] as const
           ).map((option) => {
@@ -319,8 +338,8 @@ function DetailsStep({
                   option.disabled
                     ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
                     : selected
-                      ? "border-primary/50 bg-brand-subtle/20"
-                      : "border-border hover:bg-muted/40"
+                      ? "cursor-pointer border-primary/50 bg-brand-subtle/20"
+                      : "cursor-pointer border-border hover:bg-muted/40"
                 )}
               >
                 <span
@@ -1076,6 +1095,7 @@ function ReviewStep({
 }) {
   const job = jobs.find((j) => j.id === state.jobId);
   const stats = state.audiencePreview;
+  const isVideo = state.screeningMode === "video";
   const activeQuestions = state.questions.filter((q) => q.text.trim());
   const capturedAnswers = answerCaptureQuestions(state);
 
@@ -1090,7 +1110,7 @@ function ReviewStep({
       icon: Briefcase,
       title: "Details",
       lines: [
-        state.screeningMode === "voice" ? "Voice screening" : "Video screening",
+        isVideo ? "Video screening" : "Voice screening",
         state.name.trim() || "Unnamed screening",
         job ? job.title : "No job selected",
         `Owner: ${state.owner} · ${state.objective}`,
@@ -1103,70 +1123,80 @@ function ReviewStep({
       lines: stats
         ? [
             `Source: ${state.source}`,
-            `${stats.withPhone.toLocaleString("en-IN")} with phone · ${reachableCount(stats).toLocaleString("en-IN")} reachable`,
+            isVideo
+              ? `${stats.withEmail.toLocaleString("en-IN")} with email · ${reachableCount(stats).toLocaleString("en-IN")} reachable`
+              : `${stats.withPhone.toLocaleString("en-IN")} with phone · ${reachableCount(stats).toLocaleString("en-IN")} reachable`,
           ]
         : state.source
           ? [`Source: ${state.source}`, "Audience still loading"]
           : ["No source selected"],
     },
-    {
-      step: 2,
-      icon: AudioLines,
-      title: "Agent",
-      lines: [
-        `${SCREENING_LANGUAGE_OPTIONS.find((o) => o.value === state.language)?.label || state.language} · ${SCREENING_VOICE_OPTIONS.find((o) => o.value === state.voice)?.label || state.voice} · ${SCREENING_TONE_OPTIONS.find((o) => o.value === state.tone)?.label || state.tone}`,
-        isRoshniAgentPrompt(state.agentPrompt)
-          ? "Roshni agent prompt configured"
-          : "Custom agent prompt configured",
-      ],
-    },
-    {
-      step: 3,
-      icon: ListChecks,
-      title: "Questions",
-      lines: [
-        `${activeQuestions.length} questions`,
-        `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} capture answers · ${activeQuestions.filter((q) => q.followUp.trim()).length} with follow-ups`,
-        ...activeQuestions.slice(0, 3).map((question, index) => {
-          const bits = [
-            `Q${index + 1} ${question.type}`,
-            question.expectedVariable.trim()
-              ? `→ ${question.expectedVariable.trim()}`
-              : null,
-            question.required ? "required" : null,
-          ].filter(Boolean);
-          return bits.join(" · ");
-        }),
-        activeQuestions.length > 3
-          ? `+${activeQuestions.length - 3} more`
-          : null,
-      ].filter((line): line is string => Boolean(line)),
-    },
-    {
-      step: 4,
-      icon: CheckCircle2,
-      title: "Evaluation",
-      lines: [
-        `Shortlist at communication ≥ ${state.minShortlistScore}/100`,
-        `${capturedAnswers.length} answer field${capturedAnswers.length === 1 ? "" : "s"} · ${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
-      ],
-    },
-    {
-      step: 5,
-      icon: AudioLines,
-      title: "Call settings",
-      lines: [
-        `${state.attempts} attempts · ${state.delay} apart`,
-        `${state.callWindow} · ${state.timezone}`,
-        `Retry on no answer · ${state.voicemail}`,
-      ],
-    },
+    ...(isVideo
+      ? []
+      : [
+          {
+            step: 2,
+            icon: AudioLines,
+            title: "Agent",
+            lines: [
+              `${SCREENING_LANGUAGE_OPTIONS.find((o) => o.value === state.language)?.label || state.language} · ${SCREENING_VOICE_OPTIONS.find((o) => o.value === state.voice)?.label || state.voice} · ${SCREENING_TONE_OPTIONS.find((o) => o.value === state.tone)?.label || state.tone}`,
+              isRoshniAgentPrompt(state.agentPrompt)
+                ? "Roshni agent prompt configured"
+                : "Custom agent prompt configured",
+            ],
+          },
+          {
+            step: 3,
+            icon: ListChecks,
+            title: "Questions",
+            lines: [
+              `${activeQuestions.length} questions`,
+              `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} capture answers · ${activeQuestions.filter((q) => q.followUp.trim()).length} with follow-ups`,
+              ...activeQuestions.slice(0, 3).map((question, index) => {
+                const bits = [
+                  `Q${index + 1} ${question.type}`,
+                  question.expectedVariable.trim()
+                    ? `→ ${question.expectedVariable.trim()}`
+                    : null,
+                  question.required ? "required" : null,
+                ].filter(Boolean);
+                return bits.join(" · ");
+              }),
+              activeQuestions.length > 3
+                ? `+${activeQuestions.length - 3} more`
+                : null,
+            ].filter((line): line is string => Boolean(line)),
+          },
+          {
+            step: 4,
+            icon: CheckCircle2,
+            title: "Evaluation",
+            lines: [
+              `Shortlist at communication ≥ ${state.minShortlistScore}/100`,
+              `${capturedAnswers.length} answer field${capturedAnswers.length === 1 ? "" : "s"} · ${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
+            ],
+          },
+          {
+            step: 5,
+            icon: AudioLines,
+            title: "Call settings",
+            lines: [
+              `${state.attempts} attempts · ${state.delay} apart`,
+              `${state.callWindow} · ${state.timezone}`,
+              `Retry on no answer · ${state.voicemail}`,
+            ],
+          },
+        ]),
   ];
 
   return (
     <StepCard
       title="Review and Launch"
-      description="Everything the voice agent will do. No calls are placed from this UI preview."
+      description={
+        isVideo
+          ? "Hyrefast will email each candidate a private video interview link. No calls are placed."
+          : "Everything the voice agent will do. No calls are placed from this UI preview."
+      }
     >
       <div className="space-y-4">
         <ErrorList errors={errors} />
@@ -1213,19 +1243,33 @@ function ReviewStep({
 /* ------------------------------------------------------------------ */
 
 type Outcome = "draft" | "launched";
+type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+const AUTOSAVE_DELAY_MS = 900;
 
-const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
-  draft: {
-    title: "Draft saved",
-    description:
-      "Your screening was saved as a draft. Finish and launch it any time from the AI Screening home.",
-  },
-  launched: {
+function outcomeCopy(
+  outcome: Outcome,
+  mode: BuilderState["screeningMode"]
+): { title: string; description: string } {
+  if (outcome === "draft") {
+    return {
+      title: "Draft saved",
+      description:
+        "Your screening was saved as a draft. Finish and launch it any time from the AI Screening home.",
+    };
+  }
+  if (mode === "video") {
+    return {
+      title: "Screening launched",
+      description:
+        "Candidates with an email address will receive a Hyrefast video interview invitation.",
+    };
+  }
+  return {
     title: "Screening launched",
     description:
       "Callable candidates will start receiving voice screening calls within the configured window.",
-  },
-};
+  };
+}
 
 async function resolveAudienceIds(state: BuilderState): Promise<string[]> {
   return resolveAudienceCandidateIds({
@@ -1242,6 +1286,7 @@ function toCreateInput(
 ): ScreeningCreateInput {
   return {
     name: state.name.trim(),
+    mode: state.screeningMode,
     ownerUserId: state.ownerUserId || undefined,
     jobId: state.jobId || null,
     description: state.description.trim() || null,
@@ -1295,7 +1340,12 @@ export function ScreeningBuilder() {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [screeningId, setScreeningId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitErrors, setSubmitErrors] = useState<string[]>([]);
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
+  const screeningIdRef = useRef<string | null>(null);
+  const autosaveVersionRef = useRef(0);
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
@@ -1423,10 +1473,76 @@ export function ScreeningBuilder() {
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
 
-  const currentErrors = stepErrors(current, state);
-  const showErrors = attempted.has(current);
+  const queueAutosave = useCallback(
+    (snapshot: BuilderState, version: number) => {
+      if (!snapshot.name.trim()) return Promise.resolve();
+
+      const operation = autosaveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (version !== autosaveVersionRef.current) return;
+
+          setAutosaveStatus("saving");
+          setAutosaveError(null);
+          try {
+            const input = toCreateInput(snapshot, snapshot.selectedCandidateIds);
+            let id = screeningIdRef.current;
+            if (id) {
+              await screeningApi.updateBatch(id, input);
+            } else {
+              const created = await screeningApi.createBatch(input);
+              id = created.id;
+              screeningIdRef.current = id;
+              setScreeningId(id);
+            }
+            if (version === autosaveVersionRef.current) {
+              setAutosaveStatus("saved");
+            }
+          } catch (err) {
+            if (version === autosaveVersionRef.current) {
+              setAutosaveStatus("error");
+              setAutosaveError(
+                getApiErrorMessage(err, "Unable to autosave screening.")
+              );
+            }
+          }
+        });
+
+      autosaveQueueRef.current = operation;
+      return operation;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (outcome || submitting) return;
+    const version = ++autosaveVersionRef.current;
+    if (!state.name.trim()) {
+      setAutosaveStatus("idle");
+      setAutosaveError(null);
+      return;
+    }
+
+    setAutosaveStatus("pending");
+    const timer = window.setTimeout(() => {
+      void queueAutosave(state, version);
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [outcome, queueAutosave, state, submitting]);
+
+  const steps = builderSteps(state.screeningMode);
+  const stepIndex = Math.min(current, steps.length - 1);
+  const stepId = steps[stepIndex].id;
+  const currentErrors = stepErrors(stepId, state);
+  const showErrors = attempted.has(stepIndex);
   const launchErrors = allErrors(state);
   const reachable = maxReachableStep(state);
+
+  useEffect(() => {
+    const max = builderSteps(state.screeningMode).length - 1;
+    setCurrent((value) => Math.min(value, max));
+  }, [state.screeningMode]);
 
   function goTo(step: number) {
     if (step > reachable) {
@@ -1435,44 +1551,61 @@ export function ScreeningBuilder() {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+    if (state.name.trim() && !submitting) {
+      const version = ++autosaveVersionRef.current;
+      void queueAutosave(state, version);
+    }
     setCurrent(step);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function next() {
     if (currentErrors.length > 0) {
-      setAttempted((previous) => new Set(previous).add(current));
+      setAttempted((previous) => new Set(previous).add(stepIndex));
       return;
     }
-    goTo(Math.min(current + 1, STEPS.length - 1));
+    goTo(Math.min(stepIndex + 1, steps.length - 1));
   }
 
   async function submit(mode: Outcome) {
     if (mode === "launched" && launchErrors.length > 0) {
-      setAttempted(new Set([0, 1, 2, 3, 4]));
+      setAttempted(new Set(steps.map((_, index) => index)));
       return;
     }
     setSubmitting(true);
-    setSubmitError(null);
+    setSubmitErrors([]);
+    autosaveVersionRef.current += 1;
     try {
+      await autosaveQueueRef.current.catch(() => undefined);
       const candidateIds = await resolveAudienceIds(state);
-      const created = await screeningApi.createBatch(
-        toCreateInput(state, candidateIds)
-      );
-      if (mode === "launched") {
-        await screeningApi.launchBatch(created.id);
+      const input = toCreateInput(state, candidateIds);
+      let id = screeningIdRef.current;
+      if (id) {
+        await screeningApi.updateBatch(id, input);
+      } else {
+        const created = await screeningApi.createBatch(input);
+        id = created.id;
+        screeningIdRef.current = id;
       }
-      setScreeningId(created.id);
+      if (mode === "launched") {
+        await screeningApi.launchBatch(id);
+      }
+      setScreeningId(id);
       setOutcome(mode);
     } catch (err) {
-      setSubmitError(getApiErrorMessage(err, "Unable to save screening."));
+      const details = getApiErrorDetails(err);
+      setSubmitErrors(
+        details.length > 0
+          ? details
+          : [getApiErrorMessage(err, "Unable to save screening.")]
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   if (outcome) {
-    const copy = OUTCOME_COPY[outcome];
+    const copy = outcomeCopy(outcome, state.screeningMode);
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-6 py-20 text-center">
         <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/10">
@@ -1520,7 +1653,11 @@ export function ScreeningBuilder() {
               setAttempted(new Set());
               setOutcome(null);
               setScreeningId(null);
-              setSubmitError(null);
+              screeningIdRef.current = null;
+              autosaveVersionRef.current += 1;
+              setAutosaveStatus("idle");
+              setAutosaveError(null);
+              setSubmitErrors([]);
             }}
           >
             Create Another Screening
@@ -1537,29 +1674,28 @@ export function ScreeningBuilder() {
         className="rounded-xl border border-border bg-card p-4"
       >
         <Stepper
-          steps={STEPS}
-          currentStep={current}
+          steps={[...steps]}
+          currentStep={stepIndex}
           onStepSelect={goTo}
           maxEnabledStep={reachable}
           errorSteps={
             new Set(
-              STEPS.map((_, index) => index).filter(
-                (index) =>
-                  attempted.has(index) && stepErrors(index, state).length > 0
-              )
+              steps
+                .map((step, index) => ({ step, index }))
+                .filter(
+                  ({ step, index }) =>
+                    attempted.has(index) && stepErrors(step.id, state).length > 0
+                )
+                .map(({ index }) => index)
             )
           }
         />
       </nav>
 
       {showErrors ? <ErrorList errors={currentErrors} /> : null}
-      {submitError ? (
-        <p role="alert" className="text-sm text-destructive">
-          {submitError}
-        </p>
-      ) : null}
+      {submitErrors.length > 0 ? <ErrorList errors={submitErrors} /> : null}
 
-      {current === 0 ? (
+      {stepId === "details" ? (
         <DetailsStep
           state={state}
           update={update}
@@ -1572,30 +1708,34 @@ export function ScreeningBuilder() {
           ownersError={ownersError}
           retryLoading={() => setLoadVersion((version) => version + 1)}
         />
-      ) : current === 1 ? (
+      ) : stepId === "candidates" ? (
         <AudienceStep
           state={state}
           update={update}
           showErrors={showErrors}
           title="Candidate Selection"
-          description="Choose who receives the voice screening call. Candidates without a phone number are skipped."
+          description={
+            state.screeningMode === "video"
+              ? "Choose who receives a video interview link. Candidates without an email address are skipped."
+              : "Choose who receives the voice screening call. Candidates without a phone number are skipped."
+          }
           sourceErrorLabel="Choose where screening candidates come from."
           importListNamePrefix="Screening import"
           importListDescription="Candidates imported for an AI screening batch"
           importListTags={["screening-import"]}
         />
-      ) : current === 2 ? (
+      ) : stepId === "agent" ? (
         <AgentStep
           state={state}
           update={update}
           showErrors={showErrors}
           voiceDefaults={voiceDefaults}
         />
-      ) : current === 3 ? (
+      ) : stepId === "questions" ? (
         <QuestionsStep state={state} update={update} />
-      ) : current === 4 ? (
+      ) : stepId === "evaluation" ? (
         <EvaluationStep state={state} update={update} showErrors={showErrors} />
-      ) : current === 5 ? (
+      ) : stepId === "call" ? (
         <CallSettingsStep state={state} update={update} />
       ) : (
         <ReviewStep state={state} errors={launchErrors} goTo={goTo} jobs={jobs} />
@@ -1606,26 +1746,43 @@ export function ScreeningBuilder() {
           type="button"
           size="sm"
           variant="ghost"
-          onClick={() => goTo(Math.max(0, current - 1))}
-          disabled={current === 0}
+          onClick={() => goTo(Math.max(0, stepIndex - 1))}
+          disabled={stepIndex === 0}
         >
           <ArrowLeft aria-hidden />
           Back
         </Button>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={submitting || !state.name.trim() || !state.ownerUserId}
-            onClick={() => void submit("draft")}
+          <span
+            role={autosaveStatus === "error" ? "alert" : "status"}
+            title={autosaveError ?? undefined}
+            className={`inline-flex items-center gap-1.5 text-xs ${
+              autosaveStatus === "error"
+                ? "text-destructive"
+                : "text-muted-foreground"
+            }`}
           >
-            <Save aria-hidden />
-            Save Draft
-          </Button>
+            {autosaveStatus === "saving" ? (
+              <>
+                <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                Saving draft…
+              </>
+            ) : autosaveStatus === "saved" ? (
+              <>
+                <CheckCircle2 aria-hidden className="size-3.5 text-success" />
+                Draft saved automatically
+              </>
+            ) : autosaveStatus === "pending" ? (
+              <>Changes pending…</>
+            ) : autosaveStatus === "error" ? (
+              <>{autosaveError ?? "Autosave failed"}</>
+            ) : (
+              <>Enter a screening name to enable autosave</>
+            )}
+          </span>
 
-          {current < STEPS.length - 1 ? (
+          {stepIndex < steps.length - 1 ? (
             <Button type="button" size="sm" onClick={next} disabled={submitting}>
               Continue
               <ArrowRight aria-hidden />
@@ -1637,13 +1794,17 @@ export function ScreeningBuilder() {
               disabled={submitting || launchErrors.length > 0}
               onClick={() => void submit("launched")}
             >
-              <Rocket aria-hidden />
-              Launch Screening
+              {submitting ? (
+                <Loader2 aria-hidden className="animate-spin" />
+              ) : (
+                <Rocket aria-hidden />
+              )}
+              {submitting ? "Launching…" : "Launch Screening"}
             </Button>
           )}
         </div>
 
-        {current === STEPS.length - 1 && launchErrors.length > 0 ? (
+        {stepIndex === steps.length - 1 && launchErrors.length > 0 ? (
           <p className="w-full text-right text-xs text-destructive">
             Resolve the errors above to launch.
           </p>

@@ -55,7 +55,15 @@ function sessionIdFromFjUrl(url: string): string | undefined {
   return undefined;
 }
 
-/** Safe request summary — keys + sizes, not full PII bodies. */
+/** Exact JSON body sent to Future Jobs (same bytes as fetch). */
+function exactFjRequestBody(body: unknown): string | undefined {
+  if (body === undefined) return undefined;
+  try {
+    return JSON.stringify(body);
+  } catch {
+    return String(body);
+  }
+}
 function summarizeFjRequest(body: unknown): Record<string, unknown> | undefined {
   if (body == null) return undefined;
   if (typeof body !== 'object' || Array.isArray(body)) {
@@ -316,6 +324,7 @@ async function futureJobsHttpRequest(options: {
   const path = pathFromFjUrl(url);
   const urlSessionId = sessionIdFromFjUrl(url);
   const requestSummary = summarizeFjRequest(body);
+  const requestBody = exactFjRequestBody(body);
 
   let lastError: unknown;
 
@@ -331,6 +340,7 @@ async function futureJobsHttpRequest(options: {
         maxAttempts: maxRetries + 1,
         timeoutMs,
         traceId: options.traceId,
+        requestBody,
         ...requestSummary,
         ...logContext,
       },
@@ -452,6 +462,7 @@ async function futureJobsHttpRequest(options: {
               elapsedMs: Date.now() - started,
               code,
               error: err.message,
+              requestBody,
               ...logContext,
             },
             `FJ ← ${fjOperation} error`
@@ -1037,6 +1048,11 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       linkedin_profile_url:
         typeof body?.linkedin_profile_url === 'string' ? body.linkedin_profile_url : '',
     };
+
+    log().info(
+      { fjOperation: 'POST /wl/sourcing-session/get-annotation', requestBody: JSON.stringify(payload) },
+      'FJ get-annotation exact body'
+    );
 
     const url = `${baseUrl}/wl/sourcing-session/get-annotation`;
     return (await futureJobsHttpRequest({

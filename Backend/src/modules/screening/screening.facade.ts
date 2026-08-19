@@ -101,6 +101,90 @@ export const screeningFacade = {
   },
 };
 
+export async function scheduleScreeningLaunch(input: {
+  screening: ScreeningDocument;
+  candidateIds?: string[];
+  source?: string;
+  runAt?: Date;
+}) {
+  const { screening } = input;
+  const now = new Date();
+  const runAt = input.runAt ?? now;
+  const candidateIds = (input.candidateIds || []).map((value) => String(value || '').trim()).filter(Boolean);
+  const source = String(input.source || 'screening').trim() || 'screening';
+
+  if (screening.status !== 'running') {
+    screening.status = 'scheduled';
+    await screening.save();
+  }
+
+  const existing = await BullOutreachJobModel.findOne({
+    kind: 'launch_screening',
+    organizationId: screening.organizationId,
+    status: { $in: ['pending', 'queued', 'running'] },
+    'details.screeningId': String(screening._id),
+  });
+
+  if (existing) {
+    const mergedCandidateIds = new Set(
+      Array.isArray(existing.details?.candidateIds)
+        ? existing.details.candidateIds.map(String)
+        : []
+    );
+    for (const candidateId of candidateIds) mergedCandidateIds.add(candidateId);
+    existing.details = {
+      ...(existing.details || {}),
+      screeningId: String(screening._id),
+      candidateIds: [...mergedCandidateIds],
+      source,
+    };
+    if (existing.status === 'pending' && existing.runAt.getTime() > runAt.getTime()) {
+      existing.runAt = runAt;
+    }
+    await existing.save();
+    if (existing.status === 'pending' && existing.runAt.getTime() <= now.getTime()) {
+      await queueJobNow(String(existing._id));
+    }
+    log().info(
+      {
+        screeningId: String(screening._id),
+        candidateCount: mergedCandidateIds.size,
+        jobId: String(existing._id),
+        runAt: existing.runAt.toISOString(),
+      },
+      'Updated screening launch job'
+    );
+    return existing;
+  }
+
+  const job = await scheduleJob({
+    kind: 'launch_screening',
+    organizationId: String(screening.organizationId),
+    campaignId: screening.campaignId ? String(screening.campaignId) : null,
+    runAt,
+    details: {
+      screeningId: String(screening._id),
+      candidateIds,
+      source,
+    },
+  });
+
+  if (job && runAt.getTime() <= now.getTime()) {
+    await queueJobNow(String(job._id));
+  }
+
+  log().info(
+    {
+      screeningId: String(screening._id),
+      candidateCount: candidateIds.length,
+      jobId: job ? String(job._id) : null,
+      runAt: runAt.toISOString(),
+    },
+    'Scheduled screening launch'
+  );
+  return job;
+}
+
 async function scheduleWorkflowScreeningLaunch(input: {
   screening: ScreeningDocument;
   candidateId: string;
@@ -132,70 +216,12 @@ async function scheduleWorkflowScreeningLaunch(input: {
     );
   }
 
-  const existing = await BullOutreachJobModel.findOne({
-    kind: 'launch_screening',
-    organizationId: screening.organizationId,
-    status: { $in: ['pending', 'queued', 'running'] },
-    'details.screeningId': String(screening._id),
-  });
-
-  if (existing) {
-    const mergedCandidateIds = new Set(
-      Array.isArray(existing.details?.candidateIds)
-        ? existing.details.candidateIds.map(String)
-        : []
-    );
-    mergedCandidateIds.add(candidateId);
-    existing.details = {
-      ...(existing.details || {}),
-      screeningId: String(screening._id),
-      candidateIds: [...mergedCandidateIds],
-      source: 'huntlo360',
-    };
-    if (existing.status === 'pending' && existing.runAt.getTime() > runAt.getTime()) {
-      existing.runAt = runAt;
-    }
-    await existing.save();
-    if (existing.status === 'pending' && existing.runAt.getTime() <= now.getTime()) {
-      await queueJobNow(String(existing._id));
-    }
-    log().info(
-      {
-        screeningId: String(screening._id),
-        candidateId,
-        jobId: String(existing._id),
-        runAt: existing.runAt.toISOString(),
-      },
-      'Updated Huntlo 360 screening launch job'
-    );
-    return;
-  }
-
-  const job = await scheduleJob({
-    kind: 'launch_screening',
-    organizationId: String(screening.organizationId),
-    campaignId: screening.campaignId ? String(screening.campaignId) : null,
+  await scheduleScreeningLaunch({
+    screening,
+    candidateIds: [candidateId],
+    source: 'huntlo360',
     runAt,
-    details: {
-      screeningId: String(screening._id),
-      candidateIds: [candidateId],
-      source: 'huntlo360',
-    },
   });
-
-  if (job && runAt.getTime() <= now.getTime()) {
-    await queueJobNow(String(job._id));
-  }
-
-  log().info(
-    {
-      screeningId: String(screening._id),
-      candidateId,
-      jobId: job ? String(job._id) : null,
-      runAt: runAt.toISOString(),
-    },
-    'Scheduled Huntlo 360 screening launch'
-  );
 }
 
 async function queueJobNow(jobId: string) {

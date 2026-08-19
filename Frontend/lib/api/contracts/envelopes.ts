@@ -33,6 +33,7 @@ export type ErrorEnvelope = {
     code: string;
     message: string;
     details?: ErrorDetail[];
+    meta?: Record<string, unknown>;
   };
   requestId: string;
 };

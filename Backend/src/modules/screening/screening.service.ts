@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import type { z } from 'zod';
 
 import { AppError } from '../../shared/errors/app-error.js';
+import { caseInsensitiveContains, escapeRegex } from '../../shared/validation/regex.js';
 import { quotaService } from '../../shared/usage/index.js';
 import { UserModel } from '../auth/user.model.js';
 import { JobModel } from '../jobs/job.model.js';
@@ -24,7 +25,13 @@ import {
   isZyastraConfigured,
   triggerZyastraVoiceCall,
 } from '../../providers/zyastra/index.js';
+import {
+  getHyrefastInterviewLink,
+  isHyrefastConfigured,
+  sendHyrefastInterview,
+} from '../../providers/hyrefast/index.js';
 import { emitScreeningResultUpdated } from '../../realtime/events.js';
+import { isValidEmail } from '../../shared/validation/email.js';
 import {
   buildRoshniAgentPrompt,
   ROSHNI_INTRODUCTION,
@@ -43,12 +50,23 @@ import {
   ScreeningModel,
   defaultScreeningStats,
   type ScreeningDocument,
+  type ScreeningLogEntry,
 } from './screening.model.js';
+import { initialVideoScreeningLog } from './screening-logs.js';
+import {
+  appendScreeningCandidateLog,
+  appendScreeningCandidateVideoLog,
+  appendVideoScreeningLog,
+  hyrefastInterviewLinkLogEntry,
+  hyrefastSendInterviewLogEntry,
+} from './screening-logs.js';
 import {
   ScreeningCandidateModel,
   type ScreeningCandidateDocument,
 } from './screening-candidate.model.js';
 import { VoiceWebhookEventModel } from './voice-webhook-event.model.js';
+import { scheduleScreeningLaunch } from './screening.facade.js';
+import { launchVideoScreening } from './video-launch.service.js';
 import { mapEvaluationScores, minutesFromDuration, decisionFromAiRecommendation } from './scoring.js';
 import type {
   createScreeningSchema,
@@ -78,6 +96,71 @@ async function ownerName(userId: string) {
   const user = await UserModel.findById(userId).select('firstName lastName').lean();
   if (!user) return 'Unknown';
   return `${user.firstName} ${user.lastName}`.trim();
+}
+
+async function searchMatchingOwnerIds(organizationId: string, q: string) {
+  const regex = caseInsensitiveContains(q);
+  const users = await UserModel.find({
+    organizationId,
+    $or: [
+      { firstName: regex },
+      { lastName: regex },
+      { email: regex },
+      {
+        $expr: {
+          $regexMatch: {
+            input: { $concat: ['$firstName', ' ', '$lastName'] },
+            regex: escapeRegex(q.trim()),
+            options: 'i',
+          },
+        },
+      },
+    ],
+  })
+    .select('_id')
+    .lean();
+  return users.map((user) => user._id);
+}
+
+async function searchMatchingJobIds(organizationId: string, q: string) {
+  const jobs = await JobModel.find({
+    organizationId,
+    title: caseInsensitiveContains(q),
+  })
+    .select('_id')
+    .lean();
+  return jobs.map((job) => job._id);
+}
+
+async function searchMatchingCandidateIds(organizationId: string, q: string) {
+  const regex = caseInsensitiveContains(q);
+  const candidates = await SavedCandidateModel.find({
+    organizationId,
+    $or: [{ name: regex }, { email: regex }],
+  })
+    .select('_id')
+    .lean();
+  return candidates.map((candidate) => candidate._id);
+}
+
+async function searchMatchingScreeningIds(organizationId: string, q: string) {
+  const jobIds = await searchMatchingJobIds(organizationId, q);
+  const screenings = await ScreeningModel.find({
+    organizationId,
+    deletedAt: null,
+    $or: [
+      { name: caseInsensitiveContains(q) },
+      ...(jobIds.length > 0 ? [{ jobId: { $in: jobIds } }] : []),
+    ],
+  })
+    .select('_id')
+    .lean();
+  return screenings.map((screening) => screening._id);
+}
+
+function asFilterList(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  return (Array.isArray(value) ? value : [value]).map((item) => String(item).trim()).filter(Boolean);
 }
 
 async function resolveOwnerUserId(
@@ -128,6 +211,7 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     id: String(doc._id),
     organizationId: String(doc.organizationId),
     name: doc.name,
+    mode: doc.mode === 'video' ? 'video' : 'voice',
     jobId: doc.jobId ? String(doc.jobId) : null,
     jobTitle: extras.jobTitle,
     ownerUserId: String(doc.ownerUserId),
@@ -159,6 +243,18 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     totalAttempts: doc.stats.totalAttempts ?? 0,
     maxAttempts: doc.callSettings?.maxAttempts ?? 2,
     providerAgentId: doc.providerAgentId,
+    providerJobId: doc.providerJobId,
+    logs:
+      doc.mode === 'video'
+        ? (doc.logs || []).map((entry) => ({
+            at: entry.at instanceof Date ? entry.at.toISOString() : String(entry.at),
+            event: entry.event,
+            message: entry.message ?? null,
+            request: entry.request ?? null,
+            response: entry.response ?? null,
+            error: entry.error ?? null,
+          }))
+        : [],
     stats: doc.stats,
     lastValidation: doc.lastValidation,
     launchedAt: doc.launchedAt?.toISOString() ?? null,
@@ -170,10 +266,32 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
   };
 }
 
+function hyrefastCreateApplicationLog(row: ScreeningCandidateDocument) {
+  const logs = [
+    ...((row.video?.logs || []) as ScreeningLogEntry[]),
+    ...((row.logs || []) as ScreeningLogEntry[]),
+  ];
+  return [...logs]
+    .reverse()
+    .find((entry) => entry?.event === 'hyrefast_create_application');
+}
+
+function hyrefastInviteSucceeded(log: ScreeningLogEntry | undefined): boolean {
+  if (!log?.response) return false;
+  const httpStatus = Number(log.response.httpStatus || 0);
+  const body = log.response.body;
+  const status =
+    body && typeof body === 'object'
+      ? String((body as { status?: string }).status || '').toUpperCase()
+      : '';
+  return httpStatus >= 200 && httpStatus < 300 && (status === 'SUCCESS' || status === '');
+}
+
 function toResultDisplay(
   row: ScreeningCandidateDocument,
   extras: {
     name: string;
+    email?: string | null;
     jobId: string | null;
     jobTitle?: string | null;
     screeningName: string;
@@ -198,6 +316,23 @@ function toResultDisplay(
       row.extractedVariables?.knockoutsTriggered
   );
   const knockoutResults = buildKnockoutResults(configuredKnockouts, triggeredKnockouts);
+  const isVideo = row.mode === 'video';
+  const createLog = isVideo ? hyrefastCreateApplicationLog(row) : undefined;
+  const inviteOk = isVideo && hyrefastInviteSucceeded(createLog);
+  const video = row.video
+    ? {
+        jobId: row.video.jobId || null,
+        applicationId: row.video.applicationId || null,
+        invitationStatus:
+          inviteOk && !row.video.applicationId
+            ? row.video.invitationStatus && row.video.invitationStatus !== 'failed'
+              ? row.video.invitationStatus
+              : 'sent'
+            : row.video.invitationStatus || null,
+        invitationError: inviteOk ? null : row.video.invitationError || null,
+        logs: row.video.logs || [],
+      }
+    : null;
 
   return {
     id: String(row._id),
@@ -205,34 +340,38 @@ function toResultDisplay(
     screeningName: extras.screeningName,
     candidateId: String(row.candidateId),
     name: extras.name,
+    email: extras.email?.trim() || null,
     jobId: extras.jobId,
     jobTitle: extras.jobTitle ?? null,
-    callStatus: row.callStatus,
+    mode: row.mode === 'video' ? 'video' : 'voice',
+    callStatus: inviteOk && row.callStatus === 'failed' ? 'invited' : row.callStatus,
     providerCallId: row.providerCallId,
     attempts: row.attempts,
     attemptsMax: extras.attemptsMax ?? null,
-    durationSeconds: row.durationSeconds,
-    transcript: row.transcript,
-    recordingReference: row.recordingReference,
-    summary: row.summary,
-    extractedVariables: row.extractedVariables,
-    scoreBreakdown: row.scoreBreakdown,
-    overallScore: row.overallScore,
-    recommendation: row.recommendation,
+    durationSeconds: isVideo ? null : row.durationSeconds,
+    transcript: isVideo ? null : row.transcript,
+    recordingReference: isVideo ? null : row.recordingReference,
+    summary: isVideo ? null : row.summary,
+    extractedVariables: isVideo ? {} : row.extractedVariables,
+    scoreBreakdown: isVideo ? {} : row.scoreBreakdown,
+    overallScore: isVideo ? null : row.overallScore,
+    recommendation: isVideo ? null : row.recommendation,
     decision: row.recruiterDecision,
     recruiterDecision: row.recruiterDecision,
     notes: row.notes,
-    evaluationCriteria: extras.evaluationCriteria || [],
-    questions: extras.questions || [],
+    evaluationCriteria: isVideo ? [] : extras.evaluationCriteria || [],
+    questions: isVideo ? [] : extras.questions || [],
     activity: extras.activity || [],
     completedAt: row.completedAt?.toISOString() ?? null,
-    error: row.error,
+    error: inviteOk ? null : row.error,
+    logs: row.logs || [],
+    video,
     lastActivity: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    knockouts: configuredKnockouts,
-    triggeredKnockouts,
-    knockoutResults,
+    knockouts: isVideo ? [] : configuredKnockouts,
+    triggeredKnockouts: isVideo ? [] : triggeredKnockouts,
+    knockoutResults: isVideo ? [] : knockoutResults,
   };
 }
 
@@ -282,7 +421,13 @@ export async function refreshScreeningStats(screeningId: string) {
   let scoreSum = 0;
   let scoreCount = 0;
   for (const row of rows) {
-    if (row.callStatus === 'queued' || row.callStatus === 'ringing') stats.queued += 1;
+    if (
+      row.callStatus === 'queued' ||
+      row.callStatus === 'invited' ||
+      row.callStatus === 'ringing'
+    ) {
+      stats.queued += 1;
+    }
     if (row.callStatus === 'in_progress') stats.inProgress += 1;
     if (row.callStatus === 'completed') stats.completed += 1;
     if (row.callStatus === 'no_answer' || row.callStatus === 'voicemail') stats.noAnswer += 1;
@@ -307,7 +452,7 @@ export async function refreshScreeningStats(screeningId: string) {
   // Auto-complete when every dialable contact is terminal and nothing is in-flight.
   if (screening.status === 'running' && rows.length > 0) {
     const open = rows.filter((r) =>
-      ['queued', 'ringing', 'in_progress'].includes(String(r.callStatus || ''))
+      ['queued', 'invited', 'ringing', 'in_progress'].includes(String(r.callStatus || ''))
     ).length;
     const dialed = rows.filter((r) => Boolean(r.providerRequestId || r.providerCallId));
     if (open === 0 && dialed.length > 0) {
@@ -514,9 +659,36 @@ async function applyPendingAiDecisions(
 export const screeningService = {
   async list(organizationId: string, query: ListQuery) {
     const filter: Record<string, unknown> = { organizationId, deletedAt: null };
-    if (query.status) filter.status = query.status;
+    if (query.status) {
+      const statuses = Array.isArray(query.status) ? query.status : [query.status];
+      filter.status = statuses.length === 1 ? statuses[0] : { $in: statuses };
+    }
     if (query.jobId) filter.jobId = query.jobId;
-    if (query.q) filter.name = { $regex: query.q, $options: 'i' };
+    if (query.ownerUserId) {
+      const ownerIds = (Array.isArray(query.ownerUserId)
+        ? query.ownerUserId
+        : [query.ownerUserId]
+      ).filter((id) => mongoose.Types.ObjectId.isValid(id));
+      if (ownerIds.length === 1) {
+        filter.ownerUserId = ownerIds[0];
+      } else if (ownerIds.length > 1) {
+        filter.ownerUserId = {
+          $in: ownerIds.map((id) => new mongoose.Types.ObjectId(id)),
+        };
+      }
+    }
+    if (query.q) {
+      const [ownerIds, jobIds] = await Promise.all([
+        searchMatchingOwnerIds(organizationId, query.q),
+        searchMatchingJobIds(organizationId, query.q),
+      ]);
+      const searchOr: Record<string, unknown>[] = [
+        { name: caseInsensitiveContains(query.q) },
+      ];
+      if (ownerIds.length > 0) searchOr.push({ ownerUserId: { $in: ownerIds } });
+      if (jobIds.length > 0) searchOr.push({ jobId: { $in: jobIds } });
+      filter.$or = searchOr;
+    }
 
     const skip = (query.page - 1) * query.limit;
     const [docs, total] = await Promise.all([
@@ -544,6 +716,24 @@ export const screeningService = {
     };
   },
 
+  async listOwners(organizationId: string) {
+    const ownerIds = await ScreeningModel.distinct('ownerUserId', {
+      organizationId,
+      deletedAt: null,
+    });
+    const users = await UserModel.find({
+      _id: { $in: ownerIds },
+      organizationId,
+    })
+      .select('firstName lastName')
+      .sort({ firstName: 1, lastName: 1 })
+      .lean();
+    return users.map((user) => ({
+      id: String(user._id),
+      name: `${user.firstName} ${user.lastName}`.trim() || 'Unknown',
+    }));
+  },
+
   async get(organizationId: string, id: string) {
     await refreshScreeningStats(id);
     const doc = await loadScreening(organizationId, id);
@@ -568,6 +758,7 @@ export const screeningService = {
       if (!job) throw new AppError(400, 'JOB_NOT_FOUND', 'Linked job not found.');
     }
 
+    const isVideo = input.mode === 'video';
     const doc = await ScreeningModel.create({
       organizationId,
       ownerUserId,
@@ -576,6 +767,7 @@ export const screeningService = {
       workflowId: input.workflowId || null,
       sourceModule: input.sourceModule || 'screening',
       name: input.name,
+      mode: isVideo ? 'video' : 'voice',
       description: input.description ?? null,
       objective: input.objective ?? null,
       language: input.language ? String(input.language).toUpperCase() : getHunarVoiceLanguage(),
@@ -604,6 +796,7 @@ export const screeningService = {
           'Leave a short callback message',
       },
       candidateIds: input.candidateIds || [],
+      logs: isVideo ? [initialVideoScreeningLog(input.name)] : [],
       status: 'draft',
       stats: defaultScreeningStats(),
       version: 1,
@@ -620,49 +813,69 @@ export const screeningService = {
   },
 
   async update(organizationId: string, userId: string, id: string, input: UpdateInput) {
-    const doc = await loadScreening(organizationId, id);
-    if (!['draft', 'paused'].includes(doc.status)) {
-      throw new AppError(400, 'INVALID_STATUS', 'Only draft or paused screenings can be edited.');
-    }
+    const applyUpdate = async (doc: ScreeningDocument) => {
+      if (!['draft', 'paused'].includes(doc.status)) {
+        throw new AppError(400, 'INVALID_STATUS', 'Only draft or paused screenings can be edited.');
+      }
 
-    if (input.name !== undefined) doc.name = input.name;
-    if (input.ownerUserId !== undefined) {
-      doc.ownerUserId = new mongoose.Types.ObjectId(
-        await resolveOwnerUserId(organizationId, userId, input.ownerUserId)
-      );
+      if (input.name !== undefined) doc.name = input.name;
+      if (input.mode !== undefined) {
+        const nextMode = input.mode === 'video' ? 'video' : 'voice';
+        if (nextMode === 'video' && doc.mode !== 'video' && (!doc.logs || doc.logs.length === 0)) {
+          doc.logs = [initialVideoScreeningLog(doc.name)];
+        }
+        doc.mode = nextMode;
+      }
+      if (input.ownerUserId !== undefined) {
+        doc.ownerUserId = new mongoose.Types.ObjectId(
+          await resolveOwnerUserId(organizationId, userId, input.ownerUserId)
+        );
+      }
+      if (input.jobId !== undefined) {
+        doc.jobId = input.jobId ? new mongoose.Types.ObjectId(input.jobId) : null;
+      }
+      if (input.campaignId !== undefined) {
+        doc.campaignId = input.campaignId
+          ? new mongoose.Types.ObjectId(input.campaignId)
+          : null;
+      }
+      if (input.description !== undefined) doc.description = input.description;
+      if (input.objective !== undefined) doc.objective = input.objective;
+      if (input.language !== undefined) {
+        doc.language = input.language ? String(input.language).toUpperCase() : null;
+      }
+      if (input.voice !== undefined) {
+        doc.voice = input.voice ? String(input.voice).toUpperCase() : null;
+      }
+      if (input.tone !== undefined) doc.tone = input.tone;
+      if (input.introductionScript !== undefined) doc.introductionScript = input.introductionScript;
+      if (input.agentPrompt !== undefined) doc.agentPrompt = input.agentPrompt;
+      if (input.closingScript !== undefined) doc.closingScript = input.closingScript;
+      if (input.consentText !== undefined) doc.consentText = input.consentText;
+      if (input.questions !== undefined) doc.questions = input.questions;
+      if (input.evaluationCriteria !== undefined) doc.evaluationCriteria = input.evaluationCriteria;
+      if (input.minShortlistScore !== undefined) doc.minShortlistScore = input.minShortlistScore;
+      if (input.knockouts !== undefined) doc.knockouts = input.knockouts;
+      if (input.callSettings !== undefined) {
+        doc.callSettings = { ...doc.callSettings, ...input.callSettings };
+      }
+      if (input.candidateIds !== undefined) {
+        doc.candidateIds = input.candidateIds;
+        await this.syncCandidates(organizationId, id, input.candidateIds);
+      }
+      doc.version += 1;
+    };
+
+    let doc = await loadScreening(organizationId, id);
+    await applyUpdate(doc);
+    try {
+      await doc.save();
+    } catch (err) {
+      if (!(err instanceof mongoose.Error.VersionError)) throw err;
+      doc = await loadScreening(organizationId, id);
+      await applyUpdate(doc);
+      await doc.save();
     }
-    if (input.jobId !== undefined) doc.jobId = input.jobId ? new mongoose.Types.ObjectId(input.jobId) : null;
-    if (input.campaignId !== undefined) {
-      doc.campaignId = input.campaignId
-        ? new mongoose.Types.ObjectId(input.campaignId)
-        : null;
-    }
-    if (input.description !== undefined) doc.description = input.description;
-    if (input.objective !== undefined) doc.objective = input.objective;
-    if (input.language !== undefined) {
-      doc.language = input.language ? String(input.language).toUpperCase() : null;
-    }
-    if (input.voice !== undefined) {
-      doc.voice = input.voice ? String(input.voice).toUpperCase() : null;
-    }
-    if (input.tone !== undefined) doc.tone = input.tone;
-    if (input.introductionScript !== undefined) doc.introductionScript = input.introductionScript;
-    if (input.agentPrompt !== undefined) doc.agentPrompt = input.agentPrompt;
-    if (input.closingScript !== undefined) doc.closingScript = input.closingScript;
-    if (input.consentText !== undefined) doc.consentText = input.consentText;
-    if (input.questions !== undefined) doc.questions = input.questions;
-    if (input.evaluationCriteria !== undefined) doc.evaluationCriteria = input.evaluationCriteria;
-    if (input.minShortlistScore !== undefined) doc.minShortlistScore = input.minShortlistScore;
-    if (input.knockouts !== undefined) doc.knockouts = input.knockouts;
-    if (input.callSettings !== undefined) {
-      doc.callSettings = { ...doc.callSettings, ...input.callSettings };
-    }
-    if (input.candidateIds !== undefined) {
-      doc.candidateIds = input.candidateIds;
-      await this.syncCandidates(organizationId, id, input.candidateIds);
-    }
-    doc.version += 1;
-    await doc.save();
 
     return toDisplay(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
@@ -697,12 +910,14 @@ export const screeningService = {
             organizationId,
             screeningId,
             candidateId: candidate._id,
+            mode: screening.mode === 'video' ? 'video' : 'voice',
             workflowId: screening.workflowId,
             callStatus: 'queued',
             attempts: 0,
             recruiterDecision: 'pending',
             extractedVariables: {},
             scoreBreakdown: {},
+            ...(screening.mode === 'video' ? { video: {} } : { audio: {}, video: {} }),
           },
         },
         { upsert: true }
@@ -719,6 +934,54 @@ export const screeningService = {
     const doc = await loadScreening(organizationId, id);
     const issues: Array<{ id: string; severity: 'error' | 'warning'; code: string; message: string }> =
       [];
+
+    const enrolled = await ScreeningCandidateModel.countDocuments({ screeningId: id });
+    if (enrolled === 0 && !doc.candidateIds.length) {
+      issues.push({
+        id: 'audience',
+        severity: 'error',
+        code: 'AUDIENCE_EMPTY',
+        message: 'Add candidates before launch.',
+      });
+    }
+
+    const candidates = await ScreeningCandidateModel.find({ screeningId: id }).lean();
+    const pool = await SavedCandidateModel.find({
+      _id: { $in: candidates.map((c) => c.candidateId) },
+      organizationId,
+    }).lean();
+
+    if (doc.mode === 'video') {
+      if (!isHyrefastConfigured()) {
+        issues.push({
+          id: 'provider',
+          severity: 'error',
+          code: 'HYREFAST_API_KEY_MISSING',
+          message: 'Video screening requires HYREFAST_API_KEY.',
+        });
+      }
+      if (!doc.jobId) {
+        issues.push({
+          id: 'job',
+          severity: 'error',
+          code: 'JOB_REQUIRED',
+          message: 'Video screening requires a linked job.',
+        });
+      }
+      const withEmail = pool.filter((c) => isValidEmail(String(c.email || ''))).length;
+      if (candidates.length > 0 && withEmail === 0) {
+        issues.push({
+          id: 'contacts',
+          severity: 'error',
+          code: 'NO_EMAIL_CONTACTS',
+          message: 'No candidates have an email address for video screening.',
+        });
+      }
+      const ok = !issues.some((i) => i.severity === 'error');
+      doc.lastValidation = { ok, checkedAt: new Date(), issues };
+      await doc.save();
+      return { ok, issues };
+    }
 
     if (!isHunarConfigured() && !isZyastraConfigured()) {
       issues.push({
@@ -760,21 +1023,6 @@ export const screeningService = {
       });
     }
 
-    const enrolled = await ScreeningCandidateModel.countDocuments({ screeningId: id });
-    if (enrolled === 0 && !doc.candidateIds.length) {
-      issues.push({
-        id: 'audience',
-        severity: 'error',
-        code: 'AUDIENCE_EMPTY',
-        message: 'Add candidates before launch.',
-      });
-    }
-
-    const candidates = await ScreeningCandidateModel.find({ screeningId: id }).lean();
-    const pool = await SavedCandidateModel.find({
-      _id: { $in: candidates.map((c) => c.candidateId) },
-      organizationId,
-    }).lean();
     const withPhone = pool.filter((c) => c.phone).length;
     if (candidates.length > 0 && withPhone === 0) {
       issues.push({
@@ -831,7 +1079,7 @@ export const screeningService = {
     organizationId: string,
     userId: string,
     id: string,
-    options?: { candidateIds?: string[] }
+    options?: { candidateIds?: string[]; runInWorker?: boolean }
   ) {
     const doc = await loadScreening(organizationId, id);
     if (!['draft', 'paused', 'scheduled', 'running'].includes(doc.status)) {
@@ -844,8 +1092,46 @@ export const screeningService = {
 
     const validation = await this.validate(organizationId, userId, id);
     if (!validation.ok) {
-      throw new AppError(400, 'LAUNCH_VALIDATION_FAILED', 'Screening failed launch validation.', {
-        meta: { issues: validation.issues },
+      const errors = validation.issues.filter((issue) => issue.severity === 'error');
+      throw new AppError(
+        400,
+        'LAUNCH_VALIDATION_FAILED',
+        errors[0]?.message || 'Screening failed launch validation.',
+        {
+          details: errors.map((issue) => ({
+            path: issue.id,
+            message: issue.message,
+          })),
+          meta: { issues: validation.issues },
+        }
+      );
+    }
+
+    if (doc.mode === 'video') {
+      if (!options?.runInWorker) {
+        await scheduleScreeningLaunch({
+          screening: doc,
+          candidateIds: options?.candidateIds?.length ? options.candidateIds : doc.candidateIds,
+          source: 'screening',
+        });
+        const queued = await loadScreening(organizationId, id);
+        return toDisplay(queued, {
+          ownerName: await ownerName(String(queued.ownerUserId)),
+          jobTitle: await jobTitle(queued.jobId),
+        });
+      }
+
+      const fresh = await loadScreening(organizationId, id);
+      await launchVideoScreening({
+        organizationId,
+        screeningId: id,
+        doc: fresh,
+        candidateIds: options?.candidateIds,
+      });
+      await refreshScreeningStats(id);
+      return toDisplay(fresh, {
+        ownerName: await ownerName(String(fresh.ownerUserId)),
+        jobTitle: await jobTitle(fresh.jobId),
       });
     }
 
@@ -1209,7 +1495,7 @@ export const screeningService = {
 
     const pending = await ScreeningCandidateModel.find({
       screeningId: id,
-      callStatus: { $in: ['queued', 'ringing', 'in_progress'] },
+      callStatus: { $in: ['queued', 'invited', 'ringing', 'in_progress'] },
     });
     for (const row of pending) {
       if (row.quotaReservationKey && row.quotaCommittedMinutes === 0) {
@@ -1252,15 +1538,18 @@ export const screeningService = {
     const candidates = await SavedCandidateModel.find({
       _id: { $in: rows.map((r) => r.candidateId) },
     })
-      .select('name')
+      .select('name email')
       .lean();
-    const names = new Map(candidates.map((c) => [String(c._id), c.name]));
+    const people = new Map(
+      candidates.map((c) => [String(c._id), { name: c.name, email: c.email }])
+    );
     const screening = await ScreeningModel.findById(id).select('name jobId knockouts').lean();
 
     return {
       items: rows.map((row) =>
         toResultDisplay(row, {
-          name: names.get(String(row.candidateId)) || 'Unknown',
+          name: people.get(String(row.candidateId))?.name || 'Unknown',
+          email: people.get(String(row.candidateId))?.email || null,
           jobId: screening?.jobId ? String(screening.jobId) : null,
           screeningName: screening?.name || '',
           knockouts: screening?.knockouts || [],
@@ -1277,10 +1566,15 @@ export const screeningService = {
 
   async listResults(organizationId: string, query: ListResultsQuery) {
     const filter: Record<string, unknown> = { organizationId };
+    const and: Record<string, unknown>[] = [];
     if (query.screeningId) filter.screeningId = query.screeningId;
-    if (query.decision) filter.recruiterDecision = query.decision;
+    const decisions = asFilterList(query.decision);
+    if (decisions.length === 1) {
+      filter.recruiterDecision = decisions[0];
+    } else if (decisions.length > 1) {
+      filter.recruiterDecision = { $in: decisions };
+    }
 
-    let screeningIds: mongoose.Types.ObjectId[] | null = null;
     if (query.jobId) {
       const screenings = await ScreeningModel.find({
         organizationId,
@@ -1289,55 +1583,97 @@ export const screeningService = {
       })
         .select('_id')
         .lean();
-      screeningIds = screenings.map((s) => s._id);
-      filter.screeningId = { $in: screeningIds };
+      filter.screeningId = { $in: screenings.map((s) => s._id) };
     }
 
-    const skip = (query.page - 1) * query.limit;
-    const [rows, total] = await Promise.all([
-      ScreeningCandidateModel.find(filter)
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(query.limit),
-      ScreeningCandidateModel.countDocuments(filter),
-    ]);
+    if (query.q) {
+      const [candidateIds, screeningIds] = await Promise.all([
+        searchMatchingCandidateIds(organizationId, query.q),
+        searchMatchingScreeningIds(organizationId, query.q),
+      ]);
+      const searchOr: Record<string, unknown>[] = [];
+      if (candidateIds.length > 0) searchOr.push({ candidateId: { $in: candidateIds } });
+      if (screeningIds.length > 0) searchOr.push({ screeningId: { $in: screeningIds } });
+      if (searchOr.length === 0) {
+        return {
+          items: [],
+          pagination: {
+            page: 1,
+            limit: query.limit,
+            total: 0,
+            totalPages: 1,
+          },
+        };
+      }
+      and.push({ $or: searchOr });
+    }
+
+    const recommendations = asFilterList(query.recommendation);
+    if (recommendations.length > 0) {
+      const recOr: Record<string, unknown>[] = [];
+      if (recommendations.includes('shortlist')) {
+        recOr.push({ recommendation: { $regex: 'shortlist', $options: 'i' } });
+      }
+      if (recommendations.includes('reject')) {
+        recOr.push({ recommendation: { $regex: 'reject', $options: 'i' } });
+      }
+      if (recommendations.includes('needs_review')) {
+        recOr.push({
+          $nor: [
+            { recommendation: { $regex: 'shortlist', $options: 'i' } },
+            { recommendation: { $regex: 'reject', $options: 'i' } },
+          ],
+        });
+      }
+      if (recOr.length === 1) and.push(recOr[0]!);
+      else if (recOr.length > 1) and.push({ $or: recOr });
+    }
+
+    if (and.length > 0) filter.$and = and;
+
+    const total = await ScreeningCandidateModel.countDocuments(filter);
+    const totalPages = Math.max(1, Math.ceil(total / query.limit));
+    const page = Math.min(query.page, totalPages);
+    const rows = await ScreeningCandidateModel.find(filter)
+      .sort({ updatedAt: -1 })
+      .skip((page - 1) * query.limit)
+      .limit(query.limit);
     await applyPendingAiDecisions(rows);
 
     const candidates = await SavedCandidateModel.find({
       _id: { $in: rows.map((r) => r.candidateId) },
     })
-      .select('name')
+      .select('name email')
       .lean();
     const screenings = await ScreeningModel.find({
       _id: { $in: rows.map((r) => r.screeningId) },
     })
       .select('name jobId knockouts')
       .lean();
-    const names = new Map(candidates.map((c) => [String(c._id), c.name]));
+    const people = new Map(
+      candidates.map((c) => [String(c._id), { name: c.name, email: c.email }])
+    );
     const screeningMap = new Map(screenings.map((s) => [String(s._id), s]));
 
-    let items = rows.map((row) => {
+    const items = rows.map((row) => {
       const screening = screeningMap.get(String(row.screeningId));
+      const person = people.get(String(row.candidateId));
       return toResultDisplay(row, {
-        name: names.get(String(row.candidateId)) || 'Unknown',
+        name: person?.name || 'Unknown',
+        email: person?.email || null,
         jobId: screening?.jobId ? String(screening.jobId) : null,
         screeningName: screening?.name || '',
         knockouts: screening?.knockouts || [],
       });
     });
 
-    if (query.q) {
-      const q = query.q.toLowerCase();
-      items = items.filter((item) => item.name.toLowerCase().includes(q));
-    }
-
     return {
       items,
       pagination: {
-        page: query.page,
+        page,
         limit: query.limit,
         total,
-        totalPages: Math.max(1, Math.ceil(total / query.limit)),
+        totalPages,
       },
     };
   },
@@ -1371,7 +1707,9 @@ export const screeningService = {
       // best-effort enrollment badge sync
     }
 
-    const candidate = await SavedCandidateModel.findById(row.candidateId).select('name').lean();
+    const candidate = await SavedCandidateModel.findById(row.candidateId)
+      .select('name email')
+      .lean();
     const screening = await ScreeningModel.findById(row.screeningId)
       .select('name jobId knockouts evaluationCriteria questions callSettings')
       .lean();
@@ -1379,6 +1717,7 @@ export const screeningService = {
     const activity = await buildResultActivity(row);
     return toResultDisplay(row, {
       name: candidate?.name || 'Unknown',
+      email: candidate?.email || null,
       jobId: screening?.jobId ? String(screening.jobId) : null,
       jobTitle: linkedJobTitle,
       screeningName: screening?.name || '',
@@ -1443,6 +1782,148 @@ export const screeningService = {
     });
     await row.save();
     return this.getResult(organizationId, id);
+  },
+
+  async resendInterviewInvite(organizationId: string, _userId: string, id: string) {
+    const row = await ScreeningCandidateModel.findOne({ _id: id, organizationId });
+    if (!row) throw new AppError(404, 'RESULT_NOT_FOUND', 'Screening result not found.');
+
+    const screening = await loadScreening(organizationId, String(row.screeningId));
+    if (screening.mode !== 'video') {
+      throw new AppError(400, 'INVALID_MODE', 'Resend invite is only available for video screenings.');
+    }
+
+    const applicationId = String(row.video?.applicationId || row.providerCallId || '').trim();
+    if (!applicationId) {
+      throw new AppError(400, 'APPLICATION_ID_MISSING', 'No Hyrefast application id found for this candidate.');
+    }
+
+    const { data, trace } = await sendHyrefastInterview(applicationId);
+    const logEntry = hyrefastSendInterviewLogEntry({
+      candidateId: String(row.candidateId),
+      request: {
+        method: trace.method,
+        url: trace.url,
+        body: trace.requestBody,
+      },
+      response: {
+        httpStatus: trace.httpStatus,
+        body: trace.responseBody,
+      },
+    });
+
+    appendVideoScreeningLog(screening, logEntry);
+    appendScreeningCandidateLog(row, logEntry);
+    appendScreeningCandidateVideoLog(row, logEntry);
+    row.error = null;
+    row.video = {
+      ...(row.video || {}),
+      jobId: row.video?.jobId || row.providerRequestId || null,
+      applicationId,
+      invitationStatus:
+        String(
+          (data as { status?: string | null } | null)?.status ||
+            (row.video?.invitationStatus || 'resent')
+        ) || 'resent',
+      invitationError: null,
+      logs: row.video?.logs || [],
+    };
+
+    await row.save();
+    await screening.save();
+    emitScreeningResultUpdated({
+      organizationId,
+      screeningId: String(row.screeningId),
+      resultId: id,
+      candidateId: String(row.candidateId),
+      callStatus: row.callStatus,
+      overallScore: row.overallScore,
+      recommendation: row.recommendation,
+      recruiterDecision: row.recruiterDecision,
+    });
+    return this.getResult(organizationId, id);
+  },
+
+  async getInterviewLink(organizationId: string, id: string) {
+    const row = await ScreeningCandidateModel.findOne({ _id: id, organizationId });
+    if (!row) throw new AppError(404, 'RESULT_NOT_FOUND', 'Screening result not found.');
+
+    const screening = await loadScreening(organizationId, String(row.screeningId));
+    if (screening.mode !== 'video') {
+      throw new AppError(400, 'INVALID_MODE', 'Interview link is only available for video screenings.');
+    }
+
+    const applicationId = String(row.video?.applicationId || row.providerCallId || '').trim();
+    if (!applicationId) {
+      throw new AppError(400, 'APPLICATION_ID_MISSING', 'No Hyrefast application id found for this candidate.');
+    }
+
+    const { data, link, trace } = await getHyrefastInterviewLink(applicationId);
+    const logEntry = hyrefastInterviewLinkLogEntry({
+      candidateId: String(row.candidateId),
+      request: {
+        method: trace.method,
+        url: trace.url,
+        body: trace.requestBody,
+      },
+      response: {
+        httpStatus: trace.httpStatus,
+        body: trace.responseBody,
+      },
+    });
+
+    appendVideoScreeningLog(screening, logEntry);
+    appendScreeningCandidateLog(row, logEntry);
+    appendScreeningCandidateVideoLog(row, logEntry);
+    await row.save();
+    await screening.save();
+    return { link, data };
+  },
+
+  async retryInterviewInvite(organizationId: string, userId: string, id: string) {
+    const row = await ScreeningCandidateModel.findOne({ _id: id, organizationId });
+    if (!row) throw new AppError(404, 'RESULT_NOT_FOUND', 'Screening result not found.');
+
+    const screening = await loadScreening(organizationId, String(row.screeningId));
+    if (screening.mode !== 'video') {
+      throw new AppError(400, 'INVALID_MODE', 'Retry invite is only available for video screenings.');
+    }
+
+    row.mode = 'video';
+    row.providerCallId = null;
+    row.video = {
+      ...(row.video || {}),
+      jobId: row.video?.jobId || screening.providerJobId || null,
+      applicationId: null,
+      invitationStatus: 'queued',
+      invitationError: null,
+      logs: row.video?.logs || [],
+    };
+    row.callStatus = 'queued';
+    row.error = null;
+    await row.save();
+
+    const fresh = await loadScreening(organizationId, String(screening._id));
+    await launchVideoScreening({
+      organizationId,
+      screeningId: String(fresh._id),
+      doc: fresh,
+      candidateIds: [String(row.candidateId)],
+    });
+    await refreshScreeningStats(String(fresh._id));
+
+    const result = await this.getResult(organizationId, id);
+    emitScreeningResultUpdated({
+      organizationId,
+      screeningId: String(row.screeningId),
+      resultId: id,
+      candidateId: String(row.candidateId),
+      callStatus: result.callStatus,
+      overallScore: result.overallScore,
+      recommendation: result.recommendation,
+      recruiterDecision: result.recruiterDecision,
+    });
+    return result;
   },
 
   /** Used by Huntlo 360 orchestration — creates screening + candidate rows (dial via facade). */
@@ -1558,12 +2039,14 @@ export const screeningService = {
           organizationId: input.organizationId,
           screeningId: screening._id,
           candidateId: input.candidateId,
+          mode: screening.mode === 'video' ? 'video' : 'voice',
           workflowId: input.workflowId,
           callStatus: 'queued',
           attempts: 0,
           recruiterDecision: 'pending',
           extractedVariables: {},
           scoreBreakdown: {},
+          ...(screening.mode === 'video' ? { video: {} } : { audio: {}, video: {} }),
         },
         $set: {
           enrollmentId: input.enrollmentId || null,

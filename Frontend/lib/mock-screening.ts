@@ -102,6 +102,7 @@ export interface ScreeningBatch {
   name: string;
   jobId: string | null;
   jobTitle: string | null;
+  mode?: "voice" | "video";
   candidates: number;
   language: string;
   /** Total dial attempts across candidates (live) or configured max (mock). */
@@ -113,6 +114,7 @@ export interface ScreeningBatch {
   shortlisted: number;
   status: ScreeningBatchStatus;
   owner: string;
+  ownerUserId?: string | null;
   lastActivity: string;
   objective: string;
 }
@@ -362,6 +364,7 @@ export const VOICEMAIL_BEHAVIOURS = [
 
 export type CallStatus =
   | "Queued"
+  | "Invited"
   | "Ringing"
   | "Completed"
   | "No answer"
@@ -514,6 +517,7 @@ export interface ScreeningResult {
   id: string;
   candidateId: string | null;
   candidateName: string;
+  candidateEmail?: string | null;
   jobId: string | null;
   jobTitle: string;
   screeningId: string;
@@ -528,6 +532,11 @@ export interface ScreeningResult {
   keyVariables: string[];
   completedDate: string;
   decision: RecruiterDecision;
+  error?: string | null;
+  recommendationTooltip?: string | null;
+  videoApplicationId?: string | null;
+  videoInvitationStatus?: string | null;
+  videoInvitationError?: string | null;
 }
 
 export const SCREENING_RESULTS: ScreeningResult[] = [

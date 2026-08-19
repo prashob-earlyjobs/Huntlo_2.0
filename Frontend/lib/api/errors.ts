@@ -23,6 +23,7 @@ export class ApiError extends Error {
   readonly statusCode: number;
   readonly code: ApiErrorCode;
   readonly details?: ErrorDetail[];
+  readonly meta?: Record<string, unknown>;
   readonly requestId?: string;
   readonly retryAfter?: number;
 
@@ -31,6 +32,7 @@ export class ApiError extends Error {
     statusCode: number;
     code: ApiErrorCode;
     details?: ErrorDetail[];
+    meta?: Record<string, unknown>;
     requestId?: string;
     retryAfter?: number;
     cause?: unknown;
@@ -40,6 +42,7 @@ export class ApiError extends Error {
     this.statusCode = options.statusCode;
     this.code = options.code;
     this.details = options.details;
+    this.meta = options.meta;
     this.requestId = options.requestId;
     this.retryAfter = options.retryAfter;
   }
@@ -154,10 +157,33 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
     ) {
       return "Your session expired. Please sign in again.";
     }
+    const details = getApiErrorDetails(error);
+    if (details.length === 1) return details[0];
+    if (details.length > 1) return details.join(" ");
     return message;
   }
   if (error instanceof Error) return error.message;
   return fallback;
+}
+
+export function getApiErrorDetails(error: unknown): string[] {
+  if (!(error instanceof ApiError)) return [];
+  const fromDetails = (error.details ?? [])
+    .map((detail) => String(detail.message || "").trim())
+    .filter(Boolean);
+  const issues = error.meta?.issues;
+  const fromMeta = Array.isArray(issues)
+    ? issues
+        .filter(
+          (issue) =>
+            issue &&
+            typeof issue === "object" &&
+            String((issue as { severity?: string }).severity || "error") === "error"
+        )
+        .map((issue) => String((issue as { message?: string }).message || "").trim())
+        .filter(Boolean)
+    : [];
+  return [...new Set([...fromDetails, ...fromMeta])];
 }
 
 export function isAbortError(error: unknown): boolean {

@@ -11,6 +11,9 @@ export const SCREENING_STATUSES = [
 ] as const;
 export type ScreeningStatus = (typeof SCREENING_STATUSES)[number];
 
+export const SCREENING_MODES = ['voice', 'video'] as const;
+export type ScreeningMode = (typeof SCREENING_MODES)[number];
+
 export type ScreeningQuestion = {
   id: string;
   prompt: string;
@@ -76,6 +79,22 @@ export function defaultScreeningStats(): ScreeningStats {
   };
 }
 
+export type ScreeningLogEntry = {
+  at: Date;
+  event: string;
+  message?: string | null;
+  request?: {
+    method: string;
+    url: string;
+    body: Record<string, unknown>;
+  } | null;
+  response?: {
+    httpStatus: number;
+    body: unknown;
+  } | null;
+  error?: string | null;
+};
+
 export type ScreeningDocument = Document & {
   organizationId: mongoose.Types.ObjectId;
   ownerUserId: mongoose.Types.ObjectId;
@@ -84,6 +103,7 @@ export type ScreeningDocument = Document & {
   workflowId: mongoose.Types.ObjectId | null;
   sourceModule: string;
   name: string;
+  mode: ScreeningMode;
   description: string | null;
   objective: string | null;
   language: string | null;
@@ -102,6 +122,10 @@ export type ScreeningDocument = Document & {
   callSettings: ScreeningCallSettings;
   candidateIds: string[];
   providerAgentId: string | null;
+  /** Hyrefast job id when mode is video. */
+  providerJobId: string | null;
+  /** Hyrefast launch audit trail when mode is video. */
+  logs: ScreeningLogEntry[];
   status: ScreeningStatus;
   stats: ScreeningStats;
   lastLaunchRequestId: string | null;
@@ -133,6 +157,12 @@ const screeningSchema = new Schema<ScreeningDocument>(
     workflowId: { type: Schema.Types.ObjectId, ref: 'Huntlo360Workflow', default: null },
     sourceModule: { type: String, default: 'screening', index: true },
     name: { type: String, required: true, trim: true, maxlength: 200 },
+    mode: {
+      type: String,
+      enum: SCREENING_MODES,
+      default: 'voice',
+      index: true,
+    },
     description: { type: String, default: null },
     objective: { type: String, default: null },
     language: { type: String, default: null },
@@ -198,6 +228,20 @@ const screeningSchema = new Schema<ScreeningDocument>(
     },
     candidateIds: { type: [String], default: [] },
     providerAgentId: { type: String, default: null },
+    providerJobId: { type: String, default: null },
+    logs: {
+      type: [
+        {
+          at: { type: Date, required: true },
+          event: { type: String, required: true },
+          message: { type: String, default: null },
+          request: { type: Schema.Types.Mixed, default: null },
+          response: { type: Schema.Types.Mixed, default: null },
+          error: { type: String, default: null },
+        },
+      ],
+      default: [],
+    },
     status: {
       type: String,
       enum: SCREENING_STATUSES,

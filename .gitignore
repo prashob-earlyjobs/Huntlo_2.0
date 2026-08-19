@@ -1,0 +1,4 @@
+
+# Local cloud credentials — never commit
+Backend/secrets/
+**/gcs-service-account.json
