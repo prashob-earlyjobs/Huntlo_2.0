@@ -26,14 +26,17 @@ import {
   createTemplateSchema,
   generateOutreachSchema,
   idParamSchema,
+  listHiringFlowsQuerySchema,
   listSequenceTemplatesQuerySchema,
   listTemplatesQuerySchema,
+  orgUpdateHiringFlowSchema,
   previewTemplateSchema,
   rewriteOutreachSchema,
   updateSequenceTemplateSchema,
   updateTemplateSchema,
   validateVariablesSchema,
 } from './outreach.validation.js';
+import { hiringFlowsService } from './hiring-flows.service.js';
 import {
   createOutreachPlanSchema,
   createWhatsAppPlanSchema,
@@ -59,6 +62,46 @@ export const outreachRouter = Router();
 
 outreachRouter.use('/campaigns', voiceRoutes);
 outreachRouter.use('/campaigns', campaignRoutes);
+
+/* ------------------------------------------------------------------ */
+/* Hiring flows (Templates playbooks)                                   */
+/* ------------------------------------------------------------------ */
+
+outreachRouter.get(
+  '/hiring-flows',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const query = listHiringFlowsQuerySchema.parse(req.query);
+    const data = await hiringFlowsService.list(req.organizationId!, query);
+    successResponse(res, data.items, {
+      meta: { requestId: getRequestId(req), pagination: data.pagination },
+    });
+  })
+);
+
+outreachRouter.get(
+  '/hiring-flows/:id',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = idParamSchema.parse(req.params);
+    const data = await hiringFlowsService.get(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+outreachRouter.patch(
+  '/hiring-flows/:id',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const { id } = idParamSchema.parse(req.params);
+    const body = orgUpdateHiringFlowSchema.parse(req.body ?? {});
+    const data = await hiringFlowsService.update(req.organizationId!, id, body);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
 
 /* ------------------------------------------------------------------ */
 /* Templates                                                            */

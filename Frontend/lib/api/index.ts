@@ -17,6 +17,7 @@ export * from "./scheduling";
 export * from "./billing";
 export * from "./integrations";
 export * from "./templates";
+export * from "./hiring-flows";
 export * from "./plans";
 export * from "./team";
 export * from "./analytics";

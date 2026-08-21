@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Send } from "lucide-react";
 
-import { TemplatesWorkspace } from "@/components/templates/templates-workspace";
+import { HiringFlowsWorkspace } from "@/components/templates/hiring-flows-workspace";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/lib/routes";
@@ -14,7 +14,7 @@ export default function TemplatesPage() {
     <>
       <PageHeader
         title="Templates"
-        description="Reusable emails, WhatsApp messages, voice scripts and qualification sets with personalisation placeholders."
+        description="Hiring playbooks assigned to your organisation. You can add questions; the first WhatsApp message is set by Huntlo admin."
         actions={
           <Button
             size="sm"
@@ -27,7 +27,7 @@ export default function TemplatesPage() {
           </Button>
         }
       />
-      <TemplatesWorkspace />
+      <HiringFlowsWorkspace />
     </>
   );
 }

@@ -11,10 +11,12 @@ import {
   Pencil,
   Search,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Field } from "@/components/outreach/builder-ui";
+import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,13 +61,54 @@ import {
   type AdminAccountStatus,
   type AdminUser,
 } from "@/lib/mock-admin";
-import { adminApi } from "@/lib/api";
+import { adminApi, type AdminPlan } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { PHONE_COUNTRIES } from "@/lib/phone-countries";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+const FALLBACK_PLANS = ["Trial", "Starter", "Growth", "Scale", "Enterprise"] as const;
+
+const QUOTA_METRICS = [
+  { metric: "candidate_search", label: "Candidate searches" },
+  { metric: "email_reveal", label: "Email reveals" },
+  { metric: "mobile_reveal", label: "Mobile reveals" },
+  { metric: "people_scout", label: "People Scout lookups" },
+  { metric: "email_outreach", label: "Email outreach" },
+  { metric: "whatsapp_outreach", label: "WhatsApp outreach" },
+  { metric: "ai_voice_minutes", label: "AI voice minutes" },
+  { metric: "assessment_invites", label: "Assessment invites" },
+  { metric: "team_seats", label: "Team seats" },
+] as const;
+
+type QuotaMetricId = (typeof QUOTA_METRICS)[number]["metric"];
+type QuotaFormState = Record<QuotaMetricId, string>;
+type QuotaNumberState = Record<QuotaMetricId, number>;
+
+const EMPTY_QUOTA_FORM: QuotaFormState = {
+  candidate_search: "0",
+  email_reveal: "0",
+  mobile_reveal: "0",
+  people_scout: "0",
+  email_outreach: "0",
+  whatsapp_outreach: "0",
+  ai_voice_minutes: "0",
+  assessment_invites: "0",
+  team_seats: "0",
+};
+
+const EMPTY_QUOTA_NUMBERS: QuotaNumberState = {
+  candidate_search: 0,
+  email_reveal: 0,
+  mobile_reveal: 0,
+  people_scout: 0,
+  email_outreach: 0,
+  whatsapp_outreach: 0,
+  ai_voice_minutes: 0,
+  assessment_invites: 0,
+  team_seats: 0,
+};
 
 const STATUS_CLASS: Record<AdminAccountStatus, string> = {
   Active: "bg-success/10 text-success",
@@ -141,11 +184,54 @@ export function AdminUsersWorkspace() {
   const [toast, setToast] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", role: "" });
   const [planForm, setPlanForm] = useState("Growth");
-  const [quotaForm, setQuotaForm] = useState({
-    searches: "",
-    reveals: "",
-    outreach: "",
+  const [planOptions, setPlanOptions] = useState<string[]>([...FALLBACK_PLANS]);
+  const [saving, setSaving] = useState(false);
+  const [quotaForm, setQuotaForm] = useState<QuotaFormState>(EMPTY_QUOTA_FORM);
+  const [quotaUsed, setQuotaUsed] = useState<QuotaNumberState>(EMPTY_QUOTA_NUMBERS);
+  const [quotaLimits, setQuotaLimits] = useState<QuotaNumberState>(EMPTY_QUOTA_NUMBERS);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createSaving, setCreateSaving] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    organizationName: "",
+    role: "recruiter",
   });
+
+  function resetCreateForm() {
+    setCreateForm({ firstName: "", lastName: "", email: "", password: "", organizationName: "", role: "recruiter" });
+  }
+
+  async function handleCreateUser() {
+    if (createSaving) return;
+    if (!createForm.email.trim() || !createForm.firstName.trim() || !createForm.password.trim()) {
+      setToast("First name, email and password are required.");
+      return;
+    }
+    setCreateSaving(true);
+    try {
+      await adminApi.createUser({
+        firstName: createForm.firstName.trim(),
+        lastName: createForm.lastName.trim(),
+        email: createForm.email.trim(),
+        password: createForm.password,
+        organizationName: createForm.organizationName.trim() || undefined,
+        role: createForm.role,
+      });
+      setToast("User created successfully.");
+      setCreateOpen(false);
+      resetCreateForm();
+      void loadUsers();
+    } catch (error) {
+      setToast(getApiErrorMessage(error, "Unable to create user."));
+    } finally {
+      setCreateSaving(false);
+    }
+  }
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -191,22 +277,151 @@ export function AdminUsersWorkspace() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
+  useEffect(() => {
+    if (dialog !== "plan") return;
+    let cancelled = false;
+    void adminApi
+      .listPlans()
+      .then((plans: AdminPlan[]) => {
+        if (cancelled) return;
+        const names = plans
+          .filter((plan) => plan.active)
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+          .map((plan) => plan.name)
+          .filter(Boolean);
+        const unique = [...new Set(names)];
+        if (selected?.plan && !unique.includes(selected.plan)) {
+          unique.unshift(selected.plan);
+        }
+        if (unique.length > 0) setPlanOptions(unique);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanOptions([...FALLBACK_PLANS]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialog, selected?.plan]);
+
+  useEffect(() => {
+    if (dialog !== "quota" || !selected) return;
+    let cancelled = false;
+    setQuotaLoading(true);
+    setQuotaForm(EMPTY_QUOTA_FORM);
+    setQuotaUsed(EMPTY_QUOTA_NUMBERS);
+    setQuotaLimits(EMPTY_QUOTA_NUMBERS);
+    void adminApi
+      .getUser(selected.id)
+      .then((data) => {
+        if (cancelled) return;
+        const usage = Array.isArray(data.usage) ? data.usage : [];
+        const nextForm = { ...EMPTY_QUOTA_FORM };
+        const nextUsed = { ...EMPTY_QUOTA_NUMBERS };
+        const nextLimits = { ...EMPTY_QUOTA_NUMBERS };
+        for (const row of QUOTA_METRICS) {
+          const found = usage.find(
+            (item) =>
+              item &&
+              typeof item === "object" &&
+              "metric" in item &&
+              String((item as { metric?: unknown }).metric) === row.metric
+          ) as { used?: unknown; limit?: unknown } | undefined;
+          const used = Math.max(0, Number(found?.used) || 0);
+          const limit = Math.max(0, Number(found?.limit) || 0);
+          nextUsed[row.metric] = used;
+          nextLimits[row.metric] = limit;
+          nextForm[row.metric] = String(limit);
+        }
+        setQuotaForm(nextForm);
+        setQuotaUsed(nextUsed);
+        setQuotaLimits(nextLimits);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setToast(getApiErrorMessage(error, "Unable to load quotas."));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setQuotaLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialog, selected?.id]);
+
   function openDialog(kind: DialogKind, user: AdminUser) {
     setSelected(user);
     setDialog(kind);
+    setSaving(false);
     setEditForm({ name: user.name, email: user.email, role: user.role });
     setPlanForm(user.plan);
-    setQuotaForm({
-      searches: String(user.searchesUsed),
-      reveals: String(user.revealsUsed),
-      outreach: String(user.outreachUsed),
-    });
+    setQuotaForm(EMPTY_QUOTA_FORM);
+    setQuotaUsed(EMPTY_QUOTA_NUMBERS);
+    setQuotaLimits(EMPTY_QUOTA_NUMBERS);
   }
 
   function patchUser(id: string, patch: Partial<AdminUser>) {
     setUsers((previous) =>
       previous.map((user) => (user.id === id ? { ...user, ...patch } : user))
     );
+  }
+
+  async function saveDialog() {
+    if (!selected || saving || !dialog) return;
+    if (dialog === "quota" && quotaLoading) return;
+    const user = selected;
+    setSaving(true);
+    try {
+      if (dialog === "edit") {
+        const [firstName, ...rest] = editForm.name.trim().split(/\s+/);
+        const lastName = rest.join(" ") || firstName || "User";
+        await adminApi.updateUser(user.id, {
+          firstName: firstName || "User",
+          lastName,
+          role: editForm.role.toLowerCase().replace(/\s+/g, "_"),
+        });
+        patchUser(user.id, editForm);
+        setToast("User updated.");
+      } else if (dialog === "plan") {
+        await adminApi.assignPlan(user.id, planForm);
+        patchUser(user.id, { plan: planForm });
+        setToast(`Assigned ${planForm} plan.`);
+      } else {
+        const changes = QUOTA_METRICS.map(({ metric }) => {
+          const raw = quotaForm[metric].trim();
+          if (!raw) return null;
+          const nextLimit = Number(raw);
+          const currentLimit = quotaLimits[metric] ?? 0;
+          if (!Number.isFinite(nextLimit) || nextLimit < 0) return null;
+          const delta = Math.trunc(nextLimit) - currentLimit;
+          if (delta === 0) return null;
+          return adminApi.adjustQuota(user.id, {
+            metric,
+            delta,
+            reason: "admin adjustment",
+          });
+        }).filter((request): request is Promise<unknown> => request !== null);
+        if (changes.length > 0) await Promise.all(changes);
+        setToast(
+          changes.length > 0 ? "Quota limits updated." : "No quota changes to save."
+        );
+      }
+      setDialog(null);
+      setSelected(null);
+    } catch (error) {
+      setToast(
+        getApiErrorMessage(
+          error,
+          dialog === "edit"
+            ? "Unable to update user."
+            : dialog === "plan"
+              ? "Unable to assign plan."
+              : "Unable to adjust quota."
+        )
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -218,12 +433,21 @@ export function AdminUsersWorkspace() {
         title="User management"
         description="Accounts, plans and quotas across all workspaces."
         actions={
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search users or organisations…"
-            className="w-56 sm:w-72"
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search users or organisations…"
+              className="w-56 sm:w-72"
+            />
+            <Button
+              size="sm"
+              onClick={() => { resetCreateForm(); setCreateOpen(true); }}
+            >
+              <UserPlus className="mr-1.5 h-4 w-4" />
+              Create user
+            </Button>
+          </div>
         }
       />
 
@@ -530,36 +754,72 @@ export function AdminUsersWorkspace() {
           if (!open) setSelected(null);
         }}
       >
-        <SheetContent className="w-full sm:max-w-md">
+        <SheetContent
+          side="right"
+          className="w-full overflow-y-auto sm:max-w-md"
+        >
           {selected ? (
             <>
-              <SheetHeader>
-                <SheetTitle>{selected.name}</SheetTitle>
-                <SheetDescription>{selected.email}</SheetDescription>
+              <SheetHeader className="pr-10">
+                <SheetTitle className="leading-snug wrap-break-word">
+                  {selected.name}
+                </SheetTitle>
+                <SheetDescription className="break-all">
+                  {selected.email}
+                </SheetDescription>
               </SheetHeader>
-              <div className="mt-4 space-y-3 text-sm">
-                {[
-                  ["Organisation", selected.organisation],
-                  ["Country", selected.country || "—"],
-                  ["Mobile", selected.phone || "—"],
-                  ["Plan", selected.plan],
-                  ["Role", selected.role],
-                  ["Status", selected.status],
-                  ["Searches used", selected.searchesUsed.toLocaleString()],
-                  ["Reveals used", selected.revealsUsed.toLocaleString()],
-                  ["Outreach used", selected.outreachUsed.toLocaleString()],
-                  ["Created", selected.createdAt],
-                  ["Last active", selected.lastActive],
-                ].map(([label, value]) => (
+              <dl className="px-4 pb-6">
+                {(
+                  [
+                    ["Organisation", selected.organisation],
+                    ["Country", selected.country || "—"],
+                    ["Mobile", selected.phone || "—"],
+                    ["Plan", selected.plan],
+                    ["Role", selected.role],
+                    ["Status", selected.status],
+                    [
+                      "Searches used",
+                      selected.searchesUsed.toLocaleString(),
+                    ],
+                    ["Reveals used", selected.revealsUsed.toLocaleString()],
+                    [
+                      "Outreach used",
+                      selected.outreachUsed.toLocaleString(),
+                    ],
+                    ["Created", selected.createdAt],
+                    ["Last active", selected.lastActive],
+                  ] as const
+                ).map(([label, value]) => (
                   <div
                     key={label}
-                    className="flex items-start justify-between gap-3 border-b border-border pb-2"
+                    className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 border-b border-border py-2.5 last:border-b-0"
                   >
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="text-right font-medium">{value}</span>
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd
+                      className={cn(
+                        "min-w-0 wrap-break-word font-medium",
+                        (label === "Searches used" ||
+                          label === "Reveals used" ||
+                          label === "Outreach used") &&
+                          "tabular-nums"
+                      )}
+                    >
+                      {label === "Status" ? (
+                        <span
+                          className={cn(
+                            "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
+                            STATUS_CLASS[selected.status]
+                          )}
+                        >
+                          {value}
+                        </span>
+                      ) : (
+                        value
+                      )}
+                    </dd>
                   </div>
                 ))}
-              </div>
+              </dl>
             </>
           ) : null}
         </SheetContent>
@@ -572,7 +832,7 @@ export function AdminUsersWorkspace() {
           if (!open) setDialog(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className={dialog === "quota" ? "sm:max-w-lg" : undefined}>
           <DialogHeader>
             <DialogTitle>
               {dialog === "edit"
@@ -583,7 +843,9 @@ export function AdminUsersWorkspace() {
             </DialogTitle>
             <DialogDescription>
               {selected
-                ? `${selected.name} · ${selected.organisation}`
+                ? dialog === "quota"
+                  ? `${selected.name} · ${selected.organisation}. Set monthly limits for every quota.`
+                  : `${selected.name} · ${selected.organisation}`
                 : "Select a user"}
             </DialogDescription>
           </DialogHeader>
@@ -631,12 +893,17 @@ export function AdminUsersWorkspace() {
 
           {dialog === "plan" ? (
             <Field label="Plan" htmlFor="au-plan">
-              <Select value={planForm} onValueChange={(v) => v && setPlanForm(v)}>
+              <Select
+                value={planForm}
+                onValueChange={(value) => {
+                  if (value) setPlanForm(value);
+                }}
+              >
                 <SelectTrigger id="au-plan" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  {["Trial", "Starter", "Growth", "Scale", "Enterprise"].map((plan) => (
+                <SelectContent alignItemWithTrigger={false} align="start">
+                  {planOptions.map((plan) => (
                     <SelectItem key={plan} value={plan}>
                       {plan}
                     </SelectItem>
@@ -647,117 +914,106 @@ export function AdminUsersWorkspace() {
           ) : null}
 
           {dialog === "quota" ? (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Searches used" htmlFor="aq-s">
-                <Input
-                  id="aq-s"
-                  value={quotaForm.searches}
-                  onChange={(event) =>
-                    setQuotaForm((previous) => ({
-                      ...previous,
-                      searches: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Reveals used" htmlFor="aq-r">
-                <Input
-                  id="aq-r"
-                  value={quotaForm.reveals}
-                  onChange={(event) =>
-                    setQuotaForm((previous) => ({
-                      ...previous,
-                      reveals: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Outreach used" htmlFor="aq-o">
-                <Input
-                  id="aq-o"
-                  value={quotaForm.outreach}
-                  onChange={(event) =>
-                    setQuotaForm((previous) => ({
-                      ...previous,
-                      outreach: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-            </div>
+            quotaLoading ? (
+              <p className="text-sm text-muted-foreground">Loading quotas…</p>
+            ) : (
+              <div className="grid max-h-[min(24rem,50vh)] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+                {QUOTA_METRICS.map(({ metric, label }) => (
+                  <Field
+                    key={metric}
+                    label={label}
+                    htmlFor={`aq-${metric}`}
+                    hint={`Used ${quotaUsed[metric].toLocaleString()}`}
+                  >
+                    <Input
+                      id={`aq-${metric}`}
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      className="tabular-nums"
+                      value={quotaForm[metric]}
+                      onChange={(event) =>
+                        setQuotaForm((previous) => ({
+                          ...previous,
+                          [metric]: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                ))}
+              </div>
+            )
           ) : null}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>
+            <Button
+              variant="outline"
+              disabled={saving}
+              onClick={() => setDialog(null)}
+            >
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                if (!selected) return;
-                if (dialog === "edit") {
-                  const [firstName, ...rest] = editForm.name.trim().split(/\s+/);
-                  const lastName = rest.join(" ") || firstName || "User";
-                  void adminApi
-                    .updateUser(selected.id, {
-                      firstName: firstName || "User",
-                      lastName,
-                      role: editForm.role.toLowerCase().replace(/\s+/g, "_"),
-                    })
-                    .then(() => {
-                      patchUser(selected.id, editForm);
-                      setToast("User updated.");
-                    })
-                    .catch((error) =>
-                      setToast(getApiErrorMessage(error, "Unable to update user."))
-                    );
-                } else if (dialog === "plan") {
-                  void adminApi
-                    .assignPlan(selected.id, planForm)
-                    .then(() => {
-                      patchUser(selected.id, { plan: planForm });
-                      setToast(`Assigned ${planForm} plan.`);
-                    })
-                    .catch((error) =>
-                      setToast(getApiErrorMessage(error, "Unable to assign plan."))
-                    );
-                } else if (dialog === "quota") {
-                  const searchDelta = Number(quotaForm.searches) || 0;
-                  const revealDelta = Number(quotaForm.reveals) || 0;
-                  const outreachDelta = Number(quotaForm.outreach) || 0;
-                  void Promise.all([
-                    adminApi.adjustQuota(selected.id, {
-                      metric: "candidate_search",
-                      delta: searchDelta,
-                      reason: "admin adjustment",
-                    }),
-                    adminApi.adjustQuota(selected.id, {
-                      metric: "email_reveal",
-                      delta: revealDelta,
-                      reason: "admin adjustment",
-                    }),
-                    adminApi.adjustQuota(selected.id, {
-                      metric: "email_outreach",
-                      delta: outreachDelta,
-                      reason: "admin adjustment",
-                    }),
-                  ])
-                    .then(() => {
-                      patchUser(selected.id, {
-                        searchesUsed: searchDelta,
-                        revealsUsed: revealDelta,
-                        outreachUsed: outreachDelta,
-                      });
-                      setToast("Quota adjusted.");
-                    })
-                    .catch((error) =>
-                      setToast(getApiErrorMessage(error, "Unable to adjust quota."))
-                    );
-                }
-                setDialog(null);
-                setSelected(null);
-              }}
+              disabled={saving || quotaLoading || !selected}
+              onClick={() => void saveDialog()}
             >
-              Save
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create user dialog */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) setCreateOpen(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create new user</DialogTitle>
+            <DialogDescription>
+              Add a new user account. A workspace will be created automatically if no organisation is specified.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="cu-first">First name *</Label>
+                <Input id="cu-first" value={createForm.firstName} onChange={(e) => setCreateForm((f) => ({ ...f, firstName: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cu-last">Last name</Label>
+                <Input id="cu-last" value={createForm.lastName} onChange={(e) => setCreateForm((f) => ({ ...f, lastName: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-email">Email *</Label>
+              <Input id="cu-email" type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-pw">Password *</Label>
+              <Input id="cu-pw" type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-org">Organisation name</Label>
+              <Input id="cu-org" placeholder="Auto-created if blank" value={createForm.organizationName} onChange={(e) => setCreateForm((f) => ({ ...f, organizationName: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-role">Role</Label>
+              <Select value={createForm.role} onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v ?? f.role }))}>
+                <SelectTrigger id="cu-role"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="recruiter">Recruiter</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" disabled={createSaving} onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button disabled={createSaving} onClick={() => void handleCreateUser()}>
+              {createSaving ? "Creating…" : "Create user"}
             </Button>
           </DialogFooter>
         </DialogContent>

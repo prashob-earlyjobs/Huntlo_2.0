@@ -11,6 +11,7 @@ export const WHATSAPP_TEMPLATE_SLOTS = [
   'opening',
   'no_reply_1',
   'no_reply_2',
+  'post_qualification',
 ] as const;
 export type WhatsAppTemplateSlot = (typeof WHATSAPP_TEMPLATE_SLOTS)[number];
 
@@ -152,6 +153,20 @@ export const APPROVED_WHATSAPP_TEMPLATES: ApprovedWhatsAppTemplate[] = [
       'Thank you for your time.',
     variables: TWO_VARS,
   },
+  {
+    id: 'resume_share',
+    metaName: 'resume_share',
+    name: 'Resume share',
+    slot: 'post_qualification',
+    category: 'follow_up',
+    language: 'en',
+    isDefault: true,
+    body:
+      'Hi {{1}},\n' +
+      '\n' +
+      'Following your recent call regarding the {{2}} position, please share your updated resume here to continue with the application process.',
+    variables: TWO_VARS,
+  },
 ];
 
 /** profile_review_reminder_v1 is also the default no-reply-1 option (same Meta template). */
@@ -182,6 +197,7 @@ export const WHATSAPP_META_VARIABLE_MAP: Record<string, Array<'FirstName' | 'Job
   recruitment_update_reminder_v1: ['FirstName', 'JobTitle'],
   final_profile_follow_up_v1: ['FirstName', 'JobTitle'],
   profile_review_closure_v1: ['FirstName', 'JobTitle'],
+  resume_share: ['FirstName', 'JobTitle'],
 };
 
 export const WHATSAPP_FREE_TEXT_TEMPLATE_ID = 'free_text';
