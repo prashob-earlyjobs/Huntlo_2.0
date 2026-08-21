@@ -636,6 +636,16 @@ function toFlowCandidate(row: {
   };
 }
 
+function candidateSecondaryLine(person: FlowCandidate): string {
+  const roleLine = [person.title, person.company]
+    .map((value) => cleanField(value))
+    .filter(Boolean)
+    .join(" · ");
+  if (roleLine) return roleLine;
+  const contactLine = [person.email, person.phone].filter(Boolean).join(" · ");
+  return contactLine || "No contact details";
+}
+
 function stepErrors(step: number, state: FlowState): string[] {
   const errors: string[] = [];
   if (step === 0 && state.candidateIds.length === 0)
@@ -738,6 +748,10 @@ export function ScheduleInterviewFlow({
     phone: "",
   });
   const [candidateQuery, setCandidateQuery] = useState("");
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [csvImportListId, setCsvImportListId] = useState<string | null>(null);
+  const [csvCandidates, setCsvCandidates] = useState<FlowCandidate[]>([]);
+  const csvImportListIdRef = useRef<string | null>(null);
   const [atsConnected, setAtsConnected] = useState(false);
   const [atsSourceDetail, setAtsSourceDetail] = useState("");
   const [jobs, setJobs] = useState<FlowJob[]>([]);
@@ -957,6 +971,10 @@ export function ScheduleInterviewFlow({
     setCandidateSource("pool");
     setSelectedListId("");
     setListCandidates([]);
+    setCsvImportListId(null);
+    csvImportListIdRef.current = null;
+    setCsvCandidates([]);
+    setImportDialogOpen(false);
     setCandidateError(null);
     setCandidateQuery("");
     setManualCandidate({ name: "", email: "", phone: "" });
@@ -994,6 +1012,64 @@ export function ScheduleInterviewFlow({
     clearScheduleDraft(user?.id ?? null);
     reset();
     onOpenChange(false);
+  }
+
+  async function ensureCsvImportList(): Promise<string> {
+    if (csvImportListIdRef.current) return csvImportListIdRef.current;
+    const list = await candidatePoolApi.createList({
+      name: `Schedule import ${new Date().toLocaleString("en-IN")}`,
+      description: "Candidates imported while scheduling interviews",
+      visibility: "Team",
+      tags: ["schedule-import"],
+    });
+    csvImportListIdRef.current = list.id;
+    setCsvImportListId(list.id);
+    return list.id;
+  }
+
+  async function loadCsvImportCandidates(listId: string, selectAll = false) {
+    setCandidateLoading(true);
+    setCandidateError(null);
+    try {
+      const result = await candidatePoolApi.listPage({
+        listId,
+        page: 1,
+        limit: 200,
+      });
+      const rows = result.items.map(toFlowCandidate);
+      setCsvCandidates(rows);
+      setCandidates((previous) => {
+        const merged = new Map(previous.map((row) => [row.id, row]));
+        rows.forEach((row) => merged.set(row.id, row));
+        return Array.from(merged.values());
+      });
+      if (selectAll && rows.length > 0) {
+        setState((previous) => ({
+          ...previous,
+          candidateIds: [
+            ...new Set([...rows.map((row) => row.id), ...previous.candidateIds]),
+          ],
+        }));
+      }
+    } catch (error) {
+      setCandidateError(
+        getApiErrorMessage(error, "Unable to load imported candidates.")
+      );
+    } finally {
+      setCandidateLoading(false);
+    }
+  }
+
+  async function openCsvImport() {
+    setCandidateError(null);
+    try {
+      await ensureCsvImportList();
+      setImportDialogOpen(true);
+    } catch (error) {
+      setCandidateError(
+        getApiErrorMessage(error, "Unable to prepare import list.")
+      );
+    }
   }
 
   async function refreshCandidates(selectNewest = false) {
@@ -1251,12 +1327,16 @@ export function ScheduleInterviewFlow({
     .filter((row): row is FlowCandidate => Boolean(row));
   const job = jobs.find((j) => j.id === state.jobId);
   const sourceCandidates =
-    candidateSource === "list" ? listCandidates : candidates;
+    candidateSource === "list"
+      ? listCandidates
+      : candidateSource === "csv"
+        ? csvCandidates
+        : candidates;
   const filteredCandidates = useMemo(() => {
     const query = candidateQuery.trim().toLowerCase();
     if (!query) return sourceCandidates;
     return sourceCandidates.filter((person) =>
-      `${person.name} ${person.title} ${person.company} ${person.email ?? ""}`
+      `${person.name} ${person.title} ${person.company} ${person.email ?? ""} ${person.phone ?? ""}`
         .toLowerCase()
         .includes(query)
     );
@@ -1395,6 +1475,9 @@ export function ScheduleInterviewFlow({
                             setCandidateQuery("");
                             clearCandidateSelection();
                             if (source.id !== "ats") setAtsSourceDetail("");
+                            if (source.id === "csv") {
+                              void openCsvImport();
+                            }
                           }}
                           className={cn(
                             "rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
@@ -1454,26 +1537,39 @@ export function ScheduleInterviewFlow({
                   ) : null}
 
                   {candidateSource === "csv" ? (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/20 p-3">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          Import candidate file
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Upload CSV or Excel, then select one or more imported candidates.
-                        </p>
-                      </div>
-                      <ImportCandidatesDialog
-                        trigger={
-                          <Button type="button" size="sm" variant="outline">
-                            <FileSpreadsheet aria-hidden />
-                            Upload file
-                          </Button>
-                        }
-                        onImported={() => void refreshCandidates(true)}
-                      />
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        {csvCandidates.length > 0
+                          ? "Select from this import, or upload another file."
+                          : "Upload a CSV or Excel file to load candidates here."}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void openCsvImport()}
+                      >
+                        <FileSpreadsheet aria-hidden />
+                        {csvCandidates.length > 0
+                          ? "Import another file"
+                          : "Upload file"}
+                      </Button>
                     </div>
                   ) : null}
+
+                  <ImportCandidatesDialog
+                    open={importDialogOpen}
+                    onOpenChange={setImportDialogOpen}
+                    listId={csvImportListIdRef.current ?? csvImportListId}
+                    onImported={() => {
+                      setCandidateSource("csv");
+                      const listId =
+                        csvImportListIdRef.current ?? csvImportListId;
+                      if (listId) {
+                        void loadCsvImportCandidates(listId, true);
+                      }
+                    }}
+                  />
 
                   {candidateSource === "manual" ? (
                     <div className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
@@ -1672,10 +1768,7 @@ export function ScheduleInterviewFlow({
                                 {person.name}
                               </span>
                               <span className="block truncate text-xs text-muted-foreground">
-                                {[person.title, person.company]
-                                  .map((value) => cleanField(value))
-                                  .filter(Boolean)
-                                  .join(" · ") || "No title or company"}
+                                {candidateSecondaryLine(person)}
                               </span>
                             </span>
                           </button>
@@ -1689,9 +1782,12 @@ export function ScheduleInterviewFlow({
                         <p className="px-2 py-6 text-center text-sm text-muted-foreground">
                           {candidateSource === "list" && !selectedListId
                             ? "Select a saved list."
-                            : candidateQuery.trim()
-                              ? "No candidates match this search."
-                              : "No candidates available from this source."}
+                            : candidateSource === "csv" &&
+                                csvCandidates.length === 0
+                              ? "Upload a file to see imported candidates here."
+                              : candidateQuery.trim()
+                                ? "No candidates match this search."
+                                : "No candidates available from this source."}
                         </p>
                       ) : null}
                     </div>
@@ -2394,7 +2490,7 @@ export function ScheduleInterviewFlow({
                   </dl>
                   <button
                     type="button"
-                    onClick={() => goTo(5)}
+                    onClick={() => goTo(4)}
                     className="mt-3 inline-flex items-center gap-1 text-xs text-primary underline-offset-4 hover:underline"
                   >
                     <Pencil aria-hidden className="size-3" />

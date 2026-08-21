@@ -23,64 +23,6 @@ export type ApiWorkflowStatus =
   | "cancelled"
   | "failed";
 
-export type ApiHuntlo360Workflow = {
-  id: string;
-  organizationId: string;
-  name: string;
-  jobId: string | null;
-  jobTitle: string | null;
-  ownerUserId: string;
-  owner: string;
-  status: WorkflowStatus | string;
-  statusRaw: ApiWorkflowStatus | string;
-  campaignId: string | null;
-  channels: Array<"Email" | "WhatsApp" | "AI Voice">;
-  candidates: number;
-  replied: number;
-  qualified: number;
-  screened: number;
-  shortlisted: number;
-  scheduled: number;
-  stageStats?: Record<string, number>;
-  lastActivity: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type ApiHuntlo360Candidate = {
-  id: string;
-  candidateId: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  headline: string;
-  location: string;
-  currentStage: string;
-  outreachStatus: string;
-  interestStatus: string;
-  qualificationStatus: string;
-  screeningId: string | null;
-  screeningStatus: string;
-  screeningScore: number | null;
-  recruiterDecision: string | null;
-  scheduleCandidateId: string | null;
-  schedulingStatus: string;
-  exceptionCode: string | null;
-  exceptionDetail: string | null;
-  enrollmentId: string | null;
-  lastTransitionAt: string | null;
-};
-
-export type ApiHuntlo360Exception = {
-  id: string;
-  candidateId: string;
-  candidateName: string;
-  code: string | null;
-  detail: string | null;
-  stage: string;
-  updatedAt: string;
-};
-
 export type WorkflowCreateInput = {
   name: string;
   jobId?: string | null;
@@ -166,6 +108,70 @@ export type WorkflowCreateInput = {
     autoSendAfterScreening?: boolean;
     bookingExpiryHours?: number;
   };
+};
+
+export type ApiHuntlo360Workflow = {
+  id: string;
+  organizationId: string;
+  name: string;
+  jobId: string | null;
+  jobTitle: string | null;
+  ownerUserId: string;
+  owner: string;
+  status: WorkflowStatus | string;
+  statusRaw: ApiWorkflowStatus | string;
+  campaignId: string | null;
+  channels: Array<"Email" | "WhatsApp" | "AI Voice">;
+  candidates: number;
+  replied: number;
+  qualified: number;
+  screened: number;
+  shortlisted: number;
+  scheduled: number;
+  stageStats?: Record<string, number>;
+  candidateSource?: WorkflowCreateInput["candidateSource"];
+  outreachConfig?: WorkflowCreateInput["outreachConfig"];
+  qualificationConfig?: WorkflowCreateInput["qualificationConfig"];
+  screeningConfig?: WorkflowCreateInput["screeningConfig"];
+  assessmentConfig?: WorkflowCreateInput["assessmentConfig"];
+  schedulingConfig?: WorkflowCreateInput["schedulingConfig"];
+  lastActivity: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ApiHuntlo360Candidate = {
+  id: string;
+  candidateId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  headline: string;
+  location: string;
+  currentStage: string;
+  outreachStatus: string;
+  interestStatus: string;
+  qualificationStatus: string;
+  screeningId: string | null;
+  screeningStatus: string;
+  screeningScore: number | null;
+  recruiterDecision: string | null;
+  scheduleCandidateId: string | null;
+  schedulingStatus: string;
+  exceptionCode: string | null;
+  exceptionDetail: string | null;
+  enrollmentId: string | null;
+  lastTransitionAt: string | null;
+};
+
+export type ApiHuntlo360Exception = {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  code: string | null;
+  detail: string | null;
+  stage: string;
+  updatedAt: string;
 };
 
 export type WorkflowListParams = ApiQueryParams & {
