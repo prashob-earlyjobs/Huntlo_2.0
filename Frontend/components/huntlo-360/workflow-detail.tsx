@@ -48,11 +48,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { getApiErrorMessage, huntlo360Api } from "@/lib/api";
 import {
   type Workflow360,
@@ -61,7 +56,7 @@ import {
   type WorkflowStatus,
 } from "@/lib/mock-360";
 import { CHANNEL_ICONS } from "@/lib/mock-outreach";
-import { candidateDetailPath, jobDetailPath } from "@/lib/routes";
+import { candidateDetailPath, jobDetailPath, workflowEditPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -98,12 +93,6 @@ const QUAL_CLASSES: Record<WorkflowCandidate["qualification"], string> = {
   Pending: "bg-muted text-muted-foreground",
   "In progress": "bg-info/10 text-info",
   Qualified: "bg-success/10 text-success",
-  Rejected: "bg-destructive/10 text-destructive",
-};
-
-const DECISION_CLASSES: Record<WorkflowCandidate["decision"], string> = {
-  Pending: "bg-muted text-muted-foreground",
-  Shortlisted: "bg-brand-subtle text-primary",
   Rejected: "bg-destructive/10 text-destructive",
 };
 
@@ -276,8 +265,6 @@ function CandidatesTab({ candidates }: { candidates: WorkflowCandidate[] }) {
             <TableHead className={HEAD}>Outreach status</TableHead>
             <TableHead className={HEAD}>Interest</TableHead>
             <TableHead className={HEAD}>Qualification</TableHead>
-            <TableHead className={`${HEAD} text-right`}>Screening score</TableHead>
-            <TableHead className={HEAD}>Recruiter decision</TableHead>
             <TableHead className={HEAD}>Scheduling status</TableHead>
             <TableHead className={HEAD}>Last activity</TableHead>
             <TableHead className={`${HEAD} w-10 text-right`}>
@@ -289,7 +276,7 @@ function CandidatesTab({ candidates }: { candidates: WorkflowCandidate[] }) {
           {candidates.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={9}
+                colSpan={7}
                 className="py-8 text-center text-sm text-muted-foreground"
               >
                 No candidates enrolled yet.
@@ -339,40 +326,6 @@ function CandidatesTab({ candidates }: { candidates: WorkflowCandidate[] }) {
                 <Badge
                   text={candidate.qualification}
                   className={QUAL_CLASSES[candidate.qualification]}
-                />
-              </TableCell>
-              <TableCell className="py-2.5 text-right">
-                {candidate.screeningScore !== null ? (
-                  <Tooltip>
-                    <TooltipTrigger
-                      aria-label={`Screening score ${candidate.screeningScore} out of 100`}
-                      className="rounded-sm text-sm font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      <span
-                        className={
-                          candidate.screeningScore >= 75
-                            ? "text-success"
-                            : "text-warning"
-                        }
-                      >
-                        {candidate.screeningScore}
-                      </span>
-                      <span className="text-xs text-muted-foreground">/100</span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {candidate.screeningNote ?? "AI voice screening score"}
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    {candidate.screeningNote ?? "—"}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="py-2.5">
-                <Badge
-                  text={candidate.decision}
-                  className={DECISION_CLASSES[candidate.decision]}
                 />
               </TableCell>
               <TableCell className="py-2.5">
@@ -708,14 +661,33 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
                 Resume
               </Button>
             ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => flash("Edit opens the workflow builder.")}
-            >
-              <Pencil aria-hidden />
-              Edit
-            </Button>
+            {status === "Running" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  flash("Pause the workflow before editing.")
+                }
+              >
+                <Pencil aria-hidden />
+                Edit
+              </Button>
+            ) : status === "Completed" ? (
+              <Button size="sm" variant="outline" disabled>
+                <Pencil aria-hidden />
+                Edit
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                nativeButton={false}
+                render={<Link href={workflowEditPath(workflow.id)} />}
+              >
+                <Pencil aria-hidden />
+                Edit
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

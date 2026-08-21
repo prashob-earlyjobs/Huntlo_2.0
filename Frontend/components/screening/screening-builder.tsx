@@ -190,10 +190,7 @@ function stepErrors(step: number, state: BuilderState): string[] {
       state.selectedCandidateIds.length === 0
     ) {
       errors.push("Pick at least one candidate to screen.");
-    } else if (
-      state.source === "CSV/Excel Import" &&
-      state.selectedCandidateIds.length === 0
-    ) {
+    } else if (state.source === "CSV/Excel Import" && !state.sourceDetail) {
       errors.push("Import a CSV/Excel file before continuing.");
     } else if (
       state.audiencePreview &&

@@ -328,10 +328,7 @@ export function stepErrors(step: number, state: BuilderState): string[] {
       ) {
         errors.push("Pick at least one candidate to enroll.");
       }
-      if (
-        state.source === "CSV/Excel Import" &&
-        state.selectedCandidateIds.length === 0
-      ) {
+      if (state.source === "CSV/Excel Import" && !state.sourceDetail) {
         errors.push("Import a CSV/Excel file before continuing.");
       }
       if (
