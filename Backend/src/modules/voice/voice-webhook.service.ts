@@ -127,19 +127,22 @@ function parseCallResult(result: Record<string, unknown> | null) {
         result.notice_period ||
           result.noticePeriod ||
           result.notice_period_days ||
-          result.noticePeriodDays
+          result.noticePeriodDays ||
+          result.notice_days
       ) || null,
     skills: asString(result.skills || result.skills_and_tools) || null,
     education: asString(result.education) || null,
-    location:
-      asString(
-        result.location ||
-          result.current_location ||
-          result.currentLocation ||
-          result.work_mode ||
-          result.relocation_willingness ||
-          result.relocationWillingness
-      ) || null,
+    location: (() => {
+      const raw =
+        result.location ??
+        result.current_location ??
+        result.currentLocation ??
+        result.work_mode ??
+        result.relocation_willingness ??
+        result.relocationWillingness;
+      if (typeof raw === 'boolean') return raw ? 'Yes' : 'No';
+      return asString(raw) || null;
+    })(),
     raw: result,
   };
 }

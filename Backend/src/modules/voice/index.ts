@@ -40,8 +40,10 @@ export {
   normalizeZyastraResultVariables,
 } from './zyastra-voice-webhook.service.js';
 export {
+  analysisVariablesFromResultSchema,
   applyVoiceResultToQualificationState,
   extendResultSchemaForQualificationQuestions,
+  normalizeVoiceAnalysisVariables,
   qualificationAnswerKey,
   resolveVoiceReplyDisposition,
 } from './voice-qualification-sync.js';

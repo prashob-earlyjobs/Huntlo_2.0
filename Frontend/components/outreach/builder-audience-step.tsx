@@ -23,6 +23,7 @@ import {
 } from "@/components/outreach/audience-resolve";
 import { AtsAudiencePicker } from "@/components/outreach/ats-audience-picker";
 import { Field, StepCard } from "@/components/outreach/builder-ui";
+import { SourcingSessionPickerDialog } from "@/components/outreach/sourcing-session-picker-dialog";
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -318,6 +319,7 @@ export function AudienceStep({
   importListNamePrefix = "Outreach import",
   importListDescription = "Candidates imported for an outreach campaign",
   importListTags = ["outreach-import"],
+  relatedJobId = null,
 }: {
   state: AudienceStepState;
   update: AudienceStepUpdate;
@@ -328,6 +330,7 @@ export function AudienceStep({
   importListNamePrefix?: string;
   importListDescription?: string;
   importListTags?: string[];
+  relatedJobId?: string | null;
 }) {
   const stats = state.audiencePreview;
   const [lists, setLists] = useState<SavedList[]>([]);
@@ -339,6 +342,7 @@ export function AudienceStep({
     state.source === "CSV/Excel Import" ? state.sourceDetail || null : null
   );
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [sourcingDialogOpen, setSourcingDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -517,14 +521,11 @@ export function AudienceStep({
       cancelled = true;
       window.clearTimeout(handle);
     };
-    // `update` is recreated each render; selection is tracked via joined ids.
+    // `update` is recreated each render. Do NOT depend on selectedCandidateIds —
+    // selection changes update preview via handleCandidateSelectionChange and
+    // would otherwise flash "Loading…" / remount the picker on every click.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    state.source,
-    state.sourceDetail,
-    state.poolSearch,
-    state.selectedCandidateIds.join(","),
-  ]);
+  }, [state.source, state.sourceDetail, state.poolSearch]);
 
   function handleCandidateSelectionChange(ids: string[]) {
     update("selectedCandidateIds", ids);
@@ -574,6 +575,22 @@ export function AudienceStep({
       return;
     }
 
+    if (source === "Sourcing Session") {
+      // Additive UX only: open picker. Do not wipe a session already bound
+      // to this audience (unlike a full source reset).
+      if (state.source !== source) {
+        update("source", source);
+        update("sourceDetail", "");
+        update("selectedCandidateIds", []);
+        update("poolSearch", "");
+        update("audiencePreview", null);
+        setImportListId(null);
+        setPickerRows([]);
+      }
+      setSourcingDialogOpen(true);
+      return;
+    }
+
     update("source", source);
     update("sourceDetail", "");
     update("selectedCandidateIds", []);
@@ -602,6 +619,9 @@ export function AudienceStep({
       })();
     }
   }
+
+  const selectedSession =
+    sessions.find((session) => session.id === state.sourceDetail) || null;
 
   return (
     <StepCard title={title} description={description}>
@@ -746,56 +766,62 @@ export function AudienceStep({
 
         {state.source === "Sourcing Session" ? (
           <Field label="Sourcing session" htmlFor="audience-session">
-            <Select
-              value={state.sourceDetail || undefined}
-              onValueChange={(value) => {
-                update("sourceDetail", value ?? "");
-                update("selectedCandidateIds", []);
-              }}
-              disabled={loadingOptions}
-            >
-              <SelectTrigger id="audience-session" className="w-full sm:w-80">
-                <SelectValue
-                  placeholder={
-                    loadingOptions ? "Loading sessions…" : "Select a search session"
-                  }
-                >
-                  {(value: string | null) => {
-                    if (!value) return null;
-                    const selected = sessions.find(
-                      (session) => session.id === value
-                    );
-                    if (!selected) {
-                      return loadingOptions
-                        ? "Loading sessions…"
-                        : "Selected session unavailable";
-                    }
-                    const count =
-                      typeof selected.resultCount === "number"
-                        ? ` (${selected.resultCount})`
-                        : typeof selected.estimatedResults === "number"
-                          ? ` (~${selected.estimatedResults})`
-                          : "";
-                    return `${selected.name}${count}`;
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {sessions.map((session) => (
-                  <SelectItem key={session.id} value={session.id}>
-                    {session.name}
-                    {typeof session.resultCount === "number"
-                      ? ` (${session.resultCount})`
-                      : typeof session.estimatedResults === "number"
-                        ? ` (~${session.estimatedResults})`
-                        : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                id="audience-session"
+                className={cn(
+                  "min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm",
+                  state.sourceDetail
+                    ? "border-border bg-card text-foreground"
+                    : "border-dashed border-border bg-muted/20 text-muted-foreground"
+                )}
+              >
+                {selectedSession ? (
+                  <>
+                    <span className="block truncate font-medium">
+                      {selectedSession.name || "Untitled search"}
+                      {typeof selectedSession.resultCount === "number"
+                        ? ` (${selectedSession.resultCount})`
+                        : typeof selectedSession.estimatedResults === "number"
+                          ? ` (~${selectedSession.estimatedResults})`
+                          : ""}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                      {selectedSession.query ||
+                        selectedSession.naturalLanguageQuery ||
+                        "AI sourcing session"}
+                    </span>
+                  </>
+                ) : state.sourceDetail ? (
+                  <span className="truncate">
+                    {loadingOptions
+                      ? "Loading session…"
+                      : "Selected session unavailable"}
+                  </span>
+                ) : (
+                  <span>No session selected yet</span>
+                )}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setSourcingDialogOpen(true)}
+              >
+                {state.sourceDetail ? "Change" : "Choose session"}
+              </Button>
+            </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Session results are saved to your candidate pool when you launch.
+              We load the full search results (not just the first page). Email /
+              phone are unlocked on launch for enabled channels (uses reveal
+              credits).
             </p>
+            {stats && stats.selected > 0 && stats.withEmail === 0 && stats.withPhone === 0 ? (
+              <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
+                No contacts revealed yet — Email / WhatsApp send after unlock at
+                launch. Selected count: {stats.selected.toLocaleString("en-IN")}.
+              </p>
+            ) : null}
             {showErrors && !state.sourceDetail ? (
               <p role="alert" className="mt-1 text-sm text-destructive">
                 Select a sourcing session.
@@ -980,6 +1006,28 @@ export function AudienceStep({
           <p className="text-sm text-muted-foreground">Calculating audience…</p>
         ) : null}
       </div>
+
+      <SourcingSessionPickerDialog
+        open={sourcingDialogOpen}
+        onOpenChange={setSourcingDialogOpen}
+        selectedSessionId={state.sourceDetail || null}
+        relatedJobId={relatedJobId}
+        onSelect={(session) => {
+          // Same enrollment contract as the old Select: bind session id only.
+          // Launch/resolve still goes through ensureSourcingSessionInPool(sourceDetail).
+          setSessions((prev) => {
+            if (prev.some((item) => item.id === session.id)) {
+              return prev.map((item) =>
+                item.id === session.id ? { ...item, ...session } : item
+              );
+            }
+            return [session, ...prev];
+          });
+          update("source", "Sourcing Session");
+          update("sourceDetail", session.id);
+          update("selectedCandidateIds", []);
+        }}
+      />
     </StepCard>
   );
 }

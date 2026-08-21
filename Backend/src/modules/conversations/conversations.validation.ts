@@ -18,6 +18,17 @@ export const listConversationsQuerySchema = z.object({
   qualificationStatus: z.enum(QUALIFICATION_STATUSES).optional(),
   campaignId: objectId.optional(),
   candidateId: objectId.optional(),
+  candidateIds: z
+    .union([z.string(), z.array(objectId)])
+    .optional()
+    .transform((value) => {
+      if (!value) return undefined;
+      const parts = Array.isArray(value) ? value : value.split(',');
+      const ids = parts
+        .map((id) => String(id).trim())
+        .filter((id) => /^[a-fA-F0-9]{24}$/.test(id));
+      return ids.length ? ids : undefined;
+    }),
   jobId: objectId.optional(),
   assignedUserId: objectId.optional(),
   unreadOnly: z

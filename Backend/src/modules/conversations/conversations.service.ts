@@ -509,6 +509,7 @@ export const conversationsService = {
     if (query.qualificationStatus) filter.qualificationStatus = query.qualificationStatus;
     if (query.campaignId) filter.campaignId = query.campaignId;
     if (query.candidateId) filter.candidateId = query.candidateId;
+    else if (query.candidateIds?.length) filter.candidateId = { $in: query.candidateIds };
     if (query.jobId) filter.jobId = query.jobId;
     if (query.assignedUserId) filter.assignedUserId = query.assignedUserId;
     if (query.unreadOnly) filter.unreadCount = { $gt: 0 };

@@ -36,6 +36,7 @@ export type Huntlo360CandidateStateDocument = Document & {
   qualificationStatus: string;
   screeningId: mongoose.Types.ObjectId | null;
   screeningStatus: string;
+  screeningScore: number | null;
   assessmentCandidateId: mongoose.Types.ObjectId | null;
   assessmentStatus: string;
   recruiterDecision: string | null;
@@ -90,6 +91,7 @@ const huntlo360CandidateStateSchema = new Schema<Huntlo360CandidateStateDocument
       default: null,
     },
     screeningStatus: { type: String, default: 'not_started' },
+    screeningScore: { type: Number, default: null },
     assessmentCandidateId: {
       type: Schema.Types.ObjectId,
       ref: 'AssessmentCandidate',

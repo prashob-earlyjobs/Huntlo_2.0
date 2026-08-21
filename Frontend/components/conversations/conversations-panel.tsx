@@ -27,6 +27,7 @@ function mergeById(existing: Conversation[], incoming: Conversation[]) {
 export function ConversationsPanel({
   campaignId,
   candidateId,
+  candidateIds,
   jobId,
   emptyDescription = "Outbound messages (sent or failed) and candidate replies will appear here.",
   className,
@@ -34,6 +35,7 @@ export function ConversationsPanel({
 }: {
   campaignId?: string;
   candidateId?: string;
+  candidateIds?: string[];
   jobId?: string;
   emptyDescription?: string;
   className?: string;
@@ -48,15 +50,18 @@ export function ConversationsPanel({
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
+  const candidateIdsKey = (candidateIds ?? []).filter(Boolean).join(",");
+
   const listParams = useCallback(
     (pageNumber: number) => ({
       campaignId,
       candidateId,
+      candidateIds: candidateIdsKey ? candidateIdsKey.split(",") : undefined,
       jobId,
       page: pageNumber,
       limit: PAGE_SIZE,
     }),
-    [campaignId, candidateId, jobId]
+    [campaignId, candidateId, candidateIdsKey, jobId]
   );
 
   const refresh = useCallback(

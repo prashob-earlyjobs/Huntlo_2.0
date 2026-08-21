@@ -28,19 +28,41 @@ import { integrationsService } from '../integrations/integration.service.js';
 import {
   OrganizationModel,
   toPublicOrganization,
+  type OrganizationDocument,
 } from '../organizations/organization.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { PricingPlanModel } from '../plans/pricing-plan.model.js';
 import { WorkspaceSubscriptionModel } from '../plans/subscription.model.js';
 import { PlanHistoryModel } from '../billing/plan-history.model.js';
-import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
-import { SourcingSessionModel } from '../sourcing/sourcing-session.model.js';
-import { OutreachCampaignModel } from '../outreach/campaign.model.js';
-import { ScreeningModel } from '../screening/screening.model.js';
-import { InterviewModel } from '../scheduling/interview.model.js';
-import { BackgroundJobModel } from '../../workers/job.model.js';
+import {
+  SavedCandidateModel,
+  type SavedCandidateDocument,
+} from '../candidates/saved-candidate.model.js';
+import {
+  SourcingSessionModel,
+  type SourcingSessionDocument,
+} from '../sourcing/sourcing-session.model.js';
+import {
+  OutreachCampaignModel,
+  type OutreachCampaignDocument,
+} from '../outreach/campaign.model.js';
+import {
+  ScreeningModel,
+  type ScreeningDocument,
+} from '../screening/screening.model.js';
+import {
+  InterviewModel,
+  type InterviewDocument,
+} from '../scheduling/interview.model.js';
+import {
+  BackgroundJobModel,
+  type BackgroundJobDocument,
+} from '../../workers/job.model.js';
 import { toPublicJob } from '../../workers/queue.js';
-import { WebhookEventModel } from '../webhooks/webhook-event.model.js';
+import {
+  WebhookEventModel,
+  type WebhookEventDocument,
+} from '../webhooks/webhook-event.model.js';
 import { PaymentOrderModel } from '../billing/payment-order.model.js';
 import { maskAdminEmail, maskAdminName, maskAdminPhone, formatCount } from './admin-mask.js';
 import {
@@ -627,7 +649,7 @@ export const adminConsoleService = {
     const filter: Record<string, unknown> = { deletedAt: null };
     if (query.status) filter.status = query.status;
     if (query.q) filter.name = new RegExp(query.q, 'i');
-    const result = await paginateQuery(OrganizationModel, filter, query.page, query.limit);
+    const result = await paginateQuery<OrganizationDocument>(OrganizationModel, filter, query.page, query.limit);
     return {
       items: result.items.map((org) => toPublicOrganization(org)),
       ...buildPaginationMeta(result),
@@ -677,7 +699,7 @@ export const adminConsoleService = {
         { currentTitle: new RegExp(query.q, 'i') },
       ];
     }
-    const result = await paginateQuery(SavedCandidateModel, filter, query.page, query.limit);
+    const result = await paginateQuery<SavedCandidateDocument>(SavedCandidateModel, filter, query.page, query.limit);
     const orgIds = [...new Set(result.items.map((c) => String(c.organizationId)))];
     const orgs = await OrganizationModel.find({ _id: { $in: orgIds } }).select('name').lean();
     const orgMap = new Map(orgs.map((o) => [String(o._id), o.name]));
@@ -736,7 +758,7 @@ export const adminConsoleService = {
     }
 
     const filter = andClauses.length === 1 ? andClauses[0]! : { $and: andClauses };
-    const result = await paginateQuery(
+    const result = await paginateQuery<SourcingSessionDocument>(
       SourcingSessionModel,
       filter,
       query.page,
@@ -855,7 +877,7 @@ export const adminConsoleService = {
           ? andClauses[0]!
           : { $and: andClauses };
 
-    const result = await paginateQuery(
+    const result = await paginateQuery<OutreachCampaignDocument>(
       OutreachCampaignModel,
       filter,
       query.page,
@@ -891,7 +913,7 @@ export const adminConsoleService = {
   async listScreenings(query: { page: number; limit: number; status?: string }) {
     const filter: Record<string, unknown> = { deletedAt: null };
     if (query.status) filter.status = query.status;
-    const result = await paginateQuery(ScreeningModel, filter, query.page, query.limit);
+    const result = await paginateQuery<ScreeningDocument>(ScreeningModel, filter, query.page, query.limit);
     return {
       items: result.items.map((s) => ({
         id: s._id.toHexString(),
@@ -907,7 +929,7 @@ export const adminConsoleService = {
   async listInterviews(query: { page: number; limit: number; status?: string }) {
     const filter: Record<string, unknown> = {};
     if (query.status) filter.status = query.status;
-    const result = await paginateQuery(InterviewModel, filter, query.page, query.limit);
+    const result = await paginateQuery<InterviewDocument>(InterviewModel, filter, query.page, query.limit);
     return {
       items: result.items.map((i) => ({
         id: i._id.toHexString(),
@@ -931,7 +953,7 @@ export const adminConsoleService = {
     if (query.status) filter.status = query.status;
     if (query.type) filter.type = query.type;
     if (query.organizationId) filter.organizationId = query.organizationId;
-    const result = await paginateQuery(BackgroundJobModel, filter, query.page, query.limit, {
+    const result = await paginateQuery<BackgroundJobDocument>(BackgroundJobModel, filter, query.page, query.limit, {
       createdAt: -1,
     });
     return {
@@ -949,7 +971,7 @@ export const adminConsoleService = {
     const filter: Record<string, unknown> = {};
     if (query.status) filter.processingStatus = query.status;
     if (query.provider) filter.provider = query.provider;
-    const result = await paginateQuery(WebhookEventModel, filter, query.page, query.limit);
+    const result = await paginateQuery<WebhookEventDocument>(WebhookEventModel, filter, query.page, query.limit);
     return {
       items: result.items.map((e) => ({
         id: e._id.toHexString(),

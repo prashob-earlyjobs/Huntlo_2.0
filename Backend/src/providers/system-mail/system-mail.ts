@@ -4,6 +4,7 @@ import {
   normalizeSmtpSecurity,
   parseSmtpPort,
   sendSmtpMail,
+  smtpErrorDetails,
   type SmtpConfig,
 } from '../smtp/smtp.js';
 
@@ -15,6 +16,28 @@ export type SystemMailMessage = {
   text: string;
   html?: string;
 };
+
+function maskEmail(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  const at = trimmed.indexOf('@');
+  if (at <= 0) return '[invalid-email]';
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}***@${domain}`;
+}
+
+function smtpConfigSummary(config: SmtpConfig) {
+  return {
+    host: config.smtpHost,
+    port: config.smtpPort,
+    security: config.security,
+    username: config.username,
+    fromEmail: config.fromEmail,
+    senderName: config.senderName,
+    passwordLength: config.password.length,
+  };
+}
 
 export function isSystemMailConfigured(): boolean {
   if (isTest()) return false;
@@ -49,14 +72,42 @@ export function getSystemSmtpConfig(): SmtpConfig | null {
  * Returns false when mail is not configured or send fails — callers should not leak that.
  */
 export async function sendSystemMail(message: SystemMailMessage): Promise<boolean> {
+  const toMasked = maskEmail(message.to);
   const config = getSystemSmtpConfig();
   if (!config) {
+    const env = getEnv();
     log().warn(
-      { to: message.to, subject: message.subject },
+      {
+        event: 'system_mail.skipped',
+        toMasked,
+        subject: message.subject,
+        reason: 'SYSTEM_SMTP_* not configured',
+        configured: {
+          host: Boolean(env.SYSTEM_SMTP_HOST?.trim()),
+          from: Boolean(env.SYSTEM_MAIL_FROM?.trim()),
+          user: Boolean(env.SYSTEM_SMTP_USER?.trim()),
+          pass: Boolean(env.SYSTEM_SMTP_PASS),
+          isTest: isTest(),
+        },
+      },
       'System mail skipped — SYSTEM_SMTP_* is not configured'
     );
     return false;
   }
+
+  const startedAt = Date.now();
+  log().info(
+    {
+      event: 'system_mail.send_start',
+      toMasked,
+      subject: message.subject,
+      smtp: smtpConfigSummary(config),
+      hasHtml: Boolean(message.html),
+      textBytes: Buffer.byteLength(message.text, 'utf8'),
+      htmlBytes: message.html ? Buffer.byteLength(message.html, 'utf8') : 0,
+    },
+    'System mail send starting'
+  );
 
   try {
     const result = await sendSmtpMail({
@@ -67,16 +118,34 @@ export async function sendSystemMail(message: SystemMailMessage): Promise<boolea
       html: message.html,
     });
     log().info(
-      { to: message.to, subject: message.subject, messageId: result.messageId ?? null },
+      {
+        event: 'system_mail.send_ok',
+        toMasked,
+        subject: message.subject,
+        durationMs: Date.now() - startedAt,
+        messageId: result.messageId ?? null,
+        accepted: result.accepted ?? null,
+        rejected: result.rejected ?? null,
+        response: result.response ?? null,
+        envelopeFrom: result.envelopeFrom ?? null,
+        smtp: smtpConfigSummary(config),
+      },
       'System mail sent'
     );
     return true;
   } catch (error) {
+    const smtp =
+      error && typeof error === 'object' && 'smtp' in error
+        ? (error as { smtp: Record<string, unknown> }).smtp
+        : smtpErrorDetails(error);
     log().error(
       {
-        to: message.to,
+        event: 'system_mail.send_failed',
+        toMasked,
         subject: message.subject,
-        err: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startedAt,
+        smtp: smtpConfigSummary(config),
+        err: smtp,
       },
       'System mail send failed'
     );
@@ -104,6 +173,21 @@ export async function sendPasswordResetEmail(input: {
   const minutes = input.expiresInMinutes ?? 60;
   const name = (input.firstName || '').trim() || 'there';
   const subject = 'Reset your Huntlo password';
+  log().info(
+    {
+      event: 'password_reset_email.compose',
+      toMasked: maskEmail(input.to),
+      expiresInMinutes: minutes,
+      resetUrlHost: (() => {
+        try {
+          return new URL(input.resetUrl).host;
+        } catch {
+          return null;
+        }
+      })(),
+    },
+    'Composing password reset email'
+  );
   const text = [
     `Hi ${name},`,
     '',

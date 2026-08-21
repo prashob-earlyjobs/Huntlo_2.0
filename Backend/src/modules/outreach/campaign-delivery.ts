@@ -44,7 +44,10 @@ import {
   withCampaignVoiceAgentLock,
 } from '../voice/voice-dialer.service.js';
 import { buildRoshniAgentPrompt, qualificationQuestionsForRoshni } from '../voice/roshni-prompt.js';
-import { extendResultSchemaForQualificationQuestions } from '../voice/voice-qualification-sync.js';
+import {
+  analysisVariablesFromResultSchema,
+  extendResultSchemaForQualificationQuestions,
+} from '../voice/voice-qualification-sync.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { integrationsService } from '../integrations/integration.service.js';
@@ -883,11 +886,12 @@ async function launchVoiceCall(input: {
     agentPrompt,
     firstMessage: introduction || undefined,
     preferredLanguage: needsHunar ? undefined : 'en-US',
-    // Zyastra extracts these; include Roshni + qualification keys and Zyastra aliases.
+    // Zyastra extracts these; include schema keys + common Roshni/Zyastra aliases.
     analysisVariables: needsHunar
       ? undefined
       : Array.from(
           new Set([
+            ...analysisVariablesFromResultSchema(qualificationExtras.resultSchema),
             ...Object.keys(
               (qualificationExtras.resultSchema.properties as Record<string, unknown>) || {}
             ),

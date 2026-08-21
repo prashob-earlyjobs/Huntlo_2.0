@@ -6,19 +6,21 @@ import {
   AudioLines,
   Briefcase,
   CalendarClock,
+  Check,
   CheckCircle2,
+  Loader2,
   Mail,
   MessageCircle,
   Pencil,
+  Plug,
   Plus,
   Rocket,
-  Save,
   Send,
   Trash2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ErrorList,
@@ -31,6 +33,8 @@ import {
   candidateSourceType,
   resolveAudienceCandidateIds,
 } from "@/components/outreach/audience-resolve";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { JobAsyncSelect } from "@/components/shared/job-async-select";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,32 +50,61 @@ import {
   getApiErrorMessage,
   huntlo360Api,
   jobsApi,
+  schedulingApi,
   teamApi,
   type ApiTeamMember,
+  type CalendlyEventType,
   type WorkflowCreateInput,
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
 import {
-  AI_RESPONSE_MODES,
-  AUTO_SHORTLIST_CONDITIONS,
   BOOKING_EXPIRY_OPTIONS,
-  CALENDLY_EVENT_TYPES,
   DEFAULT_SCREENING_QUESTIONS,
-  EVALUATION_FIELDS_360,
-  HANDOFF_CONDITIONS,
-  REMINDER_OPTIONS,
-  SCREENING_LANGUAGES,
-  STOP_CONDITIONS_360,
-  VOICE_TONES,
 } from "@/lib/mock-360";
 import {
+  CAMPAIGN_TYPES,
+  DELAY_UNIT_OPTIONS,
+  formatStepDelay,
   reachableCount,
   type AudienceSource,
   type AudienceStats,
+  type DelayUnit,
 } from "@/lib/mock-outreach";
 import { ROUTES, workflowDetailPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import {
+  getDefaultWhatsAppTemplate,
+  getWhatsAppTemplateById,
+  listWhatsAppTemplatesForSlot,
+  type WhatsAppTemplateSlot,
+} from "@/lib/whatsapp-outreach";
 import { useAuth } from "@/providers";
+
+const SCHEDULING_REMINDER_OPTIONS = [
+  { hours: 48, label: "48 hours before" },
+  { hours: 24, label: "24 hours before" },
+  { hours: 2, label: "2 hours before" },
+  { hours: 1, label: "1 hour before" },
+] as const;
+
+const DEFAULT_SCHEDULE_INVITE_MESSAGE = `Hi {{first_name}},
+
+Great news — you're through to the next round for {{job_title}}. Pick a slot that works for you:
+
+{{scheduling_details}}
+
+Looking forward to speaking with you.
+
+Regards,
+Hiring Team`;
+
+function formatReminderHours(hours: number[]): string {
+  if (hours.length === 0) return "No reminders";
+  return [...hours]
+    .sort((a, b) => b - a)
+    .map((value) => `${value}h before`)
+    .join(", ");
+}
 
 /* ------------------------------------------------------------------ */
 /* State                                                                */
@@ -82,6 +115,14 @@ interface QualQuestion {
   text: string;
   /** Answers that immediately disqualify — empty means no knockout. */
   knockoutAnswer: string;
+}
+
+interface FollowUpMessage {
+  body: string;
+  delayDays: number;
+  delayUnit: DelayUnit;
+  /** Approved Meta catalogue id when this step sends WhatsApp. */
+  templateId?: string | null;
 }
 
 interface WorkflowBuilderState {
@@ -99,22 +140,19 @@ interface WorkflowBuilderState {
   // 3 — outreach
   emailEnabled: boolean;
   whatsappEnabled: boolean;
-  channelOrder: "Email first" | "WhatsApp first";
+  aiVoiceEnabled: boolean;
+  /** Matches outreach builder: "Single Channel" | "Multi-Channel". */
+  campaignType: "Single Channel" | "Multi-Channel";
+  channelOrder: "Email first" | "WhatsApp first" | "AI Voice first";
   openingMessage: string;
-  followUps: string[];
-  noReplyDelay: string;
-  stopConditions: string[];
+  /** Approved Meta catalogue id when opening sends WhatsApp. */
+  openingWhatsAppTemplateId: string | null;
+  followUps: FollowUpMessage[];
   // 4 — qualification
-  interestClassification: boolean;
   questions: QualQuestion[];
-  aiResponseMode: string;
-  handoffCondition: string;
-  autoShortlist: string;
   // 5 — screening
   screeningEnabled: boolean;
-  language: string;
-  voiceTone: string;
-  screeningQuestions: string[];
+  screeningQuestions: QualQuestion[];
   evaluationFields: string[];
   attempts: string;
   attemptInterval: string;
@@ -124,7 +162,7 @@ interface WorkflowBuilderState {
   eventType: string;
   schedulingChannel: "Email" | "WhatsApp";
   messageTemplate: string;
-  reminders: string;
+  reminderHours: number[];
   autoSendAfterQualification: boolean;
   autoSendAfterScreening: boolean;
   bookingExpiry: string;
@@ -143,15 +181,20 @@ function initialState(): WorkflowBuilderState {
     audiencePreview: null,
     emailEnabled: true,
     whatsappEnabled: false,
+    aiVoiceEnabled: false,
+    campaignType: "Single Channel",
     channelOrder: "Email first",
     openingMessage:
       "Hi {{first_name}}, I came across your profile and think you'd be a strong fit for our {{job_title}} role. Open to a quick chat?",
+    openingWhatsAppTemplateId: null,
     followUps: [
-      "Hi {{first_name}}, just floating this back up — happy to share the full role details if useful.",
+      {
+        body: "Hi {{first_name}}, just floating this back up — happy to share the full role details if useful.",
+        delayDays: 2,
+        delayUnit: "days",
+        templateId: null,
+      },
     ],
-    noReplyDelay: "2 days",
-    stopConditions: ["Candidate replies", "Candidate opts out"],
-    interestClassification: true,
     questions: [
       {
         id: "q-1",
@@ -165,23 +208,21 @@ function initialState(): WorkflowBuilderState {
       },
       { id: "q-3", text: "What is your expected compensation?", knockoutAnswer: "" },
     ],
-    aiResponseMode: AI_RESPONSE_MODES[0],
-    handoffCondition: HANDOFF_CONDITIONS[1],
-    autoShortlist: AUTO_SHORTLIST_CONDITIONS[1],
     screeningEnabled: true,
-    language: SCREENING_LANGUAGES[0],
-    voiceTone: VOICE_TONES[0],
-    screeningQuestions: [...DEFAULT_SCREENING_QUESTIONS],
+    screeningQuestions: DEFAULT_SCREENING_QUESTIONS.map((question) => ({
+      id: question.id,
+      text: question.text,
+      knockoutAnswer: question.knockoutAnswer,
+    })),
     evaluationFields: ["Communication", "Technical depth", "Role fit"],
     attempts: "3",
     attemptInterval: "24 hours",
     minScore: "75",
     autoReject: true,
-    eventType: CALENDLY_EVENT_TYPES[1],
+    eventType: "",
     schedulingChannel: "Email",
-    messageTemplate:
-      "Hi {{first_name}}, great news — you're through to the next round for {{job_title}}. Pick a slot that works for you: {{scheduling_link}}",
-    reminders: REMINDER_OPTIONS[0],
+    messageTemplate: DEFAULT_SCHEDULE_INVITE_MESSAGE,
+    reminderHours: [24, 2],
     autoSendAfterQualification: false,
     autoSendAfterScreening: true,
     bookingExpiry: BOOKING_EXPIRY_OPTIONS[1],
@@ -193,68 +234,206 @@ type Update = <K extends keyof WorkflowBuilderState>(
   value: WorkflowBuilderState[K]
 ) => void;
 
+/** 4 steps — same config as before, grouped for non-technical users. */
 const STEPS = [
-  { id: "job", title: "Select Job" },
-  { id: "candidates", title: "Select Candidates" },
-  { id: "outreach", title: "Configure Outreach" },
-  { id: "qualification", title: "Configure Qualification" },
-  { id: "screening", title: "Configure AI Screening" },
-  { id: "scheduling", title: "Configure Scheduling" },
-  { id: "review", title: "Review and Launch" },
+  {
+    id: "setup",
+    title: "Setup",
+    description: "Job and candidates",
+  },
+  {
+    id: "outreach",
+    title: "Messages",
+    description: "How you reach out",
+  },
+  {
+    id: "pipeline",
+    title: "Filter & book",
+    description: "Qualify, screen, schedule",
+  },
+  {
+    id: "launch",
+    title: "Launch",
+    description: "Review and go live",
+  },
 ];
 
-function stepErrors(step: number, state: WorkflowBuilderState): string[] {
+function setupErrors(state: WorkflowBuilderState): string[] {
   const errors: string[] = [];
-  if (step === 0) {
-    if (!state.name.trim()) errors.push("Workflow name is required.");
-    if (!state.jobId) errors.push("Select the job this workflow hires for.");
-    if (!state.ownerUserId) errors.push("Assign a workflow owner.");
-  }
-  if (step === 1) {
-    if (!state.source) {
-      errors.push("Choose where enrolled candidates come from.");
-    } else if (state.source === "Saved List" && !state.sourceDetail) {
-      errors.push("Select a saved list.");
-    } else if (state.source === "Sourcing Session" && !state.sourceDetail) {
-      errors.push("Select a sourcing session.");
-    } else if (
-      state.source === "Manual Add" &&
-      state.selectedCandidateIds.length === 0
-    ) {
-      errors.push("Pick at least one candidate to enroll.");
-    } else if (
-      state.source === "CSV/Excel Import" &&
-      state.selectedCandidateIds.length === 0
-    ) {
-      errors.push("Import a CSV/Excel file before continuing.");
-    } else if (
-      state.audiencePreview &&
-      state.audiencePreview.selected === 0 &&
-      state.source !== "CSV/Excel Import"
-    ) {
-      errors.push("This audience has no candidates yet.");
-    }
-  }
-  if (step === 2) {
-    if (!state.emailEnabled && !state.whatsappEnabled)
-      errors.push("Enable at least one outreach channel.");
-    if (!state.openingMessage.trim())
-      errors.push("The opening message cannot be empty.");
-  }
-  if (step === 3 && state.questions.every((question) => !question.text.trim())) {
-    errors.push("Add at least one qualification question.");
-  }
-  if (step === 4 && state.screeningEnabled) {
-    if (state.screeningQuestions.every((question) => !question.trim()))
-      errors.push("Add at least one screening question.");
-    if (state.evaluationFields.length === 0)
-      errors.push("Pick at least one evaluation field.");
+  if (!state.name.trim()) errors.push("Workflow name is required.");
+  if (!state.jobId) errors.push("Select the job this workflow hires for.");
+  if (!state.ownerUserId) errors.push("Assign a workflow owner.");
+  if (!state.source) {
+    errors.push("Choose where enrolled candidates come from.");
+  } else if (state.source === "Saved List" && !state.sourceDetail) {
+    errors.push("Select a saved list.");
+  } else if (state.source === "Sourcing Session" && !state.sourceDetail) {
+    errors.push("Select a sourcing session.");
+  } else if (
+    state.source === "Manual Add" &&
+    state.selectedCandidateIds.length === 0
+  ) {
+    errors.push("Pick at least one candidate to enroll.");
+  } else if (
+    state.source === "CSV/Excel Import" &&
+    state.selectedCandidateIds.length === 0
+  ) {
+    errors.push("Import a CSV/Excel file before continuing.");
+  } else if (
+    state.audiencePreview &&
+    state.audiencePreview.selected === 0 &&
+    state.source !== "CSV/Excel Import"
+  ) {
+    errors.push("This audience has no candidates yet.");
   }
   return errors;
 }
 
+function outreachErrors(state: WorkflowBuilderState): string[] {
+  const errors: string[] = [];
+  if (!state.emailEnabled && !state.whatsappEnabled && !state.aiVoiceEnabled) {
+    errors.push("Enable at least one outreach channel.");
+  }
+  const openingIsWhatsApp = messageChannelAt(state, "opening") === "whatsapp";
+  if (openingIsWhatsApp) {
+    if (!state.openingWhatsAppTemplateId) {
+      errors.push("Pick an approved WhatsApp opening template.");
+    }
+  } else if (
+    (state.emailEnabled || state.whatsappEnabled) &&
+    messageChannelAt(state, "opening") === "email" &&
+    !state.openingMessage.trim()
+  ) {
+    errors.push("The opening message cannot be empty.");
+  }
+  return errors;
+}
+
+type OutreachMessageChannel = "email" | "whatsapp" | "ai_voice";
+
+/** Mirror backend compiler channel assignment for opening / follow-up index. */
+function enabledMessageChannels(
+  state: Pick<
+    WorkflowBuilderState,
+    | "emailEnabled"
+    | "whatsappEnabled"
+    | "aiVoiceEnabled"
+    | "channelOrder"
+  >
+): OutreachMessageChannel[] {
+  const flags: Record<OutreachMessageChannel, boolean> = {
+    email: state.emailEnabled,
+    whatsapp: state.whatsappEnabled,
+    ai_voice: state.aiVoiceEnabled,
+  };
+  const preferred: OutreachMessageChannel =
+    state.channelOrder === "WhatsApp first"
+      ? "whatsapp"
+      : state.channelOrder === "AI Voice first"
+        ? "ai_voice"
+        : "email";
+  const ordered: OutreachMessageChannel[] = [];
+  if (flags[preferred]) ordered.push(preferred);
+  for (const channel of ["email", "whatsapp", "ai_voice"] as const) {
+    if (channel !== preferred && flags[channel]) ordered.push(channel);
+  }
+  return ordered;
+}
+
+function messageChannelAt(
+  state: Pick<
+    WorkflowBuilderState,
+    | "emailEnabled"
+    | "whatsappEnabled"
+    | "aiVoiceEnabled"
+    | "channelOrder"
+  >,
+  index: "opening" | number
+): OutreachMessageChannel | null {
+  const channels = enabledMessageChannels(state).filter((c) => c !== "ai_voice");
+  if (channels.length === 0) return null;
+  if (index === "opening") return channels[0]!;
+  if (channels.length === 1) return channels[0]!;
+  return channels[(index + 1) % channels.length]!;
+}
+
+function whatsappSlotForMessage(
+  index: "opening" | number
+): WhatsAppTemplateSlot {
+  if (index === "opening") return "opening";
+  if (index === 0) return "no_reply_1";
+  return "no_reply_2";
+}
+
+function seedWhatsAppColdOutboundMessages(): Pick<
+  WorkflowBuilderState,
+  "openingMessage" | "openingWhatsAppTemplateId" | "followUps"
+> {
+  const opening = getDefaultWhatsAppTemplate("opening");
+  const follow1 = getDefaultWhatsAppTemplate("no_reply_1");
+  const follow2 = getDefaultWhatsAppTemplate("no_reply_2");
+  return {
+    openingMessage: opening?.body ?? "",
+    openingWhatsAppTemplateId: opening?.id ?? null,
+    followUps: [
+      {
+        body: follow1?.body ?? "",
+        delayDays: 2,
+        delayUnit: "days",
+        templateId: follow1?.id ?? null,
+      },
+      {
+        body: follow2?.body ?? "",
+        delayDays: 2,
+        delayUnit: "days",
+        templateId: follow2?.id ?? null,
+      },
+    ],
+  };
+}
+
+function applyWhatsAppTemplate(
+  slot: WhatsAppTemplateSlot,
+  templateId: string
+): { templateId: string; body: string } | null {
+  const picked =
+    getWhatsAppTemplateById(templateId) || getDefaultWhatsAppTemplate(slot);
+  if (!picked) return null;
+  return { templateId: picked.id, body: picked.body };
+}
+
+function pipelineErrors(state: WorkflowBuilderState): string[] {
+  const errors: string[] = [];
+  if (state.questions.every((question) => !question.text.trim())) {
+    errors.push("Add at least one qualification question.");
+  }
+  if (state.screeningEnabled) {
+    const filledScreening = state.screeningQuestions.filter((question) =>
+      question.text.trim()
+    );
+    if (filledScreening.length === 0) {
+      errors.push("Add at least one screening question.");
+    } else if (
+      filledScreening.some((question) => !question.knockoutAnswer.trim())
+    ) {
+      errors.push("Add a knockout answer for every screening question.");
+    }
+  }
+  if (!state.eventType.trim()) {
+    errors.push("Select a Calendly event type for interview booking.");
+  }
+  return errors;
+}
+
+function stepErrors(step: number, state: WorkflowBuilderState): string[] {
+  if (step === 0) return setupErrors(state);
+  if (step === 1) return outreachErrors(state);
+  if (step === 2) return pipelineErrors(state);
+  return [];
+}
+
 function allErrors(state: WorkflowBuilderState): string[] {
-  return [0, 1, 2, 3, 4, 5].flatMap((step) => stepErrors(step, state));
+  return [0, 1, 2].flatMap((step) => stepErrors(step, state));
 }
 
 /* ------------------------------------------------------------------ */
@@ -265,12 +444,10 @@ function JobStep({
   state,
   update,
   showErrors,
-  jobs,
 }: {
   state: WorkflowBuilderState;
   update: Update;
   showErrors: boolean;
-  jobs: JobListItem[];
 }) {
   const { user } = useAuth();
   const [owners, setOwners] = useState<ApiTeamMember[]>([]);
@@ -387,14 +564,10 @@ function JobStep({
     state.owner.trim() ||
     null;
 
-  const openJobs = jobs.filter(
-    (job) => job.status === "Active" || job.status === "Paused"
-  );
-
   return (
     <StepCard
-      title="Select Job"
-      description="The workflow hires for one job — qualification, screening and scheduling all personalise from it."
+      title="Job details"
+      description="Name the workflow and pick the open role it hires for."
     >
       <div className="space-y-4">
         <div className="grid gap-4 lg:grid-cols-2">
@@ -406,6 +579,25 @@ function JobStep({
               placeholder="e.g. Backend Engineer — full pipeline"
               aria-invalid={showErrors && !state.name.trim()}
             />
+          </Field>
+          <Field
+            label="Related job"
+            htmlFor="wf-job"
+            required
+            hint="Type to search open jobs. Qualification and screening personalise from this role."
+          >
+            <JobAsyncSelect
+              inputId="wf-job"
+              value={state.jobId}
+              invalid={showErrors && !state.jobId}
+              placeholder="Search jobs…"
+              onChange={(jobId) => update("jobId", jobId ?? "")}
+            />
+            {showErrors && !state.jobId ? (
+              <p role="alert" className="text-xs text-destructive">
+                Select the job this workflow hires for.
+              </p>
+            ) : null}
           </Field>
           <Field label="Workflow owner" htmlFor="wf-owner" required>
             <Select
@@ -439,53 +631,6 @@ function JobStep({
             ) : null}
           </Field>
         </div>
-
-        <div
-          role="radiogroup"
-          aria-label="Job"
-          className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          {openJobs.map((job) => {
-            const active = state.jobId === job.id;
-            return (
-              <button
-                key={job.id}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => update("jobId", job.id)}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                  active
-                    ? "border-primary/50 bg-brand-subtle/40"
-                    : "border-border hover:bg-muted/40"
-                )}
-              >
-                <span className="flex items-center gap-1.5">
-                  <Briefcase
-                    aria-hidden
-                    className={cn(
-                      "size-3.5",
-                      active ? "text-primary" : "text-muted-foreground"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "text-sm font-medium",
-                      active ? "text-primary" : "text-foreground"
-                    )}
-                  >
-                    {job.title}
-                  </span>
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {job.department} · {job.location} · {job.openings} opening
-                  {job.openings === 1 ? "" : "s"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
       </div>
     </StepCard>
   );
@@ -504,186 +649,563 @@ function OutreachStep({
   update: Update;
   showErrors: boolean;
 }) {
-  const bothChannels = state.emailEnabled && state.whatsappEnabled;
+  const singleChannel = state.campaignType === "Single Channel";
+  const enabledCount = [
+    state.emailEnabled,
+    state.whatsappEnabled,
+    state.aiVoiceEnabled,
+  ].filter(Boolean).length;
+  const multiOrderReady = !singleChannel && enabledCount >= 2;
 
-  function updateFollowUp(index: number, value: string) {
+  function updateFollowUp(index: number, patch: Partial<FollowUpMessage>) {
     update(
       "followUps",
-      state.followUps.map((message, i) => (i === index ? value : message))
+      state.followUps.map((message, i) =>
+        i === index ? { ...message, ...patch } : message
+      )
     );
   }
 
+  function setCampaignType(nextType: "Single Channel" | "Multi-Channel") {
+    if (nextType === "Single Channel") {
+      const keep: "email" | "whatsapp" | "voice" = state.aiVoiceEnabled
+        ? "voice"
+        : state.emailEnabled || !state.whatsappEnabled
+          ? "email"
+          : "whatsapp";
+      update("campaignType", nextType);
+      update("emailEnabled", keep === "email");
+      update("whatsappEnabled", keep === "whatsapp");
+      update("aiVoiceEnabled", keep === "voice");
+      if (keep === "whatsapp") {
+        const seeded = seedWhatsAppColdOutboundMessages();
+        update("openingMessage", seeded.openingMessage);
+        update("openingWhatsAppTemplateId", seeded.openingWhatsAppTemplateId);
+        update("followUps", seeded.followUps);
+      }
+      return;
+    }
+    update("campaignType", nextType);
+  }
+
+  function setChannel(
+    channel: "email" | "whatsapp" | "voice",
+    enabled: boolean
+  ) {
+    if (singleChannel) {
+      if (!enabled) return;
+      update("emailEnabled", channel === "email");
+      update("whatsappEnabled", channel === "whatsapp");
+      update("aiVoiceEnabled", channel === "voice");
+      if (channel === "whatsapp") {
+        const seeded = seedWhatsAppColdOutboundMessages();
+        update("openingMessage", seeded.openingMessage);
+        update("openingWhatsAppTemplateId", seeded.openingWhatsAppTemplateId);
+        update("followUps", seeded.followUps);
+      } else if (channel === "email") {
+        update("openingWhatsAppTemplateId", null);
+      }
+      return;
+    }
+    if (channel === "email") update("emailEnabled", enabled);
+    else if (channel === "whatsapp") {
+      update("whatsappEnabled", enabled);
+      if (enabled && !state.openingWhatsAppTemplateId) {
+        const seeded = seedWhatsAppColdOutboundMessages();
+        // Keep email opening copy if email stays primary; only fill WA ids/bodies for WA slots.
+        if (!state.emailEnabled) {
+          update("openingMessage", seeded.openingMessage);
+          update("followUps", seeded.followUps);
+        }
+        update("openingWhatsAppTemplateId", seeded.openingWhatsAppTemplateId);
+        if (state.emailEnabled) {
+          update(
+            "followUps",
+            state.followUps.map((item, index) => {
+              const slot = whatsappSlotForMessage(index);
+              const def = getDefaultWhatsAppTemplate(slot);
+              return messageChannelAt(
+                {
+                  ...state,
+                  whatsappEnabled: true,
+                },
+                index
+              ) === "whatsapp"
+                ? {
+                    ...item,
+                    templateId: def?.id ?? null,
+                    body: def?.body ?? item.body,
+                  }
+                : item;
+            })
+          );
+        }
+      }
+    } else update("aiVoiceEnabled", enabled);
+  }
+
+  const openingChannel = messageChannelAt(state, "opening");
+  const openingWhatsApp = openingChannel === "whatsapp";
+  const openingSlot = whatsappSlotForMessage("opening");
+  const openingTemplates = listWhatsAppTemplatesForSlot(openingSlot);
+
+  useEffect(() => {
+    if (!openingWhatsApp || state.openingWhatsAppTemplateId) return;
+    const seeded = seedWhatsAppColdOutboundMessages();
+    update("openingWhatsAppTemplateId", seeded.openingWhatsAppTemplateId);
+    update("openingMessage", seeded.openingMessage);
+    if (state.followUps.every((item) => !item.templateId)) {
+      update("followUps", seeded.followUps);
+    }
+    // Seed once when WhatsApp becomes the opening channel without a catalogue id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openingWhatsApp, state.openingWhatsAppTemplateId]);
+
   return (
     <StepCard
-      title="Configure Outreach"
-      description="Pick channels, write the opening and follow-up messages, and decide when the sequence stops."
+      title="Outreach messages"
+      description="Pick Single or Multi-Channel (same as Outreach), then write your messages."
     >
       <div className="space-y-5">
-        <div className="grid gap-2 sm:grid-cols-2">
+        <Field
+          label="Campaign type"
+          htmlFor="wf-campaign-type"
+          hint={
+            singleChannel
+              ? "One channel only — Email, WhatsApp, or AI Voice."
+              : "Combine Email, WhatsApp, and/or AI Voice, and set which goes first."
+          }
+        >
+          <Select
+            value={state.campaignType}
+            onValueChange={(value) => {
+              if (value === "Single Channel" || value === "Multi-Channel") {
+                setCampaignType(value);
+              }
+            }}
+          >
+            <SelectTrigger id="wf-campaign-type" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CAMPAIGN_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <div className="grid gap-2 sm:grid-cols-3">
           <ToggleRow
             id="wf-email"
             label="Email"
-            description="Send from your connected sender domain"
+            description={
+              singleChannel
+                ? "Use email as the only outreach channel"
+                : "Send from your connected sender domain"
+            }
             checked={state.emailEnabled}
-            onChange={(checked) => update("emailEnabled", checked)}
+            onChange={(checked) => setChannel("email", checked)}
           />
           <ToggleRow
             id="wf-whatsapp"
             label="WhatsApp"
-            description="Approved business templates only for first touch"
+            description={
+              singleChannel
+                ? "Use WhatsApp as the only outreach channel"
+                : "Approved business templates only for first touch"
+            }
             checked={state.whatsappEnabled}
-            onChange={(checked) => update("whatsappEnabled", checked)}
+            onChange={(checked) => setChannel("whatsapp", checked)}
+          />
+          <ToggleRow
+            id="wf-ai-voice"
+            label="AI Voice"
+            description={
+              singleChannel
+                ? "Hunar / Zyastra dial-out as the only channel"
+                : "Hunar (India) or Zyastra (US) dial-out"
+            }
+            checked={state.aiVoiceEnabled}
+            onChange={(checked) => setChannel("voice", checked)}
           />
         </div>
 
-        <Field
-          label="Channel order"
-          hint={
-            bothChannels
-              ? "The second channel is tried when the first gets no reply."
-              : "Enable both channels to control the order."
-          }
-        >
-          <div role="radiogroup" aria-label="Channel order" className="flex gap-2">
-            {(["Email first", "WhatsApp first"] as const).map((order) => {
-              const active = state.channelOrder === order;
-              const Icon = order === "Email first" ? Mail : MessageCircle;
-              return (
-                <button
-                  key={order}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  disabled={!bothChannels}
-                  onClick={() => update("channelOrder", order)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-                    active && bothChannels
-                      ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
-                      : "border-border text-foreground hover:bg-muted/40"
-                  )}
-                >
-                  <Icon aria-hidden className="size-3.5" />
-                  {order}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
+        {!singleChannel ? (
+          <Field
+            label="Channel order"
+            hint={
+              multiOrderReady
+                ? "Later channels run when earlier ones get no reply."
+                : "Enable at least two channels to control the order."
+            }
+          >
+            <div role="radiogroup" aria-label="Channel order" className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["Email first", Mail],
+                  ["WhatsApp first", MessageCircle],
+                  ["AI Voice first", AudioLines],
+                ] as const
+              ).map(([order, Icon]) => {
+                const active = state.channelOrder === order;
+                return (
+                  <button
+                    key={order}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={!multiOrderReady}
+                    onClick={() => update("channelOrder", order)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+                      active && multiOrderReady
+                        ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
+                        : "border-border text-foreground hover:bg-muted/40"
+                    )}
+                  >
+                    <Icon aria-hidden className="size-3.5" />
+                    {order}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+        ) : null}
 
-        <Field
-          label="Opening message"
-          htmlFor="wf-opening"
-          required
-          hint="Placeholders: {{first_name}}, {{job_title}}, {{company_name}}, {{recruiter_name}}"
-        >
-          <Textarea
-            id="wf-opening"
-            value={state.openingMessage}
-            onChange={(event) => update("openingMessage", event.target.value)}
-            className="min-h-24 font-mono text-xs"
-            aria-invalid={showErrors && !state.openingMessage.trim()}
-          />
-        </Field>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-foreground">
-            Follow-up messages
-          </p>
-          {state.followUps.map((message, index) => (
-            <div key={index} className="flex items-start gap-2">
-              <Textarea
-                value={message}
-                onChange={(event) => updateFollowUp(index, event.target.value)}
-                aria-label={`Follow-up ${index + 1}`}
-                className="min-h-16 flex-1 font-mono text-xs"
-              />
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={`Remove follow-up ${index + 1}`}
-                onClick={() =>
-                  update(
-                    "followUps",
-                    state.followUps.filter((_, i) => i !== index)
-                  )
+        {state.emailEnabled || state.whatsappEnabled ? (
+          <>
+            <div className="space-y-4 rounded-lg border border-border p-4">
+              <p className="text-sm font-medium text-foreground">Opening message</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label="When to send" htmlFor="wf-opening-when">
+                  <Input
+                    id="wf-opening-when"
+                    value="Immediate"
+                    readOnly
+                    aria-readonly
+                    className="bg-muted/40 text-muted-foreground"
+                  />
+                  <p className="pt-1 text-xs text-muted-foreground">
+                    Opening message sends as soon as the campaign launches.
+                  </p>
+                </Field>
+                {openingChannel ? (
+                  <Field label="Channel" htmlFor="wf-opening-channel">
+                    <Input
+                      id="wf-opening-channel"
+                      value={
+                        openingChannel === "whatsapp" ? "WhatsApp" : "Email"
+                      }
+                      readOnly
+                      aria-readonly
+                      className="bg-muted/40 text-muted-foreground"
+                    />
+                  </Field>
+                ) : null}
+                {openingWhatsApp ? (
+                  <Field
+                    label="Message template"
+                    htmlFor="wf-opening-template"
+                    required
+                  >
+                    <Select
+                      value={
+                        state.openingWhatsAppTemplateId ||
+                        getDefaultWhatsAppTemplate(openingSlot)?.id ||
+                        ""
+                      }
+                      onValueChange={(value) => {
+                        if (!value) return;
+                        const applied = applyWhatsAppTemplate(openingSlot, value);
+                        if (!applied) return;
+                        update("openingWhatsAppTemplateId", applied.templateId);
+                        update("openingMessage", applied.body);
+                      }}
+                    >
+                      <SelectTrigger
+                        id="wf-opening-template"
+                        className="w-full"
+                        aria-invalid={
+                          showErrors && !state.openingWhatsAppTemplateId
+                        }
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {openingTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.metaName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                ) : null}
+              </div>
+              <Field
+                label="Message"
+                htmlFor="wf-opening"
+                required={!openingWhatsApp}
+                hint={
+                  openingWhatsApp
+                    ? "Meta sends this approved template. {{1}} = first name, {{2}} = job title. Body cannot be edited — pick another approved template above if needed."
+                    : "Placeholders: {{first_name}}, {{job_title}}, {{company_name}}, {{recruiter_name}}. For AI Voice steps, Huntlo Voice AI (Roshni) is used automatically."
                 }
               >
-                <Trash2 aria-hidden />
-              </Button>
+                <Textarea
+                  id="wf-opening"
+                  value={state.openingMessage}
+                  readOnly={openingWhatsApp}
+                  onChange={(event) =>
+                    openingWhatsApp
+                      ? undefined
+                      : update("openingMessage", event.target.value)
+                  }
+                  className={cn(
+                    "min-h-24 font-mono text-xs",
+                    openingWhatsApp && "bg-muted/40 text-muted-foreground"
+                  )}
+                  aria-invalid={
+                    showErrors &&
+                    !openingWhatsApp &&
+                    !state.openingMessage.trim()
+                  }
+                />
+              </Field>
             </div>
-          ))}
-          {state.followUps.length < 3 ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                update("followUps", [
-                  ...state.followUps,
-                  "Hi {{first_name}}, one last nudge — should I close the loop on this?",
-                ])
-              }
-            >
-              <Plus aria-hidden />
-              Add follow-up
-            </Button>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Maximum 3 follow-ups to protect sender reputation.
-            </p>
-          )}
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="No-reply delay"
-            htmlFor="wf-delay"
-            hint="Wait time before each follow-up or channel switch."
-          >
-            <Select
-              value={state.noReplyDelay}
-              onValueChange={(value) => value && update("noReplyDelay", value)}
-            >
-              <SelectTrigger id="wf-delay" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["1 day", "2 days", "3 days", "5 days", "7 days"].map((delay) => (
-                  <SelectItem key={delay} value={delay}>
-                    {delay}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-foreground">Stop conditions</p>
-            <div className="space-y-1.5">
-              {STOP_CONDITIONS_360.map((condition) => (
-                <label
-                  key={condition}
-                  className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
-                >
-                  <input
-                    type="checkbox"
-                    checked={state.stopConditions.includes(condition)}
-                    onChange={(event) =>
-                      update(
-                        "stopConditions",
-                        event.target.checked
-                          ? [...state.stopConditions, condition]
-                          : state.stopConditions.filter((c) => c !== condition)
-                      )
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-foreground">
+                Follow-up messages
+              </p>
+              {state.followUps.map((message, index) => {
+                const delayMax =
+                  DELAY_UNIT_OPTIONS.find(
+                    (option) => option.value === message.delayUnit
+                  )?.max ?? 30;
+                const followChannel = messageChannelAt(state, index);
+                const followWhatsApp = followChannel === "whatsapp";
+                const followSlot = whatsappSlotForMessage(index);
+                const followTemplates = listWhatsAppTemplatesForSlot(followSlot);
+                return (
+                  <div
+                    key={index}
+                    className="space-y-4 rounded-lg border border-border p-4"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">
+                        Follow-up {index + 1}
+                      </p>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={`Remove follow-up ${index + 1}`}
+                        onClick={() =>
+                          update(
+                            "followUps",
+                            state.followUps.filter((_, i) => i !== index)
+                          )
+                        }
+                      >
+                        <Trash2 aria-hidden />
+                      </Button>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <Field
+                        label="Delay"
+                        htmlFor={`wf-followup-delay-${index}`}
+                      >
+                        <div className="flex gap-2">
+                          <Input
+                            id={`wf-followup-delay-${index}`}
+                            type="number"
+                            min={0}
+                            max={delayMax}
+                            value={message.delayDays}
+                            onChange={(event) =>
+                              updateFollowUp(index, {
+                                delayDays: Math.min(
+                                  delayMax,
+                                  Math.max(0, Number(event.target.value) || 0)
+                                ),
+                              })
+                            }
+                            className="min-w-0 flex-1"
+                          />
+                          <Select
+                            value={message.delayUnit}
+                            onValueChange={(value) => {
+                              if (!value) return;
+                              const nextUnit = value as DelayUnit;
+                              const nextMax =
+                                DELAY_UNIT_OPTIONS.find(
+                                  (option) => option.value === nextUnit
+                                )?.max ?? 30;
+                              updateFollowUp(index, {
+                                delayUnit: nextUnit,
+                                delayDays: Math.min(message.delayDays, nextMax),
+                              });
+                            }}
+                          >
+                            <SelectTrigger
+                              id={`wf-followup-delay-unit-${index}`}
+                              className="w-30 shrink-0"
+                              aria-label="Delay unit"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DELAY_UNIT_OPTIONS.map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </Field>
+                      {followChannel ? (
+                        <Field
+                          label="Channel"
+                          htmlFor={`wf-followup-channel-${index}`}
+                        >
+                          <Input
+                            id={`wf-followup-channel-${index}`}
+                            value={
+                              followChannel === "whatsapp" ? "WhatsApp" : "Email"
+                            }
+                            readOnly
+                            aria-readonly
+                            className="bg-muted/40 text-muted-foreground"
+                          />
+                        </Field>
+                      ) : null}
+                      {followWhatsApp ? (
+                        <Field
+                          label="Message template"
+                          htmlFor={`wf-followup-template-${index}`}
+                        >
+                          <Select
+                            value={
+                              message.templateId ||
+                              getDefaultWhatsAppTemplate(followSlot)?.id ||
+                              ""
+                            }
+                            onValueChange={(value) => {
+                              if (!value) return;
+                              const applied = applyWhatsAppTemplate(
+                                followSlot,
+                                value
+                              );
+                              if (!applied) return;
+                              updateFollowUp(index, {
+                                templateId: applied.templateId,
+                                body: applied.body,
+                              });
+                            }}
+                          >
+                            <SelectTrigger
+                              id={`wf-followup-template-${index}`}
+                              className="w-full"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {followTemplates.map((template) => (
+                                <SelectItem
+                                  key={template.id}
+                                  value={template.id}
+                                >
+                                  {template.metaName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      ) : null}
+                    </div>
+                    <Field label="Message" htmlFor={`wf-followup-${index}`}>
+                      <Textarea
+                        id={`wf-followup-${index}`}
+                        value={message.body}
+                        readOnly={followWhatsApp}
+                        onChange={(event) =>
+                          followWhatsApp
+                            ? undefined
+                            : updateFollowUp(index, {
+                                body: event.target.value,
+                              })
+                        }
+                        aria-label={`Follow-up ${index + 1}`}
+                        className={cn(
+                          "min-h-16 font-mono text-xs",
+                          followWhatsApp && "bg-muted/40 text-muted-foreground"
+                        )}
+                      />
+                      {followWhatsApp ? (
+                        <p className="pt-1 text-xs text-muted-foreground">
+                          Same approved Meta templates as Outreach. Body is
+                          locked to the selected template.
+                        </p>
+                      ) : null}
+                    </Field>
+                  </div>
+                );
+              })}
+              {state.followUps.length < 3 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const nextIndex = state.followUps.length;
+                    const nextChannel = messageChannelAt(state, nextIndex);
+                    if (nextChannel === "whatsapp") {
+                      const slot = whatsappSlotForMessage(nextIndex);
+                      const picked = getDefaultWhatsAppTemplate(slot);
+                      update("followUps", [
+                        ...state.followUps,
+                        {
+                          body: picked?.body ?? "",
+                          delayDays: nextIndex === 0 ? 2 : 3,
+                          delayUnit: "days",
+                          templateId: picked?.id ?? null,
+                        },
+                      ]);
+                      return;
                     }
-                    className="size-3.5 accent-primary"
-                  />
-                  {condition}
-                </label>
-              ))}
+                    update("followUps", [
+                      ...state.followUps,
+                      {
+                        body: "Hi {{first_name}}, one last nudge — should I close the loop on this?",
+                        delayDays: nextIndex === 0 ? 2 : 3,
+                        delayUnit: "days",
+                        templateId: null,
+                      },
+                    ]);
+                  }}
+                >
+                  <Plus aria-hidden />
+                  Add follow-up
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Maximum 3 follow-ups to protect sender reputation.
+                </p>
+              )}
             </div>
-          </div>
-        </div>
+          </>
+        ) : state.aiVoiceEnabled ? (
+          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+            AI Voice uses Huntlo Voice AI (Hunar for +91, Zyastra otherwise). Call
+            script comes from the Roshni agent defaults for the linked job.
+          </p>
+        ) : null}
       </div>
     </StepCard>
   );
@@ -711,18 +1233,10 @@ function QualificationStep({
 
   return (
     <StepCard
-      title="Configure Qualification"
-      description="The AI classifies interest from replies, asks your questions, and applies knockout rules."
+      title="Qualification questions"
+      description="Ask a few chat questions after they reply. Knockouts can auto-reject bad fits."
     >
       <div className="space-y-5">
-        <ToggleRow
-          id="wf-interest"
-          label="Candidate-interest classification"
-          description="Every reply is classified as Interested, Not interested, or Needs review before qualification starts."
-          checked={state.interestClassification}
-          onChange={(checked) => update("interestClassification", checked)}
-        />
-
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">
             Qualification questions
@@ -789,62 +1303,6 @@ function QualificationStep({
             </Button>
           ) : null}
         </div>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Field label="AI response handling" htmlFor="wf-ai-mode">
-            <Select
-              value={state.aiResponseMode}
-              onValueChange={(value) => value && update("aiResponseMode", value)}
-            >
-              <SelectTrigger id="wf-ai-mode" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AI_RESPONSE_MODES.map((mode) => (
-                  <SelectItem key={mode} value={mode}>
-                    {mode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="Human handoff" htmlFor="wf-handoff">
-            <Select
-              value={state.handoffCondition}
-              onValueChange={(value) => value && update("handoffCondition", value)}
-            >
-              <SelectTrigger id="wf-handoff" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {HANDOFF_CONDITIONS.map((condition) => (
-                  <SelectItem key={condition} value={condition}>
-                    {condition}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="Auto-shortlist" htmlFor="wf-shortlist">
-            <Select
-              value={state.autoShortlist}
-              onValueChange={(value) => value && update("autoShortlist", value)}
-            >
-              <SelectTrigger id="wf-shortlist" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AUTO_SHORTLIST_CONDITIONS.map((condition) => (
-                  <SelectItem key={condition} value={condition}>
-                    {condition}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
       </div>
     </StepCard>
   );
@@ -861,19 +1319,19 @@ function ScreeningStep({
   state: WorkflowBuilderState;
   update: Update;
 }) {
-  function updateScreeningQuestion(index: number, value: string) {
+  function updateScreeningQuestion(id: string, patch: Partial<QualQuestion>) {
     update(
       "screeningQuestions",
-      state.screeningQuestions.map((question, i) =>
-        i === index ? value : question
+      state.screeningQuestions.map((question) =>
+        question.id === id ? { ...question, ...patch } : question
       )
     );
   }
 
   return (
     <StepCard
-      title="Configure AI Screening"
-      description="Qualified candidates get an AI voice screening call before they reach your shortlist."
+      title="AI screening call"
+      description="Optional voice call to screen qualified candidates before booking."
     >
       <div className="space-y-5">
         <ToggleRow
@@ -886,72 +1344,72 @@ function ScreeningStep({
 
         {state.screeningEnabled ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Language" htmlFor="wf-language">
-                <Select
-                  value={state.language}
-                  onValueChange={(value) => value && update("language", value)}
-                >
-                  <SelectTrigger id="wf-language" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCREENING_LANGUAGES.map((language) => (
-                      <SelectItem key={language} value={language}>
-                        {language}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field label="Voice tone" htmlFor="wf-tone">
-                <Select
-                  value={state.voiceTone}
-                  onValueChange={(value) => value && update("voiceTone", value)}
-                >
-                  <SelectTrigger id="wf-tone" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VOICE_TONES.map((tone) => (
-                      <SelectItem key={tone} value={tone}>
-                        {tone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
                 Screening questions
               </p>
+              <p className="text-xs text-muted-foreground">
+                Asked on the voice call. Each question needs a knockout answer —
+                that answer forces Reject.
+              </p>
               {state.screeningQuestions.map((question, index) => (
-                <div key={index} className="flex items-start gap-2">
+                <div
+                  key={question.id}
+                  className="space-y-2 rounded-lg border border-border p-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <Input
+                      value={question.text}
+                      onChange={(event) =>
+                        updateScreeningQuestion(question.id, {
+                          text: event.target.value,
+                        })
+                      }
+                      aria-label={`Screening question ${index + 1}`}
+                      placeholder={`Question ${index + 1}`}
+                      className="flex-1"
+                    />
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={`Remove screening question ${index + 1}`}
+                        >
+                          <Trash2 aria-hidden />
+                        </Button>
+                      }
+                      title="Remove this screening question?"
+                      description={
+                        question.text.trim()
+                          ? `“${question.text.trim()}” will be removed from the voice call.`
+                          : "This screening question will be removed from the voice call."
+                      }
+                      confirmLabel="Remove"
+                      destructive
+                      onConfirm={() =>
+                        update(
+                          "screeningQuestions",
+                          state.screeningQuestions.filter(
+                            (item) => item.id !== question.id
+                          )
+                        )
+                      }
+                    />
+                  </div>
                   <Input
-                    value={question}
+                    value={question.knockoutAnswer}
                     onChange={(event) =>
-                      updateScreeningQuestion(index, event.target.value)
+                      updateScreeningQuestion(question.id, {
+                        knockoutAnswer: event.target.value,
+                      })
                     }
-                    aria-label={`Screening question ${index + 1}`}
-                    placeholder={`Question ${index + 1}`}
-                    className="flex-1"
+                    required
+                    aria-required
+                    aria-label={`Knockout answer for screening question ${index + 1}`}
+                    placeholder='Knockout answer (required) — e.g. "No", "More than 90 days"'
+                    className="text-xs"
                   />
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={`Remove screening question ${index + 1}`}
-                    onClick={() =>
-                      update(
-                        "screeningQuestions",
-                        state.screeningQuestions.filter((_, i) => i !== index)
-                      )
-                    }
-                  >
-                    <Trash2 aria-hidden />
-                  </Button>
                 </div>
               ))}
               {state.screeningQuestions.length < 8 ? (
@@ -959,47 +1417,20 @@ function ScreeningStep({
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    update("screeningQuestions", [...state.screeningQuestions, ""])
+                    update("screeningQuestions", [
+                      ...state.screeningQuestions,
+                      {
+                        id: `sq-${Date.now()}`,
+                        text: "",
+                        knockoutAnswer: "No",
+                      },
+                    ])
                   }
                 >
                   <Plus aria-hidden />
                   Add question
                 </Button>
               ) : null}
-            </div>
-
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium text-foreground">
-                Evaluation fields
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {EVALUATION_FIELDS_360.map((field) => {
-                  const active = state.evaluationFields.includes(field);
-                  return (
-                    <button
-                      key={field}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() =>
-                        update(
-                          "evaluationFields",
-                          active
-                            ? state.evaluationFields.filter((f) => f !== field)
-                            : [...state.evaluationFields, field]
-                        )
-                      }
-                      className={cn(
-                        "rounded-md border px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                        active
-                          ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
-                          : "border-border text-muted-foreground hover:bg-muted/40"
-                      )}
-                    >
-                      {field}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
@@ -1082,140 +1513,254 @@ function SchedulingStep({
   state: WorkflowBuilderState;
   update: Update;
 }) {
+  const [eventTypes, setEventTypes] = useState<CalendlyEventType[]>([]);
+  const [eventTypesLoading, setEventTypesLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEventTypesLoading(true);
+    void (async () => {
+      try {
+        const items = await schedulingApi.listEventTypes();
+        if (cancelled) return;
+        setEventTypes(items);
+        if (!state.eventType && items[0]) {
+          update(
+            "eventType",
+            items[0].uri || items[0].schedulingUrl || ""
+          );
+        }
+      } catch {
+        if (!cancelled) setEventTypes([]);
+      } finally {
+        if (!cancelled) setEventTypesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Load once on mount — do not re-fetch when eventType changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, []);
+
+  function toggleReminderHour(hours: number) {
+    const active = state.reminderHours.includes(hours);
+    update(
+      "reminderHours",
+      active
+        ? state.reminderHours.filter((value) => value !== hours)
+        : [...state.reminderHours, hours].sort((a, b) => b - a)
+    );
+  }
+
+  const selectedEvent = eventTypes.find(
+    (item) =>
+      item.uri === state.eventType || item.schedulingUrl === state.eventType
+  );
+
   return (
     <StepCard
-      title="Configure Scheduling"
-      description="Shortlisted candidates receive a booking link and reminders — no back-and-forth."
+      title="Interview booking"
+      description="Send a Calendly link automatically — same setup as Schedule interview."
     >
       <div className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Calendly event type" htmlFor="wf-event">
-            <Select
-              value={state.eventType}
-              onValueChange={(value) => value && update("eventType", value)}
-            >
-              <SelectTrigger id="wf-event" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CALENDLY_EVENT_TYPES.map((eventType) => (
-                  <SelectItem key={eventType} value={eventType}>
-                    {eventType}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="Scheduling channel">
-            <div
-              role="radiogroup"
-              aria-label="Scheduling channel"
-              className="flex gap-2"
-            >
-              {(["Email", "WhatsApp"] as const).map((channel) => {
-                const active = state.schedulingChannel === channel;
-                const Icon = channel === "Email" ? Mail : MessageCircle;
-                return (
-                  <button
-                    key={channel}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => update("schedulingChannel", channel)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                      active
-                        ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
-                        : "border-border text-foreground hover:bg-muted/40"
-                    )}
-                  >
-                    <Icon aria-hidden className="size-3.5" />
-                    {channel}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-        </div>
-
-        <Field
-          label="Message template"
-          htmlFor="wf-schedule-message"
-          hint="Use placeholders from Integrations → Templates ({{first_name}}, {{job_title}}, {{recruiter_name}}, …)"
-        >
-          <Textarea
-            id="wf-schedule-message"
-            value={state.messageTemplate}
-            onChange={(event) => update("messageTemplate", event.target.value)}
-            className="min-h-20 font-mono text-xs"
-          />
-        </Field>
         <p className="text-xs text-muted-foreground">
-          Manage reusable copy in{" "}
+          Uses your connected Calendly account from{" "}
           <a
-            href="/dashboard/templates"
+            href={ROUTES.integrations}
             className="font-medium text-primary underline-offset-2 hover:underline"
           >
-            Templates
+            Integrations
           </a>
-          . AI drafts never auto-launch.
+          .
         </p>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Reminder settings" htmlFor="wf-reminders">
-            <Select
-              value={state.reminders}
-              onValueChange={(value) => value && update("reminders", value)}
-            >
-              <SelectTrigger id="wf-reminders" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {REMINDER_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field
-            label="Booking expiry"
-            htmlFor="wf-expiry"
-            hint="Expired links raise a “Scheduling link expired” exception."
+        <Field label="Calendly event type" htmlFor="wf-event" required>
+          <Select
+            value={state.eventType}
+            onValueChange={(value) => value && update("eventType", value)}
+            disabled={eventTypesLoading || eventTypes.length === 0}
           >
-            <Select
-              value={state.bookingExpiry}
-              onValueChange={(value) => value && update("bookingExpiry", value)}
-            >
-              <SelectTrigger id="wf-expiry" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BOOKING_EXPIRY_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
+            <SelectTrigger id="wf-event" className="w-full">
+              <SelectValue placeholder="Select event type">
+                {selectedEvent?.name || state.eventType || undefined}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {eventTypes.map((eventType) => {
+                const value = eventType.uri || eventType.schedulingUrl;
+                return (
+                  <SelectItem key={value} value={value}>
+                    {eventType.name}
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          {!eventTypesLoading && eventTypes.length === 0 ? (
+            <div className="mt-2 flex flex-col items-start gap-2">
+              <p className="text-xs text-destructive">
+                Connect Calendly before enabling interview booking.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                nativeButton={false}
+                render={<Link href={ROUTES.integrations} />}
+              >
+                <Plug aria-hidden />
+                Open Integrations
+              </Button>
+            </div>
+          ) : null}
+        </Field>
+
+        <Field label="Reminder configuration">
+          <div
+            role="group"
+            aria-label="Reminder timings"
+            className="grid gap-2 sm:grid-cols-2"
+          >
+            {SCHEDULING_REMINDER_OPTIONS.map((option) => {
+              const active = state.reminderHours.includes(option.hours);
+              return (
+                <button
+                  key={option.hours}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleReminderHour(option.hours)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                    active
+                      ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
+                      : "border-border hover:bg-muted/40"
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded border",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    )}
+                  >
+                    {active ? <Check className="size-3" /> : null}
+                  </span>
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {formatReminderHours(state.reminderHours)}
+          </p>
+        </Field>
+
+        <Field label="Send via" required>
+          <div
+            role="radiogroup"
+            aria-label="Invitation channel"
+            className="grid gap-2 sm:grid-cols-2"
+          >
+            {(["Email", "WhatsApp"] as const).map((channel) => {
+              const active = state.schedulingChannel === channel;
+              return (
+                <button
+                  key={channel}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => update("schedulingChannel", channel)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                    active
+                      ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
+                      : "border-border hover:bg-muted/40"
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded border",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    )}
+                  >
+                    {active ? <Check className="size-3" /> : null}
+                  </span>
+                  {channel === "Email" ? (
+                    <Mail aria-hidden className="size-3.5" />
+                  ) : (
+                    <MessageCircle aria-hidden className="size-3.5" />
+                  )}
+                  {channel}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Email copy is editable. WhatsApp uses fixed approved templates with
+            the same wording.
+          </p>
+        </Field>
+
+        {state.schedulingChannel === "Email" ? (
+          <Field
+            label="Email invitation message"
+            htmlFor="wf-schedule-message"
+            required
+            hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}. Requires a connected Email integration."
+          >
+            <Textarea
+              id="wf-schedule-message"
+              value={state.messageTemplate}
+              onChange={(event) => update("messageTemplate", event.target.value)}
+              className="min-h-28"
+            />
           </Field>
-        </div>
+        ) : (
+          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            WhatsApp invites use the approved interview invite template. Body
+            text is not editable here.
+          </p>
+        )}
+
+        <Field
+          label="Booking expiry"
+          htmlFor="wf-expiry"
+          hint="Expired links raise a “Scheduling link expired” exception."
+        >
+          <Select
+            value={state.bookingExpiry}
+            onValueChange={(value) => value && update("bookingExpiry", value)}
+          >
+            <SelectTrigger id="wf-expiry" className="w-full sm:max-w-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {BOOKING_EXPIRY_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
         <div className="grid gap-2 sm:grid-cols-2">
           <ToggleRow
             id="wf-auto-qual"
-            label="Auto-send after qualification"
-            description="Send the booking link as soon as a candidate qualifies — skips screening."
+            label="Book right after they qualify"
+            description="Skip the screening call and send the interview link as soon as they pass qualification."
             checked={state.autoSendAfterQualification}
             onChange={(checked) => update("autoSendAfterQualification", checked)}
           />
           <ToggleRow
             id="wf-auto-screen"
-            label="Auto-send after screening"
-            description="Send the booking link when the screening score meets the minimum."
+            label="Book automatically after screening"
+            description="Recommended. Send the interview link when the screening score is high enough — no manual approval."
             checked={state.autoSendAfterScreening}
             onChange={(checked) => update("autoSendAfterScreening", checked)}
           />
@@ -1245,8 +1790,12 @@ function ReviewStep({
   const channels = [
     state.emailEnabled ? "Email" : null,
     state.whatsappEnabled ? "WhatsApp" : null,
+    state.aiVoiceEnabled ? "AI Voice" : null,
   ].filter(Boolean);
   const knockouts = state.questions.filter((q) => q.knockoutAnswer.trim()).length;
+  const screeningKnockouts = state.screeningQuestions.filter((q) =>
+    q.knockoutAnswer.trim()
+  ).length;
 
   const sections: {
     step: number;
@@ -1265,7 +1814,7 @@ function ReviewStep({
       ],
     },
     {
-      step: 1,
+      step: 0,
       icon: Users,
       title: "Candidates",
       lines: stats
@@ -1276,62 +1825,67 @@ function ReviewStep({
         : ["No source selected"],
     },
     {
-      step: 2,
+      step: 1,
       icon: Send,
-      title: "Outreach",
+      title: "Messages",
       lines: [
+        state.campaignType,
         channels.length > 0
-          ? `${channels.join(" + ")}${channels.length === 2 ? ` — ${state.channelOrder}` : ""}`
+          ? `${channels.join(" + ")}${
+              channels.length > 1 && state.campaignType === "Multi-Channel"
+                ? ` — ${state.channelOrder}`
+                : ""
+            }`
           : "No channels enabled",
-        `${state.followUps.length} follow-up${state.followUps.length === 1 ? "" : "s"} · ${state.noReplyDelay} no-reply delay`,
-        `Stops: ${state.stopConditions.length > 0 ? state.stopConditions.join(", ") : "none"}`,
+        `${state.followUps.length} follow-up${state.followUps.length === 1 ? "" : "s"}${
+          state.followUps[0]
+            ? ` · first after ${formatStepDelay(state.followUps[0].delayDays, state.followUps[0].delayUnit).replace(/^After /, "")}`
+            : ""
+        }`,
       ],
     },
     {
-      step: 3,
+      step: 2,
       icon: CheckCircle2,
       title: "Qualification",
       lines: [
-        state.interestClassification
-          ? "Interest classification on"
-          : "Interest classification off",
         `${state.questions.filter((q) => q.text.trim()).length} questions · ${knockouts} knockout${knockouts === 1 ? "" : "s"}`,
-        `${state.aiResponseMode} · Handoff: ${state.handoffCondition}`,
-        `Auto-shortlist: ${state.autoShortlist}`,
       ],
     },
     {
-      step: 4,
+      step: 2,
       icon: AudioLines,
       title: "AI Screening",
       lines: state.screeningEnabled
         ? [
-            `${state.language} · ${state.voiceTone} tone · ${state.screeningQuestions.filter((q) => q.trim()).length} questions`,
+            `${state.screeningQuestions.filter((q) => q.text.trim()).length} questions · ${screeningKnockouts} knockout${screeningKnockouts === 1 ? "" : "s"}`,
             `${state.attempts} attempts, ${state.attemptInterval} apart`,
             `Minimum score ${state.minScore}/100${state.autoReject ? " · auto-reject below 50" : ""}`,
           ]
         : ["Disabled — shortlist straight from qualification"],
     },
     {
-      step: 5,
+      step: 2,
       icon: CalendarClock,
       title: "Scheduling",
       lines: [
-        `${state.eventType} via ${state.schedulingChannel}`,
-        `Reminders: ${state.reminders} · link expires after ${state.bookingExpiry}`,
+        state.eventType
+          ? `Calendly via ${state.schedulingChannel}`
+          : `No Calendly event · ${state.schedulingChannel}`,
+        `Reminders: ${formatReminderHours(state.reminderHours)} · link expires after ${state.bookingExpiry}`,
         state.autoSendAfterScreening
-          ? "Auto-send after screening"
+          ? "Books automatically after screening"
           : state.autoSendAfterQualification
-            ? "Auto-send after qualification"
-            : "Sent manually by recruiter",
+            ? "Books automatically after qualification"
+            : "Needs recruiter to send the link",
       ],
     },
   ];
 
   return (
     <StepCard
-      title="Review and Launch"
-      description="Everything the workflow will do, end to end. Nothing is sent from this UI preview."
+      title="Ready to launch?"
+      description="Quick check of what will run. Edit any section, then go live."
     >
       <div className="space-y-4">
         <ErrorList errors={errors} />
@@ -1378,6 +1932,9 @@ function ReviewStep({
 /* ------------------------------------------------------------------ */
 
 type Outcome = "draft" | "launched";
+type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+
+const AUTOSAVE_DELAY_MS = 900;
 
 const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
   draft: {
@@ -1410,18 +1967,33 @@ function toCreateInput(
       label: state.sourceDetail || state.source || null,
     },
     outreachConfig: {
+      campaignType:
+        state.campaignType === "Single Channel" ? "single_channel" : "multi_channel",
       emailEnabled: state.emailEnabled,
       whatsappEnabled: state.whatsappEnabled,
+      aiVoiceEnabled: state.aiVoiceEnabled,
       channelOrder:
-        state.channelOrder === "WhatsApp first" ? "whatsapp_first" : "email_first",
+        state.channelOrder === "WhatsApp first"
+          ? "whatsapp_first"
+          : state.channelOrder === "AI Voice first"
+            ? "voice_first"
+            : "email_first",
       openingMessage: state.openingMessage,
-      followUps: state.followUps.filter((item) => item.trim()),
-      stopOnReply: state.stopConditions.includes("Candidate replies"),
-      stopOnOptOut: state.stopConditions.includes("Candidate opts out"),
+      openingWhatsAppTemplateId: state.openingWhatsAppTemplateId,
+      followUps: state.followUps
+        .filter((item) => item.body.trim() || item.templateId)
+        .map((item) => ({
+          body: item.body.trim(),
+          delayDays: item.delayDays,
+          delayUnit: item.delayUnit,
+          templateId: item.templateId || null,
+        })),
+      stopOnReply: true,
+      stopOnOptOut: true,
     },
     qualificationConfig: {
       enabled: true,
-      interestClassification: state.interestClassification,
+      interestClassification: true,
       questions: state.questions
         .filter((q) => q.text.trim())
         .map((q) => ({
@@ -1429,16 +2001,27 @@ function toCreateInput(
           prompt: q.text.trim(),
           answerType: "Text",
           knockout: Boolean(q.knockoutAnswer.trim()),
+          knockoutCondition: q.knockoutAnswer.trim() || null,
         })),
-      aiReplyEnabled: state.aiResponseMode !== "Off",
-      handoffCondition: state.handoffCondition,
-      autoShortlist: state.autoShortlist,
+      aiReplyEnabled: true,
+      handoffCondition: null,
+      autoShortlist: null,
     },
     screeningConfig: {
       enabled: state.screeningEnabled,
-      language: state.language,
-      voiceTone: state.voiceTone,
-      questions: state.screeningQuestions.filter((q) => q.trim()),
+      language: null,
+      voiceTone: null,
+      questions: state.screeningQuestions
+        .filter((q) => q.text.trim())
+        .map((q) => ({
+          id: q.id,
+          prompt: q.text.trim(),
+          knockout: Boolean(q.knockoutAnswer.trim()),
+          knockoutCondition: q.knockoutAnswer.trim() || null,
+        })),
+      knockouts: state.screeningQuestions
+        .map((q) => q.knockoutAnswer.trim())
+        .filter(Boolean),
       evaluationFields: state.evaluationFields,
       attempts: Number.parseInt(state.attempts, 10) || 2,
       attemptIntervalHours: Number.parseInt(state.attemptInterval, 10) || 24,
@@ -1452,7 +2035,10 @@ function toCreateInput(
       provider: "calendly",
       eventTypeUri: state.eventType || null,
       channel: state.schedulingChannel.toLowerCase(),
-      reminders: state.reminders,
+      reminders:
+        state.reminderHours.length > 0
+          ? [...state.reminderHours].sort((a, b) => b - a).join(",")
+          : null,
       autoSendAfterQualification: state.autoSendAfterQualification,
       autoSendAfterScreening: state.autoSendAfterScreening,
       bookingExpiryHours:
@@ -1482,7 +2068,12 @@ export function WorkflowBuilder() {
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const workflowIdRef = useRef<string | null>(null);
+  const autosaveVersionRef = useRef(0);
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let cancelled = false;
@@ -1502,11 +2093,74 @@ export function WorkflowBuilder() {
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
 
+  const queueAutosave = useCallback(
+    (snapshot: WorkflowBuilderState, version: number) => {
+      if (!snapshot.name.trim()) return Promise.resolve();
+
+      const operation = autosaveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (version !== autosaveVersionRef.current) return;
+
+          setAutosaveStatus("saving");
+          setAutosaveError(null);
+          try {
+            // Draft autosave keeps selected ids only — full audience resolve runs on launch.
+            const input = toCreateInput(snapshot, snapshot.selectedCandidateIds);
+            let id = workflowIdRef.current;
+            if (id) {
+              await huntlo360Api.updateWorkflow(id, input);
+            } else {
+              const created = await huntlo360Api.createWorkflow(input);
+              id = created.id;
+              workflowIdRef.current = id;
+              setWorkflowId(id);
+            }
+            if (version === autosaveVersionRef.current) {
+              setAutosaveStatus("saved");
+            }
+          } catch (err) {
+            if (version === autosaveVersionRef.current) {
+              setAutosaveStatus("error");
+              setAutosaveError(
+                getApiErrorMessage(err, "Unable to autosave workflow.")
+              );
+            }
+          }
+        });
+
+      autosaveQueueRef.current = operation;
+      return operation;
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (outcome || submitting) return;
+    const version = ++autosaveVersionRef.current;
+    if (!state.name.trim()) {
+      setAutosaveStatus("idle");
+      setAutosaveError(null);
+      return;
+    }
+
+    setAutosaveStatus("pending");
+    const timer = window.setTimeout(() => {
+      void queueAutosave(state, version);
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [outcome, queueAutosave, state, submitting]);
+
   const currentErrors = stepErrors(current, state);
   const showErrors = attempted.has(current);
   const launchErrors = allErrors(state);
 
   function goTo(step: number) {
+    if (state.name.trim() && !submitting) {
+      const version = ++autosaveVersionRef.current;
+      void queueAutosave(state, version);
+    }
     setCurrent(step);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1521,20 +2175,28 @@ export function WorkflowBuilder() {
 
   async function submit(mode: Outcome) {
     if (mode === "launched" && launchErrors.length > 0) {
-      setAttempted(new Set([0, 1, 2, 3, 4, 5]));
+      setAttempted(new Set([0, 1, 2]));
       return;
     }
     setSubmitting(true);
     setSubmitError(null);
+    autosaveVersionRef.current += 1;
     try {
+      await autosaveQueueRef.current.catch(() => undefined);
       const candidateIds = await resolveAudienceIds(state);
-      const created = await huntlo360Api.createWorkflow(
-        toCreateInput(state, candidateIds)
-      );
-      if (mode === "launched") {
-        await huntlo360Api.launchWorkflow(created.id);
+      const input = toCreateInput(state, candidateIds);
+      let id = workflowIdRef.current;
+      if (id) {
+        await huntlo360Api.updateWorkflow(id, input);
+      } else {
+        const created = await huntlo360Api.createWorkflow(input);
+        id = created.id;
+        workflowIdRef.current = id;
       }
-      setWorkflowId(created.id);
+      if (mode === "launched") {
+        await huntlo360Api.launchWorkflow(id);
+      }
+      setWorkflowId(id);
       setOutcome(mode);
     } catch (err) {
       setSubmitError(getApiErrorMessage(err, "Unable to save workflow."));
@@ -1581,7 +2243,11 @@ export function WorkflowBuilder() {
               setAttempted(new Set());
               setOutcome(null);
               setWorkflowId(null);
+              workflowIdRef.current = null;
               setSubmitError(null);
+              setAutosaveStatus("idle");
+              setAutosaveError(null);
+              autosaveVersionRef.current += 1;
             }}
           >
             Create Another Workflow
@@ -1593,37 +2259,26 @@ export function WorkflowBuilder() {
 
   return (
     <div className="space-y-4">
-      {/* Stepper */}
       <nav
         aria-label="Workflow builder steps"
         className="rounded-xl border border-border bg-card p-4"
       >
-        <Stepper steps={STEPS} currentStep={current} />
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
-          {STEPS.map((step, index) => {
-            const hasError =
-              attempted.has(index) && stepErrors(index, state).length > 0;
-            return (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => goTo(index)}
-                aria-current={index === current ? "step" : undefined}
-                className={cn(
-                  "rounded-md px-2 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                  index === current
-                    ? "bg-brand-subtle font-medium text-primary"
-                    : hasError
-                      ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-                      : "text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {index + 1}. {step.title}
-                {hasError ? " ⚠" : ""}
-              </button>
-            );
-          })}
-        </div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Four simple steps — same hiring flow, less clicking.
+        </p>
+        <Stepper
+          steps={STEPS}
+          currentStep={current}
+          onStepSelect={goTo}
+          errorSteps={
+            new Set(
+              STEPS.map((_, index) => index).filter(
+                (index) =>
+                  attempted.has(index) && stepErrors(index, state).length > 0
+              )
+            )
+          }
+        />
       </nav>
 
       {showErrors ? <ErrorList errors={currentErrors} /> : null}
@@ -1633,54 +2288,80 @@ export function WorkflowBuilder() {
         </p>
       ) : null}
 
-      {/* Step content */}
       {current === 0 ? (
-        <JobStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
+        <div className="space-y-4">
+          <JobStep state={state} update={update} showErrors={showErrors} />
+          <AudienceStep
+            state={state}
+            update={update}
+            showErrors={showErrors}
+            title="Who should enter this flow?"
+            description="Pick candidates from your pool, a list, or add them manually."
+            sourceErrorLabel="Choose where enrolled candidates come from."
+            relatedJobId={state.jobId || null}
+          />
+        </div>
       ) : current === 1 ? (
-        <AudienceStep
-          state={state}
-          update={update}
-          showErrors={showErrors}
-          title="Select Candidates"
-          description="Choose who enters the workflow. Duplicates and invalid contacts are excluded automatically."
-          sourceErrorLabel="Choose where enrolled candidates come from."
-        />
-      ) : current === 2 ? (
         <OutreachStep state={state} update={update} showErrors={showErrors} />
-      ) : current === 3 ? (
-        <QualificationStep state={state} update={update} />
-      ) : current === 4 ? (
-        <ScreeningStep state={state} update={update} />
-      ) : current === 5 ? (
-        <SchedulingStep state={state} update={update} />
+      ) : current === 2 ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-muted/40 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">
+              Filter fits, then book interviews
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Qualification chats, optional AI voice screen, then auto booking.
+              Leave the booking toggles on to skip manual recruiter approval.
+            </p>
+          </div>
+          <QualificationStep state={state} update={update} />
+          <ScreeningStep state={state} update={update} />
+          <SchedulingStep state={state} update={update} />
+        </div>
       ) : (
         <ReviewStep state={state} errors={launchErrors} goTo={goTo} jobs={jobs} />
       )}
 
-      {/* Footer navigation */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">
         <Button
           type="button"
           size="sm"
           variant="ghost"
           onClick={() => goTo(Math.max(0, current - 1))}
-          disabled={current === 0}
+          disabled={current === 0 || submitting}
         >
           <ArrowLeft aria-hidden />
           Back
         </Button>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={submitting || !state.name.trim()}
-            onClick={() => void submit("draft")}
+          <span
+            role={autosaveStatus === "error" ? "alert" : "status"}
+            title={autosaveError ?? undefined}
+            className={`inline-flex items-center gap-1.5 text-xs ${
+              autosaveStatus === "error"
+                ? "text-destructive"
+                : "text-muted-foreground"
+            }`}
           >
-            <Save aria-hidden />
-            Save Draft
-          </Button>
+            {autosaveStatus === "saving" ? (
+              <>
+                <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                Saving draft…
+              </>
+            ) : autosaveStatus === "saved" ? (
+              <>
+                <CheckCircle2 aria-hidden className="size-3.5 text-success" />
+                Draft saved automatically
+              </>
+            ) : autosaveStatus === "pending" ? (
+              <>Changes pending…</>
+            ) : autosaveStatus === "error" ? (
+              <>{autosaveError ?? "Autosave failed"}</>
+            ) : (
+              <>Enter a workflow name to enable autosave</>
+            )}
+          </span>
 
           {current < STEPS.length - 1 ? (
             <Button type="button" size="sm" onClick={next} disabled={submitting}>
@@ -1694,8 +2375,12 @@ export function WorkflowBuilder() {
               disabled={submitting || launchErrors.length > 0}
               onClick={() => void submit("launched")}
             >
-              <Rocket aria-hidden />
-              Launch Workflow
+              {submitting ? (
+                <Loader2 aria-hidden className="animate-spin" />
+              ) : (
+                <Rocket aria-hidden />
+              )}
+              {submitting ? "Launching…" : "Launch Workflow"}
             </Button>
           )}
         </div>
