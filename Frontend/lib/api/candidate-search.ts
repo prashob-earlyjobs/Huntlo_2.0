@@ -53,6 +53,7 @@ export type CandidateFilterForm = {
 export type SearchAnnotationResponse = {
   success: true;
   filterForm: CandidateFilterForm;
+  datasetFilters?: Record<string, unknown>;
   annotation?: unknown;
   futureJobs?: unknown;
 };
@@ -166,6 +167,7 @@ export type SourcingSessionSummary = {
   savedCandidateCount: number;
   owner: string | null;
   status: string;
+  searchVendor?: string | null;
   quotaUsed?: number;
   createdAt: string | null;
   lastActivity: string | null;
@@ -231,7 +233,24 @@ export type SearchPreviewResponse = {
   skillsRelaxFallbackUsed?: boolean;
 };
 
+export type CandidateSearchCatalogField = {
+  name: string;
+  type: "text" | "number" | "boolean" | "url" | "date";
+  label: string;
+  description: string;
+  quickFilter: boolean;
+  pii: boolean;
+};
+
+export type CandidateSearchCatalog = {
+  success: true;
+  vendor: "future-jobs" | "brightdata";
+  datasetId: string | null;
+  fields: CandidateSearchCatalogField[];
+};
+
 export interface CandidateSearchApi {
+  getCandidateSearchCatalog(): Promise<CandidateSearchCatalog>;
   annotateCandidateSearch(input: {
     prompt: string;
     linkedin_profile_url?: string;
@@ -239,6 +258,7 @@ export interface CandidateSearchApi {
   previewCandidateSearch(input: {
     prompt?: string;
     filterForm: CandidateFilterForm;
+    datasetFilters?: Record<string, unknown>;
   }): Promise<SearchPreviewResponse>;
   autocompleteCandidateFilter(input: {
     filter_type?: string;
@@ -255,6 +275,7 @@ export interface CandidateSearchApi {
   applyCandidateSearch(input: {
     prompt: string;
     filterForm: CandidateFilterForm;
+    datasetFilters?: Record<string, unknown>;
     sessionId?: string;
     page?: number;
     limit?: number;
@@ -332,6 +353,15 @@ export interface CandidateSearchApi {
 }
 
 const mockCandidateSearchApi: CandidateSearchApi = {
+  async getCandidateSearchCatalog() {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      vendor: "future-jobs",
+      datasetId: null,
+      fields: [],
+    };
+  },
   async annotateCandidateSearch({ prompt }) {
     await simulateMockLatency();
     const { INTERPRETED_FILTER_STATE } = await import("@/lib/mock-search");
@@ -579,6 +609,9 @@ const mockCandidateSearchApi: CandidateSearchApi = {
 };
 
 const liveCandidateSearchApi: CandidateSearchApi = {
+  async getCandidateSearchCatalog() {
+    return rawGet<CandidateSearchCatalog>("/candidates/search/catalog");
+  },
   async annotateCandidateSearch(input) {
     return rawPost<SearchAnnotationResponse>("/candidates/search/annotate", {
       prompt: input.prompt,
@@ -589,6 +622,7 @@ const liveCandidateSearchApi: CandidateSearchApi = {
     const result = await rawPost<SearchPreviewResponse>("/candidates/search/preview", {
       prompt: input.prompt ?? "",
       filterForm: input.filterForm ?? {},
+      datasetFilters: input.datasetFilters,
     });
     console.log("[candidate-search/preview] profile count", result);
     return result;
@@ -622,6 +656,7 @@ const liveCandidateSearchApi: CandidateSearchApi = {
       {
         prompt: input.prompt,
         filterForm: input.filterForm,
+        datasetFilters: input.datasetFilters,
         sessionId: input.sessionId ?? "",
         page: input.page ?? 1,
         limit: input.limit ?? 20,
@@ -713,6 +748,10 @@ export const candidateSearchApi = createDomainService({
   mock: mockCandidateSearchApi,
   live: liveCandidateSearchApi,
 });
+
+export async function getCandidateSearchCatalog() {
+  return candidateSearchApi.getCandidateSearchCatalog();
+}
 
 export async function annotateCandidateSearch(
   input: Parameters<CandidateSearchApi["annotateCandidateSearch"]>[0]

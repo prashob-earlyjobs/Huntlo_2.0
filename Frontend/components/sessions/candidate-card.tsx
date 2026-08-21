@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 export function CandidateCard({
   candidate,
+  showMatchScore = true,
   selected,
   onToggleSelect,
   saved,
@@ -33,6 +34,7 @@ export function CandidateCard({
   onAddToOutreach,
 }: {
   candidate: SessionCandidate;
+  showMatchScore?: boolean;
   selected: boolean;
   onToggleSelect: () => void;
   saved: boolean;
@@ -80,7 +82,9 @@ export function CandidateCard({
                 </span>
               ) : null}
             </div>
-            <MatchScoreCompact score={candidate.matchScore} />
+            {showMatchScore && typeof candidate.matchScore === "number" ? (
+              <MatchScoreCompact score={candidate.matchScore} />
+            ) : null}
           </div>
           <p className="truncate text-sm text-muted-foreground">
             {candidate.currentRole} · {candidate.currentCompany}

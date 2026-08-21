@@ -34,6 +34,7 @@ export type AdminUser = {
   searchesUsed?: number;
   revealsUsed?: number;
   outreachUsed?: number;
+  candidateSearchVendor?: "future-jobs" | "brightdata";
   createdAt?: string;
   lastActive?: string | null;
 };
@@ -98,6 +99,59 @@ export type AdminPlan = {
   featureAccess?: Record<string, unknown>;
   priceLabel?: { monthly: string; yearly: string };
   usdPriceLabel?: { monthly: string; yearly: string };
+};
+
+export type AdminFeatureCatalogEntry = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+export type AdminFeatureAccessPlan = {
+  id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  public?: boolean;
+  sortOrder?: number;
+  featureAccess: Record<string, boolean>;
+};
+
+export type AdminFeatureOverride = {
+  enabled: boolean;
+  note: string | null;
+  expiresAt: string | null;
+};
+
+export type AdminFeatureAccessWorkspace = {
+  organizationId: string;
+  name: string;
+  plan: string;
+  planCode: string;
+  ownerEmail: string | null;
+  ownerName: string | null;
+  overrides: Record<string, AdminFeatureOverride>;
+  planAccess: Record<string, boolean>;
+  effectiveAccess: Record<string, boolean>;
+};
+
+export type AdminSearchVendorUser = {
+  id: string;
+  name: string;
+  email: string;
+  organisation: string;
+  organizationId: string;
+  candidateSearchVendor: "future-jobs" | "brightdata";
+};
+
+export type AdminFeatureAccessOverview = {
+  features: AdminFeatureCatalogEntry[];
+  plans: AdminFeatureAccessPlan[];
+  exceptions: AdminFeatureAccessWorkspace[];
+  searchVendor?: {
+    defaultVendor: "future-jobs" | "brightdata";
+    exceptions: AdminSearchVendorUser[];
+  };
 };
 
 export type ProviderHealth = {
@@ -423,12 +477,39 @@ export interface AdminApi {
   activateUser(id: string): Promise<AdminUser & Record<string, unknown>>;
   resetPassword(id: string, newPassword?: string): Promise<{ reset: boolean; temporaryPassword?: string }>;
   assignPlan(id: string, plan: string): Promise<AdminUser & Record<string, unknown>>;
-  adjustQuota(id: string, input: { metric: string; delta: number; reason?: string }): Promise<unknown>;
+  adjustQuota(id: string, input: { metric: string; used: number; reason?: string }): Promise<unknown>;
   listOrganizations(params?: { page?: number; limit?: number; q?: string }): Promise<Paginated<Record<string, unknown>>>;
   listPlans(): Promise<AdminPlan[]>;
   createPlan(input: Record<string, unknown>): Promise<AdminPlan>;
   updatePlan(id: string, input: Record<string, unknown>): Promise<AdminPlan>;
   setDefaultSignupPlan(id: string): Promise<AdminPlan>;
+  getFeatureAccess(): Promise<AdminFeatureAccessOverview>;
+  searchFeatureAccessWorkspaces(params?: {
+    q?: string;
+    limit?: number;
+  }): Promise<{ items: AdminFeatureAccessWorkspace[] }>;
+  searchFeatureAccessUsers(params?: {
+    q?: string;
+    limit?: number;
+  }): Promise<{ items: AdminSearchVendorUser[] }>;
+  updateUserSearchVendor(
+    userId: string,
+    vendor: "future-jobs" | "brightdata"
+  ): Promise<AdminSearchVendorUser>;
+  updatePlanFeatureAccess(
+    planId: string,
+    input: { feature: string; enabled: boolean }
+  ): Promise<AdminFeatureAccessPlan>;
+  upsertWorkspaceFeatureAccess(
+    organizationId: string,
+    input: {
+      overrides: Record<
+        string,
+        { enabled: boolean; note?: string | null; expiresAt?: string | null } | null
+      >;
+    }
+  ): Promise<AdminFeatureAccessWorkspace>;
+  clearWorkspaceFeatureAccess(organizationId: string): Promise<AdminFeatureAccessWorkspace>;
   getUsage(): Promise<{ byAction: Array<Record<string, unknown>>; periodKey: string }>;
   getUsageAnalyticsSummary(params?: {
     userId?: string;
@@ -617,6 +698,51 @@ const liveAdminApi: AdminApi = {
   async setDefaultSignupPlan(id: string) {
     const result = await apiClient.post<AdminPlan>(
       `/admin/plans/${id}/set-default-signup`
+    );
+    return result.data;
+  },
+  async getFeatureAccess() {
+    const result = await apiClient.get<AdminFeatureAccessOverview>(
+      "/admin/feature-access"
+    );
+    return result.data;
+  },
+  async searchFeatureAccessWorkspaces(params) {
+    const result = await apiClient.get<{ items: AdminFeatureAccessWorkspace[] }>(
+      `/admin/feature-access/workspaces${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async searchFeatureAccessUsers(params) {
+    const result = await apiClient.get<{ items: AdminSearchVendorUser[] }>(
+      `/admin/feature-access/users${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async updateUserSearchVendor(userId, vendor) {
+    const result = await apiClient.patch<AdminSearchVendorUser>(
+      `/admin/feature-access/users/${userId}/search-vendor`,
+      { vendor }
+    );
+    return result.data;
+  },
+  async updatePlanFeatureAccess(planId, input) {
+    const result = await apiClient.patch<AdminFeatureAccessPlan>(
+      `/admin/feature-access/plans/${planId}`,
+      input
+    );
+    return result.data;
+  },
+  async upsertWorkspaceFeatureAccess(organizationId, input) {
+    const result = await apiClient.put<AdminFeatureAccessWorkspace>(
+      `/admin/feature-access/workspaces/${organizationId}`,
+      input
+    );
+    return result.data;
+  },
+  async clearWorkspaceFeatureAccess(organizationId) {
+    const result = await apiClient.delete<AdminFeatureAccessWorkspace>(
+      `/admin/feature-access/workspaces/${organizationId}`
     );
     return result.data;
   },
@@ -850,6 +976,44 @@ const liveAdminApi: AdminApi = {
 
 let mockWhatsAppTemplates: WhatsAppTemplate[] = [];
 
+const MOCK_FEATURE_CATALOG: AdminFeatureCatalogEntry[] = [
+  { key: "sourcing", label: "Sourcing", description: "Candidate search and AI sourcing sessions" },
+  { key: "peopleScout", label: "People Scout", description: "People lookup and contact reveal" },
+  { key: "outreach", label: "Outreach", description: "Campaigns, sequences, and conversations" },
+  { key: "huntlo360", label: "Huntlo 360", description: "End-to-end candidate orchestration" },
+  { key: "screening", label: "Screening", description: "AI screening and voice interviews" },
+  { key: "assessments", label: "Scheduling", description: "Assessments, interviews, and calendar scheduling" },
+  { key: "analytics", label: "Analytics", description: "Workspace analytics and reports" },
+  { key: "integrations", label: "Integrations", description: "Third-party provider connections" },
+  { key: "team", label: "Team", description: "Seats, roles, and member management" },
+];
+
+const MOCK_FEATURE_KEY_BY_LABEL: Record<string, string> = {
+  Sourcing: "sourcing",
+  "People Scout": "peopleScout",
+  Outreach: "outreach",
+  "Huntlo 360": "huntlo360",
+  Screening: "screening",
+  Scheduling: "assessments",
+  Analytics: "analytics",
+  Integrations: "integrations",
+  Team: "team",
+};
+
+let mockFeatureExceptions: AdminFeatureAccessWorkspace[] = [];
+let mockSearchVendorExceptions: AdminSearchVendorUser[] = [];
+
+function mockPlanAccessFromModules(modules: string[]): Record<string, boolean> {
+  const access: Record<string, boolean> = {};
+  for (const feature of MOCK_FEATURE_CATALOG) {
+    const label = Object.entries(MOCK_FEATURE_KEY_BY_LABEL).find(
+      ([, key]) => key === feature.key
+    )?.[0];
+    access[feature.key] = label ? modules.includes(label) : false;
+  }
+  return access;
+}
+
 const mockAdminApi: AdminApi = {
   async getDashboard() {
     await simulateMockLatency();
@@ -1060,6 +1224,194 @@ const mockAdminApi: AdminApi = {
       isDefaultSignup: true,
       isTrialPlan: true,
       trialDays: 14,
+    };
+  },
+  async getFeatureAccess() {
+    await simulateMockLatency();
+    const { ADMIN_PLANS } = await import("@/lib/mock-admin");
+    return {
+      features: MOCK_FEATURE_CATALOG,
+      plans: ADMIN_PLANS.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        code: plan.code,
+        active: plan.active,
+        public: plan.public,
+        sortOrder: plan.sortOrder,
+        featureAccess: mockPlanAccessFromModules(plan.modules),
+      })),
+      exceptions: mockFeatureExceptions,
+      searchVendor: {
+        defaultVendor: "future-jobs",
+        exceptions: mockSearchVendorExceptions,
+      },
+    };
+  },
+  async searchFeatureAccessWorkspaces(params) {
+    await simulateMockLatency();
+    const { ADMIN_USERS, ADMIN_PLANS } = await import("@/lib/mock-admin");
+    const q = (params?.q ?? "").trim().toLowerCase();
+    const seen = new Set<string>();
+    const items: AdminFeatureAccessWorkspace[] = [];
+    for (const user of ADMIN_USERS) {
+      if (seen.has(user.organisation)) continue;
+      if (
+        q &&
+        !user.organisation.toLowerCase().includes(q) &&
+        !user.email.toLowerCase().includes(q)
+      ) {
+        continue;
+      }
+      seen.add(user.organisation);
+      const existing = mockFeatureExceptions.find(
+        (item) => item.name === user.organisation
+      );
+      if (existing) {
+        items.push(existing);
+        continue;
+      }
+      const plan = ADMIN_PLANS.find((item) => item.name === user.plan);
+      const planAccess = mockPlanAccessFromModules(plan?.modules ?? []);
+      items.push({
+        organizationId: `org_${user.id}`,
+        name: user.organisation,
+        plan: user.plan,
+        planCode: user.plan.toLowerCase(),
+        ownerEmail: user.email,
+        ownerName: user.name,
+        overrides: {},
+        planAccess,
+        effectiveAccess: planAccess,
+      });
+    }
+    return { items: items.slice(0, params?.limit ?? 20) };
+  },
+  async searchFeatureAccessUsers(params) {
+    await simulateMockLatency();
+    const { ADMIN_USERS } = await import("@/lib/mock-admin");
+    const q = (params?.q ?? "").trim().toLowerCase();
+    const items: AdminSearchVendorUser[] = ADMIN_USERS.filter(
+      (user) =>
+        !q ||
+        user.email.toLowerCase().includes(q) ||
+        user.name.toLowerCase().includes(q)
+    ).map((user) => {
+      const existing = mockSearchVendorExceptions.find((item) => item.id === user.id);
+      return (
+        existing ?? {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          organisation: user.organisation,
+          organizationId: `org_${user.id}`,
+          candidateSearchVendor: user.candidateSearchVendor ?? "future-jobs",
+        }
+      );
+    });
+    return { items: items.slice(0, params?.limit ?? 20) };
+  },
+  async updateUserSearchVendor(userId, vendor) {
+    await simulateMockLatency();
+    const { ADMIN_USERS } = await import("@/lib/mock-admin");
+    const user = ADMIN_USERS.find((item) => item.id === userId);
+    if (!user) throw new Error("User not found");
+    const next: AdminSearchVendorUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      organisation: user.organisation,
+      organizationId: `org_${user.id}`,
+      candidateSearchVendor: vendor,
+    };
+    mockSearchVendorExceptions = mockSearchVendorExceptions.filter(
+      (item) => item.id !== userId
+    );
+    if (vendor === "brightdata") mockSearchVendorExceptions.push(next);
+    return next;
+  },
+  async updatePlanFeatureAccess(planId, input) {
+    await simulateMockLatency();
+    const { ADMIN_PLANS } = await import("@/lib/mock-admin");
+    const plan = ADMIN_PLANS.find((item) => item.id === planId);
+    if (!plan) throw new Error("Plan not found");
+    const label = Object.entries(MOCK_FEATURE_KEY_BY_LABEL).find(
+      ([, key]) => key === input.feature
+    )?.[0];
+    if (label) {
+      if (input.enabled && !plan.modules.includes(label)) {
+        plan.modules.push(label);
+      }
+      if (!input.enabled) {
+        plan.modules = plan.modules.filter((item) => item !== label);
+      }
+    }
+    return {
+      id: plan.id,
+      name: plan.name,
+      code: plan.code,
+      active: plan.active,
+      featureAccess: mockPlanAccessFromModules(plan.modules),
+    };
+  },
+  async upsertWorkspaceFeatureAccess(organizationId, input) {
+    await simulateMockLatency();
+    const existing =
+      mockFeatureExceptions.find((item) => item.organizationId === organizationId) ??
+      (await this.searchFeatureAccessWorkspaces()).items.find(
+        (item) => item.organizationId === organizationId
+      );
+    if (!existing) throw new Error("Workspace not found");
+    const overrides = { ...existing.overrides };
+    const effectiveAccess = { ...existing.planAccess };
+    for (const [feature, value] of Object.entries(input.overrides)) {
+      if (value == null) {
+        delete overrides[feature];
+        effectiveAccess[feature] = Boolean(existing.planAccess[feature]);
+        continue;
+      }
+      overrides[feature] = {
+        enabled: value.enabled,
+        note: value.note ?? null,
+        expiresAt: value.expiresAt ?? null,
+      };
+      effectiveAccess[feature] = value.enabled;
+    }
+    const next: AdminFeatureAccessWorkspace = {
+      ...existing,
+      overrides,
+      effectiveAccess,
+    };
+    mockFeatureExceptions = [
+      ...mockFeatureExceptions.filter((item) => item.organizationId !== organizationId),
+      ...(Object.keys(overrides).length ? [next] : []),
+    ];
+    return next;
+  },
+  async clearWorkspaceFeatureAccess(organizationId) {
+    await simulateMockLatency();
+    const existing = mockFeatureExceptions.find(
+      (item) => item.organizationId === organizationId
+    );
+    mockFeatureExceptions = mockFeatureExceptions.filter(
+      (item) => item.organizationId !== organizationId
+    );
+    if (!existing) {
+      return {
+        organizationId,
+        name: "Workspace",
+        plan: "Starter",
+        planCode: "starter",
+        ownerEmail: null,
+        ownerName: null,
+        overrides: {},
+        planAccess: {},
+        effectiveAccess: {},
+      };
+    }
+    return {
+      ...existing,
+      overrides: {},
+      effectiveAccess: existing.planAccess,
     };
   },
   async getUsage() {

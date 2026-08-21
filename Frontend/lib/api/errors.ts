@@ -182,7 +182,12 @@ export function isInviteDeliveryFailed(error: unknown): boolean {
 }
 
 export function isQuotaError(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "QUOTA_EXCEEDED";
+  if (!(error instanceof ApiError)) return false;
+  if (error.code === "QUOTA_EXCEEDED") return true;
+  return (
+    error.statusCode === 429 &&
+    /quota|SEARCH_QUOTA_EXHAUSTED/i.test(error.message)
+  );
 }
 
 export function isProviderError(error: unknown): boolean {

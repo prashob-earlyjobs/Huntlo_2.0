@@ -31,6 +31,8 @@ export interface FilterField {
   max?: number;
   unit?: string;
   hint?: string;
+  /** Max free-text tags. Bright Data Search allows 4 rules per logical group. */
+  maxTags?: number;
   className?: string;
   hideLabel?: boolean;
   compactAfter?: boolean;

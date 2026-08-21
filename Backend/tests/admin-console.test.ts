@@ -190,6 +190,30 @@ describe('Admin console security + APIs', () => {
     expect(health.status).toBe(200);
   });
 
+  it('lets a platform admin switch candidate-search vendor per user email', async () => {
+    const admin = await registerUser(agent, `vendor-admin-${Date.now()}@huntlo.ai`, {
+      platformAdmin: true,
+    });
+    const target = await registerUser(agent, `vendor-user-${Date.now()}@huntlo.ai`);
+
+    const patched = await agent
+      .patch(`/api/v1/admin/users/${target.userId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ candidateSearchVendor: 'brightdata' });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.candidateSearchVendor).toBe('brightdata');
+
+    const listed = await agent
+      .get('/api/v1/admin/users')
+      .query({ q: target.userId })
+      .set('Authorization', `Bearer ${admin.token}`);
+    expect(listed.status).toBe(200);
+
+    const stored = await UserModel.findById(target.userId).select('candidateSearchVendor');
+    expect(stored?.candidateSearchVendor).toBe('brightdata');
+  });
+
   it('supports PLATFORM_ADMIN_EMAILS allowlist without platformAdmin flag', async () => {
     const email = `allowlist-${Date.now()}@huntlo.ai`;
     process.env.PLATFORM_ADMIN_EMAILS = email;

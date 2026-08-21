@@ -11,6 +11,7 @@ import {
   Pencil,
   Search,
   Trash2,
+  Workflow,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -74,7 +75,7 @@ const STATUS_CLASS: Record<AdminAccountStatus, string> = {
   Deleted: "bg-muted text-muted-foreground",
 };
 
-type DialogKind = "edit" | "plan" | "quota" | null;
+type DialogKind = "edit" | "plan" | "quota" | "search-vendor" | null;
 
 function formatCountry(value: string | null | undefined): string {
   const raw = value?.trim();
@@ -101,6 +102,7 @@ function mapAdminUser(user: {
   searchesUsed?: number;
   revealsUsed?: number;
   outreachUsed?: number;
+  candidateSearchVendor?: string | null;
   status: string;
   createdAt?: string;
   lastActive?: string | null;
@@ -117,6 +119,8 @@ function mapAdminUser(user: {
     searchesUsed: user.searchesUsed ?? 0,
     revealsUsed: user.revealsUsed ?? 0,
     outreachUsed: user.outreachUsed ?? 0,
+    candidateSearchVendor:
+      user.candidateSearchVendor === "brightdata" ? "brightdata" : "future-jobs",
     status: (user.status as AdminAccountStatus) || "Active",
     createdAt: user.createdAt
       ? new Date(user.createdAt).toLocaleDateString("en-IN")
@@ -141,6 +145,9 @@ export function AdminUsersWorkspace() {
   const [toast, setToast] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", role: "" });
   const [planForm, setPlanForm] = useState("Growth");
+  const [searchVendorForm, setSearchVendorForm] = useState<
+    "future-jobs" | "brightdata"
+  >("future-jobs");
   const [quotaForm, setQuotaForm] = useState({
     searches: "",
     reveals: "",
@@ -196,6 +203,9 @@ export function AdminUsersWorkspace() {
     setDialog(kind);
     setEditForm({ name: user.name, email: user.email, role: user.role });
     setPlanForm(user.plan);
+    setSearchVendorForm(
+      user.candidateSearchVendor === "brightdata" ? "brightdata" : "future-jobs"
+    );
     setQuotaForm({
       searches: String(user.searchesUsed),
       reveals: String(user.revealsUsed),
@@ -246,6 +256,7 @@ export function AdminUsersWorkspace() {
               <TableHead className={HEAD}>Country</TableHead>
               <TableHead className={HEAD}>Plan</TableHead>
               <TableHead className={HEAD}>Role</TableHead>
+              <TableHead className={HEAD}>Search vendor</TableHead>
               <TableHead className={HEAD}>Searches used</TableHead>
               <TableHead className={HEAD}>Reveals used</TableHead>
               <TableHead className={HEAD}>Outreach used</TableHead>
@@ -259,7 +270,7 @@ export function AdminUsersWorkspace() {
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={13}
+                  colSpan={14}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
                   Loading users…
@@ -269,7 +280,7 @@ export function AdminUsersWorkspace() {
             {!loading && users.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={13}
+                  colSpan={14}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
                   No users found.
@@ -299,6 +310,11 @@ export function AdminUsersWorkspace() {
                     <TableCell className="text-sm">{user.plan}</TableCell>
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                       {user.role}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">
+                      {user.candidateSearchVendor === "brightdata"
+                        ? "Bright Data"
+                        : "Future Jobs"}
                     </TableCell>
                     <TableCell className="tabular-nums text-sm">
                       {user.searchesUsed.toLocaleString()}
@@ -360,6 +376,12 @@ export function AdminUsersWorkspace() {
                           >
                             <Search aria-hidden />
                             Adjust Quota
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openDialog("search-vendor", user)}
+                          >
+                            <Workflow aria-hidden />
+                            Search vendor
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
@@ -544,6 +566,12 @@ export function AdminUsersWorkspace() {
                   ["Mobile", selected.phone || "—"],
                   ["Plan", selected.plan],
                   ["Role", selected.role],
+                  [
+                    "Search vendor",
+                    selected.candidateSearchVendor === "brightdata"
+                      ? "Bright Data"
+                      : "Future Jobs",
+                  ],
                   ["Status", selected.status],
                   ["Searches used", selected.searchesUsed.toLocaleString()],
                   ["Reveals used", selected.revealsUsed.toLocaleString()],
@@ -579,7 +607,9 @@ export function AdminUsersWorkspace() {
                 ? "Edit user"
                 : dialog === "plan"
                   ? "Assign plan"
-                  : "Adjust quota"}
+                  : dialog === "search-vendor"
+                    ? "Search vendor"
+                    : "Adjust quota"}
             </DialogTitle>
             <DialogDescription>
               {selected
@@ -646,44 +676,80 @@ export function AdminUsersWorkspace() {
             </Field>
           ) : null}
 
+          {dialog === "search-vendor" ? (
+            <Field label="Candidate search vendor" htmlFor="au-search-vendor">
+              <Select
+                value={searchVendorForm}
+                onValueChange={(value) => {
+                  if (value === "brightdata" || value === "future-jobs") {
+                    setSearchVendorForm(value);
+                  }
+                }}
+              >
+                <SelectTrigger id="au-search-vendor" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="future-jobs">
+                    Future Jobs (default)
+                  </SelectItem>
+                  <SelectItem value="brightdata">Bright Data</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Applies only to candidate search for this email. People Scout,
+                contact reveal, and profile details stay on Future Jobs.
+              </p>
+            </Field>
+          ) : null}
+
           {dialog === "quota" ? (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Searches used" htmlFor="aq-s">
-                <Input
-                  id="aq-s"
-                  value={quotaForm.searches}
-                  onChange={(event) =>
-                    setQuotaForm((previous) => ({
-                      ...previous,
-                      searches: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Reveals used" htmlFor="aq-r">
-                <Input
-                  id="aq-r"
-                  value={quotaForm.reveals}
-                  onChange={(event) =>
-                    setQuotaForm((previous) => ({
-                      ...previous,
-                      reveals: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Outreach used" htmlFor="aq-o">
-                <Input
-                  id="aq-o"
-                  value={quotaForm.outreach}
-                  onChange={(event) =>
-                    setQuotaForm((previous) => ({
-                      ...previous,
-                      outreach: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Searches used" htmlFor="aq-s">
+                  <Input
+                    id="aq-s"
+                    inputMode="numeric"
+                    value={quotaForm.searches}
+                    onChange={(event) =>
+                      setQuotaForm((previous) => ({
+                        ...previous,
+                        searches: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Reveals used" htmlFor="aq-r">
+                  <Input
+                    id="aq-r"
+                    inputMode="numeric"
+                    value={quotaForm.reveals}
+                    onChange={(event) =>
+                      setQuotaForm((previous) => ({
+                        ...previous,
+                        reveals: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Outreach used" htmlFor="aq-o">
+                  <Input
+                    id="aq-o"
+                    inputMode="numeric"
+                    value={quotaForm.outreach}
+                    onChange={(event) =>
+                      setQuotaForm((previous) => ({
+                        ...previous,
+                        outreach: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sets current-period usage to these values and clears reserved
+                holds so remaining credits unlock immediately.
+              </p>
             </div>
           ) : null}
 
@@ -720,32 +786,61 @@ export function AdminUsersWorkspace() {
                     .catch((error) =>
                       setToast(getApiErrorMessage(error, "Unable to assign plan."))
                     );
+                } else if (dialog === "search-vendor") {
+                  void adminApi
+                    .updateUser(selected.id, {
+                      candidateSearchVendor: searchVendorForm,
+                    })
+                    .then(() => {
+                      patchUser(selected.id, {
+                        candidateSearchVendor: searchVendorForm,
+                      });
+                      setToast(
+                        searchVendorForm === "brightdata"
+                          ? "Candidate search switched to Bright Data."
+                          : "Candidate search switched to Future Jobs."
+                      );
+                    })
+                    .catch((error) =>
+                      setToast(
+                        getApiErrorMessage(error, "Unable to update search vendor.")
+                      )
+                    );
                 } else if (dialog === "quota") {
-                  const searchDelta = Number(quotaForm.searches) || 0;
-                  const revealDelta = Number(quotaForm.reveals) || 0;
-                  const outreachDelta = Number(quotaForm.outreach) || 0;
+                  const searchesUsed = Math.max(
+                    0,
+                    Math.floor(Number(quotaForm.searches) || 0)
+                  );
+                  const revealsUsed = Math.max(
+                    0,
+                    Math.floor(Number(quotaForm.reveals) || 0)
+                  );
+                  const outreachUsed = Math.max(
+                    0,
+                    Math.floor(Number(quotaForm.outreach) || 0)
+                  );
                   void Promise.all([
                     adminApi.adjustQuota(selected.id, {
                       metric: "candidate_search",
-                      delta: searchDelta,
+                      used: searchesUsed,
                       reason: "admin adjustment",
                     }),
                     adminApi.adjustQuota(selected.id, {
                       metric: "email_reveal",
-                      delta: revealDelta,
+                      used: revealsUsed,
                       reason: "admin adjustment",
                     }),
                     adminApi.adjustQuota(selected.id, {
                       metric: "email_outreach",
-                      delta: outreachDelta,
+                      used: outreachUsed,
                       reason: "admin adjustment",
                     }),
                   ])
                     .then(() => {
                       patchUser(selected.id, {
-                        searchesUsed: searchDelta,
-                        revealsUsed: revealDelta,
-                        outreachUsed: outreachDelta,
+                        searchesUsed,
+                        revealsUsed,
+                        outreachUsed,
                       });
                       setToast("Quota adjusted.");
                     })

@@ -49,6 +49,7 @@ const CONTACT_STATUS_CLASSES: Record<ContactStatus, string> = {
 export function CandidateTable({
   candidates,
   density,
+  showMatchScore = true,
   selected,
   onToggleSelect,
   onToggleSelectAll,
@@ -62,6 +63,7 @@ export function CandidateTable({
 }: {
   candidates: SessionCandidate[];
   density: "comfortable" | "compact";
+  showMatchScore?: boolean;
   selected: Set<string>;
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
@@ -81,7 +83,8 @@ export function CandidateTable({
     <div className="overflow-x-auto">
       <Table>
         <caption className="sr-only">
-          Search results with match scores, contact status and actions
+          Search results
+          {showMatchScore ? " with match scores," : ""} contact status and actions
         </caption>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -99,7 +102,7 @@ export function CandidateTable({
             <TableHead className={HEAD}>Candidate</TableHead>
             <TableHead className={`${HEAD} text-right`}>Experience</TableHead>
             <TableHead className={HEAD}>Key skills</TableHead>
-            <TableHead className={HEAD}>Match</TableHead>
+            {showMatchScore ? <TableHead className={HEAD}>Match</TableHead> : null}
             <TableHead className={HEAD}>Contact</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
             <TableHead className={`${HEAD} w-16 text-right`}>
@@ -232,12 +235,18 @@ export function CandidateTable({
                     ) : null}
                   </div>
                 </TableCell>
-                <TableCell className={cellPad}>
-                  <MatchScoreCompact
-                    score={candidate.matchScore}
-                    showLabel={density === "comfortable"}
-                  />
-                </TableCell>
+                {showMatchScore ? (
+                  <TableCell className={cellPad}>
+                    {typeof candidate.matchScore === "number" ? (
+                      <MatchScoreCompact
+                        score={candidate.matchScore}
+                        showLabel={density === "comfortable"}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                ) : null}
                 <TableCell className={cellPad}>
                   <ContactReveal
                     candidate={candidate}

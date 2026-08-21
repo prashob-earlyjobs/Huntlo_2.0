@@ -142,6 +142,8 @@ export function toPublicSession(
     errorMessage: session.errorMessage,
     failureReason: session.errorMessage,
     externalSessionId: session.externalSessionId,
+    futureJobsSessionId: session.futureJobsSessionId || session.externalSessionId,
+    searchVendor: session.searchVendor || 'future-jobs',
     startedAt: session.startedAt?.toISOString?.() ?? null,
     completedAt: session.completedAt?.toISOString?.() ?? null,
     lastPolledAt: session.lastPolledAt?.toISOString?.() ?? null,
@@ -766,36 +768,93 @@ export class SourcingService {
   async getProgress(actor: ActorContext, sessionId: string) {
     let session = await loadSessionForOrg(sessionId, actor.organizationId);
 
-    // REST fallback: advance one poll tick while the session is still actively
-    // matching/polling. Once completed, FE reads stored candidates only.
-    if (
-      session.externalSessionId &&
-      (session.status === 'queued' ||
-        session.status === 'running' ||
-        session.status === 'polling' ||
-        session.status === 'creating' ||
-        session.status === 'pending')
-    ) {
-      const { pollSourcingSessionById } = await import('./sourcing.poller.js');
-      try {
-        await pollSourcingSessionById(sessionId);
-      } catch (error) {
-        console.log(
-          `[sourcing-poll] getProgress poll failed session=${sessionId} error=${
-            error instanceof Error ? error.message : String(error)
-          }`
-        );
+    const externalId = session.externalSessionId || session.futureJobsSessionId;
+    const isActive =
+      session.status === 'queued' ||
+      session.status === 'running' ||
+      session.status === 'polling' ||
+      session.status === 'creating' ||
+      session.status === 'pending' ||
+      // Allow reclaim of premature BD fails via pollSourcingSessionById.
+      (session.searchVendor === 'brightdata' &&
+        (session.status === 'failed' ||
+          session.status === 'cancelled' ||
+          (session.status === 'completed' &&
+            (session.totalResults ?? 0) === 0 &&
+            (session.totalDocs ?? 0) === 0)));
+
+    // Primary progress owner is the in-API Bright Data scheduler (or worker).
+    // getProgress only runs a safety tick when the heartbeat looks stale.
+    if (Boolean(externalId) && isActive) {
+      let shouldTick = session.searchVendor !== 'brightdata';
+      if (session.searchVendor === 'brightdata') {
+        try {
+          const {
+            isBrightDataPollHeartbeatStale,
+            isBrightDataPollScheduled,
+            scheduleBrightDataPoll,
+          } = await import('../candidates/search/brightdata-poll-scheduler.js');
+          shouldTick = isBrightDataPollHeartbeatStale(sessionId, session.lastPolledAt);
+          if (!isBrightDataPollScheduled(sessionId)) {
+            scheduleBrightDataPoll(sessionId);
+            shouldTick = true;
+          }
+        } catch {
+          shouldTick = true;
+        }
       }
-      session = await loadSessionForOrg(sessionId, actor.organizationId);
-    } else {
-      console.log(
-        `[sourcing-poll] getProgress skipped FJ poll session=${sessionId} status=${session.status} stored=${session.totalResults ?? session.totalDocs ?? 0}`
-      );
+
+      if (shouldTick) {
+        const { pollSourcingSessionById } = await import('./sourcing.poller.js');
+        try {
+          await pollSourcingSessionById(sessionId);
+        } catch (error) {
+          console.log(
+            `[sourcing-poll] getProgress poll failed session=${sessionId} error=${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
+        session = await loadSessionForOrg(sessionId, actor.organizationId);
+      }
     }
 
     return {
       sessionId: session._id.toHexString(),
-      status: session.status,
+      status: (() => {
+        try {
+          const externalId = session.externalSessionId || session.futureJobsSessionId || '';
+          const isBd =
+            session.searchVendor === 'brightdata' || String(externalId).startsWith('bd_');
+          if (!isBd) return session.status;
+          if (
+            (session.status === 'failed' || session.status === 'cancelled') &&
+            session.errorCode !== 'BRIGHTDATA_UPSTREAM_ERROR' &&
+            session.errorCode !== 'BRIGHTDATA_TIMEOUT'
+          ) {
+            return 'polling';
+          }
+          // Empty "completed" / FJ-noise "partial" while BD is still in flight is not terminal.
+          if (
+            session.status === 'completed' &&
+            (session.totalResults ?? 0) === 0 &&
+            (session.totalDocs ?? 0) === 0
+          ) {
+            return 'polling';
+          }
+          if (
+            session.status === 'partial' &&
+            String(session.errorCode ?? '')
+              .toUpperCase()
+              .startsWith('FUTURE_JOBS_')
+          ) {
+            return 'polling';
+          }
+          return session.status;
+        } catch {
+          return session.status;
+        }
+      })(),
       progress: session.progress ?? 0,
       totalResults: session.totalResults ?? 0,
       estimatedResults: session.estimatedResults ?? 0,

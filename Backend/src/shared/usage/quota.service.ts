@@ -21,19 +21,16 @@ import { UsageLedgerModel } from './usage-ledger.model.js';
 import { UsageReservationModel } from './usage-reservation.model.js';
 import { emitUsageUpdated } from '../../realtime/events.js';
 import { notificationsService } from '../../modules/notifications/notifications.service.js';
+import {
+  featureLabel,
+  isFeatureEnabled,
+  type FeatureKey,
+  type FeatureOverride,
+} from './features.js';
 
 const RESERVATION_TTL_MS = 30 * 60 * 1000;
 
-export type FeatureKey =
-  | 'sourcing'
-  | 'peopleScout'
-  | 'outreach'
-  | 'screening'
-  | 'assessments'
-  | 'huntlo360'
-  | 'analytics'
-  | 'integrations'
-  | 'team';
+export type { FeatureKey } from './features.js';
 
 export type QuotaUsageView = {
   metric: UsageMetric;
@@ -111,8 +108,11 @@ async function resolvePlanLimits(
   allowOverage: boolean;
   featureAccess: Record<string, boolean>;
   planCode: string;
+  overrides: Record<string, FeatureOverride>;
 }> {
-  const org = await OrganizationModel.findById(organizationId).select('plan');
+  const org = await OrganizationModel.findById(organizationId).select(
+    'plan featureAccessOverrides'
+  );
   const planCode = (org?.plan ?? 'Starter').toLowerCase();
 
   const subscription = await WorkspaceSubscriptionModel.findOne({
@@ -120,15 +120,12 @@ async function resolvePlanLimits(
     status: { $in: ['active', 'trialing', 'past_due'] },
   }).sort({ createdAt: -1 });
 
-  let plan: PricingPlanDocument | null = null;
-  if (subscription?.planId) {
+  let plan: PricingPlanDocument | null = await PricingPlanModel.findOne({
+    $or: [{ code: planCode }, { name: org?.plan }],
+    active: true,
+  });
+  if (!plan && subscription?.planId) {
     plan = await PricingPlanModel.findById(subscription.planId);
-  }
-  if (!plan) {
-    plan = await PricingPlanModel.findOne({
-      code: planCode,
-      active: true,
-    });
   }
   if (!plan) {
     plan = await PricingPlanModel.findOne({ code: 'starter', active: true });
@@ -150,6 +147,8 @@ async function resolvePlanLimits(
     allowOverage: Boolean(plan?.limits?.allowOverage),
     featureAccess: (plan?.featureAccess as Record<string, boolean>) ?? {},
     planCode: plan?.code ?? planCode,
+    overrides: ((org as { featureAccessOverrides?: Record<string, FeatureOverride> } | null)
+      ?.featureAccessOverrides ?? {}) as Record<string, FeatureOverride>,
   };
 }
 
@@ -311,20 +310,29 @@ export class QuotaService {
     organizationId: string,
     feature: FeatureKey | string
   ): Promise<boolean> {
-    const { featureAccess, planCode } = await resolvePlanLimits(organizationId);
-    if (Object.keys(featureAccess).length === 0) {
-      // Default plans: all core features enabled except enterprise-only.
-      return feature !== 'huntlo360' || planCode === 'scale' || planCode === 'enterprise';
-    }
-    if (featureAccess[feature] === false) return false;
-    return featureAccess[feature] !== undefined ? Boolean(featureAccess[feature]) : true;
+    const { featureAccess, planCode, overrides } = await resolvePlanLimits(organizationId);
+    return isFeatureEnabled(feature, featureAccess, planCode, overrides);
   }
 
   async assertFeatureAccess(organizationId: string, feature: FeatureKey | string) {
     const allowed = await this.checkFeatureAccess(organizationId, feature);
     if (!allowed) {
-      throw AppError.forbidden(`Feature "${feature}" is not available on the current plan`);
+      throw new AppError(
+        403,
+        'FEATURE_DISABLED',
+        `${featureLabel(feature)} is not enabled on this plan.`,
+        { meta: { feature } }
+      );
     }
+  }
+
+  async getFeatureAccessState(organizationId: string) {
+    const { featureAccess, planCode, overrides } = await resolvePlanLimits(organizationId);
+    return {
+      planAccess: featureAccess,
+      planCode,
+      overrides,
+    };
   }
 
   async getUsage(
@@ -838,6 +846,65 @@ export class QuotaService {
         limit: usage.reduce((sum, item) => sum + item.limit, 0),
       },
     };
+  }
+
+  /**
+   * Admin absolute override for current-period used count.
+   * Clears reserved holds so leftover reservations cannot keep remaining at 0.
+   */
+  async adminSetUsed(input: {
+    organizationId: string;
+    userId?: string | null;
+    metric: UsageMetric;
+    used: number;
+    reason?: string | null;
+  }): Promise<QuotaUsageView> {
+    if (!isValidObjectId(input.organizationId)) {
+      throw AppError.badRequest('Invalid organizationId');
+    }
+    const used = Math.max(0, Math.floor(Number(input.used) || 0));
+    const periodKey = currentPeriodKey();
+    const organizationId = input.organizationId;
+
+    await UsageReservationModel.updateMany(
+      {
+        organizationId,
+        metric: input.metric,
+        periodKey,
+        status: 'reserved',
+      },
+      { $set: { status: 'released' } }
+    );
+
+    const counter = await ensureCounter(organizationId, input.metric);
+    counter.used = used;
+    counter.reserved = 0;
+    await counter.save();
+
+    await writeLedger({
+      organizationId,
+      userId: input.userId,
+      metric: input.metric,
+      quantity: used,
+      action: 'increment',
+      status: 'committed',
+      periodKey,
+      metadata: {
+        adminSetUsed: true,
+        reason: input.reason ?? null,
+      },
+    });
+
+    const view = toUsageView(counter);
+    emitUsageUpdated({
+      organizationId,
+      metric: input.metric,
+      used: view.used,
+      limit: view.limit,
+      remaining: Number.isFinite(view.remaining) ? view.remaining : view.limit,
+      userId: input.userId ?? undefined,
+    });
+    return view;
   }
 }
 

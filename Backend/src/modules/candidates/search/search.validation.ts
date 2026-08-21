@@ -32,6 +32,7 @@ export const annotateSearchSchema = z
 export const applySearchSchema = z.object({
   prompt: z.string().trim().min(1, 'Prompt is required').max(MAX_PROMPT_LENGTH),
   filterForm: z.record(z.string(), z.unknown()).default({}),
+  datasetFilters: z.record(z.string(), z.unknown()).optional(),
   sessionId: z.string().trim().optional().default(''),
   page: z.coerce.number().int().min(1).max(100).default(1),
   limit: z.coerce.number().int().min(1).max(300).default(20),
@@ -42,6 +43,7 @@ export const applySearchSchema = z.object({
 export const previewSearchSchema = z.object({
   prompt: z.string().trim().max(MAX_PROMPT_LENGTH).optional().default(''),
   filterForm: z.record(z.string(), z.unknown()).default({}),
+  datasetFilters: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const createSearchSchema = z.object({

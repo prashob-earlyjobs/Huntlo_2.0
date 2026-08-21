@@ -64,6 +64,11 @@ const organizationSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    /**
+     * Per-workspace feature grants/revokes. Missing key = inherit from plan.
+     * Shape: { [featureKey]: { enabled, note?, expiresAt? } }
+     */
+    featureAccessOverrides: { type: mongoose.Schema.Types.Mixed, default: {} },
     initials: { type: String, required: true, trim: true },
     /** @deprecated Prefer `timezone` — kept for auth/onboarding compatibility */
     defaultTimezone: { type: String, default: 'Asia/Kolkata' },

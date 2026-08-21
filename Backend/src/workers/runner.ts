@@ -123,7 +123,7 @@ export function createWorkerRunner(
           idempotencyKey: isSweep
             ? job.idempotencyKey
             : job.idempotencyKey
-              ? `${job.idempotencyKey}:next`
+              ? `${job.idempotencyKey.split(':next')[0]}:next:${Date.now()}`
               : null,
         });
       }
@@ -159,6 +159,11 @@ export function createWorkerRunner(
 
       metrics.jobsLeased += 1;
       const jobId = leased._id.toHexString();
+      if (leased.type === 'sourcing.poll') {
+        console.log(
+          `[worker] leased sourcing.poll job=${jobId} entity=${leased.entityId ?? 'sweep'} status=${leased.status} attempts=${leased.attempts}`
+        );
+      }
       void executeJob(jobId);
       // Yield so concurrent leases can proceed without waiting for completion.
       await Promise.resolve();

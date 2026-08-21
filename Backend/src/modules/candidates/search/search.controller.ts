@@ -31,6 +31,11 @@ function actorFrom(req: Request) {
   };
 }
 
+export const getSearchCatalog = asyncHandler(async (req: Request, res: Response) => {
+  const result = await candidateSearchService.getCatalog(actorFrom(req));
+  res.status(200).json({ success: true, ...result });
+});
+
 export const annotateSearch = asyncHandler(async (req: Request, res: Response) => {
   const input = annotateSearchSchema.parse(req.body);
   const result = await candidateSearchService.annotate(actorFrom(req), input);

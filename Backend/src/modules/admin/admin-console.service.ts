@@ -16,7 +16,6 @@ import { normalizeEmail } from '../../shared/validation/email.js';
 import {
   currentPeriodKey,
   isUsageMetric,
-  periodResetAt,
   quotaService,
   QuotaCounterModel,
   type UsageMetric,
@@ -336,6 +335,8 @@ export const adminConsoleService = {
                 ? 'Invited'
                 : 'Deleted',
         platformAdmin: Boolean(user.platformAdmin),
+        candidateSearchVendor:
+          user.candidateSearchVendor === 'brightdata' ? 'brightdata' : 'future-jobs',
         searchesUsed: usage.searchesUsed,
         revealsUsed: usage.revealsUsed,
         outreachUsed: usage.outreachUsed,
@@ -464,6 +465,10 @@ export const adminConsoleService = {
     if (input.adminPermissions !== undefined) {
       user.adminPermissions = input.adminPermissions as string[];
     }
+    if (input.candidateSearchVendor !== undefined) {
+      user.candidateSearchVendor =
+        input.candidateSearchVendor === 'brightdata' ? 'brightdata' : 'future-jobs';
+    }
     await user.save();
     return this.getUser(id);
   },
@@ -545,7 +550,7 @@ export const adminConsoleService = {
 
   async adjustQuota(
     id: string,
-    input: { metric: string; delta: number; reason?: string }
+    input: { metric: string; used: number; reason?: string }
   ) {
     const user = await UserModel.findById(id);
     if (!user || user.deletedAt) throw AppError.notFound('User not found');
@@ -554,25 +559,13 @@ export const adminConsoleService = {
     }
     const metric = input.metric as UsageMetric;
     const orgId = user.organizationId.toHexString();
-    const periodKey = currentPeriodKey();
-    const counter = await QuotaCounterModel.findOneAndUpdate(
-      { organizationId: user.organizationId, periodKey, metric },
-      {
-        $inc: { limit: input.delta },
-        $setOnInsert: {
-          used: 0,
-          reserved: 0,
-          resetAt: periodResetAt(periodKey),
-          allowOverage: false,
-        },
-      },
-      { upsert: true, new: true }
-    );
-    if (counter && counter.limit < 0) {
-      counter.limit = 0;
-      await counter.save();
-    }
-    const usage = await quotaService.getUsage(orgId, metric);
+    const usage = await quotaService.adminSetUsed({
+      organizationId: orgId,
+      userId: user._id.toHexString(),
+      metric,
+      used: input.used,
+      reason: input.reason,
+    });
     return { usage, reason: input.reason || null };
   },
 

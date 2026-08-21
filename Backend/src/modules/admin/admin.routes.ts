@@ -18,8 +18,12 @@ import {
   createBlogSchema,
   createWhatsAppTemplateSchema,
   listEmailTemplatesQuerySchema,
+  patchPlanFeatureAccessSchema,
+  patchSearchVendorSchema,
   patchPlatformSettingsSchema,
   resetPasswordSchema,
+  featureAccessWorkspaceQuerySchema,
+  upsertWorkspaceFeatureAccessSchema,
   sendEmailTemplateTestSchema,
   sendWhatsAppTemplateTestSchema,
   updateAdminUserSchema,
@@ -30,6 +34,7 @@ import {
 import { emailTemplatesService } from './email-templates.service.js';
 import { whatsappTemplatesService } from './whatsapp-templates.service.js';
 import { requireAdmin, requireAdminPermission } from './require-admin.js';
+import { featureAccessService } from './feature-access.service.js';
 import { utmService } from '../utm/utm.service.js';
 import {
   attributedVisitsQuerySchema,
@@ -198,7 +203,7 @@ adminConsoleRouter.post(
       action: 'admin.user.quota_adjusted',
       relatedEntityType: 'user',
       relatedEntityId: String(req.params.id),
-      metadata: { metric: body.metric, delta: body.delta },
+      metadata: { metric: body.metric, used: body.used },
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
@@ -221,6 +226,120 @@ adminConsoleRouter.get(
   requireAdminPermission('admin:organizations:read'),
   asyncHandler(async (req, res) => {
     const data = await adminConsoleService.getOrganization(String(req.params.id));
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/** Feature access — plan defaults and workspace exceptions */
+adminConsoleRouter.get(
+  '/feature-access',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:read'),
+  asyncHandler(async (req, res) => {
+    const data = await featureAccessService.getOverview();
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/feature-access/workspaces',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:read'),
+  asyncHandler(async (req, res) => {
+    const query = featureAccessWorkspaceQuerySchema.parse(req.query);
+    const data = await featureAccessService.searchWorkspaces(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/feature-access/workspaces/:organizationId',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:read'),
+  asyncHandler(async (req, res) => {
+    const data = await featureAccessService.getWorkspace(String(req.params.organizationId));
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.patch(
+  '/feature-access/plans/:planId',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:write'),
+  asyncHandler(async (req, res) => {
+    const body = patchPlanFeatureAccessSchema.parse(req.body ?? {});
+    const data = await featureAccessService.setPlanFeature(
+      String(req.params.planId),
+      body.feature,
+      body.enabled
+    );
+    await recordAdminMutation(req, {
+      action: 'admin.feature_access.plan_updated',
+      relatedEntityType: 'pricing_plan',
+      relatedEntityId: data.id,
+      metadata: { feature: body.feature, enabled: body.enabled },
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.put(
+  '/feature-access/workspaces/:organizationId',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:write'),
+  asyncHandler(async (req, res) => {
+    const body = upsertWorkspaceFeatureAccessSchema.parse(req.body ?? {});
+    const data = await featureAccessService.upsertWorkspaceOverrides(
+      String(req.params.organizationId),
+      body
+    );
+    await recordAdminMutation(req, {
+      action: 'admin.feature_access.exception_updated',
+      relatedEntityType: 'organization',
+      relatedEntityId: data.organizationId,
+      metadata: { features: Object.keys(body.overrides) },
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.delete(
+  '/feature-access/workspaces/:organizationId',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:write'),
+  asyncHandler(async (req, res) => {
+    const data = await featureAccessService.clearWorkspaceOverrides(
+      String(req.params.organizationId)
+    );
+    await recordAdminMutation(req, {
+      action: 'admin.feature_access.exception_cleared',
+      relatedEntityType: 'organization',
+      relatedEntityId: data.organizationId,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.get(
+  '/feature-access/users',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:read'),
+  asyncHandler(async (req, res) => {
+    const query = featureAccessWorkspaceQuerySchema.parse(req.query);
+    const data = await featureAccessService.searchUsers(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.patch(
+  '/feature-access/users/:userId/search-vendor',
+  ...adminAuth,
+  requireAdminPermission('admin:plans:write'),
+  asyncHandler(async (req, res) => {
+    const body = patchSearchVendorSchema.parse(req.body ?? {});
+    const data = await featureAccessService.setUserSearchVendor(
+      String(req.params.userId),
+      body.vendor
+    );
+    await recordAdminMutation(req, {
+      action: 'admin.feature_access.search_vendor_updated',
+      relatedEntityType: 'user',
+      relatedEntityId: data.id,
+      metadata: { vendor: body.vendor, email: data.email },
+    });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );

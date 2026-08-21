@@ -33,7 +33,6 @@ const mockMode: MockModeState = {
 const sessionPollCounts = new Map<string, number>();
 
 let sessionSeq = 0;
-let candidateSeq = 0;
 
 function nextSessionId(): string {
   sessionSeq += 1;
@@ -41,8 +40,8 @@ function nextSessionId(): string {
 }
 
 function nextCandidateId(sessionId: string, index: number): string {
-  candidateSeq += 1;
-  return `mock-fj-cand-${sessionId}-${index}-${candidateSeq}`;
+  // Stable per session+index so re-polls upsert instead of duplicating rows.
+  return `mock-fj-cand-${sessionId}-${index}`;
 }
 
 /**

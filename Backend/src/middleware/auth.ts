@@ -16,6 +16,7 @@ import {
   type OrganizationRole,
 } from '../modules/organizations/permissions.js';
 import { assertTrialNotExpired } from '../modules/plans/trial-access.js';
+import { assertRequestFeatureAccess } from './feature-access.js';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -183,6 +184,7 @@ export const requireOrganization = asyncHandler(
       await assertTrialNotExpired(organization._id.toHexString());
     }
 
+    await assertRequestFeatureAccess(req);
     next();
   }
 );

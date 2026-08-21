@@ -12,6 +12,7 @@ import { OrganizationMemberModel } from '../src/modules/organizations/member.mod
 import { OrganizationModel } from '../src/modules/organizations/organization.model.js';
 import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate.model.js';
 import { SourcingSessionModel } from '../src/modules/sourcing/sourcing-session.model.js';
+import { BrightDataSearchSessionModel } from '../src/providers/brightdata/brightdata-session.model.js';
 import { QuotaCounterModel } from '../src/shared/usage/index.js';
 import {
   nextGeoExpandStep,
@@ -64,6 +65,7 @@ describe('Candidate search workflow', () => {
       QuotaCounterModel.deleteMany({}),
       SourcingSessionModel.deleteMany({}),
       SourcedCandidateModel.deleteMany({}),
+      BrightDataSearchSessionModel.deleteMany({}),
     ]);
   });
 
@@ -438,5 +440,97 @@ describe('Candidate search workflow', () => {
     const skillCore = res.body.sessionPayload?.queries?.skills?.value?.core ?? [];
     expect(skillCore).not.toContain('am');
     expect(skillCore).not.toContain('yr');
+  });
+
+  it('uses Bright Data for candidate search when that vendor is set on the user', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    await UserModel.updateOne(
+      { _id: auth.userId },
+      { $set: { candidateSearchVendor: 'brightdata' } }
+    );
+
+    const res = await agent
+      .post('/api/v1/candidates/search/apply')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        prompt: 'Staff software engineers in Bengaluru',
+        filterForm: {
+          currentTitle: 'Staff Software Engineer',
+          location: ['Bengaluru'],
+        },
+        page: 1,
+        limit: 20,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(String(res.body.sessionId)).toMatch(/^bd_/);
+
+    const session = await SourcingSessionModel.findById(res.body.savedSessionId);
+    expect(session?.searchVendor).toBe('brightdata');
+    expect(Array.isArray(res.body.candidates)).toBe(true);
+    expect(res.body.candidates.length).toBeGreaterThan(0);
+  });
+
+  it('loads Bright Data metadata fields as the search catalog for opted-in users', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    const defaultCatalog = await agent
+      .get('/api/v1/candidates/search/catalog')
+      .set('Authorization', `Bearer ${auth.token}`);
+    expect(defaultCatalog.status).toBe(200);
+    expect(defaultCatalog.body.vendor).toBe('future-jobs');
+    expect(defaultCatalog.body.fields).toEqual([]);
+
+    await UserModel.updateOne(
+      { _id: auth.userId },
+      { $set: { candidateSearchVendor: 'brightdata' } }
+    );
+
+    const catalog = await agent
+      .get('/api/v1/candidates/search/catalog')
+      .set('Authorization', `Bearer ${auth.token}`);
+    expect(catalog.status).toBe(200);
+    expect(catalog.body.vendor).toBe('brightdata');
+    expect(catalog.body.datasetId).toBe('gd_l1viktl72bvl7bjuj0');
+    expect(catalog.body.fields.some((field: { name: string }) => field.name === 'position')).toBe(
+      true
+    );
+    expect(
+      catalog.body.fields.some((field: { name: string }) => field.name === 'current_company.name')
+    ).toBe(true);
+  });
+
+  it('annotates Bright Data prompts into datasetFilters without changing Future Jobs annotate', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    const fj = await agent
+      .post('/api/v1/candidates/search/annotate')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({ prompt: 'node js developer from bangalore having 2 yrs of exp' });
+    expect(fj.status).toBe(200);
+    expect(fj.body.filterForm).toHaveProperty('currentTitle');
+    expect(fj.body.datasetFilters).toBeUndefined();
+
+    await UserModel.updateOne(
+      { _id: auth.userId },
+      { $set: { candidateSearchVendor: 'brightdata' } }
+    );
+
+    const bd = await agent
+      .post('/api/v1/candidates/search/annotate')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({ prompt: 'node js developer from bangalore having 2 yrs of exp' });
+    expect(bd.status).toBe(200);
+    expect(bd.body.datasetFilters.city).toEqual(['Bangalore', 'Hosur', 'Mysore']);
+    expect(bd.body.datasetFilters.country_code).toEqual(['IN']);
+    expect(String(bd.body.datasetFilters.position?.[0] ?? '')).toMatch(/node\.js/i);
   });
 });

@@ -64,9 +64,12 @@ export function NotificationPanel() {
     void refresh();
   }, [refresh]);
 
-  useRealtimeRefresh("notification.created", () => {
-    void refresh();
-  });
+  useRealtimeRefresh(
+    ["notification.created", "candidates.search.completed"],
+    () => {
+      void refresh();
+    }
+  );
 
   async function markAllRead() {
     try {

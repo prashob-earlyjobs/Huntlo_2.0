@@ -210,6 +210,7 @@ export interface AdminUser {
   searchesUsed: number;
   revealsUsed: number;
   outreachUsed: number;
+  candidateSearchVendor?: "future-jobs" | "brightdata";
   status: AdminAccountStatus;
   createdAt: string;
   lastActive: string;

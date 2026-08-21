@@ -16,6 +16,7 @@ import {
   getAllSourcedCandidates,
   getCandidateSearchDetails,
   getRecentSearches,
+  getSearchCatalog,
   getSessionProfiles,
   getStoredCandidates,
   legacySearch,
@@ -32,6 +33,13 @@ const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware
  * Static paths must be registered before `/:candidateId` reveal routes.
  */
 export const candidateSearchRouter = Router();
+
+candidateSearchRouter.get(
+  '/search/catalog',
+  ...orgAuth,
+  requirePermission('sourcing:view', 'sourcing:create'),
+  getSearchCatalog
+);
 
 candidateSearchRouter.post(
   '/search/annotate',

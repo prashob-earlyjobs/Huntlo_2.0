@@ -6,6 +6,7 @@ import {
   Check,
   Coins,
   Eraser,
+  History,
   LoaderCircle,
   PenLine,
   Search,
@@ -14,9 +15,10 @@ import {
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FilterPanel } from "@/components/search/filter-panel";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,12 +49,26 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
+import { sourcingApi } from "@/lib/api/sourcing";
 import {
   annotateCandidateSearch,
   applyCandidateSearch,
+  getCandidateSearchCatalog,
+  getSourcingSessions,
   previewCandidateSearch,
 } from "@/lib/api/candidate-search";
+import type { CandidateSearchCatalog } from "@/lib/api/candidate-search";
+import {
+  datasetFiltersFromState,
+  searchStateFromDatasetFilters,
+  sectionsFromBrightDataCatalog,
+  COMPANY_SCOPE_FIELD_ID,
+  EMPLOYERS_FIELD_ID,
+  YEARS_OF_EXPERIENCE_FIELD_ID,
+} from "@/lib/brightdata-filter-sections";
+import { mapSessionState } from "@/lib/api/sourcing";
 import type { JobListItem } from "@/lib/api/contracts";
 import {
   clearEditSearchDraft,
@@ -67,16 +83,61 @@ import {
   isFieldActive,
   type FilterValue,
   type InterpretedCriterion,
-  type SavedSearch,
   type SearchFilterState,
 } from "@/lib/mock-search";
+import type { Status } from "@/lib/types";
 import {
   filtersToProviderPayload,
   providerPayloadToFilters,
 } from "@/lib/search-filter-adapters";
 import { ROUTES, sessionDetailPath } from "@/lib/routes";
+import { cn } from "@/lib/utils";
+import { useRealtime } from "@/providers/realtime-provider";
+import {
+  clearPendingSearch,
+  EXPLORE_WHILE_SEARCHING,
+  requestSearchNotificationPermission,
+  setSearchWorkspaceActive,
+  writePendingSearch,
+} from "@/lib/pending-search";
 
 const NUMBER_FORMAT = new Intl.NumberFormat("en-IN");
+
+const RECENT_SEARCH_STATUS: Record<
+  ReturnType<typeof mapSessionState>,
+  Status
+> = {
+  completed: "Completed",
+  running: "Running",
+  // Backend `partial` = finished with some results; we have no pause action.
+  partial: "Completed",
+  failed: "Failed",
+  empty: "Draft",
+};
+
+type RecentSearchItem = {
+  id: string;
+  title: string;
+  prompt: string;
+  resultCount: number;
+  status: ReturnType<typeof mapSessionState>;
+  createdAt: string | null;
+};
+
+function formatRecentSearchWhen(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
 
 /** UI-only: cap live estimate display at 300+. */
 function formatPreviewReachCount(count: number): string {
@@ -250,13 +311,9 @@ function InterpretationPanel({
 
 function GettingStarted({
   onUseExample,
-  onUseSaved,
-  recentSearches,
   loading = false,
 }: {
   onUseExample: () => void;
-  onUseSaved: (search: SavedSearch) => void;
-  recentSearches: SavedSearch[];
   loading?: boolean;
 }) {
   return (
@@ -265,76 +322,97 @@ function GettingStarted({
       aria-busy={loading || undefined}
       className="rounded-lg border border-border bg-card p-4"
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Try an example
-          </h3>
-          {loading ? (
-            <Skeleton className="mt-2 h-[4.25rem] w-full rounded-md" />
-          ) : (
-            <button
-              type="button"
-              onClick={onUseExample}
-              className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              {EXAMPLE_QUERY}
-            </button>
-          )}
+      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Try an example
+      </h3>
+      {loading ? (
+        <Skeleton className="mt-2 h-[4.25rem] w-full rounded-md" />
+      ) : (
+        <button
+          type="button"
+          onClick={onUseExample}
+          className="mt-2 block w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          {EXAMPLE_QUERY}
+        </button>
+      )}
+    </section>
+  );
+}
+
+function RecentSearchesSection({
+  items,
+  loading = false,
+}: {
+  items: RecentSearchItem[];
+  loading?: boolean;
+}) {
+  return (
+    <section
+      aria-label="Recent searches"
+      aria-busy={loading || undefined}
+      className="rounded-lg border border-border bg-card p-4"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-2">
+          <History aria-hidden className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Recent searches</h2>
         </div>
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Saved searches
-            </h3>
-            {loading ? (
-              <Skeleton className="h-6 w-36 rounded-md" />
-            ) : (
-              <Button
-                size="xs"
-                variant="ghost"
-                nativeButton={false}
-                render={<Link href={ROUTES.searchHistory} />}
-              >
-                Browse search history
-              </Button>
-            )}
-          </div>
-          {loading ? (
-            <ul className="mt-2 space-y-2" aria-hidden>
-              {Array.from({ length: 3 }).map((_, index) => (
-                <li key={index} className="flex items-center justify-between gap-2 px-2">
-                  <Skeleton className="h-4 w-[70%] max-w-56" />
-                  <Skeleton className="h-3 w-14 shrink-0" />
-                </li>
-              ))}
-            </ul>
-          ) : recentSearches.length === 0 ? (
-            <p className="mt-2 px-2 text-sm text-muted-foreground">
-              No saved searches yet. Use Save Search on a results page.
-            </p>
-          ) : (
-            <ul className="mt-1 space-y-0.5">
-              {recentSearches.slice(0, 3).map((saved) => (
-                <li key={saved.id}>
-                  <button
-                    type="button"
-                    onClick={() => onUseSaved(saved)}
-                    className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                      {saved.name}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {saved.lastRun}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <Button
+          size="xs"
+          variant="ghost"
+          nativeButton={false}
+          render={<Link href={ROUTES.searchHistory} />}
+        >
+          View all
+        </Button>
       </div>
+
+      {loading ? (
+        <ul className="mt-3 space-y-2" aria-hidden>
+          {Array.from({ length: 5 }).map((_, index) => (
+            <li
+              key={index}
+              className="flex items-center justify-between gap-3 rounded-md border border-transparent px-2 py-2"
+            >
+              <Skeleton className="h-4 w-[55%] max-w-md" />
+              <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
+            </li>
+          ))}
+        </ul>
+      ) : items.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          No searches yet. Run your first search above.
+        </p>
+      ) : (
+        <ul className="mt-2 divide-y divide-border">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link
+                href={sessionDetailPath(item.id)}
+                className="flex items-center gap-3 rounded-md px-2 py-2.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {item.title}
+                  </p>
+                  {item.prompt && item.prompt !== item.title ? (
+                    <p className="truncate text-xs text-muted-foreground">{item.prompt}</p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                  <StatusBadge status={RECENT_SEARCH_STATUS[item.status]} />
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {item.resultCount > 0
+                      ? `${NUMBER_FORMAT.format(item.resultCount)} found · ${formatRecentSearchWhen(item.createdAt)}`
+                      : formatRecentSearchWhen(item.createdAt)}
+                  </span>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -367,17 +445,237 @@ export function SearchWorkspace() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchRemaining, setSearchRemaining] = useState<number | null>(null);
-  const [recentSearches, setRecentSearches] = useState<SavedSearch[]>([]);
+  const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>([]);
   const [recentSearchesLoading, setRecentSearchesLoading] = useState(true);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [completionSnackbar, setCompletionSnackbar] = useState<{
+    savedSessionId: string;
+    count: number;
+  } | null>(null);
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewStatus, setPreviewStatus] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewRequestId = useRef(0);
+  const [searchCatalog, setSearchCatalog] =
+    useState<CandidateSearchCatalog | null>(null);
+  const { subscribe } = useRealtime();
+  const pendingSessionRef = useRef<{
+    savedSessionId: string;
+    sessionId: string;
+  } | null>(null);
+
+  const loadRecentSearches = useCallback(async () => {
+    setRecentSearchesLoading(true);
+    try {
+      const result = await getSourcingSessions({ page: 1, limit: 5 });
+      setRecentSearches(
+        result.sessions.map((session) => ({
+          id: session.savedSessionId,
+          title: session.title || session.prompt || "Untitled search",
+          prompt: session.prompt || "",
+          resultCount: session.resultCount ?? 0,
+          status: mapSessionState(session.status),
+          createdAt: session.createdAt,
+        }))
+      );
+    } catch {
+      setRecentSearches([]);
+    } finally {
+      setRecentSearchesLoading(false);
+    }
+  }, []);
+
+  const refreshSearchRemaining = useCallback(async () => {
+    try {
+      const summary = await plansApi.getUsageSummary();
+      const search = summary.metrics.find(
+        (row) => row.metric === "candidate_search"
+      );
+      if (search) {
+        // Use API remaining (accounts for reserved holds), not limit-used.
+        setSearchRemaining(Math.max(0, Number(search.remaining) || 0));
+      }
+    } catch {
+      // Leave quota as-is when usage is unavailable.
+    }
+  }, []);
+
+  useRealtimeRefresh("usage.updated", () => {
+    void refreshSearchRemaining();
+  });
+
+  const completeBrightDataSearch = useCallback(
+    (
+      pending: { savedSessionId: string; sessionId: string },
+      status: string,
+      options?: { error?: string | null; totalDocs?: number }
+    ) => {
+      const normalized = (status ?? "").toLowerCase();
+
+      // Bright Data snapshots take minutes. Ignore false "failed" races from
+      // Future Jobs / transient provider noise — keep the explore banner and wait.
+      if (normalized === "failed" || normalized === "cancelled") {
+        const msg = options?.error || "";
+        const hardFail =
+          /snapshot failed|Bright Data filter snapshot failed|timed out before profiles|BRIGHTDATA/i.test(
+            msg
+          ) && !/couldn't complete the search right now/i.test(msg);
+        if (!hardFail) {
+          setError(null);
+          return false;
+        }
+        pendingSessionRef.current = null;
+        clearPendingSearch();
+        setSearching(false);
+        setPendingMessage(null);
+        setError(msg || "Search failed before profiles were ready.");
+        return true;
+      }
+
+      if (normalized !== "completed" && normalized !== "partial") {
+        return false;
+      }
+
+      pendingSessionRef.current = null;
+      clearPendingSearch();
+      setSearching(false);
+      setPendingMessage(null);
+      setError(null);
+      setSearched(true);
+      setCompletionSnackbar({
+        savedSessionId: pending.savedSessionId,
+        count: Math.max(0, options?.totalDocs ?? 0),
+      });
+      void loadRecentSearches();
+      return true;
+    },
+    [loadRecentSearches]
+  );
+
+  useEffect(() => {
+    if (!completionSnackbar) return;
+    const id = window.setTimeout(() => setCompletionSnackbar(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [completionSnackbar]);
+
+  useEffect(() => {
+    setSearchWorkspaceActive(true);
+    return () => {
+      setSearchWorkspaceActive(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    const patchRecent = (event: { data?: unknown } | Record<string, unknown>) => {
+      const data = ((event as { data?: unknown }).data ?? event) as {
+        savedSessionId?: string;
+        sessionId?: string;
+        status?: string;
+        totalDocs?: number;
+      };
+      const targetId = data.savedSessionId;
+      if (!targetId || !data.status) return;
+      setRecentSearches((previous) =>
+        previous.map((item) => {
+          if (item.id !== targetId) return item;
+          return {
+            ...item,
+            status: mapSessionState(data.status),
+            resultCount:
+              typeof data.totalDocs === "number" ? data.totalDocs : item.resultCount,
+          };
+        })
+      );
+    };
+
+    const unsub = subscribe("candidates.search.poll", (event) => {
+      patchRecent(event);
+      const pending = pendingSessionRef.current;
+      if (!pending) return;
+      const data = (event.data ?? event) as {
+        savedSessionId?: string;
+        sessionId?: string;
+        status?: string;
+        totalDocs?: number;
+        error?: string | null;
+      };
+      const matches =
+        data.savedSessionId === pending.savedSessionId ||
+        data.sessionId === pending.sessionId;
+      if (!matches) return;
+      completeBrightDataSearch(pending, data.status ?? "", {
+        error: data.error,
+        totalDocs: data.totalDocs,
+      });
+    });
+
+    const unsubDone = subscribe("candidates.search.completed", (event) => {
+      patchRecent(event);
+      const pending = pendingSessionRef.current;
+      if (!pending) return;
+      const data = (event.data ?? event) as {
+        savedSessionId?: string;
+        sessionId?: string;
+        status?: string;
+        totalDocs?: number;
+        error?: string | null;
+      };
+      const matches =
+        data.savedSessionId === pending.savedSessionId ||
+        data.sessionId === pending.sessionId;
+      if (!matches) return;
+      completeBrightDataSearch(pending, data.status ?? "completed", {
+        error: data.error,
+        totalDocs: data.totalDocs,
+      });
+    });
+
+    return () => {
+      unsub();
+      unsubDone();
+    };
+  }, [subscribe, completeBrightDataSearch]);
+
+  useEffect(() => {
+    if (!pendingMessage || !pendingSessionRef.current) return;
+    const pending = pendingSessionRef.current;
+    let cancelled = false;
+
+    const poll = async () => {
+      if (cancelled || !pendingSessionRef.current) return;
+      try {
+        const progress = await sourcingApi.getProgress(pending.savedSessionId);
+        completeBrightDataSearch(pending, progress.status, {
+          error: progress.errorMessage,
+          totalDocs: progress.totalResults,
+        });
+      } catch {
+        // Ignore transient REST errors — websocket may still deliver the terminal event.
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [pendingMessage, completeBrightDataSearch]);
 
   useEffect(() => {
     let cancelled = false;
+    void (async () => {
+      try {
+        const catalog = await getCandidateSearchCatalog();
+        if (!cancelled) setSearchCatalog(catalog);
+      } catch {
+        if (!cancelled) setSearchCatalog(null);
+      }
+    })();
     void (async () => {
       try {
         const items = await jobsApi.list({ limit: 50, status: "active" });
@@ -387,42 +685,15 @@ export function SearchWorkspace() {
       }
     })();
     void (async () => {
-      try {
-        const usage = await plansApi.getUsage();
-        const searchRow = usage.find((row) => row.id === "searches");
-        if (!cancelled && searchRow && searchRow.limit != null) {
-          setSearchRemaining(Math.max(0, searchRow.limit - searchRow.used));
-        }
-      } catch {
-        // Leave quota hidden when usage is unavailable.
-      }
+      if (!cancelled) await refreshSearchRemaining();
     })();
     void (async () => {
-      setRecentSearchesLoading(true);
-      try {
-        const { getRecentSearches } = await import("@/lib/api/candidate-search");
-        const result = await getRecentSearches({ limit: 5 });
-        if (cancelled) return;
-        setRecentSearches(
-          result.recentSearches.map((entry) => ({
-            id: entry.savedSessionId,
-            name: entry.title || entry.prompt || "Search",
-            query: entry.prompt || "",
-            filters: 0,
-            lastRun: entry.createdAt || "",
-            results: entry.resultCount ?? 0,
-          }))
-        );
-      } catch {
-        if (!cancelled) setRecentSearches([]);
-      } finally {
-        if (!cancelled) setRecentSearchesLoading(false);
-      }
+      await loadRecentSearches();
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadRecentSearches, refreshSearchRemaining]);
 
   useEffect(() => {
     if (appliedJobFromUrl.current || !jobIdFromUrl) return;
@@ -472,6 +743,26 @@ export function SearchWorkspace() {
     setFilterDrawerOpen(true);
   }, [editSessionIdFromUrl]);
 
+  const filterSections = useMemo(() => {
+    if (searchCatalog?.vendor === "brightdata" && searchCatalog.fields.length) {
+      return sectionsFromBrightDataCatalog(searchCatalog.fields);
+    }
+    return FILTER_SECTIONS;
+  }, [searchCatalog]);
+
+  const filterFieldIndex = useMemo(
+    () =>
+      Object.fromEntries(
+        filterSections.flatMap((section) =>
+          section.fields.map((field) => [
+            field.id,
+            { field, sectionId: section.id },
+          ])
+        )
+      ) as typeof FILTER_FIELD_INDEX,
+    [filterSections]
+  );
+
   const jobOptions = jobs;
   const selectedJob = jobOptions.find((job) => job.id === selectedJobId);
 
@@ -479,9 +770,9 @@ export function SearchWorkspace() {
     () =>
       Object.entries(filters).filter(
         ([fieldId, value]) =>
-          FILTER_FIELD_INDEX[fieldId] && isFieldActive(value)
+          filterFieldIndex[fieldId] && isFieldActive(value)
       ),
-    [filters]
+    [filters, filterFieldIndex]
   );
   const activeCount = activeEntries.length;
 
@@ -491,12 +782,12 @@ export function SearchWorkspace() {
       { sectionId: string; sectionTitle: string; entries: [string, FilterValue][] }
     >();
     for (const [fieldId, value] of activeEntries) {
-      const meta = FILTER_FIELD_INDEX[fieldId];
+      const meta = filterFieldIndex[fieldId];
       const existing = bySection.get(meta.sectionId);
       if (existing) {
         existing.entries.push([fieldId, value]);
       } else {
-        const section = FILTER_SECTIONS.find((item) => item.id === meta.sectionId);
+        const section = filterSections.find((item) => item.id === meta.sectionId);
         bySection.set(meta.sectionId, {
           sectionId: meta.sectionId,
           sectionTitle: section?.title ?? meta.sectionId,
@@ -505,7 +796,7 @@ export function SearchWorkspace() {
       }
     }
     return Array.from(bySection.values());
-  }, [activeEntries]);
+  }, [activeEntries, filterFieldIndex, filterSections]);
 
   const reach = useMemo(() => {
     if (previewCount == null) return null;
@@ -516,6 +807,12 @@ export function SearchWorkspace() {
     !query.trim() && activeCount === 0 && criteria === null && !searched;
 
   useEffect(() => {
+    if (searchCatalog?.vendor === "brightdata") {
+      setPreviewCount(null);
+      setPreviewStatus(null);
+      setPreviewLoading(false);
+      return;
+    }
     if (activeCount === 0 && !criteriaApplied) {
       setPreviewCount(null);
       setPreviewStatus(null);
@@ -529,9 +826,17 @@ export function SearchWorkspace() {
         setPreviewLoading(true);
         try {
           const providerFilters = filtersToProviderPayload(filters);
+          const datasetFilters =
+            searchCatalog?.vendor === "brightdata"
+              ? datasetFiltersFromState(
+                  filters,
+                  searchCatalog.fields.map((field) => field.name)
+                )
+              : undefined;
           const result = await previewCandidateSearch({
             prompt: query.trim(),
             filterForm: providerFilters,
+            datasetFilters,
           });
           if (previewRequestId.current !== requestId) return;
           setPreviewCount(result.exactCount ?? result.count ?? 0);
@@ -600,7 +905,7 @@ export function SearchWorkspace() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [filters, query, activeCount, criteriaApplied]);
+  }, [filters, query, activeCount, criteriaApplied, searchCatalog]);
 
   function setField(fieldId: string, value: FilterValue | undefined) {
     setFilters((previous) => {
@@ -618,7 +923,7 @@ export function SearchWorkspace() {
     setFilters((previous) =>
       Object.fromEntries(
         Object.entries(previous).filter(
-          ([fieldId]) => FILTER_FIELD_INDEX[fieldId]?.sectionId !== sectionId
+          ([fieldId]) => filterFieldIndex[fieldId]?.sectionId !== sectionId
         )
       )
     );
@@ -635,43 +940,73 @@ export function SearchWorkspace() {
     setError(null);
     try {
       const result = await annotateCandidateSearch({ prompt: query.trim() });
-      const filterForm = providerPayloadToFilters(result.filterForm);
+      const isBrightData =
+        searchCatalog?.vendor === "brightdata" ||
+        Boolean(result.datasetFilters && Object.keys(result.datasetFilters).length);
+      const filterForm = isBrightData
+        ? searchStateFromDatasetFilters(
+            result.datasetFilters,
+            searchCatalog?.fields ?? []
+          )
+        : providerPayloadToFilters(result.filterForm);
       setInterpretedFilters(filterForm);
-      setFilters({ ...filters, ...filterForm });
+      setFilters((previous) => ({ ...previous, ...filterForm }));
       setCriteriaApplied(true);
       setFilterDrawerOpen(true);
-      // Build lightweight criteria rows from filter form for the interpretation panel
       const nextCriteria: InterpretedCriterion[] = [];
-      if (Array.isArray(filterForm.currentTitle) && filterForm.currentTitle.length > 0) {
-        nextCriteria.push({
-          id: "ic-titles",
-          fieldId: "currentTitle",
-          label: "Role",
-          value: filterForm.currentTitle.join(", "),
-        });
-      }
-      const skillParts = [
-        ...(Array.isArray(filterForm.mandatorySkills) ? filterForm.mandatorySkills : []),
-        ...(Array.isArray(filterForm.coreSkills) ? filterForm.coreSkills : []),
-        ...(Array.isArray(filterForm.secondarySkills)
-          ? filterForm.secondarySkills
-          : []),
-      ];
-      if (skillParts.length > 0) {
-        nextCriteria.push({
-          id: "ic-skills",
-          fieldId: "coreSkills",
-          label: "Skills",
-          value: skillParts.join(", "),
-        });
-      }
-      if (Array.isArray(filterForm.location) && filterForm.location.length > 0) {
-        nextCriteria.push({
-          id: "ic-location",
-          fieldId: "location",
-          label: "Location",
-          value: filterForm.location.filter(Boolean).join(", "),
-        });
+      if (isBrightData) {
+        const labels = new Map(
+          (searchCatalog?.fields ?? []).map((field) => [field.name, field.label])
+        );
+        labels.set(YEARS_OF_EXPERIENCE_FIELD_ID, "Total experience");
+        labels.set(EMPLOYERS_FIELD_ID, "Employers");
+        labels.set(COMPANY_SCOPE_FIELD_ID, "Employer history");
+        labels.set("position", "Current title");
+        labels.set("experience.title", "Previous title");
+        labels.set("about", "Core skills");
+        labels.set("country_code", "Country");
+        labels.set("city", "Region");
+        for (const [fieldId, value] of Object.entries(filterForm)) {
+          if (value === undefined) continue;
+          nextCriteria.push({
+            id: `ic-${fieldId}`,
+            fieldId,
+            label: labels.get(fieldId) ?? fieldId,
+            value: formatFilterValue(value),
+          });
+        }
+      } else {
+        if (Array.isArray(filterForm.currentTitle) && filterForm.currentTitle.length > 0) {
+          nextCriteria.push({
+            id: "ic-titles",
+            fieldId: "currentTitle",
+            label: "Role",
+            value: filterForm.currentTitle.join(", "),
+          });
+        }
+        const skillParts = [
+          ...(Array.isArray(filterForm.mandatorySkills) ? filterForm.mandatorySkills : []),
+          ...(Array.isArray(filterForm.coreSkills) ? filterForm.coreSkills : []),
+          ...(Array.isArray(filterForm.secondarySkills)
+            ? filterForm.secondarySkills
+            : []),
+        ];
+        if (skillParts.length > 0) {
+          nextCriteria.push({
+            id: "ic-skills",
+            fieldId: "coreSkills",
+            label: "Skills",
+            value: skillParts.join(", "),
+          });
+        }
+        if (Array.isArray(filterForm.location) && filterForm.location.length > 0) {
+          nextCriteria.push({
+            id: "ic-location",
+            fieldId: "location",
+            label: "Location",
+            value: filterForm.location.filter(Boolean).join(", "),
+          });
+        }
       }
       setCriteria(nextCriteria.length > 0 ? nextCriteria : null);
       setConfirmedIds(new Set(nextCriteria.map((c) => c.id)));
@@ -717,12 +1052,6 @@ export function SearchWorkspace() {
     setCriteriaApplied(false);
   }
 
-  function useSavedSearch(saved: SavedSearch) {
-    setQuery(saved.query);
-    setCriteria(null);
-    setCriteriaApplied(false);
-  }
-
   async function handleSearchClick() {
     const hasPreparedFilters = criteriaApplied || activeCount > 0;
     if (!hasPreparedFilters && query.trim()) {
@@ -745,6 +1074,13 @@ export function SearchWorkspace() {
     try {
       const nextFilters = filters;
       const providerFilters = filtersToProviderPayload(nextFilters);
+      const datasetFilters =
+        searchCatalog?.vendor === "brightdata"
+          ? datasetFiltersFromState(
+              nextFilters,
+              searchCatalog.fields.map((field) => field.name)
+            )
+          : undefined;
       const updateSessionId =
         mode === "update"
           ? editDraft?.sessionId || editDraft?.savedSessionId || undefined
@@ -752,6 +1088,7 @@ export function SearchWorkspace() {
       const result = await applyCandidateSearch({
         prompt: query.trim() || EXAMPLE_QUERY,
         filterForm: providerFilters,
+        datasetFilters,
         jobId: selectedJobId,
         sessionId: updateSessionId,
         page: 1,
@@ -759,10 +1096,7 @@ export function SearchWorkspace() {
       });
 
       if ("sessionPending" in result && result.sessionPending) {
-        setPendingMessage(
-          result.message ||
-            "Finding candidates — matching profiles in progress."
-        );
+        const isBrightData = searchCatalog?.vendor === "brightdata";
         if (result.savedSessionId) {
           setSearched(true);
           clearEditSearchDraft();
@@ -778,10 +1112,39 @@ export function SearchWorkspace() {
               })
             );
           }
+          if (isBrightData) {
+            setPendingMessage(result.message || EXPLORE_WHILE_SEARCHING);
+            requestSearchNotificationPermission();
+            pendingSessionRef.current = {
+              savedSessionId: result.savedSessionId,
+              sessionId: result.sessionId,
+            };
+            writePendingSearch({
+              savedSessionId: result.savedSessionId,
+              sessionId: result.sessionId,
+              prompt: query.trim() || EXAMPLE_QUERY,
+            });
+            setSearching(false);
+            void loadRecentSearches();
+            void refreshSearchRemaining();
+            return;
+          }
+          setPendingMessage(
+            result.message ||
+              "Finding candidates — matching profiles in progress."
+          );
           router.push(sessionDetailPath(result.savedSessionId));
+          void loadRecentSearches();
+          void refreshSearchRemaining();
           return;
         }
+        setPendingMessage(
+          result.message ||
+            "Finding candidates — matching profiles in progress."
+        );
         setSearching(false);
+        void loadRecentSearches();
+        void refreshSearchRemaining();
         return;
       }
 
@@ -800,7 +1163,12 @@ export function SearchWorkspace() {
             })
           );
         }
-        router.push(sessionDetailPath(result.savedSessionId));
+        const isBrightData = searchCatalog?.vendor === "brightdata";
+        if (!isBrightData) {
+          router.push(sessionDetailPath(result.savedSessionId));
+        }
+        void loadRecentSearches();
+        void refreshSearchRemaining();
         return;
       }
 
@@ -809,6 +1177,7 @@ export function SearchWorkspace() {
     } catch (err) {
       if (isQuotaError(err)) {
         setError("Candidate search quota exhausted. Upgrade your plan to continue.");
+        setSearchRemaining(0);
       } else {
         setError(getApiErrorMessage(err));
       }
@@ -826,10 +1195,12 @@ export function SearchWorkspace() {
       onResetSection={resetSection}
       onResetAll={resetAll}
       activeCount={activeCount}
+      sections={filterSections}
     />
   );
 
   return (
+    <>
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_310px]">
       <div className="min-w-0 space-y-4">
         {editDraft ? (
@@ -1066,22 +1437,25 @@ export function SearchWorkspace() {
             </p>
           ) : null}
           {pendingMessage ? (
-            <p role="status" className="mt-3 text-sm text-amber-700 dark:text-amber-400">
+            <p role="status" className="mt-3 text-sm text-muted-foreground">
               {pendingMessage}
             </p>
           ) : null}
         </section>
 
+        <RecentSearchesSection
+          items={recentSearches}
+          loading={recentSearchesLoading}
+        />
+
         {isFresh ? (
           <GettingStarted
             onUseExample={() => setQuery(EXAMPLE_QUERY)}
-            onUseSaved={useSavedSearch}
-            recentSearches={recentSearches}
             loading={recentSearchesLoading}
           />
         ) : (
           <>
-            {/* AI interpretation */}
+            {/* Interpretation panel hidden — filters still populate the drawer.
             {criteria !== null ? (
               <InterpretationPanel
                 criteria={criteria}
@@ -1123,6 +1497,7 @@ export function SearchWorkspace() {
                 }}
               />
             ) : null}
+            */}
 
             {/* Active filter summary */}
             <section
@@ -1187,7 +1562,7 @@ export function SearchWorkspace() {
                           {group.entries.map(([fieldId, value]) => (
                             <p key={fieldId}>
                               <span className="font-medium">
-                                {FILTER_FIELD_INDEX[fieldId].field.label}:
+                                {filterFieldIndex[fieldId]?.field.label ?? fieldId}:
                               </span>{" "}
                               {formatFilterValue(value)}
                             </p>
@@ -1241,5 +1616,39 @@ export function SearchWorkspace() {
         </DialogContent>
       </Dialog>
     </div>
+
+    {completionSnackbar ? (
+      <div
+        role="status"
+        aria-live="polite"
+        className={cn(
+          "fixed bottom-5 left-1/2 z-50 flex max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 items-center gap-3",
+          "rounded-lg border border-border bg-card/95 px-4 py-3 text-sm shadow-lg backdrop-blur-sm sm:bottom-6"
+        )}
+      >
+        <Check aria-hidden className="size-4 shrink-0 text-success" />
+        <p className="min-w-0 flex-1 text-foreground">
+          {completionSnackbar.count > 0
+            ? `Search complete — found ${NUMBER_FORMAT.format(completionSnackbar.count)} candidate${completionSnackbar.count === 1 ? "" : "s"}.`
+            : "Search complete."}
+        </p>
+        <Link
+          href={sessionDetailPath(completionSnackbar.savedSessionId)}
+          className="shrink-0 font-medium text-primary hover:underline"
+          onClick={() => setCompletionSnackbar(null)}
+        >
+          View
+        </Link>
+        <button
+          type="button"
+          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Dismiss"
+          onClick={() => setCompletionSnackbar(null)}
+        >
+          <X aria-hidden className="size-4" />
+        </button>
+      </div>
+    ) : null}
+    </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Plus, X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -480,21 +480,25 @@ export function TagInputField({
   values,
   onChange,
   placeholder,
+  maxTags,
 }: {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
+  maxTags?: number;
 }) {
   const [draft, setDraft] = useState("");
+  const atLimit = maxTags != null && values.length >= maxTags;
 
   function commit() {
     const trimmed = draft.trim();
-    if (!trimmed || values.includes(trimmed)) {
+    if (!trimmed || values.includes(trimmed) || atLimit) {
       setDraft("");
       return;
     }
-    onChange([...values, trimmed]);
+    const next = [...values, trimmed];
+    onChange(maxTags != null ? next.slice(0, maxTags) : next);
     setDraft("");
   }
 
@@ -503,30 +507,31 @@ export function TagInputField({
       <Label className="text-xs font-medium text-muted-foreground">
         {label}
       </Label>
-      <div className="flex gap-1.5">
-        <Input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit();
-            }
-          }}
-          placeholder={placeholder}
-          aria-label={`Add ${label.toLowerCase()}`}
-          className="h-7 text-sm"
-        />
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="outline"
-          onClick={commit}
-          aria-label={`Add to ${label.toLowerCase()}`}
-        >
-          <Plus aria-hidden />
-        </Button>
-      </div>
+      <Input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          }
+        }}
+        placeholder={
+          atLimit
+            ? `Maximum ${maxTags} values`
+            : (placeholder ?? "Type and press Enter")
+        }
+        aria-label={`Add ${label.toLowerCase()}`}
+        disabled={atLimit}
+        className="h-7 text-sm"
+      />
+      {maxTags != null ? (
+        <p className="text-[11px] text-muted-foreground">
+          {atLimit
+            ? `Bright Data Search allows up to ${maxTags} values per filter.`
+            : `Up to ${maxTags} values (Bright Data Search limit).`}
+        </p>
+      ) : null}
       {values.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {values.map((value) => (
@@ -534,7 +539,7 @@ export function TagInputField({
               key={value}
               type="button"
               onClick={() => onChange(values.filter((item) => item !== value))}
-              className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="inline-flex items-center gap-1 rounded-md bg-brand-subtle px-1.5 py-0.5 text-xs font-medium text-primary outline-none hover:bg-brand-subtle/70 focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               {value}
               <X aria-hidden className="size-3" />

@@ -55,11 +55,9 @@ function toCreditMetrics(rows: UsageMetricRow[]): CreditMetric[] {
     }
 
     const total = Math.max(0, Number(row.limit) || 0);
-    // Prefer API used (+ reserved) — deriving from remaining breaks when
-    // allowOverage maps remaining back to limit, or limits are huge.
-    const usedRaw =
-      Math.max(0, Number(row.used) || 0) + Math.max(0, Number(row.reserved) || 0);
-    const used = total > 0 ? Math.min(total, usedRaw) : usedRaw;
+    const remaining = Math.max(0, Number(row.remaining) || 0);
+    // Prefer API remaining so reserved holds match the search page / quota checks.
+    const used = total > 0 ? Math.min(total, Math.max(0, total - remaining)) : Math.max(0, Number(row.used) || 0);
 
     return {
       id: metric,

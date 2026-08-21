@@ -51,6 +51,7 @@ function FieldControl({
           values={Array.isArray(value) ? value : []}
           onChange={(next) => onChange(next.length > 0 ? next : undefined)}
           placeholder={field.placeholder}
+          maxTags={field.maxTags}
         />
       );
     case "toggle":
@@ -110,7 +111,9 @@ function SectionBlock({
   onResetSection: (sectionId: string) => void;
   forceOpen: boolean;
 }) {
-  const [open, setOpen] = useState(section.id === "titles");
+  const [open, setOpen] = useState(
+    section.id === "titles" || section.id === "experience"
+  );
   const isOpen = forceOpen || open;
 
   const activeCount = section.fields.filter((field) =>
@@ -192,6 +195,7 @@ export function FilterPanel({
   onResetAll,
   activeCount,
   className,
+  sections = FILTER_SECTIONS,
 }: {
   filters: SearchFilterState;
   onFieldChange: (fieldId: string, value: FilterValue | undefined) => void;
@@ -199,13 +203,14 @@ export function FilterPanel({
   onResetAll: () => void;
   activeCount: number;
   className?: string;
+  sections?: FilterSection[];
 }) {
   const [sectionQuery, setSectionQuery] = useState("");
 
   const visibleSections = useMemo(() => {
-    if (!sectionQuery) return FILTER_SECTIONS;
+    if (!sectionQuery) return sections;
     const query = sectionQuery.toLowerCase();
-    return FILTER_SECTIONS.map((section) => {
+    return sections.map((section) => {
       const sectionMatches = section.title.toLowerCase().includes(query);
       const fields = sectionMatches
         ? section.fields
@@ -214,7 +219,7 @@ export function FilterPanel({
           );
       return fields.length > 0 ? { ...section, fields } : null;
     }).filter((section): section is FilterSection => section !== null);
-  }, [sectionQuery]);
+  }, [sectionQuery, sections]);
 
   return (
     <div className={cn("flex h-full flex-col", className)}>

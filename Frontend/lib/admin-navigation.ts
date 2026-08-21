@@ -2,6 +2,7 @@ import {
   CreditCard,
   FileText,
   Gauge,
+  KeyRound,
   LayoutDashboard,
   Link2,
   ListTodo,
@@ -80,6 +81,12 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         href: ADMIN_ROUTES.plans,
         icon: CreditCard,
         description: "Plan catalogue and builder",
+      },
+      {
+        title: "Feature access",
+        href: ADMIN_ROUTES.featureAccess,
+        icon: KeyRound,
+        description: "Plan defaults and workspace exceptions",
       },
       {
         title: "Usage",

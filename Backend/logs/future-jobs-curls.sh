@@ -13770,3 +13770,33 @@ curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/6a7c1
             "status": null,
   
 …[truncated 100460 more chars]
+# 2026-08-20T06:01:11.624Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/geethu-francis/details?sessionId=bd_ba4ef381bae34f958aad6a40' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-20T06:01:11.782Z GET /wl/sourcing-session/candidate/:id/details response HTTP 500 159ms
+{
+  "message": "input must be a 24 character hex string, 12 byte Uint8Array, or an integer",
+  "statusCode": 500,
+  "success": false
+}
+# 2026-08-20T06:01:12.786Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/geethu-francis/details?sessionId=bd_ba4ef381bae34f958aad6a40' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-20T06:01:12.829Z GET /wl/sourcing-session/candidate/:id/details response HTTP 500 42ms
+{
+  "message": "input must be a 24 character hex string, 12 byte Uint8Array, or an integer",
+  "statusCode": 500,
+  "success": false
+}
+# 2026-08-20T06:01:14.832Z GET /wl/sourcing-session/candidate/:id/details
+curl -sS -X GET 'https://prod.api.futurejobs.ai/api/v1/wl/sourcing-session/candidate/geethu-francis/details?sessionId=bd_ba4ef381bae34f958aad6a40' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ'
+# 2026-08-20T06:01:14.871Z GET /wl/sourcing-session/candidate/:id/details response HTTP 500 40ms
+{
+  "message": "input must be a 24 character hex string, 12 byte Uint8Array, or an integer",
+  "statusCode": 500,
+  "success": false
+}

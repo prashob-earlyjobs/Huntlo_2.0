@@ -108,8 +108,10 @@ function csvEscape(value: string | number | null | undefined): string {
 
 function downloadSessionCandidatesCsv(
   candidates: SessionCandidate[],
-  sessionName: string
+  sessionName: string,
+  options?: { includeMatchScore?: boolean }
 ) {
+  const includeMatchScore = options?.includeMatchScore !== false;
   const headers = [
     "Name",
     "Headline",
@@ -118,7 +120,7 @@ function downloadSessionCandidatesCsv(
     "Location",
     "Experience years",
     "Skills",
-    "Match score",
+    ...(includeMatchScore ? ["Match score"] : []),
     "Email",
     "Phone",
   ];
@@ -130,7 +132,7 @@ function downloadSessionCandidatesCsv(
     candidate.location,
     candidate.experienceYears,
     candidate.skills.join("; "),
-    candidate.matchScore,
+    ...(includeMatchScore ? [candidate.matchScore ?? ""] : []),
     candidate.emailRevealed ? candidate.email : "",
     candidate.phoneRevealed ? candidate.phone : "",
   ]);
@@ -264,7 +266,15 @@ export function SessionResults({
   futureJobsSessionId?: string | null;
 }) {
   const router = useRouter();
-  const [sort, setSort] = useState<SortOptionId>("best-match");
+  const showMatchScores =
+    session.searchVendor !== "brightdata" &&
+    !String(futureJobsSessionId ?? "").startsWith("bd_");
+  const sortOptions = showMatchScores
+    ? SORT_OPTIONS
+    : SORT_OPTIONS.filter((option) => option.id !== "best-match");
+  const [sort, setSort] = useState<SortOptionId>(
+    showMatchScores ? "best-match" : "total-experience"
+  );
   const [view, setView] = useState<"table" | "card">("table");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [resultQuery, setResultQuery] = useState("");
@@ -312,6 +322,12 @@ export function SessionResults({
   const [outreachStarting, setOutreachStarting] = useState(false);
   const [outreachError, setOutreachError] = useState<string | null>(null);
   const detailsFetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!showMatchScores && sort === "best-match") {
+      setSort("total-experience");
+    }
+  }, [showMatchScores, sort]);
 
   useEffect(() => {
     if (initialFilters && Object.keys(initialFilters).length > 0) {
@@ -717,26 +733,29 @@ export function SessionResults({
       });
       const mapped = (result.candidates ?? []).map(
         (candidate: CandidateSearchSummary) =>
-          mapApiCandidateToSessionCandidate({
-            id: candidate.id,
-            sourcingSessionId: candidate.sourcingSessionId,
-            externalCandidateId: candidate.candidateId,
-            name: candidate.name,
-            headline: candidate.headline ?? null,
-            linkedinUrl: candidate.linkedinProfileUrl ?? candidate.linkedinUrl ?? null,
-            profilePictureUrl: candidate.profilePictureUrl ?? null,
-            title: candidate.currentRole,
-            company: candidate.currentCompany,
-            location: candidate.location,
-            experienceYears: candidate.experienceYears,
-            skills: candidate.skills ?? [],
-            educationPreview: candidate.educationPreview ?? [],
-            profileSignals: candidate.profileSignals ?? [],
-            rank: candidate.rank ?? 0,
-            matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
-            saved: candidate.saved,
-            lists: candidate.lists ?? [],
-          })
+          mapApiCandidateToSessionCandidate(
+            {
+              id: candidate.id,
+              sourcingSessionId: candidate.sourcingSessionId,
+              externalCandidateId: candidate.candidateId,
+              name: candidate.name,
+              headline: candidate.headline ?? null,
+              linkedinUrl: candidate.linkedinProfileUrl ?? candidate.linkedinUrl ?? null,
+              profilePictureUrl: candidate.profilePictureUrl ?? null,
+              title: candidate.currentRole,
+              company: candidate.currentCompany,
+              location: candidate.location,
+              experienceYears: candidate.experienceYears,
+              skills: candidate.skills ?? [],
+              educationPreview: candidate.educationPreview ?? [],
+              profileSignals: candidate.profileSignals ?? [],
+              rank: candidate.rank ?? 0,
+              matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
+              saved: candidate.saved,
+              lists: candidate.lists ?? [],
+            },
+            { inventDefaultMatchScore: showMatchScores }
+          )
       );
       setLocalCandidates(mapped);
       setProgressCount(mapped.length);
@@ -991,7 +1010,7 @@ export function SessionResults({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SORT_OPTIONS.map((option) => (
+              {sortOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   {option.label}
                 </SelectItem>
@@ -1126,7 +1145,8 @@ export function SessionResults({
                 onClick={() =>
                   downloadSessionCandidatesCsv(
                     visibleCandidates,
-                    session.name || session.query || "search-results"
+                    session.name || session.query || "search-results",
+                    { includeMatchScore: showMatchScores }
                   )
                 }
               >
@@ -1172,6 +1192,7 @@ export function SessionResults({
             <CandidateTable
               candidates={visibleCandidates}
               density={density}
+              showMatchScore={showMatchScores}
               selected={selected}
               onToggleSelect={toggleSelect}
               onToggleSelectAll={toggleSelectAll}
@@ -1189,6 +1210,7 @@ export function SessionResults({
                 <CandidateCard
                   key={candidate.id}
                   candidate={candidate}
+                  showMatchScore={showMatchScores}
                   selected={selected.has(candidate.id)}
                   onToggleSelect={() => toggleSelect(candidate.id)}
                   saved={savedMap[candidate.id] ?? candidate.saved}
@@ -1329,6 +1351,7 @@ export function SessionResults({
 
       <CandidateDrawer
         candidate={drawerCandidate}
+        showMatchScore={showMatchScores}
         open={drawerId !== null}
         onOpenChange={(open) => !open && setDrawerId(null)}
         revealed={drawerRevealed}

@@ -87,13 +87,16 @@ export interface SessionCandidate {
   location: string;
   experienceYears: number;
   skills: string[];
-  matchScore: number;
+  /** Null when the vendor does not provide a match score (e.g. Bright Data). */
+  matchScore: number | null;
   matchBreakdown: MatchBreakdown;
   contactStatus: ContactStatus;
   saved: boolean;
   /** Candidate list names this profile belongs to (when known). */
   lists: string[];
   linkedin: boolean;
+  /** LinkedIn profile URL when known — used for dedupe across polls. */
+  linkedinUrl?: string | null;
   /** Future Jobs profile_picture_permalink */
   avatarUrl?: string | null;
   email: string;
@@ -745,6 +748,8 @@ export interface SourcingSession {
   isSavedSearch?: boolean;
   /** Candidate list created from this search, if any. */
   savedListId?: string | null;
+  /** Vendor that produced this search (`future-jobs` | `brightdata`). */
+  searchVendor?: "future-jobs" | "brightdata";
 }
 
 export const SOURCING_SESSIONS: SourcingSession[] = [
@@ -850,7 +855,9 @@ export function sortCandidates(
   const list = [...candidates];
   switch (sort) {
     case "best-match":
-      return list.sort((a, b) => b.matchScore - a.matchScore);
+      return list.sort(
+        (a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1)
+      );
     case "relevant-experience":
       return list.sort(
         (a, b) =>

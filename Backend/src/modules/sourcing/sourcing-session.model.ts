@@ -74,6 +74,13 @@ const sourcingSessionSchema = new mongoose.Schema(
     regionExpandStep: { type: String, default: null, trim: true },
     /** Cleared mandatory/core skills after FJ returned 0 estimated profiles. */
     skillsRelaxFallbackUsed: { type: Boolean, default: false },
+    /** Candidate-search vendor used to create this session (`future-jobs` | `brightdata`). */
+    searchVendor: {
+      type: String,
+      enum: ['future-jobs', 'brightdata'],
+      default: 'future-jobs',
+      index: true,
+    },
     /** Future Jobs session id (canonical). */
     futureJobsSessionId: { type: String, default: null, trim: true },
     /** Legacy alias for futureJobsSessionId. */

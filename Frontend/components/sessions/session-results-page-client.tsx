@@ -24,8 +24,10 @@ import { useRealtime } from "@/providers/realtime-provider";
 
 const POLL_INTERVAL_MS = 2500;
 const FETCH_MORE_GAP_MS = 1500;
-const MAX_PROGRESS_POLL_ATTEMPTS = 15;
-/** Same ~90s window as the previous 30×3s schedule. */
+/** Future Jobs: ~90s REST backup window. */
+const FJ_MAX_PROGRESS_POLL_ATTEMPTS = 15;
+/** Bright Data snapshots can take many minutes (~30 min at 6s). */
+const BD_MAX_PROGRESS_POLL_ATTEMPTS = 300;
 const PROGRESS_POLL_INTERVAL_MS = 6000;
 
 /** Set by search-workspace after Apply; absent when opening search history. */
@@ -52,9 +54,28 @@ function clearLiveSearchSession(sessionId: string) {
 }
 
 function candidateIdentity(c: CandidateSearchSummary | SessionCandidate): string {
-  if ("candidateId" in c && c.candidateId) return String(c.candidateId);
-  if ("linkedinUrl" in c && c.linkedinUrl) return String(c.linkedinUrl).toLowerCase();
-  return c.id;
+  const linkedinUrl =
+    ("linkedinUrl" in c && c.linkedinUrl
+      ? String(c.linkedinUrl)
+      : "linkedinProfileUrl" in c && c.linkedinProfileUrl
+        ? String(c.linkedinProfileUrl)
+        : ""
+    )
+      .trim()
+      .toLowerCase();
+  if (linkedinUrl) return `li:${linkedinUrl}`;
+
+  if ("candidateId" in c && c.candidateId) return `ext:${String(c.candidateId)}`;
+
+  const name = String(c.name ?? "").trim().toLowerCase();
+  const role =
+    "currentRole" in c ? String(c.currentRole ?? "").trim().toLowerCase() : "";
+  const company =
+    "currentCompany" in c
+      ? String(c.currentCompany ?? "").trim().toLowerCase()
+      : "";
+  if (name && (role || company)) return `nc:${name}|${role}|${company}`;
+  return `id:${c.id}`;
 }
 
 function mergeCandidates(
@@ -65,34 +86,49 @@ function mergeCandidates(
   for (const c of existing) map.set(candidateIdentity(c), c);
   for (const c of incoming) {
     const key = candidateIdentity(c);
-    if (!map.has(key)) map.set(key, c);
+    // Prefer the newer payload when the same person arrives again.
+    map.set(key, map.has(key) ? { ...map.get(key)!, ...c, id: map.get(key)!.id } : c);
   }
   return [...map.values()];
 }
 
 function mapSearchSummaryToSessionCandidate(
-  candidate: CandidateSearchSummary
+  candidate: CandidateSearchSummary,
+  options?: { inventDefaultMatchScore?: boolean }
 ): SessionCandidate {
-  return mapApiCandidateToSessionCandidate({
-    id: candidate.id,
-    sourcingSessionId: candidate.sourcingSessionId,
-    externalCandidateId: candidate.candidateId,
-    name: candidate.name,
-    headline: candidate.headline ?? null,
-    linkedinUrl: candidate.linkedinProfileUrl ?? candidate.linkedinUrl ?? null,
-    profilePictureUrl: candidate.profilePictureUrl ?? null,
-    title: candidate.currentRole,
-    company: candidate.currentCompany,
-    location: candidate.location,
-    experienceYears: candidate.experienceYears,
-    skills: candidate.skills ?? [],
-    educationPreview: candidate.educationPreview ?? [],
-    profileSignals: candidate.profileSignals ?? [],
-    rank: candidate.rank ?? 0,
-    matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
-    saved: candidate.saved,
-    lists: candidate.lists ?? [],
-  });
+  return mapApiCandidateToSessionCandidate(
+    {
+      id: candidate.id,
+      sourcingSessionId: candidate.sourcingSessionId,
+      externalCandidateId: candidate.candidateId,
+      name: candidate.name,
+      headline: candidate.headline ?? null,
+      linkedinUrl: candidate.linkedinProfileUrl ?? candidate.linkedinUrl ?? null,
+      profilePictureUrl: candidate.profilePictureUrl ?? null,
+      title: candidate.currentRole,
+      company: candidate.currentCompany,
+      location: candidate.location,
+      experienceYears: candidate.experienceYears,
+      skills: candidate.skills ?? [],
+      educationPreview: candidate.educationPreview ?? [],
+      profileSignals: candidate.profileSignals ?? [],
+      rank: candidate.rank ?? 0,
+      matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
+      saved: candidate.saved,
+      lists: candidate.lists ?? [],
+    },
+    options
+  );
+}
+
+function shouldInventDefaultMatchScore(
+  searchVendor?: string | null,
+  externalId?: string | null
+): boolean {
+  return (
+    searchVendor !== "brightdata" &&
+    !(typeof externalId === "string" && externalId.startsWith("bd_"))
+  );
 }
 
 export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
@@ -122,25 +158,39 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         console.log("[SessionResults][refresh]", { reason, sessionId, missing: true });
         return null;
       }
+      setNotFoundSession(false);
 
       const mapped = mapApiSessionToUi(apiSession);
       setSession(mapped);
       const externalId =
-        (apiSession as { externalSessionId?: string | null }).externalSessionId ??
+        apiSession.futureJobsSessionId ??
+        apiSession.externalSessionId ??
         stored?.sessionId ??
         null;
       setFjSessionId(externalId);
+      const inventDefaultMatchScore = shouldInventDefaultMatchScore(
+        mapped.searchVendor,
+        externalId
+      );
 
       let candidateCount = 0;
       if (stored?.candidates?.length) {
-        const mappedCandidates = stored.candidates.map(mapSearchSummaryToSessionCandidate);
+        const mappedCandidates = stored.candidates.map((candidate) =>
+          mapSearchSummaryToSessionCandidate(candidate, { inventDefaultMatchScore })
+        );
         setCandidates((prev) => mergeCandidates(prev, mappedCandidates));
         setCanFetchMore(Boolean(stored.canFetchMore));
         candidateCount = mappedCandidates.length;
       } else {
         const apiCandidates = await sourcingApi.getSessionCandidates(sessionId);
-        setCandidates((prev) => mergeCandidates(prev, apiCandidates));
-        candidateCount = apiCandidates.length;
+        const mappedCandidates = inventDefaultMatchScore
+          ? apiCandidates
+          : apiCandidates.map((candidate) => ({
+              ...candidate,
+              matchScore: null,
+            }));
+        setCandidates((prev) => mergeCandidates(prev, mappedCandidates));
+        candidateCount = mappedCandidates.length;
       }
       if (stored?.filterForm) {
         setSessionFilters(providerPayloadToFilters(stored.filterForm));
@@ -189,6 +239,12 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
 
   const loadedSessionId = session?.id ?? null;
   const loadedSessionState = session?.state ?? null;
+  const isBrightDataSession =
+    session?.searchVendor === "brightdata" ||
+    (typeof fjSessionId === "string" && fjSessionId.startsWith("bd_"));
+  const maxProgressPollAttempts = isBrightDataSession
+    ? BD_MAX_PROGRESS_POLL_ATTEMPTS
+    : FJ_MAX_PROGRESS_POLL_ATTEMPTS;
 
   // Progress-poll only while a search is still active. History reopen of a
   // completed session stays on MongoDB stored-candidates (no provider calls).
@@ -201,7 +257,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
 
     const poll = async () => {
       const previousAttempt = progressAttemptsRef.current[sessionId] ?? 0;
-      if (cancelled || previousAttempt >= MAX_PROGRESS_POLL_ATTEMPTS) return;
+      if (cancelled || previousAttempt >= maxProgressPollAttempts) return;
 
       const attempt = previousAttempt + 1;
       progressAttemptsRef.current[sessionId] = attempt;
@@ -211,7 +267,13 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         const stored = await getStoredSessionCandidates(sessionId, { all: true });
         if (cancelled) return;
 
-        const incoming = stored.candidates.map(mapSearchSummaryToSessionCandidate);
+        const inventDefaultMatchScore = shouldInventDefaultMatchScore(
+          session?.searchVendor,
+          fjSessionId
+        );
+        const incoming = stored.candidates.map((candidate) =>
+          mapSearchSummaryToSessionCandidate(candidate, { inventDefaultMatchScore })
+        );
         setCandidates((prev) => mergeCandidates(prev, incoming));
         setCanFetchMore(Boolean(stored.canFetchMore));
         setSession((prev) =>
@@ -227,7 +289,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         );
 
         console.log(
-          `[SessionResults][poll-response ${attempt}/${MAX_PROGRESS_POLL_ATTEMPTS}]`,
+          `[SessionResults][poll-response ${attempt}/${maxProgressPollAttempts}]`,
           {
             sessionId,
             progress,
@@ -238,7 +300,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         );
       } catch (err) {
         console.log(
-          `[SessionResults][poll-response ${attempt}/${MAX_PROGRESS_POLL_ATTEMPTS}:error]`,
+          `[SessionResults][poll-response ${attempt}/${maxProgressPollAttempts}:error]`,
           {
             sessionId,
             error: getApiErrorMessage(err),
@@ -246,7 +308,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         );
       }
 
-      if (!cancelled && attempt < MAX_PROGRESS_POLL_ATTEMPTS) {
+      if (!cancelled && attempt < maxProgressPollAttempts) {
         timer = window.setTimeout(() => {
           void poll();
         }, PROGRESS_POLL_INTERVAL_MS);
@@ -256,7 +318,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
     console.log("[SessionResults][REST poll:setup]", {
       sessionId,
       uiState: loadedSessionState,
-      maxAttempts: MAX_PROGRESS_POLL_ATTEMPTS,
+      maxAttempts: maxProgressPollAttempts,
       completedAttempts: progressAttemptsRef.current[sessionId] ?? 0,
     });
     void poll();
@@ -265,7 +327,14 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       cancelled = true;
       if (timer != null) window.clearTimeout(timer);
     };
-  }, [loadedSessionId, loadedSessionState, sessionId]);
+  }, [
+    loadedSessionId,
+    loadedSessionState,
+    sessionId,
+    maxProgressPollAttempts,
+    session?.searchVendor,
+    fjSessionId,
+  ]);
 
   const sessionState = session?.state ?? null;
 
@@ -298,7 +367,13 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         });
         if (cancelled) return;
 
-        const incoming = result.candidates.map(mapSearchSummaryToSessionCandidate);
+        const inventDefaultMatchScore = shouldInventDefaultMatchScore(
+          session?.searchVendor,
+          fjSessionId
+        );
+        const incoming = result.candidates.map((candidate) =>
+          mapSearchSummaryToSessionCandidate(candidate, { inventDefaultMatchScore })
+        );
         if (incoming.length > 0) {
           setCandidates((prev) => mergeCandidates(prev, incoming));
         }
@@ -384,10 +459,16 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       });
       if (!matches) return;
 
+      const inventDefaultMatchScore = shouldInventDefaultMatchScore(
+        session?.searchVendor,
+        fjSessionId
+      );
       const incoming = [
         ...(data.newCandidates ?? []),
         ...(data.candidates ?? []),
-      ].map(mapSearchSummaryToSessionCandidate);
+      ].map((candidate) =>
+        mapSearchSummaryToSessionCandidate(candidate, { inventDefaultMatchScore })
+      );
 
       if (incoming.length > 0) {
         setCandidates((prev) => mergeCandidates(prev, incoming));

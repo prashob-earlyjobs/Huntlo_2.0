@@ -6,6 +6,7 @@ import { BLOG_STATUSES } from './blog.model.js';
 import { EMAIL_TEMPLATE_TYPES } from './email-template.model.js';
 import { passwordSchema } from '../../shared/validation/password.js';
 import { USAGE_METRICS } from '../../shared/usage/metrics.js';
+import { FEATURE_KEYS } from '../../shared/usage/features.js';
 
 const metricCostValueSchema = z.number().int().min(1).max(1000);
 
@@ -63,6 +64,7 @@ export const updateAdminUserSchema = z.object({
   role: z.enum(['owner', 'admin', 'recruiter', 'hiring_manager', 'interviewer', 'analyst', 'viewer']).optional(),
   platformAdmin: z.boolean().optional(),
   adminPermissions: z.array(z.string()).optional(),
+  candidateSearchVendor: z.enum(['future-jobs', 'brightdata']).optional(),
 });
 
 export const assignPlanSchema = z.object({
@@ -71,8 +73,35 @@ export const assignPlanSchema = z.object({
 
 export const adjustQuotaSchema = z.object({
   metric: z.string().trim().min(1).max(40),
-  delta: z.number().int().min(-1_000_000).max(1_000_000),
+  /** Absolute used count for the current billing period (not a limit delta). */
+  used: z.number().int().min(0).max(1_000_000),
   reason: z.string().trim().max(200).optional(),
+});
+
+export const featureAccessWorkspaceQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const patchPlanFeatureAccessSchema = z.object({
+  feature: z.enum(FEATURE_KEYS),
+  enabled: z.boolean(),
+});
+
+const featureOverrideValueSchema = z
+  .object({
+    enabled: z.boolean(),
+    note: z.string().trim().max(500).nullable().optional(),
+    expiresAt: z.string().trim().max(40).nullable().optional(),
+  })
+  .nullable();
+
+export const upsertWorkspaceFeatureAccessSchema = z.object({
+  overrides: z.record(z.enum(FEATURE_KEYS), featureOverrideValueSchema),
+});
+
+export const patchSearchVendorSchema = z.object({
+  vendor: z.enum(['future-jobs', 'brightdata']),
 });
 
 export const resetPasswordSchema = z.object({

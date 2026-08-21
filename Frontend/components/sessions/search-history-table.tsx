@@ -54,7 +54,8 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const STATE_STATUS: Record<SearchHistoryEntry["state"], Status> = {
   completed: "Completed",
   running: "Running",
-  partial: "Paused",
+  // Backend `partial` = finished with some results; we have no pause action.
+  partial: "Completed",
   failed: "Failed",
   empty: "Draft",
 };

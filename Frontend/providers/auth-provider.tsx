@@ -35,6 +35,7 @@ import {
   setPendingRedirectPath,
 } from "@/lib/claim-public-search";
 import { candidateSearchApi } from "@/lib/api/candidate-search";
+import { clearPendingSearch } from "@/lib/pending-search";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -235,6 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout();
     } finally {
       tokenStorage.clear();
+      clearPendingSearch();
       setMe(null);
       setSessionState("unauthenticated");
       setAuthSessionCookie(false);

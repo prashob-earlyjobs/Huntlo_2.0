@@ -260,11 +260,22 @@ export class ApiClient {
     if (options.raw) {
       const data = (await response.json()) as T;
       if (!response.ok) {
+        const errorBody =
+          data &&
+          typeof data === "object" &&
+          "success" in data &&
+          (data as { success?: boolean }).success === false
+            ? (data as ErrorEnvelope)
+            : null;
         throw new ApiError({
-          message: `Request failed with status ${response.status}`,
+          message:
+            errorBody?.error.message ??
+            `Request failed with status ${response.status}`,
           statusCode: response.status,
-          code: mapStatusToErrorCode(response.status),
-          requestId,
+          code: mapStatusToErrorCode(response.status, errorBody?.error.code),
+          details: errorBody?.error.details,
+          requestId: errorBody?.requestId ?? requestId,
+          retryAfter: parseRetryAfter(response.headers.get("Retry-After")),
         });
       }
       return { data, status: response.status, requestId };

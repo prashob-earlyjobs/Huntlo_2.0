@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { ApiError } from "./errors";
 import type { SearchHistoryEntry, SessionCandidate, SourcingSession } from "./contracts";
 import { normalizeLabelList } from "@/lib/normalize-label-list";
 import { createDomainService, simulateMockLatency } from "./service";
@@ -44,6 +45,8 @@ export type SourcingSessionApi = SourcingSession & {
   message?: string;
   coverage?: number;
   externalSessionId?: string | null;
+  futureJobsSessionId?: string | null;
+  searchVendor?: "future-jobs" | "brightdata";
   saved?: boolean;
   savedAt?: string | null;
   savedListId?: string | null;
@@ -103,6 +106,14 @@ export function mapSessionState(status: string | undefined | null): SessionState
 
 export function mapApiSessionToUi(session: SourcingSessionApi): SourcingSession {
   const status = session.status ?? session.state;
+  const externalId = session.futureJobsSessionId || session.externalSessionId || null;
+  const searchVendor =
+    session.searchVendor === "brightdata" ||
+    (typeof externalId === "string" && externalId.startsWith("bd_"))
+      ? "brightdata"
+      : session.searchVendor === "future-jobs"
+        ? "future-jobs"
+        : undefined;
   return {
     id: session.id,
     name: session.name,
@@ -119,18 +130,24 @@ export function mapApiSessionToUi(session: SourcingSessionApi): SourcingSession 
     failureReason: session.failureReason ?? undefined,
     isSavedSearch: Boolean(session.saved ?? session.isSavedSearch ?? session.savedAt),
     savedListId: session.savedListId ?? null,
+    searchVendor,
   };
 }
 
 export function mapApiCandidateToSessionCandidate(
-  candidate: SourcedCandidateApi
+  candidate: SourcedCandidateApi,
+  options?: { inventDefaultMatchScore?: boolean }
 ): SessionCandidate {
   const role = candidate.title ?? "";
   const company = candidate.company ?? "";
+  const inventDefault = options?.inventDefaultMatchScore !== false;
   const score =
     typeof candidate.matchScore === "number"
       ? Math.round(Math.min(100, Math.max(0, candidate.matchScore * 20)))
-      : 70;
+      : inventDefault
+        ? 70
+        : null;
+  const breakdownScore = score ?? 0;
 
   return {
     id: candidate.id,
@@ -146,12 +163,12 @@ export function mapApiCandidateToSessionCandidate(
     skills: normalizeLabelList(candidate.skills, 24),
     matchScore: score,
     matchBreakdown: {
-      skills: score,
-      role: score,
-      experience: score,
-      location: score,
-      industry: score,
-      education: score,
+      skills: breakdownScore,
+      role: breakdownScore,
+      experience: breakdownScore,
+      location: breakdownScore,
+      industry: breakdownScore,
+      education: breakdownScore,
     },
     contactStatus: "Not contacted",
     saved: Boolean(candidate.saved),
@@ -159,6 +176,7 @@ export function mapApiCandidateToSessionCandidate(
       ? candidate.lists.filter((name): name is string => typeof name === "string" && name.trim().length > 0)
       : [],
     linkedin: Boolean(candidate.linkedinUrl),
+    linkedinUrl: candidate.linkedinUrl ?? null,
     avatarUrl: candidate.profilePictureUrl ?? null,
     email: "",
     emailVerified: false,
@@ -289,7 +307,8 @@ const mockSourcingApi: SourcingApi = {
       educationPreview: [],
       profileSignals: candidate.signals,
       rank: index + 1,
-      matchScore: candidate.matchScore / 20,
+      matchScore:
+        typeof candidate.matchScore === "number" ? candidate.matchScore / 20 : null,
     }));
   },
   async getProgress(id) {
@@ -373,8 +392,14 @@ const liveSourcingApi: SourcingApi = {
     try {
       const result = await apiClient.get<SourcingSessionApi>(`/sourcing/sessions/${id}`);
       return result.data;
-    } catch {
-      return null;
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.code === "NOT_FOUND" || error.statusCode === 404)
+      ) {
+        return null;
+      }
+      throw error;
     }
   },
   async getSessionCandidates(id) {

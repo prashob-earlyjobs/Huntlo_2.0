@@ -79,6 +79,15 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: { type: Date, default: null },
     failedLoginCount: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
+    /**
+     * Candidate-search vendor for this user (email-unique). Future Jobs is the
+     * default. People Scout, reveals, and candidate details always stay on Future Jobs.
+     */
+    candidateSearchVendor: {
+      type: String,
+      enum: ['future-jobs', 'brightdata'],
+      default: 'future-jobs',
+    },
     /** Huntlo platform operator — cross-tenant admin console. Never grant to normal org users. */
     platformAdmin: { type: Boolean, default: false, index: true },
     adminPermissions: { type: [String], default: [] },
@@ -146,5 +155,7 @@ export function toPublicUser(user: UserDocument, organizationPlan?: string) {
     emailVerified: Boolean(user.emailVerifiedAt),
     organizationId: user.organizationId.toHexString(),
     platformAdmin: Boolean(user.platformAdmin),
+    candidateSearchVendor:
+      user.candidateSearchVendor === 'brightdata' ? 'brightdata' : 'future-jobs',
   };
 }

@@ -21,8 +21,26 @@ import {
   promptForSourcingApi,
   type FutureJobsFilterForm,
   type FutureJobsProfileDoc,
+  type FutureJobsProvider,
   type GeoExpandStep,
 } from '../../../providers/future-jobs/index.js';
+import { normalizeCandidateSearchVendor } from '../../../shared/candidate-search-vendors.js';
+import {
+  BRIGHTDATA_PEOPLE_DATASET_ID,
+  getBrightDataFilterCatalog,
+  buildBrightDataSearchFilter,
+} from '../../../providers/brightdata/index.js';
+import {
+  annotateBrightDataPrompt,
+  withExpandedPositionTitles,
+  type BrightDataDatasetFilters,
+} from '../../../providers/gemini/gemini.brightdata-annotate.js';
+import {
+  getCandidateSearchProviderByVendor,
+  getCandidateSearchProviderForSession,
+  getCandidateSearchProviderForUser,
+  resolveCandidateSearchVendor,
+} from './search-vendor.js';
 import { emitCandidateSearchPoll } from '../../../realtime/events.js';
 import { AppError } from '../../../shared/errors/app-error.js';
 import { getSkip } from '../../../shared/pagination/paginate.js';
@@ -81,7 +99,7 @@ const PROFILES_POLL_MAX_WAIT_MS = 90_000;
  */
 const HTTP_APPLY_POLL_MAX_WAIT_MS = 12_000;
 const PROFILES_POLL_INTERVAL_MS = 3_000;
-const BACKGROUND_POLL_DEADLINE_MS = 10 * 60_000;
+const BACKGROUND_POLL_DEADLINE_MS = 30 * 60_000;
 /** Max wait stacked on geo-expand retries during HTTP apply. */
 const GEO_EXPAND_PROFILES_WAIT_CAP_MS = 3_000;
 /** Max wait after fetch-more before profiles poll. */
@@ -344,6 +362,16 @@ async function listNamesByExternalCandidateId(
   return result;
 }
 
+function hasDatasetFilters(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value as Record<string, unknown>).some((item) => {
+    if (Array.isArray(item)) return item.some((entry) => String(entry).trim());
+    if (typeof item === 'boolean') return true;
+    if (typeof item === 'number') return Number.isFinite(item);
+    return typeof item === 'string' && item.trim().length > 0;
+  });
+}
+
 function assertCanUpdateSession(session: SourcingSessionDocument, actor: SearchActor): void {
   const ownerId = String(session.userId ?? session.ownerUserId);
   if (actor.role === 'owner' || actor.role === 'admin') return;
@@ -353,14 +381,26 @@ function assertCanUpdateSession(session: SourcingSessionDocument, actor: SearchA
 }
 
 async function enqueueBackgroundPoll(session: SourcingSessionDocument, actor: SearchActor): Promise<void> {
+  // Bright Data progress is owned by the in-API scheduler — do not dual-drive via worker.
+  const externalId = session.futureJobsSessionId || session.externalSessionId || '';
+  if (session.searchVendor === 'brightdata' || String(externalId).startsWith('bd_')) {
+    return;
+  }
   const fjId = session.futureJobsSessionId || session.externalSessionId;
-  if (!fjId) return;
+  if (!fjId) {
+    log().warn(
+      { sourcingSessionId: session._id.toHexString() },
+      'skip enqueue background poll — missing provider session id'
+    );
+    return;
+  }
   const savedId = session._id.toHexString();
-  await enqueueJob({
+  const enqueued = await enqueueJob({
     type: 'sourcing.poll',
     organizationId: actor.organizationId,
     entityType: 'sourcing_session',
     entityId: savedId,
+    priority: 200,
     idempotencyKey: `sourcing.poll:${savedId}`,
     payload: {
       organizationId: actor.organizationId,
@@ -373,10 +413,36 @@ async function enqueueBackgroundPoll(session: SourcingSessionDocument, actor: Se
     },
     maxAttempts: 40,
   });
+  log().info(
+    {
+      sourcingSessionId: savedId,
+      jobId: enqueued.job.id,
+      created: enqueued.created,
+      jobStatus: enqueued.job.status,
+      runAt: enqueued.job.runAt,
+      searchVendor: session.searchVendor || 'future-jobs',
+    },
+    'enqueued sourcing.poll after pending/apply'
+  );
+}
+
+function scheduleBrightDataPollLoop(session: SourcingSessionDocument): void {
+  if (session.searchVendor !== 'brightdata') return;
+  const savedId = session._id.toHexString();
+  void import('./brightdata-poll-scheduler.js')
+    .then(({ scheduleBrightDataPoll }) => {
+      scheduleBrightDataPoll(savedId);
+    })
+    .catch((error) => {
+      log().warn(
+        { err: error, sourcingSessionId: savedId },
+        'failed to start Bright Data poll scheduler'
+      );
+    });
 }
 
 async function createOrUpdateProviderSession(options: {
-  provider: ReturnType<typeof getFutureJobsProvider>;
+  provider: FutureJobsProvider;
   futureJobsSessionId: string | null;
   payload: Record<string, unknown>;
 }): Promise<{ res: unknown; sessionId: string; updated: boolean }> {
@@ -421,9 +487,70 @@ function pendingResponse(
 }
 
 export class CandidateSearchService {
+  async getCatalog(actor: SearchActor) {
+    const vendor = await resolveCandidateSearchVendor(actor.userId);
+    if (vendor !== 'brightdata') {
+      return {
+        vendor,
+        datasetId: null as string | null,
+        fields: [] as Awaited<ReturnType<typeof getBrightDataFilterCatalog>>,
+      };
+    }
+    const fields = await getBrightDataFilterCatalog();
+    return {
+      vendor,
+      datasetId: BRIGHTDATA_PEOPLE_DATASET_ID,
+      fields,
+    };
+  }
+
   async annotate(actor: SearchActor, input: AnnotateSearchInput) {
     const started = Date.now();
-    const provider = getFutureJobsProvider();
+    const vendor = await resolveCandidateSearchVendor(actor.userId);
+    const env = getEnv();
+
+    if (vendor === 'brightdata') {
+      const fields = await getBrightDataFilterCatalog();
+      const annotated = await annotateBrightDataPrompt(input.prompt, fields);
+      const brightDataFilter = buildBrightDataSearchFilter(annotated.filters);
+      console.log(
+        '[brightdata] extracted values (' +
+          annotated.source +
+          ')\n' +
+          JSON.stringify(annotated.filters, null, 2)
+      );
+      console.log(
+        '[brightdata] Huntlo filter syntax\n' + JSON.stringify(brightDataFilter, null, 2)
+      );
+      log().info(
+        {
+          requestId: actor.requestId,
+          organizationId: actor.organizationId,
+          userId: actor.userId,
+          vendor,
+          source: annotated.source,
+          durationMs: Date.now() - started,
+          brightDataFilter,
+        },
+        'annotation completed'
+      );
+      return {
+        success: true as const,
+        filterForm: normalizeFilterFormForUi({}) as FutureJobsFilterForm,
+        datasetFilters: annotated.filters,
+        brightDataFilter,
+        annotation: {
+          vendor,
+          source: annotated.source,
+          prompt: input.prompt,
+          filters: annotated.filters,
+          brightDataFilter,
+        },
+        ...(env.APP_ENV !== 'production' ? { futureJobs: { statusCode: 200 } } : {}),
+      };
+    }
+
+    const provider = await getCandidateSearchProviderForUser(actor.userId);
     const annotationRes = await provider.getSourcingSessionAnnotation({
       userText: input.prompt,
       linkedin_profile_url: input.linkedin_profile_url,
@@ -442,12 +569,12 @@ export class CandidateSearchService {
         requestId: actor.requestId,
         organizationId: actor.organizationId,
         userId: actor.userId,
+        vendor,
         durationMs: Date.now() - started,
       },
       'annotation completed'
     );
 
-    const env = getEnv();
     return {
       success: true,
       filterForm,
@@ -468,7 +595,11 @@ export class CandidateSearchService {
     let workingForm = asFilterForm(input.filterForm);
     let skillsRelaxFallbackUsed = false;
 
-    if (!prompt && !filterFormHasSearchCriteria(workingForm)) {
+    if (
+      !prompt &&
+      !filterFormHasSearchCriteria(workingForm) &&
+      !hasDatasetFilters(input.datasetFilters)
+    ) {
       return {
         success: true as const,
         count: 0,
@@ -480,7 +611,20 @@ export class CandidateSearchService {
       };
     }
 
-    const provider = getFutureJobsProvider();
+    const vendor = await resolveCandidateSearchVendor(actor.userId);
+    if (vendor === 'brightdata') {
+      return {
+        success: true as const,
+        count: 0,
+        exactCount: 0,
+        status: 'pending' as const,
+        message: 'Profile estimates are available after Bright Data search completes.',
+        filterForm: undefined,
+        skillsRelaxFallbackUsed: false,
+      };
+    }
+
+    const provider = await getCandidateSearchProviderForUser(actor.userId);
 
     const runPreviewOnce = async (form: FutureJobsFilterForm) => {
       const sessionPayload = buildSessionPayloadFromPromptAndFilter(
@@ -503,7 +647,11 @@ export class CandidateSearchService {
           : {};
 
       const previewRes = await provider.previewSourcingSession(
-        { jd, queries },
+        {
+          jd,
+          queries,
+          ...(input.datasetFilters ? { datasetFilters: input.datasetFilters } : {}),
+        } as { jd: string; queries: Record<string, unknown> },
         { traceId: actor.requestId }
       );
 
@@ -614,7 +762,7 @@ export class CandidateSearchService {
     const filterType = String(query.filterType ?? query.filter_type ?? 'region').trim() || 'region';
     const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 25);
 
-    const provider = getFutureJobsProvider();
+    const provider = await getCandidateSearchProviderForUser(_actor.userId);
     const res = await provider.getFilterAutocomplete({ filterType, query: q, limit });
     const data = res?.data;
     let suggestions: unknown[] = [];
@@ -643,7 +791,8 @@ export class CandidateSearchService {
     const quotaKey = `candidate-search:create:${actor.organizationId}:${actor.userId}:${Date.now()}`;
     await reserveSearchQuota(actor, quotaKey);
 
-    const provider = getFutureJobsProvider();
+    const searchVendor = await resolveCandidateSearchVendor(actor.userId);
+    const provider = getCandidateSearchProviderByVendor(searchVendor);
     const payload =
       input.session && typeof input.session === 'object'
         ? input.session
@@ -677,6 +826,7 @@ export class CandidateSearchService {
         normalizedFilters: filterForm,
         sessionPayload: payload,
         providerPayload: payload,
+        searchVendor,
         futureJobsSessionId: fjId,
         externalSessionId: fjId,
         status: 'pending',
@@ -714,6 +864,7 @@ export class CandidateSearchService {
       normalizedFilters: filterForm,
       sessionPayload: payload,
       providerPayload: payload,
+      searchVendor,
       futureJobsSessionId: fjId,
       externalSessionId: fjId,
       status: 'creating',
@@ -739,16 +890,25 @@ export class CandidateSearchService {
     const started = Date.now();
     const prompt = input.prompt.trim();
     let originalFilterForm = asFilterForm(input.filterForm);
+    let datasetFilters = input.datasetFilters;
 
     // Apply without annotated filters produces stopword "skills" and empty title/region —
     // auto-annotate so Future Jobs gets structured queries like the production sample.
-    if (prompt && !filterFormHasSearchCriteria(originalFilterForm)) {
+    // Skip when Bright Data datasetFilters are already present so drawer edits are kept.
+    if (
+      prompt &&
+      !filterFormHasSearchCriteria(originalFilterForm) &&
+      !hasDatasetFilters(datasetFilters)
+    ) {
       try {
         const annotated = await this.annotate(actor, {
           prompt,
           linkedin_profile_url: '',
         });
         originalFilterForm = asFilterForm(annotated.filterForm);
+        if (hasDatasetFilters(annotated.datasetFilters)) {
+          datasetFilters = annotated.datasetFilters;
+        }
         log().info(
           {
             requestId: actor.requestId,
@@ -758,6 +918,12 @@ export class CandidateSearchService {
           'apply auto-annotated empty filterForm'
         );
       } catch (annotateError) {
+        if (
+          annotateError instanceof AppError &&
+          annotateError.code === 'BRIGHTDATA_NOT_CONFIGURED'
+        ) {
+          throw annotateError;
+        }
         log().warn(
           { err: annotateError, requestId: actor.requestId },
           'apply auto-annotate failed; continuing with provided filterForm'
@@ -773,7 +939,6 @@ export class CandidateSearchService {
     const quotaKey = idempotencyKeyForApply(actor, input);
     await reserveSearchQuota(actor, quotaKey);
 
-    const provider = getFutureJobsProvider();
     let existing: SourcingSessionDocument | null = null;
     let futureJobsSessionId: string | null = null;
     let sessionUpdated = false;
@@ -793,6 +958,19 @@ export class CandidateSearchService {
       sessionUpdated = true;
     }
 
+    const searchVendor = existing
+      ? normalizeCandidateSearchVendor(existing.searchVendor)
+      : await resolveCandidateSearchVendor(actor.userId);
+    const provider = getCandidateSearchProviderByVendor(searchVendor);
+
+    // Bright Data: widen Current title to related titles so filter search is less narrow.
+    if (searchVendor === 'brightdata' && datasetFilters && typeof datasetFilters === 'object') {
+      datasetFilters = withExpandedPositionTitles(
+        { ...(datasetFilters as BrightDataDatasetFilters) },
+        prompt
+      );
+    }
+
     const originalRegionConfiguration = {
       geoDistance: originalFilterForm.geoDistance,
       location: originalFilterForm.location,
@@ -802,10 +980,13 @@ export class CandidateSearchService {
     async function attemptProviderSession(
       form: FutureJobsFilterForm
     ): Promise<{ res: unknown; sessionId: string; payload: Record<string, unknown> }> {
-      const payload = buildSessionPayloadFromPromptAndFilter(
-        promptForSourcingApi(prompt),
-        form
-      ) as Record<string, unknown>;
+      const payload = {
+        ...(buildSessionPayloadFromPromptAndFilter(
+          promptForSourcingApi(prompt),
+          form
+        ) as Record<string, unknown>),
+        ...(datasetFilters ? { datasetFilters } : {}),
+      };
       const { res, sessionId } = await createOrUpdateProviderSession({
         provider,
         futureJobsSessionId,
@@ -820,14 +1001,15 @@ export class CandidateSearchService {
     let fjId = '';
 
     try {
-      // Create/update + optional geo expansion for 207
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // Create/update + optional geo expansion for 207 (Future Jobs only).
+      const allowGeoExpand = searchVendor !== 'brightdata';
+      for (let attempt = 0; attempt < (allowGeoExpand ? 3 : 1); attempt++) {
         const { res, sessionId, payload } = await attemptProviderSession(workingForm);
         lastRes = res;
         lastPayload = payload;
         fjId = sessionId;
 
-        if (!provider.isFjSessionPending(res)) break;
+        if (!provider.isFjSessionPending(res) || !allowGeoExpand) break;
 
         const next = nextGeoExpandStep(workingForm, regionExpandStep);
         if (!next) break;
@@ -847,7 +1029,11 @@ export class CandidateSearchService {
 
       // FJ estimated 0 — peel mandatory/core skills one at a time until estimate > 0
       // or nothing left to peel. UI keeps originalFilterForm.
-      if (!provider.isFjSessionPending(lastRes) && extractExpectedCount(lastRes) === 0) {
+      if (
+        searchVendor !== 'brightdata' &&
+        !provider.isFjSessionPending(lastRes) &&
+        extractExpectedCount(lastRes) === 0
+      ) {
         for (let step = 0; step < MAX_SKILLS_RELAX_STEPS; step++) {
           const peel = nextSkillsRelaxStep(workingForm);
           if (!peel) break;
@@ -882,6 +1068,7 @@ export class CandidateSearchService {
           workingForm,
           payload: lastPayload,
           fjId,
+          searchVendor,
           status: 'pending',
           regionExpandFallbackUsed,
           regionExpandStep,
@@ -899,16 +1086,34 @@ export class CandidateSearchService {
             'failed to enqueue background poll after pending session'
           );
         }
+        scheduleBrightDataPollLoop(session);
+        if (searchVendor === 'brightdata') {
+          emitCandidateSearchPoll({
+            organizationId: actor.organizationId,
+            userId: actor.userId,
+            sessionId: fjId,
+            savedSessionId: session._id.toHexString(),
+            status: 'polling',
+            polling: true,
+            newCandidateCount: 0,
+            totalDocs: 0,
+            canFetchMore: false,
+            error: null,
+          });
+        }
         return pendingResponse(
           fjId,
           originalFilterForm,
-          'Finding candidates — matching profiles in progress.',
+          searchVendor === 'brightdata'
+            ? 'You are free to explore Huntlo while we find matching profiles. We will notify you when results are ready.'
+            : 'Finding candidates — matching profiles in progress.',
           session._id.toHexString()
         );
       }
 
       // Short first wait, then poll — avoid the old fixed 20s wall.
-      const waitMs = getPostSessionCreateProfilesWaitMs();
+      const waitMs =
+        searchVendor === 'brightdata' ? 0 : getPostSessionCreateProfilesWaitMs();
       if (waitMs > 0) {
         await sleep(waitMs);
       }
@@ -959,6 +1164,7 @@ export class CandidateSearchService {
           workingForm,
           payload: lastPayload,
           fjId,
+          searchVendor,
           status: 'pending',
           regionExpandFallbackUsed,
           regionExpandStep,
@@ -977,6 +1183,7 @@ export class CandidateSearchService {
             'failed to enqueue background poll after early pending apply'
           );
         }
+        scheduleBrightDataPollLoop(session);
 
         log().info(
           {
@@ -1006,6 +1213,7 @@ export class CandidateSearchService {
         workingForm,
         payload: lastPayload,
         fjId,
+        searchVendor,
         status: pollResult.polling
           ? 'polling'
           : pollResult.partial
@@ -1066,6 +1274,7 @@ export class CandidateSearchService {
           'failed to enqueue background poll after apply'
         );
       }
+      scheduleBrightDataPollLoop(session);
 
       emitCandidateSearchPoll({
         organizationId: actor.organizationId,
@@ -1145,6 +1354,7 @@ export class CandidateSearchService {
     workingForm: FutureJobsFilterForm;
     payload: Record<string, unknown>;
     fjId: string;
+    searchVendor?: string;
     status: string;
     regionExpandFallbackUsed: boolean;
     regionExpandStep: GeoExpandStep | null;
@@ -1162,6 +1372,7 @@ export class CandidateSearchService {
       workingForm,
       payload,
       fjId,
+      searchVendor,
       status,
       regionExpandFallbackUsed,
       regionExpandStep,
@@ -1171,6 +1382,8 @@ export class CandidateSearchService {
       polling,
       estimatedResults,
     } = options;
+
+    const vendor = normalizeCandidateSearchVendor(searchVendor ?? existing?.searchVendor);
 
     const appliedRegionConfiguration = regionExpandFallbackUsed
       ? {
@@ -1189,6 +1402,7 @@ export class CandidateSearchService {
       existing.providerPayload = payload;
       existing.futureJobsSessionId = fjId;
       existing.externalSessionId = fjId;
+      existing.searchVendor = vendor;
       existing.status = status as SourcingSessionDocument['status'];
       existing.regionExpandFallbackUsed = regionExpandFallbackUsed;
       existing.regionExpandStep = regionExpandStep;
@@ -1229,6 +1443,7 @@ export class CandidateSearchService {
       normalizedFilters: originalFilterForm,
       sessionPayload: payload,
       providerPayload: payload,
+      searchVendor: vendor,
       futureJobsSessionId: fjId,
       externalSessionId: fjId,
       status,
@@ -1246,7 +1461,7 @@ export class CandidateSearchService {
   }
 
   private async pollProfilesWithEmptyFallback(options: {
-    provider: ReturnType<typeof getFutureJobsProvider>;
+    provider: FutureJobsProvider;
     fjId: string;
     page: number;
     limit: number;
@@ -1478,8 +1693,8 @@ export class CandidateSearchService {
       throw sourcingSessionNotFound('Future Jobs session id missing');
     }
 
-    // Single Future Jobs GET — no WhenReady polling loop.
-    const provider = getFutureJobsProvider();
+    // Single provider GET — no WhenReady polling loop.
+    const provider = getCandidateSearchProviderForSession(session);
     const profilesRes = await provider.getSourcingSessionProfiles(fjId, {
       page: query.page,
       limit: Math.min(query.limit, 300),
@@ -1543,7 +1758,7 @@ export class CandidateSearchService {
     const quotaKey = `candidate-search:fetch-more:${session._id.toHexString()}:${Date.now()}`;
     await reserveSearchQuota(actor, quotaKey);
 
-    const provider = getFutureJobsProvider();
+    const provider = getCandidateSearchProviderForSession(session);
     try {
       await provider.fetchMoreSourcingSession(fjId, {});
       const waitMs = Math.min(
@@ -1861,6 +2076,7 @@ export class CandidateSearchService {
     const alreadyFull = hasFullFjCandidateDetails(candidate.rawDoc);
 
     if (!alreadyFull) {
+      // Contact details stay on Future Jobs even when search used Bright Data.
       const provider = getFutureJobsProvider();
       const detailIds = [
         candidate.candidateId,
@@ -1932,6 +2148,9 @@ export class CandidateSearchService {
     const page = Math.max(1, query.page);
     const limit = Math.min(100, Math.max(1, query.limit));
 
+    // Bright Data progress is owned by the in-API poll scheduler (and optional worker).
+    // List/recent are read-only — do not heal/reopen sessions here.
+
     const [total, sessions, metricsRows] = await Promise.all([
       SourcingSessionModel.countDocuments(filter),
       SourcingSessionModel.find(filter)
@@ -1999,9 +2218,32 @@ export class CandidateSearchService {
       : [];
     const countMap = new Map(counts.map((c) => [c._id.toHexString(), c.count]));
 
-    return {
-      success: true,
-      sessions: sessions.map((session) => {
+    const { isBrightDataPrematureFailure } = await import(
+      '../../sourcing/sourcing.poller.js'
+    );
+    const { scheduleBrightDataPoll } = await import('./brightdata-poll-scheduler.js');
+
+    const publicSessions = await Promise.all(
+      sessions.map(async (session) => {
+        let status = session.status;
+        if (isBrightDataPrematureFailure(session)) {
+          status = 'polling';
+          void SourcingSessionModel.updateOne(
+            { _id: session._id },
+            {
+              $set: {
+                status: 'polling',
+                polling: true,
+                searchVendor: 'brightdata',
+                errorCode: null,
+                errorMessage: null,
+                completedAt: null,
+              },
+            }
+          ).then(() => {
+            scheduleBrightDataPoll(session._id.toHexString());
+          });
+        }
         const ownerId = String(session.userId ?? session.ownerUserId);
         const jobId = session.jobId ? session.jobId.toHexString() : null;
         return {
@@ -2015,7 +2257,8 @@ export class CandidateSearchService {
           resultCount: session.totalDocs ?? session.totalResults ?? 0,
           savedCandidateCount: countMap.get(session._id.toHexString()) ?? 0,
           owner: names.get(ownerId) ?? null,
-          status: session.status,
+          status,
+          searchVendor: session.searchVendor || null,
           quotaUsed: session.quotaConsumed ?? 0,
           createdAt: session.createdAt?.toISOString?.() ?? null,
           lastActivity:
@@ -2025,7 +2268,12 @@ export class CandidateSearchService {
           saved: Boolean(session.savedAt),
           savedAt: session.savedAt?.toISOString?.() ?? null,
         };
-      }),
+      })
+    );
+
+    return {
+      success: true,
+      sessions: publicSessions,
       page,
       limit,
       total,
@@ -2043,18 +2291,42 @@ export class CandidateSearchService {
       .sort({ savedAt: -1 })
       .limit(query.limit);
 
+    const { isBrightDataPrematureFailure } = await import(
+      '../../sourcing/sourcing.poller.js'
+    );
+    const { scheduleBrightDataPoll } = await import('./brightdata-poll-scheduler.js');
+
     return {
       success: true,
-      recentSearches: sessions.map((session) => ({
-        savedSessionId: session._id.toHexString(),
-        sessionId: session.futureJobsSessionId || session.externalSessionId || null,
-        title: session.sessionTitle || session.name,
-        prompt: session.prompt || session.naturalLanguageQuery || '',
-        resultCount: session.totalDocs ?? session.totalResults ?? 0,
-        status: session.status,
-        createdAt: session.createdAt?.toISOString?.() ?? null,
-        savedAt: session.savedAt?.toISOString?.() ?? null,
-      })),
+      recentSearches: sessions.map((session) => {
+        let status = session.status;
+        if (isBrightDataPrematureFailure(session)) {
+          status = 'polling';
+          void SourcingSessionModel.updateOne(
+            { _id: session._id },
+            {
+              $set: {
+                status: 'polling',
+                polling: true,
+                searchVendor: 'brightdata',
+                errorCode: null,
+                errorMessage: null,
+                completedAt: null,
+              },
+            }
+          ).then(() => scheduleBrightDataPoll(session._id.toHexString()));
+        }
+        return {
+          savedSessionId: session._id.toHexString(),
+          sessionId: session.futureJobsSessionId || session.externalSessionId || null,
+          title: session.sessionTitle || session.name,
+          prompt: session.prompt || session.naturalLanguageQuery || '',
+          resultCount: session.totalDocs ?? session.totalResults ?? 0,
+          status,
+          createdAt: session.createdAt?.toISOString?.() ?? null,
+          savedAt: session.savedAt?.toISOString?.() ?? null,
+        };
+      }),
     };
   }
 

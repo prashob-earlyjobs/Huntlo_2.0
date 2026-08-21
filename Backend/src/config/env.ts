@@ -112,6 +112,16 @@ const envSchema = z.object({
   /** Absolute or cwd-relative path. Default: logs/future-jobs-curls.sh */
   FUTURE_JOBS_CURL_LOG_PATH: z.string().optional(),
 
+  // Bright Data (candidate search only; opt-in per user email)
+  BRIGHTDATA_API_URL: z
+    .string()
+    .default('https://api.brightdata.com')
+    .transform((value) => value.replace(/\/$/, '')),
+  BRIGHTDATA_API_KEY: z.string().default(''),
+  BRIGHTDATA_DATASET_ID: z.string().default('gd_l1viktl72bvl7bjuj0'),
+  BRIGHTDATA_USE_MOCK: booleanFromEnv.optional(),
+  BRIGHTDATA_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+
   // Optional Gemini enhancement for sourcing interpret (no-op when empty)
   GEMINI_API_KEY: z.string().default(''),
 

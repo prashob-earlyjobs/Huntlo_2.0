@@ -17,8 +17,18 @@ export { QuotaCounterModel } from './quota-counter.model.js';
 export { UsageReservationModel } from './usage-reservation.model.js';
 export { UsageLedgerModel } from './usage-ledger.model.js';
 export {
-  quotaService,
+  FEATURE_CATALOG,
+  FEATURE_KEYS,
+  effectiveFeatureAccess,
+  featureLabel,
+  isFeatureEnabled,
+  isFeatureKey,
+  toPublicOverrides,
   type FeatureKey,
+  type FeatureOverride,
+} from './features.js';
+export {
+  quotaService,
   type QuotaUsageView,
   type ReserveUsageInput,
 } from './quota.service.js';

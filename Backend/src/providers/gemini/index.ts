@@ -37,3 +37,15 @@ export type {
 } from './gemini.conversations.js';
 export { parseJobDescription, GEMINI_JOBS_MODEL } from './gemini.jobs.js';
 export type { ParsedJobDescription } from './gemini.jobs.js';
+export {
+  annotateBrightDataPrompt,
+  buildBrightDataAnnotatePrompt,
+  heuristicBrightDataFilters,
+  relaxedExperienceYearRange,
+  expandRelatedSkills,
+  expandRelatedTitles,
+  expandNearbyCities,
+  withExpandedPositionTitles,
+  GEMINI_BRIGHTDATA_ANNOTATE_MODEL,
+} from './gemini.brightdata-annotate.js';
+export type { BrightDataDatasetFilters } from './gemini.brightdata-annotate.js';

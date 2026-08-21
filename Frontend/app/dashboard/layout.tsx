@@ -4,6 +4,7 @@ import { SidebarProvider } from "@/components/layout/sidebar-context";
 import { TopHeader } from "@/components/layout/top-header";
 import { DashboardAuthGuard } from "@/components/auth/dashboard-auth-guard";
 import { ProductTourDialogs } from "@/components/product-tour/DashboardProductTour";
+import { PendingSearchNotifier } from "@/components/search/pending-search-notifier";
 import { DashboardProductTourProvider } from "@/hooks/use-dashboard-product-tour";
 
 export default function DashboardLayout({
@@ -25,6 +26,7 @@ export default function DashboardLayout({
               </main>
             </div>
             <ProductTourDialogs />
+            <PendingSearchNotifier />
           </div>
         </DashboardProductTourProvider>
       </SidebarProvider>

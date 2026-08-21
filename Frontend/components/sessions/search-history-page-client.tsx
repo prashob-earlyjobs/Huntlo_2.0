@@ -16,8 +16,10 @@ import { getSourcingSessions } from "@/lib/api/candidate-search";
 import type { SearchHistoryEntry } from "@/lib/mock-sessions";
 import { mapSessionState } from "@/lib/api/sourcing";
 import { ROUTES } from "@/lib/routes";
+import { useRealtime } from "@/providers/realtime-provider";
 
 const DEFAULT_PAGE_SIZE = 20;
+const RUNNING_REFRESH_MS = 10_000;
 
 function formatHistoryDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -45,10 +47,11 @@ export function SearchHistoryPageClient() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { subscribe } = useRealtime();
 
   const loadPage = useCallback(
-    async (nextPage: number, nextPageSize: number) => {
-      setLoading(true);
+    async (nextPage: number, nextPageSize: number, options?: { soft?: boolean }) => {
+      if (!options?.soft) setLoading(true);
       setError(null);
       try {
         const result = await getSourcingSessions({
@@ -96,7 +99,7 @@ export function SearchHistoryPageClient() {
           setError(getApiErrorMessage(err));
         }
       } finally {
-        setLoading(false);
+        if (!options?.soft) setLoading(false);
       }
     },
     []
@@ -105,6 +108,46 @@ export function SearchHistoryPageClient() {
   useEffect(() => {
     void loadPage(page, pageSize);
   }, [loadPage, page, pageSize]);
+
+  // Keep Running rows live via WS + light soft refresh (no heal on the backend).
+  const hasRunning = entries.some((entry) => entry.state === "running");
+  useEffect(() => {
+    if (!hasRunning) return;
+
+    const patchFromEvent = (event: { data?: unknown } | Record<string, unknown>) => {
+      const data = ((event as { data?: unknown }).data ?? event) as {
+        savedSessionId?: string;
+        sessionId?: string;
+        status?: string;
+        totalDocs?: number;
+      };
+      const targetId = data.savedSessionId;
+      if (!targetId) return;
+      setEntries((previous) =>
+        previous.map((entry) => {
+          if (entry.id !== targetId && entry.sessionId !== targetId) return entry;
+          return {
+            ...entry,
+            state: mapSessionState(data.status),
+            results:
+              typeof data.totalDocs === "number" ? data.totalDocs : entry.results,
+          };
+        })
+      );
+    };
+
+    const unsubPoll = subscribe("candidates.search.poll", patchFromEvent);
+    const unsubDone = subscribe("candidates.search.completed", patchFromEvent);
+    const timer = window.setInterval(() => {
+      void loadPage(page, pageSize, { soft: true });
+    }, RUNNING_REFRESH_MS);
+
+    return () => {
+      unsubPoll();
+      unsubDone();
+      window.clearInterval(timer);
+    };
+  }, [hasRunning, loadPage, page, pageSize, subscribe]);
 
   if (loading && entries.length === 0 && !error) {
     return <SearchHistoryPageSkeleton />;

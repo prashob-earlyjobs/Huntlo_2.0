@@ -81,6 +81,7 @@ function experienceSortKey(duration: string) {
 
 export function CandidateDrawer({
   candidate,
+  showMatchScore = true,
   open,
   onOpenChange,
   revealed,
@@ -93,6 +94,7 @@ export function CandidateDrawer({
   detailsError = null,
 }: {
   candidate: SessionCandidate | null;
+  showMatchScore?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   revealed: RevealState;
@@ -128,7 +130,9 @@ export function CandidateDrawer({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <SheetTitle className="truncate">{candidate.name}</SheetTitle>
-                <MatchScoreCompact score={candidate.matchScore} className="shrink-0" />
+                {showMatchScore && typeof candidate.matchScore === "number" ? (
+                  <MatchScoreCompact score={candidate.matchScore} className="shrink-0" />
+                ) : null}
               </div>
               <SheetDescription className="truncate">
                 {candidate.currentRole} · {candidate.currentCompany}
