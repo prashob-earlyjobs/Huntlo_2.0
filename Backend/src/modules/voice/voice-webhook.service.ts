@@ -25,7 +25,7 @@ import {
 } from '../../realtime/events.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
 import { conversationsService } from '../conversations/conversations.service.js';
-import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { OutreachCampaignModel, type OutreachCampaignDocument } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { refreshCampaignStats } from '../outreach/campaigns.service.js';
 import { recordCampaignActivity, CampaignActivityModel } from '../outreach/campaign-activity.model.js';
@@ -423,7 +423,7 @@ async function syncConversationVoiceTranscript(row: VoiceCallDocument) {
 }
 
 async function maybeStartPostQualificationHiringFlow(input: {
-  campaign: Awaited<ReturnType<typeof OutreachCampaignModel.findById>>;
+  campaign: OutreachCampaignDocument | null;
   enrollment: InstanceType<typeof OutreachEnrollmentModel>;
 }) {
   if (input.enrollment.qualificationState?.status !== 'qualified') return;
@@ -506,7 +506,7 @@ async function syncOutreachEnrollment(
     null;
   let qualificationUpdated = false;
   const previousQualificationStatus = enrollment.qualificationState?.status || 'pending';
-  let campaignForHiringFlow: Awaited<ReturnType<typeof OutreachCampaignModel.findById>> = null;
+  let campaignForHiringFlow: OutreachCampaignDocument | null = null;
 
   if (result) {
     const campaign = await OutreachCampaignModel.findById(row.campaignId);
