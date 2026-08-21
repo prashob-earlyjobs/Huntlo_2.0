@@ -998,7 +998,7 @@ export function AdminUsersWorkspace() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cu-role">Role</Label>
-              <Select value={createForm.role} onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v }))}>
+              <Select value={createForm.role} onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v ?? f.role }))}>
                 <SelectTrigger id="cu-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="owner">Owner</SelectItem>
