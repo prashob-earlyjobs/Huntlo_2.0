@@ -6,11 +6,13 @@ import {
   AudioLines,
   Briefcase,
   CalendarClock,
+  Check,
   CheckCircle2,
   Loader2,
   Mail,
   MessageCircle,
   Pencil,
+  Plug,
   Plus,
   Rocket,
   Send,
@@ -38,6 +40,7 @@ import {
   type QualQuestion,
   type WorkflowBuilderState,
 } from "@/components/huntlo-360/workflow-builder-state";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { JobAsyncSelect } from "@/components/shared/job-async-select";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
@@ -54,22 +57,14 @@ import {
   getApiErrorMessage,
   huntlo360Api,
   jobsApi,
+  schedulingApi,
   teamApi,
   type ApiTeamMember,
+  type CalendlyEventType,
   type WorkflowCreateInput,
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
-import {
-  AI_RESPONSE_MODES,
-  AUTO_SHORTLIST_CONDITIONS,
-  BOOKING_EXPIRY_OPTIONS,
-  CALENDLY_EVENT_TYPES,
-  EVALUATION_FIELDS_360,
-  HANDOFF_CONDITIONS,
-  REMINDER_OPTIONS,
-  SCREENING_LANGUAGES,
-  VOICE_TONES,
-} from "@/lib/mock-360";
+import { BOOKING_EXPIRY_OPTIONS } from "@/lib/mock-360";
 import {
   CAMPAIGN_TYPES,
   DELAY_UNIT_OPTIONS,
@@ -86,6 +81,21 @@ import {
   type WhatsAppTemplateSlot,
 } from "@/lib/whatsapp-outreach";
 import { useAuth } from "@/providers";
+
+const SCHEDULING_REMINDER_OPTIONS = [
+  { hours: 48, label: "48 hours before" },
+  { hours: 24, label: "24 hours before" },
+  { hours: 2, label: "2 hours before" },
+  { hours: 1, label: "1 hour before" },
+] as const;
+
+function formatReminderHours(hours: number[]): string {
+  if (hours.length === 0) return "No reminders";
+  return [...hours]
+    .sort((a, b) => b - a)
+    .map((value) => `${value}h before`)
+    .join(", ");
+}
 
 /* ------------------------------------------------------------------ */
 /* Types (re-exported from workflow-builder-state)                      */
@@ -267,12 +277,19 @@ function pipelineErrors(state: WorkflowBuilderState): string[] {
     errors.push("Add at least one qualification question.");
   }
   if (state.screeningEnabled) {
-    if (state.screeningQuestions.every((question) => !question.trim())) {
+    const filledScreening = state.screeningQuestions.filter((question) =>
+      question.text.trim()
+    );
+    if (filledScreening.length === 0) {
       errors.push("Add at least one screening question.");
+    } else if (
+      filledScreening.some((question) => !question.knockoutAnswer.trim())
+    ) {
+      errors.push("Add a knockout answer for every screening question.");
     }
-    if (state.evaluationFields.length === 0) {
-      errors.push("Pick at least one evaluation field.");
-    }
+  }
+  if (!state.eventType.trim()) {
+    errors.push("Select a Calendly event type for interview booking.");
   }
   return errors;
 }
@@ -1089,14 +1106,6 @@ function QualificationStep({
       description="Ask a few chat questions after they reply. Knockouts can auto-reject bad fits."
     >
       <div className="space-y-5">
-        <ToggleRow
-          id="wf-interest"
-          label="Candidate-interest classification"
-          description="Every reply is classified as Interested, Not interested, or Needs review before qualification starts."
-          checked={state.interestClassification}
-          onChange={(checked) => update("interestClassification", checked)}
-        />
-
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">
             Qualification questions
@@ -1163,62 +1172,6 @@ function QualificationStep({
             </Button>
           ) : null}
         </div>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Field label="AI response handling" htmlFor="wf-ai-mode">
-            <Select
-              value={state.aiResponseMode}
-              onValueChange={(value) => value && update("aiResponseMode", value)}
-            >
-              <SelectTrigger id="wf-ai-mode" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AI_RESPONSE_MODES.map((mode) => (
-                  <SelectItem key={mode} value={mode}>
-                    {mode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="Human handoff" htmlFor="wf-handoff">
-            <Select
-              value={state.handoffCondition}
-              onValueChange={(value) => value && update("handoffCondition", value)}
-            >
-              <SelectTrigger id="wf-handoff" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {HANDOFF_CONDITIONS.map((condition) => (
-                  <SelectItem key={condition} value={condition}>
-                    {condition}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="Auto-shortlist" htmlFor="wf-shortlist">
-            <Select
-              value={state.autoShortlist}
-              onValueChange={(value) => value && update("autoShortlist", value)}
-            >
-              <SelectTrigger id="wf-shortlist" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AUTO_SHORTLIST_CONDITIONS.map((condition) => (
-                  <SelectItem key={condition} value={condition}>
-                    {condition}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
       </div>
     </StepCard>
   );
@@ -1235,11 +1188,11 @@ function ScreeningStep({
   state: WorkflowBuilderState;
   update: Update;
 }) {
-  function updateScreeningQuestion(index: number, value: string) {
+  function updateScreeningQuestion(id: string, patch: Partial<QualQuestion>) {
     update(
       "screeningQuestions",
-      state.screeningQuestions.map((question, i) =>
-        i === index ? value : question
+      state.screeningQuestions.map((question) =>
+        question.id === id ? { ...question, ...patch } : question
       )
     );
   }
@@ -1260,72 +1213,72 @@ function ScreeningStep({
 
         {state.screeningEnabled ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Language" htmlFor="wf-language">
-                <Select
-                  value={state.language}
-                  onValueChange={(value) => value && update("language", value)}
-                >
-                  <SelectTrigger id="wf-language" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCREENING_LANGUAGES.map((language) => (
-                      <SelectItem key={language} value={language}>
-                        {language}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field label="Voice tone" htmlFor="wf-tone">
-                <Select
-                  value={state.voiceTone}
-                  onValueChange={(value) => value && update("voiceTone", value)}
-                >
-                  <SelectTrigger id="wf-tone" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VOICE_TONES.map((tone) => (
-                      <SelectItem key={tone} value={tone}>
-                        {tone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
                 Screening questions
               </p>
+              <p className="text-xs text-muted-foreground">
+                Asked on the voice call. Each question needs a knockout answer —
+                that answer forces Reject.
+              </p>
               {state.screeningQuestions.map((question, index) => (
-                <div key={index} className="flex items-start gap-2">
+                <div
+                  key={question.id}
+                  className="space-y-2 rounded-lg border border-border p-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <Input
+                      value={question.text}
+                      onChange={(event) =>
+                        updateScreeningQuestion(question.id, {
+                          text: event.target.value,
+                        })
+                      }
+                      aria-label={`Screening question ${index + 1}`}
+                      placeholder={`Question ${index + 1}`}
+                      className="flex-1"
+                    />
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={`Remove screening question ${index + 1}`}
+                        >
+                          <Trash2 aria-hidden />
+                        </Button>
+                      }
+                      title="Remove this screening question?"
+                      description={
+                        question.text.trim()
+                          ? `“${question.text.trim()}” will be removed from the voice call.`
+                          : "This screening question will be removed from the voice call."
+                      }
+                      confirmLabel="Remove"
+                      destructive
+                      onConfirm={() =>
+                        update(
+                          "screeningQuestions",
+                          state.screeningQuestions.filter(
+                            (item) => item.id !== question.id
+                          )
+                        )
+                      }
+                    />
+                  </div>
                   <Input
-                    value={question}
+                    value={question.knockoutAnswer}
                     onChange={(event) =>
-                      updateScreeningQuestion(index, event.target.value)
+                      updateScreeningQuestion(question.id, {
+                        knockoutAnswer: event.target.value,
+                      })
                     }
-                    aria-label={`Screening question ${index + 1}`}
-                    placeholder={`Question ${index + 1}`}
-                    className="flex-1"
+                    required
+                    aria-required
+                    aria-label={`Knockout answer for screening question ${index + 1}`}
+                    placeholder='Knockout answer (required) — e.g. "No", "More than 90 days"'
+                    className="text-xs"
                   />
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={`Remove screening question ${index + 1}`}
-                    onClick={() =>
-                      update(
-                        "screeningQuestions",
-                        state.screeningQuestions.filter((_, i) => i !== index)
-                      )
-                    }
-                  >
-                    <Trash2 aria-hidden />
-                  </Button>
                 </div>
               ))}
               {state.screeningQuestions.length < 8 ? (
@@ -1333,47 +1286,20 @@ function ScreeningStep({
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    update("screeningQuestions", [...state.screeningQuestions, ""])
+                    update("screeningQuestions", [
+                      ...state.screeningQuestions,
+                      {
+                        id: `sq-${Date.now()}`,
+                        text: "",
+                        knockoutAnswer: "No",
+                      },
+                    ])
                   }
                 >
                   <Plus aria-hidden />
                   Add question
                 </Button>
               ) : null}
-            </div>
-
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium text-foreground">
-                Evaluation fields
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {EVALUATION_FIELDS_360.map((field) => {
-                  const active = state.evaluationFields.includes(field);
-                  return (
-                    <button
-                      key={field}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() =>
-                        update(
-                          "evaluationFields",
-                          active
-                            ? state.evaluationFields.filter((f) => f !== field)
-                            : [...state.evaluationFields, field]
-                        )
-                      }
-                      className={cn(
-                        "rounded-md border px-2.5 py-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                        active
-                          ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
-                          : "border-border text-muted-foreground hover:bg-muted/40"
-                      )}
-                    >
-                      {field}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
@@ -1456,127 +1382,241 @@ function SchedulingStep({
   state: WorkflowBuilderState;
   update: Update;
 }) {
+  const [eventTypes, setEventTypes] = useState<CalendlyEventType[]>([]);
+  const [eventTypesLoading, setEventTypesLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEventTypesLoading(true);
+    void (async () => {
+      try {
+        const items = await schedulingApi.listEventTypes();
+        if (cancelled) return;
+        setEventTypes(items);
+        if (!state.eventType && items[0]) {
+          update(
+            "eventType",
+            items[0].uri || items[0].schedulingUrl || ""
+          );
+        }
+      } catch {
+        if (!cancelled) setEventTypes([]);
+      } finally {
+        if (!cancelled) setEventTypesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Load once on mount — do not re-fetch when eventType changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, []);
+
+  function toggleReminderHour(hours: number) {
+    const active = state.reminderHours.includes(hours);
+    update(
+      "reminderHours",
+      active
+        ? state.reminderHours.filter((value) => value !== hours)
+        : [...state.reminderHours, hours].sort((a, b) => b - a)
+    );
+  }
+
+  const selectedEvent = eventTypes.find(
+    (item) =>
+      item.uri === state.eventType || item.schedulingUrl === state.eventType
+  );
+
   return (
     <StepCard
       title="Interview booking"
-      description="Send a scheduling link automatically — no back-and-forth."
+      description="Send a Calendly link automatically — same setup as Schedule interview."
     >
       <div className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Calendly event type" htmlFor="wf-event">
-            <Select
-              value={state.eventType}
-              onValueChange={(value) => value && update("eventType", value)}
-            >
-              <SelectTrigger id="wf-event" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CALENDLY_EVENT_TYPES.map((eventType) => (
-                  <SelectItem key={eventType} value={eventType}>
-                    {eventType}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="Scheduling channel">
-            <div
-              role="radiogroup"
-              aria-label="Scheduling channel"
-              className="flex gap-2"
-            >
-              {(["Email", "WhatsApp"] as const).map((channel) => {
-                const active = state.schedulingChannel === channel;
-                const Icon = channel === "Email" ? Mail : MessageCircle;
-                return (
-                  <button
-                    key={channel}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => update("schedulingChannel", channel)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                      active
-                        ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
-                        : "border-border text-foreground hover:bg-muted/40"
-                    )}
-                  >
-                    <Icon aria-hidden className="size-3.5" />
-                    {channel}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-        </div>
-
-        <Field
-          label="Message template"
-          htmlFor="wf-schedule-message"
-          hint="Use placeholders from Integrations → Templates ({{first_name}}, {{job_title}}, {{recruiter_name}}, …)"
-        >
-          <Textarea
-            id="wf-schedule-message"
-            value={state.messageTemplate}
-            onChange={(event) => update("messageTemplate", event.target.value)}
-            className="min-h-20 font-mono text-xs"
-          />
-        </Field>
         <p className="text-xs text-muted-foreground">
-          Manage reusable copy in{" "}
+          Uses your connected Calendly account from{" "}
           <a
-            href="/dashboard/templates"
+            href={ROUTES.integrations}
             className="font-medium text-primary underline-offset-2 hover:underline"
           >
-            Templates
+            Integrations
           </a>
-          . AI drafts never auto-launch.
+          .
         </p>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Reminder settings" htmlFor="wf-reminders">
-            <Select
-              value={state.reminders}
-              onValueChange={(value) => value && update("reminders", value)}
-            >
-              <SelectTrigger id="wf-reminders" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {REMINDER_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field
-            label="Booking expiry"
-            htmlFor="wf-expiry"
-            hint="Expired links raise a “Scheduling link expired” exception."
+        <Field label="Calendly event type" htmlFor="wf-event" required>
+          <Select
+            value={state.eventType}
+            onValueChange={(value) => value && update("eventType", value)}
+            disabled={eventTypesLoading || eventTypes.length === 0}
           >
-            <Select
-              value={state.bookingExpiry}
-              onValueChange={(value) => value && update("bookingExpiry", value)}
-            >
-              <SelectTrigger id="wf-expiry" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BOOKING_EXPIRY_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
+            <SelectTrigger id="wf-event" className="w-full">
+              <SelectValue placeholder="Select event type">
+                {selectedEvent?.name || state.eventType || undefined}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {eventTypes.map((eventType) => {
+                const value = eventType.uri || eventType.schedulingUrl;
+                return (
+                  <SelectItem key={value} value={value}>
+                    {eventType.name}
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          {!eventTypesLoading && eventTypes.length === 0 ? (
+            <div className="mt-2 flex flex-col items-start gap-2">
+              <p className="text-xs text-destructive">
+                Connect Calendly before enabling interview booking.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                nativeButton={false}
+                render={<Link href={ROUTES.integrations} />}
+              >
+                <Plug aria-hidden />
+                Open Integrations
+              </Button>
+            </div>
+          ) : null}
+        </Field>
+
+        <Field label="Reminder configuration">
+          <div
+            role="group"
+            aria-label="Reminder timings"
+            className="grid gap-2 sm:grid-cols-2"
+          >
+            {SCHEDULING_REMINDER_OPTIONS.map((option) => {
+              const active = state.reminderHours.includes(option.hours);
+              return (
+                <button
+                  key={option.hours}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleReminderHour(option.hours)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                    active
+                      ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
+                      : "border-border hover:bg-muted/40"
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded border",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    )}
+                  >
+                    {active ? <Check className="size-3" /> : null}
+                  </span>
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {formatReminderHours(state.reminderHours)}
+          </p>
+        </Field>
+
+        <Field label="Send via" required>
+          <div
+            role="radiogroup"
+            aria-label="Invitation channel"
+            className="grid gap-2 sm:grid-cols-2"
+          >
+            {(["Email", "WhatsApp"] as const).map((channel) => {
+              const active = state.schedulingChannel === channel;
+              return (
+                <button
+                  key={channel}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => update("schedulingChannel", channel)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                    active
+                      ? "border-primary/50 bg-brand-subtle/40 font-medium text-primary"
+                      : "border-border hover:bg-muted/40"
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded border",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    )}
+                  >
+                    {active ? <Check className="size-3" /> : null}
+                  </span>
+                  {channel === "Email" ? (
+                    <Mail aria-hidden className="size-3.5" />
+                  ) : (
+                    <MessageCircle aria-hidden className="size-3.5" />
+                  )}
+                  {channel}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Email copy is editable. WhatsApp uses fixed approved templates with
+            the same wording.
+          </p>
+        </Field>
+
+        {state.schedulingChannel === "Email" ? (
+          <Field
+            label="Email invitation message"
+            htmlFor="wf-schedule-message"
+            required
+            hint="Placeholders: {{first_name}}, {{job_title}}, {{scheduling_details}}. Requires a connected Email integration."
+          >
+            <Textarea
+              id="wf-schedule-message"
+              value={state.messageTemplate}
+              onChange={(event) => update("messageTemplate", event.target.value)}
+              className="min-h-28"
+            />
           </Field>
-        </div>
+        ) : (
+          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            WhatsApp invites use the approved interview invite template. Body
+            text is not editable here.
+          </p>
+        )}
+
+        <Field
+          label="Booking expiry"
+          htmlFor="wf-expiry"
+          hint="Expired links raise a “Scheduling link expired” exception."
+        >
+          <Select
+            value={state.bookingExpiry}
+            onValueChange={(value) => value && update("bookingExpiry", value)}
+          >
+            <SelectTrigger id="wf-expiry" className="w-full sm:max-w-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {BOOKING_EXPIRY_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
         <div className="grid gap-2 sm:grid-cols-2">
           <ToggleRow
@@ -1622,6 +1662,9 @@ function ReviewStep({
     state.aiVoiceEnabled ? "AI Voice" : null,
   ].filter(Boolean);
   const knockouts = state.questions.filter((q) => q.knockoutAnswer.trim()).length;
+  const screeningKnockouts = state.screeningQuestions.filter((q) =>
+    q.knockoutAnswer.trim()
+  ).length;
 
   const sections: {
     step: number;
@@ -1675,12 +1718,7 @@ function ReviewStep({
       icon: CheckCircle2,
       title: "Qualification",
       lines: [
-        state.interestClassification
-          ? "Interest classification on"
-          : "Interest classification off",
         `${state.questions.filter((q) => q.text.trim()).length} questions · ${knockouts} knockout${knockouts === 1 ? "" : "s"}`,
-        `${state.aiResponseMode} · Handoff: ${state.handoffCondition}`,
-        `Auto-shortlist: ${state.autoShortlist}`,
       ],
     },
     {
@@ -1689,7 +1727,7 @@ function ReviewStep({
       title: "AI Screening",
       lines: state.screeningEnabled
         ? [
-            `${state.language} · ${state.voiceTone} tone · ${state.screeningQuestions.filter((q) => q.trim()).length} questions`,
+            `${state.screeningQuestions.filter((q) => q.text.trim()).length} questions · ${screeningKnockouts} knockout${screeningKnockouts === 1 ? "" : "s"}`,
             `${state.attempts} attempts, ${state.attemptInterval} apart`,
             `Minimum score ${state.minScore}/100${state.autoReject ? " · auto-reject below 50" : ""}`,
           ]
@@ -1700,8 +1738,10 @@ function ReviewStep({
       icon: CalendarClock,
       title: "Scheduling",
       lines: [
-        `${state.eventType} via ${state.schedulingChannel}`,
-        `Reminders: ${state.reminders} · link expires after ${state.bookingExpiry}`,
+        state.eventType
+          ? `Calendly via ${state.schedulingChannel}`
+          : `No Calendly event · ${state.schedulingChannel}`,
+        `Reminders: ${formatReminderHours(state.reminderHours)} · link expires after ${state.bookingExpiry}`,
         state.autoSendAfterScreening
           ? "Books automatically after screening"
           : state.autoSendAfterQualification
@@ -1822,7 +1862,7 @@ function toCreateInput(
     },
     qualificationConfig: {
       enabled: true,
-      interestClassification: state.interestClassification,
+      interestClassification: true,
       questions: state.questions
         .filter((q) => q.text.trim())
         .map((q) => ({
@@ -1832,15 +1872,25 @@ function toCreateInput(
           knockout: Boolean(q.knockoutAnswer.trim()),
           knockoutCondition: q.knockoutAnswer.trim() || null,
         })),
-      aiReplyEnabled: state.aiResponseMode !== "Off",
-      handoffCondition: state.handoffCondition,
-      autoShortlist: state.autoShortlist,
+      aiReplyEnabled: true,
+      handoffCondition: null,
+      autoShortlist: null,
     },
     screeningConfig: {
       enabled: state.screeningEnabled,
-      language: state.language,
-      voiceTone: state.voiceTone,
-      questions: state.screeningQuestions.filter((q) => q.trim()),
+      language: null,
+      voiceTone: null,
+      questions: state.screeningQuestions
+        .filter((q) => q.text.trim())
+        .map((q) => ({
+          id: q.id,
+          prompt: q.text.trim(),
+          knockout: Boolean(q.knockoutAnswer.trim()),
+          knockoutCondition: q.knockoutAnswer.trim() || null,
+        })),
+      knockouts: state.screeningQuestions
+        .map((q) => q.knockoutAnswer.trim())
+        .filter(Boolean),
       evaluationFields: state.evaluationFields,
       attempts: Number.parseInt(state.attempts, 10) || 2,
       attemptIntervalHours: Number.parseInt(state.attemptInterval, 10) || 24,
@@ -1854,7 +1904,10 @@ function toCreateInput(
       provider: "calendly",
       eventTypeUri: state.eventType || null,
       channel: state.schedulingChannel.toLowerCase(),
-      reminders: state.reminders,
+      reminders:
+        state.reminderHours.length > 0
+          ? [...state.reminderHours].sort((a, b) => b - a).join(",")
+          : null,
       autoSendAfterQualification: state.autoSendAfterQualification,
       autoSendAfterScreening: state.autoSendAfterScreening,
       bookingExpiryHours:

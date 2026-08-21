@@ -1,18 +1,10 @@
 import type { ApiHuntlo360Workflow } from "@/lib/api";
-import {
-  AI_RESPONSE_MODES,
-  AUTO_SHORTLIST_CONDITIONS,
-  BOOKING_EXPIRY_OPTIONS,
-  CALENDLY_EVENT_TYPES,
-  HANDOFF_CONDITIONS,
-  REMINDER_OPTIONS,
-  SCREENING_LANGUAGES,
-  VOICE_TONES,
-} from "@/lib/mock-360";
+import { BOOKING_EXPIRY_OPTIONS } from "@/lib/mock-360";
 import type { AudienceSource, DelayUnit } from "@/lib/mock-outreach";
 
 import {
   initialWorkflowBuilderState,
+  type QualQuestion,
   type WorkflowBuilderState,
 } from "@/components/huntlo-360/workflow-builder-state";
 
@@ -32,17 +24,6 @@ const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 function asDelayUnit(value: string | undefined | null): DelayUnit {
   if (value === "hours" || value === "minutes" || value === "days") return value;
   return "days";
-}
-
-function pickOption<T extends string>(
-  options: readonly T[],
-  value: string | null | undefined,
-  fallback: T
-): T {
-  if (value && (options as readonly string[]).includes(value)) {
-    return value as T;
-  }
-  return fallback;
 }
 
 function sourceFromWorkflow(workflow: ApiHuntlo360Workflow): {
@@ -103,6 +84,55 @@ function attemptIntervalLabel(hours: number | undefined): string {
   if (hours == null) return "24 hours";
   const match = options.find((option) => Number.parseInt(option, 10) === hours);
   return match || "24 hours";
+}
+
+function parseReminderHours(value: string | null | undefined): number[] {
+  if (!value?.trim()) return [24, 2];
+  const hours = value
+    .split(",")
+    .map((part) => Number.parseInt(part.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return hours.length > 0 ? [...new Set(hours)].sort((a, b) => b - a) : [24, 2];
+}
+
+function mapScreeningQuestions(
+  questions:
+    | Array<
+        | string
+        | {
+            id?: string;
+            prompt: string;
+            knockout?: boolean;
+            knockoutCondition?: string | null;
+          }
+      >
+    | undefined,
+  knockouts: string[] | undefined,
+  fallback: QualQuestion[]
+): QualQuestion[] {
+  if (!questions?.length) return fallback;
+  const leftoverKnockouts = [...(knockouts || [])];
+  const mapped = questions
+    .map((entry, index) => {
+      if (typeof entry === "string") {
+        const text = entry.trim();
+        if (!text) return null;
+        return {
+          id: `sq-${index + 1}`,
+          text,
+          knockoutAnswer: leftoverKnockouts.shift() || "",
+        };
+      }
+      const text = entry.prompt?.trim();
+      if (!text) return null;
+      return {
+        id: entry.id || `sq-${index + 1}`,
+        text,
+        knockoutAnswer: entry.knockoutCondition?.trim() || "",
+      };
+    })
+    .filter((question): question is QualQuestion => Boolean(question));
+  return mapped.length > 0 ? mapped : fallback;
 }
 
 /** Build builder state from a saved Huntlo 360 workflow. */
@@ -186,37 +216,13 @@ export function builderStateFromWorkflow(
     openingMessage: outreach?.openingMessage?.trim() || base.openingMessage,
     openingWhatsAppTemplateId: outreach?.openingWhatsAppTemplateId ?? null,
     followUps: followUps.length > 0 ? followUps : base.followUps,
-    interestClassification:
-      qualification?.interestClassification ?? base.interestClassification,
     questions: questions.length > 0 ? questions : base.questions,
-    aiResponseMode: qualification?.aiReplyEnabled
-      ? AI_RESPONSE_MODES[0]
-      : AI_RESPONSE_MODES[2],
-    handoffCondition: pickOption(
-      HANDOFF_CONDITIONS,
-      qualification?.handoffCondition,
-      base.handoffCondition as (typeof HANDOFF_CONDITIONS)[number]
-    ),
-    autoShortlist: pickOption(
-      AUTO_SHORTLIST_CONDITIONS,
-      qualification?.autoShortlist,
-      base.autoShortlist as (typeof AUTO_SHORTLIST_CONDITIONS)[number]
-    ),
     screeningEnabled: screening?.enabled ?? base.screeningEnabled,
-    language: pickOption(
-      SCREENING_LANGUAGES,
-      screening?.language,
-      base.language as (typeof SCREENING_LANGUAGES)[number]
+    screeningQuestions: mapScreeningQuestions(
+      screening?.questions,
+      screening?.knockouts,
+      base.screeningQuestions
     ),
-    voiceTone: pickOption(
-      VOICE_TONES,
-      screening?.voiceTone,
-      base.voiceTone as (typeof VOICE_TONES)[number]
-    ),
-    screeningQuestions:
-      screening?.questions?.filter((question) => question.trim()).length
-        ? screening.questions.filter((question) => question.trim())
-        : base.screeningQuestions,
     evaluationFields:
       screening?.evaluationFields?.length
         ? screening.evaluationFields
@@ -225,17 +231,9 @@ export function builderStateFromWorkflow(
     attemptInterval: attemptIntervalLabel(screening?.attemptIntervalHours),
     minScore: String(screening?.minScore ?? Number.parseInt(base.minScore, 10)),
     autoReject: screening?.autoReject ?? base.autoReject,
-    eventType: pickOption(
-      CALENDLY_EVENT_TYPES,
-      scheduling?.eventTypeUri,
-      base.eventType as (typeof CALENDLY_EVENT_TYPES)[number]
-    ),
+    eventType: scheduling?.eventTypeUri || base.eventType,
     schedulingChannel,
-    reminders: pickOption(
-      REMINDER_OPTIONS,
-      scheduling?.reminders,
-      base.reminders as (typeof REMINDER_OPTIONS)[number]
-    ),
+    reminderHours: parseReminderHours(scheduling?.reminders),
     autoSendAfterQualification:
       scheduling?.autoSendAfterQualification ?? base.autoSendAfterQualification,
     autoSendAfterScreening:

@@ -6,6 +6,7 @@ import {
   Briefcase,
   Check,
   CheckCheck,
+  ChevronLeft,
   ChevronRight,
   Download,
   Eye,
@@ -1045,6 +1046,134 @@ const CHANNEL_FILTER_OPTIONS: FilterOption[] = (
   ["Email", "WhatsApp", "AI Voice"] as const
 ).map((value) => ({ id: value, label: value }));
 
+const LG_UP = "(min-width: 1024px)";
+
+function useIsLgUp() {
+  const [isLgUp, setIsLgUp] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(LG_UP);
+    const apply = () => setIsLgUp(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  return isLgUp;
+}
+
+function ConversationThread({
+  selected,
+  events,
+  embedded,
+  timelineEndRef,
+  profileOpen,
+  showBack,
+  onBack,
+  onOpenProfile,
+}: {
+  selected: InboxRow | null;
+  events: ConversationEvent[];
+  embedded: boolean;
+  timelineEndRef: React.RefObject<HTMLDivElement | null>;
+  profileOpen: boolean;
+  showBack?: boolean;
+  onBack?: () => void;
+  onOpenProfile?: () => void;
+}) {
+  if (!selected) {
+    return (
+      <div
+        className={cn(
+          "flex flex-1 flex-col items-center justify-center gap-2 text-center",
+          embedded ? "p-6" : "p-10"
+        )}
+      >
+        <FileText aria-hidden className="size-6 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          Select a conversation to view the timeline.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2.5 border-b border-border",
+          embedded ? "px-3 py-2" : "px-4 py-2.5"
+        )}
+      >
+        {showBack ? (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Back to conversations"
+            onClick={onBack}
+          >
+            <ChevronLeft aria-hidden />
+          </Button>
+        ) : null}
+        {!embedded ? (
+          <CandidateAvatar name={selected.candidateName} className="size-8" />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-foreground">
+            {embedded ? selected.campaignName : selected.candidateName}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {embedded
+              ? `${selected.sequenceStep}${
+                  selected.channels.length > 1
+                    ? ` · ${selected.channels.join(" + ")}`
+                    : ""
+                }`
+              : `${selected.campaignName} · ${selected.sequenceStep}${
+                  selected.channels.length > 1
+                    ? ` · ${selected.channels.join(" + ")}`
+                    : ""
+                }`}
+          </p>
+        </div>
+        <MiniBadge
+          text={conversationPipelineStatus(selected)}
+          className={pipelineStatusBadgeClass(
+            conversationPipelineStatus(selected)
+          )}
+          title={qualificationBadgeTooltip(selected)}
+        />
+        {!embedded && !profileOpen && onOpenProfile ? (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Open profile"
+            onClick={onOpenProfile}
+          >
+            <User aria-hidden />
+          </Button>
+        ) : null}
+      </div>
+
+      <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+        <div
+          className={cn(
+            "@container/thread box-border w-full max-w-full space-y-3",
+            embedded ? "p-3" : "p-4"
+          )}
+        >
+          {events.map((event) => (
+            <EventBubble key={event.id} event={event} />
+          ))}
+          <div ref={timelineEndRef} aria-hidden className="h-px w-full" />
+        </div>
+      </ScrollArea>
+    </>
+  );
+}
+
 export function ConversationInbox({
   conversations,
   className,
@@ -1064,13 +1193,12 @@ export function ConversationInbox({
   onLoadMore?: () => void;
 }) {
   const embedded = variant === "embedded";
+  const isLgUp = useIsLgUp();
   const { user } = useAuth();
   const noteAuthor =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "You";
   const [items, setItems] = useState(conversations);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    conversations[0]?.id ?? null
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<string[]>([]);
   const [pipelineFilter, setPipelineFilter] = useState<string[]>([]);
@@ -1097,10 +1225,14 @@ export function ConversationInbox({
         return merged;
       });
     });
+  }, [conversations, selectedId]);
+
+  useEffect(() => {
+    if (!isLgUp) return;
     if (!selectedId && conversations[0]?.id) {
       setSelectedId(conversations[0].id);
     }
-  }, [conversations, selectedId]);
+  }, [conversations, selectedId, isLgUp]);
 
   // If a new message arrives on the open thread (or its sibling channels), mark read.
   useEffect(() => {
@@ -1198,12 +1330,13 @@ export function ConversationInbox({
           : row
       )
     );
-    // On stacked (mobile) layout the timeline sits below the list — scroll it into view.
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById("conversation-detail")
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
+    if (isLgUp) {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("conversation-detail")
+          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
     for (const threadId of threadIds) {
       void conversationsApi
         .markRead(threadId)
@@ -1264,14 +1397,14 @@ export function ConversationInbox({
         embedded
           ? cn(
               "grid h-[32rem] max-h-[32rem] overflow-hidden rounded-lg border border-border",
-              "grid-cols-1 grid-rows-[minmax(0,11rem)_minmax(0,1fr)]",
+              "grid-cols-1 grid-rows-[minmax(0,1fr)]",
               "lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]"
             )
           : cn(
-              "grid h-full min-h-0 rounded-xl border border-border",
-              "grid-cols-1 grid-rows-[minmax(0,14rem)_minmax(0,1fr)]",
-              "lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
-              profileOpen && selected
+              "grid h-full min-h-[28rem] rounded-xl border border-border",
+              "grid-cols-1 grid-rows-[minmax(0,1fr)]",
+              "lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
+              profileOpen && selected && isLgUp
                 ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
                 : "xl:grid-cols-[300px_minmax(0,1fr)]"
             ),
@@ -1280,10 +1413,7 @@ export function ConversationInbox({
     >
       {/* Left — list */}
       <div
-        className={cn(
-          "flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border",
-          embedded ? "lg:border-r lg:border-b-0" : "lg:border-r lg:border-b-0"
-        )}
+        className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:border-r lg:border-border"
       >
         {!embedded ? (
           <div className="shrink-0 space-y-2 border-b border-border p-3">
@@ -1470,94 +1600,76 @@ export function ConversationInbox({
         </ScrollArea>
       </div>
 
-      {/* Centre — timeline */}
-      <div
-        id="conversation-detail"
-        className={cn(
-          "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden",
-          !embedded && "border-b border-border xl:border-r xl:border-b-0"
-        )}
-      >
-        {selected ? (
-          <>
-            <div
-              className={cn(
-                "flex shrink-0 items-center gap-2.5 border-b border-border",
-                embedded ? "px-3 py-2" : "px-4 py-2.5"
-              )}
-            >
-              {!embedded ? (
-                <CandidateAvatar name={selected.candidateName} className="size-8" />
-              ) : null}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {embedded ? selected.campaignName : selected.candidateName}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {embedded
-                    ? `${selected.sequenceStep}${
-                        selected.channels.length > 1
-                          ? ` · ${selected.channels.join(" + ")}`
-                          : ""
-                      }`
-                    : `${selected.campaignName} · ${selected.sequenceStep}${
-                        selected.channels.length > 1
-                          ? ` · ${selected.channels.join(" + ")}`
-                          : ""
-                      }`}
-                </p>
-              </div>
-              <MiniBadge
-                text={conversationPipelineStatus(selected)}
-                className={pipelineStatusBadgeClass(
-                  conversationPipelineStatus(selected)
-                )}
-                title={qualificationBadgeTooltip(selected)}
+      {/* Centre — timeline (desktop). Mobile opens the same thread in a popup. */}
+      {isLgUp ? (
+        <div
+          id="conversation-detail"
+          className={cn(
+            "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden",
+            !embedded && "xl:border-r xl:border-border"
+          )}
+        >
+          <ConversationThread
+            selected={selected}
+            events={events}
+            embedded={embedded}
+            timelineEndRef={timelineEndRef}
+            profileOpen={profileOpen}
+            onOpenProfile={() => setProfileOpen(true)}
+          />
+        </div>
+      ) : (
+        <Dialog
+          open={Boolean(selected)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedId(null);
+              setProfileOpen(false);
+            }
+          }}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="top-0 left-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none p-0 sm:max-w-full"
+          >
+            <DialogTitle className="sr-only">
+              {selected
+                ? `Conversation with ${selected.candidateName}`
+                : "Conversation"}
+            </DialogTitle>
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card">
+              <ConversationThread
+                selected={selected}
+                events={events}
+                embedded={embedded}
+                timelineEndRef={timelineEndRef}
+                profileOpen={profileOpen}
+                showBack
+                onBack={() => {
+                  setSelectedId(null);
+                  setProfileOpen(false);
+                }}
+                onOpenProfile={() => setProfileOpen(true)}
               />
-              {!embedded && !profileOpen ? (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Open profile"
-                  onClick={() => setProfileOpen(true)}
-                >
-                  <User aria-hidden />
-                </Button>
+              {!embedded && profileOpen && selected ? (
+                <div className="max-h-[45%] min-h-0 shrink-0 overflow-hidden border-t border-border">
+                  <ScrollArea className="scrollbar-slim h-full max-h-[45vh]">
+                    <ProfilePanel
+                      conversation={selected}
+                      notes={notes}
+                      onAddNote={(text) => persistNote(selected.id, text)}
+                      onClose={() => setProfileOpen(false)}
+                    />
+                  </ScrollArea>
+                </div>
               ) : null}
             </div>
-
-            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-              <div
-                className={cn(
-                  "@container/thread box-border w-full max-w-full space-y-3",
-                  embedded ? "p-3" : "p-4"
-                )}
-              >
-                {events.map((event) => (
-                  <EventBubble key={event.id} event={event} />
-                ))}
-                <div ref={timelineEndRef} aria-hidden className="h-px w-full" />
-              </div>
-            </ScrollArea>
-          </>
-        ) : (
-          <div
-            className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-2 text-center",
-              embedded ? "p-6" : "p-10"
-            )}
-          >
-            <FileText aria-hidden className="size-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Select a conversation to view the timeline.
-            </p>
-          </div>
-        )}
-      </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Right — profile */}
-      {!embedded && profileOpen && selected ? (
+      {isLgUp && !embedded && profileOpen && selected ? (
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
           <ScrollArea className="scrollbar-slim min-h-0 flex-1 max-xl:max-h-80">
             <ProfilePanel

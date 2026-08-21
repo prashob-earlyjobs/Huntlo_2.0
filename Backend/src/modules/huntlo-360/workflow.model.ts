@@ -47,7 +47,18 @@ export type Huntlo360WorkflowDocument = Document & {
     enabled: boolean;
     language: string | null;
     voiceTone: string | null;
-    questions: string[];
+    /** Plain prompts or structured questions with per-question knockout answers. */
+    questions: Array<
+      | string
+      | {
+          id?: string;
+          prompt: string;
+          knockout?: boolean;
+          knockoutCondition?: string | null;
+        }
+    >;
+    /** Derived knockout labels (also used by scoring). Prefer per-question conditions. */
+    knockouts: string[];
     evaluationFields: string[];
     attempts: number;
     attemptIntervalHours: number;
@@ -183,6 +194,7 @@ const huntlo360WorkflowSchema = new Schema<Huntlo360WorkflowDocument>(
           language: { type: String, default: null },
           voiceTone: { type: String, default: null },
           questions: { type: [Schema.Types.Mixed], default: [] },
+          knockouts: { type: [String], default: [] },
           evaluationFields: { type: [String], default: [] },
           attempts: { type: Number, default: 2 },
           attemptIntervalHours: { type: Number, default: 24 },
@@ -206,6 +218,7 @@ const huntlo360WorkflowSchema = new Schema<Huntlo360WorkflowDocument>(
         language: null,
         voiceTone: null,
         questions: [],
+        knockouts: [],
         evaluationFields: [],
         attempts: 2,
         attemptIntervalHours: 24,

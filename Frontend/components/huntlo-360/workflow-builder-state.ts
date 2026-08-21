@@ -1,13 +1,6 @@
 import {
-  AI_RESPONSE_MODES,
-  AUTO_SHORTLIST_CONDITIONS,
   BOOKING_EXPIRY_OPTIONS,
-  CALENDLY_EVENT_TYPES,
   DEFAULT_SCREENING_QUESTIONS,
-  HANDOFF_CONDITIONS,
-  REMINDER_OPTIONS,
-  SCREENING_LANGUAGES,
-  VOICE_TONES,
 } from "@/lib/mock-360";
 import type {
   AudienceSource,
@@ -54,16 +47,10 @@ export interface WorkflowBuilderState {
   openingWhatsAppTemplateId: string | null;
   followUps: FollowUpMessage[];
   // 4 — qualification
-  interestClassification: boolean;
   questions: QualQuestion[];
-  aiResponseMode: string;
-  handoffCondition: string;
-  autoShortlist: string;
   // 5 — screening
   screeningEnabled: boolean;
-  language: string;
-  voiceTone: string;
-  screeningQuestions: string[];
+  screeningQuestions: QualQuestion[];
   evaluationFields: string[];
   attempts: string;
   attemptInterval: string;
@@ -73,11 +60,22 @@ export interface WorkflowBuilderState {
   eventType: string;
   schedulingChannel: "Email" | "WhatsApp";
   messageTemplate: string;
-  reminders: string;
+  reminderHours: number[];
   autoSendAfterQualification: boolean;
   autoSendAfterScreening: boolean;
   bookingExpiry: string;
 }
+
+export const DEFAULT_SCHEDULE_INVITE_MESSAGE = `Hi {{first_name}},
+
+Great news — you're through to the next round for {{job_title}}. Pick a slot that works for you:
+
+{{scheduling_details}}
+
+Looking forward to speaking with you.
+
+Regards,
+Hiring Team`;
 
 export function initialWorkflowBuilderState(): WorkflowBuilderState {
   return {
@@ -106,7 +104,6 @@ export function initialWorkflowBuilderState(): WorkflowBuilderState {
         templateId: null,
       },
     ],
-    interestClassification: true,
     questions: [
       {
         id: "q-1",
@@ -120,23 +117,21 @@ export function initialWorkflowBuilderState(): WorkflowBuilderState {
       },
       { id: "q-3", text: "What is your expected compensation?", knockoutAnswer: "" },
     ],
-    aiResponseMode: AI_RESPONSE_MODES[0],
-    handoffCondition: HANDOFF_CONDITIONS[1],
-    autoShortlist: AUTO_SHORTLIST_CONDITIONS[1],
     screeningEnabled: true,
-    language: SCREENING_LANGUAGES[0],
-    voiceTone: VOICE_TONES[0],
-    screeningQuestions: [...DEFAULT_SCREENING_QUESTIONS],
+    screeningQuestions: DEFAULT_SCREENING_QUESTIONS.map((question) => ({
+      id: question.id,
+      text: question.text,
+      knockoutAnswer: question.knockoutAnswer,
+    })),
     evaluationFields: ["Communication", "Technical depth", "Role fit"],
     attempts: "3",
     attemptInterval: "24 hours",
     minScore: "75",
     autoReject: true,
-    eventType: CALENDLY_EVENT_TYPES[1],
+    eventType: "",
     schedulingChannel: "Email",
-    messageTemplate:
-      "Hi {{first_name}}, great news — you're through to the next round for {{job_title}}. Pick a slot that works for you: {{scheduling_link}}",
-    reminders: REMINDER_OPTIONS[0],
+    messageTemplate: DEFAULT_SCHEDULE_INVITE_MESSAGE,
+    reminderHours: [24, 2],
     autoSendAfterQualification: false,
     autoSendAfterScreening: true,
     bookingExpiry: BOOKING_EXPIRY_OPTIONS[1],

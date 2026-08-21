@@ -24,6 +24,8 @@ export type ScreeningQuestion = {
   /** When true, answer feeds evaluationCriteria at launch. */
   evaluationEnabled?: boolean;
   knockout?: boolean;
+  /** Answer / rule that forces Reject for this question (voice agent + scoring). */
+  knockoutCondition?: string | null;
 };
 
 export type EvaluationCriterion = {
@@ -151,6 +153,7 @@ const screeningSchema = new Schema<ScreeningDocument>(
           expectedVariable: { type: String, default: null, maxlength: 80 },
           evaluationEnabled: { type: Boolean, default: true },
           knockout: { type: Boolean, default: false },
+          knockoutCondition: { type: String, default: null, maxlength: 500 },
         },
       ],
       default: [],

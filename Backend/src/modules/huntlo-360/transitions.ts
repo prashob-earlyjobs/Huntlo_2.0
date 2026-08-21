@@ -168,6 +168,13 @@ function resolveNextStage(
       if (workflow.assessmentConfig?.enabled && workflow.assessmentConfig.templateId) {
         return { stage: 'recruiter_review' };
       }
+      if (
+        workflow.schedulingConfig?.enabled &&
+        (workflow.screeningConfig.onPass === 'scheduling' ||
+          workflow.schedulingConfig.autoSendAfterScreening)
+      ) {
+        return { stage: 'scheduling' };
+      }
       return {
         stage: workflow.screeningConfig.onPass || 'recruiter_review',
       };
@@ -221,6 +228,7 @@ async function ensureScreeningLaunchForTransition(input: {
       ? String(input.workflow.screeningConfig.language).trim().toUpperCase()
       : null,
     questions: input.workflow.screeningConfig.questions || [],
+    knockouts: input.workflow.screeningConfig.knockouts || [],
     attempts: input.workflow.screeningConfig.attempts,
     timezone: input.timezone,
   });
@@ -239,6 +247,56 @@ async function ensureScreeningLaunchForTransition(input: {
     });
   }
   return { screening, candidate };
+}
+
+async function ensureSchedulingInvite(input: {
+  organizationId: string;
+  workflowId: string;
+  candidateId: string;
+  workflow: Huntlo360WorkflowDocument;
+  state: Huntlo360CandidateStateDocument;
+}) {
+  if (!input.workflow.schedulingConfig?.enabled) return;
+  const channel =
+    input.workflow.schedulingConfig.channel === 'whatsapp' ? 'whatsapp' : 'email';
+
+  if (!input.state.scheduleCandidateId) {
+    const link = await schedulingFacade.createLink({
+      organizationId: input.organizationId,
+      workflowId: input.workflowId,
+      campaignId: input.workflow.campaignId ? String(input.workflow.campaignId) : null,
+      candidateId: input.candidateId,
+      enrollmentId: input.state.enrollmentId ? String(input.state.enrollmentId) : null,
+      ownerUserId: String(input.workflow.ownerUserId),
+      provider: input.workflow.schedulingConfig.provider,
+      eventTypeUri: input.workflow.schedulingConfig.eventTypeUri,
+      channel,
+      bookingExpiryHours: input.workflow.schedulingConfig.bookingExpiryHours,
+      jobId: input.workflow.jobId ? String(input.workflow.jobId) : null,
+    });
+    input.state.scheduleCandidateId = link._id;
+    await flowSupportService
+      .addIds(input.workflowId, {
+        scheduleCandidateIds: [String(link._id)],
+      })
+      .catch(() => undefined);
+  }
+
+  const delivery = await schedulingFacade.deliverInvite({
+    organizationId: input.organizationId,
+    ownerUserId: String(input.workflow.ownerUserId),
+    scheduleCandidateId: String(input.state.scheduleCandidateId),
+    channel,
+  });
+  input.state.schedulingStatus = delivery.status;
+  if (input.state.enrollmentId) {
+    await OutreachEnrollmentModel.findByIdAndUpdate(input.state.enrollmentId, {
+      $set: {
+        'schedulingState.status': delivery.delivered ? 'link_sent' : 'not_started',
+        'schedulingState.bookingUrl': delivery.bookingUrl ?? null,
+      },
+    });
+  }
 }
 
 export async function applyWorkflowTransition(input: TransitionInput) {
@@ -273,6 +331,41 @@ export async function applyWorkflowTransition(input: TransitionInput) {
           state,
           timezone: null,
         });
+        await state.save();
+      }
+    }
+    if (
+      state &&
+      (input.event === 'screening_pass' ||
+        input.event === 'recruiter_approve' ||
+        input.event === 'qualification_pass')
+    ) {
+      const workflow = await Huntlo360WorkflowModel.findOne({
+        _id: input.workflowId,
+        organizationId: input.organizationId,
+        deletedAt: null,
+      });
+      const shouldSend =
+        Boolean(workflow?.schedulingConfig?.enabled) &&
+        (existing.toStage === 'scheduling' ||
+          state.currentStage === 'scheduling' ||
+          (input.event === 'screening_pass' &&
+            (workflow?.screeningConfig?.onPass === 'scheduling' ||
+              workflow?.schedulingConfig?.autoSendAfterScreening)));
+      if (shouldSend && workflow) {
+        await ensureSchedulingInvite({
+          organizationId: input.organizationId,
+          workflowId: input.workflowId,
+          candidateId: input.candidateId,
+          workflow,
+          state,
+        });
+        if (
+          state.schedulingStatus === 'link_sent' &&
+          (state.currentStage === 'screening' || state.currentStage === 'recruiter_review')
+        ) {
+          state.currentStage = 'scheduling';
+        }
         await state.save();
       }
     }
@@ -324,21 +417,25 @@ export async function applyWorkflowTransition(input: TransitionInput) {
     });
   }
 
-  if (
-    resolved.stage === 'screening' &&
-    (input.event === 'screening_pass' || input.event === 'screening_fail') &&
-    state.screeningId
-  ) {
-    await screeningFacade.completeSession(String(state.screeningId), {
-      score: input.screeningScore ?? (input.event === 'screening_pass' ? 85 : 40),
-      passed: input.event === 'screening_pass',
-      summary: input.event === 'screening_pass' ? 'Passed screening' : 'Failed screening',
-    });
+  if (input.event === 'screening_pass' || input.event === 'screening_fail') {
+    if (state.screeningId) {
+      await screeningFacade.completeSession(String(state.screeningId), {
+        score: input.screeningScore ?? (input.event === 'screening_pass' ? 85 : 40),
+        passed: input.event === 'screening_pass',
+        summary: input.event === 'screening_pass' ? 'Passed screening' : 'Failed screening',
+      });
+    }
     state.screeningStatus = input.event === 'screening_pass' ? 'completed' : 'failed';
   }
 
-  if (input.event === 'screening_unanswered' && state.screeningId) {
-    await screeningFacade.markUnanswered(String(state.screeningId));
+  if (typeof input.screeningScore === 'number' && Number.isFinite(input.screeningScore)) {
+    state.screeningScore = input.screeningScore;
+  }
+
+  if (input.event === 'screening_unanswered') {
+    if (state.screeningId) {
+      await screeningFacade.markUnanswered(String(state.screeningId));
+    }
     state.screeningStatus = 'unanswered';
   }
 
@@ -372,34 +469,14 @@ export async function applyWorkflowTransition(input: TransitionInput) {
     state.assessmentStatus = input.event === 'assessment_pass' ? 'completed' : 'failed';
   }
 
-  if (resolved.stage === 'scheduling' && fromStage !== 'scheduling') {
-    const link = await schedulingFacade.createLink({
+  if (resolved.stage === 'scheduling') {
+    await ensureSchedulingInvite({
       organizationId: input.organizationId,
       workflowId: input.workflowId,
-      campaignId: workflow.campaignId ? String(workflow.campaignId) : null,
       candidateId: input.candidateId,
-      enrollmentId: state.enrollmentId ? String(state.enrollmentId) : null,
-      ownerUserId: String(workflow.ownerUserId),
-      provider: workflow.schedulingConfig.provider,
-      eventTypeUri: workflow.schedulingConfig.eventTypeUri,
-      channel: workflow.schedulingConfig.channel,
-      bookingExpiryHours: workflow.schedulingConfig.bookingExpiryHours,
+      workflow,
+      state,
     });
-    state.scheduleCandidateId = link._id;
-    state.schedulingStatus = 'link_sent';
-    await flowSupportService
-      .addIds(input.workflowId, {
-        scheduleCandidateIds: [String(link._id)],
-      })
-      .catch(() => undefined);
-    if (state.enrollmentId) {
-      await OutreachEnrollmentModel.findByIdAndUpdate(state.enrollmentId, {
-        $set: {
-          'schedulingState.status': 'link_sent',
-          'schedulingState.bookingUrl': link.bookingUrl,
-        },
-      });
-    }
   }
 
   if (input.event === 'scheduling_booked' && state.scheduleCandidateId) {

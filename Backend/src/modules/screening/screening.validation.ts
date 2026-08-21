@@ -42,6 +42,7 @@ export const createScreeningSchema = z.object({
         expectedVariable: z.string().trim().max(80).nullable().optional(),
         evaluationEnabled: z.boolean().optional(),
         knockout: z.boolean().optional(),
+        knockoutCondition: z.string().trim().max(500).nullable().optional(),
       })
     )
     .max(50)

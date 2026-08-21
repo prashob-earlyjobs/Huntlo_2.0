@@ -436,7 +436,7 @@ export async function fetchZyastraCall(callId: string): Promise<ZyastraCallDetai
 
   const res = await fetch(`${ZYASTRA_API_BASE_URL}/voice/call/${encodeURIComponent(id)}`, {
     method: 'GET',
-    headers: zyastraHeaders(),
+    headers: zyastraAuthHeaders(),
   });
   if (!res.ok) {
     log().warn(
@@ -479,7 +479,7 @@ export async function fetchZyastraRecordingUrl(callId: string): Promise<string |
 
   const res = await fetch(`${ZYASTRA_API_BASE_URL}/voice/recording/${encodeURIComponent(id)}`, {
     method: 'GET',
-    headers: zyastraHeaders(),
+    headers: zyastraAuthHeaders(),
   });
   if (res.status === 404) return null;
   if (!res.ok) {

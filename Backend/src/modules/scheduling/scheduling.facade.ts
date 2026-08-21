@@ -6,6 +6,7 @@ import {
 import { getOrgCalendlyCredentials } from './calendly-credentials.js';
 import { InterviewModel } from './interview.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { getLogger } from '../../config/logger.js';
 
 /**
  * Minimal schedule candidate record for Huntlo 360 orchestration.
@@ -25,6 +26,7 @@ export type ScheduleCandidateDocument = Document & {
   channel: 'email' | 'whatsapp';
   expiresAt: Date | null;
   bookedAt: Date | null;
+  inviteDeliveredAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -59,6 +61,7 @@ const scheduleCandidateSchema = new Schema<ScheduleCandidateDocument>(
     channel: { type: String, enum: ['email', 'whatsapp'], default: 'email' },
     expiresAt: { type: Date, default: null },
     bookedAt: { type: Date, default: null },
+    inviteDeliveredAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -81,6 +84,7 @@ export const schedulingFacade = {
     eventTypeUri?: string | null;
     channel: 'email' | 'whatsapp';
     bookingExpiryHours: number;
+    jobId?: string | null;
   }) {
     const expiresAt = new Date(
       Date.now() + Math.max(1, input.bookingExpiryHours) * 60 * 60 * 1000
@@ -123,12 +127,13 @@ export const schedulingFacade = {
       campaignId: input.campaignId || null,
       candidateId: input.candidateId,
       enrollmentId: input.enrollmentId || null,
-      status: 'link_sent',
+      status: 'link_pending',
       provider: input.provider || 'calendly',
       eventTypeUri: input.eventTypeUri || null,
       bookingUrl,
       channel: input.channel,
       expiresAt,
+      inviteDeliveredAt: null,
     });
 
     const interview = await InterviewModel.create({
@@ -141,11 +146,12 @@ export const schedulingFacade = {
       providerEventTypeId: input.eventTypeUri || null,
       schedulingUrl: bookingUrl,
       timezone: 'Asia/Kolkata',
-      status: 'awaiting_booking',
-      bookingStatus: 'link_sent',
+      status: 'draft',
+      bookingStatus: 'pending',
       sourceModule: 'huntlo360',
       campaignId: input.campaignId || null,
       workflowId: input.workflowId,
+      jobId: input.jobId || null,
       scheduleCandidateId: scheduleCandidate._id,
       inviteChannel: input.channel,
       linkExpiresAt: expiresAt,
@@ -157,6 +163,135 @@ export const schedulingFacade = {
     await scheduleCandidate.save();
 
     return scheduleCandidate;
+  },
+
+  async deliverInvite(input: {
+    organizationId: string;
+    ownerUserId: string;
+    scheduleCandidateId: string;
+    channel?: 'email' | 'whatsapp';
+  }) {
+    const log = getLogger().child({ component: 'scheduling-facade' });
+    const doc = await ScheduleCandidateModel.findById(input.scheduleCandidateId);
+    if (!doc?.interviewId) {
+      return { delivered: false, status: 'link_pending' as const, bookingUrl: null };
+    }
+    if (doc.inviteDeliveredAt) {
+      return {
+        delivered: true,
+        status: 'link_sent' as const,
+        bookingUrl: doc.bookingUrl,
+      };
+    }
+
+    const primary = input.channel || doc.channel || 'email';
+    const channels: Array<'email' | 'whatsapp'> =
+      primary === 'whatsapp' ? ['whatsapp', 'email'] : ['email', 'whatsapp'];
+
+    const { interviewsService } = await import('./interview.service.js');
+    let lastError: unknown = null;
+    let sentChannel: 'email' | 'whatsapp' | null = null;
+
+    for (const channel of channels) {
+      try {
+        await interviewsService.sendLink(
+          input.organizationId,
+          input.ownerUserId,
+          String(doc.interviewId),
+          { channel }
+        );
+        sentChannel = channel;
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        log.warn(
+          {
+            err: error,
+            organizationId: input.organizationId,
+            scheduleCandidateId: input.scheduleCandidateId,
+            interviewId: String(doc.interviewId),
+            channel,
+          },
+          'Interview invite send failed'
+        );
+      }
+    }
+
+    if (!sentChannel) {
+      doc.status = 'link_pending';
+      await doc.save();
+      log.error(
+        {
+          err: lastError,
+          organizationId: input.organizationId,
+          scheduleCandidateId: input.scheduleCandidateId,
+        },
+        'Interview invite was not delivered on any channel'
+      );
+      return { delivered: false, status: 'link_pending' as const, bookingUrl: doc.bookingUrl };
+    }
+
+    doc.status = 'link_sent';
+    doc.channel = sentChannel;
+    doc.inviteDeliveredAt = new Date();
+    await doc.save();
+
+    if (doc.campaignId && doc.enrollmentId && doc.candidateId && doc.bookingUrl) {
+      try {
+        const { conversationsService } = await import(
+          '../conversations/conversations.service.js'
+        );
+        const { ConversationMessageModel } = await import(
+          '../conversations/conversation-message.model.js'
+        );
+        const { emitConversationMessageCreated } = await import(
+          '../../realtime/events.js'
+        );
+        const thread = await conversationsService.ensureThreadForEnrollment({
+          organizationId: input.organizationId,
+          candidateId: String(doc.candidateId),
+          campaignId: String(doc.campaignId),
+          enrollmentId: String(doc.enrollmentId),
+          channel: sentChannel,
+        });
+        const msg = await ConversationMessageModel.create({
+          organizationId: input.organizationId,
+          threadId: thread._id,
+          provider: 'system',
+          channel: sentChannel,
+          direction: 'outbound',
+          bodyText: `Please book a time using this scheduling link: ${doc.bookingUrl}`,
+          messageType: 'message',
+          deliveryStatus: 'sent',
+          sentAt: new Date(),
+          createdByUserId: input.ownerUserId,
+        });
+        thread.lastMessageAt = msg.sentAt || new Date();
+        thread.lastMessagePreview = String(msg.bodyText).slice(0, 240);
+        await thread.save();
+        emitConversationMessageCreated({
+          organizationId: input.organizationId,
+          threadId: String(thread._id),
+          messageId: String(msg._id),
+          campaignId: String(doc.campaignId),
+          candidateId: String(doc.candidateId),
+          direction: 'outbound',
+          channel: sentChannel,
+        });
+      } catch (error) {
+        log.warn(
+          { err: error, scheduleCandidateId: input.scheduleCandidateId },
+          'Interview invite sent but conversation thread was not updated'
+        );
+      }
+    }
+
+    return {
+      delivered: true,
+      status: 'link_sent' as const,
+      bookingUrl: doc.bookingUrl,
+    };
   },
 
   async markBooked(scheduleCandidateId: string) {

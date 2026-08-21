@@ -13,6 +13,8 @@ import {
   type HunarWebhookKind,
 } from '../../providers/hunar/hunar.webhook.js';
 import { emitScreeningResultUpdated } from '../../realtime/events.js';
+import { getLogger } from '../../config/logger.js';
+import { Huntlo360CandidateStateModel } from '../huntlo-360/candidate-state.model.js';
 import { ScreeningModel } from './screening.model.js';
 import { ScreeningCandidateModel } from './screening-candidate.model.js';
 import { VoiceWebhookEventModel } from './voice-webhook-event.model.js';
@@ -60,6 +62,27 @@ async function findCandidateRow(input: {
     return rows.find((r) => String(r.candidateId) === matchedId) || null;
   }
   return rows.find((r) => !r.providerCallId) || null;
+}
+
+function screeningStatusFromCall(callStatus: string): string | null {
+  switch (callStatus) {
+    case 'completed':
+      return 'completed';
+    case 'no_answer':
+    case 'voicemail':
+      return 'unanswered';
+    case 'failed':
+    case 'cancelled':
+    case 'busy':
+      return 'failed';
+    case 'in_progress':
+    case 'ringing':
+      return 'in_progress';
+    case 'queued':
+      return 'scheduled';
+    default:
+      return null;
+  }
 }
 
 export async function processHunarWebhook(input: {
@@ -308,17 +331,57 @@ export async function processHunarWebhook(input: {
         .catch(() => undefined);
     }
 
+    // Huntlo 360: keep candidate-state in sync even before a stage transition.
+    if (screening.workflowId) {
+      const mappedStatus = screeningStatusFromCall(row.callStatus);
+      const scorePatch: Record<string, unknown> = {};
+      if (row.overallScore != null) scorePatch.screeningScore = row.overallScore;
+      if (row.recruiterDecision && row.recruiterDecision !== 'pending') {
+        scorePatch.recruiterDecision = row.recruiterDecision;
+      }
+      if (Object.keys(scorePatch).length) {
+        await Huntlo360CandidateStateModel.updateOne(
+          { workflowId: screening.workflowId, candidateId: row.candidateId },
+          { $set: scorePatch }
+        ).catch(() => undefined);
+      }
+      if (mappedStatus) {
+        const terminalStatus = ['completed', 'failed', 'unanswered'].includes(mappedStatus);
+        await Huntlo360CandidateStateModel.updateOne(
+          {
+            workflowId: screening.workflowId,
+            candidateId: row.candidateId,
+            ...(terminalStatus
+              ? {}
+              : { screeningStatus: { $nin: ['completed', 'failed', 'unanswered'] } }),
+          },
+          { $set: { screeningStatus: mappedStatus } }
+        ).catch(() => undefined);
+      }
+    }
+
     // Huntlo 360: auto-transition when sourceModule is huntlo360
-    if (screening.sourceModule === 'huntlo360' && screening.workflowId && terminal) {
+    const hasOutcome =
+      input.kind === 'call-result' ||
+      parsed.result != null ||
+      row.overallScore != null ||
+      Boolean(row.recommendation);
+    const unanswered =
+      row.callStatus === 'no_answer' || row.callStatus === 'voicemail';
+    const canTransition360 =
+      screening.sourceModule === 'huntlo360' &&
+      screening.workflowId &&
+      terminal &&
+      (unanswered || row.callStatus !== 'completed' || hasOutcome);
+
+    if (canTransition360) {
       try {
         const { huntlo360Service } = await import('../huntlo-360/huntlo360.service.js');
         const eventName =
-          row.callStatus === 'completed' &&
-          row.overallScore != null &&
-          row.recommendation !== 'reject'
-            ? 'screening_pass'
-            : row.callStatus === 'no_answer' || row.callStatus === 'voicemail'
-              ? 'screening_unanswered'
+          unanswered
+            ? 'screening_unanswered'
+            : row.callStatus === 'completed' && row.recommendation !== 'reject'
+              ? 'screening_pass'
               : 'screening_fail';
         await huntlo360Service.transition(
           String(screening.organizationId),
@@ -329,10 +392,24 @@ export async function processHunarWebhook(input: {
             event: eventName,
             idempotencyKey: `hunar:${parsed.callId}:${eventName}`,
             screeningScore: row.overallScore ?? undefined,
+            recruiterDecision:
+              row.recruiterDecision && row.recruiterDecision !== 'pending'
+                ? row.recruiterDecision
+                : undefined,
           }
         );
-      } catch {
-        // Do not fail webhook if 360 transition rejects (already transitioned).
+      } catch (error) {
+        getLogger()
+          .child({ component: 'screening-webhook' })
+          .warn(
+            {
+              err: error,
+              screeningId: String(screening._id),
+              candidateId: String(row.candidateId),
+              callId: parsed.callId,
+            },
+            'Huntlo 360 screening transition failed'
+          );
       }
     }
 
