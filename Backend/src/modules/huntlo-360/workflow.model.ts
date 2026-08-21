@@ -182,7 +182,7 @@ const huntlo360WorkflowSchema = new Schema<Huntlo360WorkflowDocument>(
           enabled: { type: Boolean, default: false },
           language: { type: String, default: null },
           voiceTone: { type: String, default: null },
-          questions: { type: [String], default: [] },
+          questions: { type: [Schema.Types.Mixed], default: [] },
           evaluationFields: { type: [String], default: [] },
           attempts: { type: Number, default: 2 },
           attemptIntervalHours: { type: Number, default: 24 },

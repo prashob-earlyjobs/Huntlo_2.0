@@ -321,6 +321,11 @@ describe('Huntlo 360 orchestration', () => {
       .set('Authorization', `Bearer ${auth.token}`);
     expect(stats.status).toBe(200);
     expect(stats.body.data.stageStats.completed).toBe(1);
+    expect(stats.body.data.status).toBe('completed');
+
+    const workflow = await Huntlo360WorkflowModel.findById(workflowId);
+    expect(workflow!.status).toBe('completed');
+    expect(workflow!.completedAt).toBeTruthy();
   });
 
   it('stops on opt-out and supports recruiter stage override', async () => {

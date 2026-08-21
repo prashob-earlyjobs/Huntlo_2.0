@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 import { AppError } from '../../shared/errors/app-error.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
+import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
 import { screeningFacade } from '../screening/index.js';
 import { assessmentFacade } from '../assessments/index.js';
@@ -78,7 +79,48 @@ async function refreshStageStats(workflowId: string) {
   }
   stats.exceptions = exceptions;
   await Huntlo360WorkflowModel.findByIdAndUpdate(workflowId, { stageStats: stats });
+  await maybeCompleteWorkflow(workflowId, stats);
   return stats;
+}
+
+/**
+ * When every enrolled candidate has left the active pipeline, mark the
+ * workflow Completed so it no longer looks "Running".
+ *
+ * Terminal stages: completed / stopped, plus scheduling (interview link sent —
+ * the hiring flow's success end-state for most 360 setups).
+ */
+async function maybeCompleteWorkflow(
+  workflowId: string,
+  stats: ReturnType<typeof defaultStageStats>
+) {
+  const terminal =
+    (stats.completed || 0) + (stats.stopped || 0) + (stats.scheduling || 0);
+  if (stats.enrolled <= 0 || terminal < stats.enrolled) return;
+
+  const doc = await Huntlo360WorkflowModel.findById(workflowId);
+  if (!doc) return;
+  if (doc.status !== 'running' && doc.status !== 'paused') return;
+
+  doc.status = 'completed';
+  doc.completedAt = doc.completedAt || new Date();
+  doc.pausedAt = null;
+  await doc.save();
+
+  if (doc.campaignId) {
+    await OutreachCampaignModel.findOneAndUpdate(
+      {
+        _id: doc.campaignId,
+        status: { $nin: ['completed', 'cancelled'] },
+      },
+      {
+        $set: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      }
+    ).catch(() => undefined);
+  }
 }
 
 function resolveNextStage(

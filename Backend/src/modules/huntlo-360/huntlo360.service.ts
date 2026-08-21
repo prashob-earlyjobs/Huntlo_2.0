@@ -150,6 +150,21 @@ async function toDisplay(
   };
 }
 
+function normalizeScreeningQuestions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim();
+      if (entry && typeof entry === 'object') {
+        const prompt = (entry as { prompt?: unknown; text?: unknown }).prompt
+          ?? (entry as { text?: unknown }).text;
+        return typeof prompt === 'string' ? prompt.trim() : '';
+      }
+      return '';
+    })
+    .filter(Boolean);
+}
+
 function mergeConfigs(doc: Huntlo360WorkflowDocument, input: UpdateInput | CreateInput) {
   if (input.outreachConfig) {
     const next = { ...doc.outreachConfig, ...input.outreachConfig };
@@ -185,10 +200,12 @@ function mergeConfigs(doc: Huntlo360WorkflowDocument, input: UpdateInput | Creat
     };
   }
   if (input.screeningConfig) {
+    const rawQuestions =
+      input.screeningConfig.questions ?? doc.screeningConfig.questions ?? [];
     doc.screeningConfig = {
       ...doc.screeningConfig,
       ...input.screeningConfig,
-      questions: input.screeningConfig.questions ?? doc.screeningConfig.questions,
+      questions: normalizeScreeningQuestions(rawQuestions),
       evaluationFields:
         input.screeningConfig.evaluationFields ?? doc.screeningConfig.evaluationFields,
     };
@@ -270,13 +287,24 @@ export const huntlo360Service = {
       Huntlo360WorkflowModel.countDocuments(filter),
     ]);
 
+    // Close out finished pipelines so list status stays accurate.
+    await Promise.all(
+      docs
+        .filter((doc) => doc.status === 'running' || doc.status === 'paused')
+        .map((doc) => refreshStageStats(String(doc._id)).catch(() => undefined))
+    );
+
     const items = await Promise.all(
-      docs.map(async (doc) =>
-        toDisplay(doc, {
-          ownerName: await ownerName(String(doc.ownerUserId)),
-          jobTitle: await jobTitle(doc.jobId),
-        })
-      )
+      docs.map(async (doc) => {
+        const latest =
+          doc.status === 'running' || doc.status === 'paused'
+            ? (await Huntlo360WorkflowModel.findById(doc._id)) || doc
+            : doc;
+        return toDisplay(latest, {
+          ownerName: await ownerName(String(latest.ownerUserId)),
+          jobTitle: await jobTitle(latest.jobId),
+        });
+      })
     );
 
     return {
@@ -292,6 +320,16 @@ export const huntlo360Service = {
 
   async get(organizationId: string, id: string) {
     const doc = await loadWorkflow(organizationId, id);
+    // Recompute stage stats (and auto-complete when every candidate is done).
+    if (doc.status === 'running' || doc.status === 'paused') {
+      await refreshStageStats(id);
+      const refreshed = await loadWorkflow(organizationId, id);
+      return toDisplay(refreshed, {
+        ownerName: await ownerName(String(refreshed.ownerUserId)),
+        jobTitle: await jobTitle(refreshed.jobId),
+        includeSupport: true,
+      });
+    }
     return toDisplay(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
       jobTitle: await jobTitle(doc.jobId),
@@ -393,19 +431,52 @@ export const huntlo360Service = {
   },
 
   async remove(organizationId: string, userId: string, id: string) {
-    const doc = await loadWorkflow(organizationId, id);
-    if (doc.status === 'running') {
-      throw new AppError(400, 'WORKFLOW_RUNNING', 'Cancel or pause before deleting.');
+    // Lean load + updateOne avoids mongoose re-validating legacy nested configs
+    // (e.g. screening questions stored as objects) which caused DELETE 500s.
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError(400, 'INVALID_ID', 'Invalid workflow id.');
     }
-    doc.deletedAt = new Date();
-    doc.status = 'cancelled';
-    doc.cancelledAt = new Date();
-    await doc.save();
+    const doc = await Huntlo360WorkflowModel.findOne({
+      _id: id,
+      organizationId,
+      deletedAt: null,
+    }).lean();
+    if (!doc) throw new AppError(404, 'WORKFLOW_NOT_FOUND', 'Workflow not found.');
+
+    if (doc.status === 'running' || doc.status === 'paused') {
+      if (doc.campaignId) {
+        try {
+          await campaignsService.cancel(organizationId, userId, String(doc.campaignId));
+        } catch {
+          // Campaign may already be cancelled or missing.
+        }
+      }
+      await Huntlo360CandidateStateModel.updateMany(
+        {
+          workflowId: doc._id,
+          currentStage: { $nin: ['completed', 'stopped'] },
+        },
+        { $set: { currentStage: 'stopped', lastTransitionAt: new Date() } }
+      );
+      await refreshStageStats(id).catch(() => undefined);
+    }
+
+    await Huntlo360WorkflowModel.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          deletedAt: new Date(),
+          status: 'cancelled',
+          cancelledAt: doc.cancelledAt || new Date(),
+        },
+      }
+    );
+
     if (doc.campaignId) {
       try {
         await campaignsService.remove(organizationId, userId, String(doc.campaignId));
       } catch {
-        // Campaign may already be cancelled
+        // Campaign may already be cancelled/deleted.
       }
     }
     return { deleted: true, id };
@@ -727,11 +798,12 @@ export const huntlo360Service = {
   async stats(organizationId: string, id: string) {
     const doc = await loadWorkflow(organizationId, id);
     const stageStats = await refreshStageStats(id);
+    const latest = await loadWorkflow(organizationId, id);
     return {
       workflowId: id,
-      status: doc.status,
+      status: latest.status,
       stageStats,
-      campaignId: doc.campaignId ? String(doc.campaignId) : null,
+      campaignId: latest.campaignId ? String(latest.campaignId) : doc.campaignId ? String(doc.campaignId) : null,
     };
   },
 

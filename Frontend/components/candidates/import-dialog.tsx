@@ -122,6 +122,13 @@ export function ImportCandidatesDialog({
     ? preview.totals.valid +
       (forList ? preview.totals.duplicatesExisting : 0)
     : 0;
+  const alreadyInPoolOnly = Boolean(
+    preview &&
+      !forList &&
+      previewReadyCount === 0 &&
+      preview.totals.duplicatesExisting > 0
+  );
+  const alreadyInPoolCount = preview?.totals.duplicatesExisting ?? 0;
 
   const canContinue =
     step === 0
@@ -265,8 +272,19 @@ export function ImportCandidatesDialog({
       // List imports that only refresh people already on the list still succeed —
       // the audience is those list members, so continue should unlock.
       const listAlreadyComplete = forList && added === 0 && onlyNonFatalSkips;
+      // Pool imports where every row already exists are also success — nothing new
+      // to create; the user can select those people from the pool.
+      const poolAlreadyComplete =
+        !forList &&
+        added === 0 &&
+        failed === 0 &&
+        duplicatesExisting > 0 &&
+        onlyNonFatalSkips;
+      const alreadyComplete = listAlreadyComplete || poolAlreadyComplete;
 
-      setImportedCount(listAlreadyComplete ? skipped : added);
+      setImportedCount(
+        alreadyComplete ? Math.max(skipped, duplicatesExisting) : added
+      );
       setImportSummary({
         imported,
         linkedExisting,
@@ -278,22 +296,22 @@ export function ImportCandidatesDialog({
       });
       setJobStatus("completed");
 
-      if (added === 0 && !listAlreadyComplete && (skipped > 0 || failed > 0 || errors.length > 0)) {
+      if (added === 0 && !alreadyComplete && (skipped > 0 || failed > 0 || errors.length > 0)) {
         const reason =
           errors[0]?.message ||
-          (duplicatesExisting > 0 && !forList
-            ? "All rows matched existing candidates (email, phone, or LinkedIn)."
-            : duplicatesInFile > 0
-              ? "All rows were duplicates within the file."
-              : failed > 0
-                ? "Rows failed validation or could not be created."
-                : "No candidates were imported.");
+          (duplicatesInFile > 0
+            ? "All rows were duplicates within the file."
+            : failed > 0
+              ? "Rows failed validation or could not be created."
+              : "No candidates were imported.");
         setError(reason);
         return;
       }
 
       onImported?.({
-        imported: listAlreadyComplete ? skipped : added,
+        imported: alreadyComplete
+          ? Math.max(skipped, duplicatesExisting)
+          : added,
         linkedExisting,
         listId: listId ?? null,
       });
@@ -310,16 +328,18 @@ export function ImportCandidatesDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          trigger ?? (
-            <Button size="sm" variant="outline">
-              <Upload aria-hidden />
-              Import Candidates
-            </Button>
-          )
-        }
-      />
+      {trigger || controlledOpen === undefined ? (
+        <DialogTrigger
+          render={
+            trigger ?? (
+              <Button size="sm" variant="outline">
+                <Upload aria-hidden />
+                Import Candidates
+              </Button>
+            )
+          }
+        />
+      ) : null}
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-4 overflow-hidden sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>Import candidates</DialogTitle>
@@ -476,10 +496,10 @@ export function ImportCandidatesDialog({
                 {(
                   [
                     [
-                      forList ? "Will add to list" : "Ready to import",
+                      forList ? "Will add to list" : "New to create",
                       previewReadyCount,
                       CheckCircle2,
-                      "text-success",
+                      alreadyInPoolOnly ? "text-muted-foreground" : "text-success",
                     ],
                     ["Invalid", preview.totals.invalid, XCircle, "text-destructive"],
                     [
@@ -514,6 +534,13 @@ export function ImportCandidatesDialog({
                   created again.
                 </p>
               ) : null}
+              {!forList && preview.totals.duplicatesExisting > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {alreadyInPoolOnly
+                    ? "Everyone in this file already exists in your pool (matched by email, phone, or LinkedIn). Nothing new will be created — you can select them from the pool after closing."
+                    : "People already in your pool are skipped so duplicates are not created again."}
+                </p>
+              ) : null}
               {preview.totals.invalid > 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Invalid rows usually mean a missing Full name, bad email, or
@@ -545,12 +572,25 @@ export function ImportCandidatesDialog({
                         ? `${importSummary.skipped} candidate${
                             importSummary.skipped === 1 ? "" : "s"
                           } already on this list`
-                        : forList && importSummary
-                          ? `Added ${importedCount} to list (${importSummary.imported} new · ${importSummary.linkedExisting} from pool)`
-                          : `Imported ${importedCount} candidates`
+                        : !forList &&
+                            importSummary &&
+                            importSummary.imported === 0 &&
+                            importSummary.duplicatesExisting > 0
+                          ? `${importSummary.duplicatesExisting} candidate${
+                              importSummary.duplicatesExisting === 1 ? "" : "s"
+                            } already in your pool`
+                          : forList && importSummary
+                            ? `Added ${importedCount} to list (${importSummary.imported} new · ${importSummary.linkedExisting} from pool)`
+                            : `Imported ${importedCount} candidates`
                       : busy
                         ? `Importing… (${jobStatus ?? "starting"})`
-                        : `Ready to import ${previewReadyCount} candidates`}
+                        : alreadyInPoolOnly
+                          ? `${alreadyInPoolCount} candidate${
+                              alreadyInPoolCount === 1 ? "" : "s"
+                            } already in your pool`
+                          : `Ready to import ${previewReadyCount} candidate${
+                              previewReadyCount === 1 ? "" : "s"
+                            }`}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
                     {busy
@@ -563,29 +603,36 @@ export function ImportCandidatesDialog({
                           importSummary.linkedExisting === 0 &&
                           importSummary.skipped > 0
                         ? "Contact details refreshed where provided. You can continue with this audience."
-                        : importSummary
-                          ? [
-                              importSummary.linkedExisting
-                                ? `${importSummary.linkedExisting} linked from pool`
-                                : null,
-                              importSummary.skipped
-                                ? `${importSummary.skipped} skipped`
-                                : null,
-                              importSummary.failed
-                                ? `${importSummary.failed} failed`
-                                : null,
-                              !forList && importSummary.duplicatesExisting
-                                ? `${importSummary.duplicatesExisting} already in pool`
-                                : null,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ") ||
-                            (forList
-                              ? "New candidates are created; existing ones are linked to this list."
-                              : "Duplicates and invalid rows are skipped.")
-                          : forList
-                            ? "Existing pool matches are linked to this campaign list; only new people are created."
-                            : "Ready-to-import count already excludes duplicates and invalid rows."}
+                        : importSummary &&
+                            !forList &&
+                            importSummary.imported === 0 &&
+                            importSummary.duplicatesExisting > 0
+                          ? "Matched by email, phone, or LinkedIn — no duplicates were created. Select them from your pool to continue."
+                          : importSummary
+                            ? [
+                                importSummary.linkedExisting
+                                  ? `${importSummary.linkedExisting} linked from pool`
+                                  : null,
+                                importSummary.skipped
+                                  ? `${importSummary.skipped} skipped`
+                                  : null,
+                                importSummary.failed
+                                  ? `${importSummary.failed} failed`
+                                  : null,
+                                !forList && importSummary.duplicatesExisting
+                                  ? `${importSummary.duplicatesExisting} already in pool`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") ||
+                              (forList
+                                ? "New candidates are created; existing ones are linked to this list."
+                                : "Duplicates and invalid rows are skipped.")
+                            : alreadyInPoolOnly
+                              ? "No new rows to create. Close this dialog and select these people from your candidate pool."
+                              : forList
+                                ? "Existing pool matches are linked to this campaign list; only new people are created."
+                                : "Ready-to-import count already excludes duplicates and invalid rows."}
                   </p>
                   {importSummary?.errors?.length &&
                   !(
@@ -623,18 +670,42 @@ export function ImportCandidatesDialog({
             Back
           </Button>
           {isLast ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void runImport()}
-              disabled={busy || importedCount != null || previewReadyCount === 0}
-            >
-              {importedCount != null
-                ? `Imported ${importedCount}`
-                : busy
-                  ? "Importing…"
-                  : `Import ${previewReadyCount} candidates`}
-            </Button>
+            alreadyInPoolOnly && importedCount == null ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  onImported?.({
+                    imported: 0,
+                    linkedExisting: alreadyInPoolCount,
+                    listId: listId ?? null,
+                  });
+                  handleOpenChange(false);
+                }}
+              >
+                Done — use existing in pool
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void runImport()}
+                disabled={busy || importedCount != null || previewReadyCount === 0}
+              >
+                {importedCount != null
+                  ? importSummary &&
+                    !forList &&
+                    importSummary.imported === 0 &&
+                    importSummary.duplicatesExisting > 0
+                    ? "Done"
+                    : `Imported ${importedCount}`
+                  : busy
+                    ? "Importing…"
+                    : `Import ${previewReadyCount} candidate${
+                        previewReadyCount === 1 ? "" : "s"
+                      }`}
+              </Button>
+            )
           ) : (
             <Button
               type="button"

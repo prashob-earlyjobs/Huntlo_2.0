@@ -398,42 +398,36 @@ export function AudienceStep({
               Boolean(state.sourceDetail));
 
           if (state.source === "Import from ATS") {
-            if (state.selectedCandidateIds.length === 0) {
-              if (cancelled) return;
-              setPickerRows([]);
-              // Keep preview from AtsAudiencePicker import, or clear if empty.
-              if (!state.audiencePreview) {
-                update("audiencePreview", {
-                  selected: 0,
-                  withEmail: 0,
-                  withPhone: 0,
-                  duplicates: 0,
-                  invalid: 0,
-                });
-              }
-            } else {
-              const rows = await loadAudiencePoolRows({
-                source: state.source,
-                sourceDetail: state.sourceDetail,
-                selectedCandidateIds: state.selectedCandidateIds,
-                poolSearch: "",
+            // Preview/selection are owned by AtsAudiencePicker (onImported /
+            // onSelectedIdsChange). Do not refetch on checkbox toggles.
+            if (cancelled) return;
+            setPickerRows([]);
+            if (
+              state.selectedCandidateIds.length === 0 &&
+              !state.audiencePreview
+            ) {
+              update("audiencePreview", {
+                selected: 0,
+                withEmail: 0,
+                withPhone: 0,
+                duplicates: 0,
+                invalid: 0,
               });
-              if (cancelled) return;
-              setPickerRows(rows);
-              update("audiencePreview", statsFromPoolRows(rows));
             }
           } else if (state.source === "Manual Add" || state.source === "Candidate Pool") {
+            // Browse list only — selection changes update preview via
+            // handleCandidateSelectionChange without remounting the picker.
             const browse = await candidatePoolApi.listRaw({
               limit: 200,
               search: state.poolSearch.trim() || undefined,
             });
             if (cancelled) return;
+            setPickerRows(browse);
 
             if (state.selectedCandidateIds.length > 0) {
               const wanted = new Set(state.selectedCandidateIds);
               const selectedRows = browse.filter((row) => wanted.has(row.id));
               if (selectedRows.length === state.selectedCandidateIds.length) {
-                setPickerRows(browse);
                 update("audiencePreview", statsFromPoolRows(selectedRows));
               } else {
                 const rows = await loadAudiencePoolRows({
@@ -443,20 +437,11 @@ export function AudienceStep({
                   poolSearch: state.poolSearch,
                 });
                 if (cancelled) return;
-                const byId = new Map(browse.map((row) => [row.id, row]));
-                for (const row of rows) byId.set(row.id, row);
-                // Keep selected people visible even when they fall outside the browse page.
-                setPickerRows([
-                  ...rows,
-                  ...browse.filter((row) => !wanted.has(row.id)),
-                ]);
                 update("audiencePreview", statsFromPoolRows(rows));
               }
             } else if (state.source === "Candidate Pool") {
-              setPickerRows(browse);
               update("audiencePreview", statsFromPoolRows(browse));
             } else {
-              setPickerRows(browse);
               update("audiencePreview", {
                 selected: 0,
                 withEmail: 0,
@@ -521,14 +506,11 @@ export function AudienceStep({
       cancelled = true;
       window.clearTimeout(handle);
     };
-    // `update` is recreated each render; selection is tracked via joined ids.
+    // `update` is recreated each render. Do not depend on selectedCandidateIds —
+    // checkbox toggles update preview via handleCandidateSelectionChange so the
+    // list is not remounted (loading flash) on every select.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    state.source,
-    state.sourceDetail,
-    state.poolSearch,
-    state.selectedCandidateIds.join(","),
-  ]);
+  }, [state.source, state.sourceDetail, state.poolSearch]);
 
   function handleCandidateSelectionChange(ids: string[]) {
     update("selectedCandidateIds", ids);
@@ -847,7 +829,7 @@ export function AudienceStep({
                   disabled={!importListId}
                 >
                   <Upload aria-hidden />
-                  {state.selectedCandidateIds.length > 0
+                  {state.sourceDetail
                     ? "Import another file"
                     : "Upload CSV / Excel"}
                 </Button>
@@ -888,7 +870,7 @@ export function AudienceStep({
                 saved list for this audience.
               </p>
             )}
-            {showErrors && state.selectedCandidateIds.length === 0 ? (
+            {showErrors && !state.sourceDetail ? (
               <p role="alert" className="text-sm text-destructive">
                 Import a CSV/Excel file before continuing.
               </p>
@@ -970,15 +952,19 @@ export function AudienceStep({
           </div>
         ) : null}
 
-        {state.source === "CSV/Excel Import" &&
-        state.selectedCandidateIds.length > 0 ? (
-          <CandidatePicker
-            rows={pickerRows}
-            selectedIds={state.selectedCandidateIds}
-            onChange={handleCandidateSelectionChange}
-            loading={loadingAudience}
-            emptyLabel="No imported candidates found."
-          />
+        {state.source === "CSV/Excel Import" && state.sourceDetail ? (
+          <div className="space-y-2">
+            <CandidatePicker
+              rows={pickerRows}
+              selectedIds={state.selectedCandidateIds}
+              onChange={handleCandidateSelectionChange}
+              loading={loadingAudience}
+              emptyLabel="No imported candidates found."
+            />
+            <p className="text-xs text-muted-foreground">
+              Leave selection empty to enroll everyone from this import.
+            </p>
+          </div>
         ) : null}
 
         {stats ? (

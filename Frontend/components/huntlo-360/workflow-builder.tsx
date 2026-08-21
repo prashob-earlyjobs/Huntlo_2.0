@@ -31,6 +31,13 @@ import {
   candidateSourceType,
   resolveAudienceCandidateIds,
 } from "@/components/outreach/audience-resolve";
+import { builderStateFromWorkflow } from "@/components/huntlo-360/workflow-builder-hydrate";
+import {
+  initialWorkflowBuilderState,
+  type FollowUpMessage,
+  type QualQuestion,
+  type WorkflowBuilderState,
+} from "@/components/huntlo-360/workflow-builder-state";
 import { JobAsyncSelect } from "@/components/shared/job-async-select";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
@@ -57,7 +64,6 @@ import {
   AUTO_SHORTLIST_CONDITIONS,
   BOOKING_EXPIRY_OPTIONS,
   CALENDLY_EVENT_TYPES,
-  DEFAULT_SCREENING_QUESTIONS,
   EVALUATION_FIELDS_360,
   HANDOFF_CONDITIONS,
   REMINDER_OPTIONS,
@@ -69,8 +75,6 @@ import {
   DELAY_UNIT_OPTIONS,
   formatStepDelay,
   reachableCount,
-  type AudienceSource,
-  type AudienceStats,
   type DelayUnit,
 } from "@/lib/mock-outreach";
 import { ROUTES, workflowDetailPath } from "@/lib/routes";
@@ -84,136 +88,8 @@ import {
 import { useAuth } from "@/providers";
 
 /* ------------------------------------------------------------------ */
-/* State                                                                */
+/* Types (re-exported from workflow-builder-state)                      */
 /* ------------------------------------------------------------------ */
-
-interface QualQuestion {
-  id: string;
-  text: string;
-  /** Answers that immediately disqualify — empty means no knockout. */
-  knockoutAnswer: string;
-}
-
-interface FollowUpMessage {
-  body: string;
-  delayDays: number;
-  delayUnit: DelayUnit;
-  /** Approved Meta catalogue id when this step sends WhatsApp. */
-  templateId?: string | null;
-}
-
-interface WorkflowBuilderState {
-  // 1 — job
-  name: string;
-  jobId: string;
-  ownerUserId: string | null;
-  owner: string;
-  // 2 — candidates
-  source: AudienceSource | null;
-  sourceDetail: string;
-  selectedCandidateIds: string[];
-  poolSearch: string;
-  audiencePreview: AudienceStats | null;
-  // 3 — outreach
-  emailEnabled: boolean;
-  whatsappEnabled: boolean;
-  aiVoiceEnabled: boolean;
-  /** Matches outreach builder: "Single Channel" | "Multi-Channel". */
-  campaignType: "Single Channel" | "Multi-Channel";
-  channelOrder: "Email first" | "WhatsApp first" | "AI Voice first";
-  openingMessage: string;
-  /** Approved Meta catalogue id when opening sends WhatsApp. */
-  openingWhatsAppTemplateId: string | null;
-  followUps: FollowUpMessage[];
-  // 4 — qualification
-  interestClassification: boolean;
-  questions: QualQuestion[];
-  aiResponseMode: string;
-  handoffCondition: string;
-  autoShortlist: string;
-  // 5 — screening
-  screeningEnabled: boolean;
-  language: string;
-  voiceTone: string;
-  screeningQuestions: string[];
-  evaluationFields: string[];
-  attempts: string;
-  attemptInterval: string;
-  minScore: string;
-  autoReject: boolean;
-  // 6 — scheduling
-  eventType: string;
-  schedulingChannel: "Email" | "WhatsApp";
-  messageTemplate: string;
-  reminders: string;
-  autoSendAfterQualification: boolean;
-  autoSendAfterScreening: boolean;
-  bookingExpiry: string;
-}
-
-function initialState(): WorkflowBuilderState {
-  return {
-    name: "",
-    jobId: "",
-    ownerUserId: null,
-    owner: "",
-    source: null,
-    sourceDetail: "",
-    selectedCandidateIds: [],
-    poolSearch: "",
-    audiencePreview: null,
-    emailEnabled: true,
-    whatsappEnabled: false,
-    aiVoiceEnabled: false,
-    campaignType: "Single Channel",
-    channelOrder: "Email first",
-    openingMessage:
-      "Hi {{first_name}}, I came across your profile and think you'd be a strong fit for our {{job_title}} role. Open to a quick chat?",
-    openingWhatsAppTemplateId: null,
-    followUps: [
-      {
-        body: "Hi {{first_name}}, just floating this back up — happy to share the full role details if useful.",
-        delayDays: 2,
-        delayUnit: "days",
-        templateId: null,
-      },
-    ],
-    interestClassification: true,
-    questions: [
-      {
-        id: "q-1",
-        text: "What is your current notice period?",
-        knockoutAnswer: "More than 90 days",
-      },
-      {
-        id: "q-2",
-        text: "Are you open to working from Bengaluru (hybrid)?",
-        knockoutAnswer: "No",
-      },
-      { id: "q-3", text: "What is your expected compensation?", knockoutAnswer: "" },
-    ],
-    aiResponseMode: AI_RESPONSE_MODES[0],
-    handoffCondition: HANDOFF_CONDITIONS[1],
-    autoShortlist: AUTO_SHORTLIST_CONDITIONS[1],
-    screeningEnabled: true,
-    language: SCREENING_LANGUAGES[0],
-    voiceTone: VOICE_TONES[0],
-    screeningQuestions: [...DEFAULT_SCREENING_QUESTIONS],
-    evaluationFields: ["Communication", "Technical depth", "Role fit"],
-    attempts: "3",
-    attemptInterval: "24 hours",
-    minScore: "75",
-    autoReject: true,
-    eventType: CALENDLY_EVENT_TYPES[1],
-    schedulingChannel: "Email",
-    messageTemplate:
-      "Hi {{first_name}}, great news — you're through to the next round for {{job_title}}. Pick a slot that works for you: {{scheduling_link}}",
-    reminders: REMINDER_OPTIONS[0],
-    autoSendAfterQualification: false,
-    autoSendAfterScreening: true,
-    bookingExpiry: BOOKING_EXPIRY_OPTIONS[1],
-  };
-}
 
 type Update = <K extends keyof WorkflowBuilderState>(
   key: K,
@@ -260,10 +136,7 @@ function setupErrors(state: WorkflowBuilderState): string[] {
     state.selectedCandidateIds.length === 0
   ) {
     errors.push("Pick at least one candidate to enroll.");
-  } else if (
-    state.source === "CSV/Excel Import" &&
-    state.selectedCandidateIds.length === 0
-  ) {
+  } else if (state.source === "CSV/Excel Import" && !state.sourceDetail) {
     errors.push("Import a CSV/Excel file before continuing.");
   } else if (
     state.audiencePreview &&
@@ -2003,20 +1876,42 @@ async function resolveAudienceIds(state: WorkflowBuilderState): Promise<string[]
   });
 }
 
-export function WorkflowBuilder() {
-  const [state, setState] = useState<WorkflowBuilderState>(initialState);
-  const [current, setCurrent] = useState(0);
+export function WorkflowBuilder({
+  workflowId: editWorkflowId,
+  initialStep,
+}: {
+  workflowId?: string;
+  initialStep?: number;
+} = {}) {
+  const [state, setState] = useState<WorkflowBuilderState>(
+    initialWorkflowBuilderState
+  );
+  const [current, setCurrent] = useState(() => {
+    if (
+      initialStep != null &&
+      Number.isFinite(initialStep) &&
+      initialStep >= 0
+    ) {
+      return Math.floor(initialStep);
+    }
+    return 0;
+  });
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [workflowId, setWorkflowId] = useState<string | null>(
+    editWorkflowId ?? null
+  );
+  const [loadingWorkflow, setLoadingWorkflow] = useState(Boolean(editWorkflowId));
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
   const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
-  const workflowIdRef = useRef<string | null>(null);
+  const workflowIdRef = useRef<string | null>(editWorkflowId ?? null);
   const autosaveVersionRef = useRef(0);
   const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const hydrateReadyRef = useRef(!editWorkflowId);
 
   useEffect(() => {
     let cancelled = false;
@@ -2033,11 +1928,47 @@ export function WorkflowBuilder() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!editWorkflowId) return;
+    let cancelled = false;
+    setLoadingWorkflow(true);
+    setLoadError(null);
+    hydrateReadyRef.current = false;
+    void (async () => {
+      try {
+        const raw = await huntlo360Api.getWorkflowRaw(editWorkflowId);
+        if (cancelled) return;
+        if (!raw) {
+          setLoadError("Workflow not found.");
+          return;
+        }
+        setState(builderStateFromWorkflow(raw));
+        workflowIdRef.current = raw.id;
+        setWorkflowId(raw.id);
+        hydrateReadyRef.current = true;
+        autosaveVersionRef.current += 1;
+        setAutosaveStatus("idle");
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(
+            getApiErrorMessage(err, "Unable to load workflow for editing.")
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingWorkflow(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editWorkflowId]);
+
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
 
   const queueAutosave = useCallback(
     (snapshot: WorkflowBuilderState, version: number) => {
+      if (!hydrateReadyRef.current) return Promise.resolve();
       if (!snapshot.name.trim()) return Promise.resolve();
 
       const operation = autosaveQueueRef.current
@@ -2079,7 +2010,9 @@ export function WorkflowBuilder() {
   );
 
   useEffect(() => {
-    if (outcome || submitting) return;
+    if (outcome || submitting || loadingWorkflow || !hydrateReadyRef.current) {
+      return;
+    }
     const version = ++autosaveVersionRef.current;
     if (!state.name.trim()) {
       setAutosaveStatus("idle");
@@ -2093,7 +2026,7 @@ export function WorkflowBuilder() {
     }, AUTOSAVE_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [outcome, queueAutosave, state, submitting]);
+  }, [outcome, queueAutosave, state, submitting, loadingWorkflow]);
 
   const currentErrors = stepErrors(current, state);
   const showErrors = attempted.has(current);
@@ -2148,6 +2081,41 @@ export function WorkflowBuilder() {
     }
   }
 
+  if (loadingWorkflow) {
+    return (
+      <div className="flex items-center justify-center rounded-xl border border-border bg-card px-6 py-20 text-sm text-muted-foreground">
+        <Loader2 aria-hidden className="mr-2 size-4 animate-spin" />
+        Loading workflow…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-3 rounded-xl border border-destructive/30 bg-card px-6 py-10 text-center">
+        <p role="alert" className="text-sm text-destructive">
+          {loadError}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={
+            <Link
+              href={
+                editWorkflowId
+                  ? workflowDetailPath(editWorkflowId)
+                  : ROUTES.huntlo360
+              }
+            />
+          }
+        >
+          Back
+        </Button>
+      </div>
+    );
+  }
+
   if (outcome) {
     const copy = OUTCOME_COPY[outcome];
     return (
@@ -2181,12 +2149,13 @@ export function WorkflowBuilder() {
             size="sm"
             variant="outline"
             onClick={() => {
-              setState(initialState());
+              setState(initialWorkflowBuilderState());
               setCurrent(0);
               setAttempted(new Set());
               setOutcome(null);
-              setWorkflowId(null);
-              workflowIdRef.current = null;
+              setWorkflowId(editWorkflowId ?? null);
+              workflowIdRef.current = editWorkflowId ?? null;
+              hydrateReadyRef.current = !editWorkflowId;
               setSubmitError(null);
               setAutosaveStatus("idle");
               setAutosaveError(null);
