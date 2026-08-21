@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Plus,
   Search,
+  Trash2,
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -226,8 +227,7 @@ export function AdminHiringFlowsWorkspace() {
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [createName, setCreateName] = useState("Blue collar hiring");
-  const [createPreset, setCreatePreset] = useState(true);
+  const [createName, setCreateName] = useState("");
   const [draft, setDraft] = useState<ApiHiringFlow | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -301,11 +301,11 @@ export function AdminHiringFlowsWorkspace() {
     try {
       const created = await adminApi.createHiringFlow({
         name: createName.trim(),
-        useBlueCollarPreset: createPreset,
-        category: createPreset ? "blue_collar" : "general",
-        status: "active",
+        category: "general",
+        status: "draft",
       });
       setCreateOpen(false);
+      setCreateName("");
       await refresh();
       setDraft(created);
     } catch (err) {
@@ -406,13 +406,42 @@ export function AdminHiringFlowsWorkspace() {
     });
   }
 
+  function removeStep(stepId: string) {
+    setDraft((previous) => {
+      if (!previous) return previous;
+      const target = previous.steps.find((step) => step.id === stepId);
+      if (!target || target.type === "send_whatsapp_template") return previous;
+      const remaining = previous.steps.filter((step) => step.id !== stepId);
+      return {
+        ...previous,
+        entryStepId:
+          previous.entryStepId === stepId
+            ? remaining[0]?.id ?? null
+            : previous.entryStepId,
+        steps: remaining.map((step) => ({
+          ...step,
+          nextStepId: step.nextStepId === stepId ? null : step.nextStepId,
+          branches: (step.branches || []).filter(
+            (branch) => branch.nextStepId !== stepId
+          ),
+        })),
+      };
+    });
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Hiring flows"
         description="Create playbooks and assign them to organisations. Recruiters can add questions, but cannot change the first WhatsApp message or create new flows."
         actions={
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <Dialog
+            open={createOpen}
+            onOpenChange={(open) => {
+              setCreateOpen(open);
+              if (open) setCreateName("");
+            }}
+          >
             <DialogTrigger
               render={
                 <Button size="sm">
@@ -425,7 +454,7 @@ export function AdminHiringFlowsWorkspace() {
               <DialogHeader>
                 <DialogTitle>Create hiring flow</DialogTitle>
                 <DialogDescription>
-                  Catalog playbook. Assign it to organisations after you save.
+                  Starts empty. Pick the first WhatsApp template and add questions in the editor.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 py-2">
@@ -435,23 +464,18 @@ export function AdminHiringFlowsWorkspace() {
                     id="admin-flow-name"
                     value={createName}
                     onChange={(event) => setCreateName(event.target.value)}
+                    placeholder="e.g. Warehouse hiring"
                   />
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="size-3.5 accent-primary"
-                    checked={createPreset}
-                    onChange={(event) => setCreatePreset(event.target.checked)}
-                  />
-                  Start from Blue collar preset
-                </label>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={() => void handleCreate()} disabled={creating}>
+                <Button
+                  onClick={() => void handleCreate()}
+                  disabled={creating || !createName.trim()}
+                >
                   {creating ? <Loader2 className="animate-spin" aria-hidden /> : null}
                   Create
                 </Button>
@@ -486,7 +510,7 @@ export function AdminHiringFlowsWorkspace() {
         <EmptyState
           icon={LayoutTemplate}
           title="No catalog flows yet"
-          description="Create a Blue collar playbook, then assign it to organisations."
+          description="Create a playbook from scratch, then assign it to organisations."
           actionLabel="New flow"
           onAction={() => setCreateOpen(true)}
         />
@@ -623,16 +647,35 @@ export function AdminHiringFlowsWorkspace() {
                           <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium tabular-nums">
                             {index + 1}
                           </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium">
-                              {step.label || STEP_TYPE_LABEL[step.type]}
-                            </p>
-                            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <Input
+                              id={`step-label-${step.id}`}
+                              value={step.label || ""}
+                              onChange={(event) =>
+                                updateStep(step.id, {
+                                  label: event.target.value || null,
+                                })
+                              }
+                              placeholder={STEP_TYPE_LABEL[step.type]}
+                              aria-label="Step title"
+                              className="h-8 font-medium"
+                            />
+                            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <StepTypeIcon type={step.type} />
                               {STEP_TYPE_LABEL[step.type]}
                               {index === 0 ? " · first message" : ""}
                             </p>
                           </div>
+                          {step.type !== "send_whatsapp_template" ? (
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              aria-label="Remove step"
+                              onClick={() => removeStep(step.id)}
+                            >
+                              <Trash2 aria-hidden />
+                            </Button>
+                          ) : null}
                         </div>
                         {step.type === "send_whatsapp_template" ? (
                           <div className="space-y-1.5">

@@ -12,7 +12,10 @@ import {
   type HiringFlowStep,
 } from './hiring-flow.model.js';
 import type { OutreachCampaignDocument } from './campaign.model.js';
-import type { OutreachEnrollmentDocument } from './enrollment.model.js';
+import {
+  OutreachEnrollmentModel,
+  type OutreachEnrollmentDocument,
+} from './enrollment.model.js';
 import {
   getApprovedTemplate,
   renderWhatsAppTemplatePreview,
@@ -77,12 +80,18 @@ async function ensureThread(input: {
   campaignId: string;
   enrollmentId: string;
 }) {
-  let thread = await ConversationThreadModel.findOne({
-    organizationId: input.organizationId,
-    candidateId: input.candidateId,
-    campaignId: input.campaignId,
-    channels: 'whatsapp',
-  }).sort({ updatedAt: -1 });
+  let thread =
+    (input.enrollmentId
+      ? await ConversationThreadModel.findOne({
+          organizationId: input.organizationId,
+          enrollmentId: input.enrollmentId,
+        }).sort({ updatedAt: -1 })
+      : null) ||
+    (await ConversationThreadModel.findOne({
+      organizationId: input.organizationId,
+      candidateId: input.candidateId,
+      campaignId: input.campaignId,
+    }).sort({ updatedAt: -1 }));
 
   if (!thread) {
     thread = await ConversationThreadModel.create({
@@ -94,7 +103,20 @@ async function ensureThread(input: {
       status: 'awaiting_reply',
       qualificationStatus: 'qualified',
     });
+    return thread;
   }
+
+  if (!thread.channels.includes('whatsapp')) {
+    thread.channels = [...thread.channels, 'whatsapp'];
+  }
+  if (!thread.enrollmentId && input.enrollmentId) {
+    thread.enrollmentId = input.enrollmentId as never;
+  }
+  if (thread.qualificationStatus === 'pending' || thread.qualificationStatus === 'in_progress') {
+    thread.qualificationStatus = 'qualified';
+  }
+  thread.status = 'awaiting_reply';
+  await thread.save();
   return thread;
 }
 
@@ -342,6 +364,32 @@ export async function startHiringFlowAfterQualification(input: {
     return { started: false, reason: 'disabled' };
   }
 
+  const claimed = await OutreachEnrollmentModel.findOneAndUpdate(
+    {
+      _id: input.enrollment._id,
+      $or: [
+        { hiringFlowState: null },
+        { 'hiringFlowState.status': { $nin: ['active', 'waiting_reply', 'completed'] } },
+      ],
+    },
+    {
+      $set: {
+        hiringFlowState: {
+          flowId: config.hiringFlowId ? String(config.hiringFlowId) : null,
+          currentStepId: null,
+          status: 'active',
+          answers: {},
+        },
+      },
+    },
+    { new: true }
+  );
+  if (!claimed) {
+    return { started: false, reason: 'already_started' };
+  }
+  const enrollment = claimed;
+  input.enrollment.hiringFlowState = enrollment.hiringFlowState;
+
   const organizationId = String(input.campaign.organizationId);
   const flow = config.hiringFlowId
     ? await HiringFlowModel.findOne({
@@ -355,12 +403,20 @@ export async function startHiringFlowAfterQualification(input: {
     const templateId = String(config.autoWhatsAppTemplateId || 'resume_share').trim();
     const catalogue = getApprovedTemplate(templateId);
     if (!catalogue) {
+      enrollment.hiringFlowState = {
+        flowId: null,
+        currentStepId: null,
+        status: 'failed',
+        answers: {},
+      };
+      await enrollment.save();
+      input.enrollment.hiringFlowState = enrollment.hiringFlowState;
       return { started: false, reason: 'template_missing' };
     }
     try {
       await runWhatsAppTemplateStep({
         campaign: input.campaign,
-        enrollment: input.enrollment,
+        enrollment,
         step: {
           id: 'ad-hoc-wa',
           type: 'send_whatsapp_template',
@@ -369,54 +425,76 @@ export async function startHiringFlowAfterQualification(input: {
           branches: [],
         },
       });
-      input.enrollment.hiringFlowState = {
+      enrollment.hiringFlowState = {
         flowId: null,
         currentStepId: null,
         status: 'completed',
         answers: {},
       };
-      await input.enrollment.save();
+      await enrollment.save();
+      input.enrollment.hiringFlowState = enrollment.hiringFlowState;
       return { started: true, stepId: 'ad-hoc-wa' };
     } catch (error) {
       log().warn({ err: error }, 'Ad-hoc post-qualification WhatsApp send failed');
+      enrollment.hiringFlowState = {
+        flowId: null,
+        currentStepId: null,
+        status: 'failed',
+        answers: {},
+      };
+      await enrollment.save();
+      input.enrollment.hiringFlowState = enrollment.hiringFlowState;
       return { started: false, reason: 'send_failed' };
     }
   }
 
   const entry = findStep(flow.steps, flow.entryStepId) || flow.steps[0] || null;
   if (!entry) {
+    enrollment.hiringFlowState = {
+      flowId: enrollment.hiringFlowState?.flowId ?? null,
+      currentStepId: enrollment.hiringFlowState?.currentStepId ?? null,
+      status: 'failed',
+      answers: enrollment.hiringFlowState?.answers ?? {},
+    };
+    await enrollment.save();
+    input.enrollment.hiringFlowState = enrollment.hiringFlowState;
     return { started: false, reason: 'empty_flow' };
   }
 
-  input.enrollment.hiringFlowState = {
+  enrollment.hiringFlowState = {
     flowId: String(flow._id),
     currentStepId: entry.id,
     status: 'active',
     answers: {},
   };
-  await input.enrollment.save();
+  await enrollment.save();
+  input.enrollment.hiringFlowState = enrollment.hiringFlowState;
 
   try {
     const advanced = await executeHiringFlowStep({
       campaign: input.campaign,
-      enrollment: input.enrollment,
+      enrollment,
       flowId: String(flow._id),
       step: entry,
       steps: flow.steps,
     });
     flow.usageCount = (flow.usageCount || 0) + 1;
     await flow.save();
+    input.enrollment.hiringFlowState = enrollment.hiringFlowState;
     return { started: true, stepId: advanced.currentStepId || entry.id };
   } catch (error) {
     log().warn(
-      { err: error, flowId: String(flow._id), enrollmentId: String(input.enrollment._id) },
+      { err: error, flowId: String(flow._id), enrollmentId: String(enrollment._id) },
       'Hiring flow start failed'
     );
-    input.enrollment.hiringFlowState = {
-      ...input.enrollment.hiringFlowState,
+    enrollment.hiringFlowState = {
+      flowId: enrollment.hiringFlowState?.flowId ?? null,
+      currentStepId: enrollment.hiringFlowState?.currentStepId ?? null,
       status: 'failed',
+      answers: enrollment.hiringFlowState?.answers ?? {},
     };
-    await input.enrollment.save();
+    await enrollment.save();
+    input.enrollment.hiringFlowState = enrollment.hiringFlowState;
     return { started: false, reason: 'start_failed' };
   }
 }

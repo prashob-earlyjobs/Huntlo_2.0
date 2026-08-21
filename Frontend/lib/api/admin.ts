@@ -1870,7 +1870,7 @@ const mockAdminApi: AdminApi = {
       sourceFlowId: null,
       name: input.name,
       description: input.description ?? null,
-      category: input.category || "blue_collar",
+      category: input.category || "general",
       status: input.status || "active",
       steps: input.steps || [],
       entryStepId: input.entryStepId || null,

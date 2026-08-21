@@ -40,6 +40,41 @@ function isProvided(value: string): boolean {
   );
 }
 
+/**
+ * Map Hunar/Zyastra interest + outcome into enrollment reply disposition.
+ * Check explicit "not interested" before "interested" so "not interested" is not
+ * treated as a positive match via substring.
+ */
+export function resolveVoiceReplyDisposition(
+  interestLevel: string | null | undefined,
+  outcome: string | null | undefined
+): 'interested' | 'not_interested' | null {
+  const interest = String(interestLevel || '').trim().toLowerCase();
+  const out = String(outcome || '').trim().toLowerCase();
+  const blob = `${interest} ${out}`.trim();
+
+  if (
+    /\bnot[\s_-]*interested\b/.test(blob) ||
+    interest === 'no' ||
+    interest === 'low' ||
+    /\breject(ed|ion)?\b/.test(out)
+  ) {
+    return 'not_interested';
+  }
+
+  if (
+    /\binterested\b/.test(blob) ||
+    interest === 'yes' ||
+    interest === 'true' ||
+    interest === 'high' ||
+    interest === 'medium'
+  ) {
+    return 'interested';
+  }
+
+  return null;
+}
+
 /** Stable Hunar result-schema key for a qualification question id. */
 export function qualificationAnswerKey(questionId: string): string {
   const slug =

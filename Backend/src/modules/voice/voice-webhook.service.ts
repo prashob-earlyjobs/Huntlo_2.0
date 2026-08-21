@@ -36,7 +36,10 @@ import {
   type VoiceCallDocument,
   type VoiceCallStatus,
 } from './voice-call.model.js';
-import { applyVoiceResultToQualificationState } from './voice-qualification-sync.js';
+import {
+  applyVoiceResultToQualificationState,
+  resolveVoiceReplyDisposition,
+} from './voice-qualification-sync.js';
 
 const log = () => getLogger().child({ component: 'voice-webhook' });
 
@@ -416,6 +419,45 @@ async function syncConversationVoiceTranscript(row: VoiceCallDocument) {
   });
 }
 
+async function maybeStartPostQualificationHiringFlow(input: {
+  campaign: Awaited<ReturnType<typeof OutreachCampaignModel.findById>>;
+  enrollment: InstanceType<typeof OutreachEnrollmentModel>;
+}) {
+  if (input.enrollment.qualificationState?.status !== 'qualified') return;
+  if (!input.campaign?.qualificationConfig?.autoWhatsAppAfterQualification) return;
+
+  try {
+    const { startHiringFlowAfterQualification } = await import(
+      '../outreach/hiring-flow-runtime.service.js'
+    );
+    const fresh = await OutreachEnrollmentModel.findById(input.enrollment._id);
+    if (!fresh) return;
+    const result = await startHiringFlowAfterQualification({
+      campaign: input.campaign,
+      enrollment: fresh,
+    });
+    if (!result.started) {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          campaignId: String(input.campaign._id),
+          reason: result.reason,
+        },
+        'Post-qualification hiring flow not started'
+      );
+    }
+  } catch (error) {
+    log().warn(
+      {
+        err: error,
+        enrollmentId: String(input.enrollment._id),
+        campaignId: String(input.campaign._id),
+      },
+      'Post-qualification hiring flow start failed'
+    );
+  }
+}
+
 async function syncOutreachEnrollment(
   row: VoiceCallDocument,
   parsed: ParsedHunarWebhook,
@@ -425,10 +467,11 @@ async function syncOutreachEnrollment(
   const enrollment = await OutreachEnrollmentModel.findById(row.enrollmentId);
   if (!enrollment) return;
 
-  const interest = String(row.callResult?.interestLevel || '').toLowerCase();
-  const outcome = String(row.callResult?.finalOutcome || row.callResult?.candidateStatus || '').toLowerCase();
+  const interest = String(row.callResult?.interestLevel || '');
+  const outcome = String(row.callResult?.finalOutcome || row.callResult?.candidateStatus || '');
+  const voiceDisposition = resolveVoiceReplyDisposition(interest, outcome);
 
-  if (interest.includes('interest') || interest === 'yes' || interest === 'true' || interest === 'high') {
+  if (voiceDisposition === 'interested') {
     enrollment.replyState = {
       ...enrollment.replyState,
       hasReply: true,
@@ -438,12 +481,7 @@ async function syncOutreachEnrollment(
     if (['active', 'waiting', 'pending', 'replied'].includes(enrollment.status)) {
       enrollment.status = 'interested';
     }
-  } else if (
-    interest.includes('not') ||
-    outcome.includes('reject') ||
-    interest === 'low' ||
-    interest === 'no'
-  ) {
+  } else if (voiceDisposition === 'not_interested') {
     enrollment.replyState = {
       ...enrollment.replyState,
       hasReply: true,
@@ -465,12 +503,12 @@ async function syncOutreachEnrollment(
     null;
   let qualificationUpdated = false;
   const previousQualificationStatus = enrollment.qualificationState?.status || 'pending';
+  let campaignForHiringFlow: Awaited<ReturnType<typeof OutreachCampaignModel.findById>> = null;
 
   if (result) {
-    const campaign = await OutreachCampaignModel.findById(row.campaignId).select(
-      'qualificationConfig stats organizationId'
-    );
+    const campaign = await OutreachCampaignModel.findById(row.campaignId);
     if (campaign) {
+      campaignForHiringFlow = campaign;
       qualificationUpdated = applyVoiceResultToQualificationState({
         campaign,
         enrollment,
@@ -489,9 +527,34 @@ async function syncOutreachEnrollment(
     }
   }
 
+  enrollment.hasReply = Boolean(enrollment.replyState?.hasReply);
+  enrollment.replyDisposition = enrollment.replyState?.disposition ?? null;
   enrollment.lastActionAt = new Date();
   enrollment.markModified('qualificationState');
-  await enrollment.save();
+  enrollment.markModified('replyState');
+  // $set only the fields this webhook owns so a parallel call-status/call-summary
+  // cannot wipe hiringFlowState that another webhook just started.
+  await OutreachEnrollmentModel.updateOne(
+    { _id: enrollment._id },
+    {
+      $set: {
+        status: enrollment.status,
+        replyState: enrollment.replyState,
+        hasReply: enrollment.hasReply,
+        replyDisposition: enrollment.replyDisposition,
+        qualificationState: enrollment.qualificationState,
+        lastActionAt: enrollment.lastActionAt,
+      },
+    }
+  );
+
+  if (!campaignForHiringFlow) {
+    campaignForHiringFlow = await OutreachCampaignModel.findById(row.campaignId);
+  }
+  await maybeStartPostQualificationHiringFlow({
+    campaign: campaignForHiringFlow,
+    enrollment,
+  });
 
   if (qualificationUpdated) {
     emitOutreachEnrollmentUpdated({

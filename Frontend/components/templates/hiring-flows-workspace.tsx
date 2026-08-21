@@ -316,11 +316,26 @@ export function HiringFlowsWorkspace() {
                             <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium tabular-nums">
                               {index + 1}
                             </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
-                                {step.label || STEP_TYPE_LABEL[step.type]}
-                              </p>
-                              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <div className="min-w-0 flex-1 space-y-1">
+                              {locked ? (
+                                <p className="truncate text-sm font-medium">
+                                  {step.label || STEP_TYPE_LABEL[step.type]}
+                                </p>
+                              ) : (
+                                <Input
+                                  id={`step-label-${step.id}`}
+                                  value={step.label || ""}
+                                  onChange={(event) =>
+                                    updateStep(step.id, {
+                                      label: event.target.value || null,
+                                    })
+                                  }
+                                  placeholder={STEP_TYPE_LABEL[step.type]}
+                                  aria-label="Question title"
+                                  className="h-8 font-medium"
+                                />
+                              )}
+                              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <StepTypeIcon type={step.type} />
                                 {STEP_TYPE_LABEL[step.type]}
                                 {locked ? " · locked" : ""}

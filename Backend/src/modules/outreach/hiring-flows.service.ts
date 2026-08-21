@@ -38,66 +38,13 @@ export type SafeHiringFlowDto = {
   updatedAt: string;
 };
 
-export function blueCollarPresetSteps(): HiringFlowStep[] {
+export function blankStarterSteps(): HiringFlowStep[] {
   return [
     {
-      id: 'step-wa-resume',
+      id: 'step-wa-first',
       type: 'send_whatsapp_template',
-      label: 'Ask for resume',
-      whatsappTemplateId: 'resume_share',
-      nextStepId: 'step-q-experience',
-      branches: [],
-    },
-    {
-      id: 'step-q-experience',
-      type: 'ask_question',
-      label: 'Years of experience',
-      prompt: 'How many years of relevant work experience do you have?',
-      answerType: 'Number',
-      knockout: false,
-      nextStepId: 'step-q-shift',
-      branches: [],
-    },
-    {
-      id: 'step-q-shift',
-      type: 'ask_question',
-      label: 'Shift flexibility',
-      prompt: 'Are you open to rotating / night shifts? (Yes / No)',
-      answerType: 'Yes / No',
-      knockout: true,
-      knockoutCondition: 'Reject if answer is No',
-      nextStepId: 'step-branch-shift',
-      branches: [],
-    },
-    {
-      id: 'step-branch-shift',
-      type: 'branch',
-      label: 'Route on shift answer',
-      nextStepId: 'step-q-location',
-      branches: [
-        { match: 'yes', nextStepId: 'step-q-location' },
-        { match: 'no', nextStepId: 'step-end-reject' },
-        { match: 'any', nextStepId: 'step-q-location' },
-      ],
-    },
-    {
-      id: 'step-q-location',
-      type: 'ask_question',
-      label: 'Location readiness',
-      prompt: 'Can you join at the work location within 7 days? (Yes / No)',
-      answerType: 'Yes / No',
-      knockout: false,
-      nextStepId: null,
-      branches: [],
-    },
-    {
-      id: 'step-end-reject',
-      type: 'ask_question',
-      label: 'Close — not a fit',
-      prompt:
-        'Thanks for your time. This role needs shift flexibility — we will keep your profile for future openings.',
-      answerType: 'Short text',
-      knockout: false,
+      label: 'First WhatsApp message',
+      whatsappTemplateId: null,
       nextStepId: null,
       branches: [],
     },
@@ -194,7 +141,7 @@ export async function toSafeHiringFlow(
 async function validateSteps(
   steps: HiringFlowStep[],
   entryStepId: string | null,
-  options?: { requireWhatsAppEntry?: boolean }
+  options?: { requireWhatsAppEntry?: boolean; allowIncomplete?: boolean }
 ) {
   if (!steps.length) {
     throw AppError.badRequest('Add at least one step to the hiring flow.');
@@ -214,6 +161,7 @@ async function validateSteps(
   for (const step of steps) {
     if (step.type === 'send_whatsapp_template') {
       const templateId = String(step.whatsappTemplateId || '').trim();
+      if (!templateId && options?.allowIncomplete) continue;
       const known =
         Boolean(templateId && getApprovedTemplate(templateId)) ||
         Boolean(templateId && (await findApprovedMetaTemplate(templateId)));
@@ -224,6 +172,7 @@ async function validateSteps(
       }
     }
     if (step.type === 'ask_question' && !String(step.prompt || '').trim()) {
+      if (options?.allowIncomplete) continue;
       throw AppError.badRequest(`Step "${step.label || step.id}" needs a question prompt.`);
     }
     if (step.nextStepId && !ids.has(step.nextStepId)) {
@@ -400,7 +349,6 @@ type FlowWriteInput = {
   status?: 'draft' | 'active' | 'archived';
   steps?: HiringFlowStep[];
   entryStepId?: string | null;
-  useBlueCollarPreset?: boolean;
 };
 
 export const adminHiringFlowsService = {
@@ -447,12 +395,11 @@ export const adminHiringFlowsService = {
   },
 
   async create(userId: string, input: FlowWriteInput) {
-    const steps =
-      input.useBlueCollarPreset || !input.steps?.length
-        ? blueCollarPresetSteps()
-        : input.steps;
+    const fromScratch = !input.steps?.length;
+    const steps = input.steps?.length ? input.steps : blankStarterSteps();
     const entryStepId = await validateSteps(steps, input.entryStepId || steps[0]?.id || null, {
       requireWhatsAppEntry: true,
+      allowIncomplete: fromScratch,
     });
 
     const doc = await HiringFlowModel.create({
@@ -462,8 +409,8 @@ export const adminHiringFlowsService = {
       sourceFlowId: null,
       name: input.name.trim(),
       description: input.description?.trim() || null,
-      category: (input.category || 'blue_collar').trim() || 'blue_collar',
-      status: input.status || 'active',
+      category: (input.category || 'general').trim() || 'general',
+      status: input.status || 'draft',
       steps,
       entryStepId,
     });

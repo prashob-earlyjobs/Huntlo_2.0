@@ -43,6 +43,7 @@ export {
   applyVoiceResultToQualificationState,
   extendResultSchemaForQualificationQuestions,
   qualificationAnswerKey,
+  resolveVoiceReplyDisposition,
 } from './voice-qualification-sync.js';
 export { hunarVoiceWebhookRouter } from './hunar-voice-webhook.routes.js';
 export { zyastraVoiceWebhookRouter } from './zyastra-voice-webhook.routes.js';

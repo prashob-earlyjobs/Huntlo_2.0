@@ -11,10 +11,12 @@ import {
   Pencil,
   Search,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Field } from "@/components/outreach/builder-ui";
+import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -188,6 +190,48 @@ export function AdminUsersWorkspace() {
   const [quotaUsed, setQuotaUsed] = useState<QuotaNumberState>(EMPTY_QUOTA_NUMBERS);
   const [quotaLimits, setQuotaLimits] = useState<QuotaNumberState>(EMPTY_QUOTA_NUMBERS);
   const [quotaLoading, setQuotaLoading] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createSaving, setCreateSaving] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    organizationName: "",
+    role: "recruiter",
+  });
+
+  function resetCreateForm() {
+    setCreateForm({ firstName: "", lastName: "", email: "", password: "", organizationName: "", role: "recruiter" });
+  }
+
+  async function handleCreateUser() {
+    if (createSaving) return;
+    if (!createForm.email.trim() || !createForm.firstName.trim() || !createForm.password.trim()) {
+      setToast("First name, email and password are required.");
+      return;
+    }
+    setCreateSaving(true);
+    try {
+      await adminApi.createUser({
+        firstName: createForm.firstName.trim(),
+        lastName: createForm.lastName.trim(),
+        email: createForm.email.trim(),
+        password: createForm.password,
+        organizationName: createForm.organizationName.trim() || undefined,
+        role: createForm.role,
+      });
+      setToast("User created successfully.");
+      setCreateOpen(false);
+      resetCreateForm();
+      void loadUsers();
+    } catch (error) {
+      setToast(getApiErrorMessage(error, "Unable to create user."));
+    } finally {
+      setCreateSaving(false);
+    }
+  }
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -389,12 +433,21 @@ export function AdminUsersWorkspace() {
         title="User management"
         description="Accounts, plans and quotas across all workspaces."
         actions={
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search users or organisations…"
-            className="w-56 sm:w-72"
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search users or organisations…"
+              className="w-56 sm:w-72"
+            />
+            <Button
+              size="sm"
+              onClick={() => { resetCreateForm(); setCreateOpen(true); }}
+            >
+              <UserPlus className="mr-1.5 h-4 w-4" />
+              Create user
+            </Button>
+          </div>
         }
       />
 
@@ -905,6 +958,62 @@ export function AdminUsersWorkspace() {
               onClick={() => void saveDialog()}
             >
               {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create user dialog */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) setCreateOpen(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create new user</DialogTitle>
+            <DialogDescription>
+              Add a new user account. A workspace will be created automatically if no organisation is specified.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="cu-first">First name *</Label>
+                <Input id="cu-first" value={createForm.firstName} onChange={(e) => setCreateForm((f) => ({ ...f, firstName: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cu-last">Last name</Label>
+                <Input id="cu-last" value={createForm.lastName} onChange={(e) => setCreateForm((f) => ({ ...f, lastName: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-email">Email *</Label>
+              <Input id="cu-email" type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-pw">Password *</Label>
+              <Input id="cu-pw" type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-org">Organisation name</Label>
+              <Input id="cu-org" placeholder="Auto-created if blank" value={createForm.organizationName} onChange={(e) => setCreateForm((f) => ({ ...f, organizationName: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-role">Role</Label>
+              <Select value={createForm.role} onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v }))}>
+                <SelectTrigger id="cu-role"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="recruiter">Recruiter</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" disabled={createSaving} onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button disabled={createSaving} onClick={() => void handleCreateUser()}>
+              {createSaving ? "Creating…" : "Create user"}
             </Button>
           </DialogFooter>
         </DialogContent>
