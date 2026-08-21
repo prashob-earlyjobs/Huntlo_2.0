@@ -173,6 +173,12 @@ export type OutreachCampaignDocument = Document & {
     aiReplyEnabled: boolean;
     takeoverCondition?: string | null;
     autoScreening?: boolean;
+    /** When true, run a hiring flow / WhatsApp template after qualify. */
+    autoWhatsAppAfterQualification?: boolean;
+    /** Preferred Templates hiring flow id. */
+    hiringFlowId?: string | null;
+    /** Fallback single WhatsApp template when no hiringFlowId is set. */
+    autoWhatsAppTemplateId?: string | null;
   };
   schedulingConfig: {
     enabled: boolean;

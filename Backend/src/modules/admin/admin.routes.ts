@@ -37,6 +37,15 @@ import {
   listUtmCampaignsQuerySchema,
   updateUtmCampaignSchema,
 } from '../utm/utm.validation.js';
+import {
+  assignHiringFlowSchema,
+  createHiringFlowSchema,
+  idParamSchema as hiringFlowIdParamSchema,
+  listHiringFlowsQuerySchema,
+  updateHiringFlowSchema,
+} from '../outreach/outreach.validation.js';
+import { adminHiringFlowsService } from '../outreach/hiring-flows.service.js';
+import { listApprovedMetaWhatsAppTemplates } from '../../providers/meta-whatsapp/meta.templates.js';
 
 const adminAuth = [requireAuth, requireAdmin];
 
@@ -749,6 +758,111 @@ adminConsoleRouter.post(
       action: 'admin.job.cancelled',
       relatedEntityType: 'background_job',
       relatedEntityId: String(req.params.id),
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/** Approved WhatsApp templates from the connected Meta WABA */
+adminConsoleRouter.get(
+  '/whatsapp/meta-templates',
+  ...adminAuth,
+  requireAdminPermission('admin:hiring-flows:read', 'admin:email-templates:read'),
+  asyncHandler(async (req, res) => {
+    const items = await listApprovedMetaWhatsAppTemplates();
+    successResponse(res, { items }, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+/** Hiring flows (admin catalog assigned to organizations) */
+adminConsoleRouter.get(
+  '/hiring-flows',
+  ...adminAuth,
+  requireAdminPermission('admin:hiring-flows:read'),
+  asyncHandler(async (req, res) => {
+    const query = listHiringFlowsQuerySchema.parse(req.query);
+    const data = await adminHiringFlowsService.list(query);
+    successResponse(res, data.items, {
+      meta: { requestId: getRequestId(req), pagination: data.pagination },
+    });
+  })
+);
+adminConsoleRouter.post(
+  '/hiring-flows',
+  ...adminAuth,
+  requireAdminPermission('admin:hiring-flows:write'),
+  asyncHandler(async (req, res) => {
+    const body = createHiringFlowSchema.parse(req.body ?? {});
+    const data = await adminHiringFlowsService.create(req.auth!.sub, body);
+    await recordAdminMutation(req, {
+      action: 'admin.hiring_flow.created',
+      relatedEntityType: 'hiring_flow',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, {
+      statusCode: 201,
+      meta: { requestId: getRequestId(req) },
+    });
+  })
+);
+adminConsoleRouter.get(
+  '/hiring-flows/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:hiring-flows:read'),
+  asyncHandler(async (req, res) => {
+    const { id } = hiringFlowIdParamSchema.parse(req.params);
+    const data = await adminHiringFlowsService.get(id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.patch(
+  '/hiring-flows/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:hiring-flows:write'),
+  asyncHandler(async (req, res) => {
+    const { id } = hiringFlowIdParamSchema.parse(req.params);
+    const body = updateHiringFlowSchema.parse(req.body ?? {});
+    const data = await adminHiringFlowsService.update(id, body);
+    await recordAdminMutation(req, {
+      action: 'admin.hiring_flow.updated',
+      relatedEntityType: 'hiring_flow',
+      relatedEntityId: data.id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.delete(
+  '/hiring-flows/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:hiring-flows:write'),
+  asyncHandler(async (req, res) => {
+    const { id } = hiringFlowIdParamSchema.parse(req.params);
+    const data = await adminHiringFlowsService.remove(id);
+    await recordAdminMutation(req, {
+      action: 'admin.hiring_flow.archived',
+      relatedEntityType: 'hiring_flow',
+      relatedEntityId: id,
+    });
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/hiring-flows/:id/assign',
+  ...adminAuth,
+  requireAdminPermission('admin:hiring-flows:write'),
+  asyncHandler(async (req, res) => {
+    const { id } = hiringFlowIdParamSchema.parse(req.params);
+    const body = assignHiringFlowSchema.parse(req.body ?? {});
+    const data = await adminHiringFlowsService.setAssignedOrganizations(
+      id,
+      body.organizationIds,
+      req.auth!.sub
+    );
+    await recordAdminMutation(req, {
+      action: 'admin.hiring_flow.assigned',
+      relatedEntityType: 'hiring_flow',
+      relatedEntityId: id,
+      metadata: { organizationIds: body.organizationIds },
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })

@@ -31,6 +31,8 @@ export const ADMIN_PERMISSIONS = [
   'admin:blog:write',
   'admin:email-templates:read',
   'admin:email-templates:write',
+  'admin:hiring-flows:read',
+  'admin:hiring-flows:write',
   'admin:utm:write',
 ] as const;
 

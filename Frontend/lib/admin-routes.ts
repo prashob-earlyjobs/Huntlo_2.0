@@ -17,6 +17,7 @@ export const ADMIN_ROUTES = {
   settings: "/admin/settings",
   blog: "/admin/blog",
   emailTemplates: "/admin/email-templates",
+  hiringFlows: "/admin/hiring-flows",
 } as const;
 
 export type AdminRouteKey = keyof typeof ADMIN_ROUTES;
@@ -38,4 +39,5 @@ export const ADMIN_ROUTE_LABELS: Record<AdminRoute, string> = {
   [ADMIN_ROUTES.settings]: "Platform settings",
   [ADMIN_ROUTES.blog]: "Blog",
   [ADMIN_ROUTES.emailTemplates]: "Email templates",
+  [ADMIN_ROUTES.hiringFlows]: "Hiring flows",
 };
