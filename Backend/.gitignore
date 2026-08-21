@@ -18,3 +18,4 @@ secrets/
 *service-account*.json
 *-firebase-adminsdk-*.json
 huntlo-*-*.json
+gcs-service-account.json
