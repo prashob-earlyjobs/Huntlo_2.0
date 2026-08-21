@@ -22,6 +22,27 @@ import {
 const logger = () => getLogger().child({ component: 'job-handlers' });
 
 const HANDLERS: Record<BackgroundJobType, JobHandler> = {
+  async 'sourcing.create'(ctx) {
+    const { sourcingService } = await import('../modules/sourcing/sourcing.service.js');
+    const payload = ctx.payload ?? {};
+    const userId = String(payload.userId ?? '');
+    const organizationId = ctx.organizationId ?? String(payload.organizationId ?? '');
+    const role = String(payload.role ?? 'recruiter');
+    if (!userId || !organizationId) {
+      throw new Error('sourcing.create requires userId and organizationId in payload');
+    }
+    const session = await sourcingService.createSession(
+      { userId, organizationId, role },
+      {
+        query: String(payload.query ?? ''),
+        name: payload.name ? String(payload.name) : undefined,
+        jobId: payload.jobId ? String(payload.jobId) : undefined,
+        run: Boolean(payload.run ?? true),
+      }
+    );
+    return { result: { sessionId: session.id ?? session._id } };
+  },
+
   async 'sourcing.poll'(ctx) {
     const payload = ctx.payload ?? {};
     const sourcingSessionId =

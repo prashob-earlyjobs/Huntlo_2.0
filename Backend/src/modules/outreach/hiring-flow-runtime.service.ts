@@ -305,8 +305,21 @@ export async function executeHiringFlowStep(input: {
         enrollment: input.enrollment,
         step,
       });
-      step = findStep(input.steps, step.nextStepId);
-      continue;
+      // Pause after the template and wait for the candidate's reply before
+      // executing the next step. Without this, sequential steps fire instantly.
+      if (step.nextStepId) {
+        input.enrollment.hiringFlowState = {
+          flowId: input.flowId,
+          currentStepId: step.id,
+          status: 'waiting_reply',
+          answers: input.enrollment.hiringFlowState?.answers || {},
+        };
+        await input.enrollment.save();
+        return { currentStepId: step.id, status: 'waiting_reply' };
+      }
+      // No next step — fall through to completion.
+      step = null as never;
+      break;
     }
 
     if (step.type === 'branch') {
@@ -519,7 +532,37 @@ export async function advanceHiringFlowOnReply(input: {
   if (!flow) return { advanced: false };
 
   const current = findStep(flow.steps, state.currentStepId);
-  if (!current || current.type !== 'ask_question') return { advanced: false };
+  if (!current) return { advanced: false };
+
+  // When paused on a send_whatsapp_template step (e.g. candidate clicked a
+  // button or replied to the opening template), advance to the next step.
+  if (current.type === 'send_whatsapp_template') {
+    let nextId = current.nextStepId || null;
+    const branchStep = findStep(flow.steps, nextId);
+    if (branchStep?.type === 'branch') {
+      nextId = resolveHiringFlowBranch(branchStep, input.replyText);
+    }
+    const next = findStep(flow.steps, nextId);
+    input.enrollment.hiringFlowState = {
+      flowId: String(flow._id),
+      currentStepId: next?.id || null,
+      status: next ? 'active' : 'completed',
+      answers: state.answers || {},
+    };
+    await input.enrollment.save();
+    if (!next) return { advanced: true };
+    await executeHiringFlowStep({
+      campaign: input.campaign,
+      enrollment: input.enrollment,
+      flowId: String(flow._id),
+      step: next,
+      steps: flow.steps,
+      replyText: input.replyText,
+    });
+    return { advanced: true };
+  }
+
+  if (current.type !== 'ask_question') return { advanced: false };
 
   const answers = {
     ...(state.answers || {}),
