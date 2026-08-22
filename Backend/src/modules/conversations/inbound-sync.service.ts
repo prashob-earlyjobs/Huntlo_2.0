@@ -1601,6 +1601,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       campaignId,
       enrollmentId,
       channel: replyChannel,
+      hasAttachment: (input.attachments || []).length > 0,
     });
   }
 
@@ -1621,6 +1622,7 @@ export async function classifyAndAttach(input: {
   enrollmentId?: string | null;
   userId?: string | null;
   channel?: 'email' | 'whatsapp' | null;
+  hasAttachment?: boolean;
 }) {
   const threadDoc = await ConversationThreadModel.findById(input.threadId)
     .select('campaignId enrollmentId channels')
@@ -1787,14 +1789,22 @@ export async function classifyAndAttach(input: {
           },
         };
       }
-      enrollment.replyState = {
-        hasReply: true,
-        disposition: result.interest,
-        repliedAt: enrollment.replyState.repliedAt || new Date(),
-        channel:
-          enrollment.replyState.channel ||
-          (channel === 'email' || channel === 'whatsapp' ? channel : null),
-      };
+      // Skip replyState update when the candidate is answering hiring-flow questions:
+      // disposition would be overwritten with a per-answer AI classification and
+      // corrupt the original qualification-phase disposition.
+      const inHiringFlow = enrollment.hiringFlowState?.status === 'waiting_reply' ||
+        enrollment.hiringFlowState?.status === 'active' ||
+        enrollment.hiringFlowState?.status === 'processing_reply';
+      if (!inHiringFlow) {
+        enrollment.replyState = {
+          hasReply: true,
+          disposition: result.interest,
+          repliedAt: enrollment.replyState.repliedAt || new Date(),
+          channel:
+            enrollment.replyState.channel ||
+            (channel === 'email' || channel === 'whatsapp' ? channel : null),
+        };
+      }
       await enrollment.save();
       await refreshCampaignStats(String(enrollment.campaignId)).catch(() => undefined);
       if (!campaignId) campaignId = String(enrollment.campaignId);
@@ -1831,6 +1841,7 @@ export async function classifyAndAttach(input: {
           extractedVariables: result.extractedVariables as Record<string, unknown>,
           preferredChannel:
             (winnerChannel || channel) === 'whatsapp' ? 'whatsapp' : 'email',
+          hasAttachment: input.hasAttachment,
         });
         getLogger()
           .child({ component: 'inbound-sync' })

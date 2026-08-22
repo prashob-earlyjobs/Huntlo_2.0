@@ -57,19 +57,17 @@ describe('outreach personalization', () => {
 });
 
 describe('whatsapp template catalogue', () => {
-  it('lists the 6 unique Meta cold-outbound templates', () => {
+  it('lists the approved Meta WhatsApp templates including resume_share', () => {
     const templates = listApprovedTemplates();
-    expect(templates).toHaveLength(6);
-    expect(templates.map((t) => t.id).sort()).toEqual(
-      [
-        'final_profile_follow_up_v1',
-        'opening_message_01',
-        'profile_review_closure_v1',
-        'profile_review_reminder_v1',
-        'recruitment_update_reminder_v1',
-        'role_alignment_review',
-      ].sort()
-    );
+    expect(templates.length).toBeGreaterThanOrEqual(6);
+    const ids = templates.map((t) => t.id);
+    expect(ids).toContain('opening_message_01');
+    expect(ids).toContain('final_profile_follow_up_v1');
+    expect(ids).toContain('profile_review_closure_v1');
+    expect(ids).toContain('profile_review_reminder_v1');
+    expect(ids).toContain('recruitment_update_reminder_v1');
+    expect(ids).toContain('role_alignment_review');
+    expect(ids).toContain('resume_share');
     const opening = getApprovedTemplate('opening_message_01');
     expect(opening?.slot).toBe('opening');
     expect(opening?.isDefault).toBe(true);

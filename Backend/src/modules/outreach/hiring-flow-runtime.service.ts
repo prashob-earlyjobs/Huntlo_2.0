@@ -102,6 +102,8 @@ async function ensureThread(input: {
       channels: ['whatsapp'],
       status: 'awaiting_reply',
       qualificationStatus: 'qualified',
+      // Outreach automation is always stopped before a hiring flow starts.
+      automationStatus: 'stopped',
     });
     return thread;
   }
@@ -115,6 +117,9 @@ async function ensureThread(input: {
   if (thread.qualificationStatus === 'pending' || thread.qualificationStatus === 'in_progress') {
     thread.qualificationStatus = 'qualified';
   }
+  // Outreach automation is always stopped before a hiring flow starts; prevent
+  // applyWinnerLock from treating a resumed hiring-flow thread as still-active.
+  thread.automationStatus = 'stopped';
   thread.status = 'awaiting_reply';
   await thread.save();
   return thread;
@@ -313,6 +318,7 @@ export async function executeHiringFlowStep(input: {
           currentStepId: step.id,
           status: 'waiting_reply',
           answers: input.enrollment.hiringFlowState?.answers || {},
+          retryAttempts: input.enrollment.hiringFlowState?.retryAttempts ?? {},
         };
         await input.enrollment.save();
         return { currentStepId: step.id, status: 'waiting_reply' };
@@ -339,6 +345,7 @@ export async function executeHiringFlowStep(input: {
         currentStepId: step.id,
         status: 'waiting_reply',
         answers: input.enrollment.hiringFlowState?.answers || {},
+        retryAttempts: input.enrollment.hiringFlowState?.retryAttempts ?? {},
       };
       await input.enrollment.save();
       return { currentStepId: step.id, status: 'waiting_reply' };
@@ -352,6 +359,7 @@ export async function executeHiringFlowStep(input: {
     currentStepId: step?.id || null,
     status: step ? 'active' : 'completed',
     answers: input.enrollment.hiringFlowState?.answers || {},
+    retryAttempts: input.enrollment.hiringFlowState?.retryAttempts ?? {},
   };
   await input.enrollment.save();
   return {
@@ -382,7 +390,11 @@ export async function startHiringFlowAfterQualification(input: {
       _id: input.enrollment._id,
       $or: [
         { hiringFlowState: null },
-        { 'hiringFlowState.status': { $nin: ['active', 'waiting_reply', 'completed'] } },
+        {
+          'hiringFlowState.status': {
+            $nin: ['active', 'waiting_reply', 'processing_reply', 'completed'],
+          },
+        },
       ],
     },
     {
@@ -392,6 +404,7 @@ export async function startHiringFlowAfterQualification(input: {
           currentStepId: null,
           status: 'active',
           answers: {},
+          retryAttempts: {},
         },
       },
     },
@@ -421,6 +434,7 @@ export async function startHiringFlowAfterQualification(input: {
         currentStepId: null,
         status: 'failed',
         answers: {},
+        retryAttempts: {},
       };
       await enrollment.save();
       input.enrollment.hiringFlowState = enrollment.hiringFlowState;
@@ -443,6 +457,7 @@ export async function startHiringFlowAfterQualification(input: {
         currentStepId: null,
         status: 'completed',
         answers: {},
+        retryAttempts: {},
       };
       await enrollment.save();
       input.enrollment.hiringFlowState = enrollment.hiringFlowState;
@@ -454,6 +469,7 @@ export async function startHiringFlowAfterQualification(input: {
         currentStepId: null,
         status: 'failed',
         answers: {},
+        retryAttempts: {},
       };
       await enrollment.save();
       input.enrollment.hiringFlowState = enrollment.hiringFlowState;
@@ -468,6 +484,7 @@ export async function startHiringFlowAfterQualification(input: {
       currentStepId: enrollment.hiringFlowState?.currentStepId ?? null,
       status: 'failed',
       answers: enrollment.hiringFlowState?.answers ?? {},
+      retryAttempts: enrollment.hiringFlowState?.retryAttempts ?? {},
     };
     await enrollment.save();
     input.enrollment.hiringFlowState = enrollment.hiringFlowState;
@@ -479,6 +496,7 @@ export async function startHiringFlowAfterQualification(input: {
     currentStepId: entry.id,
     status: 'active',
     answers: {},
+    retryAttempts: {},
   };
   await enrollment.save();
   input.enrollment.hiringFlowState = enrollment.hiringFlowState;
@@ -505,6 +523,7 @@ export async function startHiringFlowAfterQualification(input: {
       currentStepId: enrollment.hiringFlowState?.currentStepId ?? null,
       status: 'failed',
       answers: enrollment.hiringFlowState?.answers ?? {},
+      retryAttempts: enrollment.hiringFlowState?.retryAttempts ?? {},
     };
     await enrollment.save();
     input.enrollment.hiringFlowState = enrollment.hiringFlowState;
@@ -519,20 +538,55 @@ export async function advanceHiringFlowOnReply(input: {
   campaign: OutreachCampaignDocument;
   enrollment: OutreachEnrollmentDocument;
   replyText: string;
+  /** True when the candidate attached a file/image (no API call if media expected and received). */
+  hasAttachment?: boolean;
 }): Promise<{ advanced: boolean }> {
   const state = input.enrollment.hiringFlowState;
   if (!state?.flowId || state.status !== 'waiting_reply' || !state.currentStepId) {
     return { advanced: false };
   }
 
+  // Atomic claim: flip waiting_reply → processing_reply so concurrent webhooks
+  // (duplicate Meta delivery, rapid candidate replies) cannot both advance the same step.
+  const claimed = await OutreachEnrollmentModel.findOneAndUpdate(
+    {
+      _id: input.enrollment._id,
+      'hiringFlowState.status': 'waiting_reply',
+      'hiringFlowState.currentStepId': state.currentStepId,
+    },
+    { $set: { 'hiringFlowState.status': 'processing_reply' } },
+    { new: true }
+  );
+  if (!claimed) {
+    log().info(
+      { enrollmentId: String(input.enrollment._id) },
+      'Hiring flow advance skipped — already claimed or state changed'
+    );
+    return { advanced: false };
+  }
+  input.enrollment.hiringFlowState = claimed.hiringFlowState;
+
+  const resetToWaiting = async () => {
+    await OutreachEnrollmentModel.findOneAndUpdate(
+      { _id: input.enrollment._id, 'hiringFlowState.status': 'processing_reply' },
+      { $set: { 'hiringFlowState.status': 'waiting_reply' } }
+    );
+  };
+
   const flow = await HiringFlowModel.findOne({
     _id: state.flowId,
     organizationId: input.campaign.organizationId,
   });
-  if (!flow) return { advanced: false };
+  if (!flow) {
+    await resetToWaiting();
+    return { advanced: false };
+  }
 
   const current = findStep(flow.steps, state.currentStepId);
-  if (!current) return { advanced: false };
+  if (!current) {
+    await resetToWaiting();
+    return { advanced: false };
+  }
 
   // When paused on a send_whatsapp_template step (e.g. candidate clicked a
   // button or replied to the opening template), advance to the next step.
@@ -548,21 +602,126 @@ export async function advanceHiringFlowOnReply(input: {
       currentStepId: next?.id || null,
       status: next ? 'active' : 'completed',
       answers: state.answers || {},
+      retryAttempts: state.retryAttempts ?? {},
     };
     await input.enrollment.save();
     if (!next) return { advanced: true };
-    await executeHiringFlowStep({
-      campaign: input.campaign,
-      enrollment: input.enrollment,
-      flowId: String(flow._id),
-      step: next,
-      steps: flow.steps,
-      replyText: input.replyText,
-    });
+    try {
+      await executeHiringFlowStep({
+        campaign: input.campaign,
+        enrollment: input.enrollment,
+        flowId: String(flow._id),
+        step: next,
+        steps: flow.steps,
+        replyText: input.replyText,
+      });
+    } catch (err) {
+      log().warn(
+        { err, enrollmentId: String(input.enrollment._id) },
+        'executeHiringFlowStep failed after template advance — resetting to waiting_reply on template step'
+      );
+      // resetToWaiting() is ineffective here because we already saved 'active'.
+      // Reset directly back to waiting_reply on the original template step so
+      // a re-send or candidate retry can re-trigger the next step.
+      await OutreachEnrollmentModel.findOneAndUpdate(
+        { _id: input.enrollment._id },
+        {
+          $set: {
+            'hiringFlowState.status': 'waiting_reply',
+            'hiringFlowState.currentStepId': state.currentStepId,
+          },
+        }
+      );
+      throw err;
+    }
     return { advanced: true };
   }
 
-  if (current.type !== 'ask_question') return { advanced: false };
+  if (current.type !== 'ask_question') {
+    // Unknown/unhandled step type while claimed — reset so future replies can retry.
+    await resetToWaiting();
+    return { advanced: false };
+  }
+
+  // ── Gemini answer validation ─────────────────────────────────────────────
+  // Evaluate whether the candidate's reply actually answers this question.
+  // If not (irrelevant answer / wrong format / image expected but text sent),
+  // send a polite re-prompt and stay in waiting_reply on the same step.
+  // We allow at most MAX_REPROMPTS re-prompts before accepting whatever they send.
+  const MAX_REPROMPTS = 2;
+  const retryAttempts = state.retryAttempts ?? {};
+  const stepAttemptsSoFar = retryAttempts[current.id] ?? 0;
+  // attempt = how many times the candidate has already replied to this step
+  // (1 on first try, 2 on second, etc.)
+  const currentAttempt = stepAttemptsSoFar + 1;
+
+  if (currentAttempt <= MAX_REPROMPTS) {
+    try {
+      const { evaluateHiringFlowAnswer } = await import(
+        '../../providers/gemini/gemini.conversations.js'
+      );
+      const evaluation = await evaluateHiringFlowAnswer({
+        questionPrompt: String(current.prompt || ''),
+        answerType: current.answerType,
+        candidateReply: input.replyText,
+        hasAttachment: Boolean(input.hasAttachment),
+        attempt: currentAttempt,
+      });
+
+      if (evaluation.needsReprompt && evaluation.repromptMessage) {
+        log().info(
+          {
+            enrollmentId: String(input.enrollment._id),
+            stepId: current.id,
+            attempt: currentAttempt,
+            reason: evaluation.reason,
+            reprompt: evaluation.repromptMessage,
+          },
+          'Hiring flow ask_question — re-prompting candidate (irrelevant/wrong-format answer)'
+        );
+        // Increment retry counter atomically.
+        const newRetryAttempts = { ...retryAttempts, [current.id]: currentAttempt };
+        await OutreachEnrollmentModel.findOneAndUpdate(
+          { _id: input.enrollment._id },
+          {
+            $set: {
+              'hiringFlowState.status': 'waiting_reply',
+              'hiringFlowState.retryAttempts': newRetryAttempts,
+            },
+          }
+        );
+        // Send the re-prompt via WhatsApp text.
+        try {
+          const organizationId = String(input.campaign.organizationId);
+          const { phone } = await loadMergeContext(input.campaign, input.enrollment);
+          if (phone) {
+            const { sendHiringFlowWhatsAppText } = await import('./campaign-delivery.js');
+            await sendHiringFlowWhatsAppText({
+              organizationId,
+              userId: String(input.campaign.ownerUserId),
+              campaignId: String(input.campaign._id),
+              enrollmentId: String(input.enrollment._id),
+              to: phone,
+              body: evaluation.repromptMessage,
+            });
+          }
+        } catch (sendErr) {
+          log().warn(
+            { err: sendErr, enrollmentId: String(input.enrollment._id) },
+            'Failed to send hiring flow re-prompt — keeping waiting_reply'
+          );
+        }
+        return { advanced: false };
+      }
+    } catch (evalErr) {
+      // Gemini evaluation failure → fail open and accept the answer.
+      log().warn(
+        { err: evalErr, enrollmentId: String(input.enrollment._id) },
+        'Hiring flow answer evaluation failed — accepting reply as-is'
+      );
+    }
+  }
+  // ── End of Gemini validation ─────────────────────────────────────────────
 
   const answers = {
     ...(state.answers || {}),
@@ -579,6 +738,7 @@ export async function advanceHiringFlowOnReply(input: {
       currentStepId: current.id,
       status: 'completed',
       answers,
+      retryAttempts: retryAttempts,
     };
     await input.enrollment.save();
     return { advanced: true };
@@ -596,18 +756,39 @@ export async function advanceHiringFlowOnReply(input: {
     currentStepId: next?.id || null,
     status: next ? 'active' : 'completed',
     answers,
+    retryAttempts: retryAttempts,
   };
   await input.enrollment.save();
 
   if (!next) return { advanced: true };
 
-  await executeHiringFlowStep({
-    campaign: input.campaign,
-    enrollment: input.enrollment,
-    flowId: String(flow._id),
-    step: next,
-    steps: flow.steps,
-    replyText: input.replyText,
-  });
+  try {
+    await executeHiringFlowStep({
+      campaign: input.campaign,
+      enrollment: input.enrollment,
+      flowId: String(flow._id),
+      step: next,
+      steps: flow.steps,
+      replyText: input.replyText,
+    });
+  } catch (err) {
+    log().warn(
+      { err, enrollmentId: String(input.enrollment._id) },
+      'executeHiringFlowStep failed after ask_question advance — resetting to waiting_reply on question step'
+    );
+    // resetToWaiting() targets processing_reply, but we already saved 'active' above.
+    // Reset directly back to waiting_reply on the original question step so the
+    // candidate can reply again to retry.
+    await OutreachEnrollmentModel.findOneAndUpdate(
+      { _id: input.enrollment._id },
+      {
+        $set: {
+          'hiringFlowState.status': 'waiting_reply',
+          'hiringFlowState.currentStepId': state.currentStepId,
+        },
+      }
+    );
+    throw err;
+  }
   return { advanced: true };
 }
