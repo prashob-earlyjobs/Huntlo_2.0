@@ -1867,28 +1867,28 @@ export async function processQualificationAfterReply(input: {
 
   const config = await ensureHuntlo360QualificationConfig(input.campaign);
 
-  // Qualification + AI reply are always-on in the product UI. Only skip when the
-  // campaign has no questions AND was explicitly disabled (legacy).
-  const hasQuestions = Array.isArray(config.questions) && config.questions.length > 0;
-  if (config.enabled === false && !hasQuestions) {
-    log().info(
-      { enrollmentId: input.enrollmentId, campaignId: String(input.campaign._id) },
-      'Qualification skipped — disabled and no questions'
-    );
-    return { action: 'skipped_disabled' };
-  }
-
   // ── Hiring-flow fast-path ─────────────────────────────────────────────────
-  // Must run BEFORE the opt_out/not_interested guard below.
-  // classifyConversationReply often returns 'not_interested' for short or
-  // negative Q&A answers ("No", "I don't know", etc.) inside a hiring flow.
-  // If we let that guard run first the hiring flow is permanently silenced.
-  // Only genuine opt_out (explicit "stop / unsubscribe") skips this path.
-  if (input.interest !== 'opt_out') {
+  // Must run BEFORE the qConfig.enabled check AND before the opt_out/not_interested
+  // guard further below. Two reasons:
+  //
+  //  1. A campaign can have autoWhatsAppAfterQualification=true with NO qualification
+  //     questions (e.g. candidates are manually qualified). The qConfig guard would
+  //     return 'skipped_disabled' before we ever reach this block.
+  //
+  //  2. classifyConversationReply (designed for initial outreach) regularly misfires
+  //     on short / negative hiring-flow answers ("No", "I don't have one", etc.),
+  //     returning 'not_interested' or even 'opt_out'. We must not let those guards
+  //     silence an active hiring-flow conversation.
+  //
+  // Genuine text-based opt-outs are already handled by applyWinnerLock (looksLikeOptOut)
+  // which sets enrollment.status = 'opted_out'. We use that reliable flag instead of
+  // trusting the AI classifier's 'opt_out' label here.
+  {
     const hfEnrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
     if (
       hfEnrollment?.qualificationState?.status === 'qualified' &&
-      hfEnrollment?.hiringFlowState?.status === 'waiting_reply'
+      hfEnrollment?.hiringFlowState?.status === 'waiting_reply' &&
+      hfEnrollment?.status !== 'opted_out'
     ) {
       try {
         const { advanceHiringFlowOnReply } = await import(
@@ -1913,6 +1913,17 @@ export async function processQualificationAfterReply(input: {
     }
   }
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Qualification + AI reply are always-on in the product UI. Only skip when the
+  // campaign has no questions AND was explicitly disabled (legacy).
+  const hasQuestions = Array.isArray(config.questions) && config.questions.length > 0;
+  if (config.enabled === false && !hasQuestions) {
+    log().info(
+      { enrollmentId: input.enrollmentId, campaignId: String(input.campaign._id) },
+      'Qualification skipped — disabled and no questions'
+    );
+    return { action: 'skipped_disabled' };
+  }
 
   if (input.interest === 'opt_out' || input.interest === 'not_interested') {
     return { action: 'skipped_not_interested' };

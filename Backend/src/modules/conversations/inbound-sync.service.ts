@@ -1761,7 +1761,20 @@ export async function classifyAndAttach(input: {
       thread.automationStatus = 'stopped';
       await thread.save();
       if (enrollmentId) {
-        await campaignsService.stopEnrollment(enrollmentId, 'candidate_opted_out');
+        // Do NOT stop an enrollment that is currently waiting for a hiring-flow
+        // answer — the outreach opt-out classifier regularly misfires on short or
+        // negative hiring-flow replies ("No", "I don't have one", etc.).
+        // The text-based looksLikeOptOut check in applyWinnerLock is the reliable
+        // gate; it already sets enrollment.status = 'opted_out' for genuine stops.
+        const enrollmentForOptOut = await OutreachEnrollmentModel.findById(enrollmentId)
+          .select('hiringFlowState status')
+          .lean();
+        const inHiringFlow =
+          enrollmentForOptOut?.hiringFlowState?.status === 'waiting_reply' ||
+          enrollmentForOptOut?.hiringFlowState?.status === 'processing_reply';
+        if (!inHiringFlow) {
+          await campaignsService.stopEnrollment(enrollmentId, 'candidate_opted_out');
+        }
       }
     }
   }
