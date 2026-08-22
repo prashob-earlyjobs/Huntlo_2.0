@@ -40,7 +40,7 @@ const HANDLERS: Record<BackgroundJobType, JobHandler> = {
         run: Boolean(payload.run ?? true),
       }
     );
-    return { result: { sessionId: session.id ?? session._id } };
+    return { result: { sessionId: session.id } };
   },
 
   async 'sourcing.poll'(ctx) {
