@@ -1878,6 +1878,42 @@ export async function processQualificationAfterReply(input: {
     return { action: 'skipped_disabled' };
   }
 
+  // ── Hiring-flow fast-path ─────────────────────────────────────────────────
+  // Must run BEFORE the opt_out/not_interested guard below.
+  // classifyConversationReply often returns 'not_interested' for short or
+  // negative Q&A answers ("No", "I don't know", etc.) inside a hiring flow.
+  // If we let that guard run first the hiring flow is permanently silenced.
+  // Only genuine opt_out (explicit "stop / unsubscribe") skips this path.
+  if (input.interest !== 'opt_out') {
+    const hfEnrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
+    if (
+      hfEnrollment?.qualificationState?.status === 'qualified' &&
+      hfEnrollment?.hiringFlowState?.status === 'waiting_reply'
+    ) {
+      try {
+        const { advanceHiringFlowOnReply } = await import(
+          './hiring-flow-runtime.service.js'
+        );
+        const advanced = await advanceHiringFlowOnReply({
+          campaign: input.campaign,
+          enrollment: hfEnrollment,
+          replyText: input.bodyText,
+          hasAttachment: input.hasAttachment,
+        });
+        return {
+          action: advanced.advanced ? 'hiring_flow_advanced' : 'hiring_flow_noop',
+        };
+      } catch (error) {
+        log().warn(
+          { err: error, enrollmentId: input.enrollmentId },
+          'Hiring flow advance after reply failed (fast-path)'
+        );
+        return { action: 'hiring_flow_failed' };
+      }
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (input.interest === 'opt_out' || input.interest === 'not_interested') {
     return { action: 'skipped_not_interested' };
   }
