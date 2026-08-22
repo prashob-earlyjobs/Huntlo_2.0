@@ -1924,7 +1924,7 @@ export async function processQualificationAfterReply(input: {
     Boolean(latestOutreach) &&
     !qualAfterOutreach &&
     !['qualified', 'rejected'].includes(qualStatus) &&
-    !['waiting_reply', 'active'].includes(hiringFlowStatus);
+    !['waiting_reply', 'active', 'processing_reply'].includes(hiringFlowStatus);
 
   if (needsFreshCycle) {
     const hadStaleProgress =
