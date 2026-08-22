@@ -239,7 +239,7 @@ export function initialBuilderState(): BuilderState {
     ownerUserId: null,
     description: "",
     timezone: TIMEZONE_OPTIONS[0],
-    campaignType: CAMPAIGN_TYPES[1],
+    campaignType: CAMPAIGN_TYPES[0],
     source: null,
     sourceDetail: "",
     selectedCandidateIds: [],
