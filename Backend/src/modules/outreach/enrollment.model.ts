@@ -84,7 +84,7 @@ export type OutreachEnrollmentDocument = Document & {
   hiringFlowState: {
     flowId: string | null;
     currentStepId: string | null;
-    status: 'idle' | 'active' | 'waiting_reply' | 'completed' | 'failed';
+    status: 'idle' | 'active' | 'waiting_reply' | 'processing_reply' | 'completed' | 'failed';
     answers: Record<string, string>;
   } | null;
   nextActionAt: Date | null;
@@ -230,7 +230,7 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
           currentStepId: { type: String, default: null },
           status: {
             type: String,
-            enum: ['idle', 'active', 'waiting_reply', 'completed', 'failed'],
+            enum: ['idle', 'active', 'waiting_reply', 'processing_reply', 'completed', 'failed'],
             default: 'idle',
           },
           answers: { type: Schema.Types.Mixed, default: {} },

@@ -1787,14 +1787,22 @@ export async function classifyAndAttach(input: {
           },
         };
       }
-      enrollment.replyState = {
-        hasReply: true,
-        disposition: result.interest,
-        repliedAt: enrollment.replyState.repliedAt || new Date(),
-        channel:
-          enrollment.replyState.channel ||
-          (channel === 'email' || channel === 'whatsapp' ? channel : null),
-      };
+      // Skip replyState update when the candidate is answering hiring-flow questions:
+      // disposition would be overwritten with a per-answer AI classification and
+      // corrupt the original qualification-phase disposition.
+      const inHiringFlow = enrollment.hiringFlowState?.status === 'waiting_reply' ||
+        enrollment.hiringFlowState?.status === 'active' ||
+        enrollment.hiringFlowState?.status === 'processing_reply';
+      if (!inHiringFlow) {
+        enrollment.replyState = {
+          hasReply: true,
+          disposition: result.interest,
+          repliedAt: enrollment.replyState.repliedAt || new Date(),
+          channel:
+            enrollment.replyState.channel ||
+            (channel === 'email' || channel === 'whatsapp' ? channel : null),
+        };
+      }
       await enrollment.save();
       await refreshCampaignStats(String(enrollment.campaignId)).catch(() => undefined);
       if (!campaignId) campaignId = String(enrollment.campaignId);
