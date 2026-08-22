@@ -1012,3 +1012,167 @@ function clamp01(n: number) {
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(1, n));
 }
+
+// ─── Hiring-flow answer evaluator ────────────────────────────────────────────
+
+export type EvaluateHiringFlowAnswerInput = {
+  /** The question that was asked (step.prompt). */
+  questionPrompt: string;
+  /**
+   * Expected answer type hint from the flow builder (e.g. "image", "document",
+   * "text", "number", "boolean", "video").  null = any text.
+   */
+  answerType?: string | null;
+  /** The candidate's text reply (may be empty when they sent only media). */
+  candidateReply: string;
+  /** True when the candidate sent at least one attachment (image/video/doc). */
+  hasAttachment: boolean;
+  /** Attempt number so far for this step (1 = first try). */
+  attempt: number;
+};
+
+export type EvaluateHiringFlowAnswerResult = {
+  /** True = the reply sufficiently answers the question. */
+  answersQuestion: boolean;
+  /** True = we should send a re-prompt instead of advancing the flow. */
+  needsReprompt: boolean;
+  /**
+   * Short, friendly WhatsApp message to send when needsReprompt is true.
+   * null when answersQuestion is true.
+   */
+  repromptMessage: string | null;
+  /** Reason code for logging / debug. */
+  reason: string;
+  model: string;
+};
+
+const MEDIA_ANSWER_TYPES = new Set(['image', 'photo', 'document', 'doc', 'video', 'file', 'media', 'pic', 'picture', 'photo_id', 'id_proof']);
+
+function isMediaAnswerType(answerType?: string | null): boolean {
+  if (!answerType) return false;
+  const lower = answerType.toLowerCase();
+  return [...MEDIA_ANSWER_TYPES].some((t) => lower.includes(t));
+}
+
+/**
+ * Evaluate whether a candidate's reply to an `ask_question` hiring-flow step
+ * is a valid answer.  Returns whether to accept the reply or re-prompt.
+ *
+ * Fail-open: if Gemini is offline or the API key is missing, the reply is
+ * accepted to avoid permanently blocking the candidate.
+ */
+export async function evaluateHiringFlowAnswer(
+  input: EvaluateHiringFlowAnswerInput
+): Promise<EvaluateHiringFlowAnswerResult> {
+  const offline: EvaluateHiringFlowAnswerResult = {
+    answersQuestion: true,
+    needsReprompt: false,
+    repromptMessage: null,
+    reason: 'offline-fallback',
+    model: `${GEMINI_CONVERSATIONS_MODEL}-offline`,
+  };
+
+  // Fast path — media expected and received → accept immediately without API call.
+  if (isMediaAnswerType(input.answerType) && input.hasAttachment) {
+    return { ...offline, reason: 'media-received' };
+  }
+
+  // Fast path — media expected but candidate sent plain text.
+  // We can decide this without an API call.
+  if (isMediaAnswerType(input.answerType) && !input.hasAttachment && !input.candidateReply.trim()) {
+    return {
+      answersQuestion: false,
+      needsReprompt: true,
+      repromptMessage: buildMediaReprompt(input.questionPrompt),
+      reason: 'media-expected-no-attachment',
+      model: `${GEMINI_CONVERSATIONS_MODEL}-local`,
+    };
+  }
+
+  const apiKey = getEnv().GEMINI_API_KEY || '';
+  if (!apiKey) return offline;
+
+  const prompt = `You evaluate whether a WhatsApp candidate reply adequately answers a hiring-flow question.
+
+Return ONLY valid JSON (no markdown, no explanation):
+{
+  "answersQuestion": boolean,
+  "needsReprompt": boolean,
+  "repromptMessage": string | null,
+  "reason": string
+}
+
+Rules:
+- answersQuestion=true when the reply is relevant and provides useful info for the question.
+- answersQuestion=false when the reply is completely off-topic, evasive, or just noise.
+- needsReprompt=true ONLY when answersQuestion=false AND the candidate has not been asked more than twice (attempt <= 2).
+- needsReprompt=false when the answer is acceptable OR when attempt >= 3 (accept and move on).
+- repromptMessage: a short, conversational WhatsApp message (max 120 chars) that politely re-asks. Write it in a warm, human tone. null when needsReprompt=false.
+- If answerType is "image", "photo", "document", "video", or similar media type, and the candidate replied with text only and hasAttachment=false, set answersQuestion=false and ask them to share the file directly in chat.
+- Err on the side of accepting (answersQuestion=true) when in doubt — only reject clearly irrelevant replies.
+- NEVER reprompt more than twice (attempt <= 2 guard above handles this).
+
+Question asked: "${input.questionPrompt.replace(/"/g, "'").slice(0, 500)}"
+Expected answer type (hint only): ${input.answerType || 'text'}
+Has attachment: ${input.hasAttachment}
+Candidate reply: "${String(input.candidateReply || '').replace(/"/g, "'").slice(0, 600)}"
+Attempt number: ${input.attempt}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONVERSATIONS_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 300 },
+        }),
+        signal: AbortSignal.timeout(12000),
+      }
+    );
+
+    if (!res.ok) return offline;
+
+    const data = (await res.json()) as Record<string, unknown>;
+    const raw =
+      (
+        (data?.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined)?.[0]
+          ?.content?.parts?.[0]?.text ?? ''
+      )
+        .replace(/```json\n?/g, '')
+        .replace(/```/g, '')
+        .trim();
+
+    const parsed = JSON.parse(raw) as {
+      answersQuestion?: boolean;
+      needsReprompt?: boolean;
+      repromptMessage?: string | null;
+      reason?: string;
+    };
+
+    return {
+      answersQuestion: Boolean(parsed.answersQuestion ?? true),
+      needsReprompt: Boolean(parsed.needsReprompt ?? false),
+      repromptMessage: typeof parsed.repromptMessage === 'string' ? parsed.repromptMessage : null,
+      reason: String(parsed.reason || 'gemini'),
+      model: GEMINI_CONVERSATIONS_MODEL,
+    };
+  } catch {
+    return offline;
+  }
+}
+
+function buildMediaReprompt(questionPrompt: string): string {
+  const q = questionPrompt.toLowerCase();
+  if (q.includes('licen') || q.includes('licence') || q.includes('license')) {
+    return 'Please share the image directly in this chat. We need to see your licence/ID.';
+  }
+  if (q.includes('resume') || q.includes('cv')) {
+    return 'Please send your resume/CV as a file attachment in this chat.';
+  }
+  if (q.includes('photo') || q.includes('picture') || q.includes('selfie')) {
+    return 'Please share a photo/image directly in this chat.';
+  }
+  return 'Please share the file/image directly in this chat so we can continue.';
+}

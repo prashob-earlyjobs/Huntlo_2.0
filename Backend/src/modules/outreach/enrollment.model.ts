@@ -86,6 +86,8 @@ export type OutreachEnrollmentDocument = Document & {
     currentStepId: string | null;
     status: 'idle' | 'active' | 'waiting_reply' | 'processing_reply' | 'completed' | 'failed';
     answers: Record<string, string>;
+    /** Number of re-prompt attempts per step id (to avoid infinite loops). */
+    retryAttempts: Record<string, number>;
   } | null;
   nextActionAt: Date | null;
   /** Mirrors nextActionAt, kept in sync on save. */
@@ -234,6 +236,7 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
             default: 'idle',
           },
           answers: { type: Schema.Types.Mixed, default: {} },
+          retryAttempts: { type: Schema.Types.Mixed, default: {} },
         },
         { _id: false }
       ),

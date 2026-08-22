@@ -1851,6 +1851,7 @@ export async function processQualificationAfterReply(input: {
   intent?: string | null;
   extractedVariables?: Record<string, unknown>;
   preferredChannel?: 'email' | 'whatsapp' | null;
+  hasAttachment?: boolean;
 }): Promise<{ action: string }> {
   log().info(
     {
@@ -1967,6 +1968,7 @@ export async function processQualificationAfterReply(input: {
           campaign: input.campaign,
           enrollment,
           replyText: input.bodyText,
+          hasAttachment: input.hasAttachment,
         });
         return {
           action: advanced.advanced ? 'hiring_flow_advanced' : 'hiring_flow_noop',

@@ -1601,6 +1601,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       campaignId,
       enrollmentId,
       channel: replyChannel,
+      hasAttachment: (input.attachments || []).length > 0,
     });
   }
 
@@ -1621,6 +1622,7 @@ export async function classifyAndAttach(input: {
   enrollmentId?: string | null;
   userId?: string | null;
   channel?: 'email' | 'whatsapp' | null;
+  hasAttachment?: boolean;
 }) {
   const threadDoc = await ConversationThreadModel.findById(input.threadId)
     .select('campaignId enrollmentId channels')
@@ -1839,6 +1841,7 @@ export async function classifyAndAttach(input: {
           extractedVariables: result.extractedVariables as Record<string, unknown>,
           preferredChannel:
             (winnerChannel || channel) === 'whatsapp' ? 'whatsapp' : 'email',
+          hasAttachment: input.hasAttachment,
         });
         getLogger()
           .child({ component: 'inbound-sync' })
