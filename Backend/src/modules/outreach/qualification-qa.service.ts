@@ -1869,27 +1869,28 @@ export async function processQualificationAfterReply(input: {
 
   // ── Hiring-flow fast-path ─────────────────────────────────────────────────
   // Must run BEFORE the qConfig.enabled check AND before the opt_out/not_interested
-  // guard further below. Two reasons:
+  // guard further below.
   //
-  //  1. A campaign can have autoWhatsAppAfterQualification=true with NO qualification
-  //     questions (e.g. candidates are manually qualified). The qConfig guard would
-  //     return 'skipped_disabled' before we ever reach this block.
+  // If the enrollment is waiting on a hiring-flow step (opening template or
+  // ask_question), this inbound is THAT reply — never a qualification Q&A answer.
+  // Requiring qualificationState === 'qualified' was wrong: voice / recruiter /
+  // a later webhook can leave qualification as in_progress while the hiring flow
+  // is already live. Q&A then hijacks "Yes, continue" and sends the next
+  // screening question (e.g. expected compensation) instead of the flow step.
   //
-  //  2. classifyConversationReply (designed for initial outreach) regularly misfires
-  //     on short / negative hiring-flow answers ("No", "I don't have one", etc.),
-  //     returning 'not_interested' or even 'opt_out'. We must not let those guards
-  //     silence an active hiring-flow conversation.
-  //
-  // Genuine text-based opt-outs are already handled by applyWinnerLock (looksLikeOptOut)
-  // which sets enrollment.status = 'opted_out'. We use that reliable flag instead of
-  // trusting the AI classifier's 'opt_out' label here.
+  // Genuine text-based opt-outs are already handled by applyWinnerLock
+  // (looksLikeOptOut → enrollment.status = 'opted_out').
   {
     const hfEnrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
+    const hfStatus = hfEnrollment?.hiringFlowState?.status;
     if (
-      hfEnrollment?.qualificationState?.status === 'qualified' &&
-      hfEnrollment?.hiringFlowState?.status === 'waiting_reply' &&
-      hfEnrollment?.status !== 'opted_out'
+      hfEnrollment &&
+      hfEnrollment.status !== 'opted_out' &&
+      (hfStatus === 'waiting_reply' || hfStatus === 'processing_reply')
     ) {
+      if (hfStatus === 'processing_reply') {
+        return { action: 'hiring_flow_noop' };
+      }
       try {
         const { advanceHiringFlowOnReply } = await import(
           './hiring-flow-runtime.service.js'
@@ -2003,31 +2004,6 @@ export async function processQualificationAfterReply(input: {
     }
     await enrollment.save();
   } else if (qualStatus === 'qualified' || qualStatus === 'rejected') {
-    if (
-      qualStatus === 'qualified' &&
-      enrollment.hiringFlowState?.status === 'waiting_reply'
-    ) {
-      try {
-        const { advanceHiringFlowOnReply } = await import(
-          './hiring-flow-runtime.service.js'
-        );
-        const advanced = await advanceHiringFlowOnReply({
-          campaign: input.campaign,
-          enrollment,
-          replyText: input.bodyText,
-          hasAttachment: input.hasAttachment,
-        });
-        return {
-          action: advanced.advanced ? 'hiring_flow_advanced' : 'hiring_flow_noop',
-        };
-      } catch (error) {
-        log().warn(
-          { err: error, enrollmentId: input.enrollmentId },
-          'Hiring flow advance after reply failed'
-        );
-        return { action: 'hiring_flow_failed' };
-      }
-    }
     log().info(
       {
         enrollmentId: input.enrollmentId,
@@ -2041,6 +2017,16 @@ export async function processQualificationAfterReply(input: {
       status: qualStatus === 'rejected' ? 'rejected' : 'qualified',
     });
     return { action: 'skipped_already_complete' };
+  }
+
+  // Hiring flow owns the conversation once it has started. Never send a
+  // qualification screening question on top of an in-progress flow.
+  if (['waiting_reply', 'processing_reply', 'active'].includes(hiringFlowStatus)) {
+    log().info(
+      { enrollmentId: input.enrollmentId, hiringFlowStatus },
+      'Qualification Q&A skipped — hiring flow is in progress'
+    );
+    return { action: 'skipped_hiring_flow_active' };
   }
 
   // Never block Q&A sends on a missing/false aiReplyEnabled flag (legacy campaigns).
