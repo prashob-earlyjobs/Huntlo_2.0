@@ -1625,7 +1625,23 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       (thread.enrollmentId ? String(thread.enrollmentId) : null) ||
       hintEnrollmentId;
     if (hfEnrollmentId) {
-      const hfEnrollment = await OutreachEnrollmentModel.findById(hfEnrollmentId);
+      let hfEnrollment = await OutreachEnrollmentModel.findById(hfEnrollmentId);
+      const liveHf = (status?: string | null) =>
+        ['waiting_reply', 'processing_reply', 'active'].includes(String(status || ''));
+      if (
+        (!hfEnrollment ||
+          hfEnrollment.status === 'opted_out' ||
+          !liveHf(hfEnrollment.hiringFlowState?.status)) &&
+        thread.candidateId
+      ) {
+        const waiting = await OutreachEnrollmentModel.findOne({
+          organizationId: input.organizationId,
+          candidateId: thread.candidateId,
+          status: { $ne: 'opted_out' },
+          'hiringFlowState.status': { $in: ['waiting_reply', 'active'] },
+        }).sort({ updatedAt: -1 });
+        if (waiting) hfEnrollment = waiting;
+      }
       const hfStatus = hfEnrollment?.hiringFlowState?.status;
       if (
         hfEnrollment &&
@@ -1643,21 +1659,23 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
             const { advanceHiringFlowOnReply } = await import(
               '../outreach/hiring-flow-runtime.service.js'
             );
-            await advanceHiringFlowOnReply({
+            const advanced = await advanceHiringFlowOnReply({
               campaign: campaignDoc,
               enrollment: hfEnrollment,
               replyText: input.bodyText,
               hasAttachment: (input.attachments || []).length > 0,
             });
-            skipClassify = true;
-            enrollmentId = String(hfEnrollment._id);
-            campaignId = String(hfEnrollment.campaignId);
-            getLogger()
-              .child({ component: 'inbound-sync' })
-              .info(
-                { enrollmentId, campaignId, threadId: String(thread._id) },
-                'Hiring flow advanced on inbound reply'
-              );
+            if (advanced.advanced || liveHf(hfEnrollment.hiringFlowState?.status)) {
+              skipClassify = true;
+              enrollmentId = String(hfEnrollment._id);
+              campaignId = String(hfEnrollment.campaignId);
+              getLogger()
+                .child({ component: 'inbound-sync' })
+                .info(
+                  { enrollmentId, campaignId, threadId: String(thread._id) },
+                  'Hiring flow advanced on inbound reply'
+                );
+            }
           }
         } catch (error) {
           getLogger()

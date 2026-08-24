@@ -14,6 +14,7 @@ import { findApprovedMetaTemplate } from '../../providers/meta-whatsapp/meta.tem
 export type AssignedOrganizationDto = {
   id: string;
   name: string;
+  slug?: string | null;
 };
 
 export type SafeHiringFlowDto = {
@@ -78,24 +79,43 @@ function withLockedMessageFields(
   };
 }
 
+/**
+ * Keep exactly one locked WhatsApp template at the front.
+ * Extra template steps (from assign/sync id mismatch) are dropped.
+ */
+export function ensureSingleLockedWhatsAppStep(
+  steps: HiringFlowStep[],
+  locked: HiringFlowStep | null
+): HiringFlowStep[] {
+  const cloned = steps.map((step) => ({ ...step, branches: step.branches || [] }));
+  const first =
+    locked ||
+    findFirstMessageStep(cloned, cloned[0]?.id || null);
+  if (!first || first.type !== 'send_whatsapp_template') return cloned;
+
+  const rest = cloned.filter(
+    (step) => step.id !== first.id && step.type !== 'send_whatsapp_template'
+  );
+  const incomingFirst =
+    cloned.find((step) => step.id === first.id) ||
+    cloned.find((step) => step.type === 'send_whatsapp_template') ||
+    first;
+  const restored = withLockedMessageFields(incomingFirst, first);
+  const restIds = new Set(rest.map((step) => step.id));
+  if (!restored.nextStepId || !restIds.has(restored.nextStepId)) {
+    restored.nextStepId = rest[0]?.id || null;
+  }
+  return [restored, ...rest];
+}
+
 function lockFirstMessageOnIncoming(
   existing: HiringFlowStep[],
   incoming: HiringFlowStep[],
   entryStepId: string | null
 ): HiringFlowStep[] {
   const locked = findFirstMessageStep(existing, entryStepId);
-  if (!locked) return incoming;
-
-  const next = incoming.map((step) => ({ ...step, branches: step.branches || [] }));
-  const idx = next.findIndex((step) => step.id === locked.id);
-  const current = idx >= 0 ? next[idx] : undefined;
-  const restored = withLockedMessageFields(current || locked, locked);
-
-  const withoutLocked = next.filter((step) => step.id !== locked.id);
-  const withoutExtraTemplates = withoutLocked.filter(
-    (step) => step.type !== 'send_whatsapp_template'
-  );
-  return [restored, ...withoutExtraTemplates];
+  if (!locked) return ensureSingleLockedWhatsAppStep(incoming, null);
+  return ensureSingleLockedWhatsAppStep(incoming, locked);
 }
 
 async function ownerName(userId: mongoose.Types.ObjectId | string): Promise<string> {
@@ -116,6 +136,11 @@ export async function toSafeHiringFlow(
     nameCache?.set(ownerKey, name);
   }
 
+  const collapsedSteps = ensureSingleLockedWhatsAppStep(
+    doc.steps || [],
+    findFirstMessageStep(doc.steps || [], doc.entryStepId)
+  );
+
   return {
     id: String(doc._id),
     organizationId: doc.organizationId ? String(doc.organizationId) : null,
@@ -127,8 +152,10 @@ export async function toSafeHiringFlow(
     description: doc.description,
     category: doc.category,
     status: doc.status,
-    steps: doc.steps || [],
-    entryStepId: doc.entryStepId,
+    steps: collapsedSteps,
+    entryStepId:
+      collapsedSteps.find((step) => step.type === 'send_whatsapp_template')?.id ||
+      doc.entryStepId,
     firstMessageLocked: (doc.scope || 'organization') === 'organization',
     usageCount: doc.usageCount || 0,
     archivedAt: doc.archivedAt ? doc.archivedAt.toISOString() : null,
@@ -212,16 +239,23 @@ async function loadAssignedOrganizations(
     ),
   ];
   const orgs = orgIds.length
-    ? await OrganizationModel.find({ _id: { $in: orgIds } }).select('name').lean()
+    ? await OrganizationModel.find({ _id: { $in: orgIds } }).select('name slug').lean()
     : [];
-  const orgName = new Map(orgs.map((org) => [String(org._id), org.name]));
+  const orgMeta = new Map(
+    orgs.map((org) => [String(org._id), { name: org.name, slug: org.slug || null }])
+  );
 
   for (const copy of copies) {
     const sourceId = String(copy.sourceFlowId);
     const orgId = copy.organizationId ? String(copy.organizationId) : '';
     if (!orgId) continue;
     const list = map.get(sourceId) || [];
-    list.push({ id: orgId, name: orgName.get(orgId) || 'Organization' });
+    const meta = orgMeta.get(orgId);
+    list.push({
+      id: orgId,
+      name: meta?.name || 'Organization',
+      slug: meta?.slug || null,
+    });
     map.set(sourceId, list);
   }
   return map;
@@ -249,18 +283,7 @@ async function syncLockedMessageToCopies(platform: HiringFlowDocument) {
   for (const copy of copies) {
     copy.name = platform.name;
     copy.category = platform.category;
-    const steps = lockFirstMessageOnIncoming(copy.steps, copy.steps, copy.entryStepId);
-    const idx = steps.findIndex((step) => step.id === locked.id);
-    const current = idx >= 0 ? steps[idx] : undefined;
-    if (current) {
-      steps[idx] = withLockedMessageFields(current, locked);
-    } else {
-      steps.unshift({
-        ...locked,
-        nextStepId: steps[0]?.id || null,
-      });
-    }
-    copy.steps = steps;
+    copy.steps = ensureSingleLockedWhatsAppStep(copy.steps, locked);
     copy.entryStepId = locked.id;
     copy.markModified('steps');
     await copy.save();
@@ -291,7 +314,21 @@ export const hiringFlowsService = {
     ]);
 
     const nameCache = new Map<string, string>();
-    const items = await Promise.all(docs.map((doc) => toSafeHiringFlow(doc, nameCache)));
+    const items = await Promise.all(
+      docs.map(async (doc) => {
+        const collapsed = ensureSingleLockedWhatsAppStep(
+          doc.steps || [],
+          findFirstMessageStep(doc.steps || [], doc.entryStepId)
+        );
+        if (collapsed.length !== (doc.steps || []).length) {
+          doc.steps = collapsed;
+          doc.entryStepId = collapsed[0]?.id || doc.entryStepId;
+          doc.markModified('steps');
+          await doc.save();
+        }
+        return toSafeHiringFlow(doc, nameCache);
+      })
+    );
     return {
       items,
       pagination: {
@@ -309,6 +346,16 @@ export const hiringFlowsService = {
     }
     const doc = await HiringFlowModel.findOne({ _id: id, organizationId });
     if (!doc) throw AppError.notFound('Hiring flow not found.');
+    const collapsed = ensureSingleLockedWhatsAppStep(
+      doc.steps || [],
+      findFirstMessageStep(doc.steps || [], doc.entryStepId)
+    );
+    if (collapsed.length !== (doc.steps || []).length) {
+      doc.steps = collapsed;
+      doc.entryStepId = collapsed[0]?.id || doc.entryStepId;
+      doc.markModified('steps');
+      await doc.save();
+    }
     return toSafeHiringFlow(doc);
   },
 
@@ -485,16 +532,9 @@ export const adminHiringFlowsService = {
         copy.archivedAt = null;
         copy.name = platform.name;
         copy.category = platform.category;
-        copy.steps = lockFirstMessageOnIncoming(copy.steps, copy.steps, copy.entryStepId);
         const locked = findFirstMessageStep(platform.steps, platform.entryStepId);
-        if (locked) {
-          const idx = copy.steps.findIndex((step) => step.id === locked.id);
-          const current = idx >= 0 ? copy.steps[idx] : undefined;
-          if (current) {
-            copy.steps[idx] = withLockedMessageFields(current, locked);
-          }
-          copy.entryStepId = locked.id;
-        }
+        copy.steps = ensureSingleLockedWhatsAppStep(copy.steps, locked);
+        if (locked) copy.entryStepId = locked.id;
         copy.markModified('steps');
         await copy.save();
         continue;

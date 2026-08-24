@@ -51,7 +51,7 @@ export type ApiHiringFlow = {
   firstMessageLocked?: boolean;
   usageCount: number;
   archivedAt: string | null;
-  assignedOrganizations?: Array<{ id: string; name: string }>;
+  assignedOrganizations?: Array<{ id: string; name: string; slug?: string | null }>;
   createdAt: string;
   updatedAt: string;
 };
