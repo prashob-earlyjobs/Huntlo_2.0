@@ -648,8 +648,18 @@ export const adminConsoleService = {
   async listOrganizations(query: { page: number; limit: number; q?: string; status?: string }) {
     const filter: Record<string, unknown> = { deletedAt: null };
     if (query.status) filter.status = query.status;
-    if (query.q) filter.name = new RegExp(query.q, 'i');
-    const result = await paginateQuery<OrganizationDocument>(OrganizationModel, filter, query.page, query.limit);
+    if (query.q) {
+      const escaped = query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(escaped, 'i');
+      filter.$or = [{ name: rx }, { slug: rx }];
+    }
+    const result = await paginateQuery<OrganizationDocument>(
+      OrganizationModel,
+      filter,
+      query.page,
+      query.limit,
+      query.q ? { slug: 1, name: 1 } : { createdAt: -1 }
+    );
     return {
       items: result.items.map((org) => toPublicOrganization(org)),
       ...buildPaginationMeta(result),

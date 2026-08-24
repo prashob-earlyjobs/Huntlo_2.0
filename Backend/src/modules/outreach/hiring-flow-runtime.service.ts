@@ -11,6 +11,10 @@ import {
   HiringFlowModel,
   type HiringFlowStep,
 } from './hiring-flow.model.js';
+import {
+  ensureSingleLockedWhatsAppStep,
+  findFirstMessageStep,
+} from './hiring-flows.service.js';
 import type { OutreachCampaignDocument } from './campaign.model.js';
 import {
   OutreachEnrollmentModel,
@@ -74,8 +78,33 @@ export function resolveHiringFlowBranch(
   return step.nextStepId || null;
 }
 
-/** Linked nextStepId, or the next step in the flow list if the link is missing. */
-function resolveNextHiringFlowStep(
+function sequentialStepAfter(
+  steps: HiringFlowStep[],
+  current: HiringFlowStep,
+  replyText?: string
+): HiringFlowStep | null {
+  const idx = steps.findIndex((step) => step.id === current.id);
+  for (let i = idx + 1; i < steps.length; i += 1) {
+    const step = steps[i];
+    if (!step) continue;
+    if (
+      current.type === 'send_whatsapp_template' &&
+      step.type === 'send_whatsapp_template'
+    ) {
+      continue;
+    }
+    if (step.type === 'branch') {
+      const resolvedId = resolveHiringFlowBranch(step, replyText || '');
+      const resolved = findStep(steps, resolvedId);
+      if (resolved) return resolved;
+      continue;
+    }
+    return step;
+  }
+  return null;
+}
+
+function hopOnce(
   steps: HiringFlowStep[],
   current: HiringFlowStep,
   replyText?: string
@@ -86,21 +115,35 @@ function resolveNextHiringFlowStep(
     nextId = resolveHiringFlowBranch(linked, replyText || '');
   }
   const direct = findStep(steps, nextId);
-  if (direct) return direct;
-
-  const idx = steps.findIndex((step) => step.id === current.id);
-  for (let i = idx + 1; i < steps.length; i += 1) {
-    const step = steps[i];
-    if (!step) continue;
-    if (step.type === 'branch') {
-      const resolvedId = resolveHiringFlowBranch(step, replyText || '');
-      const resolved = findStep(steps, resolvedId);
-      if (resolved) return resolved;
-      continue;
-    }
-    return step;
+  if (direct && !(direct.id === current.id && direct.type === current.type)) {
+    return direct;
   }
-  return null;
+  return sequentialStepAfter(steps, current, replyText);
+}
+
+/**
+ * Linked nextStepId, or the next step in the flow list if the link is missing.
+ * Duplicate opening WhatsApp template steps (same id copied on assign) are skipped
+ * so "Yes, continue" never re-sends the first template.
+ */
+export function resolveNextHiringFlowStep(
+  steps: HiringFlowStep[],
+  current: HiringFlowStep,
+  replyText?: string
+): HiringFlowStep | null {
+  const seen = new Set<string>();
+  let cursor: HiringFlowStep | null = current;
+  for (let guard = 0; cursor && guard < 20; guard += 1) {
+    const hop = hopOnce(steps, cursor, replyText);
+    if (!hop) return null;
+    const looped = hop.id === current.id || seen.has(`${hop.id}:${hop.type}`);
+    const duplicateOpening =
+      current.type === 'send_whatsapp_template' && hop.type === 'send_whatsapp_template';
+    if (!duplicateOpening && !looped) return hop;
+    seen.add(`${hop.id}:${hop.type}`);
+    cursor = hop;
+  }
+  return sequentialStepAfter(steps, current, replyText);
 }
 
 async function ensureThread(input: {
@@ -455,6 +498,17 @@ export async function startHiringFlowAfterQualification(input: {
       })
     : null;
 
+  if (flow) {
+    const locked = findFirstMessageStep(flow.steps, flow.entryStepId);
+    const collapsed = ensureSingleLockedWhatsAppStep(flow.steps, locked);
+    if (collapsed.length !== flow.steps.length) {
+      flow.steps = collapsed;
+      flow.entryStepId = collapsed[0]?.id || flow.entryStepId;
+      flow.markModified('steps');
+      await flow.save();
+    }
+  }
+
   if (!flow) {
     const templateId = String(config.autoWhatsAppTemplateId || 'resume_share').trim();
     const catalogue = getApprovedTemplate(templateId);
@@ -661,6 +715,15 @@ export async function advanceHiringFlowOnReply(input: {
   if (!flow) {
     await resetToWaiting();
     return { advanced: false };
+  }
+
+  const locked = findFirstMessageStep(flow.steps, flow.entryStepId);
+  const collapsed = ensureSingleLockedWhatsAppStep(flow.steps || [], locked);
+  if (collapsed.length !== (flow.steps || []).length) {
+    flow.steps = collapsed;
+    flow.entryStepId = collapsed[0]?.id || flow.entryStepId;
+    flow.markModified('steps');
+    await flow.save();
   }
 
   const current = findStep(flow.steps, state.currentStepId);
