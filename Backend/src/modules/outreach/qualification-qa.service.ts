@@ -1886,7 +1886,12 @@ export async function processQualificationAfterReply(input: {
     if (
       hfEnrollment &&
       hfEnrollment.status !== 'opted_out' &&
-      (hfStatus === 'waiting_reply' || hfStatus === 'processing_reply')
+      hfEnrollment.hiringFlowState?.flowId &&
+      (hfStatus === 'waiting_reply' ||
+        hfStatus === 'processing_reply' ||
+        hfStatus === 'completed' ||
+        hfStatus === 'active' ||
+        hfStatus === 'failed')
     ) {
       if (hfStatus === 'processing_reply') {
         return { action: 'hiring_flow_noop' };

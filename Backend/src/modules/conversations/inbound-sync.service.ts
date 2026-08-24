@@ -144,6 +144,10 @@ type ChannelCapableCampaign = {
     whatsapp?: { enabled?: boolean } | null;
   } | null;
   sequenceSteps?: Array<{ type?: string }> | null;
+  qualificationConfig?: {
+    autoWhatsAppAfterQualification?: boolean;
+    hiringFlowId?: unknown;
+  } | null;
 };
 
 /** True when the campaign is configured to send/receive on this channel. */
@@ -154,6 +158,8 @@ export function campaignSupportsChannel(
   if (!campaign) return false;
   if (channel === 'whatsapp') {
     if (campaign.channelConfig?.whatsapp?.enabled === true) return true;
+    if (campaign.qualificationConfig?.autoWhatsAppAfterQualification === true) return true;
+    if (campaign.qualificationConfig?.hiringFlowId) return true;
     return (campaign.sequenceSteps || []).some((s) => s.type === 'whatsapp');
   }
   if (channel === 'email') {
@@ -395,7 +401,7 @@ async function resolveEnrollment(
     if (enrollment) {
       if (!channelFilter) return enrollment;
       const campaign = await OutreachCampaignModel.findById(enrollment.campaignId)
-        .select('channelConfig sequenceSteps')
+        .select('channelConfig sequenceSteps qualificationConfig')
         .lean();
       if (campaignSupportsChannel(campaign, channelFilter)) return enrollment;
       // Explicit id but wrong channel — fall through to a compatible enrollment.
@@ -408,7 +414,7 @@ async function resolveEnrollment(
   ) {
     if (channelFilter) {
       const campaign = await OutreachCampaignModel.findById(campaignId)
-        .select('channelConfig sequenceSteps')
+        .select('channelConfig sequenceSteps qualificationConfig')
         .lean();
       if (!campaignSupportsChannel(campaign, channelFilter)) {
         // Stated campaign cannot accept this channel — try another enrollment.
@@ -453,7 +459,7 @@ async function resolveEnrollment(
   const campaigns = await OutreachCampaignModel.find({
     _id: { $in: enrollments.map((e) => e.campaignId) },
   })
-    .select('channelConfig sequenceSteps')
+    .select('channelConfig sequenceSteps qualificationConfig')
     .lean();
   const supportedIds = new Set(
     campaigns
@@ -604,7 +610,12 @@ async function resolveLatestActiveWhatsAppOutreach(
   const isTerminalEnrollment = (enrollment: {
     status?: string | null;
     qualificationState?: { status?: string | null } | null;
+    hiringFlowState?: { status?: string | null } | null;
   }) => {
+    const hf = String(enrollment.hiringFlowState?.status || '');
+    // Post-qualification WhatsApp hiring flow is still live even when
+    // qualificationState is already 'qualified'.
+    if (['waiting_reply', 'processing_reply', 'active'].includes(hf)) return false;
     const status = String(enrollment.status || '');
     const qual = String(enrollment.qualificationState?.status || '');
     return (
@@ -631,7 +642,7 @@ async function resolveLatestActiveWhatsAppOutreach(
       const campaigns = await OutreachCampaignModel.find({
         _id: { $in: liveEnrollments.map((e) => e.campaignId) },
       })
-        .select('channelConfig sequenceSteps')
+        .select('channelConfig sequenceSteps qualificationConfig')
         .lean();
       const supportedIds = new Set(
         campaigns
@@ -701,7 +712,7 @@ async function resolveLatestActiveWhatsAppOutreach(
   const campaigns = await OutreachCampaignModel.find({
     _id: { $in: liveEnrollments.map((e) => e.campaignId) },
   })
-    .select('channelConfig sequenceSteps')
+    .select('channelConfig sequenceSteps qualificationConfig')
     .lean();
   const supportedIds = new Set(
     campaigns
@@ -864,7 +875,7 @@ async function findOrCreateThread(input: {
         // Enrollment already channel-filtered; trust this campaign thread.
       } else if (byProvider.campaignId) {
         const campaign = await OutreachCampaignModel.findById(byProvider.campaignId)
-          .select('channelConfig sequenceSteps')
+          .select('channelConfig sequenceSteps qualificationConfig')
           .lean();
         if (!campaignSupportsChannel(campaign, input.channel)) {
           continue;
@@ -1169,7 +1180,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       }
     } else {
       const stated = await OutreachCampaignModel.findById(statedCampaignId)
-        .select('channelConfig sequenceSteps')
+        .select('channelConfig sequenceSteps qualificationConfig')
         .lean();
       // In this branch channel is never WhatsApp (handled above).
       // Email must be supported by the campaign; other channels keep the stated id.
@@ -1346,7 +1357,7 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
   // inbound channel — never inherit an email-only enrollment onto a WA reply.
   if (!enrollmentId && thread.enrollmentId && thread.campaignId) {
     const threadCampaign = await OutreachCampaignModel.findById(thread.campaignId)
-      .select('channelConfig sequenceSteps')
+      .select('channelConfig sequenceSteps qualificationConfig')
       .lean();
     if (
       (input.channel !== 'email' && input.channel !== 'whatsapp') ||
@@ -1357,13 +1368,26 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     }
   } else if (!campaignId && thread.campaignId) {
     const threadCampaign = await OutreachCampaignModel.findById(thread.campaignId)
-      .select('channelConfig sequenceSteps')
+      .select('channelConfig sequenceSteps qualificationConfig')
       .lean();
     if (
       (input.channel !== 'email' && input.channel !== 'whatsapp') ||
       campaignSupportsChannel(threadCampaign, input.channel)
     ) {
       campaignId = String(thread.campaignId);
+    }
+  }
+
+  // Hiring-flow WhatsApp (voice campaigns often have whatsapp.enabled=false).
+  // Still attach the enrollment so "Yes, continue" can advance the flow.
+  if (!enrollmentId && thread.enrollmentId) {
+    const hfLinked = await OutreachEnrollmentModel.findById(thread.enrollmentId)
+      .select('hiringFlowState campaignId')
+      .lean();
+    const hfStatus = String(hfLinked?.hiringFlowState?.status || '');
+    if (['waiting_reply', 'processing_reply', 'active'].includes(hfStatus)) {
+      enrollmentId = String(thread.enrollmentId);
+      if (!campaignId && hfLinked?.campaignId) campaignId = String(hfLinked.campaignId);
     }
   }
   const receivedAt = input.receivedAt || new Date();
@@ -1591,18 +1615,80 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
     assignedUserId: thread.assignedUserId ? String(thread.assignedUserId) : null,
   }).catch(() => undefined);
 
+  // Advance a waiting hiring flow BEFORE Gemini classify. Voice → WhatsApp
+  // onboarding replies were dropped because classifyAndAttach unlinked campaigns
+  // that do not list WhatsApp as a sequence channel, and classify failures
+  // prevented processQualificationAfterReply from ever running.
+  if (!skipClassify && (input.channel === 'whatsapp' || input.channel === 'email')) {
+    const hfEnrollmentId =
+      enrollmentId ||
+      (thread.enrollmentId ? String(thread.enrollmentId) : null) ||
+      hintEnrollmentId;
+    if (hfEnrollmentId) {
+      const hfEnrollment = await OutreachEnrollmentModel.findById(hfEnrollmentId);
+      const hfStatus = hfEnrollment?.hiringFlowState?.status;
+      if (
+        hfEnrollment &&
+        hfEnrollment.status !== 'opted_out' &&
+        (hfStatus === 'waiting_reply' ||
+          hfStatus === 'completed' ||
+          hfStatus === 'active' ||
+          hfStatus === 'failed')
+      ) {
+        try {
+          const campaignDoc = await OutreachCampaignModel.findById(
+            hfEnrollment.campaignId
+          );
+          if (campaignDoc) {
+            const { advanceHiringFlowOnReply } = await import(
+              '../outreach/hiring-flow-runtime.service.js'
+            );
+            await advanceHiringFlowOnReply({
+              campaign: campaignDoc,
+              enrollment: hfEnrollment,
+              replyText: input.bodyText,
+              hasAttachment: (input.attachments || []).length > 0,
+            });
+            skipClassify = true;
+            enrollmentId = String(hfEnrollment._id);
+            campaignId = String(hfEnrollment.campaignId);
+            getLogger()
+              .child({ component: 'inbound-sync' })
+              .info(
+                { enrollmentId, campaignId, threadId: String(thread._id) },
+                'Hiring flow advanced on inbound reply'
+              );
+          }
+        } catch (error) {
+          getLogger()
+            .child({ component: 'inbound-sync' })
+            .warn(
+              { err: error, enrollmentId: hfEnrollmentId },
+              'Hiring flow advance on inbound failed'
+            );
+        }
+      }
+    }
+  }
+
   if (!skipClassify) {
-    await classifyAndAttach({
-      organizationId: input.organizationId,
-      threadId: String(thread._id),
-      messageId: String(message._id),
-      bodyText: input.bodyText,
-      subject: input.subject,
-      campaignId,
-      enrollmentId,
-      channel: replyChannel,
-      hasAttachment: (input.attachments || []).length > 0,
-    });
+    try {
+      await classifyAndAttach({
+        organizationId: input.organizationId,
+        threadId: String(thread._id),
+        messageId: String(message._id),
+        bodyText: input.bodyText,
+        subject: input.subject,
+        campaignId,
+        enrollmentId,
+        channel: replyChannel,
+        hasAttachment: (input.attachments || []).length > 0,
+      });
+    } catch (error) {
+      getLogger()
+        .child({ component: 'inbound-sync' })
+        .warn({ err: error, enrollmentId, threadId: String(thread._id) }, 'classifyAndAttach failed');
+    }
   }
 
   return {
@@ -1644,7 +1730,7 @@ export async function classifyAndAttach(input: {
   // (e.g. WhatsApp reply matched to an email-only enrollment via the thread).
   if ((channel === 'email' || channel === 'whatsapp') && campaignId) {
     const linkedCampaign = await OutreachCampaignModel.findById(campaignId)
-      .select('channelConfig sequenceSteps')
+      .select('channelConfig sequenceSteps qualificationConfig')
       .lean();
     if (!campaignSupportsChannel(linkedCampaign, channel)) {
       getLogger()
