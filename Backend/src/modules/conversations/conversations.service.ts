@@ -1,6 +1,17 @@
 import mongoose from 'mongoose';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Readable } from 'node:stream';
 
 import { AppError } from '../../shared/errors/app-error.js';
+import {
+  isGcsMediaStorageEnabled,
+  openWhatsAppMediaGcsStream,
+} from '../../providers/gcs/gcs.storage.js';
+import {
+  getWhatsAppInboundMediaDir,
+  resolveWhatsAppInboundMediaPath,
+} from '../../providers/meta-whatsapp/meta.media.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
@@ -170,6 +181,9 @@ function messageToEvent(
     attachments: (msg.attachments || []).map((a) => ({
       name: a.name,
       size: a.size || '',
+      url: a.url || null,
+      mimeType: a.mimeType || null,
+      kind: a.kind || null,
     })),
     voiceSummary,
     sentAt: (msg.sentAt || msg.receivedAt || msg.createdAt).toISOString(),
@@ -495,6 +509,7 @@ export const conversationsService = {
     if (query.qualificationStatus) filter.qualificationStatus = query.qualificationStatus;
     if (query.campaignId) filter.campaignId = query.campaignId;
     if (query.candidateId) filter.candidateId = query.candidateId;
+    else if (query.candidateIds?.length) filter.candidateId = { $in: query.candidateIds };
     if (query.jobId) filter.jobId = query.jobId;
     if (query.assignedUserId) filter.assignedUserId = query.assignedUserId;
     if (query.unreadOnly) filter.unreadCount = { $gt: 0 };
@@ -577,6 +592,79 @@ export const conversationsService = {
         total,
         totalPages: Math.max(1, Math.ceil(total / query.limit)),
       },
+    };
+  },
+
+  async getMessageAttachment(
+    organizationId: string,
+    messageId: string,
+    index: number
+  ): Promise<{
+    mimeType: string;
+    fileName: string;
+    source: 'gcs' | 'local';
+    stream?: Readable;
+    absolutePath?: string;
+  }> {
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      throw new AppError(400, 'INVALID_ID', 'Invalid message id.');
+    }
+    if (!Number.isInteger(index) || index < 0) {
+      throw new AppError(400, 'INVALID_ATTACHMENT_INDEX', 'Invalid attachment index.');
+    }
+
+    const message = await ConversationMessageModel.findOne({
+      _id: messageId,
+      organizationId,
+    }).lean();
+    if (!message) {
+      throw new AppError(404, 'MESSAGE_NOT_FOUND', 'Message not found.');
+    }
+
+    const attachment = message.attachments?.[index];
+    if (!attachment) {
+      throw new AppError(404, 'ATTACHMENT_NOT_FOUND', 'Attachment not found.');
+    }
+
+    const storageKey = String(attachment.storageKey || '').trim().replace(/\\/g, '/');
+    if (!storageKey) {
+      throw new AppError(404, 'ATTACHMENT_UNAVAILABLE', 'Attachment file is not available.');
+    }
+
+    const mimeType = String(attachment.mimeType || 'application/octet-stream');
+    const fileName = String(attachment.name || `attachment-${index}`);
+
+    if (isGcsMediaStorageEnabled()) {
+      try {
+        const gcs = await openWhatsAppMediaGcsStream({ relativeKey: storageKey });
+        if (gcs) {
+          return {
+            source: 'gcs',
+            stream: gcs.stream,
+            mimeType: gcs.mimeType || mimeType,
+            fileName,
+          };
+        }
+      } catch {
+        // Fall through to local disk for older attachments / misconfigured buckets.
+      }
+    }
+
+    const absolutePath = resolveWhatsAppInboundMediaPath(storageKey);
+    const mediaRoot = path.resolve(getWhatsAppInboundMediaDir());
+    const resolved = path.resolve(absolutePath);
+    if (!resolved.startsWith(mediaRoot + path.sep) && resolved !== mediaRoot) {
+      throw new AppError(400, 'INVALID_ATTACHMENT_PATH', 'Invalid attachment path.');
+    }
+    if (!fs.existsSync(resolved)) {
+      throw new AppError(404, 'ATTACHMENT_FILE_MISSING', 'Attachment file is missing.');
+    }
+
+    return {
+      source: 'local',
+      absolutePath: resolved,
+      mimeType,
+      fileName,
     };
   },
 

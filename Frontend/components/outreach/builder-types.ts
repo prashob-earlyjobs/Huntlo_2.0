@@ -19,6 +19,7 @@ import {
   type SequenceStepType,
 } from "@/lib/mock-outreach";
 import {
+  getDefaultPostQualificationWhatsAppTemplate,
   getDefaultWhatsAppTemplate,
   isApprovedWhatsAppTemplateId,
   type WhatsAppTemplateSlot,
@@ -61,6 +62,10 @@ export interface BuilderState {
   takeoverCondition: string;
   autoScreening: boolean;
   autoCalendly: boolean;
+  autoWhatsAppAfterQualification: boolean;
+  autoWhatsAppTemplateId: string | null;
+  /** Templates hiring flow to run after qualification. */
+  hiringFlowId: string | null;
 }
 
 const CHANNEL_STEP_TYPE: Record<OutreachChannel, SequenceStepType> = {
@@ -234,7 +239,7 @@ export function initialBuilderState(): BuilderState {
     ownerUserId: null,
     description: "",
     timezone: TIMEZONE_OPTIONS[0],
-    campaignType: CAMPAIGN_TYPES[1],
+    campaignType: CAMPAIGN_TYPES[0],
     source: null,
     sourceDetail: "",
     selectedCandidateIds: [],
@@ -254,6 +259,10 @@ export function initialBuilderState(): BuilderState {
     takeoverCondition: TAKEOVER_CONDITIONS[1],
     autoScreening: false,
     autoCalendly: false,
+    autoWhatsAppAfterQualification: false,
+    autoWhatsAppTemplateId:
+      getDefaultPostQualificationWhatsAppTemplate()?.id ?? "resume_share",
+    hiringFlowId: null,
   };
 }
 
@@ -319,10 +328,7 @@ export function stepErrors(step: number, state: BuilderState): string[] {
       ) {
         errors.push("Pick at least one candidate to enroll.");
       }
-      if (
-        state.source === "CSV/Excel Import" &&
-        state.selectedCandidateIds.length === 0
-      ) {
+      if (state.source === "CSV/Excel Import" && !state.sourceDetail) {
         errors.push("Import a CSV/Excel file before continuing.");
       }
       if (

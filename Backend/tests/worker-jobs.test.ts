@@ -272,13 +272,13 @@ describe('Background jobs — leases and concurrency', () => {
         .post(`/api/v1/admin/jobs/${job.id}/retry`)
         .set('Authorization', `Bearer ${auth.token}`);
       expect(retried.status).toBe(200);
-      expect(retried.body.data.status).toBe('pending');
+      expect(retried.body.data.job?.status ?? retried.body.data.status).toBe('pending');
 
       const cancelled = await agent
         .post(`/api/v1/admin/jobs/${job.id}/cancel`)
         .set('Authorization', `Bearer ${auth.token}`);
       expect(cancelled.status).toBe(200);
-      expect(cancelled.body.data.status).toBe('cancelled');
+      expect(cancelled.body.data.job?.status ?? cancelled.body.data.status).toBe('cancelled');
     },
     20_000
   );

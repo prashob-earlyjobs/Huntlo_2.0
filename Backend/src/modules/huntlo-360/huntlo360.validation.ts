@@ -31,11 +31,29 @@ export const createWorkflowSchema = z.object({
     .optional(),
   outreachConfig: z
     .object({
+      campaignType: z.enum(['single_channel', 'multi_channel']).optional(),
       emailEnabled: z.boolean().optional(),
       whatsappEnabled: z.boolean().optional(),
-      channelOrder: z.enum(['email_first', 'whatsapp_first']).optional(),
+      aiVoiceEnabled: z.boolean().optional(),
+      channelOrder: z
+        .enum(['email_first', 'whatsapp_first', 'voice_first'])
+        .optional(),
       openingMessage: z.string().max(20000).nullable().optional(),
-      followUps: z.array(z.string().max(20000)).max(10).optional(),
+      openingWhatsAppTemplateId: z.string().trim().max(120).nullable().optional(),
+      followUps: z
+        .array(
+          z.union([
+            z.string().max(20000),
+            z.object({
+              body: z.string().max(20000),
+              delayDays: z.number().int().min(0).max(168).optional(),
+              delayUnit: z.enum(['days', 'hours', 'minutes']).optional(),
+              templateId: z.string().trim().max(120).nullable().optional(),
+            }),
+          ])
+        )
+        .max(10)
+        .optional(),
       stopOnReply: z.boolean().optional(),
       stopOnOptOut: z.boolean().optional(),
     })
@@ -51,6 +69,7 @@ export const createWorkflowSchema = z.object({
             prompt: z.string().min(1).max(1000),
             answerType: z.string().min(1).max(40),
             knockout: z.boolean().optional(),
+            knockoutCondition: z.string().max(500).nullable().optional(),
           })
         )
         .optional(),
@@ -64,7 +83,21 @@ export const createWorkflowSchema = z.object({
       enabled: z.boolean().optional(),
       language: z.string().nullable().optional(),
       voiceTone: z.string().nullable().optional(),
-      questions: z.array(z.string()).optional(),
+      questions: z
+        .array(
+          z.union([
+            z.string().trim().min(1).max(1000),
+            z.object({
+              id: z.string().optional(),
+              prompt: z.string().min(1).max(1000),
+              knockout: z.boolean().optional(),
+              knockoutCondition: z.string().max(500).nullable().optional(),
+            }),
+          ])
+        )
+        .max(20)
+        .optional(),
+      knockouts: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
       evaluationFields: z.array(z.string()).optional(),
       attempts: z.number().int().min(1).max(10).optional(),
       attemptIntervalHours: z.number().int().min(1).max(168).optional(),

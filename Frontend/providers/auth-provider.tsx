@@ -14,18 +14,20 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import {
   authApi,
-  isMockApiEnabled,
   refreshAccessTokenLive,
   setAuthSessionCookie,
-  setTokenProvider,
-  tokenStorage,
   AUTH_SESSION_COOKIE,
-  type AuthMeResponse,
-  type AuthOrganization,
-  type AuthSessionState,
-  type AuthUser,
-} from "@/lib/api";
-import type { LoginInput, RegisterInput } from "@/lib/api/auth";
+  type LoginInput,
+  type RegisterInput,
+} from "@/lib/api/auth";
+import { isMockApiEnabled } from "@/lib/api/config";
+import { setTokenProvider, tokenStorage } from "@/lib/api/client";
+import type {
+  AuthMeResponse,
+  AuthOrganization,
+  AuthSessionState,
+  AuthUser,
+} from "@/lib/api/types";
 import {
   clearPendingPublicSearch,
   readPendingPublicSearch,

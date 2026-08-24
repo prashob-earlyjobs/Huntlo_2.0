@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   firstInvalidJobFieldId,
@@ -44,6 +44,7 @@ import {
   jobsApi,
   type ParsedJobDescription,
 } from "@/lib/api";
+import { autocompleteCandidateFilter } from "@/lib/api/candidate-search";
 import { ROUTES, jobDetailPath, searchPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -268,27 +269,104 @@ function Field({
   );
 }
 
+function normalizeSkillSuggestion(suggestion: unknown): string | null {
+  if (typeof suggestion === "string") {
+    const value = suggestion.trim();
+    return value || null;
+  }
+  if (!suggestion || typeof suggestion !== "object") return null;
+  const record = suggestion as Record<string, unknown>;
+  for (const key of ["label", "name", "value", "title", "text"]) {
+    if (typeof record[key] === "string" && record[key].trim()) {
+      return record[key].trim();
+    }
+  }
+  return null;
+}
+
 function SkillChips({
   label,
   skills,
   onAdd,
   onRemove,
-  suggestions,
+  fallbackSuggestions,
 }: {
   label: string;
   skills: string[];
   onAdd: (skill: string) => void;
   onRemove: (skill: string) => void;
-  suggestions: readonly string[];
+  fallbackSuggestions: readonly string[];
 }) {
   const [draft, setDraft] = useState("");
+  const [apiSuggestions, setApiSuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState(false);
+
+  useEffect(() => {
+    const trimmed = draft.trim();
+    if (trimmed.length < 2) {
+      setApiSuggestions([]);
+      setLoadingSuggestions(false);
+      setSuggestionsError(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLoadingSuggestions(true);
+      setSuggestionsError(false);
+      try {
+        const result = await autocompleteCandidateFilter({
+          filter_type: "skills",
+          query: trimmed,
+          limit: 10,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        setApiSuggestions(
+          result.suggestions
+            .map(normalizeSkillSuggestion)
+            .filter((item): item is string => item !== null)
+            .filter(
+              (item, index, all) =>
+                all.findIndex(
+                  (candidate) =>
+                    candidate.toLocaleLowerCase() === item.toLocaleLowerCase()
+                ) === index
+            )
+        );
+      } catch {
+        if (!controller.signal.aborted) {
+          setApiSuggestions([]);
+          setSuggestionsError(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoadingSuggestions(false);
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [draft]);
 
   function commit(value: string) {
     const trimmed = normalizeSkill(value);
     if (!trimmed) return;
     onAdd(trimmed);
     setDraft("");
+    setApiSuggestions([]);
   }
+
+  const searching = draft.trim().length >= 2;
+  const suggestionSource = searching
+    ? apiSuggestions
+    : fallbackSuggestions.slice(0, 6);
+  const visibleSuggestions = suggestionSource.filter(
+    (skill) =>
+      !skills.some((existing) => existing.toLocaleLowerCase() === skill.toLocaleLowerCase())
+  );
 
   return (
     <div className="space-y-2">
@@ -318,28 +396,44 @@ function SkillChips({
               commit(draft);
             }
           }}
-          placeholder="Type a skill and press Enter"
+          placeholder="Type a skill to search or press Enter to add"
           aria-label={`Add ${label.toLowerCase()}`}
+          aria-autocomplete="list"
         />
         <Button type="button" variant="outline" size="sm" onClick={() => commit(draft)}>
           <Plus aria-hidden />
           Add
         </Button>
       </div>
+      {searching && loadingSuggestions ? (
+        <p className="text-xs text-muted-foreground">Loading skill suggestions…</p>
+      ) : null}
+      {searching && suggestionsError ? (
+        <p className="text-xs text-muted-foreground">
+          Could not load suggestions — you can still add the skill as typed.
+        </p>
+      ) : null}
+      {searching && !loadingSuggestions && !suggestionsError && visibleSuggestions.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No matches — press Enter to add “{draft.trim()}”.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-1.5">
-        {suggestions
-          .filter((skill) => !skills.includes(skill))
-          .slice(0, 6)
-          .map((skill) => (
-            <button
-              key={skill}
-              type="button"
-              onClick={() => commit(skill)}
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              + {skill}
-            </button>
-          ))}
+        {visibleSuggestions.map((skill) => (
+          <button
+            key={skill}
+            type="button"
+            onClick={() => commit(skill)}
+            className={cn(
+              "rounded-md border px-2 py-1 text-xs outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+              searching
+                ? "border-primary/40 bg-brand-subtle font-medium text-primary shadow-sm hover:border-primary hover:bg-brand-subtle/80"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            + {skill}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -760,7 +854,7 @@ export function JobForm() {
               <SkillChips
                 label="Required skills"
                 skills={form.requiredSkills}
-                suggestions={SKILL_SUGGESTIONS}
+                fallbackSuggestions={SKILL_SUGGESTIONS}
                 onAdd={(skill) =>
                   update(
                     "requiredSkills",
@@ -781,7 +875,7 @@ export function JobForm() {
               <SkillChips
                 label="Preferred skills"
                 skills={form.preferredSkills}
-                suggestions={SKILL_SUGGESTIONS}
+                fallbackSuggestions={SKILL_SUGGESTIONS}
                 onAdd={(skill) =>
                   update(
                     "preferredSkills",

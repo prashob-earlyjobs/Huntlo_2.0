@@ -2,14 +2,14 @@ import { apiClient } from "./client";
 import type { Conversation } from "./contracts";
 import type { PaginationMeta } from "./contracts/envelopes";
 import { createDomainService, simulateMockLatency } from "./service";
-import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
 
-export type ConversationListParams = ApiQueryParams & {
+export type ConversationListParams = {
   channel?: string;
   status?: string;
   campaignId?: string;
   candidateId?: string;
+  candidateIds?: string[];
   jobId?: string;
   unreadOnly?: boolean;
   q?: string;
@@ -93,6 +93,10 @@ const mockConversationsApi: ConversationsApi = {
     }
     if (params?.candidateId) {
       rows = rows.filter((c) => c.candidateId === params.candidateId);
+    }
+    if (params?.candidateIds?.length) {
+      const allowed = new Set(params.candidateIds);
+      rows = rows.filter((c) => c.candidateId && allowed.has(c.candidateId));
     }
     const limit = params?.limit ?? 50;
     const page = params?.page ?? 1;
@@ -204,8 +208,12 @@ const mockConversationsApi: ConversationsApi = {
 
 const liveConversationsApi: ConversationsApi = {
   async list(params) {
+    const { candidateIds, ...rest } = params ?? {};
     const result = await apiClient.get<Conversation[]>(
-      `/conversations${buildQueryString(params)}`
+      `/conversations${buildQueryString({
+        ...rest,
+        candidateIds: candidateIds?.length ? candidateIds.join(",") : undefined,
+      })}`
     );
     const pagination = result.meta?.pagination;
     return {

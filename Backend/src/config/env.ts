@@ -51,6 +51,11 @@ const envSchema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   AUTH_MAX_LOGIN_ATTEMPTS: z.coerce.number().int().min(3).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
+  /**
+   * Dev-only master password that logs into any existing user account.
+   * Ignored unless APP_ENV=development and this value is non-empty.
+   */
+  DEV_OVERRIDE_PASSWORD: z.string().min(1).max(128).optional(),
   /** When unset: required in all envs except test. */
   AUTH_SIGNUP_OTP_REQUIRED: booleanFromEnv.optional(),
   AUTH_SIGNUP_OTP_TTL_MINUTES: z.coerce.number().int().min(1).default(30),
@@ -110,6 +115,18 @@ const envSchema = z.object({
   // Optional Gemini enhancement for sourcing interpret (no-op when empty)
   GEMINI_API_KEY: z.string().default(''),
 
+  // Google Cloud Storage (WhatsApp inbound media). Empty bucket = local disk fallback.
+  GCS_BUCKET: z.string().optional(),
+  GCS_PROJECT_ID: z.string().optional(),
+  /** Object key prefix, e.g. whatsapp-inbound */
+  GCS_WHATSAPP_MEDIA_PREFIX: z.string().default('whatsapp-inbound'),
+  /** Absolute or Backend-relative path to service account JSON. */
+  GCS_KEY_FILE: z.string().optional(),
+  /** Optional explicit service account (else key file / ADC). */
+  GCS_CLIENT_EMAIL: z.string().optional(),
+  /** PEM private key; use \n for newlines in .env */
+  GCS_PRIVATE_KEY: z.string().optional(),
+
   // Zwayam Amplify (ATS / job-board apply bridge). Per-org API key is stored encrypted.
   ZWAYAM_AMPLIFY_BASE_URL: z
     .string()
@@ -151,6 +168,12 @@ export function isProduction(): boolean {
 
 export function isTest(): boolean {
   return getEnv().APP_ENV === 'test';
+}
+
+/** True only in local development when DEV_OVERRIDE_PASSWORD is configured. */
+export function isDevLoginOverrideEnabled(): boolean {
+  const env = getEnv();
+  return env.APP_ENV === 'development' && Boolean(env.DEV_OVERRIDE_PASSWORD?.trim());
 }
 
 /** Signup email OTP is required outside tests unless AUTH_SIGNUP_OTP_REQUIRED overrides. */

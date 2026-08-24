@@ -6,7 +6,10 @@ import {
   Briefcase,
   Check,
   CheckCheck,
+  ChevronLeft,
   ChevronRight,
+  Download,
+  Eye,
   FileText,
   Mail,
   MessageCircle,
@@ -30,11 +33,18 @@ import {
   type FilterOption,
 } from "@/components/shared/filter-popover";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { conversationsApi } from "@/lib/api";
+import { apiClient, conversationsApi } from "@/lib/api";
 import type {
   Conversation,
+  ConversationAttachment,
   ConversationEvent,
 } from "@/lib/mock-conversations";
 import {
@@ -239,6 +249,356 @@ function formatAudioClock(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function attachmentApiPath(url: string): string {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("/api/v1/")) return trimmed.slice("/api/v1".length);
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      return new URL(trimmed).pathname.replace(/^\/api\/v1/, "") || trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function useAuthenticatedBlobUrl(
+  url: string | null | undefined,
+  preferredMimeType?: string | null
+) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const path = attachmentApiPath(url || "");
+    if (!path) {
+      setObjectUrl(null);
+      setFailed(false);
+      return;
+    }
+
+    let cancelled = false;
+    let created: string | null = null;
+    setFailed(false);
+    setObjectUrl(null);
+
+    void (async () => {
+      try {
+        const downloaded = await apiClient.download(path);
+        let blob = downloaded.blob;
+        const preferred = String(preferredMimeType || "").trim();
+        if (
+          preferred &&
+          (!blob.type || blob.type === "application/octet-stream")
+        ) {
+          blob = new Blob([blob], { type: preferred });
+        }
+        const next = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(next);
+          return;
+        }
+        created = next;
+        setObjectUrl(next);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [url, preferredMimeType]);
+
+  return { objectUrl, failed };
+}
+
+function MessageAttachmentView({
+  attachment,
+}: {
+  attachment: ConversationAttachment;
+}) {
+  const kind = String(attachment.kind || "").toLowerCase();
+  const mime = String(attachment.mimeType || "").toLowerCase();
+  const fileName = String(attachment.name || "").toLowerCase();
+  const isImage = kind === "image" || mime.startsWith("image/");
+  const isAudio = kind === "audio" || mime.startsWith("audio/");
+  const isVideo = kind === "video" || mime.startsWith("video/");
+  const isPdf =
+    mime === "application/pdf" ||
+    fileName.endsWith(".pdf");
+  const isDocument =
+    kind === "document" ||
+    kind === "file" ||
+    isPdf ||
+    (!isImage && !isAudio && !isVideo && Boolean(attachment.url));
+  const preferredMime =
+    isPdf
+      ? "application/pdf"
+      : mime || null;
+  const { objectUrl, failed } = useAuthenticatedBlobUrl(
+    attachment.url,
+    preferredMime
+  );
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  async function downloadFile() {
+    if (objectUrl) {
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = attachment.name || "attachment";
+      a.click();
+      return;
+    }
+    const path = attachmentApiPath(attachment.url || "");
+    if (!path) return;
+    try {
+      const downloaded = await apiClient.download(path);
+      const href = URL.createObjectURL(downloaded.blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = downloaded.filename || attachment.name || "attachment";
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch {
+      // ignore — UI already shows filename
+    }
+  }
+
+  function openExternalPreview() {
+    if (!objectUrl) return;
+    window.open(objectUrl, "_blank", "noopener,noreferrer");
+  }
+
+  if (attachment.url && isImage) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Image unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading image…
+        </span>
+      );
+    }
+    return (
+      <div className="mt-2 space-y-1.5">
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="block max-w-full overflow-hidden rounded-lg border border-border text-left transition-opacity hover:opacity-90"
+          aria-label={`View ${attachment.name || "image"}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={objectUrl}
+            alt={attachment.name || "Image"}
+            className="max-h-64 max-w-full object-contain"
+          />
+        </button>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => setPreviewOpen(true)}
+          >
+            <Eye aria-hidden className="size-3.5" />
+            View
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => void downloadFile()}
+          >
+            <Download aria-hidden className="size-3.5" />
+            Download
+          </Button>
+        </div>
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-h-[90vh] max-w-[min(96vw,52rem)] gap-3 overflow-hidden p-4 sm:p-5">
+            <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 pr-8">
+              <DialogTitle className="truncate text-sm font-medium">
+                {attachment.name || "Image"}
+              </DialogTitle>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 gap-1.5"
+                onClick={() => void downloadFile()}
+              >
+                <Download aria-hidden className="size-3.5" />
+                Download
+              </Button>
+            </DialogHeader>
+            <div className="flex max-h-[min(75vh,40rem)] items-center justify-center overflow-auto rounded-lg bg-muted/40 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={objectUrl}
+                alt={attachment.name || "Image"}
+                className="max-h-[min(72vh,38rem)] max-w-full object-contain"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  if (attachment.url && isAudio) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Audio unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading audio…
+        </span>
+      );
+    }
+    return (
+      <ChatRecordingPlayer url={objectUrl} durationLabel={attachment.size || ""} />
+    );
+  }
+
+  if (attachment.url && isVideo) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Video unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading video…
+        </span>
+      );
+    }
+    return (
+      <video
+        src={objectUrl}
+        controls
+        className="mt-2 max-h-64 max-w-full rounded-lg border border-border"
+      />
+    );
+  }
+
+  if (attachment.url && isDocument) {
+    if (failed) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Document unavailable
+        </span>
+      );
+    }
+    if (!objectUrl) {
+      return (
+        <span className="mt-2 block text-xs text-muted-foreground">
+          Loading document…
+        </span>
+      );
+    }
+
+    return (
+      <div className="mt-2 space-y-1.5">
+        <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground">
+          <FileText aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate">{attachment.name || "Document"}</span>
+          {attachment.size ? (
+            <span className="shrink-0 text-muted-foreground">{attachment.size}</span>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => {
+              if (isPdf) setPreviewOpen(true);
+              else openExternalPreview();
+            }}
+          >
+            <Eye aria-hidden className="size-3.5" />
+            View
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={() => void downloadFile()}
+          >
+            <Download aria-hidden className="size-3.5" />
+            Download
+          </Button>
+        </div>
+        {isPdf ? (
+          <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+            <DialogContent className="max-h-[92vh] max-w-[min(96vw,56rem)] gap-3 overflow-hidden p-4 sm:p-5">
+              <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 pr-8">
+                <DialogTitle className="truncate text-sm font-medium">
+                  {attachment.name || "Document"}
+                </DialogTitle>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0 gap-1.5"
+                  onClick={() => void downloadFile()}
+                >
+                  <Download aria-hidden className="size-3.5" />
+                  Download
+                </Button>
+              </DialogHeader>
+              <iframe
+                title={attachment.name || "Document preview"}
+                src={objectUrl}
+                className="h-[min(78vh,42rem)] w-full rounded-lg border border-border bg-background"
+              />
+            </DialogContent>
+          </Dialog>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void downloadFile()}
+      disabled={!attachment.url}
+      className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-left text-xs text-foreground disabled:opacity-60"
+    >
+      {attachment.url ? (
+        <Download aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+      ) : (
+        <Paperclip aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+      )}
+      <span className="min-w-0 truncate">{attachment.name}</span>
+      {attachment.size ? (
+        <span className="shrink-0 text-muted-foreground">{attachment.size}</span>
+      ) : null}
+    </button>
+  );
 }
 
 function ChatRecordingPlayer({
@@ -447,6 +807,13 @@ function EventBubble({ event }: { event: ConversationEvent }) {
     displayText = stripEmailQuotedReply(displayText);
   }
 
+  const hasMedia = (event.attachments?.length || 0) > 0;
+  const isMediaPlaceholder =
+    hasMedia &&
+    /^(?:\[Image\]|\[Audio\]|\[Video\]|\[Document:[^\]]*\])$/i.test(
+      displayText.trim()
+    );
+
   return (
     <div
       className={cn(
@@ -474,9 +841,11 @@ function EventBubble({ event }: { event: ConversationEvent }) {
           {event.subject}
         </p>
       ) : null}
-      <p className="mt-1 break-words text-sm leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
-        {displayText}
-      </p>
+      {!isMediaPlaceholder && displayText ? (
+        <p className="mt-1 break-words text-sm leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
+          {displayText}
+        </p>
+      ) : null}
       {event.delivery === "Failed" && event.error ? (
         <p
           role="alert"
@@ -485,20 +854,11 @@ function EventBubble({ event }: { event: ConversationEvent }) {
           {event.error}
         </p>
       ) : null}
-      {event.attachments?.map((attachment) => (
-        <span
-          key={attachment.name}
-          className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
-        >
-          <Paperclip
-            aria-hidden
-            className="size-3 shrink-0 text-muted-foreground"
-          />
-          <span className="min-w-0 truncate">{attachment.name}</span>
-          <span className="shrink-0 text-muted-foreground">
-            {attachment.size}
-          </span>
-        </span>
+      {event.attachments?.map((attachment, index) => (
+        <MessageAttachmentView
+          key={`${attachment.name}-${attachment.url || index}`}
+          attachment={attachment}
+        />
       ))}
       <p className="mt-1.5 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
         {event.time}
@@ -686,6 +1046,134 @@ const CHANNEL_FILTER_OPTIONS: FilterOption[] = (
   ["Email", "WhatsApp", "AI Voice"] as const
 ).map((value) => ({ id: value, label: value }));
 
+const LG_UP = "(min-width: 1024px)";
+
+function useIsLgUp() {
+  const [isLgUp, setIsLgUp] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(LG_UP);
+    const apply = () => setIsLgUp(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  return isLgUp;
+}
+
+function ConversationThread({
+  selected,
+  events,
+  embedded,
+  timelineEndRef,
+  profileOpen,
+  showBack,
+  onBack,
+  onOpenProfile,
+}: {
+  selected: InboxRow | null;
+  events: ConversationEvent[];
+  embedded: boolean;
+  timelineEndRef: React.RefObject<HTMLDivElement | null>;
+  profileOpen: boolean;
+  showBack?: boolean;
+  onBack?: () => void;
+  onOpenProfile?: () => void;
+}) {
+  if (!selected) {
+    return (
+      <div
+        className={cn(
+          "flex flex-1 flex-col items-center justify-center gap-2 text-center",
+          embedded ? "p-6" : "p-10"
+        )}
+      >
+        <FileText aria-hidden className="size-6 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          Select a conversation to view the timeline.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2.5 border-b border-border",
+          embedded ? "px-3 py-2" : "px-4 py-2.5"
+        )}
+      >
+        {showBack ? (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Back to conversations"
+            onClick={onBack}
+          >
+            <ChevronLeft aria-hidden />
+          </Button>
+        ) : null}
+        {!embedded ? (
+          <CandidateAvatar name={selected.candidateName} className="size-8" />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-foreground">
+            {embedded ? selected.campaignName : selected.candidateName}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {embedded
+              ? `${selected.sequenceStep}${
+                  selected.channels.length > 1
+                    ? ` · ${selected.channels.join(" + ")}`
+                    : ""
+                }`
+              : `${selected.campaignName} · ${selected.sequenceStep}${
+                  selected.channels.length > 1
+                    ? ` · ${selected.channels.join(" + ")}`
+                    : ""
+                }`}
+          </p>
+        </div>
+        <MiniBadge
+          text={conversationPipelineStatus(selected)}
+          className={pipelineStatusBadgeClass(
+            conversationPipelineStatus(selected)
+          )}
+          title={qualificationBadgeTooltip(selected)}
+        />
+        {!embedded && !profileOpen && onOpenProfile ? (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Open profile"
+            onClick={onOpenProfile}
+          >
+            <User aria-hidden />
+          </Button>
+        ) : null}
+      </div>
+
+      <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+        <div
+          className={cn(
+            "@container/thread box-border w-full max-w-full space-y-3",
+            embedded ? "p-3" : "p-4"
+          )}
+        >
+          {events.map((event) => (
+            <EventBubble key={event.id} event={event} />
+          ))}
+          <div ref={timelineEndRef} aria-hidden className="h-px w-full" />
+        </div>
+      </ScrollArea>
+    </>
+  );
+}
+
 export function ConversationInbox({
   conversations,
   className,
@@ -705,13 +1193,12 @@ export function ConversationInbox({
   onLoadMore?: () => void;
 }) {
   const embedded = variant === "embedded";
+  const isLgUp = useIsLgUp();
   const { user } = useAuth();
   const noteAuthor =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "You";
   const [items, setItems] = useState(conversations);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    conversations[0]?.id ?? null
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<string[]>([]);
   const [pipelineFilter, setPipelineFilter] = useState<string[]>([]);
@@ -738,10 +1225,14 @@ export function ConversationInbox({
         return merged;
       });
     });
+  }, [conversations, selectedId]);
+
+  useEffect(() => {
+    if (!isLgUp) return;
     if (!selectedId && conversations[0]?.id) {
       setSelectedId(conversations[0].id);
     }
-  }, [conversations, selectedId]);
+  }, [conversations, selectedId, isLgUp]);
 
   // If a new message arrives on the open thread (or its sibling channels), mark read.
   useEffect(() => {
@@ -839,12 +1330,13 @@ export function ConversationInbox({
           : row
       )
     );
-    // On stacked (mobile) layout the timeline sits below the list — scroll it into view.
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById("conversation-detail")
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    });
+    if (isLgUp) {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("conversation-detail")
+          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
     for (const threadId of threadIds) {
       void conversationsApi
         .markRead(threadId)
@@ -905,14 +1397,14 @@ export function ConversationInbox({
         embedded
           ? cn(
               "grid h-[32rem] max-h-[32rem] overflow-hidden rounded-lg border border-border",
-              "grid-cols-1 grid-rows-[minmax(0,11rem)_minmax(0,1fr)]",
+              "grid-cols-1 grid-rows-[minmax(0,1fr)]",
               "lg:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]"
             )
           : cn(
-              "grid h-full min-h-0 rounded-xl border border-border",
-              "grid-cols-1 grid-rows-[minmax(0,14rem)_minmax(0,1fr)]",
-              "lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
-              profileOpen && selected
+              "grid h-full min-h-[28rem] rounded-xl border border-border",
+              "grid-cols-1 grid-rows-[minmax(0,1fr)]",
+              "lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
+              profileOpen && selected && isLgUp
                 ? "xl:grid-cols-[300px_minmax(0,1fr)_300px]"
                 : "xl:grid-cols-[300px_minmax(0,1fr)]"
             ),
@@ -921,10 +1413,7 @@ export function ConversationInbox({
     >
       {/* Left — list */}
       <div
-        className={cn(
-          "flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border",
-          embedded ? "lg:border-r lg:border-b-0" : "lg:border-r lg:border-b-0"
-        )}
+        className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:border-r lg:border-border"
       >
         {!embedded ? (
           <div className="shrink-0 space-y-2 border-b border-border p-3">
@@ -1111,94 +1600,76 @@ export function ConversationInbox({
         </ScrollArea>
       </div>
 
-      {/* Centre — timeline */}
-      <div
-        id="conversation-detail"
-        className={cn(
-          "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden",
-          !embedded && "border-b border-border xl:border-r xl:border-b-0"
-        )}
-      >
-        {selected ? (
-          <>
-            <div
-              className={cn(
-                "flex shrink-0 items-center gap-2.5 border-b border-border",
-                embedded ? "px-3 py-2" : "px-4 py-2.5"
-              )}
-            >
-              {!embedded ? (
-                <CandidateAvatar name={selected.candidateName} className="size-8" />
-              ) : null}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {embedded ? selected.campaignName : selected.candidateName}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {embedded
-                    ? `${selected.sequenceStep}${
-                        selected.channels.length > 1
-                          ? ` · ${selected.channels.join(" + ")}`
-                          : ""
-                      }`
-                    : `${selected.campaignName} · ${selected.sequenceStep}${
-                        selected.channels.length > 1
-                          ? ` · ${selected.channels.join(" + ")}`
-                          : ""
-                      }`}
-                </p>
-              </div>
-              <MiniBadge
-                text={conversationPipelineStatus(selected)}
-                className={pipelineStatusBadgeClass(
-                  conversationPipelineStatus(selected)
-                )}
-                title={qualificationBadgeTooltip(selected)}
+      {/* Centre — timeline (desktop). Mobile opens the same thread in a popup. */}
+      {isLgUp ? (
+        <div
+          id="conversation-detail"
+          className={cn(
+            "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden",
+            !embedded && "xl:border-r xl:border-border"
+          )}
+        >
+          <ConversationThread
+            selected={selected}
+            events={events}
+            embedded={embedded}
+            timelineEndRef={timelineEndRef}
+            profileOpen={profileOpen}
+            onOpenProfile={() => setProfileOpen(true)}
+          />
+        </div>
+      ) : (
+        <Dialog
+          open={Boolean(selected)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedId(null);
+              setProfileOpen(false);
+            }
+          }}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="top-0 left-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-full translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none p-0 sm:max-w-full"
+          >
+            <DialogTitle className="sr-only">
+              {selected
+                ? `Conversation with ${selected.candidateName}`
+                : "Conversation"}
+            </DialogTitle>
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card">
+              <ConversationThread
+                selected={selected}
+                events={events}
+                embedded={embedded}
+                timelineEndRef={timelineEndRef}
+                profileOpen={profileOpen}
+                showBack
+                onBack={() => {
+                  setSelectedId(null);
+                  setProfileOpen(false);
+                }}
+                onOpenProfile={() => setProfileOpen(true)}
               />
-              {!embedded && !profileOpen ? (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Open profile"
-                  onClick={() => setProfileOpen(true)}
-                >
-                  <User aria-hidden />
-                </Button>
+              {!embedded && profileOpen && selected ? (
+                <div className="max-h-[45%] min-h-0 shrink-0 overflow-hidden border-t border-border">
+                  <ScrollArea className="scrollbar-slim h-full max-h-[45vh]">
+                    <ProfilePanel
+                      conversation={selected}
+                      notes={notes}
+                      onAddNote={(text) => persistNote(selected.id, text)}
+                      onClose={() => setProfileOpen(false)}
+                    />
+                  </ScrollArea>
+                </div>
               ) : null}
             </div>
-
-            <ScrollArea className="scrollbar-slim min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-              <div
-                className={cn(
-                  "@container/thread box-border w-full max-w-full space-y-3",
-                  embedded ? "p-3" : "p-4"
-                )}
-              >
-                {events.map((event) => (
-                  <EventBubble key={event.id} event={event} />
-                ))}
-                <div ref={timelineEndRef} aria-hidden className="h-px w-full" />
-              </div>
-            </ScrollArea>
-          </>
-        ) : (
-          <div
-            className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-2 text-center",
-              embedded ? "p-6" : "p-10"
-            )}
-          >
-            <FileText aria-hidden className="size-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Select a conversation to view the timeline.
-            </p>
-          </div>
-        )}
-      </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Right — profile */}
-      {!embedded && profileOpen && selected ? (
+      {isLgUp && !embedded && profileOpen && selected ? (
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden max-xl:border-t max-xl:border-border">
           <ScrollArea className="scrollbar-slim min-h-0 flex-1 max-xl:max-h-80">
             <ProfilePanel

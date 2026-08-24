@@ -1421,69 +1421,84 @@ export class CandidateSearchService {
   async getSessionProfiles(
     actor: SearchActor,
     sessionIdParam: string,
-    query: { page: number; limit: number }
+    query: { page: number; limit: number; force?: boolean }
   ) {
     const session = await resolveSession(actor.organizationId, sessionIdParam);
     const fjId = session.futureJobsSessionId || session.externalSessionId;
+    const force = Boolean(query.force);
 
-    const stored = await loadStoredCandidates({
-      organizationId: actor.organizationId,
-      sourcingSessionId: session._id.toHexString(),
-      page: query.page,
-      limit: query.limit,
-    });
+    if (!force) {
+      const stored = await loadStoredCandidates({
+        organizationId: actor.organizationId,
+        sourcingSessionId: session._id.toHexString(),
+        page: query.page,
+        limit: query.limit,
+      });
 
-    if (stored.total > 0) {
-      return {
-        success: true,
-        sessionId: fjId,
-        savedSessionId: session._id.toHexString(),
-        fromStored: true,
-        candidates: stored.candidates.map((c) => toCandidateSummaryDto(c, fjId)),
-        profilesPagination: buildPaginationDto({
-          totalDocs: stored.total,
-          page: stored.page,
-          limit: stored.limit,
-        }),
-        polling: Boolean(session.polling),
-        canFetchMore: Boolean(session.canFetchMore),
-        filterForm: session.filterForm ?? session.normalizedFilters,
-        status: session.status,
-      };
+      if (stored.total > 0) {
+        return {
+          success: true,
+          sessionId: fjId,
+          savedSessionId: session._id.toHexString(),
+          fromStored: true,
+          candidates: stored.candidates.map((c) => toCandidateSummaryDto(c, fjId)),
+          profilesPagination: buildPaginationDto({
+            totalDocs: stored.total,
+            page: stored.page,
+            limit: stored.limit,
+          }),
+          polling: Boolean(session.polling),
+          canFetchMore: Boolean(session.canFetchMore),
+          filterForm: session.filterForm ?? session.normalizedFilters,
+          status: session.status,
+        };
+      }
+
+      if (!fjId) {
+        return {
+          success: true,
+          sessionId: null,
+          savedSessionId: session._id.toHexString(),
+          fromStored: true,
+          candidates: [],
+          profilesPagination: buildPaginationDto({
+            totalDocs: 0,
+            page: query.page,
+            limit: query.limit,
+          }),
+          polling: false,
+          canFetchMore: false,
+          filterForm: session.filterForm ?? session.normalizedFilters,
+          status: session.status,
+        };
+      }
     }
 
     if (!fjId) {
-      return {
-        success: true,
-        sessionId: null,
-        savedSessionId: session._id.toHexString(),
-        fromStored: true,
-        candidates: [],
-        profilesPagination: buildPaginationDto({
-          totalDocs: 0,
-          page: query.page,
-          limit: query.limit,
-        }),
-        polling: false,
-        canFetchMore: false,
-        filterForm: session.filterForm ?? session.normalizedFilters,
-        status: session.status,
-      };
+      throw sourcingSessionNotFound('Future Jobs session id missing');
     }
 
+    // Single Future Jobs GET — no WhenReady polling loop.
     const provider = getFutureJobsProvider();
     const profilesRes = await provider.getSourcingSessionProfiles(fjId, {
       page: query.page,
-      limit: query.limit,
+      limit: Math.min(query.limit, 300),
     });
     const docs = profilesDocs(profilesRes);
-    const upsert = await upsertCandidatesFromDocs({
+    await upsertCandidatesFromDocs({
       session,
       docs,
       organizationId: actor.organizationId,
       userId: actor.userId,
     });
-    const totalDocs = Math.max(profilesTotalDocs(profilesRes), upsert.candidates.length);
+
+    const stored = await loadStoredCandidates({
+      organizationId: actor.organizationId,
+      sourcingSessionId: session._id.toHexString(),
+      all: true,
+      allLimit: STORED_CANDIDATES_ALL_LIMIT,
+    });
+    const totalDocs = Math.max(profilesTotalDocs(profilesRes), stored.total);
     const pagination = buildPaginationDto({
       totalDocs,
       page: query.page,
@@ -1493,7 +1508,9 @@ export class CandidateSearchService {
     session.totalDocs = totalDocs;
     session.totalResults = totalDocs;
     session.profilesPagination = pagination;
+    session.canFetchMore = pagination.hasNextPage;
     session.lastPolledAt = new Date();
+    // Do not flip polling / enqueue background poll — caller asked for one shot.
     await session.save();
 
     return {
@@ -1501,9 +1518,10 @@ export class CandidateSearchService {
       sessionId: fjId,
       savedSessionId: session._id.toHexString(),
       fromStored: false,
-      candidates: upsert.candidates,
+      forced: force,
+      candidates: stored.candidates.map((c) => toCandidateSummaryDto(c, fjId)),
       profilesPagination: pagination,
-      polling: Boolean(session.polling),
+      polling: false,
       canFetchMore: pagination.hasNextPage,
       filterForm: session.filterForm ?? session.normalizedFilters,
       status: session.status,

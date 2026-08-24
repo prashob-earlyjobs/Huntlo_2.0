@@ -54,13 +54,16 @@ function isTrialExpiredAllowlisted(req: Request): boolean {
   );
 }
 
-async function assertActiveSession(sessionId: string): Promise<void> {
-  const session = await UserSessionModel.findById(sessionId).select('revokedAt expiresAt');
+/**
+ * Access tokens are short-lived JWTs. Do not tie them to refresh-session
+ * revocation — rotation/login/logout of the refresh cookie used to immediately
+ * invalidate in-flight ATs and force false logouts under concurrent requests.
+ * Refresh-token validity is enforced only on /auth/refresh.
+ */
+async function assertAccessSession(sessionId: string): Promise<void> {
+  const session = await UserSessionModel.findById(sessionId).select('expiresAt');
   if (!session) {
     throw AppError.unauthorized('Session not found');
-  }
-  if (session.revokedAt) {
-    throw AppError.unauthorized('Session has been revoked');
   }
   if (session.expiresAt.getTime() < Date.now()) {
     throw AppError.unauthorized('Session expired');
@@ -75,7 +78,7 @@ export const requireAuth = asyncHandler(async (req: Request, _res: Response, nex
 
   const token = header.slice('Bearer '.length).trim();
   const payload = verifyAccessToken(token);
-  await assertActiveSession(payload.sessionId);
+  await assertAccessSession(payload.sessionId);
   req.auth = payload;
   req.userId = payload.sub;
   req.organizationId = payload.orgId;
@@ -92,7 +95,7 @@ export const optionalAuth = asyncHandler(async (req: Request, _res: Response, ne
   try {
     const token = header.slice('Bearer '.length).trim();
     const payload = verifyAccessToken(token);
-    await assertActiveSession(payload.sessionId);
+    await assertAccessSession(payload.sessionId);
     req.auth = payload;
     req.userId = payload.sub;
     req.organizationId = payload.orgId;

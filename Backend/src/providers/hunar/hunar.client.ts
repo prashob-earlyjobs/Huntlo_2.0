@@ -263,6 +263,18 @@ export async function createHunarBulkCalls(input: {
     throw err;
   }
 
+  const nonIndian = input.callees.filter(
+    (c) => !/^\+91[6-9]\d{9}$/.test(String(c.mobile_number || '').trim())
+  );
+  if (nonIndian.length > 0) {
+    const err = new Error(
+      `Hunar bulk refused non-Indian numbers: ${nonIndian.map((c) => c.mobile_number).join(', ')}`
+    );
+    (err as Error & { code?: string; statusCode?: number }).code = 'VOICE_HUNAR_ROUTE_GUARD';
+    (err as Error & { statusCode?: number }).statusCode = 500;
+    throw err;
+  }
+
   const entityId = String(input.screeningId || input.campaignId || '').trim();
   if (!entityId) {
     const err = new Error('screeningId or campaignId is required for Hunar callbacks.');

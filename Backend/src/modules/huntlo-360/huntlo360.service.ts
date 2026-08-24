@@ -7,8 +7,11 @@ import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { quotaService } from '../../shared/usage/index.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
+import { enrichCampaignContactsForLaunch } from '../outreach/campaign-launch-reveal.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { ScreeningCandidateModel } from '../screening/screening-candidate.model.js';
+import { ScheduleCandidateModel } from '../scheduling/scheduling.facade.js';
 import {
   Huntlo360CandidateStateModel,
 } from './candidate-state.model.js';
@@ -19,6 +22,7 @@ import {
 } from './workflow.model.js';
 import { compileCampaignPayload } from './compiler.js';
 import { applyWorkflowTransition, refreshStageStats } from './transitions.js';
+import { flowSupportService } from './flow-support.service.js';
 import type {
   createWorkflowSchema,
   listCandidatesQuerySchema,
@@ -33,6 +37,58 @@ type UpdateInput = z.infer<typeof updateWorkflowSchema>;
 type ListQuery = z.infer<typeof listWorkflowsQuerySchema>;
 type ListCandidatesQuery = z.infer<typeof listCandidatesQuerySchema>;
 type TransitionBody = z.infer<typeof transitionBodySchema>;
+
+function screeningStatusFromCall(callStatus: string | null | undefined): string | null {
+  switch (callStatus) {
+    case 'completed':
+      return 'completed';
+    case 'no_answer':
+    case 'voicemail':
+      return 'unanswered';
+    case 'failed':
+    case 'cancelled':
+    case 'busy':
+      return 'failed';
+    case 'in_progress':
+    case 'ringing':
+      return 'in_progress';
+    case 'queued':
+      return 'scheduled';
+    default:
+      return null;
+  }
+}
+
+function screeningStatusRank(status: string | null | undefined): number {
+  switch (status) {
+    case 'completed':
+    case 'failed':
+    case 'unanswered':
+      return 3;
+    case 'in_progress':
+    case 'ringing':
+      return 2;
+    case 'scheduled':
+    case 'queued':
+    case 'pending':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function displaySchedulingStatus(
+  stateStatus: string | null | undefined,
+  schedule: { status?: string | null; inviteDeliveredAt?: Date | null } | null
+): string {
+  if (stateStatus === 'booked' || schedule?.status === 'booked') return 'booked';
+  if (stateStatus === 'expired' || schedule?.status === 'expired') return 'expired';
+  if (schedule?.inviteDeliveredAt || schedule?.status === 'link_sent') {
+    return schedule?.inviteDeliveredAt ? 'link_sent' : 'link_pending';
+  }
+  if (stateStatus === 'link_sent' && !schedule?.inviteDeliveredAt) return 'not_started';
+  return stateStatus || 'not_started';
+}
 
 async function ownerName(userId: string) {
   const user = await UserModel.findById(userId).select('firstName lastName').lean();
@@ -83,13 +139,18 @@ async function loadWorkflow(organizationId: string, id: string) {
   return doc;
 }
 
-function toDisplay(doc: Huntlo360WorkflowDocument, extras: {
-  ownerName: string;
-  jobTitle: string | null;
-}) {
-  const channels: Array<'Email' | 'WhatsApp'> = [];
+async function toDisplay(
+  doc: Huntlo360WorkflowDocument,
+  extras: {
+    ownerName: string;
+    jobTitle: string | null;
+    includeSupport?: boolean;
+  }
+) {
+  const channels: Array<'Email' | 'WhatsApp' | 'AI Voice'> = [];
   if (doc.outreachConfig.emailEnabled) channels.push('Email');
   if (doc.outreachConfig.whatsappEnabled) channels.push('WhatsApp');
+  if (doc.outreachConfig.aiVoiceEnabled) channels.push('AI Voice');
 
   const statusMap: Record<string, string> = {
     draft: 'Draft',
@@ -100,7 +161,7 @@ function toDisplay(doc: Huntlo360WorkflowDocument, extras: {
     failed: 'Failed',
   };
 
-  return {
+  const base = {
     id: String(doc._id),
     organizationId: String(doc.organizationId),
     name: doc.name,
@@ -133,11 +194,60 @@ function toDisplay(doc: Huntlo360WorkflowDocument, extras: {
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };
+
+  if (!extras.includeSupport) return base;
+
+  const support = await flowSupportService.getByWorkflow(String(doc._id));
+  return {
+    ...base,
+    supportingIds: flowSupportService.toDisplay(support),
+  };
+}
+
+function normalizeScreeningQuestions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim();
+      if (entry && typeof entry === 'object') {
+        const prompt = (entry as { prompt?: unknown; text?: unknown }).prompt
+          ?? (entry as { text?: unknown }).text;
+        return typeof prompt === 'string' ? prompt.trim() : '';
+      }
+      return '';
+    })
+    .filter(Boolean);
 }
 
 function mergeConfigs(doc: Huntlo360WorkflowDocument, input: UpdateInput | CreateInput) {
   if (input.outreachConfig) {
-    doc.outreachConfig = { ...doc.outreachConfig, ...input.outreachConfig };
+    const { followUps: followUpInput, ...outreachRest } = input.outreachConfig;
+    const followUps = followUpInput
+      ? followUpInput.map((entry, index) => {
+          if (typeof entry === 'string') {
+            return {
+              body: entry,
+              delayDays: index === 0 ? 2 : 3,
+              delayUnit: 'days' as const,
+              templateId: null,
+            };
+          }
+          return {
+            body: String(entry.body || ''),
+            delayDays: Math.max(0, Number(entry.delayDays ?? (index === 0 ? 2 : 3)) || 0),
+            delayUnit:
+              entry.delayUnit === 'hours' || entry.delayUnit === 'minutes'
+                ? entry.delayUnit
+                : ('days' as const),
+            templateId: entry.templateId ? String(entry.templateId) : null,
+          };
+        })
+      : doc.outreachConfig.followUps;
+    doc.outreachConfig = {
+      ...doc.outreachConfig,
+      ...outreachRest,
+      followUps,
+    };
   }
   if (input.qualificationConfig) {
     doc.qualificationConfig = {
@@ -148,10 +258,23 @@ function mergeConfigs(doc: Huntlo360WorkflowDocument, input: UpdateInput | Creat
     };
   }
   if (input.screeningConfig) {
+    const rawQuestions =
+      input.screeningConfig.questions ?? doc.screeningConfig.questions ?? [];
+    const derivedKnockouts = (Array.isArray(rawQuestions) ? rawQuestions : [])
+      .map((entry) => {
+        if (typeof entry === 'string') return null;
+        return String(
+          (entry as { knockoutCondition?: unknown }).knockoutCondition || ''
+        ).trim() || null;
+      })
+      .filter((value): value is string => Boolean(value));
+    const explicitKnockouts =
+      input.screeningConfig.knockouts ?? doc.screeningConfig.knockouts ?? [];
     doc.screeningConfig = {
       ...doc.screeningConfig,
       ...input.screeningConfig,
-      questions: input.screeningConfig.questions ?? doc.screeningConfig.questions,
+      questions: normalizeScreeningQuestions(rawQuestions),
+      knockouts: [...new Set([...derivedKnockouts, ...explicitKnockouts])],
       evaluationFields:
         input.screeningConfig.evaluationFields ?? doc.screeningConfig.evaluationFields,
     };
@@ -189,11 +312,31 @@ async function syncCampaignFromWorkflow(
       String(workflow.campaignId),
       payload
     );
+    await flowSupportService
+      .ensure({
+        organizationId,
+        workflowId: String(workflow._id),
+        jobId: workflow.jobId ? String(workflow.jobId) : null,
+        campaignId: String(workflow.campaignId),
+        candidateListId: workflow.candidateSource?.listId || null,
+        candidateIds: workflow.candidateSource?.candidateIds || [],
+      })
+      .catch(() => undefined);
     return String(workflow.campaignId);
   }
   const campaign = await campaignsService.create(organizationId, userId, payload);
   workflow.campaignId = new mongoose.Types.ObjectId(campaign.id);
   await workflow.save();
+  await flowSupportService
+    .ensure({
+      organizationId,
+      workflowId: String(workflow._id),
+      jobId: workflow.jobId ? String(workflow.jobId) : null,
+      campaignId: campaign.id,
+      candidateListId: workflow.candidateSource?.listId || null,
+      candidateIds: workflow.candidateSource?.candidateIds || [],
+    })
+    .catch(() => undefined);
   return campaign.id;
 }
 
@@ -213,13 +356,24 @@ export const huntlo360Service = {
       Huntlo360WorkflowModel.countDocuments(filter),
     ]);
 
+    // Close out finished pipelines so list status stays accurate.
+    await Promise.all(
+      docs
+        .filter((doc) => doc.status === 'running' || doc.status === 'paused')
+        .map((doc) => refreshStageStats(String(doc._id)).catch(() => undefined))
+    );
+
     const items = await Promise.all(
-      docs.map(async (doc) =>
-        toDisplay(doc, {
-          ownerName: await ownerName(String(doc.ownerUserId)),
-          jobTitle: await jobTitle(doc.jobId),
-        })
-      )
+      docs.map(async (doc) => {
+        const latest =
+          doc.status === 'running' || doc.status === 'paused'
+            ? (await Huntlo360WorkflowModel.findById(doc._id)) || doc
+            : doc;
+        return toDisplay(latest, {
+          ownerName: await ownerName(String(latest.ownerUserId)),
+          jobTitle: await jobTitle(latest.jobId),
+        });
+      })
     );
 
     return {
@@ -235,10 +389,39 @@ export const huntlo360Service = {
 
   async get(organizationId: string, id: string) {
     const doc = await loadWorkflow(organizationId, id);
+    // Recompute stage stats (and auto-complete when every candidate is done).
+    if (doc.status === 'running' || doc.status === 'paused') {
+      await refreshStageStats(id);
+      const refreshed = await loadWorkflow(organizationId, id);
+      return toDisplay(refreshed, {
+        ownerName: await ownerName(String(refreshed.ownerUserId)),
+        jobTitle: await jobTitle(refreshed.jobId),
+        includeSupport: true,
+      });
+    }
     return toDisplay(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
+  },
+
+  async supportingIds(organizationId: string, id: string) {
+    await loadWorkflow(organizationId, id);
+    const support = await flowSupportService.getByWorkflow(id);
+    return (
+      flowSupportService.toDisplay(support) || {
+        workflowId: id,
+        jobId: null,
+        campaignId: null,
+        candidateListId: null,
+        candidateIds: [],
+        enrollmentIds: [],
+        screeningIds: [],
+        assessmentCandidateIds: [],
+        scheduleCandidateIds: [],
+      }
+    );
   },
 
   async create(organizationId: string, userId: string, input: CreateInput) {
@@ -270,12 +453,21 @@ export const huntlo360Service = {
     mergeConfigs(doc, input);
     await doc.save();
 
+    await flowSupportService.ensure({
+      organizationId,
+      workflowId: String(doc._id),
+      jobId: doc.jobId ? String(doc.jobId) : null,
+      candidateListId: doc.candidateSource?.listId || null,
+      candidateIds: doc.candidateSource?.candidateIds || [],
+    });
+
     // Compile linked campaign (draft) without launching
     await syncCampaignFromWorkflow(organizationId, userId, doc);
 
     return toDisplay(doc, {
       ownerName: await ownerName(ownerUserId),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
   },
 
@@ -303,23 +495,57 @@ export const huntlo360Service = {
     return toDisplay(doc, {
       ownerName: await ownerName(String(doc.ownerUserId)),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
   },
 
   async remove(organizationId: string, userId: string, id: string) {
-    const doc = await loadWorkflow(organizationId, id);
-    if (doc.status === 'running') {
-      throw new AppError(400, 'WORKFLOW_RUNNING', 'Cancel or pause before deleting.');
+    // Lean load + updateOne avoids mongoose re-validating legacy nested configs
+    // (e.g. screening questions stored as objects) which caused DELETE 500s.
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError(400, 'INVALID_ID', 'Invalid workflow id.');
     }
-    doc.deletedAt = new Date();
-    doc.status = 'cancelled';
-    doc.cancelledAt = new Date();
-    await doc.save();
+    const doc = await Huntlo360WorkflowModel.findOne({
+      _id: id,
+      organizationId,
+      deletedAt: null,
+    }).lean();
+    if (!doc) throw new AppError(404, 'WORKFLOW_NOT_FOUND', 'Workflow not found.');
+
+    if (doc.status === 'running' || doc.status === 'paused') {
+      if (doc.campaignId) {
+        try {
+          await campaignsService.cancel(organizationId, userId, String(doc.campaignId));
+        } catch {
+          // Campaign may already be cancelled or missing.
+        }
+      }
+      await Huntlo360CandidateStateModel.updateMany(
+        {
+          workflowId: doc._id,
+          currentStage: { $nin: ['completed', 'stopped'] },
+        },
+        { $set: { currentStage: 'stopped', lastTransitionAt: new Date() } }
+      );
+      await refreshStageStats(id).catch(() => undefined);
+    }
+
+    await Huntlo360WorkflowModel.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          deletedAt: new Date(),
+          status: 'cancelled',
+          cancelledAt: doc.cancelledAt || new Date(),
+        },
+      }
+    );
+
     if (doc.campaignId) {
       try {
         await campaignsService.remove(organizationId, userId, String(doc.campaignId));
       } catch {
-        // Campaign may already be cancelled
+        // Campaign may already be cancelled/deleted.
       }
     }
     return { deleted: true, id };
@@ -346,7 +572,11 @@ export const huntlo360Service = {
         message: 'No job is linked to this workflow.',
       });
     }
-    if (!doc.outreachConfig.emailEnabled && !doc.outreachConfig.whatsappEnabled) {
+    if (
+      !doc.outreachConfig.emailEnabled &&
+      !doc.outreachConfig.whatsappEnabled &&
+      !doc.outreachConfig.aiVoiceEnabled
+    ) {
       issues.push({
         id: 'channels',
         severity: 'error',
@@ -430,6 +660,21 @@ export const huntlo360Service = {
       });
     }
 
+    // Unlock email/phone before workflow validate — otherwise sourced audiences
+    // fail NO_EMAIL_CONTACTS / NO_PHONE_CONTACTS and never reach campaign launch.
+    const campaignDoc = await OutreachCampaignModel.findOne({
+      _id: campaignId,
+      organizationId,
+      deletedAt: null,
+    });
+    if (campaignDoc) {
+      await enrichCampaignContactsForLaunch({
+        organizationId,
+        userId,
+        campaign: campaignDoc,
+      });
+    }
+
     const validation = await this.validate(organizationId, userId, id);
     if (!validation.ok) {
       throw new AppError(400, 'LAUNCH_VALIDATION_FAILED', 'Workflow failed launch validation.', {
@@ -471,6 +716,27 @@ export const huntlo360Service = {
       );
     }
 
+    await flowSupportService
+      .ensure({
+        organizationId,
+        workflowId: id,
+        jobId: doc.jobId ? String(doc.jobId) : null,
+        campaignId,
+        candidateListId: doc.candidateSource?.listId || null,
+        candidateIds: [
+          ...(doc.candidateSource?.candidateIds || []),
+          ...enrollments.map((e) => String(e.candidateId)),
+        ],
+      })
+      .catch(() => undefined);
+    await flowSupportService
+      .addIds(id, {
+        enrollmentIds: enrollments.map((e) => String(e._id)),
+        candidateIds: enrollments.map((e) => String(e.candidateId)),
+        campaignId,
+      })
+      .catch(() => undefined);
+
     doc.status = 'running';
     doc.launchedAt = doc.launchedAt || new Date();
     doc.pausedAt = null;
@@ -481,6 +747,7 @@ export const huntlo360Service = {
     return toDisplay(await loadWorkflow(organizationId, id), {
       ownerName: await ownerName(String(doc.ownerUserId)),
       jobTitle: await jobTitle(doc.jobId),
+      includeSupport: true,
     });
   },
 
@@ -558,8 +825,59 @@ export const huntlo360Service = {
       .lean();
     const byId = new Map(candidates.map((c) => [String(c._id), c]));
 
+    const screeningIds = rows.map((r) => r.screeningId).filter(Boolean);
+    const scheduleIds = rows.map((r) => r.scheduleCandidateId).filter(Boolean);
+    const candidateObjectIds = rows.map((r) => r.candidateId);
+    const screeningFilter =
+      screeningIds.length > 0
+        ? {
+            $or: [
+              { workflowId: id, candidateId: { $in: candidateObjectIds } },
+              { _id: { $in: screeningIds } },
+            ],
+          }
+        : { workflowId: id, candidateId: { $in: candidateObjectIds } };
+    const [screeningRows, scheduleRows] = await Promise.all([
+      candidateObjectIds.length
+        ? ScreeningCandidateModel.find(screeningFilter)
+            .select('candidateId callStatus overallScore recruiterDecision recommendation summary updatedAt')
+            .sort({ updatedAt: -1 })
+            .lean()
+        : Promise.resolve([]),
+      scheduleIds.length
+        ? ScheduleCandidateModel.find({ _id: { $in: scheduleIds } })
+            .select('status inviteDeliveredAt')
+            .lean()
+        : Promise.resolve([]),
+    ]);
+    const screeningById = new Map(screeningRows.map((s) => [String(s._id), s]));
+    const screeningByCandidate = new Map<string, (typeof screeningRows)[number]>();
+    for (const s of screeningRows) {
+      const key = String(s.candidateId);
+      if (!screeningByCandidate.has(key)) screeningByCandidate.set(key, s);
+    }
+    const scheduleById = new Map(scheduleRows.map((s) => [String(s._id), s]));
+
     const items = rows.map((row) => {
       const c = byId.get(String(row.candidateId));
+      const screening =
+        (row.screeningId ? screeningById.get(String(row.screeningId)) : null) ||
+        screeningByCandidate.get(String(row.candidateId)) ||
+        null;
+      const schedule = row.scheduleCandidateId
+        ? scheduleById.get(String(row.scheduleCandidateId))
+        : null;
+      const liveScreeningStatus = screeningStatusFromCall(screening?.callStatus);
+      const screeningStatus =
+        screeningStatusRank(liveScreeningStatus) >= screeningStatusRank(row.screeningStatus)
+          ? liveScreeningStatus || row.screeningStatus
+          : row.screeningStatus;
+      const recruiterDecision =
+        row.recruiterDecision && row.recruiterDecision !== 'pending'
+          ? row.recruiterDecision
+          : screening?.recruiterDecision && screening.recruiterDecision !== 'pending'
+            ? screening.recruiterDecision
+            : row.recruiterDecision;
       return {
         id: String(row._id),
         candidateId: String(row.candidateId),
@@ -573,12 +891,13 @@ export const huntlo360Service = {
         interestStatus: row.interestStatus,
         qualificationStatus: row.qualificationStatus,
         screeningId: row.screeningId ? String(row.screeningId) : null,
-        screeningStatus: row.screeningStatus,
-        recruiterDecision: row.recruiterDecision,
+        screeningStatus,
+        screeningScore: screening?.overallScore ?? row.screeningScore ?? null,
+        recruiterDecision,
         scheduleCandidateId: row.scheduleCandidateId
           ? String(row.scheduleCandidateId)
           : null,
-        schedulingStatus: row.schedulingStatus,
+        schedulingStatus: displaySchedulingStatus(row.schedulingStatus, schedule || null),
         exceptionCode: row.exceptionCode,
         exceptionDetail: row.exceptionDetail,
         enrollmentId: row.enrollmentId ? String(row.enrollmentId) : null,
@@ -600,11 +919,12 @@ export const huntlo360Service = {
   async stats(organizationId: string, id: string) {
     const doc = await loadWorkflow(organizationId, id);
     const stageStats = await refreshStageStats(id);
+    const latest = await loadWorkflow(organizationId, id);
     return {
       workflowId: id,
-      status: doc.status,
+      status: latest.status,
       stageStats,
-      campaignId: doc.campaignId ? String(doc.campaignId) : null,
+      campaignId: latest.campaignId ? String(latest.campaignId) : doc.campaignId ? String(doc.campaignId) : null,
     };
   },
 
@@ -674,6 +994,7 @@ export const huntlo360Service = {
             interestStatus: result.state.interestStatus,
             qualificationStatus: result.state.qualificationStatus,
             screeningStatus: result.state.screeningStatus,
+            screeningScore: result.state.screeningScore ?? null,
             schedulingStatus: result.state.schedulingStatus,
             exceptionCode: result.state.exceptionCode,
             recruiterDecision: result.state.recruiterDecision,

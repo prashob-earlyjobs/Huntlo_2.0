@@ -356,9 +356,12 @@ export function mapHunarCallStatus(status: string, answeredBy?: string): string 
     case 'CANCELED':
       return 'cancelled';
     case 'FAILED':
+    case 'NOT_CONNECTED':
+    case 'DISCONNECTED':
       return 'failed';
     default:
-      return normalized ? normalized.toLowerCase() : 'queued';
+      // Never pass through raw provider strings — VoiceCall.status is a strict enum.
+      return 'failed';
   }
 }
 

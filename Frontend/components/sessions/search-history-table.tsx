@@ -13,11 +13,21 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { useState } from "react";
 
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SearchHistoryTableSkeleton } from "@/components/sessions/search-history-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -56,62 +66,80 @@ function HistoryRowActions({
   entry: SearchHistoryEntry;
   onDelete?: (entry: SearchHistoryEntry) => void;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={`Actions for ${entry.name}`}
-          />
-        }
-      >
-        <MoreHorizontal aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        {entry.sessionId ? (
-          <DropdownMenuItem render={<Link href={sessionDetailPath(entry.sessionId)} />}>
-            <Play aria-hidden />
-            Rerun search
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem>
-            <Play aria-hidden />
-            Rerun search
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem>
-          <Copy aria-hidden />
-          Duplicate
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Pencil aria-hidden />
-          Rename
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <LayoutTemplate aria-hidden />
-          Save as template
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <ConfirmDialog
-          trigger={
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={(event) => event.preventDefault()}
-            >
-              <Trash2 aria-hidden />
-              Delete
-            </DropdownMenuItem>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={`Actions for ${entry.name}`}
+            />
           }
-          title={`Delete “${entry.name}”?`}
-          description="This removes the search from your history. Saved candidates are not affected."
-          confirmLabel="Delete search"
-          destructive
-          onConfirm={() => onDelete?.(entry)}
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
+        >
+          <MoreHorizontal aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          {entry.sessionId ? (
+            <DropdownMenuItem render={<Link href={sessionDetailPath(entry.sessionId)} />}>
+              <Play aria-hidden />
+              Rerun search
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem>
+              <Play aria-hidden />
+              Rerun search
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem>
+            <Copy aria-hidden />
+            Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <Pencil aria-hidden />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <LayoutTemplate aria-hidden />
+            Save as template
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 aria-hidden />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{entry.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the search from your history. Saved candidates are not
+              affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmDelete(false);
+                onDelete?.(entry);
+              }}
+            >
+              Delete search
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

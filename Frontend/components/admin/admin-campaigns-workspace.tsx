@@ -42,6 +42,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const STATUS_CLASS: Record<AdminCampaignStatus, string> = {
   Running: "bg-success/10 text-success",
   Paused: "bg-warning/10 text-warning",
+  Draft: "bg-muted text-muted-foreground",
   Queued: "bg-info/10 text-info",
   Completed: "bg-muted text-muted-foreground",
   Failed: "bg-destructive/10 text-destructive",
@@ -50,12 +51,16 @@ const STATUS_CLASS: Record<AdminCampaignStatus, string> = {
 function mapCampaignStatus(status: string): AdminCampaignStatus {
   const normalized = status.toLowerCase();
   if (normalized.includes("pause")) return "Paused";
-  if (normalized.includes("queue") || normalized.includes("draft")) return "Queued";
+  if (normalized.includes("draft")) return "Draft";
+  if (normalized.includes("queue") || normalized.includes("scheduled")) {
+    return "Queued";
+  }
   if (normalized.includes("fail") || normalized.includes("error")) return "Failed";
   if (
     normalized.includes("complete") ||
     normalized.includes("done") ||
-    normalized.includes("archiv")
+    normalized.includes("archiv") ||
+    normalized.includes("cancel")
   ) {
     return "Completed";
   }

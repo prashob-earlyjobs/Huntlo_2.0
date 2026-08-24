@@ -288,21 +288,36 @@ const mockAuthApi: AuthApi = {
 
 export const authApi: AuthApi = isMockApiEnabled() ? mockAuthApi : liveAuthApi;
 
-export async function refreshAccessTokenLive(): Promise<string | null> {
-  if (isMockApiEnabled()) {
-    const session = await mockAuthApi.refresh();
-    return session.accessToken;
-  }
+/** Fired when refresh fails and local tokens are cleared. */
+export const AUTH_SESSION_LOST_EVENT = "huntlo:auth-session-lost";
 
-  const { tokenStorage } = await import("./client");
-  try {
-    const session = await liveAuthApi.refresh();
-    tokenStorage.setAccessToken(session.accessToken);
-    return session.accessToken;
-  } catch {
-    tokenStorage.clear();
-    return null;
-  }
+/** Single-flight across the tab (incl. Strict Mode / parallel 401 retries). */
+let refreshAccessTokenInFlight: Promise<string | null> | null = null;
+
+export async function refreshAccessTokenLive(): Promise<string | null> {
+  if (refreshAccessTokenInFlight) return refreshAccessTokenInFlight;
+
+  refreshAccessTokenInFlight = (async () => {
+    if (isMockApiEnabled()) {
+      const session = await mockAuthApi.refresh();
+      return session.accessToken;
+    }
+
+    const { tokenStorage } = await import("./client");
+    try {
+      const session = await liveAuthApi.refresh();
+      tokenStorage.setAccessToken(session.accessToken);
+      return session.accessToken;
+    } catch {
+      // Do not clear the access token here. Refresh can fail (stale cookie) while
+      // the JWT is still valid; clearing forced false logouts under concurrency.
+      return null;
+    }
+  })().finally(() => {
+    refreshAccessTokenInFlight = null;
+  });
+
+  return refreshAccessTokenInFlight;
 }
 
 export { AUTH_SESSION_COOKIE } from "./config";

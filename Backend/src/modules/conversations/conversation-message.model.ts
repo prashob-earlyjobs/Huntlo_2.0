@@ -58,7 +58,15 @@ export type ConversationMessageDocument = Document & {
   deliveryStatus: DeliveryStatus;
   messageType: MessageType;
   aiGenerated: boolean;
-  attachments: Array<{ name: string; url?: string | null; size?: string | null }>;
+  attachments: Array<{
+    name: string;
+    url?: string | null;
+    size?: string | null;
+    mimeType?: string | null;
+    kind?: string | null;
+    storageKey?: string | null;
+    mediaId?: string | null;
+  }>;
   sentAt: Date | null;
   receivedAt: Date | null;
   error: { code: string | null; message: string | null } | null;
@@ -106,6 +114,10 @@ const conversationMessageSchema = new Schema<ConversationMessageDocument>(
             name: { type: String, required: true },
             url: { type: String, default: null },
             size: { type: String, default: null },
+            mimeType: { type: String, default: null },
+            kind: { type: String, default: null },
+            storageKey: { type: String, default: null },
+            mediaId: { type: String, default: null },
           },
           { _id: false }
         ),

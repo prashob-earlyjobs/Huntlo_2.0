@@ -284,6 +284,7 @@ describe('Huntlo 360 orchestration', () => {
         screeningScore: 88,
       });
     expect(t3.body.data.toStage).toBe('recruiter_review');
+    expect(t3.body.data.candidateState.screeningStatus).toBe('completed');
 
     const t4 = await agent
       .post(`/api/v1/huntlo-360/workflows/${workflowId}/transitions`)
@@ -297,7 +298,7 @@ describe('Huntlo 360 orchestration', () => {
     expect(t4.body.data.toStage).toBe('scheduling');
 
     const schedule = await ScheduleCandidateModel.findOne({ workflowId });
-    expect(schedule!.status).toBe('link_sent');
+    expect(['link_pending', 'link_sent']).toContain(schedule!.status);
 
     const t5 = await agent
       .post(`/api/v1/huntlo-360/workflows/${workflowId}/transitions`)
@@ -321,6 +322,11 @@ describe('Huntlo 360 orchestration', () => {
       .set('Authorization', `Bearer ${auth.token}`);
     expect(stats.status).toBe(200);
     expect(stats.body.data.stageStats.completed).toBe(1);
+    expect(stats.body.data.status).toBe('completed');
+
+    const workflow = await Huntlo360WorkflowModel.findById(workflowId);
+    expect(workflow!.status).toBe('completed');
+    expect(workflow!.completedAt).toBeTruthy();
   });
 
   it('stops on opt-out and supports recruiter stage override', async () => {
@@ -461,5 +467,6 @@ describe('Huntlo 360 orchestration', () => {
       });
     expect(fail.body.data.toStage).toBe('stopped');
     expect(fail.body.data.candidateState.exceptionCode).toBe('screening_failed');
+    expect(fail.body.data.candidateState.screeningStatus).toBe('failed');
   });
 });

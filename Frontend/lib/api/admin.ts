@@ -2,6 +2,12 @@ import { apiClient } from "./client";
 import { buildQueryString } from "./types";
 import { createDomainService, simulateMockLatency } from "./service";
 import type { PlaceholderChart } from "@/lib/types";
+import type {
+  ApiHiringFlow,
+  HiringFlowCreateInput,
+  HiringFlowUpdateInput,
+  MetaWhatsAppTemplate,
+} from "./hiring-flows";
 
 export type AdminMetric = {
   id: string;
@@ -537,6 +543,16 @@ export interface AdminApi {
     buttonLabel: string | null;
     buttonUrl: string;
   }>;
+  listMetaWhatsAppTemplates(): Promise<{ items: MetaWhatsAppTemplate[] }>;
+  listHiringFlows(): Promise<ApiHiringFlow[]>;
+  getHiringFlow(id: string): Promise<ApiHiringFlow>;
+  createHiringFlow(input: HiringFlowCreateInput): Promise<ApiHiringFlow>;
+  updateHiringFlow(id: string, input: HiringFlowUpdateInput): Promise<ApiHiringFlow>;
+  archiveHiringFlow(id: string): Promise<{ archived: boolean; id: string }>;
+  assignHiringFlow(
+    id: string,
+    organizationIds: string[]
+  ): Promise<ApiHiringFlow>;
 }
 
 const liveAdminApi: AdminApi = {
@@ -844,6 +860,47 @@ const liveAdminApi: AdminApi = {
       buttonLabel: string | null;
       buttonUrl: string;
     }>(`/admin/whatsapp-templates/${id}/send-test`, input);
+    return result.data;
+  },
+  async listMetaWhatsAppTemplates() {
+    const result = await apiClient.get<{ items: MetaWhatsAppTemplate[] }>(
+      "/admin/whatsapp/meta-templates"
+    );
+    return result.data;
+  },
+  async listHiringFlows() {
+    const result = await apiClient.get<ApiHiringFlow[]>("/admin/hiring-flows");
+    return result.data;
+  },
+  async getHiringFlow(id) {
+    const result = await apiClient.get<ApiHiringFlow>(`/admin/hiring-flows/${id}`);
+    return result.data;
+  },
+  async createHiringFlow(input) {
+    const result = await apiClient.post<ApiHiringFlow>("/admin/hiring-flows", input, {
+      sensitive: true,
+    });
+    return result.data;
+  },
+  async updateHiringFlow(id, input) {
+    const result = await apiClient.patch<ApiHiringFlow>(
+      `/admin/hiring-flows/${id}`,
+      input,
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async archiveHiringFlow(id) {
+    const result = await apiClient.delete<{ archived: boolean; id: string }>(
+      `/admin/hiring-flows/${id}`
+    );
+    return result.data;
+  },
+  async assignHiringFlow(id, organizationIds) {
+    const result = await apiClient.post<ApiHiringFlow>(
+      `/admin/hiring-flows/${id}/assign`,
+      { organizationIds }
+    );
     return result.data;
   },
 };
@@ -1777,6 +1834,69 @@ const mockAdminApi: AdminApi = {
       buttonLabel: "Start Here",
       buttonUrl: "https://example.com/login",
     };
+  },
+  async listMetaWhatsAppTemplates() {
+    await simulateMockLatency();
+    return {
+      items: [
+        {
+          id: "resume_share",
+          name: "resume_share",
+          language: "en",
+          status: "APPROVED",
+          category: "UTILITY",
+          body: "Hi {{1}},\n\nFollowing your recent call regarding the {{2}} position, please share your updated resume here.",
+          variableCount: 2,
+        },
+      ],
+    };
+  },
+  async listHiringFlows() {
+    await simulateMockLatency();
+    return [];
+  },
+  async getHiringFlow() {
+    await simulateMockLatency();
+    throw new Error("Not found");
+  },
+  async createHiringFlow(input) {
+    await simulateMockLatency();
+    return {
+      id: `flow-mock-${Date.now()}`,
+      organizationId: null,
+      ownerUserId: "admin",
+      ownerName: "Admin",
+      scope: "platform",
+      sourceFlowId: null,
+      name: input.name,
+      description: input.description ?? null,
+      category: input.category || "general",
+      status: input.status || "active",
+      steps: input.steps || [],
+      entryStepId: input.entryStepId || null,
+      firstMessageLocked: false,
+      usageCount: 0,
+      archivedAt: null,
+      assignedOrganizations: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async updateHiringFlow(id, input) {
+    await simulateMockLatency();
+    const created = await this.createHiringFlow({
+      name: input.name || "Hiring flow",
+      ...input,
+    });
+    return { ...created, id };
+  },
+  async archiveHiringFlow(id) {
+    await simulateMockLatency();
+    return { archived: true, id };
+  },
+  async assignHiringFlow(id) {
+    await simulateMockLatency();
+    return this.getHiringFlow(id);
   },
 };
 

@@ -2,14 +2,20 @@ import type { Request } from 'express';
 
 import { getLogger } from '../../config/logger.js';
 import { getHuntloWhatsAppCredentials } from '../../providers/meta-whatsapp/meta.config.js';
+import {
+  downloadMetaWhatsAppMedia,
+  saveWhatsAppInboundMediaFile,
+} from '../../providers/meta-whatsapp/meta.media.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { UserIntegrationModel } from '../integrations/user-integration.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import {
   ingestInboundMessage,
   updateDeliveryStatus,
+  type NormalizedInboundAttachment,
   type NormalizedInboundMessage,
 } from './inbound-sync.service.js';
+import { ConversationMessageModel } from './conversation-message.model.js';
 import { ConversationThreadModel } from './conversation-thread.model.js';
 import type { MessageProvider } from './conversation-message.model.js';
 import {
@@ -32,6 +38,253 @@ function phoneDigits(value: string | null | undefined): string {
 function phonesMatch(a: string, b: string): boolean {
   if (!a || !b || a.length < 8 || b.length < 8) return false;
   return a.endsWith(b) || b.endsWith(a);
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function extractMetaMediaFields(m: Record<string, unknown>): {
+  bodyText: string;
+  attachments: NormalizedInboundAttachment[];
+} {
+  const type = String(m.type || '').toLowerCase();
+  const textBody = String(asRecord(m.text).body || '').trim();
+  const buttonText = String(asRecord(m.button).text || '').trim();
+  const interactiveTitle = String(
+    asRecord(m.interactive).button_reply
+      ? asRecord(asRecord(m.interactive).button_reply).title
+      : asRecord(m.interactive).list_reply
+        ? asRecord(asRecord(m.interactive).list_reply).title
+        : ''
+  ).trim();
+
+  if (type === 'image' || asRecord(m.image).id) {
+    const image = asRecord(m.image);
+    const caption = String(image.caption || '').trim();
+    const mediaId = String(image.id || '').trim();
+    return {
+      bodyText: caption || textBody || '[Image]',
+      attachments: mediaId
+        ? [
+            {
+              kind: 'image',
+              name: caption || 'image',
+              mediaId,
+              mimeType: String(image.mime_type || 'image/jpeg'),
+              caption: caption || null,
+            },
+          ]
+        : [],
+    };
+  }
+
+  if (type === 'audio' || asRecord(m.audio).id) {
+    const audio = asRecord(m.audio);
+    const mediaId = String(audio.id || '').trim();
+    return {
+      bodyText: textBody || '[Audio]',
+      attachments: mediaId
+        ? [
+            {
+              kind: 'audio',
+              name: 'voice-note',
+              mediaId,
+              mimeType: String(audio.mime_type || 'audio/ogg'),
+            },
+          ]
+        : [],
+    };
+  }
+
+  if (type === 'document' || asRecord(m.document).id) {
+    const document = asRecord(m.document);
+    const mediaId = String(document.id || '').trim();
+    const fileName = String(document.filename || document.file_name || 'document').trim();
+    const caption = String(document.caption || '').trim();
+    return {
+      bodyText: caption || textBody || `[Document: ${fileName}]`,
+      attachments: mediaId
+        ? [
+            {
+              kind: 'document',
+              name: fileName || 'document',
+              mediaId,
+              mimeType: String(document.mime_type || 'application/octet-stream'),
+              caption: caption || null,
+            },
+          ]
+        : [],
+    };
+  }
+
+  if (type === 'video' || asRecord(m.video).id) {
+    const video = asRecord(m.video);
+    const mediaId = String(video.id || '').trim();
+    const caption = String(video.caption || '').trim();
+    return {
+      bodyText: caption || textBody || '[Video]',
+      attachments: mediaId
+        ? [
+            {
+              kind: 'video',
+              name: caption || 'video',
+              mediaId,
+              mimeType: String(video.mime_type || 'video/mp4'),
+              caption: caption || null,
+            },
+          ]
+        : [],
+    };
+  }
+
+  return {
+    bodyText: textBody || buttonText || interactiveTitle || '[whatsapp message]',
+    attachments: [],
+  };
+}
+
+async function resolveMetaAccessTokenForOrg(input: {
+  organizationId: string;
+  phoneNumberId?: string | null;
+}): Promise<string | null> {
+  const phoneNumberId = String(input.phoneNumberId || '').trim();
+  const huntlo = getHuntloWhatsAppCredentials();
+  if (huntlo?.accessToken && (!phoneNumberId || huntlo.phoneNumberId === phoneNumberId)) {
+    return huntlo.accessToken;
+  }
+
+  const { decryptSecret } = await import('../integrations/credentials.js');
+  const integration = await UserIntegrationModel.findOne({
+    organizationId: input.organizationId,
+    provider: { $in: ['meta-whatsapp', 'huntlo-whatsapp'] },
+    status: { $in: ['connected', 'needs_attention'] },
+    ...(phoneNumberId
+      ? {
+          $or: [
+            { 'config.metaPhoneNumberId': phoneNumberId },
+            { 'config.phoneNumberId': phoneNumberId },
+          ],
+        }
+      : {}),
+  })
+    .select('encryptedAccessToken provider')
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  if (integration) {
+    if (String(integration.provider) === 'huntlo-whatsapp' && huntlo?.accessToken) {
+      return huntlo.accessToken;
+    }
+    const token = decryptSecret(
+      (integration as { encryptedAccessToken?: Parameters<typeof decryptSecret>[0] })
+        .encryptedAccessToken
+    );
+    if (token) return token;
+  }
+
+  return huntlo?.accessToken || null;
+}
+
+export async function hydrateInboundWhatsAppMedia(input: {
+  organizationId: string;
+  messageId: string;
+  phoneNumberId?: string | null;
+  attachments: NormalizedInboundAttachment[];
+}): Promise<
+  Array<{
+    name: string;
+    url: string | null;
+    size: string | null;
+    mimeType: string | null;
+    kind: string | null;
+    storageKey: string | null;
+    mediaId: string | null;
+  }>
+> {
+  if (!input.attachments.length) return [];
+  const accessToken = await resolveMetaAccessTokenForOrg({
+    organizationId: input.organizationId,
+    phoneNumberId: input.phoneNumberId,
+  });
+  if (!accessToken) {
+    return input.attachments.map((a) => ({
+      name: a.name,
+      url: null,
+      size: a.size || null,
+      mimeType: a.mimeType || null,
+      kind: a.kind,
+      storageKey: null,
+      mediaId: a.mediaId || null,
+    }));
+  }
+
+  const out: Array<{
+    name: string;
+    url: string | null;
+    size: string | null;
+    mimeType: string | null;
+    kind: string | null;
+    storageKey: string | null;
+    mediaId: string | null;
+  }> = [];
+
+  for (let index = 0; index < input.attachments.length; index += 1) {
+    const attachment = input.attachments[index]!;
+    const mediaId = String(attachment.mediaId || '').trim();
+    if (!mediaId) {
+      out.push({
+        name: attachment.name,
+        url: null,
+        size: attachment.size || null,
+        mimeType: attachment.mimeType || null,
+        kind: attachment.kind,
+        storageKey: null,
+        mediaId: null,
+      });
+      continue;
+    }
+    try {
+      const downloaded = await downloadMetaWhatsAppMedia({ mediaId, accessToken });
+      const saved = await saveWhatsAppInboundMediaFile({
+        organizationId: input.organizationId,
+        messageId: input.messageId,
+        index,
+        buffer: downloaded.buffer,
+        mimeType: downloaded.mimeType || attachment.mimeType || 'application/octet-stream',
+        fileName: attachment.name,
+      });
+      out.push({
+        name: attachment.name,
+        url: `/conversations/messages/${input.messageId}/attachments/${index}`,
+        size: formatBytes(downloaded.fileSize),
+        mimeType: downloaded.mimeType || attachment.mimeType || null,
+        kind: attachment.kind,
+        storageKey: saved.relativeKey,
+        mediaId,
+      });
+    } catch (error) {
+      getLogger()
+        .child({ component: 'whatsapp-inbound-media' })
+        .warn(
+          { err: error, mediaId, messageId: input.messageId },
+          'Failed to download inbound WhatsApp media'
+        );
+      out.push({
+        name: attachment.name,
+        url: null,
+        size: attachment.size || null,
+        mimeType: attachment.mimeType || null,
+        kind: attachment.kind,
+        storageKey: null,
+        mediaId,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -68,13 +321,7 @@ export function parseMetaWhatsAppWebhook(payload: unknown): {
       const inbound = Array.isArray(value.messages) ? value.messages : [];
       for (const msg of inbound) {
         const m = asRecord(msg);
-        const text =
-          String(asRecord(m.text).body || '') ||
-          String(asRecord(m.button).text || '') ||
-          String(asRecord(m.interactive).button_reply
-            ? asRecord(asRecord(m.interactive).button_reply).title
-            : '') ||
-          '[whatsapp message]';
+        const extracted = extractMetaMediaFields(m);
         const id = String(m.id || '');
         if (!id) continue;
         const contextId = String(asRecord(m.context).id || '').trim() || null;
@@ -87,7 +334,8 @@ export function parseMetaWhatsAppWebhook(payload: unknown): {
           contextProviderMessageId: contextId,
           from: String(m.from || ''),
           to: phoneNumberId || displayPhone || null,
-          bodyText: text,
+          bodyText: extracted.bodyText,
+          attachments: extracted.attachments,
           receivedAt: m.timestamp
             ? new Date(Number(m.timestamp) * 1000)
             : new Date(),

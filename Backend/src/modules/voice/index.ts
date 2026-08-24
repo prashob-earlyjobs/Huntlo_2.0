@@ -37,11 +37,15 @@ export { processCampaignVoiceWebhook } from './voice-webhook.service.js';
 export {
   processZyastraVoiceWebhook,
   zyastraToHunarWebhookBodies,
+  normalizeZyastraResultVariables,
 } from './zyastra-voice-webhook.service.js';
 export {
+  analysisVariablesFromResultSchema,
   applyVoiceResultToQualificationState,
   extendResultSchemaForQualificationQuestions,
+  normalizeVoiceAnalysisVariables,
   qualificationAnswerKey,
+  resolveVoiceReplyDisposition,
 } from './voice-qualification-sync.js';
 export { hunarVoiceWebhookRouter } from './hunar-voice-webhook.routes.js';
 export { zyastraVoiceWebhookRouter } from './zyastra-voice-webhook.routes.js';

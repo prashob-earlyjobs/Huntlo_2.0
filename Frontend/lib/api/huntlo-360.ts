@@ -23,63 +23,6 @@ export type ApiWorkflowStatus =
   | "cancelled"
   | "failed";
 
-export type ApiHuntlo360Workflow = {
-  id: string;
-  organizationId: string;
-  name: string;
-  jobId: string | null;
-  jobTitle: string | null;
-  ownerUserId: string;
-  owner: string;
-  status: WorkflowStatus | string;
-  statusRaw: ApiWorkflowStatus | string;
-  campaignId: string | null;
-  channels: Array<"Email" | "WhatsApp">;
-  candidates: number;
-  replied: number;
-  qualified: number;
-  screened: number;
-  shortlisted: number;
-  scheduled: number;
-  stageStats?: Record<string, number>;
-  lastActivity: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type ApiHuntlo360Candidate = {
-  id: string;
-  candidateId: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  headline: string;
-  location: string;
-  currentStage: string;
-  outreachStatus: string;
-  interestStatus: string;
-  qualificationStatus: string;
-  screeningId: string | null;
-  screeningStatus: string;
-  recruiterDecision: string | null;
-  scheduleCandidateId: string | null;
-  schedulingStatus: string;
-  exceptionCode: string | null;
-  exceptionDetail: string | null;
-  enrollmentId: string | null;
-  lastTransitionAt: string | null;
-};
-
-export type ApiHuntlo360Exception = {
-  id: string;
-  candidateId: string;
-  candidateName: string;
-  code: string | null;
-  detail: string | null;
-  stage: string;
-  updatedAt: string;
-};
-
 export type WorkflowCreateInput = {
   name: string;
   jobId?: string | null;
@@ -91,11 +34,22 @@ export type WorkflowCreateInput = {
     label?: string | null;
   };
   outreachConfig?: {
+    campaignType?: "single_channel" | "multi_channel";
     emailEnabled?: boolean;
     whatsappEnabled?: boolean;
-    channelOrder?: "email_first" | "whatsapp_first";
+    aiVoiceEnabled?: boolean;
+    channelOrder?: "email_first" | "whatsapp_first" | "voice_first";
     openingMessage?: string | null;
-    followUps?: string[];
+    openingWhatsAppTemplateId?: string | null;
+    followUps?: Array<
+      | string
+      | {
+          body: string;
+          delayDays?: number;
+          delayUnit?: "days" | "hours" | "minutes";
+          templateId?: string | null;
+        }
+    >;
     stopOnReply?: boolean;
     stopOnOptOut?: boolean;
   };
@@ -107,6 +61,7 @@ export type WorkflowCreateInput = {
       prompt: string;
       answerType: string;
       knockout?: boolean;
+      knockoutCondition?: string | null;
     }>;
     aiReplyEnabled?: boolean;
     handoffCondition?: string | null;
@@ -116,7 +71,16 @@ export type WorkflowCreateInput = {
     enabled?: boolean;
     language?: string | null;
     voiceTone?: string | null;
-    questions?: string[];
+    questions?: Array<
+      | string
+      | {
+          id?: string;
+          prompt: string;
+          knockout?: boolean;
+          knockoutCondition?: string | null;
+        }
+    >;
+    knockouts?: string[];
     evaluationFields?: string[];
     attempts?: number;
     attemptIntervalHours?: number;
@@ -144,6 +108,70 @@ export type WorkflowCreateInput = {
     autoSendAfterScreening?: boolean;
     bookingExpiryHours?: number;
   };
+};
+
+export type ApiHuntlo360Workflow = {
+  id: string;
+  organizationId: string;
+  name: string;
+  jobId: string | null;
+  jobTitle: string | null;
+  ownerUserId: string;
+  owner: string;
+  status: WorkflowStatus | string;
+  statusRaw: ApiWorkflowStatus | string;
+  campaignId: string | null;
+  channels: Array<"Email" | "WhatsApp" | "AI Voice">;
+  candidates: number;
+  replied: number;
+  qualified: number;
+  screened: number;
+  shortlisted: number;
+  scheduled: number;
+  stageStats?: Record<string, number>;
+  candidateSource?: WorkflowCreateInput["candidateSource"];
+  outreachConfig?: WorkflowCreateInput["outreachConfig"];
+  qualificationConfig?: WorkflowCreateInput["qualificationConfig"];
+  screeningConfig?: WorkflowCreateInput["screeningConfig"];
+  assessmentConfig?: WorkflowCreateInput["assessmentConfig"];
+  schedulingConfig?: WorkflowCreateInput["schedulingConfig"];
+  lastActivity: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ApiHuntlo360Candidate = {
+  id: string;
+  candidateId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  headline: string;
+  location: string;
+  currentStage: string;
+  outreachStatus: string;
+  interestStatus: string;
+  qualificationStatus: string;
+  screeningId: string | null;
+  screeningStatus: string;
+  screeningScore: number | null;
+  recruiterDecision: string | null;
+  scheduleCandidateId: string | null;
+  schedulingStatus: string;
+  exceptionCode: string | null;
+  exceptionDetail: string | null;
+  enrollmentId: string | null;
+  lastTransitionAt: string | null;
+};
+
+export type ApiHuntlo360Exception = {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  code: string | null;
+  detail: string | null;
+  stage: string;
+  updatedAt: string;
 };
 
 export type WorkflowListParams = ApiQueryParams & {
@@ -203,9 +231,11 @@ export function toWorkflow360(row: ApiHuntlo360Workflow): Workflow360 {
     name: row.name,
     jobId: row.jobId,
     jobTitle: row.jobTitle,
+    campaignId: row.campaignId ?? null,
     candidates: row.candidates ?? 0,
     channels: (row.channels || []).filter(
-      (c): c is "Email" | "WhatsApp" => c === "Email" || c === "WhatsApp"
+      (c): c is "Email" | "WhatsApp" | "AI Voice" =>
+        c === "Email" || c === "WhatsApp" || c === "AI Voice"
     ),
     replied: row.replied ?? 0,
     qualified: row.qualified ?? 0,
@@ -260,7 +290,9 @@ function mapDecision(status: string | null): WorkflowCandidate["decision"] {
   const map: Record<string, WorkflowCandidate["decision"]> = {
     pending: "Pending",
     shortlisted: "Shortlisted",
+    shortlist: "Shortlisted",
     rejected: "Rejected",
+    reject: "Rejected",
   };
   return map[status] || "Pending";
 }
@@ -268,6 +300,8 @@ function mapDecision(status: string | null): WorkflowCandidate["decision"] {
 function mapScheduling(status: string): WorkflowCandidate["scheduling"] {
   const map: Record<string, WorkflowCandidate["scheduling"]> = {
     not_started: "Not sent",
+    link_pending: "Not sent",
+    pending: "Not sent",
     link_sent: "Link sent",
     sent: "Link sent",
     booked: "Booked",
@@ -278,6 +312,10 @@ function mapScheduling(status: string): WorkflowCandidate["scheduling"] {
 }
 
 export function toWorkflowCandidate(row: ApiHuntlo360Candidate): WorkflowCandidate {
+  const score =
+    typeof row.screeningScore === "number" && Number.isFinite(row.screeningScore)
+      ? row.screeningScore
+      : null;
   return {
     id: row.id,
     candidateId: row.candidateId,
@@ -285,8 +323,8 @@ export function toWorkflowCandidate(row: ApiHuntlo360Candidate): WorkflowCandida
     outreachStatus: mapOutreach(row.outreachStatus),
     interest: mapInterest(row.interestStatus),
     qualification: mapQualification(row.qualificationStatus),
-    screeningScore: null,
-    screeningNote: row.screeningStatus || null,
+    screeningScore: score,
+    screeningNote: row.screeningStatus ? titleCase(row.screeningStatus) : null,
     decision: mapDecision(row.recruiterDecision),
     scheduling: mapScheduling(row.schedulingStatus),
     lastActivity: formatRelative(row.lastTransitionAt),
@@ -401,6 +439,7 @@ const mockHuntlo360Api: Huntlo360Api = {
       channels: [
         ...(input.outreachConfig?.emailEnabled !== false ? (["Email"] as const) : []),
         ...(input.outreachConfig?.whatsappEnabled ? (["WhatsApp"] as const) : []),
+        ...(input.outreachConfig?.aiVoiceEnabled ? (["AI Voice"] as const) : []),
       ],
       candidates: input.candidateSource?.candidateIds?.length ?? 0,
       replied: 0,

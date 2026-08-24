@@ -80,6 +80,15 @@ export type OutreachEnrollmentDocument = Document & {
     status: 'not_started' | 'link_sent' | 'booked' | 'skipped';
     bookingUrl: string | null;
   };
+  /** Post-qualification hiring flow progress (Templates playbooks). */
+  hiringFlowState: {
+    flowId: string | null;
+    currentStepId: string | null;
+    status: 'idle' | 'active' | 'waiting_reply' | 'processing_reply' | 'completed' | 'failed';
+    answers: Record<string, string>;
+    /** Number of re-prompt attempts per step id (to avoid infinite loops). */
+    retryAttempts: Record<string, number>;
+  } | null;
   nextActionAt: Date | null;
   /** Mirrors nextActionAt, kept in sync on save. */
   nextSendAt: Date | null;
@@ -215,6 +224,23 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
         { _id: false }
       ),
       default: () => ({ status: 'not_started', bookingUrl: null }),
+    },
+    hiringFlowState: {
+      type: new Schema(
+        {
+          flowId: { type: String, default: null },
+          currentStepId: { type: String, default: null },
+          status: {
+            type: String,
+            enum: ['idle', 'active', 'waiting_reply', 'processing_reply', 'completed', 'failed'],
+            default: 'idle',
+          },
+          answers: { type: Schema.Types.Mixed, default: {} },
+          retryAttempts: { type: Schema.Types.Mixed, default: {} },
+        },
+        { _id: false }
+      ),
+      default: null,
     },
     nextActionAt: { type: Date, default: null, index: true },
     nextSendAt: { type: Date, default: null, index: true },

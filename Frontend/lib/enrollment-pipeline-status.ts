@@ -25,7 +25,7 @@ export function deriveCandidatePipelineStatus(
   if (
     enrollment.status === "opted_out" ||
     disposition === "opt_out" ||
-    disposition === "not_interested"
+    (enrollment.status === "stopped" && disposition === "not_interested")
   ) {
     return "Not interested";
   }

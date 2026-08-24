@@ -81,8 +81,10 @@ function WorkflowRowActions({
     try {
       await fn();
       onAction(message);
+      return true;
     } catch (err) {
       onAction(getApiErrorMessage(err, "Action failed."));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -147,7 +149,13 @@ function WorkflowRowActions({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          if (busy && !open) return;
+          setConfirmDelete(open);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{workflow.name}”?</AlertDialogTitle>
@@ -157,18 +165,25 @@ function WorkflowRowActions({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                setConfirmDelete(false);
-                void runAction(`Deleted “${workflow.name}”.`, async () => {
-                  await huntlo360Api.deleteWorkflow(workflow.id);
-                  onDeleted(workflow.id);
-                });
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                void (async () => {
+                  const ok = await runAction(
+                    `Deleted “${workflow.name}”.`,
+                    async () => {
+                      await huntlo360Api.deleteWorkflow(workflow.id);
+                      onDeleted(workflow.id);
+                    }
+                  );
+                  if (ok) setConfirmDelete(false);
+                })();
               }}
             >
-              Delete workflow
+              {busy ? "Deleting…" : "Delete workflow"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

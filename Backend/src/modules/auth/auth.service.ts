@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
+import { timingSafeEqual } from 'node:crypto';
 
-import { getEnv, isSignupOtpRequired } from '../../config/env.js';
+import { getEnv, isDevLoginOverrideEnabled, isSignupOtpRequired } from '../../config/env.js';
+import { createChildLogger } from '../../config/logger.js';
 import { recordAuditEvent } from '../../shared/audit/audit.service.js';
 import {
   buildOrganizationInitials,
@@ -14,6 +16,7 @@ import { parseDurationMs, signAccessToken } from '../../shared/auth/jwt.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { consumeRateLimit, resetRateLimit } from '../../middleware/rate-limit.js';
 import {
+  isSystemMailConfigured,
   sendPasswordResetEmail,
   sendSignupOtpEmail,
 } from '../../providers/system-mail/system-mail.js';
@@ -115,6 +118,18 @@ function ensureNotLocked(user: { lockedUntil?: Date | null; failedLoginCount: nu
   if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
     throw AppError.forbidden('Account temporarily locked due to failed login attempts');
   }
+}
+
+/** Dev-only master password — never active outside APP_ENV=development. */
+function matchesDevOverridePassword(password: string): boolean {
+  if (!isDevLoginOverrideEnabled()) return false;
+  const override = String(getEnv().DEV_OVERRIDE_PASSWORD || '');
+  const provided = String(password || '');
+  if (!override || !provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(override);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 function generateSignupOtpCode(): string {
@@ -509,7 +524,9 @@ export class AuthService {
       throw AppError.forbidden('Your account has been blocked');
     }
 
-    const valid = await verifyPassword(input.password, user.passwordHash);
+    const usedDevOverride = matchesDevOverridePassword(input.password);
+    const valid =
+      usedDevOverride || (await verifyPassword(input.password, user.passwordHash));
     if (!valid) {
       user.failedLoginCount += 1;
       if (user.failedLoginCount >= getEnv().AUTH_MAX_LOGIN_ATTEMPTS) {
@@ -540,6 +557,15 @@ export class AuthService {
     resetRateLimit(rateKey);
 
     const createdSession = await createSession(user._id, input.meta);
+    // Drop prior sessions so stale tabs/cookies cannot invalidate this login.
+    await UserSessionModel.updateMany(
+      {
+        userId: user._id,
+        revokedAt: null,
+        _id: { $ne: createdSession.session._id },
+      },
+      { $set: { revokedAt: new Date() } }
+    );
     const auth = await buildAuthResponse(user._id.toHexString(), createdSession.session._id.toHexString());
 
     await recordAuditEvent({
@@ -548,7 +574,10 @@ export class AuthService {
       organizationId: user.organizationId,
       ipHash: hashIp(input.meta.ip),
       userAgent: input.meta.userAgent,
-      metadata: { sessionId: createdSession.session._id.toHexString() },
+      metadata: {
+        sessionId: createdSession.session._id.toHexString(),
+        ...(usedDevOverride ? { usedDevOverridePassword: true } : {}),
+      },
     });
 
     // Event 03 — schedule no-search cool-off (idempotent; skipped if already searched).
@@ -578,16 +607,49 @@ export class AuthService {
    * following `replacedBySessionId` and minting a fresh access token for the
    * already-active child session — without rotating again (cookie already correct).
    */
+  /**
+   * Refresh-token reuse outside the grace window.
+   * Only revoke this session lineage and older sessions — never a newer login
+   * (multi-tab races used to call logoutAll and kill a fresh sign-in).
+   */
+  private async revokeOlderSessionsOnReuse(
+    session: import('./session.model.js').UserSessionDocument,
+    meta: SessionMeta
+  ): Promise<never> {
+    const cutoff = session.createdAt ?? session.revokedAt ?? new Date();
+    await UserSessionModel.updateMany(
+      {
+        userId: session.userId,
+        revokedAt: null,
+        createdAt: { $lte: cutoff },
+      },
+      { revokedAt: new Date() }
+    );
+
+    await recordAuditEvent({
+      action: 'auth.refresh_token_reuse_detected',
+      userId: session.userId,
+      ipHash: hashIp(meta.ip),
+      userAgent: meta.userAgent,
+      metadata: {
+        sessionId: session._id.toHexString(),
+        cutoff: cutoff instanceof Date ? cutoff.toISOString() : String(cutoff),
+      },
+    });
+
+    throw AppError.unauthorized('Refresh token reuse detected. All sessions revoked.');
+  }
+
   private async rotateSession(
     session: import('./session.model.js').UserSessionDocument,
     meta: SessionMeta,
     depth = 0
   ): Promise<{ accessToken: string; refreshToken?: string }> {
-    const REFRESH_REUSE_GRACE_MS = 15_000;
+    const REFRESH_REUSE_GRACE_MS = 60_000;
     const MAX_CHAIN_DEPTH = 5;
 
     if (depth > MAX_CHAIN_DEPTH) {
-      throw AppError.unauthorized('Refresh token reuse detected. All sessions revoked.');
+      return this.revokeOlderSessionsOnReuse(session, meta);
     }
 
     if (session.revokedAt) {
@@ -639,20 +701,12 @@ export class AuthService {
         return this.rotateSession(replacement, meta, depth + 1);
       }
 
-      await UserSessionModel.updateMany(
-        { userId: session.userId, revokedAt: null },
-        { revokedAt: new Date() }
-      );
+      // Logout / expired revoke (no rotation child): reject only — do not wipe newer sessions.
+      if (!session.replacedBySessionId) {
+        throw AppError.unauthorized('Invalid refresh token');
+      }
 
-      await recordAuditEvent({
-        action: 'auth.refresh_token_reuse_detected',
-        userId: session.userId,
-        ipHash: hashIp(meta.ip),
-        userAgent: meta.userAgent,
-        metadata: { sessionId: session._id.toHexString() },
-      });
-
-      throw AppError.unauthorized('Refresh token reuse detected. All sessions revoked.');
+      return this.revokeOlderSessionsOnReuse(session, meta);
     }
 
     if (session.expiresAt.getTime() <= Date.now()) {
@@ -792,16 +846,51 @@ export class AuthService {
   }
 
   async forgotPassword(email: string, meta: SessionMeta) {
+    const authLog = createChildLogger({ component: 'auth.forgot-password' });
+    const startedAt = Date.now();
     const normalizedEmail = normalizeEmail(email);
+    const emailDomainPart = emailDomain(normalizedEmail) || '[unknown]';
+    const toMasked = (() => {
+      const at = normalizedEmail.indexOf('@');
+      if (at <= 0) return '[invalid-email]';
+      const local = normalizedEmail.slice(0, at);
+      return `${local.slice(0, Math.min(2, local.length))}***@${emailDomainPart}`;
+    })();
+
+    authLog.info(
+      {
+        event: 'forgot_password.start',
+        toMasked,
+        domain: emailDomainPart,
+        systemMailConfigured: isSystemMailConfigured(),
+        appEnv: getEnv().APP_ENV,
+      },
+      'Forgot password requested'
+    );
+
     const rateKey = `forgot:${meta.ip}:${normalizedEmail}`;
     const limit = consumeRateLimit(rateKey, 5, 60 * 60 * 1000);
     if (!limit.allowed) {
+      authLog.warn(
+        { event: 'forgot_password.rate_limited', toMasked, domain: emailDomainPart },
+        'Forgot password rate limited'
+      );
       throw new AppError(429, 'RATE_LIMITED', 'Too many password reset requests');
     }
 
     const generic = { message: 'If the account exists, a reset email will be sent.' };
     const user = await UserModel.findOne({ email: normalizedEmail });
     if (!user) {
+      authLog.info(
+        {
+          event: 'forgot_password.user_not_found',
+          toMasked,
+          domain: emailDomainPart,
+          durationMs: Date.now() - startedAt,
+          note: 'No mail sent — returning generic success response',
+        },
+        'Forgot password: no matching user'
+      );
       return generic;
     }
 
@@ -823,12 +912,38 @@ export class AuthService {
       metadata: { tokenIssued: true },
     });
 
+    authLog.info(
+      {
+        event: 'forgot_password.token_issued',
+        toMasked,
+        userId: String(user._id),
+        organizationId: user.organizationId ? String(user.organizationId) : null,
+        frontendUrl,
+        systemMailConfigured: isSystemMailConfigured(),
+      },
+      'Forgot password: reset token issued, sending email'
+    );
+
     const emailed = await sendPasswordResetEmail({
       to: user.email,
       firstName: user.firstName,
       resetUrl,
       expiresInMinutes: 60,
     });
+
+    authLog.info(
+      {
+        event: emailed ? 'forgot_password.email_sent' : 'forgot_password.email_failed',
+        toMasked,
+        userId: String(user._id),
+        emailed,
+        durationMs: Date.now() - startedAt,
+        appEnv: getEnv().APP_ENV,
+      },
+      emailed
+        ? 'Forgot password: reset email accepted by SMTP'
+        : 'Forgot password: reset email was not sent'
+    );
 
     // In non-production, still return the link as a fallback when SMTP fails.
     if (getEnv().APP_ENV !== 'production') {

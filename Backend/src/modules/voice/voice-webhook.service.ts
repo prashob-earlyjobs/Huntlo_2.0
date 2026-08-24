@@ -25,7 +25,7 @@ import {
 } from '../../realtime/events.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
 import { conversationsService } from '../conversations/conversations.service.js';
-import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { OutreachCampaignModel, type OutreachCampaignDocument } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { refreshCampaignStats } from '../outreach/campaigns.service.js';
 import { recordCampaignActivity, CampaignActivityModel } from '../outreach/campaign-activity.model.js';
@@ -36,7 +36,10 @@ import {
   type VoiceCallDocument,
   type VoiceCallStatus,
 } from './voice-call.model.js';
-import { applyVoiceResultToQualificationState } from './voice-qualification-sync.js';
+import {
+  applyVoiceResultToQualificationState,
+  resolveVoiceReplyDisposition,
+} from './voice-qualification-sync.js';
 
 const log = () => getLogger().child({ component: 'voice-webhook' });
 
@@ -111,13 +114,35 @@ function parseCallResult(result: Record<string, unknown> | null) {
     objectionsOrConcerns: Array.isArray(objections)
       ? objections.map((q) => asString(q)).filter(Boolean)
       : [],
-    ctc: asString(result.ctc || result.current_ctc || result.currentCtc) || null,
-    noticePeriod: asString(result.notice_period || result.noticePeriod) || null,
+    ctc:
+      asString(
+        result.ctc ||
+          result.current_ctc ||
+          result.currentCtc ||
+          result.current_ctc_lpa ||
+          result.currentCtcLpa
+      ) || null,
+    noticePeriod:
+      asString(
+        result.notice_period ||
+          result.noticePeriod ||
+          result.notice_period_days ||
+          result.noticePeriodDays ||
+          result.notice_days
+      ) || null,
     skills: asString(result.skills || result.skills_and_tools) || null,
     education: asString(result.education) || null,
-    location:
-      asString(result.location || result.current_location || result.currentLocation) ||
-      null,
+    location: (() => {
+      const raw =
+        result.location ??
+        result.current_location ??
+        result.currentLocation ??
+        result.work_mode ??
+        result.relocation_willingness ??
+        result.relocationWillingness;
+      if (typeof raw === 'boolean') return raw ? 'Yes' : 'No';
+      return asString(raw) || null;
+    })(),
     raw: result,
   };
 }
@@ -397,6 +422,100 @@ async function syncConversationVoiceTranscript(row: VoiceCallDocument) {
   });
 }
 
+function shouldStartPostQualificationHiringFlow(input: {
+  campaign: OutreachCampaignDocument | null;
+  enrollment: InstanceType<typeof OutreachEnrollmentModel>;
+}): { ok: boolean; reason: string } {
+  if (!input.campaign?.qualificationConfig?.autoWhatsAppAfterQualification) {
+    return { ok: false, reason: 'disabled' };
+  }
+  if (input.enrollment.status === 'opted_out' || input.enrollment.contactAvailability?.optedOut) {
+    return { ok: false, reason: 'opted_out' };
+  }
+  const qualStatus = String(input.enrollment.qualificationState?.status || 'pending');
+  if (qualStatus === 'rejected') {
+    return { ok: false, reason: 'rejected' };
+  }
+  if (qualStatus === 'qualified') {
+    return { ok: true, reason: 'qualified' };
+  }
+  // Voice often leaves qualification in_progress ("Not Mentioned" on some questions).
+  // If the screen passed (interested), still continue to the WhatsApp hiring flow.
+  const interested =
+    input.enrollment.status === 'interested' ||
+    input.enrollment.replyState?.disposition === 'interested' ||
+    input.enrollment.replyDisposition === 'interested';
+  if (interested) {
+    return { ok: true, reason: `voice_interested:${qualStatus}` };
+  }
+  return { ok: false, reason: `not_qualified:${qualStatus}` };
+}
+
+async function maybeStartPostQualificationHiringFlow(input: {
+  campaign: OutreachCampaignDocument | null;
+  enrollment: InstanceType<typeof OutreachEnrollmentModel>;
+}) {
+  const gate = shouldStartPostQualificationHiringFlow(input);
+  if (!gate.ok) {
+    if (input.campaign?.qualificationConfig?.autoWhatsAppAfterQualification) {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          campaignId: input.campaign ? String(input.campaign._id) : null,
+          reason: gate.reason,
+          qualificationStatus: input.enrollment.qualificationState?.status || null,
+          enrollmentStatus: input.enrollment.status,
+          disposition: input.enrollment.replyState?.disposition || null,
+        },
+        'Post-qualification hiring flow skipped'
+      );
+    }
+    return;
+  }
+
+  try {
+    const { startHiringFlowAfterQualification } = await import(
+      '../outreach/hiring-flow-runtime.service.js'
+    );
+    const fresh = await OutreachEnrollmentModel.findById(input.enrollment._id);
+    if (!fresh) return;
+    const result = await startHiringFlowAfterQualification({
+      campaign: input.campaign!,
+      enrollment: fresh,
+    });
+    if (!result.started) {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          campaignId: String(input.campaign!._id),
+          reason: result.reason,
+          trigger: gate.reason,
+        },
+        'Post-qualification hiring flow not started'
+      );
+    } else {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          campaignId: String(input.campaign!._id),
+          stepId: result.stepId,
+          trigger: gate.reason,
+        },
+        'Post-qualification hiring flow started'
+      );
+    }
+  } catch (error) {
+    log().warn(
+      {
+        err: error,
+        enrollmentId: String(input.enrollment._id),
+        campaignId: String(input.campaign!._id),
+      },
+      'Post-qualification hiring flow start failed'
+    );
+  }
+}
+
 async function syncOutreachEnrollment(
   row: VoiceCallDocument,
   parsed: ParsedHunarWebhook,
@@ -406,10 +525,11 @@ async function syncOutreachEnrollment(
   const enrollment = await OutreachEnrollmentModel.findById(row.enrollmentId);
   if (!enrollment) return;
 
-  const interest = String(row.callResult?.interestLevel || '').toLowerCase();
-  const outcome = String(row.callResult?.finalOutcome || row.callResult?.candidateStatus || '').toLowerCase();
+  const interest = String(row.callResult?.interestLevel || '');
+  const outcome = String(row.callResult?.finalOutcome || row.callResult?.candidateStatus || '');
+  const voiceDisposition = resolveVoiceReplyDisposition(interest, outcome);
 
-  if (interest.includes('interest') || interest === 'yes' || interest === 'true' || interest === 'high') {
+  if (voiceDisposition === 'interested') {
     enrollment.replyState = {
       ...enrollment.replyState,
       hasReply: true,
@@ -419,12 +539,7 @@ async function syncOutreachEnrollment(
     if (['active', 'waiting', 'pending', 'replied'].includes(enrollment.status)) {
       enrollment.status = 'interested';
     }
-  } else if (
-    interest.includes('not') ||
-    outcome.includes('reject') ||
-    interest === 'low' ||
-    interest === 'no'
-  ) {
+  } else if (voiceDisposition === 'not_interested') {
     enrollment.replyState = {
       ...enrollment.replyState,
       hasReply: true,
@@ -446,12 +561,12 @@ async function syncOutreachEnrollment(
     null;
   let qualificationUpdated = false;
   const previousQualificationStatus = enrollment.qualificationState?.status || 'pending';
+  let campaignForHiringFlow: OutreachCampaignDocument | null = null;
 
   if (result) {
-    const campaign = await OutreachCampaignModel.findById(row.campaignId).select(
-      'qualificationConfig stats organizationId'
-    );
+    const campaign = await OutreachCampaignModel.findById(row.campaignId);
     if (campaign) {
+      campaignForHiringFlow = campaign;
       qualificationUpdated = applyVoiceResultToQualificationState({
         campaign,
         enrollment,
@@ -470,9 +585,34 @@ async function syncOutreachEnrollment(
     }
   }
 
+  enrollment.hasReply = Boolean(enrollment.replyState?.hasReply);
+  enrollment.replyDisposition = enrollment.replyState?.disposition ?? null;
   enrollment.lastActionAt = new Date();
   enrollment.markModified('qualificationState');
-  await enrollment.save();
+  enrollment.markModified('replyState');
+  // $set only the fields this webhook owns so a parallel call-status/call-summary
+  // cannot wipe hiringFlowState that another webhook just started.
+  await OutreachEnrollmentModel.updateOne(
+    { _id: enrollment._id },
+    {
+      $set: {
+        status: enrollment.status,
+        replyState: enrollment.replyState,
+        hasReply: enrollment.hasReply,
+        replyDisposition: enrollment.replyDisposition,
+        qualificationState: enrollment.qualificationState,
+        lastActionAt: enrollment.lastActionAt,
+      },
+    }
+  );
+
+  if (!campaignForHiringFlow) {
+    campaignForHiringFlow = await OutreachCampaignModel.findById(row.campaignId);
+  }
+  await maybeStartPostQualificationHiringFlow({
+    campaign: campaignForHiringFlow,
+    enrollment,
+  });
 
   if (qualificationUpdated) {
     emitOutreachEnrollmentUpdated({

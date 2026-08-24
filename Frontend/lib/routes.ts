@@ -78,6 +78,17 @@ export function workflowDetailPath(id: string): string {
   return `${ROUTES.huntlo360}/${id}`;
 }
 
+/** Build the edit/builder path for a Huntlo 360 workflow. */
+export function workflowEditPath(
+  id: string,
+  options?: { step?: number }
+): string {
+  const base = `${ROUTES.huntlo360}/${id}/edit`;
+  if (options?.step == null || !Number.isFinite(options.step)) return base;
+  const step = Math.max(0, Math.floor(options.step));
+  return `${base}?step=${step}`;
+}
+
 /** Build the detail path for an AI screening batch. */
 export function screeningDetailPath(id: string): string {
   return `${ROUTES.screening}/${id}`;

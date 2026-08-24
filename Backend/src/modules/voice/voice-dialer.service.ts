@@ -311,11 +311,15 @@ export function toHunarMobile(phone: string): string | null {
   }
 }
 
-/** True when E.164 number is Indian (+91…). Used to route Hunar vs Zyastra. */
+/**
+ * True when E.164 is an Indian mobile: +91 + 10 digits starting 6–9.
+ * Do not use startsWith('+91') alone for routing — prefer this exact shape so
+ * NANP numbers (e.g. +1620…) and mangled +9114… forms never count as Indian.
+ */
 export function isIndianE164(phone: string): boolean {
   const mobile = toHunarMobile(phone);
   if (!mobile) return false;
-  return mobile.startsWith('+91');
+  return /^\+91[6-9]\d{9}$/.test(mobile);
 }
 
 export type NormalizedVoiceContact = VoiceDialContact & {
@@ -350,7 +354,7 @@ export function partitionVoiceContacts(contacts: VoiceDialContact[]): {
       ...contact,
       mobile,
       mobileDigits,
-      indian: mobile.startsWith('+91'),
+      indian: /^\+91[6-9]\d{9}$/.test(mobile),
     };
     if (row.indian) indian.push(row);
     else international.push(row);
@@ -549,8 +553,52 @@ export async function launchBulkVoiceCalls(input: {
   const agentId = String(input.agentId || '').trim() || null;
 
   try {
-    if (indian.length > 0) {
-      const callees: HunarCalleeRow[] = indian.map((c) => ({
+    // Final safety: only exact Indian mobiles may hit Hunar. Everything else → Zyastra.
+    const hunarContacts = indian.filter((c) => /^\+91[6-9]\d{9}$/.test(c.mobile));
+    const misroutedToHunar = indian.filter((c) => !/^\+91[6-9]\d{9}$/.test(c.mobile));
+    if (misroutedToHunar.length > 0) {
+      log().error(
+        {
+          phones: misroutedToHunar.map((c) => c.mobile),
+          campaignId: input.campaignId,
+          screeningId: input.screeningId,
+        },
+        'Blocked non-Indian numbers from Hunar dial path; routing to Zyastra instead'
+      );
+    }
+    const zyastraContacts = [
+      ...international,
+      ...misroutedToHunar.map((c) => ({ ...c, indian: false })),
+    ];
+
+    log().info(
+      {
+        campaignId: input.campaignId,
+        screeningId: input.screeningId,
+        source: input.source,
+        hunarPhones: hunarContacts.map((c) => c.mobile),
+        zyastraPhones: zyastraContacts.map((c) => c.mobile),
+        skippedInvalid,
+        hasAgentId: Boolean(agentId),
+      },
+      'Voice dial provider partition'
+    );
+
+    if (hunarContacts.length > 0) {
+      const nonIndianInHunarBatch = hunarContacts.filter(
+        (c) => !/^\+91[6-9]\d{9}$/.test(c.mobile)
+      );
+      if (nonIndianInHunarBatch.length > 0) {
+        throw new AppError(
+          500,
+          'VOICE_HUNAR_ROUTE_GUARD',
+          `Refusing to send non-Indian numbers to Hunar: ${nonIndianInHunarBatch
+            .map((c) => c.mobile)
+            .join(', ')}`
+        );
+      }
+
+      const callees: HunarCalleeRow[] = hunarContacts.map((c) => ({
         callee_name: c.name || 'Candidate',
         mobile_number: c.mobile,
         custom_data: c.customData || {},
@@ -575,7 +623,7 @@ export async function launchBulkVoiceCalls(input: {
         requestId: primaryRequestId,
         agentId,
         provider: 'hunar',
-        contacts: indian,
+        contacts: hunarContacts,
         maxRetries: retry.maxRetryCount || 0,
         quotaReservationKeys: reservationKeys,
       });
@@ -592,7 +640,14 @@ export async function launchBulkVoiceCalls(input: {
       );
     }
 
-    if (international.length > 0) {
+    if (zyastraContacts.length > 0) {
+      if (!isZyastraConfigured()) {
+        throw new AppError(
+          503,
+          'ZYASTRA_API_KEY_MISSING',
+          'Non-Indian numbers require Zyastra. Set ZYASTRA_API_KEY and ZYASTRA_API_SECRET.'
+        );
+      }
       const prompt =
         String(input.agentPrompt || '').trim() ||
         'You are a professional recruiter. Screen the candidate for the open role and collect notice period, CTC expectations, and interest.';
@@ -600,10 +655,20 @@ export async function launchBulkVoiceCalls(input: {
         String(input.firstMessage || '').trim() ||
         'Hello, am I speaking with {callee_name}?'.replace(
           '{callee_name}',
-          international[0]?.name || 'there'
+          zyastraContacts[0]?.name || 'there'
         );
 
-      const results = await mapPool(international, 4, async (contact) => {
+      log().info(
+        {
+          phones: zyastraContacts.map((c) => c.mobile),
+          campaignId: input.campaignId,
+          screeningId: input.screeningId,
+          source: input.source,
+        },
+        'Routing non-Indian voice dials to Zyastra'
+      );
+
+      const results = await mapPool(zyastraContacts, 4, async (contact) => {
         const { firstName, lastName } = splitName(contact.name);
         const personalFirstMessage = firstMessage.includes('{callee_name}')
           ? firstMessage.replace(/\{callee_name\}/g, contact.name || firstName)
@@ -656,7 +721,7 @@ export async function launchBulkVoiceCalls(input: {
         });
       }
 
-      if (!indian.length && results[0]?.triggered.requestId) {
+      if (!hunarContacts.length && results[0]?.triggered.requestId) {
         primaryRequestId = results[0].triggered.requestId;
       }
 
@@ -664,7 +729,7 @@ export async function launchBulkVoiceCalls(input: {
         {
           batchRequestId,
           dialedCount: zyastraDialed,
-          phones: international.map((c) => c.mobile),
+          phones: zyastraContacts.map((c) => c.mobile),
           source: input.source,
           provider: 'zyastra',
         },

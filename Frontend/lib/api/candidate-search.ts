@@ -262,7 +262,7 @@ export interface CandidateSearchApi {
   }): Promise<SearchApplyResult>;
   getSourcingSessionProfiles(
     sessionId: string,
-    params?: { page?: number; limit?: number }
+    params?: { page?: number; limit?: number; force?: boolean }
   ): Promise<StoredCandidatesResponse>;
   getStoredSessionCandidates(
     sessionId: string,
@@ -631,7 +631,11 @@ const liveCandidateSearchApi: CandidateSearchApi = {
     );
   },
   async getSourcingSessionProfiles(sessionId, params) {
-    const qs = buildQueryString(params ?? {});
+    const qs = buildQueryString({
+      page: params?.page,
+      limit: params?.limit,
+      ...(params?.force ? { force: "1" } : {}),
+    });
     return rawGet(`/candidates/session/${encodeURIComponent(sessionId)}/profiles${qs}`);
   },
   async getStoredSessionCandidates(sessionId, params) {
@@ -742,7 +746,7 @@ export async function applyCandidateSearch(
 
 export async function getSourcingSessionProfiles(
   sessionId: string,
-  params?: { page?: number; limit?: number }
+  params?: { page?: number; limit?: number; force?: boolean }
 ) {
   return candidateSearchApi.getSourcingSessionProfiles(sessionId, params);
 }

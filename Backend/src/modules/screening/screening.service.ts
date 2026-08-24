@@ -29,7 +29,9 @@ import {
   buildRoshniAgentPrompt,
   ROSHNI_INTRODUCTION,
 } from '../voice/roshni-prompt.js';
+import { analysisVariablesFromResultSchema } from '../voice/voice-qualification-sync.js';
 import {
+  isIndianE164,
   mapPool,
   resolveIntroduction,
   resolveVoiceTokens,
@@ -436,6 +438,47 @@ async function buildResultActivity(
   return activity.sort((a, b) => String(a.time).localeCompare(String(b.time)));
 }
 
+/** Normalize 360 / legacy screening question payloads into ScreeningQuestion rows. */
+export function normalizeWorkflowScreeningQuestions(
+  questions:
+    | Array<
+        | string
+        | {
+            id?: string;
+            prompt?: string;
+            knockout?: boolean;
+            knockoutCondition?: string | null;
+          }
+      >
+    | undefined
+    | null
+) {
+  return (questions || [])
+    .map((entry, index) => {
+      if (typeof entry === 'string') {
+        const prompt = entry.trim();
+        if (!prompt) return null;
+        return {
+          id: `q-${index + 1}`,
+          prompt,
+          knockout: false,
+          knockoutCondition: null as string | null,
+        };
+      }
+      const prompt = String(entry.prompt || '').trim();
+      if (!prompt) return null;
+      const knockoutCondition = String(entry.knockoutCondition || '').trim() || null;
+      const knockout = Boolean(entry.knockout) || Boolean(knockoutCondition);
+      return {
+        id: String(entry.id || `q-${index + 1}`),
+        prompt,
+        knockout,
+        knockoutCondition: knockout ? knockoutCondition : null,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+}
+
 async function applyPendingAiDecisions(
   rows: ScreeningCandidateDocument[]
 ): Promise<void> {
@@ -747,7 +790,7 @@ export const screeningService = {
     for (const candidate of pool) {
       const mobile = toHunarMobile(String(candidate.phone || ''));
       if (!mobile) continue;
-      if (mobile.startsWith('+91')) hasIndian = true;
+      if (isIndianE164(mobile)) hasIndian = true;
       else hasInternational = true;
     }
     if (hasIndian && !isHunarConfigured()) {
@@ -817,6 +860,7 @@ export const screeningService = {
         required: q.required,
         expectedVariable: q.expectedVariable,
         knockout: q.knockout,
+        knockoutCondition: q.knockoutCondition ?? null,
       })),
     });
 
@@ -907,7 +951,9 @@ export const screeningService = {
       resultPrompt: sanitizeHunarPromptText(resultPrompt),
       resultSchema,
       voicePersona: doc.voice || getHunarVoicePersona(),
-      language: doc.language || getHunarVoiceLanguage(),
+      language: doc.language
+        ? String(doc.language).trim().toUpperCase()
+        : getHunarVoiceLanguage(),
     };
 
     const candidateIds =
@@ -950,7 +996,7 @@ export const screeningService = {
         name: candidate.name || 'Candidate',
         mobile,
         mobileDigits: mobile.replace(/\D/g, ''),
-        indian: mobile.startsWith('+91'),
+        indian: isIndianE164(mobile),
         candidateId: String(row.candidateId),
       });
     }
@@ -1050,9 +1096,7 @@ export const screeningService = {
     }
 
     if (internationalCallees.length > 0) {
-      const analysisVariables = Object.keys(
-        (resultSchema.properties as Record<string, unknown>) || {}
-      );
+      const analysisVariables = analysisVariablesFromResultSchema(resultSchema);
       const results = await mapPool(internationalCallees, 4, async (callee) => {
         const nameParts = String(callee.name || '')
           .trim()
@@ -1401,7 +1445,7 @@ export const screeningService = {
     return this.getResult(organizationId, id);
   },
 
-  /** Used by Huntlo 360 orchestration — creates screening + candidate without dialing. */
+  /** Used by Huntlo 360 orchestration — creates screening + candidate rows (dial via facade). */
   async ensureWorkflowCandidate(input: {
     organizationId: string;
     workflowId: string;
@@ -1411,10 +1455,29 @@ export const screeningService = {
     ownerUserId?: string | null;
     name: string;
     language?: string | null;
-    questions: string[];
+    questions: Array<
+      | string
+      | {
+          id?: string;
+          prompt?: string;
+          knockout?: boolean;
+          knockoutCondition?: string | null;
+        }
+    >;
+    knockouts?: string[];
     attempts: number;
     minScore?: number;
   }) {
+    const normalizedQuestions = normalizeWorkflowScreeningQuestions(input.questions);
+    const derivedKnockouts = normalizedQuestions
+      .map((q) => q.knockoutCondition)
+      .filter((value): value is string => Boolean(value));
+    const knockouts = [
+      ...new Set([
+        ...derivedKnockouts,
+        ...(input.knockouts || []).map((k) => String(k || '').trim()).filter(Boolean),
+      ]),
+    ];
     let screening = await ScreeningModel.findOne({
       organizationId: input.organizationId,
       workflowId: input.workflowId,
@@ -1428,12 +1491,12 @@ export const screeningService = {
         campaignId: input.campaignId || null,
         sourceModule: 'huntlo360',
         name: input.name,
-        language: input.language || getHunarVoiceLanguage(),
+        language: input.language
+          ? String(input.language).trim().toUpperCase()
+          : getHunarVoiceLanguage(),
         voice: getHunarVoicePersona(),
-        questions: input.questions.map((prompt, index) => ({
-          id: `q-${index + 1}`,
-          prompt,
-        })),
+        questions: normalizedQuestions,
+        knockouts,
         callSettings: {
           maxAttempts: input.attempts,
           attemptIntervalHours: 24,
@@ -1448,6 +1511,41 @@ export const screeningService = {
         status: 'draft',
         stats: defaultScreeningStats(),
       });
+    } else {
+      let dirty = false;
+      if (input.language) {
+        const normalized = String(input.language).trim().toUpperCase();
+        if (screening.language !== normalized) {
+          screening.language = normalized;
+          dirty = true;
+        }
+      }
+      if (JSON.stringify(screening.knockouts || []) !== JSON.stringify(knockouts)) {
+        screening.knockouts = knockouts;
+        dirty = true;
+      }
+      if (
+        JSON.stringify(
+          (screening.questions || []).map((q) => ({
+            id: q.id,
+            prompt: q.prompt,
+            knockout: Boolean(q.knockout),
+            knockoutCondition: q.knockoutCondition || null,
+          }))
+        ) !==
+        JSON.stringify(
+          normalizedQuestions.map((q) => ({
+            id: q.id,
+            prompt: q.prompt,
+            knockout: Boolean(q.knockout),
+            knockoutCondition: q.knockoutCondition || null,
+          }))
+        )
+      ) {
+        screening.questions = normalizedQuestions;
+        dirty = true;
+      }
+      if (dirty) await screening.save();
     }
 
     const row = await ScreeningCandidateModel.findOneAndUpdate(

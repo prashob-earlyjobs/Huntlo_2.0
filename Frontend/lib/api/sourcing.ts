@@ -382,10 +382,16 @@ const liveSourcingApi: SourcingApi = {
     return items.map(mapApiCandidateToSessionCandidate);
   },
   async getSessionResults(id) {
-    const result = await apiClient.get<{ items: SourcedCandidateApi[] }>(
-      `/sourcing/sessions/${id}/results?limit=300`
-    );
-    return result.data.items ?? [];
+    const all: SourcedCandidateApi[] = [];
+    for (let page = 1; page <= 20; page += 1) {
+      const result = await apiClient.get<{ items: SourcedCandidateApi[] }>(
+        `/sourcing/sessions/${id}/results${buildQueryString({ page, limit: 300 })}`
+      );
+      const items = result.data.items ?? [];
+      all.push(...items);
+      if (items.length < 300) break;
+    }
+    return all;
   },
   async getProgress(id) {
     const result = await apiClient.get<SourcingProgress>(

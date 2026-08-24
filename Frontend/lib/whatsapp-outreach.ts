@@ -116,6 +116,23 @@ const SLOT_EXTRA: Partial<Record<WhatsAppTemplateSlot, string[]>> = {
 
 export const WHATSAPP_FREE_TEXT_TEMPLATE_ID = "free_text";
 
+/** Templates shown in campaign builder → After qualification → Auto-send WhatsApp. */
+export const POST_QUALIFICATION_WHATSAPP_TEMPLATES: WhatsAppApprovedTemplate[] = [
+  {
+    id: "resume_share",
+    metaName: "resume_share",
+    name: "Resume share",
+    slot: "opening",
+    language: "en",
+    isDefault: true,
+    body:
+      "Hi {{1}},\n" +
+      "\n" +
+      "Following your recent call regarding the {{2}} position, please share your updated resume here to continue with the application process.",
+    variables: TWO_VARS,
+  },
+];
+
 export function listWhatsAppTemplatesForSlot(
   slot: WhatsAppTemplateSlot
 ): WhatsAppApprovedTemplate[] {
@@ -125,10 +142,26 @@ export function listWhatsAppTemplatesForSlot(
   );
 }
 
+export function listPostQualificationWhatsAppTemplates(): WhatsAppApprovedTemplate[] {
+  return POST_QUALIFICATION_WHATSAPP_TEMPLATES;
+}
+
+export function getDefaultPostQualificationWhatsAppTemplate(): WhatsAppApprovedTemplate | null {
+  return (
+    POST_QUALIFICATION_WHATSAPP_TEMPLATES.find((template) => template.isDefault) ??
+    POST_QUALIFICATION_WHATSAPP_TEMPLATES[0] ??
+    null
+  );
+}
+
 export function getWhatsAppTemplateById(
   id: string
 ): WhatsAppApprovedTemplate | null {
-  return APPROVED_WHATSAPP_TEMPLATES.find((template) => template.id === id) ?? null;
+  return (
+    POST_QUALIFICATION_WHATSAPP_TEMPLATES.find((template) => template.id === id) ??
+    APPROVED_WHATSAPP_TEMPLATES.find((template) => template.id === id) ??
+    null
+  );
 }
 
 export function getDefaultWhatsAppTemplate(
@@ -152,12 +185,14 @@ export function slotForWhatsAppTemplateId(
   templateId: string | null | undefined
 ): WhatsAppTemplateSlot | null {
   if (!templateId) return null;
-  const template = getWhatsAppTemplateById(templateId);
+  const template =
+    APPROVED_WHATSAPP_TEMPLATES.find((entry) => entry.id === templateId) ?? null;
   return template?.slot ?? null;
 }
 
 export function isApprovedWhatsAppTemplateId(
   templateId: string | null | undefined
 ): boolean {
-  return Boolean(templateId && getWhatsAppTemplateById(templateId));
+  if (!templateId) return false;
+  return APPROVED_WHATSAPP_TEMPLATES.some((template) => template.id === templateId);
 }

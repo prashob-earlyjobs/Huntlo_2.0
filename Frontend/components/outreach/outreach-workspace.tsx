@@ -21,7 +21,6 @@ import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge
 import { EmptyState } from "@/components/shared/empty-state";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -142,11 +141,12 @@ function CampaignRowActions({
   onDeleted,
 }: {
   campaign: OutreachCampaign;
-  onAction: (message: string) => void;
+  onAction: (message: string, tone?: "success" | "error") => void;
   onUpdated: (campaign: OutreachCampaign) => void;
   onDeleted: (id: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function run(
@@ -157,9 +157,33 @@ function CampaignRowActions({
     try {
       const result = await action();
       if (result) onUpdated(result);
-      onAction(successMessage);
+      onAction(successMessage, "success");
     } catch (err) {
-      onAction(getApiErrorMessage(err, "Action failed."));
+      onAction(getApiErrorMessage(err, "Action failed."), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteCampaign() {
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      await outreachApi.deleteCampaign(campaign.id);
+      setConfirmDelete(false);
+      onDeleted(campaign.id);
+      onAction(`Deleted “${campaign.name}”.`, "success");
+    } catch (err) {
+      setDeleteError(
+        getApiErrorMessage(
+          err,
+          "Unable to delete this campaign. Pause or cancel it first if it is running."
+        )
+      );
+      onAction(
+        getApiErrorMessage(err, "Unable to delete this campaign."),
+        "error"
+      );
     } finally {
       setBusy(false);
     }
@@ -226,36 +250,46 @@ function CampaignRowActions({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => setConfirmDelete(true)}
+            onClick={() => {
+              setDeleteError(null);
+              setConfirmDelete(true);
+            }}
           >
             <Trash2 aria-hidden />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          setConfirmDelete(open);
+          if (!open) setDeleteError(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{campaign.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              The campaign and its analytics will be permanently removed.
-              Enrolled candidates stop receiving messages immediately.
+              {campaign.status === "Running"
+                ? "This campaign is still running. Pause or cancel it before deleting — the API will reject delete while it is active."
+                : "The campaign and its analytics will be permanently removed. Enrolled candidates stop receiving messages immediately."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteError}
+            </p>
+          ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                setConfirmDelete(false);
-                void run(async () => {
-                  await outreachApi.deleteCampaign(campaign.id);
-                  onDeleted(campaign.id);
-                }, `Deleted “${campaign.name}”.`);
-              }}
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => void confirmDeleteCampaign()}
             >
-              Delete campaign
-            </AlertDialogAction>
+              {busy ? "Deleting…" : "Delete campaign"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -285,6 +319,7 @@ export function OutreachWorkspace({
   const [ownerFilter, setOwnerFilter] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState("any");
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollIdleTimer = useRef<number | null>(null);
 
@@ -413,9 +448,10 @@ export function OutreachWorkspace({
     setDateRange("any");
   }
 
-  function flash(text: string) {
+  function flash(text: string, tone: "success" | "error" = "success") {
+    setMessageTone(tone);
     setMessage(text);
-    window.setTimeout(() => setMessage(null), 2400);
+    window.setTimeout(() => setMessage(null), tone === "error" ? 5000 : 2400);
   }
 
   return (
@@ -488,8 +524,12 @@ export function OutreachWorkspace({
 
       {message ? (
         <p
-          role="status"
-          className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+          role={messageTone === "error" ? "alert" : "status"}
+          className={
+            messageTone === "error"
+              ? "rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              : "rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+          }
         >
           {message}
         </p>
