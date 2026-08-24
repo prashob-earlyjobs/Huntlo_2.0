@@ -34,6 +34,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   getApiErrorMessage,
   hiringFlowsApi,
+  withCollapsedHiringFlowSteps,
+  hiringFlowNeedsCollapse,
   type ApiHiringFlow,
   type ApiHiringFlowStep,
 } from "@/lib/api";
@@ -88,7 +90,7 @@ export function HiringFlowsWorkspace() {
     setError(null);
     try {
       const items = await hiringFlowsApi.list({ limit: 100 });
-      setFlows(items);
+      setFlows(items.map(withCollapsedHiringFlowSteps));
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to load hiring flows."));
     } finally {
@@ -99,6 +101,11 @@ export function HiringFlowsWorkspace() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!draft || !hiringFlowNeedsCollapse(draft)) return;
+    setDraft(withCollapsedHiringFlowSteps(draft));
+  }, [draft]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,7 +122,7 @@ export function HiringFlowsWorkspace() {
 
   function openEditor(flow: ApiHiringFlow) {
     setSelectedId(flow.id);
-    setDraft(structuredClone(flow));
+    setDraft(withCollapsedHiringFlowSteps(structuredClone(flow)));
     setSaveError(null);
   }
 
@@ -124,9 +131,10 @@ export function HiringFlowsWorkspace() {
     setSaving(true);
     setSaveError(null);
     try {
+      const collapsed = withCollapsedHiringFlowSteps(draft);
       const updated = await hiringFlowsApi.update(draft.id, {
-        description: draft.description,
-        steps: draft.steps,
+        description: collapsed.description,
+        steps: collapsed.steps,
       });
       setFlows((previous) =>
         previous.map((flow) => (flow.id === updated.id ? updated : flow))
@@ -400,6 +408,11 @@ export function HiringFlowsWorkspace() {
                                       <SelectItem value="Number">Number</SelectItem>
                                     </SelectContent>
                                   </Select>
+                                  {/yes\s*\/\s*no/i.test(step.answerType || "") ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      WhatsApp will show Yes and No reply buttons.
+                                    </p>
+                                  ) : null}
                                 </div>
                                 <label className="flex h-8 items-center gap-2 text-sm">
                                   <input

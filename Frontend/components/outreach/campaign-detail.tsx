@@ -1662,7 +1662,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
-            <TabsTrigger value="qualification">Qualification</TabsTrigger>
+            <TabsTrigger value="qualification">Report</TabsTrigger>
             <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="sequence">Sequence</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>

@@ -61,6 +61,44 @@ export function findFirstMessageStep(
   return steps.find((step) => step.type === 'send_whatsapp_template') || entry;
 }
 
+function toPlainHiringFlowStep(step: HiringFlowStep): HiringFlowStep {
+  const candidate = step as HiringFlowStep & {
+    toObject?: () => HiringFlowStep;
+    _doc?: HiringFlowStep;
+  };
+  const raw: HiringFlowStep =
+    typeof candidate.toObject === 'function'
+      ? candidate.toObject()
+      : candidate._doc
+        ? { ...candidate._doc }
+        : { ...candidate };
+
+  return {
+    id: String(raw.id || ''),
+    type: raw.type,
+    label: raw.label ?? null,
+    whatsappTemplateId: raw.whatsappTemplateId ?? null,
+    prompt: raw.prompt ?? null,
+    answerType: raw.answerType ?? null,
+    knockout: Boolean(raw.knockout),
+    knockoutCondition: raw.knockoutCondition ?? null,
+    nextStepId: raw.nextStepId ?? null,
+    branches: (raw.branches || []).map((branch) => ({
+      match: branch.match,
+      value: branch.value ?? null,
+      nextStepId: branch.nextStepId,
+    })),
+  };
+}
+
+function isKnownHiringFlowStep(step: HiringFlowStep): boolean {
+  return (
+    step.type === 'send_whatsapp_template' ||
+    step.type === 'ask_question' ||
+    step.type === 'branch'
+  );
+}
+
 function withLockedMessageFields(
   step: HiringFlowStep,
   locked: HiringFlowStep
@@ -87,9 +125,10 @@ export function ensureSingleLockedWhatsAppStep(
   steps: HiringFlowStep[],
   locked: HiringFlowStep | null
 ): HiringFlowStep[] {
-  const cloned = steps.map((step) => ({ ...step, branches: step.branches || [] }));
+  const cloned = steps.map(toPlainHiringFlowStep).filter(isKnownHiringFlowStep);
+  const plainLocked = locked ? toPlainHiringFlowStep(locked) : null;
   const first =
-    locked ||
+    (plainLocked && plainLocked.type === 'send_whatsapp_template' ? plainLocked : null) ||
     findFirstMessageStep(cloned, cloned[0]?.id || null);
   if (!first || first.type !== 'send_whatsapp_template') return cloned;
 
@@ -106,6 +145,25 @@ export function ensureSingleLockedWhatsAppStep(
     restored.nextStepId = rest[0]?.id || null;
   }
   return [restored, ...rest];
+}
+
+function stepSignature(steps: HiringFlowStep[]): string {
+  return steps
+    .map((step) => `${step.id}:${step.type}:${step.whatsappTemplateId || ''}`)
+    .join('|');
+}
+
+async function persistCollapsedWhatsAppSteps(doc: HiringFlowDocument): Promise<void> {
+  const current = (doc.steps || []).map(toPlainHiringFlowStep);
+  const collapsed = ensureSingleLockedWhatsAppStep(
+    current,
+    findFirstMessageStep(current, doc.entryStepId)
+  );
+  if (stepSignature(collapsed) === stepSignature(current)) return;
+  doc.set('steps', collapsed);
+  doc.entryStepId = collapsed[0]?.id || doc.entryStepId;
+  doc.markModified('steps');
+  await doc.save();
 }
 
 function lockFirstMessageOnIncoming(
@@ -316,16 +374,7 @@ export const hiringFlowsService = {
     const nameCache = new Map<string, string>();
     const items = await Promise.all(
       docs.map(async (doc) => {
-        const collapsed = ensureSingleLockedWhatsAppStep(
-          doc.steps || [],
-          findFirstMessageStep(doc.steps || [], doc.entryStepId)
-        );
-        if (collapsed.length !== (doc.steps || []).length) {
-          doc.steps = collapsed;
-          doc.entryStepId = collapsed[0]?.id || doc.entryStepId;
-          doc.markModified('steps');
-          await doc.save();
-        }
+        await persistCollapsedWhatsAppSteps(doc);
         return toSafeHiringFlow(doc, nameCache);
       })
     );
@@ -346,16 +395,7 @@ export const hiringFlowsService = {
     }
     const doc = await HiringFlowModel.findOne({ _id: id, organizationId });
     if (!doc) throw AppError.notFound('Hiring flow not found.');
-    const collapsed = ensureSingleLockedWhatsAppStep(
-      doc.steps || [],
-      findFirstMessageStep(doc.steps || [], doc.entryStepId)
-    );
-    if (collapsed.length !== (doc.steps || []).length) {
-      doc.steps = collapsed;
-      doc.entryStepId = collapsed[0]?.id || doc.entryStepId;
-      doc.markModified('steps');
-      await doc.save();
-    }
+    await persistCollapsedWhatsAppSteps(doc);
     return toSafeHiringFlow(doc);
   },
 
@@ -422,7 +462,10 @@ export const adminHiringFlowsService = {
     const assigned = await loadAssignedOrganizations(docs.map((doc) => doc._id));
     const nameCache = new Map<string, string>();
     const items = await Promise.all(
-      docs.map((doc) => toSafeHiringFlow(doc, nameCache, assigned.get(String(doc._id)) || []))
+      docs.map(async (doc) => {
+        await persistCollapsedWhatsAppSteps(doc);
+        return toSafeHiringFlow(doc, nameCache, assigned.get(String(doc._id)) || []);
+      })
     );
     return {
       items,
@@ -437,6 +480,7 @@ export const adminHiringFlowsService = {
 
   async get(id: string) {
     const doc = await loadPlatformFlow(id);
+    await persistCollapsedWhatsAppSteps(doc);
     const assigned = await loadAssignedOrganizations([doc._id]);
     return toSafeHiringFlow(doc, undefined, assigned.get(String(doc._id)) || []);
   },
@@ -478,12 +522,21 @@ export const adminHiringFlowsService = {
       doc.archivedAt = input.status === 'archived' ? new Date() : null;
     }
     if (input.steps !== undefined) {
-      const entryStepId = await validateSteps(
+      const collapsed = ensureSingleLockedWhatsAppStep(
         input.steps,
-        input.entryStepId ?? doc.entryStepId ?? input.steps[0]?.id ?? null,
+        findFirstMessageStep(
+          input.steps,
+          input.entryStepId ?? doc.entryStepId ?? input.steps[0]?.id ?? null
+        )
+      );
+      const entryStepId = await validateSteps(
+        collapsed,
+        collapsed.find((step) => step.type === 'send_whatsapp_template')?.id ||
+          collapsed[0]?.id ||
+          null,
         { requireWhatsAppEntry: true }
       );
-      doc.steps = input.steps;
+      doc.steps = collapsed;
       doc.entryStepId = entryStepId;
     } else if (input.entryStepId !== undefined) {
       doc.entryStepId = await validateSteps(doc.steps, input.entryStepId, {

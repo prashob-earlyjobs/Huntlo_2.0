@@ -78,6 +78,91 @@ export async function sendMetaWhatsAppText(input: {
   return { messageId: data.messages?.[0]?.id };
 }
 
+export type MetaReplyButton = {
+  id: string;
+  title: string;
+};
+
+export function buildMetaInteractiveButtonsPayload(input: {
+  to: string;
+  body: string;
+  buttons: MetaReplyButton[];
+}): Record<string, unknown> {
+  const to = digitsOnly(input.to);
+  const buttons = input.buttons.slice(0, 3).map((button) => ({
+    type: 'reply',
+    reply: {
+      id: String(button.id || '').slice(0, 256) || 'btn',
+      title: String(button.title || '').slice(0, 20) || 'OK',
+    },
+  }));
+  return {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: String(input.body || '').slice(0, 1024) },
+      action: { buttons },
+    },
+  };
+}
+
+/** Session interactive reply buttons (Yes / No). Requires an open 24h customer-care window. */
+export async function sendMetaWhatsAppReplyButtons(input: {
+  phoneNumberId: string;
+  accessToken: string;
+  to: string;
+  body: string;
+  buttons: MetaReplyButton[];
+}): Promise<{ messageId?: string }> {
+  const payload = buildMetaInteractiveButtonsPayload(input);
+  if (!payload.to) {
+    throw Object.assign(new Error('WhatsApp recipient phone is invalid.'), {
+      statusCode: 400,
+    });
+  }
+  if (!Array.isArray(input.buttons) || input.buttons.length < 1) {
+    throw Object.assign(new Error('WhatsApp reply buttons require at least one button.'), {
+      statusCode: 400,
+    });
+  }
+
+  beacon('interactive-send', {
+    to: input.to,
+    bodyPreview: String(input.body || '').slice(0, 80),
+    buttons: input.buttons.map((button) => button.title),
+  });
+
+  const url = `${getMetaGraphBaseUrl()}/${encodeURIComponent(input.phoneNumberId)}/messages`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as {
+    messages?: Array<{ id?: string }>;
+    error?: { message?: string; error_user_msg?: string };
+  };
+
+  if (!res.ok) {
+    throw Object.assign(
+      new Error(
+        data.error?.error_user_msg ||
+          data.error?.message ||
+          `Meta WhatsApp interactive send failed (${res.status})`
+      ),
+      { statusCode: res.status >= 400 && res.status < 600 ? res.status : 502 }
+    );
+  }
+
+  return { messageId: data.messages?.[0]?.id };
+}
+
 /**
  * Cold outbound send via an approved WhatsApp Business template.
  * Body component parameters must match the approved template order ({{1}}, {{2}}, …).
