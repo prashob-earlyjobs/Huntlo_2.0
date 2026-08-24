@@ -74,6 +74,35 @@ export function resolveHiringFlowBranch(
   return step.nextStepId || null;
 }
 
+/** Linked nextStepId, or the next step in the flow list if the link is missing. */
+function resolveNextHiringFlowStep(
+  steps: HiringFlowStep[],
+  current: HiringFlowStep,
+  replyText?: string
+): HiringFlowStep | null {
+  let nextId = current.nextStepId || null;
+  const linked = findStep(steps, nextId);
+  if (linked?.type === 'branch') {
+    nextId = resolveHiringFlowBranch(linked, replyText || '');
+  }
+  const direct = findStep(steps, nextId);
+  if (direct) return direct;
+
+  const idx = steps.findIndex((step) => step.id === current.id);
+  for (let i = idx + 1; i < steps.length; i += 1) {
+    const step = steps[i];
+    if (!step) continue;
+    if (step.type === 'branch') {
+      const resolvedId = resolveHiringFlowBranch(step, replyText || '');
+      const resolved = findStep(steps, resolvedId);
+      if (resolved) return resolved;
+      continue;
+    }
+    return step;
+  }
+  return null;
+}
+
 async function ensureThread(input: {
   organizationId: string;
   candidateId: string;
@@ -312,7 +341,8 @@ export async function executeHiringFlowStep(input: {
       });
       // Pause after the template and wait for the candidate's reply before
       // executing the next step. Without this, sequential steps fire instantly.
-      if (step.nextStepId) {
+      const next = resolveNextHiringFlowStep(input.steps, step, input.replyText);
+      if (next) {
         input.enrollment.hiringFlowState = {
           flowId: input.flowId,
           currentStepId: step.id,
@@ -541,8 +571,59 @@ export async function advanceHiringFlowOnReply(input: {
   /** True when the candidate attached a file/image (no API call if media expected and received). */
   hasAttachment?: boolean;
 }): Promise<{ advanced: boolean }> {
-  const state = input.enrollment.hiringFlowState;
-  if (!state?.flowId || state.status !== 'waiting_reply' || !state.currentStepId) {
+  let state = input.enrollment.hiringFlowState;
+  if (!state?.flowId) {
+    return { advanced: false };
+  }
+  const flowId = state.flowId;
+  const answersSoFar = state.answers || {};
+
+  // Recover flows that sent the opening template then marked completed because
+  // nextStepId was missing — candidate replies ("Yes, continue") must still
+  // run the remaining ask_question steps.
+  if (state.status !== 'waiting_reply') {
+    if (!['completed', 'active', 'failed'].includes(String(state.status))) {
+      return { advanced: false };
+    }
+    const flowForResume = await HiringFlowModel.findOne({
+      _id: state.flowId,
+      organizationId: input.campaign.organizationId,
+    }).lean();
+    const unusedQuestion = (flowForResume?.steps || []).some(
+      (step) =>
+        step.type === 'ask_question' &&
+        !String(answersSoFar[step.id] || '').trim()
+    );
+    if (!unusedQuestion || !flowForResume) return { advanced: false };
+    const entry =
+      findStep(flowForResume.steps, flowForResume.entryStepId) ||
+      flowForResume.steps[0] ||
+      null;
+    if (!entry) return { advanced: false };
+    const reopened = await OutreachEnrollmentModel.findOneAndUpdate(
+      {
+        _id: input.enrollment._id,
+        'hiringFlowState.status': state.status,
+        'hiringFlowState.flowId': flowId,
+      },
+      {
+        $set: {
+          'hiringFlowState.status': 'waiting_reply',
+          'hiringFlowState.currentStepId': entry.id,
+        },
+      },
+      { new: true }
+    );
+    if (!reopened?.hiringFlowState) return { advanced: false };
+    input.enrollment.hiringFlowState = reopened.hiringFlowState;
+    state = reopened.hiringFlowState;
+    log().info(
+      { enrollmentId: String(input.enrollment._id), stepId: entry.id },
+      'Hiring flow reopened from completed/active — unused questions remain'
+    );
+  }
+
+  if (state.status !== 'waiting_reply' || !state.currentStepId) {
     return { advanced: false };
   }
 
@@ -591,12 +672,7 @@ export async function advanceHiringFlowOnReply(input: {
   // When paused on a send_whatsapp_template step (e.g. candidate clicked a
   // button or replied to the opening template), advance to the next step.
   if (current.type === 'send_whatsapp_template') {
-    let nextId = current.nextStepId || null;
-    const branchStep = findStep(flow.steps, nextId);
-    if (branchStep?.type === 'branch') {
-      nextId = resolveHiringFlowBranch(branchStep, input.replyText);
-    }
-    const next = findStep(flow.steps, nextId);
+    const next = resolveNextHiringFlowStep(flow.steps, current, input.replyText);
     input.enrollment.hiringFlowState = {
       flowId: String(flow._id),
       currentStepId: next?.id || null,
@@ -744,13 +820,7 @@ export async function advanceHiringFlowOnReply(input: {
     return { advanced: true };
   }
 
-  let nextId = current.nextStepId || null;
-  const branchStep = findStep(flow.steps, nextId);
-  if (branchStep?.type === 'branch') {
-    nextId = resolveHiringFlowBranch(branchStep, input.replyText);
-  }
-
-  const next = findStep(flow.steps, nextId);
+  const next = resolveNextHiringFlowStep(flow.steps, current, input.replyText);
   input.enrollment.hiringFlowState = {
     flowId: String(flow._id),
     currentStepId: next?.id || null,
