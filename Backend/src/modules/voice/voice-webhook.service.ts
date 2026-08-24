@@ -422,12 +422,56 @@ async function syncConversationVoiceTranscript(row: VoiceCallDocument) {
   });
 }
 
+function shouldStartPostQualificationHiringFlow(input: {
+  campaign: OutreachCampaignDocument | null;
+  enrollment: InstanceType<typeof OutreachEnrollmentModel>;
+}): { ok: boolean; reason: string } {
+  if (!input.campaign?.qualificationConfig?.autoWhatsAppAfterQualification) {
+    return { ok: false, reason: 'disabled' };
+  }
+  if (input.enrollment.status === 'opted_out' || input.enrollment.contactAvailability?.optedOut) {
+    return { ok: false, reason: 'opted_out' };
+  }
+  const qualStatus = String(input.enrollment.qualificationState?.status || 'pending');
+  if (qualStatus === 'rejected') {
+    return { ok: false, reason: 'rejected' };
+  }
+  if (qualStatus === 'qualified') {
+    return { ok: true, reason: 'qualified' };
+  }
+  // Voice often leaves qualification in_progress ("Not Mentioned" on some questions).
+  // If the screen passed (interested), still continue to the WhatsApp hiring flow.
+  const interested =
+    input.enrollment.status === 'interested' ||
+    input.enrollment.replyState?.disposition === 'interested' ||
+    input.enrollment.replyDisposition === 'interested';
+  if (interested) {
+    return { ok: true, reason: `voice_interested:${qualStatus}` };
+  }
+  return { ok: false, reason: `not_qualified:${qualStatus}` };
+}
+
 async function maybeStartPostQualificationHiringFlow(input: {
   campaign: OutreachCampaignDocument | null;
   enrollment: InstanceType<typeof OutreachEnrollmentModel>;
 }) {
-  if (input.enrollment.qualificationState?.status !== 'qualified') return;
-  if (!input.campaign?.qualificationConfig?.autoWhatsAppAfterQualification) return;
+  const gate = shouldStartPostQualificationHiringFlow(input);
+  if (!gate.ok) {
+    if (input.campaign?.qualificationConfig?.autoWhatsAppAfterQualification) {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          campaignId: input.campaign ? String(input.campaign._id) : null,
+          reason: gate.reason,
+          qualificationStatus: input.enrollment.qualificationState?.status || null,
+          enrollmentStatus: input.enrollment.status,
+          disposition: input.enrollment.replyState?.disposition || null,
+        },
+        'Post-qualification hiring flow skipped'
+      );
+    }
+    return;
+  }
 
   try {
     const { startHiringFlowAfterQualification } = await import(
@@ -436,17 +480,28 @@ async function maybeStartPostQualificationHiringFlow(input: {
     const fresh = await OutreachEnrollmentModel.findById(input.enrollment._id);
     if (!fresh) return;
     const result = await startHiringFlowAfterQualification({
-      campaign: input.campaign,
+      campaign: input.campaign!,
       enrollment: fresh,
     });
     if (!result.started) {
       log().info(
         {
           enrollmentId: String(input.enrollment._id),
-          campaignId: String(input.campaign._id),
+          campaignId: String(input.campaign!._id),
           reason: result.reason,
+          trigger: gate.reason,
         },
         'Post-qualification hiring flow not started'
+      );
+    } else {
+      log().info(
+        {
+          enrollmentId: String(input.enrollment._id),
+          campaignId: String(input.campaign!._id),
+          stepId: result.stepId,
+          trigger: gate.reason,
+        },
+        'Post-qualification hiring flow started'
       );
     }
   } catch (error) {
@@ -454,7 +509,7 @@ async function maybeStartPostQualificationHiringFlow(input: {
       {
         err: error,
         enrollmentId: String(input.enrollment._id),
-        campaignId: String(input.campaign._id),
+        campaignId: String(input.campaign!._id),
       },
       'Post-qualification hiring flow start failed'
     );
