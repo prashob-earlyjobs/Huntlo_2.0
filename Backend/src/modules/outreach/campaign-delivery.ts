@@ -13,8 +13,10 @@ import {
   getHuntloWhatsAppCredentials,
 } from '../../providers/meta-whatsapp/meta.config.js';
 import {
+  sendMetaWhatsAppReplyButtons,
   sendMetaWhatsAppTemplate,
   sendMetaWhatsAppText,
+  type MetaReplyButton,
 } from '../../providers/meta-whatsapp/meta.send.js';
 import {
   buildMetaTemplateBodyParameters,
@@ -495,6 +497,7 @@ async function sendWhatsAppViaIntegration(input: {
   organizationId?: string | null;
   campaignId?: string | null;
   enrollmentId?: string | null;
+  replyButtons?: MetaReplyButton[] | null;
 }): Promise<{ messageId?: string; provider: string; mode: 'template' | 'text' }> {
   const { secrets } = input;
   const body = input.body || '';
@@ -660,6 +663,36 @@ async function sendWhatsAppViaIntegration(input: {
       );
     }
 
+    const replyButtons = (input.replyButtons || []).filter(
+      (button) => String(button.title || '').trim()
+    );
+    if (replyButtons.length >= 1) {
+      try {
+        logger.info(
+          {
+            mode: 'interactive',
+            to: input.to,
+            bodyPreview: body.slice(0, 80),
+            buttons: replyButtons.map((button) => button.title),
+          },
+          'Sending WhatsApp reply buttons'
+        );
+        const result = await sendMetaWhatsAppReplyButtons({
+          phoneNumberId,
+          accessToken,
+          to: input.to,
+          body,
+          buttons: replyButtons,
+        });
+        return finish({ messageId: result.messageId, provider: secrets.provider, mode: 'text' });
+      } catch (error) {
+        logger.warn(
+          { err: error, to: input.to },
+          'WhatsApp reply buttons failed — falling back to free-text'
+        );
+      }
+    }
+
     logger.info({ mode: 'text', to: input.to, bodyPreview: body.slice(0, 80) }, 'Sending WhatsApp text');
     const result = await sendMetaWhatsAppText({
       phoneNumberId,
@@ -693,7 +726,11 @@ async function sendWhatsAppViaIntegration(input: {
       );
     }
 
-    const result = await sendGupshupText({ to: input.to, body, mode: 'reply' });
+    const gupshupBody =
+      (input.replyButtons || []).length >= 2
+        ? `${body}\n\nReply ${input.replyButtons!.map((button) => button.title).join(' or ')}.`
+        : body;
+    const result = await sendGupshupText({ to: input.to, body: gupshupBody, mode: 'reply' });
     return finish({ messageId: result.messageId, provider: 'gupshup', mode: 'text' });
   }
 
@@ -1263,6 +1300,7 @@ export async function sendHiringFlowWhatsAppText(input: {
   enrollmentId: string;
   to: string;
   body: string;
+  replyButtons?: MetaReplyButton[] | null;
 }): Promise<{ providerMessageId?: string; provider: string }> {
   const integration = await resolveIntegration(
     input.organizationId,
@@ -1283,6 +1321,7 @@ export async function sendHiringFlowWhatsAppText(input: {
     organizationId: input.organizationId,
     campaignId: input.campaignId,
     enrollmentId: input.enrollmentId,
+    replyButtons: input.replyButtons,
   });
   return { providerMessageId: sent.messageId, provider: sent.provider };
 }

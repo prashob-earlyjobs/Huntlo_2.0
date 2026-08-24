@@ -35,6 +35,15 @@ function log() {
   return getLogger().child({ component: 'hiring-flow-runtime' });
 }
 
+export function isYesNoAnswerType(answerType?: string | null): boolean {
+  return /yes\s*\/\s*no|boolean/i.test(String(answerType || ''));
+}
+
+const YES_NO_REPLY_BUTTONS = [
+  { id: 'yes', title: 'Yes' },
+  { id: 'no', title: 'No' },
+];
+
 function fillMetaTemplateBody(
   template: MetaWhatsAppTemplate | null,
   mergeContext: Record<string, string>
@@ -346,6 +355,7 @@ async function askQuestionStep(input: {
     enrollmentId: String(input.enrollment._id),
     to: phone,
     body: prompt,
+    replyButtons: isYesNoAnswerType(input.step.answerType) ? YES_NO_REPLY_BUTTONS : null,
   });
 
   const thread = await ensureThread({
@@ -842,6 +852,7 @@ export async function advanceHiringFlowOnReply(input: {
               enrollmentId: String(input.enrollment._id),
               to: phone,
               body: evaluation.repromptMessage,
+              replyButtons: isYesNoAnswerType(current.answerType) ? YES_NO_REPLY_BUTTONS : null,
             });
           }
         } catch (sendErr) {
@@ -870,7 +881,7 @@ export async function advanceHiringFlowOnReply(input: {
   if (
     current.knockout &&
     /^(no|n|nahi|na)\b/i.test(input.replyText.trim()) &&
-    /yes\s*\/\s*no|boolean/i.test(String(current.answerType || ''))
+    isYesNoAnswerType(current.answerType)
   ) {
     input.enrollment.hiringFlowState = {
       flowId: String(flow._id),

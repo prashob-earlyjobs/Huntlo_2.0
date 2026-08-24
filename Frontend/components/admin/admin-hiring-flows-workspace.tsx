@@ -50,7 +50,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { adminApi, getApiErrorMessage, type ApiHiringFlow, type ApiHiringFlowStep, type MetaWhatsAppTemplate } from "@/lib/api";
+import {
+  adminApi,
+  getApiErrorMessage,
+  withCollapsedHiringFlowSteps,
+  hiringFlowNeedsCollapse,
+  type ApiHiringFlow,
+  type ApiHiringFlowStep,
+  type MetaWhatsAppTemplate,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const STEP_TYPE_LABEL: Record<ApiHiringFlowStep["type"], string> = {
@@ -258,7 +266,7 @@ export function AdminHiringFlowsWorkspace() {
     setError(null);
     try {
       const items = await adminApi.listHiringFlows();
-      setFlows(items);
+      setFlows(items.map(withCollapsedHiringFlowSteps));
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to load hiring flows."));
     } finally {
@@ -269,6 +277,11 @@ export function AdminHiringFlowsWorkspace() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!draft || !hiringFlowNeedsCollapse(draft)) return;
+    setDraft(withCollapsedHiringFlowSteps(draft));
+  }, [draft]);
 
   useEffect(() => {
     if (!draft) return;
@@ -368,7 +381,7 @@ export function AdminHiringFlowsWorkspace() {
       setCreateOpen(false);
       setCreateName("");
       await refresh();
-      setDraft(created);
+      setDraft(withCollapsedHiringFlowSteps(created));
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to create hiring flow."));
     } finally {
@@ -381,13 +394,14 @@ export function AdminHiringFlowsWorkspace() {
     setSaving(true);
     setSaveError(null);
     try {
+      const collapsed = withCollapsedHiringFlowSteps(draft);
       const updated = await adminApi.updateHiringFlow(draft.id, {
         name: draft.name,
         description: draft.description,
         category: draft.category,
         status: draft.status as "draft" | "active" | "archived",
-        steps: draft.steps,
-        entryStepId: draft.entryStepId,
+        steps: collapsed.steps,
+        entryStepId: collapsed.entryStepId,
       });
       setFlows((previous) =>
         previous.map((flow) => (flow.id === updated.id ? updated : flow))
@@ -420,13 +434,22 @@ export function AdminHiringFlowsWorkspace() {
       setFlows((previous) =>
         previous.map((flow) => (flow.id === updated.id ? updated : flow))
       );
-      if (draft?.id === updated.id) setDraft(updated);
+      if (draft?.id === updated.id) setDraft(withCollapsedHiringFlowSteps(updated));
       setAssignFlow(null);
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to assign hiring flow."));
     } finally {
       setAssigning(false);
     }
+  }
+
+  function openEditor(flow: ApiHiringFlow) {
+    setDraft(withCollapsedHiringFlowSteps(structuredClone(flow)));
+    setSaveError(null);
+  }
+
+  function firstWhatsAppIndex(steps: ApiHiringFlowStep[]) {
+    return steps.findIndex((step) => step.type === "send_whatsapp_template");
   }
 
   function updateStep(stepId: string, patch: Partial<ApiHiringFlowStep>) {
@@ -462,12 +485,16 @@ export function AdminHiringFlowsWorkspace() {
     });
   }
 
-  function removeStep(stepId: string) {
+  function removeStep(stepId: string, index: number) {
     setDraft((previous) => {
       if (!previous) return previous;
-      const target = previous.steps.find((step) => step.id === stepId);
-      if (!target || target.type === "send_whatsapp_template") return previous;
-      const remaining = previous.steps.filter((step) => step.id !== stepId);
+      const target = previous.steps[index];
+      if (!target || target.id !== stepId) return previous;
+      const lockedIndex = firstWhatsAppIndex(previous.steps);
+      if (target.type === "send_whatsapp_template" && index === lockedIndex) {
+        return previous;
+      }
+      const remaining = previous.steps.filter((_, stepIndex) => stepIndex !== index);
       return {
         ...previous,
         entryStepId:
@@ -577,10 +604,7 @@ export function AdminHiringFlowsWorkspace() {
               <button
                 type="button"
                 className="min-w-0 flex-1 text-left"
-                onClick={() => {
-                  setDraft(structuredClone(flow));
-                  setSaveError(null);
-                }}
+                onClick={() => openEditor(flow)}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{flow.name}</span>
@@ -605,10 +629,7 @@ export function AdminHiringFlowsWorkspace() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  setDraft(structuredClone(flow));
-                  setSaveError(null);
-                }}
+                onClick={() => openEditor(flow)}
               >
                 Edit
               </Button>
@@ -694,9 +715,13 @@ export function AdminHiringFlowsWorkspace() {
                     </Button>
                   </div>
                   <ol className="space-y-3">
-                    {draft.steps.map((step, index) => (
+                    {draft.steps.map((step, index) => {
+                      const isFirstWhatsApp =
+                        step.type === "send_whatsapp_template" &&
+                        index === firstWhatsAppIndex(draft.steps);
+                      return (
                       <li
-                        key={step.id}
+                        key={`${step.id}-${index}`}
                         className="rounded-lg border border-border bg-background p-4"
                       >
                         <div className="mb-3 flex items-start gap-3">
@@ -705,7 +730,7 @@ export function AdminHiringFlowsWorkspace() {
                           </span>
                           <div className="min-w-0 flex-1 space-y-1">
                             <Input
-                              id={`step-label-${step.id}`}
+                              id={`step-label-${step.id}-${index}`}
                               value={step.label || ""}
                               onChange={(event) =>
                                 updateStep(step.id, {
@@ -719,15 +744,15 @@ export function AdminHiringFlowsWorkspace() {
                             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <StepTypeIcon type={step.type} />
                               {STEP_TYPE_LABEL[step.type]}
-                              {index === 0 ? " · first message" : ""}
+                              {isFirstWhatsApp ? " · first message" : ""}
                             </p>
                           </div>
-                          {step.type !== "send_whatsapp_template" ? (
+                          {!isFirstWhatsApp ? (
                             <Button
                               size="icon-sm"
                               variant="ghost"
                               aria-label="Remove step"
-                              onClick={() => removeStep(step.id)}
+                              onClick={() => removeStep(step.id, index)}
                             >
                               <Trash2 aria-hidden />
                             </Button>
@@ -778,6 +803,11 @@ export function AdminHiringFlowsWorkspace() {
                                 <SelectItem value="Number">Number</SelectItem>
                               </SelectContent>
                             </Select>
+                            {/yes\s*\/\s*no/i.test(step.answerType || "") ? (
+                              <p className="text-xs text-muted-foreground">
+                                WhatsApp will show Yes and No reply buttons.
+                              </p>
+                            ) : null}
                           </div>
                         ) : null}
                         {step.type === "branch" ? (
@@ -791,7 +821,8 @@ export function AdminHiringFlowsWorkspace() {
                           </ul>
                         ) : null}
                       </li>
-                    ))}
+                      );
+                    })}
                   </ol>
                 </section>
               </div>
