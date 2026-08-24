@@ -309,7 +309,7 @@ export function HiringFlowsWorkspace() {
                       const locked = step.id === lockedStepId;
                       return (
                         <li
-                          key={step.id}
+                          key={`${step.id}-${index}`}
                           className="rounded-lg border border-border bg-background p-4"
                         >
                           <div className="mb-3 flex items-start gap-3">
@@ -358,9 +358,11 @@ export function HiringFlowsWorkspace() {
                               <p className="font-medium">
                                 {templateLabel(step.whatsappTemplateId)}
                               </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                First WhatsApp message cannot be changed.
-                              </p>
+                              {locked ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  First WhatsApp message cannot be changed.
+                                </p>
+                              ) : null}
                             </div>
                           ) : null}
 
