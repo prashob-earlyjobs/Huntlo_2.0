@@ -1,3 +1,4 @@
+import { ActiveSearchIndicator } from "@/components/layout/active-search-indicator";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { HeaderOverflowMenu } from "@/components/layout/header-overflow-menu";
@@ -23,6 +24,7 @@ export function TopHeader() {
 
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
         <QuickCreateMenu />
+        <ActiveSearchIndicator />
         <div className="hidden sm:contents">
           <UsageIndicator />
         </div>

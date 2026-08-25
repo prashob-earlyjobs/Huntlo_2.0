@@ -105,6 +105,21 @@ const sourcingSessionSchema = new mongoose.Schema(
     profilesFetchError: { type: mongoose.Schema.Types.Mixed, default: null },
     quotaConsumed: { type: Number, default: 0, min: 0 },
     quotaTransactionId: { type: String, default: null, trim: true },
+    /** True once the Bright Data fallback has been claimed by a poll tick (may still be in flight). */
+    usedBrightDataFallback: { type: Boolean, default: false },
+    /**
+     * Set once the claiming poll tick's Bright Data call actually finishes
+     * (success, empty, or error) — lets a concurrent poll tick that lost the
+     * claim race wait for the real result instead of finalizing the session
+     * early with a stale candidate count.
+     */
+    brightDataFallbackCompletedAt: { type: Date, default: null },
+    /** Provenance of the candidates on this session — set once Bright Data tops up. */
+    candidateSource: {
+      type: String,
+      enum: ['future_jobs', 'bright_data', 'mixed'],
+      default: 'future_jobs',
+    },
     errorCode: { type: String, default: null },
     errorMessage: { type: String, default: null },
     isPublicClaimable: { type: Boolean, default: false },

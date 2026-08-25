@@ -2,6 +2,7 @@ import type { SourcedCandidateDocument } from '../../sourcing/sourced-candidate.
 import type { SourcingSessionDocument } from '../../sourcing/sourcing-session.model.js';
 import { labelListFromUnknown } from '../../../shared/strings/label-list.js';
 import { profileSignalsFromFjDoc } from '../../../shared/sourcing/profile-signals.js';
+import { resolveBrightDataDisplayFields, detailsFromBrightDataRawDoc } from '../../../providers/bright-data/brightData.mapper.js';
 
 export type SearchPaginationDto = {
   totalDocs: number;
@@ -39,6 +40,8 @@ export type CandidateSummaryDto = {
   saved?: boolean;
   /** Candidate list names this profile already belongs to (when known). */
   lists?: string[];
+  /** Provider that returned this candidate — Future Jobs (default) or the Bright Data fallback. */
+  source: 'future_jobs' | 'bright_data';
 };
 
 export type CandidateExperienceDto = {
@@ -186,6 +189,13 @@ export function toCandidateSummaryDto(
     [...storedSignals, ...rawSignals],
     12
   );
+  const source = candidate.source === 'bright_data' ? 'bright_data' : 'future_jobs';
+  const display = resolveBrightDataDisplayFields({
+    source,
+    experienceYears: candidate.experienceYears ?? null,
+    skills: candidate.skills,
+    rawDoc: candidate.rawDoc,
+  });
   return {
     id: candidate._id.toHexString(),
     candidateId,
@@ -198,8 +208,8 @@ export function toCandidateSummaryDto(
     currentRole: candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
     currentCompany: candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
     location: candidate.location ?? '',
-    experienceYears: candidate.experienceYears ?? null,
-    skills: labelListFromUnknown(candidate.skills, 24),
+    experienceYears: display.experienceYears,
+    skills: display.skills,
     educationPreview: candidate.educationPreview ?? [],
     finalScore: candidate.finalScore ?? candidate.matchScore ?? null,
     matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
@@ -212,6 +222,7 @@ export function toCandidateSummaryDto(
     rank: candidate.rank ?? 0,
     saved: saved || lists.length > 0,
     lists,
+    source,
   };
 }
 
@@ -387,6 +398,27 @@ export function toCandidateDetailsDto(
     if (picture) base.profilePictureUrl = picture;
     const headline = asString(fjCandidate.headline);
     if (headline) base.headline = headline;
+  }
+
+  if (candidate.source === 'bright_data') {
+    const bd = detailsFromBrightDataRawDoc(rawDoc);
+    return {
+      ...base,
+      skills: base.skills.length > 0 ? base.skills : bd.skills,
+      mappedCandidate: candidate.mappedCandidate ?? null,
+      rawDoc,
+      firstSeenAt: candidate.firstSeenAt?.toISOString?.() ?? null,
+      lastSeenAt: candidate.lastSeenAt?.toISOString?.() ?? null,
+      summary:
+        [bd.summary, candidate.candidateSummary]
+          .filter((value): value is string => Boolean(value && value.trim()))
+          .sort((a, b) => b.length - a.length)[0] ?? null,
+      recommendation: null,
+      experience: bd.experience,
+      education: bd.education,
+      profileAnalysis: null,
+      matchBreakdown: null,
+    };
   }
 
   return {

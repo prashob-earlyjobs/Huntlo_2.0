@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Bookmark,
+  ChevronLeft,
+  ChevronRight,
   Download,
   LayoutGrid,
   List,
@@ -64,6 +66,7 @@ import {
   saveSearch,
   unsaveSearch,
   type CandidateSearchSummary,
+  type SearchPagination,
 } from "@/lib/api/candidate-search";
 import { mapApiCandidateToSessionCandidate } from "@/lib/api/sourcing";
 import {
@@ -85,6 +88,11 @@ import { jobDetailPath, ROUTES, sessionDetailPath } from "@/lib/routes";
 import { saveEditSearchDraft, searchEditPath } from "@/lib/edit-search-draft";
 import { filtersToProviderPayload } from "@/lib/search-filter-adapters";
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+/** Debounce for "search within results" once it's hitting the API (paginated
+ * browsing) instead of filtering an already-loaded in-memory list. */
+const RESULT_SEARCH_DEBOUNCE_MS = 350;
 
 function matchesResultQuery(candidate: SessionCandidate, query: string): boolean {
   if (!query.trim()) return true;
@@ -252,18 +260,126 @@ function SessionStateBanner({
   return null;
 }
 
+/** Mirrors the pager footer used by SearchHistoryTable so paginated browsing
+ * looks/behaves consistently across the app. */
+function ResultsPager({
+  pagination,
+  pageSize,
+  loading,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  pagination: SearchPagination;
+  pageSize: number;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
+  const { page, totalDocs, totalPages } = pagination;
+  const rangeStart = totalDocs === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, totalDocs);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+      <p className="text-xs text-muted-foreground">
+        {totalDocs === 0
+          ? "No candidates"
+          : `Showing ${rangeStart}–${rangeEnd} of ${totalDocs.toLocaleString("en-IN")}`}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          Rows
+          <select
+            value={pageSize}
+            disabled={loading}
+            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label="Previous page"
+            disabled={loading || page <= 1}
+            onClick={() => onPageChange(Math.max(1, page - 1))}
+          >
+            <ChevronLeft aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label="Next page"
+            disabled={loading || page >= totalPages}
+            onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+          >
+            <ChevronRight aria-hidden />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * API-paginated browsing of stored candidates, owned by the parent
+ * (SessionResultsPageClient) since that's where the actual fetch happens.
+ * Only consulted once the session is at rest — see `isLive` below.
+ */
+export type SessionResultsPagedProps = {
+  candidates: SessionCandidate[];
+  pagination: SearchPagination | null;
+  loading: boolean;
+  error: string | null;
+  page: number;
+  pageSize: number;
+  sort: SortOptionId;
+  search: string;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  onSortChange: (sort: SortOptionId) => void;
+  onSearchChange: (search: string) => void;
+  onReload: () => void;
+  fetchAllForExport: () => Promise<SessionCandidate[]>;
+};
+
 export function SessionResults({
   session,
   candidates,
   initialFilters,
   futureJobsSessionId = null,
+  pagedResults,
 }: {
   session: SourcingSession;
   candidates: SessionCandidate[];
   initialFilters?: SearchFilterState | null;
   futureJobsSessionId?: string | null;
+  pagedResults?: SessionResultsPagedProps;
 }) {
   const router = useRouter();
+  // While a search is actively running we keep the existing full-list +
+  // progressive-reveal behavior below untouched. Once at rest, the table is
+  // driven by `pagedResults` (real API pagination) instead.
+  const isLive = session.state === "running";
+  // Single source of truth for "what candidates exist right now": the full
+  // live-accumulated list while running, otherwise just the current page
+  // returned by the paginated stored-candidates endpoint.
+  const pagedResultsCandidates = pagedResults?.candidates;
+  const sourceCandidates = useMemo(
+    () => (isLive ? candidates : (pagedResultsCandidates ?? [])),
+    [isLive, candidates, pagedResultsCandidates]
+  );
   const [sort, setSort] = useState<SortOptionId>("best-match");
   const [view, setView] = useState<"table" | "card">("table");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
@@ -291,18 +407,20 @@ export function SessionResults({
   const [saveSearchError, setSaveSearchError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(candidates.map((c) => [c.id, c.saved]))
+    Object.fromEntries(sourceCandidates.map((c) => [c.id, c.saved]))
   );
   const [savedListMap, setSavedListMap] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      candidates
+      sourceCandidates
         .map((c) => [c.id, c.lists[0] ?? ""] as const)
         .filter((entry) => entry[1])
     )
   );
   const [revealedMap, setRevealedMap] = useState<Record<string, RevealState>>({});
-  const [localCandidates, setLocalCandidates] = useState(candidates);
+  const [localCandidates, setLocalCandidates] = useState(sourceCandidates);
   const [revealError, setRevealError] = useState<string | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [drawerDetailsLoading, setDrawerDetailsLoading] = useState(false);
   const [drawerDetailsError, setDrawerDetailsError] = useState<string | null>(null);
@@ -402,7 +520,7 @@ export function SessionResults({
   useEffect(() => {
     setLocalCandidates((prev) => {
       const prevMap = new Map(prev.map((c) => [c.id, c]));
-      return candidates.map((incoming) => {
+      return sourceCandidates.map((incoming) => {
         const existing = prevMap.get(incoming.id);
         if (!existing || !detailsFetchedRef.current.has(incoming.id)) {
           return incoming;
@@ -419,13 +537,13 @@ export function SessionResults({
         };
       });
     });
-  }, [candidates]);
+  }, [sourceCandidates]);
 
   useEffect(() => {
     setSavedMap((previous) => ({
       ...previous,
       ...Object.fromEntries(
-        candidates.map((candidate) => [
+        sourceCandidates.map((candidate) => [
           candidate.id,
           previous[candidate.id] || candidate.saved,
         ])
@@ -433,7 +551,7 @@ export function SessionResults({
     }));
     setSavedListMap((previous) => {
       const next = { ...previous };
-      for (const candidate of candidates) {
+      for (const candidate of sourceCandidates) {
         const incoming = candidate.lists[0];
         if (incoming && !next[candidate.id]) {
           next[candidate.id] = incoming;
@@ -441,13 +559,21 @@ export function SessionResults({
       }
       return next;
     });
-  }, [candidates]);
+  }, [sourceCandidates]);
+
+  // Paginated browsing: drop any stale selection whenever the page/sort/
+  // search inputs change so "N selected" never silently refers to rows that
+  // have scrolled off the current page.
+  useEffect(() => {
+    if (isLive) return;
+    setSelected(new Set());
+  }, [isLive, pagedResults?.page, pagedResults?.pageSize, pagedResults?.sort, pagedResults?.search]);
 
   const [progressCount, setProgressCount] = useState(
-    session.state === "running" ? 0 : candidates.length
+    session.state === "running" ? 0 : sourceCandidates.length
   );
   const [initialLoading, setInitialLoading] = useState(
-    session.state === "running" && candidates.length === 0
+    session.state === "running" && sourceCandidates.length === 0
   );
 
   useEffect(() => {
@@ -490,15 +616,16 @@ export function SessionResults({
   }, [drawerId, session.id]);
 
   // Keep the progressive reveal in sync with live candidate growth. Never leave
-  // the skeleton stuck after the session leaves "running".
+  // the skeleton stuck after the session leaves "running". Paginated browsing
+  // (not running) always shows its current page immediately — no animation.
   useEffect(() => {
     if (session.state !== "running") {
       setInitialLoading(false);
-      setProgressCount(candidates.length);
+      setProgressCount(sourceCandidates.length);
       return;
     }
 
-    if (candidates.length === 0) {
+    if (sourceCandidates.length === 0) {
       setInitialLoading(true);
       const timer = window.setTimeout(() => setInitialLoading(false), 800);
       return () => window.clearTimeout(timer);
@@ -507,36 +634,62 @@ export function SessionResults({
     setInitialLoading(false);
     const interval = window.setInterval(() => {
       setProgressCount((previous) => {
-        if (previous >= candidates.length) {
+        if (previous >= sourceCandidates.length) {
           window.clearInterval(interval);
-          return candidates.length;
+          return sourceCandidates.length;
         }
         return previous + 1;
       });
     }, 60);
 
     return () => window.clearInterval(interval);
-  }, [session.state, candidates.length]);
+  }, [session.state, sourceCandidates.length]);
 
   // If more candidates arrive while running, never clamp progress below what we
   // already revealed — just let the interval catch up.
   useEffect(() => {
     if (session.state !== "running") return;
     setProgressCount((previous) =>
-      previous > candidates.length ? candidates.length : previous
+      previous > sourceCandidates.length ? sourceCandidates.length : previous
     );
-  }, [session.state, candidates.length]);
+  }, [session.state, sourceCandidates.length]);
 
+  // Live: client-side slice (progressive reveal) + filter + sort over the
+  // full accumulated list. Paginated: the server already returned exactly
+  // the right page, sorted and filtered — render it as-is.
   const visibleCandidates = useMemo(() => {
-    const list =
-      session.state === "running"
-        ? localCandidates.slice(0, progressCount)
-        : localCandidates;
+    if (!isLive) return localCandidates;
+    const list = localCandidates.slice(0, progressCount);
     const filtered = list.filter((candidate) =>
       matchesResultQuery(candidate, resultQuery)
     );
     return sortCandidates(filtered, sort);
-  }, [localCandidates, sort, session.state, progressCount, resultQuery]);
+  }, [isLive, localCandidates, sort, progressCount, resultQuery]);
+
+  // Paginated browsing: "search within results" now queries the API, so
+  // debounce it instead of re-fetching on every keystroke. Live search stays
+  // instant since it's just filtering what's already in memory (see above).
+  useEffect(() => {
+    if (isLive || !pagedResults) return;
+    if (resultQuery === pagedResults.search) return;
+    const timer = window.setTimeout(() => {
+      pagedResults.onSearchChange(resultQuery);
+    }, RESULT_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLive, resultQuery, pagedResults?.search]);
+
+  function handleSortChange(value: SortOptionId) {
+    if (!isLive && pagedResults) {
+      pagedResults.onSortChange(value);
+    } else {
+      setSort(value);
+    }
+  }
+
+  const effectiveSort = !isLive && pagedResults ? pagedResults.sort : sort;
+  const pagedInitialLoading =
+    !isLive && Boolean(pagedResults?.loading) && !pagedResults?.pagination;
 
   const drawerCandidate = localCandidates.find((c) => c.id === drawerId) ?? null;
   const drawerRevealed = drawerId
@@ -640,6 +793,11 @@ export function SessionResults({
             },
           };
         });
+        setRevealError(
+          kind === "email"
+            ? "No email found for this profile."
+            : "No mobile number found for this profile."
+        );
         return;
       }
       setLocalCandidates((previous) =>
@@ -710,6 +868,13 @@ export function SessionResults({
     setRefreshingProfiles(true);
     setRefreshProfilesError(null);
     try {
+      if (!isLive && pagedResults) {
+        // Force a live provider sync, then re-pull the current page from the
+        // paginated endpoint so it's the one source of truth for this view.
+        await getSourcingSessionProfiles(session.id, { force: true, page: 1, limit: 300 });
+        pagedResults.onReload();
+        return;
+      }
       const result = await getSourcingSessionProfiles(session.id, {
         force: true,
         page: 1,
@@ -736,6 +901,7 @@ export function SessionResults({
             matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
             saved: candidate.saved,
             lists: candidate.lists ?? [],
+            source: candidate.source,
           })
       );
       setLocalCandidates(mapped);
@@ -745,6 +911,25 @@ export function SessionResults({
       setRefreshProfilesError(getApiErrorMessage(error));
     } finally {
       setRefreshingProfiles(false);
+    }
+  }
+
+  async function exportCandidatesCsv() {
+    if (exportingCsv) return;
+    const filenameBase = session.name || session.query || "search-results";
+    if (isLive || !pagedResults) {
+      downloadSessionCandidatesCsv(visibleCandidates, filenameBase);
+      return;
+    }
+    setExportingCsv(true);
+    setExportError(null);
+    try {
+      const all = await pagedResults.fetchAllForExport();
+      downloadSessionCandidatesCsv(all, filenameBase);
+    } catch (error) {
+      setExportError(getApiErrorMessage(error, "Unable to export candidates."));
+    } finally {
+      setExportingCsv(false);
     }
   }
 
@@ -794,10 +979,58 @@ export function SessionResults({
 
   const isEmpty = session.state === "empty";
   const isFailed = session.state === "failed";
+  const isSearching = session.state === "running";
+  // Paginated mode reads the *confirmed* (debounced, already-fetched) search
+  // term rather than the instantaneous input value, so this stays in sync
+  // with `pagination.totalDocs` below instead of racing ahead of it while a
+  // debounced fetch is still in flight.
+  const hasSearchQuery = isLive
+    ? resultQuery.trim().length > 0
+    : (pagedResults?.search.trim().length ?? 0) > 0;
+  // Whether the session has ANY stored candidates at all, independent of the
+  // current "search within results" filter. Live mode already only ever
+  // holds the session's own candidates in `localCandidates`. Paginated mode
+  // sources this from the session's own totalDocs / the last pagination
+  // response rather than the current page's row count, so a search that
+  // matches nothing isn't confused with a session that found nothing.
+  const hasStoredCandidates = isLive
+    ? localCandidates.length > 0
+    : session.resultCount > 0 || (pagedResults?.pagination?.totalDocs ?? 0) > 0;
+  // "Search within results" narrowed the loaded/paginated set down to zero —
+  // distinct from the session itself having found nothing.
+  const hasNoMatchesForQuery =
+    hasStoredCandidates &&
+    hasSearchQuery &&
+    (isLive
+      ? visibleCandidates.length === 0
+      : (pagedResults?.pagination?.totalDocs ?? 0) === 0);
   const showResults =
-    !isEmpty && !isFailed && !initialLoading && visibleCandidates.length > 0;
+    !isEmpty &&
+    !isFailed &&
+    !initialLoading &&
+    !pagedInitialLoading &&
+    visibleCandidates.length > 0;
+  // Only "still loading" while genuinely running — a completed/partial
+  // session that stored zero candidates is done, not pending.
   const showNoResults =
-    !isEmpty && !isFailed && !initialLoading && visibleCandidates.length === 0;
+    !isEmpty &&
+    !isFailed &&
+    !initialLoading &&
+    !pagedInitialLoading &&
+    !hasNoMatchesForQuery &&
+    isSearching &&
+    !hasStoredCandidates;
+  // Terminal session that genuinely found nothing — both Future Jobs and the
+  // Bright Data fallback were tried and came up empty (distinct from `isEmpty`,
+  // a draft that was never run at all).
+  const showNoCandidatesFound =
+    !isEmpty &&
+    !isFailed &&
+    !initialLoading &&
+    !pagedInitialLoading &&
+    !hasNoMatchesForQuery &&
+    !isSearching &&
+    !hasStoredCandidates;
 
   return (
     <div className="space-y-4">
@@ -915,6 +1148,16 @@ export function SessionResults({
           {outreachError}
         </p>
       ) : null}
+      {exportError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {exportError}
+        </p>
+      ) : null}
+      {!isLive && pagedResults?.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {pagedResults.error}
+        </p>
+      ) : null}
       {addToListMessage ? (
         <p
           role="status"
@@ -929,7 +1172,10 @@ export function SessionResults({
         <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2.5">
           <span className="shrink-0 text-sm text-muted-foreground">
             <span className="font-medium tabular-nums text-foreground">
-              {visibleCandidates.length.toLocaleString("en-IN")}
+              {(isLive
+                ? visibleCandidates.length
+                : (pagedResults?.pagination?.totalDocs ?? visibleCandidates.length)
+              ).toLocaleString("en-IN")}
             </span>{" "}
             candidates
             {selected.size > 0 ? (
@@ -984,8 +1230,8 @@ export function SessionResults({
           </Button>
 
           <Select
-            value={sort}
-            onValueChange={(value) => value && setSort(value as SortOptionId)}
+            value={effectiveSort}
+            onValueChange={(value) => value && handleSortChange(value as SortOptionId)}
           >
             <SelectTrigger size="sm" className="min-w-40" aria-label="Sort results">
               <SelectValue />
@@ -1122,16 +1368,16 @@ export function SessionResults({
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={visibleCandidates.length === 0}
-                onClick={() =>
-                  downloadSessionCandidatesCsv(
-                    visibleCandidates,
-                    session.name || session.query || "search-results"
-                  )
-                }
+                disabled={visibleCandidates.length === 0 || exportingCsv}
+                aria-busy={exportingCsv}
+                onClick={() => void exportCandidatesCsv()}
               >
-                <Download aria-hidden />
-                Export
+                {exportingCsv ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Download aria-hidden />
+                )}
+                {exportingCsv ? "Exporting…" : "Export"}
               </Button>
             )}
           </div>
@@ -1139,7 +1385,7 @@ export function SessionResults({
       ) : null}
 
       {/* Results body */}
-      {initialLoading ? (
+      {initialLoading || pagedInitialLoading ? (
         <SessionResultsTableSkeleton rows={8} />
       ) : isFailed ? (
         <EmptyState
@@ -1160,6 +1406,22 @@ export function SessionResults({
           actionLabel="Edit Search"
           onAction={startEditSearch}
         />
+      ) : hasNoMatchesForQuery ? (
+        <EmptyState
+          icon={Search}
+          title="No matches in your results"
+          description={`No candidates match "${resultQuery.trim()}". Try a different term or clear the search.`}
+          actionLabel="Clear search"
+          onAction={() => setResultQuery("")}
+        />
+      ) : showNoCandidatesFound ? (
+        <EmptyState
+          icon={Search}
+          title="No candidates found"
+          description="We tried Future Jobs and the Bright Data fallback — neither turned up a match. Try broadening your location, skills or experience filters and run the search again."
+          actionLabel="Edit Search"
+          onAction={startEditSearch}
+        />
       ) : showNoResults ? (
         <EmptyState
           icon={Users}
@@ -1167,7 +1429,12 @@ export function SessionResults({
           description="The search is still loading candidates. Check back in a moment."
         />
       ) : showResults ? (
-        <section className="rounded-xl border border-border bg-card">
+        <section
+          className={cn(
+            "rounded-xl border border-border bg-card",
+            !isLive && pagedResults?.loading && "opacity-60 transition-opacity"
+          )}
+        >
           {view === "table" ? (
             <CandidateTable
               candidates={visibleCandidates}
@@ -1206,7 +1473,21 @@ export function SessionResults({
               ))}
             </div>
           )}
+          {!isLive && pagedResults?.pagination ? (
+            <ResultsPager
+              pagination={pagedResults.pagination}
+              pageSize={pagedResults.pageSize}
+              loading={pagedResults.loading}
+              onPageChange={pagedResults.onPageChange}
+              onPageSizeChange={pagedResults.onPageSizeChange}
+            />
+          ) : null}
         </section>
+      ) : !isLive && pagedResults?.loading ? (
+        // Between a page/sort/search change landing and its fetch resolving,
+        // the derived flags above can momentarily agree on nothing — fall
+        // back to a lightweight skeleton instead of a blank body.
+        <SessionResultsTableSkeleton rows={4} />
       ) : null}
 
       <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>

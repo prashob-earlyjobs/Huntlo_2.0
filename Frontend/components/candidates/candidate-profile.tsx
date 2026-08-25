@@ -491,8 +491,8 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
         <div className="space-y-4 lg:col-span-8">
           <Card>
             <SectionHeader title="Summary" />
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {candidate.summary || candidate.headline || "No summary available."}
+            <p className="overflow-visible whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+              {candidate.summary?.trim() || "No summary available."}
             </p>
             {candidate.signals.length > 0 ? (
               <ul className="space-y-1.5 border-t border-border pt-3">

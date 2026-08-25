@@ -61,6 +61,18 @@ export type CandidateSearchPollPayload = {
   profilesPagination?: unknown;
   regionExpandFallbackUsed?: boolean;
   error?: string | null;
+  /**
+   * Debug/testing-only vendor + poll-ladder snapshot, carried on every poll
+   * tick and on the terminal event so QA tooling (e.g. the session results
+   * debug strip) can be driven entirely off the socket — no REST polling.
+   */
+  debug?: {
+    pollAttemptCount: number;
+    maxPollAttempts: number;
+    candidateSource: string;
+    usedBrightDataFallback: boolean;
+    sourceBreakdown: { future_jobs: number; bright_data: number };
+  };
 };
 
 /** Full candidate-search poll event for annotate→apply→WS flow. */
@@ -79,6 +91,7 @@ export function emitCandidateSearchPoll(payload: CandidateSearchPollPayload): vo
     profilesPagination: payload.profilesPagination ?? {},
     regionExpandFallbackUsed: Boolean(payload.regionExpandFallbackUsed),
     error: payload.error ?? null,
+    debug: payload.debug,
     timestamp: new Date().toISOString(),
   };
 

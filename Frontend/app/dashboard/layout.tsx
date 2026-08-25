@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DashboardScrollLock } from "@/components/layout/dashboard-scroll-lock";
+import { SearchCompletionToast } from "@/components/layout/search-completion-toast";
 import { SidebarProvider } from "@/components/layout/sidebar-context";
 import { TopHeader } from "@/components/layout/top-header";
 import { DashboardAuthGuard } from "@/components/auth/dashboard-auth-guard";
@@ -26,6 +27,7 @@ export default function DashboardLayout({
             </div>
             <ProductTourDialogs />
           </div>
+          <SearchCompletionToast />
         </DashboardProductTourProvider>
       </SidebarProvider>
     </DashboardAuthGuard>

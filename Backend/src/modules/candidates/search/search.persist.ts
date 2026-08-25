@@ -11,8 +11,54 @@ import {
 } from '../../sourcing/sourced-candidate.model.js';
 import type { SourcingSessionDocument } from '../../sourcing/sourcing-session.model.js';
 import { toCandidateSummaryDto, type CandidateSummaryDto } from './search.dto.js';
+import type { STORED_CANDIDATES_SORT_OPTIONS } from './search.validation.js';
 import { labelListFromUnknown } from '../../../shared/strings/label-list.js';
 import { profileSignalsFromFjDoc } from '../../../shared/sourcing/profile-signals.js';
+import {
+  aboutFromBrightDataProfile,
+  skillsFromBrightDataProfile,
+  summaryFromBrightDataProfile,
+  yearsOfExperienceFromBrightDataProfile,
+} from '../../../providers/bright-data/brightData.mapper.js';
+
+export type StoredCandidatesSort = (typeof STORED_CANDIDATES_SORT_OPTIONS)[number];
+
+/**
+ * Maps the table's sort dropdown to a Mongo sort spec so paginated browsing
+ * can order candidates server-side instead of loading everything to sort in
+ * the browser. `relevant-experience` collapses to the same order as
+ * `best-match`: the per-dimension match breakdown is only computed for the
+ * candidate detail drawer (see search.dto.ts matchBreakdownFromFjDetails) —
+ * unopened list rows already fall back to a flat copy of matchScore for every
+ * dimension (see Frontend lib/api/sourcing.ts), so summing dimensions today
+ * is mathematically equivalent to sorting by matchScore alone.
+ */
+const SORT_SPEC_BY_OPTION: Record<StoredCandidatesSort, Record<string, 1 | -1>> = {
+  'best-match': { matchScore: -1, rank: 1 },
+  'relevant-experience': { matchScore: -1, rank: 1 },
+  'recently-updated': { updatedAt: -1 },
+  'current-company': { currentCompany: 1 },
+  'total-experience': { experienceYears: -1 },
+};
+const DEFAULT_SORT_SPEC: Record<string, 1 | -1> = { rank: 1, createdAt: 1 };
+
+/** Mirrors the client-side `matchesResultQuery` fields (session-results.tsx) so
+ * "search within results" behaves identically once it moves server-side. */
+function buildStoredCandidatesSearchFilter(search: string | undefined): Record<string, unknown> {
+  const trimmed = search?.trim();
+  if (!trimmed) return {};
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(escaped, 'i');
+  return {
+    $or: [
+      { name: regex },
+      { currentRole: regex },
+      { currentCompany: regex },
+      { location: regex },
+      { skills: regex },
+    ],
+  };
+}
 
 function splitName(fullName: string): { firstName: string | null; lastName: string | null } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -26,9 +72,10 @@ function experienceYearsFromProfile(profile: Record<string, unknown>): number | 
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   if (typeof raw === 'string' && raw.trim()) {
     const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
+    if (Number.isFinite(n)) return n;
   }
-  return null;
+  // Bright Data snapshots omit the FJ scalar — derive from experience[] / aliases.
+  return yearsOfExperienceFromBrightDataProfile(profile);
 }
 
 function educationPreviewFromProfile(profile: Record<string, unknown>): unknown[] {
@@ -72,8 +119,10 @@ export async function upsertCandidatesFromDocs(options: {
   docs: FutureJobsProfileDoc[];
   organizationId: string;
   userId: string;
+  /** Provenance tag stored on each candidate — defaults to 'future_jobs'. */
+  source?: 'future_jobs' | 'bright_data';
 }): Promise<UpsertCandidatesResult> {
-  const { session, docs, organizationId, userId } = options;
+  const { session, docs, organizationId, userId, source = 'future_jobs' } = options;
   const fjSessionId = session.futureJobsSessionId || session.externalSessionId || null;
   const orgOid = new mongoose.Types.ObjectId(organizationId);
   const userOid = new mongoose.Types.ObjectId(userId);
@@ -82,6 +131,23 @@ export async function upsertCandidatesFromDocs(options: {
   let rankBase = await SourcedCandidateModel.countDocuments({
     sourcingSessionId: session._id,
   });
+
+  // Cross-vendor de-dup: Future Jobs and Bright Data describing the *same*
+  // real person will never share an `externalCandidateId` — Future Jobs uses
+  // its own doc id, Bright Data ids are always prefixed `bright-data:...`
+  // (see brightData.mapper.ts) — so the upsert filter below can't recognize
+  // them as one record. Pre-load already-stored LinkedIn URLs for this
+  // session so a same-profile doc from the other vendor is skipped here
+  // instead of hitting the DB's unique index and throwing mid-batch.
+  const existingLinkedinDocs = await SourcedCandidateModel.find(
+    { sourcingSessionId: session._id, linkedinUrlNormalized: { $type: 'string', $gt: '' } },
+    { linkedinUrlNormalized: 1 }
+  ).lean();
+  const seenLinkedinUrls = new Set(
+    existingLinkedinDocs
+      .map((c) => c.linkedinUrlNormalized)
+      .filter((url): url is string => Boolean(url))
+  );
 
   const ops: mongoose.AnyBulkWriteOperation[] = [];
   const seenIds = new Set<string>();
@@ -109,11 +175,6 @@ export async function upsertCandidatesFromDocs(options: {
       stableFallbackId(mapped);
 
     if (!candidateId) continue;
-    if (seenIds.has(candidateId)) {
-      duplicateCount += 1;
-      continue;
-    }
-    seenIds.add(candidateId);
 
     const linkedinUrl =
       mapped.linkedin_profile_url ||
@@ -124,6 +185,17 @@ export async function upsertCandidatesFromDocs(options: {
     const linkedinUrlNormalized = linkedinUrl
       ? normalizeLinkedinProfileUrl(linkedinUrl) || linkedinUrl.toLowerCase()
       : null;
+
+    if (seenIds.has(candidateId)) {
+      duplicateCount += 1;
+      continue;
+    }
+    if (linkedinUrlNormalized && seenLinkedinUrls.has(linkedinUrlNormalized)) {
+      duplicateCount += 1;
+      continue;
+    }
+    seenIds.add(candidateId);
+    if (linkedinUrlNormalized) seenLinkedinUrls.add(linkedinUrlNormalized);
 
     const profilePictureUrl =
       (typeof mapped.profile_picture_permalink === 'string' &&
@@ -164,6 +236,9 @@ export async function upsertCandidatesFromDocs(options: {
         .filter((s) => s && s !== '[object Object]')
         .slice(0, 24);
     }
+    if (skillsRaw.length === 0) {
+      skillsRaw = skillsFromBrightDataProfile(profile);
+    }
 
     const matchScore =
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
@@ -184,6 +259,7 @@ export async function upsertCandidatesFromDocs(options: {
             organizationId: orgOid,
             userId: userOid,
             futureJobsSessionId: fjSessionId,
+            source,
             candidateId,
             externalCandidateId: candidateId,
             linkedinProfileUrl: linkedinUrl,
@@ -213,13 +289,16 @@ export async function upsertCandidatesFromDocs(options: {
             finalScore: matchScore,
             matchScore,
             candidateSummary:
-              Array.isArray(profile.nuances) && profile.nuances.length
+              (source === 'bright_data' &&
+                (summaryFromBrightDataProfile(profile) ||
+                  aboutFromBrightDataProfile(profile))) ||
+              (Array.isArray(profile.nuances) && profile.nuances.length
                 ? profile.nuances
                     .slice(0, 5)
                     .map((n) => String(n ?? '').trim())
                     .filter(Boolean)
                     .join(' · ')
-                : null,
+                : null),
             mappedCandidate: mapped,
             rawDoc: doc,
             rawProviderReference: {
@@ -243,7 +322,32 @@ export async function upsertCandidatesFromDocs(options: {
     return { upsertedCount: 0, duplicateCount, candidates: [], newCandidates: [] };
   }
 
-  const bulk = await SourcedCandidateModel.bulkWrite(ops, { ordered: false });
+  let bulk: Awaited<ReturnType<typeof SourcedCandidateModel.bulkWrite>>;
+  try {
+    bulk = await SourcedCandidateModel.bulkWrite(ops, { ordered: false });
+  } catch (error) {
+    // The pre-check above closes the common case, but two callers can still
+    // race (e.g. Bright Data topping up two sessions' worth of the same
+    // profile, or a concurrent re-poll) and both pass it before either one's
+    // write lands — the unique index on linkedinUrlNormalized then rejects
+    // the loser. With ordered:false every non-conflicting op still applied,
+    // so treat a pure duplicate-key failure as partial success instead of
+    // throwing away the whole batch (and the caller's follow-up bookkeeping,
+    // e.g. brightdata-fallback.service.ts persisting usedBrightDataFallback).
+    const bulkError = error as {
+      code?: number;
+      writeErrors?: Array<{ code?: number }>;
+      result?: typeof bulk;
+    };
+    const isPureDuplicateKeyError =
+      Boolean(bulkError?.result) &&
+      (bulkError.code === 11000 ||
+        (Array.isArray(bulkError.writeErrors) &&
+          bulkError.writeErrors.length > 0 &&
+          bulkError.writeErrors.every((e) => e?.code === 11000)));
+    if (!isPureDuplicateKeyError) throw error;
+    bulk = bulkError.result!;
+  }
   const upsertedCount = (bulk.upsertedCount ?? 0) + (bulk.modifiedCount ?? 0);
 
   const stored = await SourcedCandidateModel.find({
@@ -270,6 +374,8 @@ export async function loadStoredCandidates(options: {
   limit?: number;
   all?: boolean;
   allLimit?: number;
+  sort?: StoredCandidatesSort;
+  search?: string;
 }): Promise<{
   candidates: SourcedCandidateDocument[];
   total: number;
@@ -279,13 +385,19 @@ export async function loadStoredCandidates(options: {
   const filter = {
     organizationId: new mongoose.Types.ObjectId(options.organizationId),
     sourcingSessionId: new mongoose.Types.ObjectId(options.sourcingSessionId),
+    ...buildStoredCandidatesSearchFilter(options.search),
   };
   const total = await SourcedCandidateModel.countDocuments(filter);
+  const sortSpec = options.sort ? SORT_SPEC_BY_OPTION[options.sort] : DEFAULT_SORT_SPEC;
+  // Case-insensitive string ordering (matters for "current-company" — Mongo's
+  // default byte-order sort would otherwise put "adobe" after "Zeta").
+  const collation = { locale: 'en', strength: 2 };
 
   if (options.all) {
     const allLimit = options.allLimit ?? 500;
     const candidates = await SourcedCandidateModel.find(filter)
-      .sort({ rank: 1, createdAt: 1 })
+      .collation(collation)
+      .sort(sortSpec)
       .limit(allLimit);
     return { candidates, total, page: 1, limit: allLimit };
   }
@@ -293,7 +405,8 @@ export async function loadStoredCandidates(options: {
   const page = options.page ?? 1;
   const limit = options.limit ?? 20;
   const candidates = await SourcedCandidateModel.find(filter)
-    .sort({ rank: 1, createdAt: 1 })
+    .collation(collation)
+    .sort(sortSpec)
     .skip((page - 1) * limit)
     .limit(limit);
 

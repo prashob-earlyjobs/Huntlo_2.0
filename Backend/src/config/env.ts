@@ -112,6 +112,30 @@ const envSchema = z.object({
   /** Absolute or cwd-relative path. Default: logs/future-jobs-curls.sh */
   FUTURE_JOBS_CURL_LOG_PATH: z.string().optional(),
 
+  // Bright Data (candidate sourcing fallback when Future Jobs stays under threshold)
+  BRIGHTDATA_API_KEY: z.string().default(''),
+  BRIGHTDATA_API_BASE_URL: z
+    .string()
+    .default('https://api.brightdata.com')
+    .transform((value) => value.replace(/\/$/, '')),
+  /**
+   * Marketplace dataset id used with `POST /datasets/filter` for LinkedIn
+   * people search. Defaults to Bright Data's "LinkedIn people profiles"
+   * dataset (`gd_l1viktl72bvl7bjuj0`) — override for the contact-enriched
+   * variant (`gd_me5ppxjr2ge6icjuh0`) or a custom dataset.
+   */
+  BRIGHTDATA_LINKEDIN_DATASET_ID: z.string().default('gd_l1viktl72bvl7bjuj0'),
+  /**
+   * Contact-enriched LinkedIn people dataset used as a reveal fallback when
+   * Future Jobs returns not-found. Search API: `POST /datasets/search/:id`.
+   */
+  BRIGHTDATA_CONTACT_DATASET_ID: z.string().default('gd_me5ppxjr2ge6icjuh0'),
+  BRIGHTDATA_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+  /** Trigger the Bright Data top-up when a session's total candidates stay below this. */
+  BRIGHTDATA_CANDIDATE_THRESHOLD: z.coerce.number().int().min(0).default(15),
+  BRIGHTDATA_MAX_RESULTS: z.coerce.number().int().min(1).default(150),
+  BRIGHTDATA_USE_MOCK: booleanFromEnv.optional(),
+
   // Optional Gemini enhancement for sourcing interpret (no-op when empty)
   GEMINI_API_KEY: z.string().default(''),
 

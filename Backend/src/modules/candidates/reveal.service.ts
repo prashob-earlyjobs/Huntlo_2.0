@@ -13,12 +13,19 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import {
   extractRevealValues,
+  extractScoutLookupRevealUrls,
+  FUTURE_JOBS_CIRCUIT_OPEN_CODE,
+  FUTURE_JOBS_UPSTREAM_ERROR_CODE,
   FutureJobsUpstreamError,
   getFutureJobsProvider,
   linkedinCacheLookupKeys,
   normalizeLinkedinProfileUrl,
   type FutureJobsRevealType,
 } from '../../providers/future-jobs/index.js';
+import {
+  contactsFromBrightDataProfile,
+  getBrightDataProvider,
+} from '../../providers/bright-data/index.js';
 import { SourcedCandidateModel } from '../sourcing/sourced-candidate.model.js';
 import { SourcingSessionModel } from '../sourcing/sourcing-session.model.js';
 import { CandidateActivityModel } from './candidate-activity.model.js';
@@ -44,6 +51,30 @@ export function syntheticCandidateIdFromLinkedin(linkedinKey: string): mongoose.
 }
 
 const log = () => createChildLogger({ module: 'candidates-reveal' });
+
+const REVEAL_UPSTREAM_USER_MESSAGE =
+  "We couldn't reveal this contact right now. Please try again shortly.";
+
+function isFjUpstreamLike(err: unknown): err is FutureJobsUpstreamError {
+  if (!err || typeof err !== 'object') return false;
+  const code = (err as { code?: string }).code;
+  return (
+    code === FUTURE_JOBS_UPSTREAM_ERROR_CODE ||
+    code === FUTURE_JOBS_CIRCUIT_OPEN_CODE ||
+    err instanceof FutureJobsUpstreamError
+  );
+}
+
+function fjHttpStatus(err: unknown): number {
+  if (!err || typeof err !== 'object') return 0;
+  const status = (err as { fjHttpStatus?: number }).fjHttpStatus;
+  return typeof status === 'number' ? status : 0;
+}
+
+function isFjClientError(err: unknown): boolean {
+  const status = fjHttpStatus(err);
+  return status >= 400 && status < 500;
+}
 
 export type ActorContext = {
   userId: string;
@@ -115,6 +146,130 @@ async function resolveCandidate(organizationId: string, candidateId: string) {
 
   assertSameOrganization(candidate.organizationId, organizationId);
   return candidate;
+}
+
+function isBrightDataCandidate(candidate: {
+  source?: string | null;
+  candidateId?: string | null;
+  externalCandidateId?: string | null;
+}): boolean {
+  if (candidate.source === 'bright_data') return true;
+  const id = String(candidate.externalCandidateId || candidate.candidateId || '');
+  return id.startsWith('bright-data:');
+}
+
+function stringFromUnknown(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function linkedinUrlFromRawDoc(rawDoc: unknown): string {
+  if (!rawDoc || typeof rawDoc !== 'object') return '';
+  const root = rawDoc as Record<string, unknown>;
+  const nested =
+    root.profile && typeof root.profile === 'object' && !Array.isArray(root.profile)
+      ? (root.profile as Record<string, unknown>)
+      : null;
+  const candidates = [
+    nested?.linkedin_profile_url,
+    nested?.linkedin_url,
+    nested?.url,
+    root.linkedin_profile_url,
+    root.linkedin_url,
+    root.url,
+  ];
+  for (const raw of candidates) {
+    const key = normalizeLinkedinProfileUrl(stringFromUnknown(raw));
+    if (key) return key;
+  }
+  return '';
+}
+
+function linkedinUrlFromCandidate(candidate: {
+  linkedinProfileUrl?: string | null;
+  linkedinUrlNormalized?: string | null;
+  basicProfile?: { linkedinUrl?: string | null } | null;
+  rawDoc?: unknown;
+}): string {
+  const fromFields = [
+    candidate.linkedinProfileUrl,
+    candidate.basicProfile?.linkedinUrl,
+    candidate.linkedinUrlNormalized,
+  ];
+  for (const raw of fromFields) {
+    const key = normalizeLinkedinProfileUrl(raw);
+    if (key) return key;
+  }
+  return linkedinUrlFromRawDoc(candidate.rawDoc);
+}
+
+function memberLinkedinUrlFromId(id: string): string {
+  const slug = id.trim();
+  if (!slug) return '';
+  if (/^ACoAA/i.test(slug) || /^ACwAA/i.test(slug)) {
+    return normalizeLinkedinProfileUrl(`https://www.linkedin.com/in/${slug}`);
+  }
+  return '';
+}
+
+function linkedinRevealUrlsFromCandidate(candidate: {
+  linkedinProfileUrl?: string | null;
+  linkedinUrlNormalized?: string | null;
+  basicProfile?: { linkedinUrl?: string | null } | null;
+  rawDoc?: unknown;
+}): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string) => {
+    const key = normalizeLinkedinProfileUrl(raw);
+    if (!key || seen.has(key.toLowerCase())) return;
+    seen.add(key.toLowerCase());
+    urls.push(key);
+  };
+
+  push(linkedinUrlFromCandidate(candidate));
+
+  const rawDoc = candidate.rawDoc;
+  if (rawDoc && typeof rawDoc === 'object') {
+    const root = rawDoc as Record<string, unknown>;
+    const nested =
+      root.profile && typeof root.profile === 'object' && !Array.isArray(root.profile)
+        ? (root.profile as Record<string, unknown>)
+        : root;
+    for (const value of [
+      nested.linkedin_id,
+      nested.linkedin_num_id,
+      nested.id,
+      root.linkedin_id,
+    ]) {
+      if (typeof value === 'string') push(memberLinkedinUrlFromId(value));
+    }
+  }
+  return urls;
+}
+
+async function lookupBrightDataRevealValues(
+  linkedinUrls: string[],
+  contactType: RevealedContactType,
+  rawDoc?: unknown
+): Promise<string[]> {
+  const stored = contactsFromBrightDataProfile(rawDoc);
+  const fromStored = contactType === 'email' ? stored.emails : stored.phones;
+  if (fromStored.length > 0) return fromStored;
+
+  const urls = [...new Set(linkedinUrls.map((url) => url.trim()).filter(Boolean))];
+  if (urls.length === 0) return [];
+
+  try {
+    const provider = getBrightDataProvider();
+    for (const url of urls) {
+      const found = await provider.lookupContactsByLinkedinUrl(url);
+      const values = contactType === 'email' ? found.emails : found.phones;
+      if (values.length > 0) return values;
+    }
+  } catch (err) {
+    log().warn({ err }, 'bright data contact fallback failed');
+  }
+  return [];
 }
 
 async function loadContactValuesFromCache(
@@ -341,8 +496,9 @@ export class RevealService {
     const candidate = await resolveCandidate(actor.organizationId, candidateId);
     const candidateObjectId = candidate._id;
     const candidateIdHex = candidateObjectId.toHexString();
-    const linkedinUrl = candidate.basicProfile?.linkedinUrl ?? null;
-    const linkedinKey = normalizeLinkedinProfileUrl(linkedinUrl);
+    const revealUrls = linkedinRevealUrlsFromCandidate(candidate);
+    const linkedinKey = revealUrls[0] || '';
+    const linkedinUrl = linkedinKey || candidate.basicProfile?.linkedinUrl || null;
 
     // 1. Previous reveal for this user+candidate+type
     const previous = await RevealedContactModel.findOne({
@@ -503,25 +659,89 @@ export class RevealService {
       let fjResponse: unknown;
 
       const session = await SourcingSessionModel.findById(candidate.sourcingSessionId)
-        .select('externalSessionId')
+        .select('externalSessionId futureJobsSessionId')
         .lean();
       const externalSessionId =
-        session && typeof session.externalSessionId === 'string'
+        (session && typeof session.externalSessionId === 'string'
           ? session.externalSessionId.trim()
-          : '';
+          : '') ||
+        (session && typeof session.futureJobsSessionId === 'string'
+          ? session.futureJobsSessionId.trim()
+          : '');
 
-      if (externalSessionId) {
+      const brightData = isBrightDataCandidate(candidate);
+      let providerEndpoint: 'sourcing-session' | 'scout' | 'sourcing-session+scout' =
+        !brightData && externalSessionId ? 'sourcing-session' : 'scout';
+
+      const tryScoutReveal = async (): Promise<unknown> => {
+        const urlsToTry = [...revealUrls];
+        const seen = new Set(urlsToTry.map((url) => url.toLowerCase()));
+        const pushUrl = (raw: string) => {
+          const key = normalizeLinkedinProfileUrl(raw);
+          if (!key || seen.has(key.toLowerCase())) return;
+          seen.add(key.toLowerCase());
+          urlsToTry.unshift(key);
+        };
+
+        for (const vanity of revealUrls) {
+          try {
+            const lookedUp = await provider.scoutPeopleLookup({ linkedin_url: vanity });
+            for (const extra of extractScoutLookupRevealUrls(lookedUp)) {
+              pushUrl(extra);
+            }
+          } catch (error) {
+            if (isFjClientError(error)) continue;
+            throw error;
+          }
+        }
+
+        let lastResponse: unknown = null;
+        let lastError: unknown = null;
+        for (const url of urlsToTry) {
+          try {
+            const response = await provider.scoutPeopleRevealContact(url, fjType);
+            lastResponse = response;
+            if (extractRevealValues(response, fjType).length > 0) return response;
+          } catch (error) {
+            lastError = error;
+            if (isFjClientError(error)) continue;
+            throw error;
+          }
+        }
+        if (lastError && !isFjClientError(lastError)) throw lastError;
+        return lastResponse;
+      };
+
+      // Bright Data people are not members of the Future Jobs sourcing session.
+      // Calling `/wl/sourcing-session/contact/reveal` 4xx's and the UI mapped
+      // that to the search-outage banner. Scout reveal is still Future Jobs,
+      // keyed by LinkedIn URL (same API as People Scout).
+      if (brightData) {
+        fjResponse = await tryScoutReveal();
+      } else if (externalSessionId) {
         fjResponse = await provider.revealSourcingSessionContact(
           externalSessionId,
           linkedinKey,
           fjType
         );
       } else {
-        fjResponse = await provider.scoutPeopleRevealContact(linkedinKey, fjType);
+        fjResponse = await tryScoutReveal();
       }
 
-      // 5. Extract values
-      const values = extractRevealValues(fjResponse, fjType);
+      // 5. Extract values — Future Jobs first, Bright Data contact dataset on miss.
+      let values = extractRevealValues(fjResponse, fjType);
+      let providerVendor: 'future_jobs' | 'bright_data' = 'future_jobs';
+      if (values.length === 0) {
+        const fallback = await lookupBrightDataRevealValues(
+          revealUrls,
+          contactType,
+          candidate.rawDoc
+        );
+        if (fallback.length > 0) {
+          values = fallback;
+          providerVendor = 'bright_data';
+        }
+      }
       if (values.length === 0) {
         await revealQuotaService.refund(actor.organizationId, reservationId);
         const result = buildRevealResult({
@@ -569,6 +789,7 @@ export class RevealService {
         action: contactType === 'email' ? 'email_revealed' : 'mobile_revealed',
         metadata: {
           source: 'provider',
+          providerVendor,
           charged: true,
           valueCount: values.length,
           creditsCharged: costFor(contactType),
@@ -581,6 +802,9 @@ export class RevealService {
           candidateId: candidateIdHex,
           contactType,
           source: 'provider',
+          providerVendor,
+          providerEndpoint,
+          candidateSource: candidate.source ?? 'future_jobs',
           valueCount: values.length,
           creditsCharged: costFor(contactType),
         },
@@ -602,11 +826,80 @@ export class RevealService {
       }
       return result;
     } catch (error) {
+      if (isFjClientError(error)) {
+        const fallback = await lookupBrightDataRevealValues(
+          revealUrls,
+          contactType,
+          candidate.rawDoc
+        );
+        if (fallback.length > 0) {
+          const cache = await upsertContactCache({
+            linkedinUrlKey: linkedinKey,
+            externalCandidateId: candidate.externalCandidateId,
+            contactType,
+            values: fallback,
+          });
+          await createLedgerEntry({
+            organizationId: actor.organizationId,
+            userId: actor.userId,
+            candidateId: candidateObjectId,
+            externalCandidateId: candidate.externalCandidateId,
+            contactType,
+            contactCacheId: cache?._id ?? null,
+            quotaTransactionId: reservationId,
+          });
+          await revealQuotaService.commit(actor.organizationId, reservationId);
+          await CandidateActivityModel.create({
+            organizationId: actor.organizationId,
+            candidateId: candidateObjectId,
+            userId: actor.userId,
+            action: contactType === 'email' ? 'email_revealed' : 'mobile_revealed',
+            metadata: {
+              source: 'provider',
+              providerVendor: 'bright_data',
+              charged: true,
+              valueCount: fallback.length,
+              creditsCharged: costFor(contactType),
+            },
+          });
+          const result = buildRevealResult({
+            found: true,
+            charged: true,
+            source: 'provider',
+            contactType,
+            values: fallback,
+            candidateId: candidateIdHex,
+            creditsCharged: costFor(contactType),
+          });
+          if (options.idempotencyKey) {
+            await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+          }
+          return result;
+        }
+      }
       await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
-      if (error instanceof FutureJobsUpstreamError) {
-        throw new AppError(error.statusCode, error.code, error.message, {
-          cause: error,
-        });
+      if (isFjUpstreamLike(error)) {
+        if (isFjClientError(error)) {
+          const result = buildRevealResult({
+            found: false,
+            charged: false,
+            source: 'missing',
+            contactType,
+            values: [],
+            candidateId: candidateIdHex,
+            creditsCharged: 0,
+          });
+          if (options.idempotencyKey) {
+            await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+          }
+          return result;
+        }
+        throw new AppError(
+          (error as FutureJobsUpstreamError).statusCode || 502,
+          (error as FutureJobsUpstreamError).code || FUTURE_JOBS_UPSTREAM_ERROR_CODE,
+          REVEAL_UPSTREAM_USER_MESSAGE,
+          { cause: error }
+        );
       }
       throw error;
     }
@@ -876,7 +1169,15 @@ export class RevealService {
       const provider = getFutureJobsProvider();
       const fjType = toFjRevealType(contactType);
       const fjResponse = await provider.scoutPeopleRevealContact(linkedinKey, fjType);
-      const values = extractRevealValues(fjResponse, fjType);
+      let values = extractRevealValues(fjResponse, fjType);
+      let providerVendor: 'future_jobs' | 'bright_data' = 'future_jobs';
+      if (values.length === 0) {
+        const fallback = await lookupBrightDataRevealValues([linkedinKey], contactType);
+        if (fallback.length > 0) {
+          values = fallback;
+          providerVendor = 'bright_data';
+        }
+      }
 
       if (values.length === 0) {
         await revealQuotaService.refund(actor.organizationId, reservationId);
@@ -921,6 +1222,7 @@ export class RevealService {
         action: contactType === 'email' ? 'email_revealed' : 'mobile_revealed',
         metadata: {
           source: 'provider',
+          providerVendor,
           channel: 'people_scout',
           charged: true,
           valueCount: values.length,
@@ -934,6 +1236,7 @@ export class RevealService {
           candidateId: candidateIdHex,
           contactType,
           source: 'provider',
+          providerVendor,
           channel: 'people_scout',
           valueCount: values.length,
         },
@@ -954,6 +1257,57 @@ export class RevealService {
       }
       return result;
     } catch (error) {
+      if (
+        error instanceof FutureJobsUpstreamError &&
+        (error.fjHttpStatus === 404 || isFjClientError(error))
+      ) {
+        const fallback = await lookupBrightDataRevealValues([linkedinKey], contactType);
+        if (fallback.length > 0) {
+          const cache = await upsertContactCache({
+            linkedinUrlKey: linkedinKey,
+            externalCandidateId,
+            contactType,
+            values: fallback,
+          });
+          await createLedgerEntry({
+            organizationId: actor.organizationId,
+            userId: actor.userId,
+            candidateId: candidateObjectId,
+            externalCandidateId,
+            contactType,
+            contactCacheId: cache?._id ?? null,
+            quotaTransactionId: reservationId,
+          });
+          await revealQuotaService.commit(actor.organizationId, reservationId);
+          await CandidateActivityModel.create({
+            organizationId: actor.organizationId,
+            candidateId: candidateObjectId,
+            userId: actor.userId,
+            action: contactType === 'email' ? 'email_revealed' : 'mobile_revealed',
+            metadata: {
+              source: 'provider',
+              providerVendor: 'bright_data',
+              channel: 'people_scout',
+              charged: true,
+              valueCount: fallback.length,
+              creditsCharged: costFor(contactType),
+            },
+          });
+          const result = buildRevealResult({
+            found: true,
+            charged: true,
+            source: 'provider',
+            contactType,
+            values: fallback,
+            candidateId: candidateIdHex,
+            creditsCharged: costFor(contactType),
+          });
+          if (input.idempotencyKey) {
+            await this.storeIdempotentResponse(actor, scope, input.idempotencyKey, 200, result);
+          }
+          return result;
+        }
+      }
       await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
       if (error instanceof FutureJobsUpstreamError) {
         // FJ returns 404 when the LinkedIn key isn't resolvable for reveal —

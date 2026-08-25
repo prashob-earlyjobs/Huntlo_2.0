@@ -5,7 +5,9 @@ import {
   Copy,
   Loader2,
   Mail,
+  MailX,
   Phone,
+  PhoneOff,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -192,6 +194,7 @@ function ContactIconButton({
 }) {
   const [copied, setCopied] = useState(false);
   const Icon = kind === "email" ? Mail : Phone;
+  const UnavailableIcon = kind === "email" ? MailX : PhoneOff;
   const label = kind === "email" ? "email" : "mobile";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const isLoading = status === "loading";
@@ -221,6 +224,7 @@ function ContactIconButton({
               : `Reveal ${label} for ${cost} credits`
       }
       disabled={isLoading || isUnavailable}
+      className={cn(isUnavailable && "opacity-60")}
       onClick={() => {
         if (!visible) {
           onReveal(kind);
@@ -236,6 +240,8 @@ function ContactIconButton({
         <Loader2 aria-hidden className="animate-spin" />
       ) : copied ? (
         <Check aria-hidden className="text-success" />
+      ) : isUnavailable ? (
+        <UnavailableIcon aria-hidden className="text-muted-foreground" />
       ) : (
         <Icon aria-hidden />
       )}

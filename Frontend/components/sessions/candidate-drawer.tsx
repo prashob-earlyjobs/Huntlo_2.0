@@ -130,7 +130,7 @@ export function CandidateDrawer({
                 <SheetTitle className="truncate">{candidate.name}</SheetTitle>
                 <MatchScoreCompact score={candidate.matchScore} className="shrink-0" />
               </div>
-              <SheetDescription className="truncate">
+              <SheetDescription className="overflow-visible whitespace-normal text-left break-words">
                 {candidate.currentRole} · {candidate.currentCompany}
               </SheetDescription>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
@@ -140,7 +140,9 @@ export function CandidateDrawer({
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Timer aria-hidden className="size-3" />
-                  {candidate.experienceYears} yrs total
+                  {candidate.experienceYears == null
+                    ? "—"
+                    : `${candidate.experienceYears} yrs total`}
                 </span>
                 {isOpenToWork(candidate.signals) ? (
                   <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
@@ -201,13 +203,17 @@ export function CandidateDrawer({
               </div>
               <div className="space-y-2">
                 <SectionTitle>Summary</SectionTitle>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {candidate.summary}
+                <p className="overflow-visible whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+                  {candidate.summary?.trim() || "No summary available."}
                 </p>
               </div>
               <div className="space-y-2">
                 <SectionTitle>Top skills</SectionTitle>
-                <SkillChips skills={candidate.skills} />
+                {candidate.skills.length > 0 ? (
+                  <SkillChips skills={candidate.skills} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">No skills listed.</p>
+                )}
               </div>
               {candidate.signals.length > 0 ? (
                 <div className="space-y-2">

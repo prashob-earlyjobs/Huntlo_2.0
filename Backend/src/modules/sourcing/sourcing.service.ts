@@ -21,6 +21,7 @@ import {
 } from '../../shared/pagination/paginate.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { UserModel } from '../auth/user.model.js';
+import { resolveBrightDataDisplayFields } from '../../providers/bright-data/brightData.mapper.js';
 import { JobModel } from '../jobs/job.model.js';
 import {
   criteriaFromFilterForm,
@@ -155,6 +156,13 @@ export function toPublicSession(
 }
 
 export function toPublicCandidate(candidate: SourcedCandidateDocument) {
+  const source = candidate.source === 'bright_data' ? 'bright_data' : 'future_jobs';
+  const display = resolveBrightDataDisplayFields({
+    source,
+    experienceYears: candidate.experienceYears ?? null,
+    skills: candidate.skills,
+    rawDoc: candidate.rawDoc,
+  });
   return {
     id: candidate._id.toHexString(),
     sourcingSessionId: candidate.sourcingSessionId.toHexString(),
@@ -168,12 +176,13 @@ export function toPublicCandidate(candidate: SourcedCandidateDocument) {
     title: candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
     company: candidate.currentCompany ?? candidate.currentEmployment?.company ?? null,
     location: candidate.location ?? '',
-    experienceYears: candidate.experienceYears,
-    skills: candidate.skills ?? [],
+    experienceYears: display.experienceYears,
+    skills: display.skills,
     educationPreview: candidate.educationPreview ?? [],
     profileSignals: candidate.profileSignals ?? [],
     rank: candidate.rank ?? 0,
     matchScore: candidate.matchScore,
+    source,
   };
 }
 
@@ -793,6 +802,22 @@ export class SourcingService {
       );
     }
 
+    // Debug/testing-only breakdown of which vendor each stored candidate came
+    // from, plus the FJ poll ladder's current attempt count. Cheap enough to
+    // always compute — no new endpoint needed for QA to see fallback state.
+    const { MAX_POLL_ATTEMPTS } = await import('./sourcing.poller.js');
+    const sourceCounts = await SourcedCandidateModel.aggregate<{
+      _id: string | null;
+      count: number;
+    }>([
+      { $match: { sourcingSessionId: session._id } },
+      { $group: { _id: '$source', count: { $sum: 1 } } },
+    ]);
+    const sourceBreakdown = {
+      future_jobs: sourceCounts.find((row) => row._id === 'future_jobs')?.count ?? 0,
+      bright_data: sourceCounts.find((row) => row._id === 'bright_data')?.count ?? 0,
+    };
+
     return {
       sessionId: session._id.toHexString(),
       status: session.status,
@@ -801,6 +826,11 @@ export class SourcingService {
       estimatedResults: session.estimatedResults ?? 0,
       errorMessage: session.errorMessage,
       errorCode: session.errorCode,
+      pollAttemptCount: session.pollAttemptCount ?? 0,
+      maxPollAttempts: MAX_POLL_ATTEMPTS,
+      candidateSource: session.candidateSource ?? 'future_jobs',
+      usedBrightDataFallback: Boolean(session.usedBrightDataFallback),
+      sourceBreakdown,
     };
   }
 }

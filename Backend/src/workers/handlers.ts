@@ -22,6 +22,21 @@ import {
 const logger = () => getLogger().child({ component: 'job-handlers' });
 
 const HANDLERS: Record<BackgroundJobType, JobHandler> = {
+  async 'sourcing.create'(ctx) {
+    const payload = ctx.payload ?? {};
+    const sourcingSessionId =
+      typeof payload.sourcingSessionId === 'string' ? payload.sourcingSessionId : null;
+    if (!sourcingSessionId) {
+      return { result: { skipped: true, reason: 'missing_sourcing_session_id' } };
+    }
+
+    const { candidateSearchService } = await import(
+      '../modules/candidates/search/search.service.js'
+    );
+    await candidateSearchService.runQueuedApply(sourcingSessionId);
+    return { result: { sourcingSessionId } };
+  },
+
   async 'sourcing.poll'(ctx) {
     const payload = ctx.payload ?? {};
     const sourcingSessionId =

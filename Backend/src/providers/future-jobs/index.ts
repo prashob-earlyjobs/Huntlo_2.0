@@ -57,9 +57,12 @@ import {
   createMockFutureJobsProvider,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
+  getLastMockContactRevealKind,
+  getMockContactRevealCalls,
 } from './futureJobs.mock.js';
 import {
   extractRevealValues,
+  extractScoutLookupRevealUrls,
   linkedinCacheLookupKeys,
   looksValidContact,
   lowercaseLinkedinProfileUrl,
@@ -120,6 +123,7 @@ export {
   enrichFilterFormSkillsFromPrompt,
   ensureSkillsForFutureJobs,
   extractRevealValues,
+  extractScoutLookupRevealUrls,
   filterFormFromAnnotation,
   filterFormFromCreateResponse,
   fjAuthStyleLabel,
@@ -144,6 +148,8 @@ export {
   resetFutureJobsCircuit,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
+  getLastMockContactRevealKind,
+  getMockContactRevealCalls,
   shouldUseFutureJobsMock,
 };
 

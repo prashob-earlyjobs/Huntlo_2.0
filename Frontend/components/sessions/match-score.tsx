@@ -20,16 +20,29 @@ export function matchQualityLabel(score: number): string {
 /**
  * Compact numeric match score for the sessions feature — a colored number
  * plus a restrained text label. No ring, no gradient, no false precision.
+ * Bright Data rows have no vendor score; render an em dash instead of a
+ * placeholder like 70.
  */
 export function MatchScoreCompact({
   score,
   showLabel = true,
   className,
 }: {
-  score: number;
+  score: number | null;
   showLabel?: boolean;
   className?: string;
 }) {
+  if (score == null) {
+    return (
+      <span
+        className={cn("text-sm text-muted-foreground", className)}
+        aria-label="Match score not available"
+      >
+        No score
+      </span>
+    );
+  }
+
   return (
     <span
       className={cn("inline-flex items-baseline gap-1.5", className)}

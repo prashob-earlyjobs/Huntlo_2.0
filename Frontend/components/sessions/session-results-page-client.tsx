@@ -16,17 +16,23 @@ import {
   fetchMoreCandidates,
   getStoredSessionCandidates,
   type CandidateSearchSummary,
+  type SearchPagination,
 } from "@/lib/api/candidate-search";
 import type { SearchFilterState } from "@/lib/mock-search";
-import type { SessionCandidate, SourcingSession } from "@/lib/mock-sessions";
+import type { SessionCandidate, SortOptionId, SourcingSession } from "@/lib/mock-sessions";
 import { providerPayloadToFilters } from "@/lib/search-filter-adapters";
 import { useRealtime } from "@/providers/realtime-provider";
 
-const POLL_INTERVAL_MS = 2500;
+/** Next.js inlines NODE_ENV at build time — safe to read directly in a client component. */
+const SHOW_VENDOR_DEBUG_STRIP = process.env.NODE_ENV !== "production";
+
 const FETCH_MORE_GAP_MS = 1500;
 const MAX_PROGRESS_POLL_ATTEMPTS = 15;
 /** Same ~90s window as the previous 30×3s schedule. */
 const PROGRESS_POLL_INTERVAL_MS = 6000;
+/** Default page size for the API-paginated results table (matches the "Rows"
+ * options offered in the pager — see session-results.tsx). */
+const DEFAULT_RESULTS_PAGE_SIZE = 20;
 
 /** Set by search-workspace after Apply; absent when opening search history. */
 function liveSearchStorageKey(sessionId: string) {
@@ -50,6 +56,20 @@ function clearLiveSearchSession(sessionId: string) {
     // ignore
   }
 }
+
+/**
+ * Debug/testing-only vendor + poll-ladder snapshot — carried on the
+ * `candidates.search.poll` / `candidates.search.completed` socket payloads
+ * (see Backend `debug` field on `CandidateSearchPollPayload`). Sourced
+ * entirely from the socket; never fetched over REST.
+ */
+type VendorDebugSnapshot = {
+  pollAttemptCount: number;
+  maxPollAttempts: number;
+  candidateSource: string;
+  usedBrightDataFallback: boolean;
+  sourceBreakdown: { future_jobs: number; bright_data: number };
+};
 
 function candidateIdentity(c: CandidateSearchSummary | SessionCandidate): string {
   if ("candidateId" in c && c.candidateId) return String(c.candidateId);
@@ -92,6 +112,7 @@ function mapSearchSummaryToSessionCandidate(
     matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
     saved: candidate.saved,
     lists: candidate.lists ?? [],
+    source: candidate.source,
   });
 }
 
@@ -106,8 +127,46 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notFoundSession, setNotFoundSession] = useState(false);
   const [canFetchMore, setCanFetchMore] = useState(false);
+  const [vendorDebug, setVendorDebug] = useState<VendorDebugSnapshot | null>(null);
   const progressAttemptsRef = useRef<Record<string, number>>({});
   const { subscribe, state: realtimeState } = useRealtime();
+
+  // API-paginated browsing of stored candidates — only drives the table once
+  // the session is at rest (not "running"). While running we keep the
+  // existing full accumulation + progressive reveal below untouched, since
+  // paginating a list that's still growing live would be confusing.
+  const [resultsPage, setResultsPage] = useState(1);
+  const [resultsPageSize, setResultsPageSize] = useState(DEFAULT_RESULTS_PAGE_SIZE);
+  const [resultsSort, setResultsSort] = useState<SortOptionId>("best-match");
+  const [resultsSearch, setResultsSearch] = useState("");
+  const [pagedCandidates, setPagedCandidates] = useState<SessionCandidate[]>([]);
+  const [pagedPagination, setPagedPagination] = useState<SearchPagination | null>(null);
+  const [pagedLoading, setPagedLoading] = useState(false);
+  const [pagedError, setPagedError] = useState<string | null>(null);
+  const pagedRequestTokenRef = useRef(0);
+
+  /**
+   * One-time hydration only (mount / explicit refresh) — NOT a polling
+   * loop. Needed because a reopened/already-completed session never gets a
+   * fresh `candidates.search.poll` socket tick to seed the strip from, so
+   * without this the debug strip would stay blank forever after reload.
+   * All *live* updates while a search is running still come from sockets.
+   */
+  const hydrateVendorDebug = useCallback(async () => {
+    if (!SHOW_VENDOR_DEBUG_STRIP) return;
+    try {
+      const progress = await sourcingApi.getProgress(sessionId);
+      setVendorDebug({
+        pollAttemptCount: progress.pollAttemptCount ?? 0,
+        maxPollAttempts: progress.maxPollAttempts ?? 0,
+        candidateSource: progress.candidateSource ?? "future_jobs",
+        usedBrightDataFallback: Boolean(progress.usedBrightDataFallback),
+        sourceBreakdown: progress.sourceBreakdown ?? { future_jobs: 0, bright_data: 0 },
+      });
+    } catch {
+      // Debug-only surface — never let this affect the real UI.
+    }
+  }, [sessionId]);
 
   const refresh = useCallback(async (reason: string) => {
     try {
@@ -146,6 +205,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         setSessionFilters(providerPayloadToFilters(stored.filterForm));
       }
 
+      void hydrateVendorDebug();
       setError(null);
       console.log("[SessionResults][refresh]", {
         reason,
@@ -167,7 +227,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       });
       return null;
     }
-  }, [sessionId]);
+  }, [sessionId, hydrateVendorDebug]);
 
   useEffect(() => {
     console.log("[SessionResults][mount]", { sessionId });
@@ -190,6 +250,88 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
   const loadedSessionId = session?.id ?? null;
   const loadedSessionState = session?.state ?? null;
 
+  const loadResultsPage = useCallback(
+    async (opts: { page: number; pageSize: number; sort: SortOptionId; search: string }) => {
+      const token = ++pagedRequestTokenRef.current;
+      setPagedLoading(true);
+      setPagedError(null);
+      try {
+        const result = await getStoredSessionCandidates(sessionId, {
+          page: opts.page,
+          limit: opts.pageSize,
+          sort: opts.sort,
+          search: opts.search.trim() || undefined,
+        });
+        if (pagedRequestTokenRef.current !== token) return;
+        setPagedCandidates(result.candidates.map(mapSearchSummaryToSessionCandidate));
+        setPagedPagination(result.profilesPagination ?? null);
+      } catch (err) {
+        if (pagedRequestTokenRef.current !== token) return;
+        setPagedError(getApiErrorMessage(err));
+      } finally {
+        if (pagedRequestTokenRef.current === token) setPagedLoading(false);
+      }
+    },
+    [sessionId]
+  );
+
+  // Fetch one page of stored candidates whenever the session is at rest and
+  // the page/sort/search inputs change. Skipped while "running" (the live
+  // socket/poll accumulation below owns the table then) and for "empty"
+  // drafts that were never run (nothing to page through).
+  useEffect(() => {
+    if (!loadedSessionId) return;
+    if (loadedSessionState === "running" || loadedSessionState === "empty") return;
+    void loadResultsPage({
+      page: resultsPage,
+      pageSize: resultsPageSize,
+      sort: resultsSort,
+      search: resultsSearch,
+    });
+  }, [
+    loadedSessionId,
+    loadedSessionState,
+    resultsPage,
+    resultsPageSize,
+    resultsSort,
+    resultsSearch,
+    loadResultsPage,
+  ]);
+
+  const handleResultsPageChange = useCallback((page: number) => {
+    setResultsPage(page);
+  }, []);
+  const handleResultsPageSizeChange = useCallback((size: number) => {
+    setResultsPageSize(size);
+    setResultsPage(1);
+  }, []);
+  const handleResultsSortChange = useCallback((sort: SortOptionId) => {
+    setResultsSort(sort);
+    setResultsPage(1);
+  }, []);
+  const handleResultsSearchChange = useCallback((search: string) => {
+    setResultsSearch(search);
+    setResultsPage(1);
+  }, []);
+  const reloadResultsPage = useCallback(() => {
+    void loadResultsPage({
+      page: resultsPage,
+      pageSize: resultsPageSize,
+      sort: resultsSort,
+      search: resultsSearch,
+    });
+  }, [loadResultsPage, resultsPage, resultsPageSize, resultsSort, resultsSearch]);
+  // "Export" should still cover every matching candidate, not just the page
+  // currently on screen — fetched on demand at click-time.
+  const fetchAllResultsForExport = useCallback(async () => {
+    const result = await getStoredSessionCandidates(sessionId, {
+      all: true,
+      sort: resultsSort,
+      search: resultsSearch.trim() || undefined,
+    });
+    return result.candidates.map(mapSearchSummaryToSessionCandidate);
+  }, [sessionId, resultsSort, resultsSearch]);
+
   // Progress-poll only while a search is still active. History reopen of a
   // completed session stays on MongoDB stored-candidates (no provider calls).
   useEffect(() => {
@@ -207,6 +349,9 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       progressAttemptsRef.current[sessionId] = attempt;
 
       try {
+        // Drives session/candidate progression only — the debug strip is
+        // populated purely from `candidates.search.poll` socket payloads
+        // (see the `debug` field), never from this REST response.
         const progress = await sourcingApi.getProgress(sessionId);
         const stored = await getStoredSessionCandidates(sessionId, { all: true });
         if (cancelled) return;
@@ -371,6 +516,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         candidates?: CandidateSearchSummary[];
         canFetchMore?: boolean;
         totalDocs?: number;
+        debug?: VendorDebugSnapshot;
       };
 
       const matches =
@@ -383,6 +529,13 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         data,
       });
       if (!matches) return;
+
+      // Debug strip is driven entirely off this socket payload — no REST
+      // getProgress call — and keeps updating even once the session is
+      // terminal since the completed event below carries `debug` too.
+      if (SHOW_VENDOR_DEBUG_STRIP && data.debug) {
+        setVendorDebug(data.debug);
+      }
 
       const incoming = [
         ...(data.newCandidates ?? []),
@@ -426,11 +579,21 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       const data = (event.data ?? event) as {
         savedSessionId?: string;
         sessionId?: string;
+        debug?: VendorDebugSnapshot;
       };
       const matches =
         data.savedSessionId === sessionId ||
         (fjSessionId != null && data.sessionId === fjSessionId);
-      if (matches) void refresh("socket-completed");
+      if (matches) {
+        // The terminal event carries the final debug snapshot too — the
+        // strip keeps reflecting reality (poll count, vendor, breakdown)
+        // even once the session has reached a terminal state, still with
+        // no REST call involved.
+        if (SHOW_VENDOR_DEBUG_STRIP && data.debug) {
+          setVendorDebug(data.debug);
+        }
+        void refresh("socket-completed");
+      }
     });
   }, [subscribe, sessionId, fjSessionId, refresh]);
 
@@ -457,12 +620,62 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
           {error}
         </p>
       ) : null}
+      {SHOW_VENDOR_DEBUG_STRIP && vendorDebug ? (
+        <VendorDebugStrip progress={vendorDebug} />
+      ) : null}
       <SessionResults
         session={session}
         candidates={candidates}
         initialFilters={sessionFilters}
         futureJobsSessionId={fjSessionId}
+        pagedResults={{
+          candidates: pagedCandidates,
+          pagination: pagedPagination,
+          loading: pagedLoading,
+          error: pagedError,
+          page: resultsPage,
+          pageSize: resultsPageSize,
+          sort: resultsSort,
+          search: resultsSearch,
+          onPageChange: handleResultsPageChange,
+          onPageSizeChange: handleResultsPageSizeChange,
+          onSortChange: handleResultsSortChange,
+          onSearchChange: handleResultsSearchChange,
+          onReload: reloadResultsPage,
+          fetchAllForExport: fetchAllResultsForExport,
+        }}
       />
     </>
+  );
+}
+
+/**
+ * Testing/QA-only strip surfacing the FJ poll ladder attempt count and the
+ * Bright Data fallback vendor breakdown. Only rendered when
+ * SHOW_VENDOR_DEBUG_STRIP is true (non-production NODE_ENV). Fed entirely
+ * off the `candidates.search.poll` / `candidates.search.completed` socket
+ * events — see `debug` on the payload — never over REST.
+ */
+function VendorDebugStrip({ progress }: { progress: VendorDebugSnapshot }) {
+  const breakdown = progress.sourceBreakdown;
+  return (
+    <p className="mb-3 rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+      <span className="font-medium text-foreground">Debug (live)</span>
+      {" · "}Poll {progress.pollAttemptCount ?? 0}/{progress.maxPollAttempts ?? "?"}
+      {" · "}Vendor: {progress.candidateSource ?? "future_jobs"}
+      {breakdown ? (
+        <>
+          {" · "}FJ: {breakdown.future_jobs} · BD: {breakdown.bright_data}
+        </>
+      ) : null}
+      {" · "}
+      <span
+        className={
+          progress.usedBrightDataFallback ? "text-foreground" : undefined
+        }
+      >
+        BD fallback tried: {progress.usedBrightDataFallback ? "yes" : "no"}
+      </span>
+    </p>
   );
 }

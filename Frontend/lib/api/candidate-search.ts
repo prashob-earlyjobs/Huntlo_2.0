@@ -1,6 +1,12 @@
+import type { SortOptionId } from "@/lib/mock-sessions";
+
 import { apiClient } from "./client";
 import { createDomainService, simulateMockLatency } from "./service";
 import { buildQueryString } from "./types";
+
+/** "search within results" moved server-side; keep the wire type distinct from
+ * SortOptionId's UI concerns (labels) even though the ids are shared 1:1. */
+export type StoredCandidatesSortId = SortOptionId;
 
 export type CandidateSkillsBuckets = {
   mandatory?: string[];
@@ -119,6 +125,8 @@ export type CandidateSearchSummary = {
   contactStatus?: string;
   saved?: boolean;
   lists?: string[];
+  /** Provider that returned this candidate — Future Jobs (default) or the Bright Data fallback. */
+  source?: "future_jobs" | "bright_data";
 };
 
 export type StoredCandidatesResponse = {
@@ -266,7 +274,14 @@ export interface CandidateSearchApi {
   ): Promise<StoredCandidatesResponse>;
   getStoredSessionCandidates(
     sessionId: string,
-    params?: { page?: number; limit?: number; all?: boolean; metaOnly?: boolean }
+    params?: {
+      page?: number;
+      limit?: number;
+      all?: boolean;
+      metaOnly?: boolean;
+      sort?: StoredCandidatesSortId;
+      search?: string;
+    }
   ): Promise<StoredCandidatesResponse>;
   fetchMoreCandidates(
     sessionId: string,
@@ -644,6 +659,8 @@ const liveCandidateSearchApi: CandidateSearchApi = {
       limit: params?.limit,
       ...(params?.all ? { all: "1" } : {}),
       ...(params?.metaOnly ? { metaOnly: "1" } : {}),
+      ...(params?.sort ? { sort: params.sort } : {}),
+      ...(params?.search?.trim() ? { search: params.search.trim() } : {}),
     });
     return rawGet(
       `/candidates/session/${encodeURIComponent(sessionId)}/stored-candidates${qs}`
@@ -753,7 +770,14 @@ export async function getSourcingSessionProfiles(
 
 export async function getStoredSessionCandidates(
   sessionId: string,
-  params?: { page?: number; limit?: number; all?: boolean; metaOnly?: boolean }
+  params?: {
+    page?: number;
+    limit?: number;
+    all?: boolean;
+    metaOnly?: boolean;
+    sort?: StoredCandidatesSortId;
+    search?: string;
+  }
 ) {
   return candidateSearchApi.getStoredSessionCandidates(sessionId, params);
 }
