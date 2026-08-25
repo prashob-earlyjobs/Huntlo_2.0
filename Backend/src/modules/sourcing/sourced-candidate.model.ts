@@ -43,6 +43,12 @@ const sourcedCandidateSchema = new mongoose.Schema(
       index: true,
     },
     futureJobsSessionId: { type: String, default: null, trim: true, index: true },
+    /** Provider that returned this candidate — Future Jobs (default) or the Bright Data top-up. */
+    source: {
+      type: String,
+      enum: ['future_jobs', 'bright_data'],
+      default: 'future_jobs',
+    },
     /** Future Jobs candidate id (canonical). */
     candidateId: { type: String, default: null, trim: true },
     /** Legacy alias for candidateId. */

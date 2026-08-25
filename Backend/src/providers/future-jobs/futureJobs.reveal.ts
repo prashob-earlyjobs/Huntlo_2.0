@@ -104,6 +104,66 @@ export function extractRevealValues(
   return deduped;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function profileRecordFromScoutLookup(fj: unknown): Record<string, unknown> | null {
+  const root = asRecord(fj);
+  if (!root) return null;
+  const data = asRecord(root.data) ?? root;
+  const nested = asRecord(data.profile);
+  if (nested) return nested;
+  const profiles = data.profiles;
+  if (Array.isArray(profiles) && profiles.length > 0) {
+    const first = asRecord(profiles[0]);
+    if (!first) return null;
+    return asRecord(first.profile) ?? first;
+  }
+  return data.linkedin_profile_url || data.linkedin_flagship_url ? data : null;
+}
+
+/**
+ * Member / profile URLs from a scout-people lookup. Reveal-contacts often
+ * 404s on vanity `/in/name` URLs and needs the opaque `/in/ACoAA…` profile URL.
+ */
+export function extractScoutLookupRevealUrls(fj: unknown): string[] {
+  const profile = profileRecordFromScoutLookup(fj);
+  if (!profile) return [];
+  const raw = [
+    asString(profile.linkedin_profile_url),
+    asString(profile.linkedin_flagship_url),
+    asString(profile.url),
+  ];
+  const username =
+    Array.isArray(profile.query_linkedin_profile_urn_or_slug) &&
+    typeof profile.query_linkedin_profile_urn_or_slug[0] === 'string'
+      ? profile.query_linkedin_profile_urn_or_slug[0]
+      : '';
+  if (username) raw.push(`https://www.linkedin.com/in/${username.replace(/^in\//i, '')}`);
+
+  const urls = raw
+    .map((value) => normalizeLinkedinProfileUrl(value))
+    .filter(Boolean);
+  const member = urls.filter((url) => /\/in\/AC[ow]AA/i.test(url));
+  const rest = urls.filter((url) => !/\/in\/AC[ow]AA/i.test(url));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of [...member, ...rest]) {
+    const key = url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(url);
+  }
+  return out;
+}
+
 /**
  * Canonical LinkedIn profile URL for DB keys. Host is normalized; slug case is preserved
  * (member IDs like ACoAA… are case-sensitive for Future Jobs).

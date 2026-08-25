@@ -19,6 +19,7 @@ import {
 import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate.model.js';
 import { SourcingSessionModel } from '../src/modules/sourcing/sourcing-session.model.js';
 import { pollSourcingSessions } from '../src/modules/sourcing/sourcing.poller.js';
+import { candidateSearchService } from '../src/modules/candidates/search/search.service.js';
 import {
   QuotaCounterModel,
   periodResetAt,
@@ -206,8 +207,17 @@ describe('Sourcing API + poller', () => {
       .expect(201);
 
     const sessionId = created.body.data.id as string;
+    // apply() is now fire-and-forget: createSession() returns the pending
+    // session immediately, before the sourcing.create job has run.
     expect(['queued', 'running', 'polling']).toContain(created.body.data.status);
-    expect(created.body.data.externalSessionId).toBeTruthy();
+    expect(created.body.data.sessionPending).toBe(true);
+
+    // Simulate the sourcing.create background job that would normally be
+    // picked up by the worker.
+    await candidateSearchService.runQueuedApply(sessionId);
+
+    const afterCreate = await SourcingSessionModel.findById(sessionId);
+    expect(afterCreate?.futureJobsSessionId || afterCreate?.externalSessionId).toBeTruthy();
 
     // Poll until mock yields profiles (empty → ready).
     for (let i = 0; i < 5; i += 1) {

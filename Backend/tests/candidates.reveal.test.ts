@@ -20,10 +20,17 @@ import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate
 import { SourcingSessionModel } from '../src/modules/sourcing/sourcing-session.model.js';
 import {
   extractRevealValues,
+  extractScoutLookupRevealUrls,
+  getLastMockContactRevealKind,
+  getMockContactRevealCalls,
   normalizeLinkedinProfileUrl,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
 } from '../src/providers/future-jobs/index.js';
+import {
+  resetMockBrightDataState,
+  setMockBrightDataMode,
+} from '../src/providers/bright-data/index.js';
 import { IdempotencyModel } from '../src/shared/idempotency/idempotency.model.js';
 import {
   QuotaCounterModel,
@@ -102,6 +109,22 @@ describe('extractRevealValues / normalizeLinkedinProfileUrl', () => {
       'https://www.linkedin.com/in/ACoAAExample'
     );
   });
+
+  it('prefers ACoAA member URLs from a scout lookup payload', () => {
+    expect(
+      extractScoutLookupRevealUrls({
+        data: {
+          profile: {
+            linkedin_flagship_url: 'https://www.linkedin.com/in/hema-latha',
+            linkedin_profile_url: 'https://www.linkedin.com/in/ACoAAHemaLatha',
+          },
+        },
+      })
+    ).toEqual([
+      'https://www.linkedin.com/in/ACoAAHemaLatha',
+      'https://www.linkedin.com/in/hema-latha',
+    ]);
+  });
 });
 
 describe('Candidates reveal API', () => {
@@ -123,6 +146,7 @@ describe('Candidates reveal API', () => {
   beforeEach(async () => {
     clearRateLimits();
     resetMockFutureJobsState();
+    resetMockBrightDataState();
     await Promise.all([
       UserSessionModel.deleteMany({}),
       OnboardingModel.deleteMany({}),
@@ -344,5 +368,110 @@ describe('Candidates reveal API', () => {
     expect(response.body.data.enrichedProfile).toBeTruthy();
     expect(response.body.data.revealStatus.email.revealed).toBe(false);
     expect(response.body.data.revealStatus.email.values).toBeUndefined();
+  });
+
+  it('uses Future Jobs scout reveal for Bright Data candidates (session reveal is FJ-only)', async () => {
+    const { token, organizationId, userId } = await registerAndAuth(agent, '-bd');
+    const { session } = await seedCandidate(organizationId, userId);
+
+    const candidate = await SourcedCandidateModel.create({
+      organizationId,
+      sourcingSessionId: session._id,
+      source: 'bright_data',
+      candidateId: 'bright-data:hema',
+      externalCandidateId: 'bright-data:hema',
+      linkedinProfileUrl: 'https://www.linkedin.com/in/bd-hema-latha',
+      basicProfile: {
+        name: 'Hema Latha',
+        headline: 'Head of Human Resources',
+      },
+      currentEmployment: { title: 'Head of Human Resources', company: 'Travel Co' },
+      location: 'New Delhi',
+      experienceYears: 6,
+      skills: [],
+      rank: 20,
+    });
+
+    const response = await agent
+      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', 'reveal-bd-email-01')
+      .expect(200);
+
+    expect(getMockContactRevealCalls()).toEqual(['scout']);
+    expect(getLastMockContactRevealKind()).toBe('scout');
+    expect(response.body.data.found).toBe(true);
+    expect(response.body.data.charged).toBe(true);
+    expect(response.body.data.source).toBe('provider');
+    expect(response.body.data.values[0]).toContain('@');
+  });
+
+  it('falls back to Bright Data contact search when Future Jobs reveal is not found', async () => {
+    const { token, organizationId, userId } = await registerAndAuth(agent, '-bd-fb');
+    const { session } = await seedCandidate(organizationId, userId);
+    setMockFutureJobsMode({ emptyScoutReveal: true });
+
+    const candidate = await SourcedCandidateModel.create({
+      organizationId,
+      sourcingSessionId: session._id,
+      source: 'bright_data',
+      candidateId: 'bright-data:hema-fallback',
+      externalCandidateId: 'bright-data:hema-fallback',
+      linkedinProfileUrl: 'https://www.linkedin.com/in/bd-hema-latha',
+      basicProfile: {
+        name: 'Hema Latha',
+        headline: 'Head of Human Resources',
+      },
+      currentEmployment: { title: 'Head of Human Resources', company: 'Travel Co' },
+      location: 'New Delhi',
+      rank: 20,
+    });
+
+    const response = await agent
+      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', 'reveal-bd-fallback-01')
+      .expect(200);
+
+    expect(getMockContactRevealCalls().every((kind) => kind === 'scout')).toBe(true);
+    expect(getMockContactRevealCalls()).not.toContain('session');
+    expect(response.body.data.found).toBe(true);
+    expect(response.body.data.charged).toBe(true);
+    expect(response.body.data.source).toBe('provider');
+    expect(response.body.data.values[0]).toBe('bdhemalatha@brightdata.example');
+  });
+
+  it('returns not found when Future Jobs and Bright Data both miss contacts', async () => {
+    const { token, organizationId, userId } = await registerAndAuth(agent, '-bd-miss');
+    const { session } = await seedCandidate(organizationId, userId);
+    setMockFutureJobsMode({ emptyScoutReveal: true });
+    setMockBrightDataMode({ emptyContacts: true });
+
+    const candidate = await SourcedCandidateModel.create({
+      organizationId,
+      sourcingSessionId: session._id,
+      source: 'bright_data',
+      candidateId: 'bright-data:hema-miss',
+      externalCandidateId: 'bright-data:hema-miss',
+      linkedinProfileUrl: 'https://www.linkedin.com/in/bd-hema-latha',
+      basicProfile: {
+        name: 'Hema Latha',
+        headline: 'Head of Human Resources',
+      },
+      currentEmployment: { title: 'Head of Human Resources', company: 'Travel Co' },
+      location: 'New Delhi',
+      rank: 21,
+    });
+
+    const response = await agent
+      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', 'reveal-bd-miss-01')
+      .expect(200);
+
+    expect(response.body.data.found).toBe(false);
+    expect(response.body.data.charged).toBe(false);
+    expect(response.body.data.source).toBe('missing');
+    expect(response.body.data.values).toEqual([]);
   });
 });

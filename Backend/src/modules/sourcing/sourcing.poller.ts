@@ -6,8 +6,13 @@ import {
 import { emitCandidateSearchPoll } from '../../realtime/events.js';
 import { createChildLogger } from '../../config/logger.js';
 import { upsertCandidatesFromDocs as upsertSearchCandidates } from '../candidates/search/search.persist.js';
+import { maybeTopUpWithBrightData } from './brightdata-fallback.service.js';
 import { labelListFromUnknown } from '../../shared/strings/label-list.js';
 import { profileSignalsFromFjDoc } from '../../shared/sourcing/profile-signals.js';
+import {
+  skillsFromBrightDataProfile,
+  yearsOfExperienceFromBrightDataProfile,
+} from '../../providers/bright-data/brightData.mapper.js';
 import { quotaService } from './quota.service.js';
 import { SourcedCandidateModel } from './sourced-candidate.model.js';
 import {
@@ -15,7 +20,7 @@ import {
   type SourcingSessionDocument,
 } from './sourcing-session.model.js';
 
-const MAX_POLL_ATTEMPTS = 15;
+export const MAX_POLL_ATTEMPTS = 15;
 const POLL_BATCH_LIMIT = 25;
 const PROFILES_PAGE_LIMIT = 300;
 /** Skip a poll tick if another path (FE getProgress / dedicated job / sweep) just polled. */
@@ -46,9 +51,9 @@ function experienceYearsFromProfile(profile: Record<string, unknown>): number | 
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   if (typeof raw === 'string' && raw.trim()) {
     const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
+    if (Number.isFinite(n)) return n;
   }
-  return null;
+  return yearsOfExperienceFromBrightDataProfile(profile);
 }
 
 /** Legacy upsert fallback — prefer search.persist bulkWrite path. */
@@ -90,6 +95,9 @@ async function upsertCandidatesFromDocsLegacy(
         .filter((s) => s && s !== '[object Object]')
         .slice(0, 24);
     }
+    if (skillsRaw.length === 0) {
+      skillsRaw = skillsFromBrightDataProfile(profile);
+    }
 
     const matchScore =
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
@@ -125,6 +133,10 @@ async function upsertCandidatesFromDocsLegacy(
           organizationId: session.organizationId,
           userId: session.userId ?? session.ownerUserId,
           futureJobsSessionId: session.futureJobsSessionId || session.externalSessionId,
+          // This poll ladder only ever fetches Future Jobs profiles — Bright
+          // Data top-ups go through the separate upsertCandidatesFromDocs
+          // path in brightdata-fallback.service.ts with source explicitly set.
+          source: 'future_jobs',
           candidateId: externalId,
           basicProfile: {
             name: mapped.name || 'Unknown',
@@ -184,6 +196,37 @@ async function upsertCandidatesFromDocsLegacy(
   return upserted;
 }
 
+/**
+ * Debug/testing-only vendor + poll-ladder snapshot attached to every socket
+ * emit so QA tooling (session results debug strip) never has to fall back
+ * to REST polling to stay in sync.
+ */
+async function buildDebugSnapshot(session: SourcingSessionDocument): Promise<{
+  pollAttemptCount: number;
+  maxPollAttempts: number;
+  candidateSource: string;
+  usedBrightDataFallback: boolean;
+  sourceBreakdown: { future_jobs: number; bright_data: number };
+}> {
+  const sourceCounts = await SourcedCandidateModel.aggregate<{
+    _id: string | null;
+    count: number;
+  }>([
+    { $match: { sourcingSessionId: session._id } },
+    { $group: { _id: '$source', count: { $sum: 1 } } },
+  ]);
+  return {
+    pollAttemptCount: session.pollAttemptCount ?? 0,
+    maxPollAttempts: MAX_POLL_ATTEMPTS,
+    candidateSource: session.candidateSource ?? 'future_jobs',
+    usedBrightDataFallback: Boolean(session.usedBrightDataFallback),
+    sourceBreakdown: {
+      future_jobs: sourceCounts.find((row) => row._id === 'future_jobs')?.count ?? 0,
+      bright_data: sourceCounts.find((row) => row._id === 'bright_data')?.count ?? 0,
+    },
+  };
+}
+
 function computeProgress(
   totalResults: number,
   estimatedResults: number,
@@ -195,7 +238,7 @@ function computeProgress(
   return Math.min(90, 10 + attempt * 2);
 }
 
-async function finalizeSession(
+export async function finalizeSession(
   session: SourcingSessionDocument,
   status: 'completed' | 'partial' | 'failed',
   options?: {
@@ -283,6 +326,7 @@ async function finalizeSession(
     profilesPagination: session.profilesPagination,
     regionExpandFallbackUsed: Boolean(session.regionExpandFallbackUsed),
     error: session.errorMessage,
+    debug: await buildDebugSnapshot(session),
   });
 
   if (session.ownerUserId && (status === 'completed' || status === 'partial')) {
@@ -325,6 +369,26 @@ async function finalizeSession(
     } catch {
       // Never block search completion on mail failures.
     }
+  } else if (session.ownerUserId && status === 'failed') {
+    // Search ran fully in the background — the user has no other signal that
+    // it stopped, so let them know instead of leaving it silent.
+    const { notificationsService } = await import(
+      '../notifications/notifications.service.js'
+    );
+    void notificationsService
+      .create({
+        organizationId: orgId,
+        userId: String(session.ownerUserId),
+        type: 'candidate_search_progress',
+        severity: 'error',
+        title: 'Candidate search failed',
+        message:
+          session.errorMessage || 'We could not complete this candidate search.',
+        relatedEntityType: 'sourcing_session',
+        relatedEntityId: sessionId,
+        actionUrl: `/dashboard/sessions/${sessionId}`,
+      })
+      .catch(() => undefined);
   }
 }
 
@@ -499,7 +563,12 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
       });
       newCandidateCount = upsert.newCandidates.length;
       newCandidates = upsert.newCandidates;
-    } catch {
+    } catch (error) {
+      console.log(
+        `[sourcing-poll] upsertSearchCandidates failed, falling back to legacy upsert session=${sessionId} error=${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       newCandidateCount = await upsertCandidatesFromDocsLegacy(session, docs);
     }
   }
@@ -576,6 +645,7 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     profilesPagination: session.profilesPagination,
     regionExpandFallbackUsed: Boolean(session.regionExpandFallbackUsed),
     error: null,
+    debug: await buildDebugSnapshot(session),
   });
 
   const pendingEmpty = docs.length === 0 && totalDocs === 0;
@@ -583,6 +653,7 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
 
   // Empty search — wait for several ready+0 ticks (do not gate on estimated).
   if (pendingEmpty && attempt >= EMPTY_SEARCH_MIN_ATTEMPTS) {
+    await maybeTopUpWithBrightData(session);
     await finalizeSession(session, 'completed', {
       reason: 'no-profiles-returned',
       attempt,
@@ -597,6 +668,7 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
     !moreOnProvider &&
     (session.noNewProfileStreak ?? 0) >= NO_NEW_PROFILE_STREAK_LIMIT
   ) {
+    await maybeTopUpWithBrightData(session);
     await finalizeSession(session, 'completed', {
       reason: 'provider-exhausted',
       attempt,
@@ -606,6 +678,7 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
 
   if (attempt >= MAX_POLL_ATTEMPTS) {
     if (found > 0) {
+      await maybeTopUpWithBrightData(session);
       // Keep fetch-more available if FJ still reports more pages / docs.
       if (moreOnProvider) {
         session.canFetchMore = true;
@@ -620,12 +693,23 @@ async function pollOneSession(session: SourcingSessionDocument): Promise<void> {
         });
       }
     } else {
-      await finalizeSession(session, 'failed', {
-        errorCode: 'POLL_TIMEOUT',
-        errorMessage: 'Sourcing timed out before profiles were ready',
-        reason: 'attempts-exhausted-no-results',
-        attempt,
-      });
+      // Future Jobs found nothing in the full poll budget — this is the
+      // primary Bright Data rescue case (e.g. "0 FJ results" user story).
+      const { toppedUp } = await maybeTopUpWithBrightData(session);
+      const rescued = toppedUp && (session.totalResults ?? 0) > 0;
+      if (rescued) {
+        await finalizeSession(session, 'completed', {
+          reason: 'attempts-exhausted-rescued-via-brightdata',
+          attempt,
+        });
+      } else {
+        await finalizeSession(session, 'failed', {
+          errorCode: 'POLL_TIMEOUT',
+          errorMessage: 'Sourcing timed out before profiles were ready',
+          reason: 'attempts-exhausted-no-results',
+          attempt,
+        });
+      }
     }
   }
 }

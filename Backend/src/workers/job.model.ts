@@ -1,8 +1,8 @@
 import mongoose, { type Document, type Model, Schema } from 'mongoose';
 
 export const BACKGROUND_JOB_TYPES = [
-  'sourcing.poll',
   'sourcing.create',
+  'sourcing.poll',
   'candidate.bulk_reveal',
   'candidate.import',
   'outreach.execute_step',

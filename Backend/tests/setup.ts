@@ -16,6 +16,8 @@ process.env.ENCRYPTION_KEY =
 process.env.REALTIME_ENABLED = 'false';
 process.env.REALTIME_WS_PATH = '/realtime/v1';
 process.env.LOG_LEVEL = 'silent';
+process.env.BRIGHTDATA_USE_MOCK = 'true';
+process.env.FUTURE_JOBS_USE_MOCK = 'true';
 
 beforeEach(() => {
   resetEnvCache();

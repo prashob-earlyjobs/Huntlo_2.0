@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,6 +11,7 @@ import { UserSessionModel } from '../src/modules/auth/session.model.js';
 import { UserModel } from '../src/modules/auth/user.model.js';
 import { OrganizationMemberModel } from '../src/modules/organizations/member.model.js';
 import { OrganizationModel } from '../src/modules/organizations/organization.model.js';
+import { candidateSearchService } from '../src/modules/candidates/search/search.service.js';
 import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate.model.js';
 import { SourcingSessionModel } from '../src/modules/sourcing/sourcing-session.model.js';
 import { QuotaCounterModel } from '../src/shared/usage/index.js';
@@ -138,7 +140,7 @@ describe('Candidate search workflow', () => {
     expect(res.body.success).toBe(true);
   });
 
-  it('apply creates a Future Jobs session and persists candidates', async () => {
+  it('apply queues instantly; the sourcing.create job creates the Future Jobs session and persists candidates', async () => {
     const app = createApp();
     const agent = request.agent(app);
     const auth = await registerAndAuth(agent);
@@ -158,12 +160,23 @@ describe('Candidate search workflow', () => {
         limit: 20,
       });
 
+    // apply() is fire-and-forget now: it never contacts Future Jobs itself.
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.sessionId).toBeTruthy();
+    expect(res.body.success).toBe(false);
+    expect(res.body.sessionPending).toBe(true);
     expect(res.body.savedSessionId).toBeTruthy();
-    expect(res.body.sessionUpdated).toBe(false);
-    expect(Array.isArray(res.body.candidates)).toBe(true);
+
+    const savedSessionId = res.body.savedSessionId as string;
+    const queued = await SourcingSessionModel.findById(savedSessionId);
+    expect(queued?.status).toBe('queued');
+    expect(queued?.futureJobsSessionId).toBeFalsy();
+
+    // Simulate the `sourcing.create` background job picking up the queued session.
+    await candidateSearchService.runQueuedApply(savedSessionId);
+
+    const created = await SourcingSessionModel.findById(savedSessionId);
+    expect(created?.futureJobsSessionId).toBeTruthy();
+    expect(['pending', 'polling', 'partial', 'completed']).toContain(created?.status);
 
     const stored = await SourcedCandidateModel.countDocuments({
       organizationId: auth.organizationId,
@@ -172,7 +185,7 @@ describe('Candidate search workflow', () => {
 
     const sessions = await SourcingSessionModel.countDocuments({
       organizationId: auth.organizationId,
-      futureJobsSessionId: res.body.sessionId,
+      futureJobsSessionId: created?.futureJobsSessionId,
     });
     expect(sessions).toBe(1);
   });
@@ -265,6 +278,119 @@ describe('Candidate search workflow', () => {
     expect(stored.body.fromStored).toBe(true);
   });
 
+  it('stored-candidates supports server-side sort for paginated browsing', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    const organizationId = new mongoose.Types.ObjectId(auth.organizationId);
+    const session = await SourcingSessionModel.create({
+      organizationId,
+      ownerUserId: new mongoose.Types.ObjectId(auth.userId),
+      name: 'Sort test session',
+      status: 'completed',
+    });
+
+    await SourcedCandidateModel.create([
+      {
+        organizationId,
+        sourcingSessionId: session._id,
+        externalCandidateId: 'sort-low',
+        name: 'Low Experience',
+        basicProfile: { name: 'Low Experience' },
+        experienceYears: 2,
+        rank: 1,
+      },
+      {
+        organizationId,
+        sourcingSessionId: session._id,
+        externalCandidateId: 'sort-high',
+        name: 'High Experience',
+        basicProfile: { name: 'High Experience' },
+        experienceYears: 9,
+        rank: 2,
+      },
+      {
+        organizationId,
+        sourcingSessionId: session._id,
+        externalCandidateId: 'sort-mid',
+        name: 'Mid Experience',
+        basicProfile: { name: 'Mid Experience' },
+        experienceYears: 5,
+        rank: 3,
+      },
+    ]);
+
+    const sorted = await agent
+      .get(`/api/v1/candidates/session/${session._id.toHexString()}/stored-candidates`)
+      .query({ all: '1', sort: 'total-experience' })
+      .set('Authorization', `Bearer ${auth.token}`);
+
+    expect(sorted.status).toBe(200);
+    expect(sorted.body.candidates.map((c: { name: string }) => c.name)).toEqual([
+      'High Experience',
+      'Mid Experience',
+      'Low Experience',
+    ]);
+
+    // Default (no `sort`) keeps the legacy rank order — unaffected by the new param.
+    const defaultOrder = await agent
+      .get(`/api/v1/candidates/session/${session._id.toHexString()}/stored-candidates`)
+      .query({ all: '1' })
+      .set('Authorization', `Bearer ${auth.token}`);
+
+    expect(defaultOrder.body.candidates.map((c: { name: string }) => c.name)).toEqual([
+      'Low Experience',
+      'High Experience',
+      'Mid Experience',
+    ]);
+  });
+
+  it('stored-candidates supports server-side "search within results"', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    const organizationId = new mongoose.Types.ObjectId(auth.organizationId);
+    const session = await SourcingSessionModel.create({
+      organizationId,
+      ownerUserId: new mongoose.Types.ObjectId(auth.userId),
+      name: 'Search test session',
+      status: 'completed',
+    });
+
+    await SourcedCandidateModel.create([
+      {
+        organizationId,
+        sourcingSessionId: session._id,
+        externalCandidateId: 'search-match',
+        name: 'Priya Sharma',
+        basicProfile: { name: 'Priya Sharma' },
+        currentCompany: 'Zylonix Robotics',
+        rank: 1,
+      },
+      {
+        organizationId,
+        sourcingSessionId: session._id,
+        externalCandidateId: 'search-nomatch',
+        name: 'Arjun Mehta',
+        basicProfile: { name: 'Arjun Mehta' },
+        currentCompany: 'Other Corp',
+        rank: 2,
+      },
+    ]);
+
+    const searched = await agent
+      .get(`/api/v1/candidates/session/${session._id.toHexString()}/stored-candidates`)
+      .query({ all: '1', search: 'zylonix' })
+      .set('Authorization', `Bearer ${auth.token}`);
+
+    expect(searched.status).toBe(200);
+    expect(searched.body.candidates).toHaveLength(1);
+    expect(searched.body.candidates[0].name).toBe('Priya Sharma');
+    expect(searched.body.profilesPagination.totalDocs).toBe(1);
+  });
+
   it('session profiles prefer MongoDB when candidates exist', async () => {
     const app = createApp();
     const agent = request.agent(app);
@@ -350,12 +476,16 @@ describe('Candidate search workflow', () => {
         filterForm: { currentTitle: 'DevOps Engineer' },
       });
 
+    // Drive the background job so the session has a Future Jobs id to fetch more from.
+    await candidateSearchService.runQueuedApply(applied.body.savedSessionId);
+    const created = await SourcingSessionModel.findById(applied.body.savedSessionId);
+
     const beforeCount = await SourcedCandidateModel.countDocuments({
       organizationId: auth.organizationId,
     });
 
     const more = await agent
-      .post(`/api/v1/candidates/session/${applied.body.sessionId}/fetch-more`)
+      .post(`/api/v1/candidates/session/${created?.futureJobsSessionId}/fetch-more`)
       .set('Authorization', `Bearer ${auth.token}`)
       .send({ page: 1, limit: 20 });
 
@@ -369,31 +499,41 @@ describe('Candidate search workflow', () => {
     expect(afterCount).toBeGreaterThanOrEqual(beforeCount);
   });
 
-  it('waits configured delay before first profiles poll', async () => {
+  it('apply resolves instantly regardless of Future Jobs wait config; the background job still waits', async () => {
     process.env.POST_SESSION_CREATE_PROFILES_WAIT_MS = '20000';
-    vi.useFakeTimers({ shouldAdvanceTime: true });
 
     const app = createApp();
     const agent = request.agent(app);
     const auth = await registerAndAuth(agent);
 
-    const promise = agent
+    const start = Date.now();
+    const res = await agent
       .post('/api/v1/candidates/search/apply')
       .set('Authorization', `Bearer ${auth.token}`)
       .send({
         prompt: 'Delay test engineers',
         filterForm: { currentTitle: 'Engineer' },
       });
+    const elapsed = Date.now() - start;
 
-    await vi.advanceTimersByTimeAsync(20_000);
-    // Advance poll intervals used by mock whenReady
-    await vi.advanceTimersByTimeAsync(15_000);
+    expect(res.status).toBe(200);
+    expect(res.body.sessionPending).toBe(true);
+    // apply() no longer contacts Future Jobs synchronously, so the 20s wait
+    // config must not block the HTTP response at all.
+    expect(elapsed).toBeLessThan(5_000);
 
-    const res = await promise;
-    expect([200, 502, 504]).toContain(res.status);
+    const savedSessionId = res.body.savedSessionId as string;
+
+    // The non-blocking assertion above already proves the HTTP path ignores
+    // this config; shrink it before driving the background job so the test
+    // doesn't have to burn real wall-clock time waiting out a 20s delay.
+    process.env.POST_SESSION_CREATE_PROFILES_WAIT_MS = '10';
+    await candidateSearchService.runQueuedApply(savedSessionId);
+
+    const session = await SourcingSessionModel.findById(savedSessionId);
+    expect(session?.futureJobsSessionId).toBeTruthy();
 
     process.env.POST_SESSION_CREATE_PROFILES_WAIT_MS = '0';
-    vi.useRealTimers();
   });
 
   it('legacy POST /search reuses apply pipeline', async () => {
@@ -429,13 +569,21 @@ describe('Candidate search workflow', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.sessionId).toBeTruthy();
+    expect(res.body.sessionPending).toBe(true);
+    expect(res.body.savedSessionId).toBeTruthy();
     expect(res.body.filterForm?.currentTitle).toBeTruthy();
+
+    await candidateSearchService.runQueuedApply(res.body.savedSessionId);
+
+    const session = await SourcingSessionModel.findById(res.body.savedSessionId);
+    const sessionPayload = session?.sessionPayload as
+      | { queries?: Record<string, { value?: unknown }> }
+      | undefined;
     // Structured title query — not stopword skills like "am" / "yr"
-    const titleQuery = res.body.sessionPayload?.queries?.['current_employers.title'];
-    expect(titleQuery?.value?.length).toBeGreaterThan(0);
-    const skillCore = res.body.sessionPayload?.queries?.skills?.value?.core ?? [];
+    const titleQuery = sessionPayload?.queries?.['current_employers.title'];
+    expect((titleQuery?.value as unknown[])?.length).toBeGreaterThan(0);
+    const skillCore =
+      (sessionPayload?.queries?.skills?.value as { core?: string[] })?.core ?? [];
     expect(skillCore).not.toContain('am');
     expect(skillCore).not.toContain('yr');
   });

@@ -23,24 +23,18 @@ const logger = () => getLogger().child({ component: 'job-handlers' });
 
 const HANDLERS: Record<BackgroundJobType, JobHandler> = {
   async 'sourcing.create'(ctx) {
-    const { sourcingService } = await import('../modules/sourcing/sourcing.service.js');
     const payload = ctx.payload ?? {};
-    const userId = String(payload.userId ?? '');
-    const organizationId = ctx.organizationId ?? String(payload.organizationId ?? '');
-    const role = String(payload.role ?? 'recruiter');
-    if (!userId || !organizationId) {
-      throw new Error('sourcing.create requires userId and organizationId in payload');
+    const sourcingSessionId =
+      typeof payload.sourcingSessionId === 'string' ? payload.sourcingSessionId : null;
+    if (!sourcingSessionId) {
+      return { result: { skipped: true, reason: 'missing_sourcing_session_id' } };
     }
-    const session = await sourcingService.createSession(
-      { userId, organizationId, role },
-      {
-        query: String(payload.query ?? ''),
-        name: payload.name ? String(payload.name) : undefined,
-        jobId: payload.jobId ? String(payload.jobId) : undefined,
-        run: Boolean(payload.run ?? true),
-      }
+
+    const { candidateSearchService } = await import(
+      '../modules/candidates/search/search.service.js'
     );
-    return { result: { sessionId: session.id } };
+    await candidateSearchService.runQueuedApply(sourcingSessionId);
+    return { result: { sourcingSessionId } };
   },
 
   async 'sourcing.poll'(ctx) {

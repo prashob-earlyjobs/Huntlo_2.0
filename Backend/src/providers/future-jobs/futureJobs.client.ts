@@ -413,7 +413,9 @@ async function futureJobsHttpRequest(options: {
           continue;
         }
 
-        recordCircuitFailure();
+        if (res.status >= 500) {
+          recordCircuitFailure();
+        }
         throwIfFjHttpNotOk(res, data, {
           label: `${fjOperation || defaultErrorPrefix} HTTP ${res.status}`,
           fjOperation,

@@ -72,6 +72,16 @@ export const sessionProfilesQuerySchema = z.object({
     .transform((v) => v === '1' || v === 'true' || v === true || v === 1),
 });
 
+/** Mirrors the frontend's SORT_OPTIONS ids (lib/mock-sessions.ts) so paginated
+ * requests can ask Mongo to sort the same way the table's sort dropdown does. */
+export const STORED_CANDIDATES_SORT_OPTIONS = [
+  'best-match',
+  'relevant-experience',
+  'recently-updated',
+  'current-company',
+  'total-experience',
+] as const;
+
 export const storedCandidatesQuerySchema = z.object({
   metaOnly: z
     .union([z.literal('1'), z.literal('true'), z.literal(true), z.literal(1)])
@@ -83,6 +93,10 @@ export const storedCandidatesQuerySchema = z.object({
     .transform((v) => v === '1' || v === 'true' || v === true || v === 1),
   page: z.coerce.number().int().min(1).max(100).default(1),
   limit: z.coerce.number().int().min(1).max(300).default(20),
+  /** Server-side sort for paginated browsing; omitted keeps the legacy rank order. */
+  sort: z.enum(STORED_CANDIDATES_SORT_OPTIONS).optional(),
+  /** "Search within results" — case-insensitive match across name/role/company/location/skills. */
+  search: z.string().trim().max(200).optional(),
 });
 
 export const allCandidatesQuerySchema = z.object({

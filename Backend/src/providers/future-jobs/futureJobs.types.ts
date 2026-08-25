@@ -309,4 +309,6 @@ export type MockFutureJobsMode = {
   pending207?: boolean;
   /** Keep profiles empty even after polls (for empty-fallback tests). */
   emptyProfiles?: boolean;
+  /** Scout / session reveal returns no email/phone (Bright Data fallback tests). */
+  emptyScoutReveal?: boolean;
 };

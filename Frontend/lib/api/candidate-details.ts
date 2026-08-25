@@ -40,11 +40,11 @@ export function mapCandidateDetailsToSessionCandidate(
     profileSignals: details.profileSignals ?? base.signals,
     rank: details.rank ?? 0,
     matchScore: details.matchScore ?? details.finalScore ?? null,
+    source: details.source ?? base.vendorSource,
   });
 
   const summary =
     details.summary?.trim() ||
-    details.recommendation?.trim() ||
     summaryCandidate.summary ||
     base.summary;
   const signals = normalizeLabelList(

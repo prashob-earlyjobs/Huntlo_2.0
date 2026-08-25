@@ -33,6 +33,8 @@ import { CandidateListModel } from '../candidate-list.model.js';
 import { SavedCandidateModel } from '../saved-candidate.model.js';
 import { JobModel } from '../../jobs/job.model.js';
 import { SOURCING_QUOTA_COST, quotaService } from '../../sourcing/quota.service.js';
+import { maybeTopUpWithBrightData } from '../../sourcing/brightdata-fallback.service.js';
+import { finalizeSession } from '../../sourcing/sourcing.poller.js';
 import { SourcedCandidateModel } from '../../sourcing/sourced-candidate.model.js';
 import {
   SourcingSessionModel,
@@ -57,7 +59,11 @@ import {
   sourcingSessionForbidden,
   sourcingSessionNotFound,
 } from './search.errors.js';
-import { loadStoredCandidates, upsertCandidatesFromDocs } from './search.persist.js';
+import {
+  loadStoredCandidates,
+  upsertCandidatesFromDocs,
+  type StoredCandidatesSort,
+} from './search.persist.js';
 import type {
   AnnotateSearchInput,
   ApplySearchInput,
@@ -735,6 +741,13 @@ export class CandidateSearchService {
   /**
    * Main candidate-search endpoint — annotate → drawer → apply.
    */
+  /**
+   * Fire-and-forget entry point. Future Jobs (and the Bright Data fallback) are
+   * both fully asynchronous now: this only reserves quota and persists a
+   * `queued` session, then hands off to the `sourcing.create` background job.
+   * The caller gets a `sessionPending` response almost instantly; the bell
+   * notification + toast + home indicator tell the user when it's ready.
+   */
   async apply(actor: SearchActor, input: ApplySearchInput) {
     const started = Date.now();
     const prompt = input.prompt.trim();
@@ -765,33 +778,177 @@ export class CandidateSearchService {
       }
     }
 
+    const quotaKey = idempotencyKeyForApply(actor, input);
+    await reserveSearchQuota(actor, quotaKey);
+
+    let existing: SourcingSessionDocument | null = null;
+    if (input.sessionId) {
+      existing = await resolveSession(actor.organizationId, input.sessionId);
+      assertCanUpdateSession(existing, actor);
+    }
+
+    let session: SourcingSessionDocument;
+    try {
+      session = await this.createQueuedSession({
+        actor,
+        existing,
+        prompt,
+        originalFilterForm,
+        quotaKey,
+      });
+    } catch (error) {
+      await releaseSearchQuota(actor.organizationId, quotaKey);
+      throw error instanceof AppError
+        ? error
+        : futureJobsUnavailable('Candidate search apply failed', error);
+    }
+
+    const savedSessionId = session._id.toHexString();
+
+    try {
+      await enqueueJob({
+        type: 'sourcing.create',
+        organizationId: actor.organizationId,
+        entityType: 'sourcing_session',
+        entityId: savedSessionId,
+        idempotencyKey: `sourcing.create:${savedSessionId}`,
+        payload: {
+          organizationId: actor.organizationId,
+          userId: actor.userId,
+          requestId: actor.requestId ?? null,
+          sourcingSessionId: savedSessionId,
+          page: input.page,
+          limit: input.limit,
+        },
+        maxAttempts: 3,
+      });
+    } catch (enqueueError) {
+      log().error(
+        { err: enqueueError, sourcingSessionId: savedSessionId },
+        'failed to enqueue sourcing.create job'
+      );
+      await releaseSearchQuota(actor.organizationId, quotaKey);
+      session.status = 'failed';
+      session.polling = false;
+      session.errorCode = 'ENQUEUE_FAILED';
+      session.errorMessage = 'Failed to queue candidate search job';
+      session.completedAt = new Date();
+      await session.save();
+      throw futureJobsUnavailable('Failed to queue candidate search', enqueueError);
+    }
+
+    log().info(
+      {
+        requestId: actor.requestId,
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        sourcingSessionId: savedSessionId,
+        durationMs: Date.now() - started,
+      },
+      'apply search queued for background processing'
+    );
+
+    return pendingResponse(
+      savedSessionId,
+      originalFilterForm,
+      "We're finding candidates in the background — you'll get a notification when results are ready.",
+      savedSessionId
+    );
+  }
+
+  /** Create (or reset) the session row *before* Future Jobs is ever contacted. */
+  private async createQueuedSession(options: {
+    actor: SearchActor;
+    existing: SourcingSessionDocument | null;
+    prompt: string;
+    originalFilterForm: FutureJobsFilterForm;
+    quotaKey: string;
+  }): Promise<SourcingSessionDocument> {
+    const { actor, existing, prompt, originalFilterForm, quotaKey } = options;
+
+    if (existing) {
+      existing.prompt = prompt;
+      existing.naturalLanguageQuery = prompt;
+      existing.filterForm = originalFilterForm;
+      existing.normalizedFilters = originalFilterForm;
+      existing.status = 'queued';
+      existing.polling = true;
+      existing.quotaTransactionId = quotaKey;
+      existing.quotaConsumed = SOURCING_QUOTA_COST;
+      existing.errorCode = null;
+      existing.errorMessage = null;
+      existing.completedAt = null;
+      existing.startedAt = existing.startedAt ?? new Date();
+      await existing.save();
+      return existing;
+    }
+
+    return SourcingSessionModel.create({
+      organizationId: actor.organizationId,
+      ownerUserId: actor.userId,
+      userId: actor.userId,
+      name: defaultSessionTitle(prompt),
+      sessionTitle: defaultSessionTitle(prompt),
+      prompt,
+      naturalLanguageQuery: prompt,
+      filterForm: originalFilterForm,
+      normalizedFilters: originalFilterForm,
+      status: 'queued',
+      polling: true,
+      quotaTransactionId: quotaKey,
+      quotaConsumed: SOURCING_QUOTA_COST,
+      startedAt: new Date(),
+    });
+  }
+
+  /**
+   * Runs in the `sourcing.create` background job: contacts Future Jobs (with
+   * the existing geo-expand-on-207 / skills-relax-on-zero fallbacks), does the
+   * first profiles fetch, then hands off to the standard `sourcing.poll`
+   * ladder (which itself may trigger the Bright Data top-up before finalizing).
+   * Never throws — terminal failures are persisted + notified via
+   * `finalizeSession(..., 'failed')` instead of propagating to the job queue.
+   */
+  async runQueuedApply(sourcingSessionId: string): Promise<void> {
+    const started = Date.now();
+    const session = await SourcingSessionModel.findOne({
+      _id: sourcingSessionId,
+      deletedAt: null,
+    });
+    if (!session) {
+      log().warn({ sourcingSessionId }, 'runQueuedApply: session not found');
+      return;
+    }
+    if (!['queued', 'creating', 'pending'].includes(session.status)) {
+      log().info(
+        { sourcingSessionId, status: session.status },
+        'runQueuedApply: session already progressed past queued, skipping'
+      );
+      return;
+    }
+
+    const actor: SearchActor = {
+      organizationId: session.organizationId.toHexString(),
+      userId: String(session.userId ?? session.ownerUserId ?? ''),
+      role: 'system',
+    };
+    const prompt = session.prompt || session.naturalLanguageQuery || '';
+    const originalFilterForm = asFilterForm(session.filterForm ?? DEFAULT_FILTER_FORM);
+    const quotaKey = session.quotaTransactionId || sourcingSessionId;
+    const page = 1;
+    const limit = 300;
+
+    session.status = 'creating';
+    await session.save();
+
     let workingForm: FutureJobsFilterForm = { ...originalFilterForm };
     let regionExpandStep: GeoExpandStep | null = null;
     let regionExpandFallbackUsed = false;
     let skillsRelaxFallbackUsed = false;
 
-    const quotaKey = idempotencyKeyForApply(actor, input);
-    await reserveSearchQuota(actor, quotaKey);
-
     const provider = getFutureJobsProvider();
-    let existing: SourcingSessionDocument | null = null;
-    let futureJobsSessionId: string | null = null;
-    let sessionUpdated = false;
-
-    if (input.sessionId) {
-      existing = await resolveSession(actor.organizationId, input.sessionId);
-      assertCanUpdateSession(existing, actor);
-      if (
-        existing.polling &&
-        ['polling', 'creating', 'pending', 'queued', 'running'].includes(existing.status)
-      ) {
-        // Allow re-apply on same session (idempotent) but block parallel conflicting runs
-        // only when a different user tries to steal an in-flight search.
-      }
-      futureJobsSessionId =
-        existing.futureJobsSessionId || existing.externalSessionId || null;
-      sessionUpdated = true;
-    }
+    let futureJobsSessionId: string | null =
+      session.futureJobsSessionId || session.externalSessionId || null;
 
     const originalRegionConfiguration = {
       geoDistance: originalFilterForm.geoDistance,
@@ -799,9 +956,9 @@ export class CandidateSearchService {
       selectRegion: originalFilterForm.selectRegion,
     };
 
-    async function attemptProviderSession(
+    const attemptProviderSession = async (
       form: FutureJobsFilterForm
-    ): Promise<{ res: unknown; sessionId: string; payload: Record<string, unknown> }> {
+    ): Promise<{ res: unknown; sessionId: string; payload: Record<string, unknown> }> => {
       const payload = buildSessionPayloadFromPromptAndFilter(
         promptForSourcingApi(prompt),
         form
@@ -813,7 +970,7 @@ export class CandidateSearchService {
       });
       futureJobsSessionId = sessionId;
       return { res, sessionId, payload };
-    }
+    };
 
     let lastRes: unknown;
     let lastPayload: Record<string, unknown> = {};
@@ -874,9 +1031,9 @@ export class CandidateSearchService {
       }
 
       if (provider.isFjSessionPending(lastRes)) {
-        const session = await this.upsertHistorySession({
+        const updated = await this.upsertHistorySession({
           actor,
-          existing,
+          existing: session,
           prompt,
           originalFilterForm,
           workingForm,
@@ -892,19 +1049,14 @@ export class CandidateSearchService {
         });
         await commitSearchQuota(actor.organizationId, quotaKey);
         try {
-          await enqueueBackgroundPoll(session, actor);
+          await enqueueBackgroundPoll(updated, actor);
         } catch (enqueueError) {
           log().warn(
-            { err: enqueueError, sourcingSessionId: session._id.toHexString() },
+            { err: enqueueError, sourcingSessionId: updated._id.toHexString() },
             'failed to enqueue background poll after pending session'
           );
         }
-        return pendingResponse(
-          fjId,
-          originalFilterForm,
-          'Finding candidates — matching profiles in progress.',
-          session._id.toHexString()
-        );
+        return;
       }
 
       // Short first wait, then poll — avoid the old fixed 20s wall.
@@ -916,8 +1068,8 @@ export class CandidateSearchService {
       let pollResult = await this.pollProfilesWithEmptyFallback({
         provider,
         fjId,
-        page: input.page,
-        limit: Math.min(input.limit, 300),
+        page,
+        limit: Math.min(limit, 300),
         expectedProfileCount: extractExpectedCount(lastRes),
         profileMatchingStatus: extractMatchingStatus(lastRes),
         originalFilterForm,
@@ -934,7 +1086,6 @@ export class CandidateSearchService {
           );
           return result;
         },
-        maxWaitMs: HTTP_APPLY_POLL_MAX_WAIT_MS,
       });
 
       regionExpandFallbackUsed =
@@ -944,16 +1095,16 @@ export class CandidateSearchService {
         skillsRelaxFallbackUsed || pollResult.skillsRelaxFallbackUsed;
       workingForm = pollResult.workingForm;
 
-      // No candidates yet but FJ is still matching → return pending early and
-      // finish via background poll (better UX than holding the HTTP request).
+      // No candidates yet but FJ is still matching → save pending and finish
+      // via the standard background poll ladder.
       if (
         pollResult.docs.length === 0 &&
         pollResult.totalDocs === 0 &&
         pollResult.polling
       ) {
-        const session = await this.upsertHistorySession({
+        const updated = await this.upsertHistorySession({
           actor,
-          existing,
+          existing: session,
           prompt,
           originalFilterForm,
           workingForm,
@@ -970,10 +1121,10 @@ export class CandidateSearchService {
         });
         await commitSearchQuota(actor.organizationId, quotaKey);
         try {
-          await enqueueBackgroundPoll(session, actor);
+          await enqueueBackgroundPoll(updated, actor);
         } catch (enqueueError) {
           log().warn(
-            { err: enqueueError, sourcingSessionId: session._id.toHexString() },
+            { err: enqueueError, sourcingSessionId: updated._id.toHexString() },
             'failed to enqueue background poll after early pending apply'
           );
         }
@@ -982,25 +1133,19 @@ export class CandidateSearchService {
           {
             requestId: actor.requestId,
             organizationId: actor.organizationId,
-            sourcingSessionId: session._id.toHexString(),
+            sourcingSessionId: updated._id.toHexString(),
             futureJobsSessionId: fjId,
             durationMs: Date.now() - started,
             earlyPending: true,
           },
-          'apply search returned early pending'
+          'queued apply returned early pending'
         );
-
-        return pendingResponse(
-          fjId,
-          originalFilterForm,
-          'Finding candidates — matching profiles in progress.',
-          session._id.toHexString()
-        );
+        return;
       }
 
-      const session = await this.upsertHistorySession({
+      const updated = await this.upsertHistorySession({
         actor,
-        existing,
+        existing: session,
         prompt,
         originalFilterForm,
         workingForm,
@@ -1010,9 +1155,7 @@ export class CandidateSearchService {
           ? 'polling'
           : pollResult.partial
             ? 'partial'
-            : pollResult.docs.length === 0
-              ? 'completed'
-              : 'completed',
+            : 'completed',
         regionExpandFallbackUsed,
         regionExpandStep,
         skillsRelaxFallbackUsed,
@@ -1023,47 +1166,45 @@ export class CandidateSearchService {
       });
 
       const upsert = await upsertCandidatesFromDocs({
-        session,
+        session: updated,
         docs: pollResult.docs,
         organizationId: actor.organizationId,
         userId: actor.userId,
       });
 
       const storedTotal = await SourcedCandidateModel.countDocuments({
-        sourcingSessionId: session._id,
+        sourcingSessionId: updated._id,
       });
       const pagination = buildPaginationDto({
         totalDocs: Math.max(pollResult.totalDocs, storedTotal),
-        page: input.page,
-        limit: input.limit,
+        page,
+        limit,
       });
 
-      session.totalDocs = pagination.totalDocs;
-      session.totalResults = pagination.totalDocs;
-      session.candidateCountFirstPage = upsert.candidates.length;
-      session.candidatePreview = upsert.candidates.slice(0, 10);
-      session.profilesPagination = pagination;
-      session.canFetchMore = pagination.hasNextPage || pollResult.canFetchMore;
+      updated.totalDocs = pagination.totalDocs;
+      updated.totalResults = pagination.totalDocs;
+      updated.candidateCountFirstPage = upsert.candidates.length;
+      updated.candidatePreview = upsert.candidates.slice(0, 10);
+      updated.profilesPagination = pagination;
+      updated.canFetchMore = pagination.hasNextPage || pollResult.canFetchMore;
 
-      // Always leave the session in `polling` after apply so FE getProgress
-      // (and the worker) can run the full sourcing.poller MAX_POLL_ATTEMPTS
-      // window against Future Jobs. Completing here made the FE's REST polls
-      // skip FJ and only re-read the same stored candidates.
-      session.polling = true;
-      session.lastPolledAt = new Date();
-      session.status = 'polling';
-      session.progress = Math.min(90, 20 + upsert.candidates.length);
-      session.completedAt = null;
-      await session.save();
+      // Always leave the session in `polling` after the initial fetch so the
+      // sourcing.poll ladder (and its Bright Data top-up) can keep running.
+      updated.polling = true;
+      updated.lastPolledAt = new Date();
+      updated.status = 'polling';
+      updated.progress = Math.min(90, 20 + upsert.candidates.length);
+      updated.completedAt = null;
+      await updated.save();
 
       await commitSearchQuota(actor.organizationId, quotaKey);
 
       try {
-        await enqueueBackgroundPoll(session, actor);
+        await enqueueBackgroundPoll(updated, actor);
       } catch (enqueueError) {
         log().warn(
-          { err: enqueueError, sourcingSessionId: session._id.toHexString() },
-          'failed to enqueue background poll after apply'
+          { err: enqueueError, sourcingSessionId: updated._id.toHexString() },
+          'failed to enqueue background poll after queued apply'
         );
       }
 
@@ -1071,14 +1212,14 @@ export class CandidateSearchService {
         organizationId: actor.organizationId,
         userId: actor.userId,
         sessionId: fjId,
-        savedSessionId: session._id.toHexString(),
-        status: session.status,
-        polling: Boolean(session.polling),
+        savedSessionId: updated._id.toHexString(),
+        status: updated.status,
+        polling: Boolean(updated.polling),
         candidates: upsert.candidates,
         newCandidates: upsert.newCandidates,
         newCandidateCount: upsert.newCandidates.length,
         totalDocs: pagination.totalDocs,
-        canFetchMore: Boolean(session.canFetchMore),
+        canFetchMore: Boolean(updated.canFetchMore),
         profilesPagination: pagination,
         regionExpandFallbackUsed,
         error: null,
@@ -1089,7 +1230,7 @@ export class CandidateSearchService {
           requestId: actor.requestId,
           organizationId: actor.organizationId,
           userId: actor.userId,
-          sourcingSessionId: session._id.toHexString(),
+          sourcingSessionId: updated._id.toHexString(),
           futureJobsSessionId: fjId,
           upsertCount: upsert.upsertedCount,
           duplicateCount: upsert.duplicateCount,
@@ -1098,36 +1239,40 @@ export class CandidateSearchService {
           usageTransactionId: quotaKey,
           polling: true,
         },
-        'apply search completed'
+        'queued apply completed initial fetch'
       );
-
-      return {
-        success: true,
-        prompt,
-        sessionId: fjId,
-        savedSessionId: session._id.toHexString(),
-        sessionUpdated,
-        page: input.page,
-        limit: input.limit,
-        canFetchMore: Boolean(session.canFetchMore),
-        filterForm: originalFilterForm,
-        sessionPayload: lastPayload,
-        candidates: upsert.candidates,
-        profilesPagination: pagination,
-        polling: true,
-        partial: true,
-        regionExpandFallbackUsed,
-      };
     } catch (error) {
-      const hasAcceptedSession = Boolean(futureJobsSessionId);
-      if (!hasAcceptedSession) {
-        await releaseSearchQuota(actor.organizationId, quotaKey);
-      } else {
-        await commitSearchQuota(actor.organizationId, quotaKey);
+      const message = error instanceof Error ? error.message : String(error);
+      const code =
+        error instanceof AppError
+          ? error.code
+          : error && typeof error === 'object' && 'code' in error
+            ? String((error as { code?: string }).code ?? 'PROVIDER_ERROR')
+            : 'PROVIDER_ERROR';
+      log().error(
+        { err: error, sourcingSessionId },
+        'runQueuedApply failed — attempting Bright Data fallback before finalize'
+      );
+      const latest = await SourcingSessionModel.findById(sourcingSessionId);
+      if (!latest) return;
+
+      // Concurrent searches can abort Future Jobs create (30s timeout × 3).
+      // That used to skip Bright Data entirely and show "Search failed" at
+      // poll 0/15. Rescue with the same fallback the poller uses.
+      const { toppedUp } = await maybeTopUpWithBrightData(latest);
+      const rescued = toppedUp && (latest.totalResults ?? 0) > 0;
+      if (rescued) {
+        await finalizeSession(latest, 'completed', {
+          reason: 'apply-create-failed-rescued-via-brightdata',
+        });
+        return;
       }
-      throw error instanceof AppError
-        ? error
-        : futureJobsUnavailable('Candidate search apply failed', error);
+
+      await finalizeSession(latest, 'failed', {
+        errorCode: code,
+        errorMessage: message,
+        reason: 'apply-create-failed',
+      });
     }
   }
 
@@ -1688,6 +1833,8 @@ export class CandidateSearchService {
       all?: boolean;
       page: number;
       limit: number;
+      sort?: StoredCandidatesSort;
+      search?: string;
     }
   ) {
     const session = await resolveSession(actor.organizationId, sessionIdParam);
@@ -1717,6 +1864,8 @@ export class CandidateSearchService {
       limit: query.limit,
       all: query.all,
       allLimit: STORED_CANDIDATES_ALL_LIMIT,
+      sort: query.sort,
+      search: query.search,
     });
     const externalCandidateIds = stored.candidates.map(
       (candidate) =>
@@ -1859,8 +2008,9 @@ export class CandidateSearchService {
 
     const fjSessionId = session.futureJobsSessionId || session.externalSessionId || null;
     const alreadyFull = hasFullFjCandidateDetails(candidate.rawDoc);
+    const isBrightData = candidate.source === 'bright_data';
 
-    if (!alreadyFull) {
+    if (!alreadyFull && !isBrightData) {
       const provider = getFutureJobsProvider();
       const detailIds = [
         candidate.candidateId,

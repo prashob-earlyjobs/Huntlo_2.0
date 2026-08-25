@@ -31,6 +31,12 @@ export type SourcingProgress = {
   estimatedResults: number;
   errorCode?: string | null;
   errorMessage?: string | null;
+  /** Debug/testing fields — surface FJ poll ladder + Bright Data fallback state. */
+  pollAttemptCount?: number;
+  maxPollAttempts?: number;
+  candidateSource?: "future_jobs" | "bright_data" | "mixed";
+  usedBrightDataFallback?: boolean;
+  sourceBreakdown?: { future_jobs: number; bright_data: number };
 };
 
 export type SourcingSessionApi = SourcingSession & {
@@ -68,6 +74,8 @@ export type SourcedCandidateApi = {
   matchScore: number | null;
   saved?: boolean;
   lists?: string[];
+  /** Provider that returned this candidate — Future Jobs (default) or the Bright Data fallback. */
+  source?: "future_jobs" | "bright_data";
 };
 
 export type CreateSourcingSessionInput = {
@@ -127,9 +135,13 @@ export function mapApiCandidateToSessionCandidate(
 ): SessionCandidate {
   const role = candidate.title ?? "";
   const company = candidate.company ?? "";
-  const score =
-    typeof candidate.matchScore === "number"
-      ? Math.round(Math.min(100, Math.max(0, candidate.matchScore * 20)))
+  const isBrightData = candidate.source === "bright_data";
+  const hasVendorScore =
+    typeof candidate.matchScore === "number" && Number.isFinite(candidate.matchScore);
+  const score = hasVendorScore
+    ? Math.round(Math.min(100, Math.max(0, candidate.matchScore * 20)))
+    : isBrightData
+      ? null
       : 70;
 
   return {
@@ -142,16 +154,16 @@ export function mapApiCandidateToSessionCandidate(
     currentCompany: company || "—",
     previousCompany: "—",
     location: candidate.location || "—",
-    experienceYears: candidate.experienceYears ?? 0,
+    experienceYears: candidate.experienceYears ?? null,
     skills: normalizeLabelList(candidate.skills, 24),
     matchScore: score,
     matchBreakdown: {
-      skills: score,
-      role: score,
-      experience: score,
-      location: score,
-      industry: score,
-      education: score,
+      skills: score ?? 0,
+      role: score ?? 0,
+      experience: score ?? 0,
+      location: score ?? 0,
+      industry: score ?? 0,
+      education: score ?? 0,
     },
     contactStatus: "Not contacted",
     saved: Boolean(candidate.saved),
@@ -191,6 +203,7 @@ export function mapApiCandidateToSessionCandidate(
       },
     ],
     similar: [],
+    vendorSource: candidate.source === "bright_data" ? "bright_data" : "future_jobs",
   };
 }
 
@@ -289,7 +302,7 @@ const mockSourcingApi: SourcingApi = {
       educationPreview: [],
       profileSignals: candidate.signals,
       rank: index + 1,
-      matchScore: candidate.matchScore / 20,
+      matchScore: candidate.matchScore == null ? null : candidate.matchScore / 20,
     }));
   },
   async getProgress(id) {
@@ -394,8 +407,13 @@ const liveSourcingApi: SourcingApi = {
     return all;
   },
   async getProgress(id) {
+    // The backend may synchronously run the Bright Data fallback (up to a
+    // few minutes) on the poll tick that finalizes the session — give this
+    // more room than the default 30s so that terminal transition doesn't
+    // surface as a spurious client-side timeout.
     const result = await apiClient.get<SourcingProgress>(
-      `/sourcing/sessions/${id}/progress`
+      `/sourcing/sessions/${id}/progress`,
+      { timeoutMs: 5 * 60_000 }
     );
     return result.data;
   },

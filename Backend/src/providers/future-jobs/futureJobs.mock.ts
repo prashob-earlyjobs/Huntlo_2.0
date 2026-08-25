@@ -19,6 +19,7 @@ type MockModeState = {
   timeout: boolean;
   pending207: boolean;
   emptyProfiles: boolean;
+  emptyScoutReveal: boolean;
 };
 
 const mockMode: MockModeState = {
@@ -27,22 +28,36 @@ const mockMode: MockModeState = {
   timeout: false,
   pending207: false,
   emptyProfiles: false,
+  emptyScoutReveal: false,
 };
 
 /** Per-session poll counters for deterministic empty → ready behavior. */
 const sessionPollCounts = new Map<string, number>();
 
 let sessionSeq = 0;
-let candidateSeq = 0;
+const contactRevealCalls: Array<'session' | 'scout'> = [];
+
+export function getLastMockContactRevealKind(): 'session' | 'scout' | null {
+  return contactRevealCalls[contactRevealCalls.length - 1] ?? null;
+}
+
+export function getMockContactRevealCalls(): Array<'session' | 'scout'> {
+  return [...contactRevealCalls];
+}
 
 function nextSessionId(): string {
   sessionSeq += 1;
   return `mock-fj-session-${sessionSeq}`;
 }
 
+/**
+ * Deterministic per (sessionId, index) — repeat polls for the same session
+ * must keep returning the SAME candidate id for the same slot, otherwise the
+ * upsert-by-externalCandidateId logic treats every poll's docs as brand new
+ * people and stores duplicate rows for the same mock profile.
+ */
 function nextCandidateId(sessionId: string, index: number): string {
-  candidateSeq += 1;
-  return `mock-fj-cand-${sessionId}-${index}-${candidateSeq}`;
+  return `mock-fj-cand-${sessionId}-${index}`;
 }
 
 /**
@@ -64,6 +79,9 @@ export function setMockFutureJobsMode(mode: MockFutureJobsMode): void {
   if (typeof mode.emptyProfiles === 'boolean') {
     mockMode.emptyProfiles = mode.emptyProfiles;
   }
+  if (typeof mode.emptyScoutReveal === 'boolean') {
+    mockMode.emptyScoutReveal = mode.emptyScoutReveal;
+  }
 }
 
 export function resetMockFutureJobsState(): void {
@@ -72,9 +90,10 @@ export function resetMockFutureJobsState(): void {
   mockMode.timeout = false;
   mockMode.pending207 = false;
   mockMode.emptyProfiles = false;
+  mockMode.emptyScoutReveal = false;
   sessionPollCounts.clear();
   sessionSeq = 0;
-  candidateSeq = 0;
+  contactRevealCalls.length = 0;
 }
 
 function maybeFail(operation: string): void {
@@ -637,10 +656,26 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     };
   }
 
+  function emptyRevealResponse(): FutureJobsApiResponse {
+    return {
+      status: true,
+      statusCode: 200,
+      message: 'Contact not found',
+      data: {
+        revealStatus: {
+          email: { revealed: false, values: [] },
+          phone: { revealed: false, values: [] },
+        },
+      },
+    };
+  }
+
   function buildRevealResponse(
     revealType: 'EMAIL' | 'PHONE',
     linkedinProfileUrl: string
   ): FutureJobsApiResponse {
+    if (mockMode.emptyScoutReveal) return emptyRevealResponse();
+
     const slug = linkedinProfileUrl
       .replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, '')
       .replace(/\/+$/, '')
@@ -673,6 +708,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     revealType: 'EMAIL' | 'PHONE'
   ): Promise<FutureJobsApiResponse> {
     maybeFail('POST /wl/sourcing-session/contact/reveal');
+    contactRevealCalls.push('session');
     const sessionId = String(sourcingSessionId || '').trim();
     const profileUrl = String(linkedinProfileUrl || '').trim();
     const type = String(revealType || '').toUpperCase();
@@ -683,6 +719,21 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
       (err as Error & { statusCode: number }).statusCode = 400;
       throw err;
     }
+    // Live Future Jobs only reveals people that belong to this sourcing
+    // session. Bright Data fallback profiles are not in that set.
+    if (/\/in\/bd-/i.test(profileUrl)) {
+      return {
+        status: true,
+        statusCode: 200,
+        message: 'Contact not in session',
+        data: {
+          revealStatus: {
+            email: { revealed: false, values: [] },
+            phone: { revealed: false, values: [] },
+          },
+        },
+      };
+    }
     return buildRevealResponse(type as 'EMAIL' | 'PHONE', profileUrl);
   }
 
@@ -691,6 +742,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     revealType: 'EMAIL' | 'PHONE'
   ): Promise<FutureJobsApiResponse> {
     maybeFail('POST /wl/scout-people/reveal-contacts');
+    contactRevealCalls.push('scout');
     const profileUrl = String(linkedinProfileUrl || '').trim();
     const type = String(revealType || '').toUpperCase();
     if (!profileUrl || (type !== 'PHONE' && type !== 'EMAIL')) {
@@ -787,7 +839,9 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
           location: 'Bengaluru, India',
           summary: 'Builds reliable APIs and hiring systems.',
           linkedin_flagship_url: profileUrl,
-          linkedin_profile_url: profileUrl,
+          linkedin_profile_url: /\/in\/bd-/i.test(profileUrl)
+            ? 'https://www.linkedin.com/in/ACoAAbdHemaLathaMock'
+            : profileUrl,
           profile_picture_url: '',
           num_of_connections: 500,
           skills: ['TypeScript', 'Node.js', 'React'],

@@ -85,9 +85,9 @@ export interface SessionCandidate {
   currentCompany: string;
   previousCompany: string;
   location: string;
-  experienceYears: number;
+  experienceYears: number | null;
   skills: string[];
-  matchScore: number;
+  matchScore: number | null;
   matchBreakdown: MatchBreakdown;
   contactStatus: ContactStatus;
   saved: boolean;
@@ -110,6 +110,12 @@ export interface SessionCandidate {
   updated: string;
   activity: CandidateActivityEntry[];
   similar: { id: string; name: string; headline: string; matchScore: number }[];
+  /**
+   * Search provider that returned this candidate — Future Jobs (default) or the
+   * Bright Data fallback. Distinct from `PoolCandidate.source` (pool provenance,
+   * e.g. "AI Search" / "People Scout").
+   */
+  vendorSource?: "future_jobs" | "bright_data";
 }
 
 function activityFor(name: string): CandidateActivityEntry[] {
@@ -850,7 +856,7 @@ export function sortCandidates(
   const list = [...candidates];
   switch (sort) {
     case "best-match":
-      return list.sort((a, b) => b.matchScore - a.matchScore);
+      return list.sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1));
     case "relevant-experience":
       return list.sort(
         (a, b) =>
@@ -864,7 +870,7 @@ export function sortCandidates(
         a.currentCompany.localeCompare(b.currentCompany)
       );
     case "total-experience":
-      return list.sort((a, b) => b.experienceYears - a.experienceYears);
+      return list.sort((a, b) => (b.experienceYears ?? -1) - (a.experienceYears ?? -1));
   }
 }
 

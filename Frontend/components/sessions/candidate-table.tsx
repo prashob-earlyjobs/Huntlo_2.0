@@ -116,6 +116,7 @@ export function CandidateTable({
               email: false,
               phone: false,
             };
+            const isBrightData = candidate.vendorSource === "bright_data";
             return (
               <TableRow
                 key={candidate.id}
@@ -144,6 +145,7 @@ export function CandidateTable({
                 }}
                 className={cn(
                   "cursor-pointer data-selected:bg-brand-subtle/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+                  isBrightData && "bg-info/[0.05] hover:bg-info/10",
                   density === "compact" ? "h-12" : "h-[72px]"
                 )}
               >
@@ -192,6 +194,20 @@ export function CandidateTable({
                             <TooltipContent>LinkedIn profile linked</TooltipContent>
                           </Tooltip>
                         ) : null}
+                        {isBrightData ? (
+                          <Tooltip>
+                            <TooltipTrigger
+                              aria-label={`${candidate.name} was sourced via Bright Data`}
+                              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                            >
+                              <span
+                                aria-hidden
+                                className="block size-1.5 shrink-0 rounded-full bg-info"
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>Sourced via Bright Data</TooltipContent>
+                          </Tooltip>
+                        ) : null}
                         {isOpenToWork(candidate.signals) ? (
                           <span className="shrink-0 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
                             Open to work
@@ -213,9 +229,12 @@ export function CandidateTable({
                 <TableCell
                   className={`${cellPad} text-right text-sm tabular-nums`}
                 >
-                  {candidate.experienceYears} yrs
+                  {candidate.experienceYears == null ? "—" : `${candidate.experienceYears} yrs`}
                 </TableCell>
                 <TableCell className={cellPad}>
+                  {candidate.skills.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  ) : (
                   <div className="flex max-w-44 items-center gap-1 overflow-hidden">
                     {candidate.skills.slice(0, 3).map((skill, index) => (
                       <span
@@ -231,6 +250,7 @@ export function CandidateTable({
                       </span>
                     ) : null}
                   </div>
+                  )}
                 </TableCell>
                 <TableCell className={cellPad}>
                   <MatchScoreCompact
