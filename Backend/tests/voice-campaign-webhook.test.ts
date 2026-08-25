@@ -538,6 +538,107 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     expect(updated!.hiringFlowState?.status).toBe('completed');
   });
 
+  it('starts post-qualification WhatsApp when voice is interested even if some answers are missing', async () => {
+    const auth = await registerAndAuth(agent);
+    const candidate = await SavedCandidateModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Prashob',
+      email: 'prashob-partial@example.com',
+      phone: '+919876543215',
+      source: 'manual',
+      status: 'saved',
+    });
+
+    const campaign = await OutreachCampaignModel.create({
+      organizationId: auth.organizationId,
+      ownerUserId: auth.userId,
+      name: 'Voice Partial Qual WhatsApp Campaign',
+      status: 'running',
+      channelConfig: {
+        email: { enabled: false, integrationId: null, senderEmail: null },
+        whatsapp: { enabled: true, integrationId: null },
+        ai_voice: { enabled: true, integrationId: null },
+        timezone: 'Asia/Kolkata',
+        sendWindow: { startHour: 9, endHour: 18, daysOfWeek: [1, 2, 3, 4, 5] },
+      },
+      sequenceSteps: [{ id: 'v1', order: 0, type: 'ai_voice', body: 'Hello' }],
+      qualificationConfig: {
+        enabled: true,
+        autoWhatsAppAfterQualification: true,
+        autoWhatsAppTemplateId: 'resume_share',
+        questions: [
+          {
+            id: 'q-notice',
+            title: 'notice period',
+            prompt: 'What is your notice period?',
+            answerType: 'text',
+          },
+          {
+            id: 'q-comp',
+            title: 'compensation',
+            prompt: 'What is your expected compensation?',
+            answerType: 'text',
+          },
+        ],
+      },
+    });
+
+    const enrollment = await OutreachEnrollmentModel.create({
+      organizationId: auth.organizationId,
+      campaignId: campaign._id,
+      candidateId: candidate._id,
+      status: 'active',
+      contactAvailability: { email: true, phone: true, optedOut: false },
+      qualificationState: { status: 'pending', answers: {} },
+    });
+
+    const requestId = `${String(campaign._id)}-req-partial-qual`;
+    const digits = '919876543215';
+    await VoiceCallModel.create({
+      organizationId: auth.organizationId,
+      source: 'outreach',
+      campaignId: campaign._id,
+      enrollmentId: enrollment._id,
+      candidateId: candidate._id,
+      callId: pendingVoiceCallId(requestId, digits),
+      requestId,
+      agentId: 'agent-1',
+      contactName: 'Prashob',
+      toNumber: digits,
+      toNumberDigits: digits,
+      status: 'ringing',
+    });
+
+    vi.mocked(sendHiringFlowWhatsAppTemplate).mockClear();
+    const res = await postSignedHunarWebhook(
+      agent,
+      `/api/integrations/voice/hunar/call-result?campaignId=${String(campaign._id)}`,
+      {
+        call_id: 'hunar-call-partial-qual-1',
+        request_id: requestId,
+        agent_id: 'agent-1',
+        to_number: '+919876543215',
+        status: 'COMPLETED',
+        duration_seconds: 80,
+        result: {
+          interest_level: 'Interested',
+          summary: 'Candidate is interested. Compensation was not mentioned.',
+          final_outcome: 'Interested',
+          notice_period: '10 days',
+        },
+      }
+    );
+
+    expect(res.status).toBe(200);
+    expect(sendHiringFlowWhatsAppTemplate).toHaveBeenCalledTimes(1);
+
+    const updated = await OutreachEnrollmentModel.findById(enrollment._id);
+    expect(updated!.qualificationState.status).toBe('in_progress');
+    expect(updated!.status).toBe('interested');
+    expect(updated!.hiringFlowState?.status).toBe('completed');
+  });
+
   it('commits ai_voice_minutes on completed call even when retriesLeft was seeded', async () => {
     const auth = await registerAndAuth(agent);
     const candidate = await SavedCandidateModel.create({

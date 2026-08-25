@@ -218,7 +218,17 @@ function MetaTemplatePicker({
   );
 }
 
-type OrgOption = { id: string; name: string };
+type OrgOption = { id: string; name: string; slug?: string | null };
+
+function toOrgOption(org: { id?: unknown; name?: unknown; slug?: unknown }): OrgOption | null {
+  const id = String(org.id || "").trim();
+  if (!id) return null;
+  return {
+    id,
+    name: String(org.name || "Organization"),
+    slug: org.slug ? String(org.slug) : null,
+  };
+}
 
 export function AdminHiringFlowsWorkspace() {
   const [flows, setFlows] = useState<ApiHiringFlow[]>([]);
@@ -233,9 +243,12 @@ export function AdminHiringFlowsWorkspace() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [assignFlow, setAssignFlow] = useState<ApiHiringFlow | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
+  const [knownOrgs, setKnownOrgs] = useState<OrgOption[]>([]);
   const [selectedOrgIds, setSelectedOrgIds] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [orgQuery, setOrgQuery] = useState("");
+  const [orgsLoading, setOrgsLoading] = useState(false);
+  const [orgSearchTotal, setOrgSearchTotal] = useState(0);
   const [waTemplates, setWaTemplates] = useState<MetaWhatsAppTemplate[]>([]);
   const [waTemplatesError, setWaTemplatesError] = useState<string | null>(null);
   const [waTemplatesLoading, setWaTemplatesLoading] = useState(false);
@@ -283,17 +296,65 @@ export function AdminHiringFlowsWorkspace() {
     };
   }, [Boolean(draft)]);
 
+  useEffect(() => {
+    if (!assignFlow) return;
+    const q = orgQuery.trim();
+    if (q.length < 2) {
+      setOrgs([]);
+      setOrgSearchTotal(0);
+      setOrgsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setOrgsLoading(true);
+    const handle = window.setTimeout(() => {
+      void adminApi
+        .listOrganizations({ page: 1, limit: 100, q })
+        .then((result) => {
+          if (cancelled) return;
+          const items = (result.items || [])
+            .map((org) => toOrgOption(org))
+            .filter((org): org is OrgOption => Boolean(org));
+          setOrgs(items);
+          setKnownOrgs((previous) => {
+            const map = new Map(previous.map((org) => [org.id, org]));
+            for (const org of items) map.set(org.id, org);
+            return [...map.values()];
+          });
+          setOrgSearchTotal(result.total ?? items.length);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setOrgs([]);
+          setOrgSearchTotal(0);
+        })
+        .finally(() => {
+          if (!cancelled) setOrgsLoading(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [assignFlow, orgQuery]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return flows;
     return flows.filter((flow) => flow.name.toLowerCase().includes(q));
   }, [flows, query]);
 
-  const filteredOrgs = useMemo(() => {
-    const q = orgQuery.trim().toLowerCase();
-    if (!q) return orgs;
-    return orgs.filter((org) => org.name.toLowerCase().includes(q));
-  }, [orgs, orgQuery]);
+  const visibleOrgs = useMemo(() => {
+    const selected = new Set(selectedOrgIds);
+    const byId = new Map<string, OrgOption>();
+    for (const org of knownOrgs) byId.set(org.id, org);
+    for (const org of orgs) byId.set(org.id, org);
+    const pinned = selectedOrgIds
+      .map((id) => byId.get(id))
+      .filter((org): org is OrgOption => Boolean(org));
+    const rest = orgs.filter((org) => !selected.has(org.id));
+    return [...pinned, ...rest];
+  }, [knownOrgs, orgs, selectedOrgIds]);
 
   async function handleCreate() {
     if (!createName.trim()) return;
@@ -339,21 +400,16 @@ export function AdminHiringFlowsWorkspace() {
     }
   }
 
-  async function openAssign(flow: ApiHiringFlow) {
+  function openAssign(flow: ApiHiringFlow) {
+    const assigned = (flow.assignedOrganizations || [])
+      .map((org) => toOrgOption(org))
+      .filter((org): org is OrgOption => Boolean(org));
     setAssignFlow(flow);
-    setSelectedOrgIds((flow.assignedOrganizations || []).map((org) => org.id));
+    setSelectedOrgIds(assigned.map((org) => org.id));
     setOrgQuery("");
-    try {
-      const result = await adminApi.listOrganizations({ page: 1, limit: 100 });
-      setOrgs(
-        (result.items || []).map((org) => ({
-          id: String(org.id || ""),
-          name: String(org.name || "Organization"),
-        }))
-      );
-    } catch {
-      setOrgs(flow.assignedOrganizations || []);
-    }
+    setOrgSearchTotal(0);
+    setOrgs([]);
+    setKnownOrgs(assigned);
   }
 
   async function handleAssign() {
@@ -776,15 +832,33 @@ export function AdminHiringFlowsWorkspace() {
           <Input
             value={orgQuery}
             onChange={(event) => setOrgQuery(event.target.value)}
-            placeholder="Search organisations…"
+            placeholder="Search by name or slug…"
+            aria-label="Search organisations"
           />
+          <p className="text-xs text-muted-foreground">
+            Many workspaces share the same display name. Use the slug under each
+            name to pick the right organisation.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {selectedOrgIds.length} selected
+            {orgQuery.trim().length >= 2 && orgSearchTotal > orgs.length
+              ? ` · showing ${orgs.length} of ${orgSearchTotal} matches`
+              : null}
+          </p>
           <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-            {filteredOrgs.length === 0 ? (
+            {orgsLoading && visibleOrgs.length === 0 ? (
+              <li className="flex items-center justify-center gap-2 px-2 py-6 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                Searching…
+              </li>
+            ) : visibleOrgs.length === 0 ? (
               <li className="px-2 py-6 text-center text-sm text-muted-foreground">
-                No organisations found.
+                {orgQuery.trim().length < 2
+                  ? "Type at least 2 characters to find an organisation."
+                  : "No organisations match that search."}
               </li>
             ) : (
-              filteredOrgs.map((org) => {
+              visibleOrgs.map((org) => {
                 const checked = selectedOrgIds.includes(org.id);
                 return (
                   <li key={org.id}>
@@ -806,7 +880,14 @@ export function AdminHiringFlowsWorkspace() {
                           )
                         }
                       />
-                      {org.name}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{org.name}</span>
+                        {org.slug ? (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {org.slug}
+                          </span>
+                        ) : null}
+                      </span>
                     </label>
                   </li>
                 );

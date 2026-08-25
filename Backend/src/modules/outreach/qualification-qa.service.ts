@@ -1851,6 +1851,7 @@ export async function processQualificationAfterReply(input: {
   intent?: string | null;
   extractedVariables?: Record<string, unknown>;
   preferredChannel?: 'email' | 'whatsapp' | null;
+  hasAttachment?: boolean;
 }): Promise<{ action: string }> {
   log().info(
     {
@@ -1865,6 +1866,59 @@ export async function processQualificationAfterReply(input: {
   );
 
   const config = await ensureHuntlo360QualificationConfig(input.campaign);
+
+  // ── Hiring-flow fast-path ─────────────────────────────────────────────────
+  // Must run BEFORE the qConfig.enabled check AND before the opt_out/not_interested
+  // guard further below.
+  //
+  // If the enrollment is waiting on a hiring-flow step (opening template or
+  // ask_question), this inbound is THAT reply — never a qualification Q&A answer.
+  // Requiring qualificationState === 'qualified' was wrong: voice / recruiter /
+  // a later webhook can leave qualification as in_progress while the hiring flow
+  // is already live. Q&A then hijacks "Yes, continue" and sends the next
+  // screening question (e.g. expected compensation) instead of the flow step.
+  //
+  // Genuine text-based opt-outs are already handled by applyWinnerLock
+  // (looksLikeOptOut → enrollment.status = 'opted_out').
+  {
+    const hfEnrollment = await OutreachEnrollmentModel.findById(input.enrollmentId);
+    const hfStatus = hfEnrollment?.hiringFlowState?.status;
+    if (
+      hfEnrollment &&
+      hfEnrollment.status !== 'opted_out' &&
+      hfEnrollment.hiringFlowState?.flowId &&
+      (hfStatus === 'waiting_reply' ||
+        hfStatus === 'processing_reply' ||
+        hfStatus === 'completed' ||
+        hfStatus === 'active' ||
+        hfStatus === 'failed')
+    ) {
+      if (hfStatus === 'processing_reply') {
+        return { action: 'hiring_flow_noop' };
+      }
+      try {
+        const { advanceHiringFlowOnReply } = await import(
+          './hiring-flow-runtime.service.js'
+        );
+        const advanced = await advanceHiringFlowOnReply({
+          campaign: input.campaign,
+          enrollment: hfEnrollment,
+          replyText: input.bodyText,
+          hasAttachment: input.hasAttachment,
+        });
+        return {
+          action: advanced.advanced ? 'hiring_flow_advanced' : 'hiring_flow_noop',
+        };
+      } catch (error) {
+        log().warn(
+          { err: error, enrollmentId: input.enrollmentId },
+          'Hiring flow advance after reply failed (fast-path)'
+        );
+        return { action: 'hiring_flow_failed' };
+      }
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Qualification + AI reply are always-on in the product UI. Only skip when the
   // campaign has no questions AND was explicitly disabled (legacy).
@@ -1924,7 +1978,7 @@ export async function processQualificationAfterReply(input: {
     Boolean(latestOutreach) &&
     !qualAfterOutreach &&
     !['qualified', 'rejected'].includes(qualStatus) &&
-    !['waiting_reply', 'active'].includes(hiringFlowStatus);
+    !['waiting_reply', 'active', 'processing_reply'].includes(hiringFlowStatus);
 
   if (needsFreshCycle) {
     const hadStaleProgress =
@@ -1955,30 +2009,6 @@ export async function processQualificationAfterReply(input: {
     }
     await enrollment.save();
   } else if (qualStatus === 'qualified' || qualStatus === 'rejected') {
-    if (
-      qualStatus === 'qualified' &&
-      enrollment.hiringFlowState?.status === 'waiting_reply'
-    ) {
-      try {
-        const { advanceHiringFlowOnReply } = await import(
-          './hiring-flow-runtime.service.js'
-        );
-        const advanced = await advanceHiringFlowOnReply({
-          campaign: input.campaign,
-          enrollment,
-          replyText: input.bodyText,
-        });
-        return {
-          action: advanced.advanced ? 'hiring_flow_advanced' : 'hiring_flow_noop',
-        };
-      } catch (error) {
-        log().warn(
-          { err: error, enrollmentId: input.enrollmentId },
-          'Hiring flow advance after reply failed'
-        );
-        return { action: 'hiring_flow_failed' };
-      }
-    }
     log().info(
       {
         enrollmentId: input.enrollmentId,
@@ -1992,6 +2022,16 @@ export async function processQualificationAfterReply(input: {
       status: qualStatus === 'rejected' ? 'rejected' : 'qualified',
     });
     return { action: 'skipped_already_complete' };
+  }
+
+  // Hiring flow owns the conversation once it has started. Never send a
+  // qualification screening question on top of an in-progress flow.
+  if (['waiting_reply', 'processing_reply', 'active'].includes(hiringFlowStatus)) {
+    log().info(
+      { enrollmentId: input.enrollmentId, hiringFlowStatus },
+      'Qualification Q&A skipped — hiring flow is in progress'
+    );
+    return { action: 'skipped_hiring_flow_active' };
   }
 
   // Never block Q&A sends on a missing/false aiReplyEnabled flag (legacy campaigns).
