@@ -23,8 +23,15 @@ import type { SessionCandidate, SortOptionId, SourcingSession } from "@/lib/mock
 import { providerPayloadToFilters } from "@/lib/search-filter-adapters";
 import { useRealtime } from "@/providers/realtime-provider";
 
-/** Next.js inlines NODE_ENV at build time — safe to read directly in a client component. */
-const SHOW_VENDOR_DEBUG_STRIP = process.env.NODE_ENV !== "production";
+/**
+ * Vendor debug strip: on in `next dev`, and in QA/prod builds only when
+ * `NEXT_PUBLIC_SHOW_VENDOR_DEBUG=true` is set at Frontend build time.
+ */
+const SHOW_VENDOR_DEBUG_STRIP =
+  process.env.NODE_ENV !== "production" ||
+  ["true", "1", "yes"].includes(
+    (process.env.NEXT_PUBLIC_SHOW_VENDOR_DEBUG ?? "").trim().toLowerCase()
+  );
 
 const FETCH_MORE_GAP_MS = 1500;
 const MAX_PROGRESS_POLL_ATTEMPTS = 15;
@@ -651,10 +658,8 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
 
 /**
  * Testing/QA-only strip surfacing the FJ poll ladder attempt count and the
- * Bright Data fallback vendor breakdown. Only rendered when
- * SHOW_VENDOR_DEBUG_STRIP is true (non-production NODE_ENV). Fed entirely
- * off the `candidates.search.poll` / `candidates.search.completed` socket
- * events — see `debug` on the payload — never over REST.
+ * Bright Data fallback vendor breakdown. Shown in `next dev`, or in a
+ * production build when `NEXT_PUBLIC_SHOW_VENDOR_DEBUG=true`.
  */
 function VendorDebugStrip({ progress }: { progress: VendorDebugSnapshot }) {
   const breakdown = progress.sourceBreakdown;
