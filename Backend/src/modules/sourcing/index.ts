@@ -7,6 +7,7 @@ export {
   pollSourcingSessionById,
   pollSourcingSessionByFutureJobsId,
   finalizeSession,
+  buildDebugSnapshot,
 } from './sourcing.poller.js';
 export {
   SourcingSessionModel,

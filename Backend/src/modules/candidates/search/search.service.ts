@@ -34,7 +34,7 @@ import { SavedCandidateModel } from '../saved-candidate.model.js';
 import { JobModel } from '../../jobs/job.model.js';
 import { SOURCING_QUOTA_COST, quotaService } from '../../sourcing/quota.service.js';
 import { maybeTopUpWithBrightData } from '../../sourcing/brightdata-fallback.service.js';
-import { finalizeSession } from '../../sourcing/sourcing.poller.js';
+import { buildDebugSnapshot, finalizeSession } from '../../sourcing/sourcing.poller.js';
 import { SourcedCandidateModel } from '../../sourcing/sourced-candidate.model.js';
 import {
   SourcingSessionModel,
@@ -1192,6 +1192,8 @@ export class CandidateSearchService {
       // sourcing.poll ladder (and its Bright Data top-up) can keep running.
       updated.polling = true;
       updated.lastPolledAt = new Date();
+      updated.lastFjPollAt = new Date();
+      updated.pollAttemptCount = (updated.pollAttemptCount ?? 0) + 1;
       updated.status = 'polling';
       updated.progress = Math.min(90, 20 + upsert.candidates.length);
       updated.completedAt = null;
@@ -1223,6 +1225,7 @@ export class CandidateSearchService {
         profilesPagination: pagination,
         regionExpandFallbackUsed,
         error: null,
+        debug: await buildDebugSnapshot(updated),
       });
 
       log().info(
@@ -1755,6 +1758,7 @@ export class CandidateSearchService {
         profilesPagination: pagination,
         regionExpandFallbackUsed: Boolean(session.regionExpandFallbackUsed),
         error: null,
+        debug: await buildDebugSnapshot(session),
       });
 
       return {

@@ -201,7 +201,7 @@ async function upsertCandidatesFromDocsLegacy(
  * emit so QA tooling (session results debug strip) never has to fall back
  * to REST polling to stay in sync.
  */
-async function buildDebugSnapshot(session: SourcingSessionDocument): Promise<{
+export async function buildDebugSnapshot(session: SourcingSessionDocument): Promise<{
   pollAttemptCount: number;
   maxPollAttempts: number;
   candidateSource: string;
