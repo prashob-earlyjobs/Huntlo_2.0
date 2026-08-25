@@ -320,7 +320,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               company: candidate.currentCompany,
               role: candidate.currentRole,
               duration:
-                candidate.experienceYears > 0
+                (candidate.experienceYears ?? 0) > 0
                   ? `${candidate.experienceYears} yrs total experience`
                   : "Current role",
               description: candidate.headline,
@@ -373,7 +373,9 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Timer aria-hidden className="size-3" />
-                  {candidate.experienceYears} yrs
+                  {candidate.experienceYears == null
+                    ? "—"
+                    : `${candidate.experienceYears} yrs`}
                 </span>
                 <span>Owner: {candidate.owner}</span>
                 <span>Source: {candidate.source}</span>
@@ -647,7 +649,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 ["Location", candidate.location],
                 [
                   "Experience",
-                  candidate.experienceYears > 0
+                  (candidate.experienceYears ?? 0) > 0
                     ? `${candidate.experienceYears} years`
                     : "—",
                 ],
