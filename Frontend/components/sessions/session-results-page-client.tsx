@@ -175,6 +175,15 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
     }
   }, [sessionId]);
 
+  useEffect(() => {
+    if (!SHOW_VENDOR_DEBUG_STRIP) return;
+    if (session?.state !== "running") return;
+    const timer = window.setInterval(() => {
+      void hydrateVendorDebug();
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [session?.state, hydrateVendorDebug]);
+
   const refresh = useCallback(async (reason: string) => {
     try {
       // Prefer MongoDB-stored candidates (no quota, no Future Jobs on reopen)
