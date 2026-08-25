@@ -19,7 +19,7 @@ export type BrightDataContactLookup = {
 /** Search params we send Bright Data — derived from the Future Jobs filter form. */
 export type BrightDataSearchParams = {
   keyword: string;
-  location: string;
+  location?: string;
   /** Free-text title, e.g. "Node.js Developer" — primary/first title variant. */
   title?: string;
   /**

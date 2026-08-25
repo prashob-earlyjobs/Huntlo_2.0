@@ -83,12 +83,14 @@ function profileUrlKey(profile: BrightDataLinkedInProfile): string {
     .toLowerCase();
 }
 
-function richerText(left: unknown, right: unknown): unknown {
+function richerText(left: unknown, right: unknown): string | undefined {
   const a = typeof left === 'string' ? left.trim() : '';
   const b = typeof right === 'string' ? right.trim() : '';
-  if (b.length > a.length) return right;
-  if (a.length > 0) return left;
-  return right ?? left;
+  if (b.length > a.length) return typeof right === 'string' ? right : undefined;
+  if (a.length > 0) return typeof left === 'string' ? left : undefined;
+  if (typeof right === 'string') return right;
+  if (typeof left === 'string') return left;
+  return undefined;
 }
 
 function richerArray(left: unknown, right: unknown): unknown {
@@ -114,7 +116,7 @@ function mergeEnrichedProfiles(
     const full = key ? byKey.get(key) : undefined;
     if (!full) return row;
     const merged: BrightDataLinkedInProfile = { ...row, ...full };
-    merged.about = richerText(row.about, full.about) as BrightDataLinkedInProfile['about'];
+    merged.about = richerText(row.about, full.about);
     merged.about_html = richerText(row.about_html, full.about_html);
     merged.bio = richerText(row.bio, full.bio);
     merged.summary = richerText(row.summary, full.summary);

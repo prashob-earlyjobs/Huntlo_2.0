@@ -136,10 +136,11 @@ export function mapApiCandidateToSessionCandidate(
   const role = candidate.title ?? "";
   const company = candidate.company ?? "";
   const isBrightData = candidate.source === "bright_data";
+  const rawScore = candidate.matchScore;
   const hasVendorScore =
-    typeof candidate.matchScore === "number" && Number.isFinite(candidate.matchScore);
+    typeof rawScore === "number" && Number.isFinite(rawScore);
   const score = hasVendorScore
-    ? Math.round(Math.min(100, Math.max(0, candidate.matchScore * 20)))
+    ? Math.round(Math.min(100, Math.max(0, rawScore * 20)))
     : isBrightData
       ? null
       : 70;
