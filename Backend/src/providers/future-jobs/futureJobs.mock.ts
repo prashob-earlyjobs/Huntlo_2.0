@@ -47,7 +47,10 @@ export function getMockContactRevealCalls(): Array<'session' | 'scout'> {
 
 function nextSessionId(): string {
   sessionSeq += 1;
-  return `mock-fj-session-${sessionSeq}`;
+  // Must be unique across API/worker process restarts — in-memory sessionSeq
+  // resets to 0, and QA already has `mock-fj-session-1` on sourcingsessions
+  // (unique index organizationId + futureJobsSessionId).
+  return `mock-fj-session-${Date.now()}-${sessionSeq}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /**
