@@ -377,7 +377,9 @@ export function HiringFlowsWorkspace() {
                           {step.type === "ask_question" ? (
                             <div className="space-y-3">
                               <div className="space-y-1.5">
-                                <Label htmlFor={`step-prompt-${step.id}`}>Prompt</Label>
+                                <Label htmlFor={`step-prompt-${step.id}`}>
+                                  WhatsApp message
+                                </Label>
                                 <Textarea
                                   id={`step-prompt-${step.id}`}
                                   value={step.prompt || ""}
@@ -385,8 +387,12 @@ export function HiringFlowsWorkspace() {
                                     updateStep(step.id, { prompt: event.target.value })
                                   }
                                   rows={3}
-                                  placeholder="Question prompt…"
+                                  placeholder="e.g. Do you have your own two-wheeler?"
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                  This is the question the candidate sees. Do not type
+                                  Yes/No here — choose that as the answer type below.
+                                </p>
                               </div>
                               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                                 <div className="space-y-1.5">

@@ -786,8 +786,12 @@ export function AdminHiringFlowsWorkspace() {
                                 updateStep(step.id, { prompt: event.target.value })
                               }
                               rows={3}
-                              placeholder="Question prompt…"
+                              placeholder="e.g. Do you have your own two-wheeler?"
                             />
+                            <p className="text-xs text-muted-foreground">
+                              This is the WhatsApp question text. Do not type Yes/No
+                              here — choose that as the answer type below.
+                            </p>
                             <Select
                               value={step.answerType || "Short text"}
                               onValueChange={(value) =>
