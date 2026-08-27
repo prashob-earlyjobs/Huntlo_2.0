@@ -4,6 +4,7 @@ import type { HiringFlowStep } from '../src/modules/outreach/hiring-flow.model.j
 import { ensureSingleLockedWhatsAppStep } from '../src/modules/outreach/hiring-flows.service.js';
 import {
   isYesNoAnswerType,
+  resolveHiringFlowQuestionBody,
   resolveNextHiringFlowStep,
 } from '../src/modules/outreach/hiring-flow-runtime.service.js';
 import { buildMetaInteractiveButtonsPayload } from '../src/providers/meta-whatsapp/meta.send.js';
@@ -129,6 +130,32 @@ describe('Yes / No WhatsApp reply buttons', () => {
   it('treats hiring-flow Yes / No answer types as button questions', () => {
     expect(isYesNoAnswerType('Yes / No')).toBe(true);
     expect(isYesNoAnswerType('Short text')).toBe(false);
+  });
+
+  it('sends the step title when prompt is only Yes/No', () => {
+    expect(
+      resolveHiringFlowQuestionBody({
+        id: 'step-q-shift',
+        type: 'ask_question',
+        label: 'Are you comfortable working in shifts if required?',
+        prompt: 'Yes/No',
+        answerType: 'Yes / No',
+        branches: [],
+      })
+    ).toBe('Are you comfortable working in shifts if required?');
+  });
+
+  it('keeps a real prompt when the editor wrote a full question', () => {
+    expect(
+      resolveHiringFlowQuestionBody({
+        id: 'step-q-bike',
+        type: 'ask_question',
+        label: 'Two-wheeler',
+        prompt: 'Do you have your own two-wheeler?',
+        answerType: 'Yes / No',
+        branches: [],
+      })
+    ).toBe('Do you have your own two-wheeler?');
   });
 
   it('builds Meta Yes and No reply buttons', () => {

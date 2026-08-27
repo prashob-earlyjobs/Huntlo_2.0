@@ -39,6 +39,25 @@ export function isYesNoAnswerType(answerType?: string | null): boolean {
   return /yes\s*\/\s*no|boolean/i.test(String(answerType || ''));
 }
 
+/** True when the "prompt" is only an answer-type label, not a real question. */
+export function isAnswerTypeStubPrompt(text?: string | null): boolean {
+  return /^(yes\s*\/\s*no|boolean|short text|number|text)$/i.test(
+    String(text || '').trim()
+  );
+}
+
+/**
+ * WhatsApp body for an ask_question step.
+ * Editors often put the real question in `label` and type "Yes/No" into `prompt`.
+ */
+export function resolveHiringFlowQuestionBody(step: HiringFlowStep): string {
+  const prompt = String(step.prompt || '').trim();
+  const label = String(step.label || '').trim();
+  if (prompt && !isAnswerTypeStubPrompt(prompt)) return prompt;
+  if (label && !/^new question$/i.test(label)) return label;
+  return prompt || label;
+}
+
 const YES_NO_REPLY_BUTTONS = [
   { id: 'yes', title: 'Yes' },
   { id: 'no', title: 'No' },
@@ -340,7 +359,7 @@ async function askQuestionStep(input: {
   enrollment: OutreachEnrollmentDocument;
   step: HiringFlowStep;
 }) {
-  const prompt = String(input.step.prompt || '').trim();
+  const prompt = resolveHiringFlowQuestionBody(input.step);
   if (!prompt) return;
 
   const organizationId = String(input.campaign.organizationId);
@@ -803,14 +822,17 @@ export async function advanceHiringFlowOnReply(input: {
   // attempt = how many times the candidate has already replied to this step
   // (1 on first try, 2 on second, etc.)
   const currentAttempt = stepAttemptsSoFar + 1;
+  const yesNoButtonReply =
+    isYesNoAnswerType(current.answerType) &&
+    /^(yes|y|haan|ha|ok|okay|no|n|nahi|na)$/i.test(input.replyText.trim());
 
-  if (currentAttempt <= MAX_REPROMPTS) {
+  if (!yesNoButtonReply && currentAttempt <= MAX_REPROMPTS) {
     try {
       const { evaluateHiringFlowAnswer } = await import(
         '../../providers/gemini/gemini.conversations.js'
       );
       const evaluation = await evaluateHiringFlowAnswer({
-        questionPrompt: String(current.prompt || ''),
+        questionPrompt: resolveHiringFlowQuestionBody(current),
         answerType: current.answerType,
         candidateReply: input.replyText,
         hasAttachment: Boolean(input.hasAttachment),
