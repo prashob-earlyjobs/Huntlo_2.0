@@ -1330,6 +1330,13 @@ export const campaignsService = {
           contactAvailability: row.contactAvailability,
           replyState: row.replyState,
           qualificationState: row.qualificationState,
+          hiringFlowState: row.hiringFlowState
+            ? {
+                flowId: row.hiringFlowState.flowId ?? null,
+                status: row.hiringFlowState.status ?? null,
+                answers: row.hiringFlowState.answers || {},
+              }
+            : null,
           screeningState: row.screeningState,
           schedulingState: row.schedulingState,
           nextActionAt: row.nextActionAt?.toISOString() ?? null,

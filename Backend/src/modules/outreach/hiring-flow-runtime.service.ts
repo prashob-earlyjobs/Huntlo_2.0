@@ -39,6 +39,19 @@ export function isYesNoAnswerType(answerType?: string | null): boolean {
   return /yes\s*\/\s*no|boolean/i.test(String(answerType || ''));
 }
 
+/** Campaign enrollments that must not keep receiving hiring-flow replies. */
+export function isClosedOutreachEnrollmentStatus(status?: string | null): boolean {
+  return ['completed', 'cancelled', 'opted_out'].includes(String(status || ''));
+}
+
+/**
+ * Hiring-flow statuses that may consume an inbound reply.
+ * `active` / `processing_reply` mean this enrollment is already sending the next step.
+ */
+export function isHiringFlowReplyAdvanceable(status?: string | null): boolean {
+  return ['waiting_reply', 'completed', 'failed'].includes(String(status || ''));
+}
+
 /** True when the "prompt" is only an answer-type label, not a real question. */
 export function isAnswerTypeStubPrompt(text?: string | null): boolean {
   return /^(yes\s*\/\s*no|boolean|short text|number|text)$/i.test(
@@ -211,8 +224,11 @@ async function ensureThread(input: {
   if (!thread.channels.includes('whatsapp')) {
     thread.channels = [...thread.channels, 'whatsapp'];
   }
-  if (!thread.enrollmentId && input.enrollmentId) {
+  if (input.enrollmentId) {
     thread.enrollmentId = input.enrollmentId as never;
+  }
+  if (input.campaignId) {
+    thread.campaignId = input.campaignId as never;
   }
   if (thread.qualificationStatus === 'pending' || thread.qualificationStatus === 'in_progress') {
     thread.qualificationStatus = 'qualified';
@@ -519,6 +535,17 @@ export async function startHiringFlowAfterQualification(input: {
   input.enrollment.hiringFlowState = enrollment.hiringFlowState;
 
   const organizationId = String(input.campaign.organizationId);
+  await OutreachEnrollmentModel.updateMany(
+    {
+      organizationId,
+      candidateId: enrollment.candidateId,
+      _id: { $ne: enrollment._id },
+      'hiringFlowState.status': {
+        $in: ['waiting_reply', 'active', 'processing_reply'],
+      },
+    },
+    { $set: { 'hiringFlowState.status': 'completed' } }
+  );
   const flow = config.hiringFlowId
     ? await HiringFlowModel.findOne({
         _id: config.hiringFlowId,
@@ -654,6 +681,10 @@ export async function advanceHiringFlowOnReply(input: {
   /** True when the candidate attached a file/image (no API call if media expected and received). */
   hasAttachment?: boolean;
 }): Promise<{ advanced: boolean }> {
+  if (isClosedOutreachEnrollmentStatus(input.enrollment.status)) {
+    return { advanced: false };
+  }
+
   let state = input.enrollment.hiringFlowState;
   if (!state?.flowId) {
     return { advanced: false };
@@ -661,11 +692,14 @@ export async function advanceHiringFlowOnReply(input: {
   const flowId = state.flowId;
   const answersSoFar = state.answers || {};
 
-  // Recover flows that sent the opening template then marked completed because
-  // nextStepId was missing — candidate replies ("Yes, continue") must still
-  // run the remaining ask_question steps.
+  // Recover flows that sent the opening template then marked the hiring-flow
+  // completed because nextStepId was missing. Do not reopen `active` —
+  // that status means this enrollment is already sending the next question.
   if (state.status !== 'waiting_reply') {
-    if (!['completed', 'active', 'failed'].includes(String(state.status))) {
+    if (state.status === 'processing_reply' || state.status === 'active') {
+      return { advanced: false };
+    }
+    if (!['completed', 'failed'].includes(String(state.status))) {
       return { advanced: false };
     }
     const flowForResume = await HiringFlowModel.findOne({

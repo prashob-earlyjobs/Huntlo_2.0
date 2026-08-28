@@ -288,6 +288,64 @@ export async function hydrateInboundWhatsAppMedia(input: {
 }
 
 /**
+ * Re-download one inbound WhatsApp attachment from Meta and persist it again.
+ * Used when Mongo still has mediaId but GCS/local bytes are gone.
+ */
+export async function rehydrateWhatsAppMediaAtIndex(input: {
+  organizationId: string;
+  messageId: string;
+  index: number;
+  phoneNumberId?: string | null;
+  attachment: {
+    name?: string | null;
+    kind?: string | null;
+    mediaId: string;
+    mimeType?: string | null;
+    size?: string | null;
+  };
+}): Promise<{
+  name: string;
+  url: string | null;
+  size: string | null;
+  mimeType: string | null;
+  kind: string | null;
+  storageKey: string | null;
+  mediaId: string | null;
+} | null> {
+  const kind = String(input.attachment.kind || '').toLowerCase();
+  const normalizedKind =
+    kind === 'image' ||
+    kind === 'audio' ||
+    kind === 'document' ||
+    kind === 'video' ||
+    kind === 'file'
+      ? kind
+      : 'image';
+  const placeholders: NormalizedInboundAttachment[] = Array.from(
+    { length: input.index + 1 },
+    (_, i) =>
+      i === input.index
+        ? {
+            kind: normalizedKind,
+            name: input.attachment.name || 'attachment',
+            mediaId: input.attachment.mediaId,
+            mimeType: input.attachment.mimeType || null,
+            size: input.attachment.size || null,
+          }
+        : { kind: 'file', name: `skip-${i}` }
+  );
+  const hydrated = await hydrateInboundWhatsAppMedia({
+    organizationId: input.organizationId,
+    messageId: input.messageId,
+    phoneNumberId: input.phoneNumberId,
+    attachments: placeholders,
+  });
+  const restored = hydrated[input.index];
+  if (!restored?.storageKey || !restored.url) return null;
+  return restored;
+}
+
+/**
  * Parse Meta WhatsApp Cloud API webhook payloads into normalized inbound messages.
  */
 export function parseMetaWhatsAppWebhook(payload: unknown): {

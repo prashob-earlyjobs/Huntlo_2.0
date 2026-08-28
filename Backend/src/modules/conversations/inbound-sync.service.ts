@@ -1628,28 +1628,32 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
       let hfEnrollment = await OutreachEnrollmentModel.findById(hfEnrollmentId);
       const liveHf = (status?: string | null) =>
         ['waiting_reply', 'processing_reply', 'active'].includes(String(status || ''));
+      const { isClosedOutreachEnrollmentStatus, isHiringFlowReplyAdvanceable } =
+        await import('../outreach/hiring-flow-runtime.service.js');
+      // Only steal a reply onto another enrollment when this one is closed or
+      // cannot consume it. Do not hop campaigns — leftover hiring flows on
+      // completed Delivery Partner enrollments were sending a second question
+      // in the same WhatsApp chat.
       if (
         (!hfEnrollment ||
-          hfEnrollment.status === 'opted_out' ||
-          !liveHf(hfEnrollment.hiringFlowState?.status)) &&
+          isClosedOutreachEnrollmentStatus(hfEnrollment.status) ||
+          !isHiringFlowReplyAdvanceable(hfEnrollment.hiringFlowState?.status)) &&
         thread.candidateId
       ) {
         const waiting = await OutreachEnrollmentModel.findOne({
           organizationId: input.organizationId,
           candidateId: thread.candidateId,
-          status: { $ne: 'opted_out' },
-          'hiringFlowState.status': { $in: ['waiting_reply', 'active'] },
+          ...(thread.campaignId ? { campaignId: thread.campaignId } : {}),
+          status: { $nin: ['opted_out', 'completed', 'cancelled', 'failed'] },
+          'hiringFlowState.status': 'waiting_reply',
         }).sort({ updatedAt: -1 });
         if (waiting) hfEnrollment = waiting;
       }
       const hfStatus = hfEnrollment?.hiringFlowState?.status;
       if (
         hfEnrollment &&
-        hfEnrollment.status !== 'opted_out' &&
-        (hfStatus === 'waiting_reply' ||
-          hfStatus === 'completed' ||
-          hfStatus === 'active' ||
-          hfStatus === 'failed')
+        !isClosedOutreachEnrollmentStatus(hfEnrollment.status) &&
+        isHiringFlowReplyAdvanceable(hfStatus)
       ) {
         try {
           const campaignDoc = await OutreachCampaignModel.findById(

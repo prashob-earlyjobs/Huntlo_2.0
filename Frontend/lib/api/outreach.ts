@@ -245,6 +245,11 @@ export type ApiCampaignEnrollment = {
   contactAvailability: { email: boolean; phone: boolean; optedOut: boolean } | null;
   replyState: { hasReply: boolean; disposition: string | null; repliedAt: string | null } | null;
   qualificationState: { status: string; answers?: Record<string, unknown> } | null;
+  hiringFlowState?: {
+    flowId?: string | null;
+    status?: string | null;
+    answers?: Record<string, unknown>;
+  } | null;
   screeningState: {
     status: string;
     screeningId: string | null;

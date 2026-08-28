@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { HiringFlowStep } from '../src/modules/outreach/hiring-flow.model.js';
 import { ensureSingleLockedWhatsAppStep } from '../src/modules/outreach/hiring-flows.service.js';
 import {
+  isClosedOutreachEnrollmentStatus,
+  isHiringFlowReplyAdvanceable,
   isYesNoAnswerType,
   resolveHiringFlowQuestionBody,
   resolveNextHiringFlowStep,
@@ -179,5 +181,23 @@ describe('Yes / No WhatsApp reply buttons', () => {
         ],
       },
     });
+  });
+});
+
+describe('stale hiring-flow enrollments', () => {
+  it('does not advance hiring flows on completed or opted-out enrollments', () => {
+    expect(isClosedOutreachEnrollmentStatus('completed')).toBe(true);
+    expect(isClosedOutreachEnrollmentStatus('cancelled')).toBe(true);
+    expect(isClosedOutreachEnrollmentStatus('opted_out')).toBe(true);
+    expect(isClosedOutreachEnrollmentStatus('stopped')).toBe(false);
+    expect(isClosedOutreachEnrollmentStatus('replied')).toBe(false);
+  });
+
+  it('does not treat an in-flight send as a new reply to consume', () => {
+    expect(isHiringFlowReplyAdvanceable('waiting_reply')).toBe(true);
+    expect(isHiringFlowReplyAdvanceable('completed')).toBe(true);
+    expect(isHiringFlowReplyAdvanceable('failed')).toBe(true);
+    expect(isHiringFlowReplyAdvanceable('active')).toBe(false);
+    expect(isHiringFlowReplyAdvanceable('processing_reply')).toBe(false);
   });
 });
