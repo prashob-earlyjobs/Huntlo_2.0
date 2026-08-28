@@ -3,12 +3,13 @@ import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
 
 import { createChildLogger } from '../../../config/logger.js';
-import { getEnv } from '../../../config/env.js';
 import {
   applyGeoExpandStep,
   buildSessionPayloadFromPromptAndFilter,
+  buildJdTextFromPromptAndFilters,
   DEFAULT_FILTER_FORM,
-  filterFormFromAnnotation,
+  extractSearchProfileDocs,
+  extractSearchTotalDocs,
   getFutureJobsProvider,
   getPostSessionCreateProfilesWaitMs,
   isFjNoMoreProfilesError,
@@ -23,6 +24,7 @@ import {
   type FutureJobsProfileDoc,
   type GeoExpandStep,
 } from '../../../providers/future-jobs/index.js';
+import { rewriteJobAsSearchPrompt } from '../../../providers/gemini/gemini.search-prompt.js';
 import { emitCandidateSearchPoll } from '../../../realtime/events.js';
 import { AppError } from '../../../shared/errors/app-error.js';
 import { getSkip } from '../../../shared/pagination/paginate.js';
@@ -58,11 +60,15 @@ import {
   sourcingSessionNotFound,
 } from './search.errors.js';
 import { loadStoredCandidates, upsertCandidatesFromDocs } from './search.persist.js';
+import {
+  assembleJobJdText,
+  fallbackSearchPromptFromJob,
+} from './job-search-prompt.js';
 import type {
   AnnotateSearchInput,
   ApplySearchInput,
   CreateSearchInput,
-  PreviewSearchInput,
+  PromptFromJobInput,
 } from './search.validation.js';
 
 export type SearchActor = {
@@ -126,8 +132,15 @@ function extractFjDataBuckets(res: unknown): {
 
 function extractFjSessionId(res: unknown): string | null {
   const { session } = extractFjDataBuckets(res);
-  const id = session?._id;
+  if (session?._id) return String(session._id);
+  const root = asRecord(res);
+  const data = asRecord(root?.data) ?? root;
+  const id = data?.sessionId ?? data?._id ?? data?.id ?? session?.id;
   return id ? String(id) : null;
+}
+
+function extractSearchDocs(res: unknown): FutureJobsProfileDoc[] {
+  return extractSearchProfileDocs(res);
 }
 
 function positiveCount(raw: unknown): number {
@@ -169,24 +182,6 @@ function extractMatchingStatus(res: unknown): string | null {
   if (typeof active === 'string') return active.trim();
   const first = candidates.find((value) => typeof value === 'string' && value.trim());
   return typeof first === 'string' ? first.trim() : null;
-}
-
-/** True when the drawer has real search criteria (default geoDistance alone does not count). */
-function filterFormHasSearchCriteria(form: FutureJobsFilterForm): boolean {
-  return Boolean(
-    String(form.currentTitle || '').trim() ||
-      String(form.keywordSkills || '').trim() ||
-      String(form.yearsExpMin || '').trim() ||
-      String(form.yearsExpMax || '').trim() ||
-      (Array.isArray(form.location) && form.location.some((v) => String(v || '').trim())) ||
-      (Array.isArray(form.selectRegion) &&
-        form.selectRegion.some((v) => String(v || '').trim())) ||
-      String(form.industry || '').trim() ||
-      String(form.seniorityLevel || '').trim() ||
-      String(form.functionCategory || '').trim() ||
-      (Array.isArray(form.currentCompany) && form.currentCompany.length > 0) ||
-      (Array.isArray(form.pastTitle) && form.pastTitle.length > 0)
-  );
 }
 
 function profilesDocs(res: unknown): FutureJobsProfileDoc[] {
@@ -421,180 +416,45 @@ function pendingResponse(
 }
 
 export class CandidateSearchService {
-  async annotate(actor: SearchActor, input: AnnotateSearchInput) {
-    const started = Date.now();
-    const provider = getFutureJobsProvider();
-    const annotationRes = await provider.getSourcingSessionAnnotation({
-      userText: input.prompt,
-      linkedin_profile_url: input.linkedin_profile_url,
-    });
-    const annotationData =
-      annotationRes?.data && typeof annotationRes.data === 'object'
-        ? annotationRes.data
-        : annotationRes;
-
-    const filterForm = normalizeFilterFormForUi(
-      filterFormFromAnnotation(annotationData as object)
-    ) as FutureJobsFilterForm;
-
-    log().info(
-      {
-        requestId: actor.requestId,
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        durationMs: Date.now() - started,
-      },
-      'annotation completed'
-    );
-
-    const env = getEnv();
-    return {
-      success: true,
-      filterForm,
-      annotation: annotationData,
-      ...(env.APP_ENV !== 'production'
-        ? { futureJobs: { statusCode: annotationRes?.statusCode ?? 200 } }
-        : {}),
-    };
-  }
-
   /**
-   * Preview expected profile count for the current filter set.
-   * Uses the same query mapping as create/apply session — does not create a session or consume quota.
+   * Convert the full stored JD into a natural-language search prompt (Gemini,
+   * with a structured fallback when GEMINI_API_KEY is unset or the call fails).
    */
-  async preview(actor: SearchActor, input: PreviewSearchInput) {
-    const started = Date.now();
-    const prompt = String(input.prompt ?? '').trim();
-    let workingForm = asFilterForm(input.filterForm);
-    let skillsRelaxFallbackUsed = false;
-
-    if (!prompt && !filterFormHasSearchCriteria(workingForm)) {
-      return {
-        success: true as const,
-        count: 0,
-        exactCount: 0,
-        status: 'empty' as const,
-        message: 'Add a prompt or filters to preview profile count.',
-        filterForm: undefined,
-        skillsRelaxFallbackUsed: false,
-      };
+  async promptFromJob(actor: SearchActor, input: PromptFromJobInput) {
+    if (!isValidObjectId(input.jobId)) {
+      throw AppError.notFound('Job not found');
     }
 
-    const provider = getFutureJobsProvider();
-
-    const runPreviewOnce = async (form: FutureJobsFilterForm) => {
-      const sessionPayload = buildSessionPayloadFromPromptAndFilter(
-        promptForSourcingApi(prompt || 'Candidate search'),
-        form
-      ) as {
-        jdDetail?: { userText?: string };
-        queries?: Record<string, unknown>;
-      };
-
-      const jd =
-        prompt ||
-        (typeof sessionPayload.jdDetail?.userText === 'string'
-          ? sessionPayload.jdDetail.userText
-          : '') ||
-        '';
-      const queries =
-        sessionPayload.queries && typeof sessionPayload.queries === 'object'
-          ? sessionPayload.queries
-          : {};
-
-      const previewRes = await provider.previewSourcingSession(
-        { jd, queries },
-        { traceId: actor.requestId }
-      );
-
-      const data =
-        previewRes?.data && typeof previewRes.data === 'object'
-          ? (previewRes.data as Record<string, unknown>)
-          : {};
-      const countRaw = data.exactCount ?? data.count;
-      const count =
-        typeof countRaw === 'number' && Number.isFinite(countRaw)
-          ? Math.max(0, Math.floor(countRaw))
-          : 0;
-      const exactCount =
-        typeof data.exactCount === 'number' && Number.isFinite(data.exactCount)
-          ? Math.max(0, Math.floor(data.exactCount))
-          : count;
-      const status =
-        typeof data.status === 'string' && data.status.trim()
-          ? data.status.trim()
-          : count > 0
-            ? 'ok'
-            : 'empty';
-      const message =
-        typeof previewRes?.message === 'string'
-          ? previewRes.message
-          : 'Search health retrieved';
-
-      return { count, exactCount, status, message, queryKeys: Object.keys(queries).length, jd };
-    };
-
-    let result = await runPreviewOnce(workingForm);
-
-    // Live estimate is 0 — peel mandatory/core (then keyword) one skill at a time
-    // until preview returns > 0 or nothing left to peel. UI receives relaxed filterForm.
-    if (result.count === 0) {
-      for (let step = 0; step < MAX_SKILLS_RELAX_STEPS; step++) {
-        const peel = nextSkillsRelaxStep(workingForm);
-        if (!peel) break;
-        workingForm = peel.form;
-        skillsRelaxFallbackUsed = true;
-        result = await runPreviewOnce(workingForm);
-        log().info(
-          {
-            requestId: actor.requestId,
-            organizationId: actor.organizationId,
-            skillsRelaxStep: step + 1,
-            removedBucket: peel.bucket,
-            removedSkill: peel.removed,
-            estimatedAfterRelax: result.count,
-          },
-          'skills relax step during preview (zero estimate)'
-        );
-        if (result.count > 0) break;
-      }
-    }
-
-    log().info(
-      {
-        requestId: actor.requestId,
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        durationMs: Date.now() - started,
-        profileCount: result.count,
-        exactCount: result.exactCount,
-        previewStatus: result.status,
-        queryKeys: result.queryKeys,
-        skillsRelaxFallbackUsed,
-      },
-      'sourcing preview profile count'
-    );
-
-    // eslint-disable-next-line no-console -- intentional debug log for profile-count verification
-    console.log('[candidate-search/preview] profile count', {
-      count: result.count,
-      exactCount: result.exactCount,
-      status: result.status,
-      queryKeys: result.queryKeys,
-      skillsRelaxFallbackUsed,
-      jdPreview: result.jd.slice(0, 120),
+    const job = await JobModel.findOne({
+      _id: input.jobId,
+      organizationId: new mongoose.Types.ObjectId(actor.organizationId),
+      deletedAt: null,
     });
+    if (!job) throw AppError.notFound('Job not found');
+
+    const fallback = fallbackSearchPromptFromJob(job);
+    const jdText = assembleJobJdText(job);
+    const rewritten = jdText ? await rewriteJobAsSearchPrompt(jdText) : { prompt: null, source: 'unavailable' as const };
+    const prompt = rewritten.prompt?.trim() || fallback;
+    if (!prompt) {
+      throw AppError.badRequest('This job has no description to search with.');
+    }
 
     return {
       success: true as const,
-      count: result.count,
-      exactCount: result.exactCount,
-      status: result.status,
-      message: result.message,
-      filterForm: skillsRelaxFallbackUsed
-        ? normalizeFilterFormForUi(workingForm)
-        : undefined,
-      skillsRelaxFallbackUsed,
+      jobId: job._id.toHexString(),
+      prompt,
+      source: rewritten.prompt?.trim() ? rewritten.source : ('fallback' as const),
+    };
+  }
+
+  async annotate(_actor: SearchActor, _input: AnnotateSearchInput) {
+    // Search no longer fills filters via Future Jobs get-annotation.
+    // Keep the endpoint for older clients; return an empty form.
+    return {
+      success: true as const,
+      filterForm: { ...DEFAULT_FILTER_FORM },
+      annotation: null,
     };
   }
 
@@ -733,63 +593,32 @@ export class CandidateSearchService {
   }
 
   /**
-   * Main candidate-search endpoint — annotate → drawer → apply.
+   * Main candidate-search endpoint — POST /wl/search with natural-language jdText.
+   * Waits for Future Jobs to return profiles in the same response (no poll).
    */
   async apply(actor: SearchActor, input: ApplySearchInput) {
     const started = Date.now();
     const prompt = input.prompt.trim();
-    let originalFilterForm = asFilterForm(input.filterForm);
-
-    // Apply without annotated filters produces stopword "skills" and empty title/region —
-    // auto-annotate so Future Jobs gets structured queries like the production sample.
-    if (prompt && !filterFormHasSearchCriteria(originalFilterForm)) {
-      try {
-        const annotated = await this.annotate(actor, {
-          prompt,
-          linkedin_profile_url: '',
-        });
-        originalFilterForm = asFilterForm(annotated.filterForm);
-        log().info(
-          {
-            requestId: actor.requestId,
-            organizationId: actor.organizationId,
-            userId: actor.userId,
-          },
-          'apply auto-annotated empty filterForm'
-        );
-      } catch (annotateError) {
-        log().warn(
-          { err: annotateError, requestId: actor.requestId },
-          'apply auto-annotate failed; continuing with provided filterForm'
-        );
-      }
+    const originalFilterForm = asFilterForm(input.filterForm);
+    const jdText = buildJdTextFromPromptAndFilters(prompt, originalFilterForm);
+    if (!jdText) {
+      throw new AppError(
+        400,
+        'PROMPT_REQUIRED',
+        'Describe the candidate or set search filters.'
+      );
     }
-
-    let workingForm: FutureJobsFilterForm = { ...originalFilterForm };
-    let regionExpandStep: GeoExpandStep | null = null;
-    let regionExpandFallbackUsed = false;
-    let skillsRelaxFallbackUsed = false;
 
     const quotaKey = idempotencyKeyForApply(actor, input);
     await reserveSearchQuota(actor, quotaKey);
 
     const provider = getFutureJobsProvider();
     let existing: SourcingSessionDocument | null = null;
-    let futureJobsSessionId: string | null = null;
     let sessionUpdated = false;
 
     if (input.sessionId) {
       existing = await resolveSession(actor.organizationId, input.sessionId);
       assertCanUpdateSession(existing, actor);
-      if (
-        existing.polling &&
-        ['polling', 'creating', 'pending', 'queued', 'running'].includes(existing.status)
-      ) {
-        // Allow re-apply on same session (idempotent) but block parallel conflicting runs
-        // only when a different user tries to steal an in-flight search.
-      }
-      futureJobsSessionId =
-        existing.futureJobsSessionId || existing.externalSessionId || null;
       sessionUpdated = true;
     }
 
@@ -799,232 +628,43 @@ export class CandidateSearchService {
       selectRegion: originalFilterForm.selectRegion,
     };
 
-    async function attemptProviderSession(
-      form: FutureJobsFilterForm
-    ): Promise<{ res: unknown; sessionId: string; payload: Record<string, unknown> }> {
-      const payload = buildSessionPayloadFromPromptAndFilter(
-        promptForSourcingApi(prompt),
-        form
-      ) as Record<string, unknown>;
-      const { res, sessionId } = await createOrUpdateProviderSession({
-        provider,
-        futureJobsSessionId,
-        payload,
-      });
-      futureJobsSessionId = sessionId;
-      return { res, sessionId, payload };
-    }
-
-    let lastRes: unknown;
-    let lastPayload: Record<string, unknown> = {};
-    let fjId = '';
-
     try {
-      // Create/update + optional geo expansion for 207
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const { res, sessionId, payload } = await attemptProviderSession(workingForm);
-        lastRes = res;
-        lastPayload = payload;
-        fjId = sessionId;
-
-        if (!provider.isFjSessionPending(res)) break;
-
-        const next = nextGeoExpandStep(workingForm, regionExpandStep);
-        if (!next) break;
-        regionExpandStep = next;
-        regionExpandFallbackUsed = true;
-        // Keep any skills already peeled on workingForm; only widen geo.
-        workingForm = applyGeoExpandStep(workingForm, next);
-        log().info(
-          {
-            organizationId: actor.organizationId,
-            futureJobsSessionId: fjId,
-            regionExpandStep: next,
-          },
-          'geo expand after 207'
-        );
+      const res = await provider.searchByJdText(
+        { jdText },
+        { traceId: actor.requestId, timeoutMs: 120_000, maxRetries: 0 }
+      );
+      const docs = extractSearchDocs(res);
+      let fjId = extractFjSessionId(res);
+      if (!fjId) {
+        fjId =
+          existing?.futureJobsSessionId ||
+          existing?.externalSessionId ||
+          `wl-search-${Date.now()}`;
       }
 
-      // FJ estimated 0 — peel mandatory/core skills one at a time until estimate > 0
-      // or nothing left to peel. UI keeps originalFilterForm.
-      if (!provider.isFjSessionPending(lastRes) && extractExpectedCount(lastRes) === 0) {
-        for (let step = 0; step < MAX_SKILLS_RELAX_STEPS; step++) {
-          const peel = nextSkillsRelaxStep(workingForm);
-          if (!peel) break;
-          workingForm = peel.form;
-          skillsRelaxFallbackUsed = true;
-          const relaxed = await attemptProviderSession(workingForm);
-          lastRes = relaxed.res;
-          lastPayload = relaxed.payload;
-          fjId = relaxed.sessionId;
-          const estimatedAfterRelax = extractExpectedCount(lastRes);
-          log().info(
-            {
-              organizationId: actor.organizationId,
-              futureJobsSessionId: fjId,
-              skillsRelaxStep: step + 1,
-              removedBucket: peel.bucket,
-              removedSkill: peel.removed,
-              estimatedAfterRelax,
-            },
-            'skills relax step after zero estimated profiles'
-          );
-          if (provider.isFjSessionPending(lastRes) || estimatedAfterRelax > 0) break;
-        }
-      }
-
-      if (provider.isFjSessionPending(lastRes)) {
-        const session = await this.upsertHistorySession({
-          actor,
-          existing,
-          prompt,
-          originalFilterForm,
-          workingForm,
-          payload: lastPayload,
-          fjId,
-          status: 'pending',
-          regionExpandFallbackUsed,
-          regionExpandStep,
-          skillsRelaxFallbackUsed,
-          originalRegionConfiguration,
-          quotaKey,
-          polling: true,
-        });
-        await commitSearchQuota(actor.organizationId, quotaKey);
-        try {
-          await enqueueBackgroundPoll(session, actor);
-        } catch (enqueueError) {
-          log().warn(
-            { err: enqueueError, sourcingSessionId: session._id.toHexString() },
-            'failed to enqueue background poll after pending session'
-          );
-        }
-        return pendingResponse(
-          fjId,
-          originalFilterForm,
-          'Finding candidates — matching profiles in progress.',
-          session._id.toHexString()
-        );
-      }
-
-      // Short first wait, then poll — avoid the old fixed 20s wall.
-      const waitMs = getPostSessionCreateProfilesWaitMs();
-      if (waitMs > 0) {
-        await sleep(waitMs);
-      }
-
-      let pollResult = await this.pollProfilesWithEmptyFallback({
-        provider,
-        fjId,
-        page: input.page,
-        limit: Math.min(input.limit, 300),
-        expectedProfileCount: extractExpectedCount(lastRes),
-        profileMatchingStatus: extractMatchingStatus(lastRes),
-        originalFilterForm,
-        workingForm,
-        regionExpandStep,
-        regionExpandFallbackUsed,
-        skillsRelaxFallbackUsed,
-        attemptProviderSession: async (form) => {
-          const result = await attemptProviderSession(form);
-          lastPayload = result.payload;
-          fjId = result.sessionId;
-          await sleep(
-            Math.min(getPostSessionCreateProfilesWaitMs(), GEO_EXPAND_PROFILES_WAIT_CAP_MS)
-          );
-          return result;
-        },
-        maxWaitMs: HTTP_APPLY_POLL_MAX_WAIT_MS,
-      });
-
-      regionExpandFallbackUsed =
-        regionExpandFallbackUsed || pollResult.regionExpandFallbackUsed;
-      regionExpandStep = pollResult.regionExpandStep ?? regionExpandStep;
-      skillsRelaxFallbackUsed =
-        skillsRelaxFallbackUsed || pollResult.skillsRelaxFallbackUsed;
-      workingForm = pollResult.workingForm;
-
-      // No candidates yet but FJ is still matching → return pending early and
-      // finish via background poll (better UX than holding the HTTP request).
-      if (
-        pollResult.docs.length === 0 &&
-        pollResult.totalDocs === 0 &&
-        pollResult.polling
-      ) {
-        const session = await this.upsertHistorySession({
-          actor,
-          existing,
-          prompt,
-          originalFilterForm,
-          workingForm,
-          payload: lastPayload,
-          fjId,
-          status: 'pending',
-          regionExpandFallbackUsed,
-          regionExpandStep,
-          skillsRelaxFallbackUsed,
-          originalRegionConfiguration,
-          quotaKey,
-          polling: true,
-          estimatedResults: extractExpectedCount(lastRes),
-        });
-        await commitSearchQuota(actor.organizationId, quotaKey);
-        try {
-          await enqueueBackgroundPoll(session, actor);
-        } catch (enqueueError) {
-          log().warn(
-            { err: enqueueError, sourcingSessionId: session._id.toHexString() },
-            'failed to enqueue background poll after early pending apply'
-          );
-        }
-
-        log().info(
-          {
-            requestId: actor.requestId,
-            organizationId: actor.organizationId,
-            sourcingSessionId: session._id.toHexString(),
-            futureJobsSessionId: fjId,
-            durationMs: Date.now() - started,
-            earlyPending: true,
-          },
-          'apply search returned early pending'
-        );
-
-        return pendingResponse(
-          fjId,
-          originalFilterForm,
-          'Finding candidates — matching profiles in progress.',
-          session._id.toHexString()
-        );
-      }
-
+      const payload = { jdText };
       const session = await this.upsertHistorySession({
         actor,
         existing,
-        prompt,
+        prompt: jdText,
         originalFilterForm,
-        workingForm,
-        payload: lastPayload,
+        workingForm: originalFilterForm,
+        payload,
         fjId,
-        status: pollResult.polling
-          ? 'polling'
-          : pollResult.partial
-            ? 'partial'
-            : pollResult.docs.length === 0
-              ? 'completed'
-              : 'completed',
-        regionExpandFallbackUsed,
-        regionExpandStep,
-        skillsRelaxFallbackUsed,
+        status: 'completed',
+        regionExpandFallbackUsed: false,
+        regionExpandStep: null,
+        skillsRelaxFallbackUsed: false,
         originalRegionConfiguration,
         quotaKey,
-        polling: pollResult.polling,
-        estimatedResults: extractExpectedCount(lastRes),
+        polling: false,
+        estimatedResults: extractSearchTotalDocs(res, docs),
+        jobId: input.jobId,
       });
 
       const upsert = await upsertCandidatesFromDocs({
         session,
-        docs: pollResult.docs,
+        docs,
         organizationId: actor.organizationId,
         userId: actor.userId,
       });
@@ -1032,8 +672,9 @@ export class CandidateSearchService {
       const storedTotal = await SourcedCandidateModel.countDocuments({
         sourcingSessionId: session._id,
       });
+      const totalDocs = Math.max(extractSearchTotalDocs(res, docs), storedTotal);
       const pagination = buildPaginationDto({
-        totalDocs: Math.max(pollResult.totalDocs, storedTotal),
+        totalDocs,
         page: input.page,
         limit: input.limit,
       });
@@ -1043,29 +684,15 @@ export class CandidateSearchService {
       session.candidateCountFirstPage = upsert.candidates.length;
       session.candidatePreview = upsert.candidates.slice(0, 10);
       session.profilesPagination = pagination;
-      session.canFetchMore = pagination.hasNextPage || pollResult.canFetchMore;
-
-      // Always leave the session in `polling` after apply so FE getProgress
-      // (and the worker) can run the full sourcing.poller MAX_POLL_ATTEMPTS
-      // window against Future Jobs. Completing here made the FE's REST polls
-      // skip FJ and only re-read the same stored candidates.
-      session.polling = true;
+      session.canFetchMore = false;
+      session.polling = false;
       session.lastPolledAt = new Date();
-      session.status = 'polling';
-      session.progress = Math.min(90, 20 + upsert.candidates.length);
-      session.completedAt = null;
+      session.status = 'completed';
+      session.progress = 100;
+      session.completedAt = new Date();
       await session.save();
 
       await commitSearchQuota(actor.organizationId, quotaKey);
-
-      try {
-        await enqueueBackgroundPoll(session, actor);
-      } catch (enqueueError) {
-        log().warn(
-          { err: enqueueError, sourcingSessionId: session._id.toHexString() },
-          'failed to enqueue background poll after apply'
-        );
-      }
 
       emitCandidateSearchPoll({
         organizationId: actor.organizationId,
@@ -1073,14 +700,14 @@ export class CandidateSearchService {
         sessionId: fjId,
         savedSessionId: session._id.toHexString(),
         status: session.status,
-        polling: Boolean(session.polling),
+        polling: false,
         candidates: upsert.candidates,
         newCandidates: upsert.newCandidates,
         newCandidateCount: upsert.newCandidates.length,
         totalDocs: pagination.totalDocs,
-        canFetchMore: Boolean(session.canFetchMore),
+        canFetchMore: false,
         profilesPagination: pagination,
-        regionExpandFallbackUsed,
+        regionExpandFallbackUsed: false,
         error: null,
       });
 
@@ -1093,38 +720,34 @@ export class CandidateSearchService {
           futureJobsSessionId: fjId,
           upsertCount: upsert.upsertedCount,
           duplicateCount: upsert.duplicateCount,
-          regionExpandStep,
           durationMs: Date.now() - started,
           usageTransactionId: quotaKey,
-          polling: true,
+          jdTextChars: jdText.length,
+          docCount: docs.length,
+          polling: false,
         },
-        'apply search completed'
+        'apply search completed via /wl/search'
       );
 
       return {
         success: true,
-        prompt,
+        prompt: jdText,
         sessionId: fjId,
         savedSessionId: session._id.toHexString(),
         sessionUpdated,
         page: input.page,
         limit: input.limit,
-        canFetchMore: Boolean(session.canFetchMore),
+        canFetchMore: false,
         filterForm: originalFilterForm,
-        sessionPayload: lastPayload,
+        sessionPayload: payload,
         candidates: upsert.candidates,
         profilesPagination: pagination,
-        polling: true,
-        partial: true,
-        regionExpandFallbackUsed,
+        polling: false,
+        partial: false,
+        regionExpandFallbackUsed: false,
       };
     } catch (error) {
-      const hasAcceptedSession = Boolean(futureJobsSessionId);
-      if (!hasAcceptedSession) {
-        await releaseSearchQuota(actor.organizationId, quotaKey);
-      } else {
-        await commitSearchQuota(actor.organizationId, quotaKey);
-      }
+      await releaseSearchQuota(actor.organizationId, quotaKey);
       throw error instanceof AppError
         ? error
         : futureJobsUnavailable('Candidate search apply failed', error);
@@ -1153,6 +776,7 @@ export class CandidateSearchService {
     quotaKey: string;
     polling: boolean;
     estimatedResults?: number;
+    jobId?: string | null;
   }): Promise<SourcingSessionDocument> {
     const {
       actor,
@@ -1170,7 +794,9 @@ export class CandidateSearchService {
       quotaKey,
       polling,
       estimatedResults,
+      jobId,
     } = options;
+    const resolvedJobId = jobId && isValidObjectId(jobId) ? jobId : null;
 
     const appliedRegionConfiguration = regionExpandFallbackUsed
       ? {
@@ -1198,6 +824,7 @@ export class CandidateSearchService {
       existing.quotaTransactionId = quotaKey;
       existing.quotaConsumed = SOURCING_QUOTA_COST;
       existing.polling = polling;
+      if (resolvedJobId) existing.set('jobId', resolvedJobId);
       existing.startedAt = existing.startedAt ?? new Date();
       if (estimatedResults) existing.estimatedResults = estimatedResults;
       await existing.save();
@@ -1221,6 +848,7 @@ export class CandidateSearchService {
       organizationId: actor.organizationId,
       ownerUserId: actor.userId,
       userId: actor.userId,
+      jobId: resolvedJobId,
       name: defaultSessionTitle(prompt),
       sessionTitle: defaultSessionTitle(prompt),
       prompt,
@@ -1859,8 +1487,11 @@ export class CandidateSearchService {
 
     const fjSessionId = session.futureJobsSessionId || session.externalSessionId || null;
     const alreadyFull = hasFullFjCandidateDetails(candidate.rawDoc);
+    // `/wl/search` stores the full list profile on the candidate. There is no
+    // Future Jobs sourcing-session to hydrate via GET .../candidate/:id/details.
+    const isWlSearchSession = String(fjSessionId || '').startsWith('wl-search-');
 
-    if (!alreadyFull) {
+    if (!alreadyFull && !isWlSearchSession) {
       const provider = getFutureJobsProvider();
       const detailIds = [
         candidate.candidateId,
@@ -1903,7 +1534,7 @@ export class CandidateSearchService {
 
     return {
       success: true,
-      fromStored: alreadyFull,
+      fromStored: alreadyFull || isWlSearchSession,
       candidate: toCandidateDetailsDto(candidate, fjSessionId),
     };
   }

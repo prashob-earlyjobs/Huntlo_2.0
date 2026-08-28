@@ -240,6 +240,7 @@ export type ApiCampaignEnrollment = {
   title: string | null;
   email: string | null;
   phone: string | null;
+  profilePictureUrl?: string | null;
   status: string;
   currentStepIndex: number;
   contactAvailability: { email: boolean; phone: boolean; optedOut: boolean } | null;
@@ -1055,7 +1056,10 @@ const liveOutreachApi: OutreachApi = {
   async launchCampaign(id) {
     const result = await apiClient.post<
       ApiOutreachCampaign & { contactUnlock?: LaunchContactUnlock | null }
-    >(`/outreach-campaigns/${id}/launch`, undefined, { sensitive: true });
+    >(`/outreach-campaigns/${id}/launch`, undefined, {
+      sensitive: true,
+      timeoutMs: 180_000,
+    });
     return {
       campaign: toDisplayCampaign(result.data),
       contactUnlock: result.data.contactUnlock ?? null,

@@ -48,11 +48,19 @@ export type FutureJobsProfileEmployer = {
 
 export type FutureJobsProfile = {
   name?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  headline?: string;
   current_employers_object?: FutureJobsProfileEmployer[];
   years_of_experience_raw?: number | string;
   skills?: string[];
   region?: string;
+  location?: string;
   linkedin_profile_url?: string;
+  profile_picture_permalink?: string;
+  profile_picture_url?: string;
+  fit?: string;
   [key: string]: unknown;
 };
 
@@ -65,6 +73,8 @@ export type FutureJobsProfileDoc = {
   _id?: string;
   sourcingSessionId?: string;
   finalScore?: number;
+  /** Future Jobs `/wl/search` fit label, e.g. `"strong"`. */
+  fit?: string;
   profile?: FutureJobsProfile;
   revealStatus?: {
     email?: FutureJobsRevealBucket;
@@ -192,6 +202,8 @@ export type FilterAutocompleteParams = {
 
 export type FutureJobsRequestOpts = {
   traceId?: string;
+  timeoutMs?: number;
+  maxRetries?: number;
 };
 
 export type FutureJobsConfig = {
@@ -286,9 +298,32 @@ export interface FutureJobsProvider {
     opts?: FutureJobsRequestOpts
   ): Promise<FutureJobsApiResponse<FutureJobsPreviewData>>;
 
+  /**
+   * POST /wl/search
+   * Body: { jdText: string }
+   * Synchronous natural-language search — wait for profiles, do not poll.
+   */
+  searchByJdText(
+    body: { jdText: string },
+    opts?: FutureJobsRequestOpts
+  ): Promise<FutureJobsApiResponse<FutureJobsSearchData>>;
+
   isFjSessionPending(data: unknown): boolean;
   fjSessionPendingMessage(data: unknown): string;
 }
+
+/** Response `data` from POST /wl/search. Live API returns a profile-doc array. */
+export type FutureJobsSearchData =
+  | FutureJobsProfileDoc[]
+  | {
+      session?: FutureJobsSession;
+      sessionId?: string;
+      docs?: FutureJobsProfileDoc[];
+      profiles?: FutureJobsProfileDoc[];
+      candidates?: FutureJobsProfileDoc[];
+      totalDocs?: number;
+      [key: string]: unknown;
+    };
 
 /** Response `data` from POST /wl/sourcing-session/preview. */
 export type FutureJobsPreviewData = {

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState, type ReactNode } from "react";
 import {
   AudioLines,
   Bookmark,
   BookmarkCheck,
+  ExternalLink,
   Info,
   ListPlus,
   Mail,
@@ -18,6 +20,7 @@ import {
 import { ContactReveal, type RevealState } from "@/components/sessions/contact-reveal";
 import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
+import { CompanyDomainLogo } from "@/components/shared/company-domain-logo";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -57,6 +60,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function SkillChips({ skills }: { skills: string[] }) {
+  if (skills.length === 0) {
+    return <p className="text-sm text-muted-foreground">No skills listed.</p>;
+  }
   return (
     <div className="flex flex-wrap gap-1.5">
       {skills.map((skill, index) => (
@@ -68,6 +74,82 @@ function SkillChips({ skills }: { skills: string[] }) {
         </span>
       ))}
     </div>
+  );
+}
+
+function displayPart(value: string | null | undefined): string {
+  const text = value?.trim() ?? "";
+  return text && text !== "—" ? text : "";
+}
+
+function metaLine(parts: Array<string | null | undefined>): string {
+  return parts.map(displayPart).filter(Boolean).join(" · ");
+}
+
+function TimelineDot({ current }: { current: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative mt-1.5 size-[11px] shrink-0 rounded-full border-2",
+        current ? "border-primary bg-primary" : "border-primary bg-card"
+      )}
+    />
+  );
+}
+
+function ExperienceCompanyMark({
+  website,
+  fjLogoUrl,
+  company,
+  current,
+}: {
+  website?: string;
+  fjLogoUrl?: string;
+  company: string;
+  current: boolean;
+}) {
+  if (displayPart(website)) {
+    return (
+      <CompanyDomainLogo
+        websiteOrDomain={website}
+        name={company}
+        size={28}
+        className="relative mt-0.5"
+      />
+    );
+  }
+  if (fjLogoUrl) {
+    return (
+      <FjStaticImage
+        src={fjLogoUrl}
+        className="relative mt-0.5 size-7 shrink-0 rounded-md border border-border bg-muted object-cover"
+        fallback={<TimelineDot current={current} />}
+      />
+    );
+  }
+  return <TimelineDot current={current} />;
+}
+function FjStaticImage({
+  src,
+  className,
+  fallback,
+}: {
+  src: string;
+  className?: string;
+  fallback: ReactNode;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return fallback;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- remote Future Jobs CDN URLs
+    <img
+      src={src}
+      alt=""
+      className={className}
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
   );
 }
 
@@ -115,6 +197,9 @@ export function CandidateDrawer({
     const kb = experienceSortKey(b.duration);
     return kb.end - ka.end || kb.start - ka.start;
   });
+  const headline = displayPart(candidate.headline);
+  const roleCompany = metaLine([candidate.currentRole, candidate.currentCompany]);
+  const showRoleCompany = Boolean(roleCompany) && roleCompany !== headline;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -128,20 +213,42 @@ export function CandidateDrawer({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <SheetTitle className="truncate">{candidate.name}</SheetTitle>
-                <MatchScoreCompact score={candidate.matchScore} className="shrink-0" />
+                <MatchScoreCompact score={candidate.matchScore} fit={candidate.fit} className="shrink-0" />
               </div>
-              <SheetDescription className="truncate">
-                {candidate.currentRole} · {candidate.currentCompany}
-              </SheetDescription>
+              {headline ? (
+                <SheetDescription className="mt-0.5 text-left text-sm leading-snug whitespace-normal">
+                  {candidate.headline}
+                </SheetDescription>
+              ) : (
+                <SheetDescription className="sr-only">Candidate profile</SheetDescription>
+              )}
+              {showRoleCompany ? (
+                <p className="mt-1 text-sm text-foreground">{roleCompany}</p>
+              ) : null}
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <MapPin aria-hidden className="size-3" />
-                  {candidate.location}
-                </span>
+                {displayPart(candidate.location) ? (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin aria-hidden className="size-3" />
+                    {candidate.location}
+                  </span>
+                ) : null}
                 <span className="inline-flex items-center gap-1">
                   <Timer aria-hidden className="size-3" />
-                  {candidate.experienceYears} yrs total
+                  {candidate.experienceYears != null
+                    ? `${candidate.experienceYears} yrs total`
+                    : "Experience unknown"}
                 </span>
+                {candidate.linkedinUrl ? (
+                  <a
+                    href={candidate.linkedinUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
+                    <ExternalLink aria-hidden className="size-3" />
+                    LinkedIn
+                  </a>
+                ) : null}
                 {isOpenToWork(candidate.signals) ? (
                   <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
                     Open to work
@@ -158,9 +265,6 @@ export function CandidateDrawer({
             <TabsList className="flex h-9 w-full">
               <TabsTrigger value="summary" className="min-w-0 flex-1 px-1.5">
                 Summary
-              </TabsTrigger>
-              <TabsTrigger value="experience" className="min-w-0 flex-1 px-1.5">
-                Experience
               </TabsTrigger>
               <TabsTrigger value="education" className="min-w-0 flex-1 px-1.5">
                 Education
@@ -202,12 +306,85 @@ export function CandidateDrawer({
               <div className="space-y-2">
                 <SectionTitle>Summary</SectionTitle>
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  {candidate.summary}
+                  {displayPart(candidate.summary)
+                    ? candidate.summary
+                    : "No summary available for this profile."}
                 </p>
               </div>
               <div className="space-y-2">
                 <SectionTitle>Top skills</SectionTitle>
                 <SkillChips skills={candidate.skills} />
+              </div>
+              <div className="space-y-2">
+                <SectionTitle>Experience</SectionTitle>
+                {detailsLoading && experience.length <= 1 ? (
+                  <p className="text-sm text-muted-foreground">Loading experience…</p>
+                ) : null}
+                {!detailsLoading && experience.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No experience listed.</p>
+                ) : null}
+                <ol className="space-y-0">
+                  {experience.map((entry, index) => {
+                    const companyLine = metaLine([
+                      entry.company,
+                      entry.duration,
+                      entry.location,
+                    ]);
+                    const detailLine = metaLine([
+                      entry.seniority,
+                      entry.employmentType,
+                      entry.companySize,
+                      entry.companyHq,
+                    ]);
+                    return (
+                    <li
+                      key={`${entry.company}-${entry.role}-${index}`}
+                      className="relative flex gap-3 pb-5 last:pb-0"
+                    >
+                      {index < experience.length - 1 ? (
+                        <span
+                          aria-hidden
+                          className="absolute top-4 left-[5px] h-full w-px bg-border"
+                        />
+                      ) : null}
+                      <ExperienceCompanyMark
+                        website={entry.companyWebsite}
+                        fjLogoUrl={entry.companyLogoUrl}
+                        company={entry.company}
+                        current={entry.current}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">
+                            {entry.role}
+                          </p>
+                          {entry.current ? (
+                            <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                              Current
+                            </span>
+                          ) : null}
+                        </div>
+                        {companyLine ? (
+                          <p className="text-sm text-muted-foreground">{companyLine}</p>
+                        ) : null}
+                        {detailLine ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{detailLine}</p>
+                        ) : null}
+                        {entry.industries && entry.industries.length > 0 ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {entry.industries.join(" · ")}
+                          </p>
+                        ) : null}
+                        {entry.description ? (
+                          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                            {entry.description}
+                          </p>
+                        ) : null}
+                      </div>
+                    </li>
+                    );
+                  })}
+                </ol>
               </div>
               {candidate.signals.length > 0 ? (
                 <div className="space-y-2">
@@ -230,57 +407,6 @@ export function CandidateDrawer({
               ) : null}
             </TabsContent>
 
-            <TabsContent value="experience" className="pt-2">
-              {detailsLoading && experience.length <= 1 ? (
-                <p className="mb-3 text-sm text-muted-foreground">Loading experience…</p>
-              ) : null}
-              {!detailsLoading && experience.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No experience listed.</p>
-              ) : null}
-              <ol className="space-y-0">
-                {experience.map((entry, index) => (
-                  <li
-                    key={`${entry.company}-${entry.role}-${index}`}
-                    className="relative flex gap-3 pb-5 last:pb-0"
-                  >
-                    {index < experience.length - 1 ? (
-                      <span
-                        aria-hidden
-                        className="absolute top-4 left-[5px] h-full w-px bg-border"
-                      />
-                    ) : null}
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "relative mt-1.5 size-[11px] shrink-0 rounded-full border-2",
-                        entry.current
-                          ? "border-primary bg-primary"
-                          : "border-primary bg-card"
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-foreground">
-                          {entry.role}
-                        </p>
-                        {entry.current ? (
-                          <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
-                            Current
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {entry.company} · {entry.duration}
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                        {entry.description}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </TabsContent>
-
             <TabsContent value="education" className="space-y-3 pt-2">
               {detailsLoading && candidate.education.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Loading education…</p>
@@ -288,22 +414,37 @@ export function CandidateDrawer({
               {!detailsLoading && candidate.education.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No education listed.</p>
               ) : null}
-              {candidate.education.map((entry, index) => (
+              {candidate.education.map((entry, index) => {
+                const degreeLine = metaLine([
+                  displayPart(entry.degree),
+                  displayPart(entry.field),
+                ]);
+                return (
                 <div
                   key={`${entry.school}-${entry.degree}-${index}`}
-                  className="rounded-lg border border-border px-3 py-2.5"
+                  className="flex gap-3 rounded-lg border border-border px-3 py-2.5"
                 >
-                  <p className="text-sm font-medium text-foreground">
-                    {entry.school}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {entry.degree}, {entry.field}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {entry.years}
-                  </p>
+                  {entry.schoolLogoUrl ? (
+                    <FjStaticImage
+                      src={entry.schoolLogoUrl}
+                      className="mt-0.5 size-8 shrink-0 rounded-md border border-border bg-muted object-cover"
+                      fallback={null}
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {entry.school}
+                    </p>
+                    {degreeLine ? (
+                      <p className="text-sm text-muted-foreground">{degreeLine}</p>
+                    ) : null}
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {metaLine([entry.years, entry.location]) || "—"}
+                    </p>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </TabsContent>
 
             <TabsContent value="activity" className="pt-2">

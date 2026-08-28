@@ -1,6 +1,7 @@
 // @ts-nocheck — faithful port of filterMapping.js + mapProfile.js + payload.js
 import type { FutureJobsFilterForm, FutureJobsMappedCandidate } from './futureJobs.types.js';
 import { labelListFromUnknown } from '../../shared/strings/label-list.js';
+import { normalizeFjProfileDoc } from './futureJobs.search-docs.js';
 
 /**
  * Map Future Jobs session.queries ↔ flat filter form (dashboard drawer).
@@ -1398,11 +1399,14 @@ function filterFormFromAnnotation(annotationData) {
 /**
  * Map one Future Jobs sourcing-session profile doc → dashboard candidate row.
  * @param {object} doc — entry from GET …/sourcing-session/:id/profiles → data.docs[]
+ *   or POST /wl/search → data[] (`{ profile: { id, fullName, … } }`).
  */
 function mapFjDocToCandidate(doc: unknown): FutureJobsMappedCandidate | null {
-  if (!doc || typeof doc !== "object") {
+  const normalized = normalizeFjProfileDoc(doc);
+  if (!normalized) {
     return null;
   }
+  doc = normalized;
 
   const p = doc.profile && typeof doc.profile === "object" ? doc.profile : {};
   const employers = Array.isArray(p.current_employers_object)

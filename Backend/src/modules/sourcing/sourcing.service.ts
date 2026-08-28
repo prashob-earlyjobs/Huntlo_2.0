@@ -174,6 +174,10 @@ export function toPublicCandidate(candidate: SourcedCandidateDocument) {
     profileSignals: candidate.profileSignals ?? [],
     rank: candidate.rank ?? 0,
     matchScore: candidate.matchScore,
+    fit:
+      typeof candidate.fit === 'string' && candidate.fit.trim()
+        ? candidate.fit.trim()
+        : null,
   };
 }
 
@@ -295,20 +299,7 @@ export class SourcingService {
         }
       );
 
-      if ('sessionPending' in applyResult && applyResult.sessionPending) {
-        const savedId = applyResult.savedSessionId;
-        if (savedId) {
-          const session = await loadSessionForOrg(savedId, actor.organizationId);
-          const { names, jobTitle } = await namesAndJobTitle(session);
-          return {
-            ...toPublicSession(session, names, jobTitle),
-            sessionPending: true,
-            message: applyResult.message,
-          };
-        }
-      }
-
-      if ('savedSessionId' in applyResult && applyResult.savedSessionId) {
+      if (applyResult.savedSessionId) {
         const session = await loadSessionForOrg(
           applyResult.savedSessionId,
           actor.organizationId

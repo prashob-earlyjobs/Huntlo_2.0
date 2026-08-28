@@ -181,6 +181,7 @@ export function toPublicPoolCandidate(
     email: candidate.email ?? null,
     phone: candidate.phone ?? null,
     linkedinUrl: candidate.linkedinUrl ?? null,
+    profilePictureUrl: candidate.profilePictureUrl ?? null,
     headline: candidate.headline ?? null,
     currentTitle: candidate.currentTitle ?? null,
     currentCompany: candidate.currentCompany ?? null,
@@ -225,6 +226,62 @@ async function loadCandidateForOrg(candidateId: string, organizationId: string) 
   return candidate;
 }
 
+function sourcedPictureUrl(row: {
+  profilePictureUrl?: string | null;
+  basicProfile?: { profilePictureUrl?: string | null } | null;
+}): string | null {
+  const top = row.profilePictureUrl?.trim();
+  if (top) return top;
+  const nested = row.basicProfile?.profilePictureUrl?.trim();
+  return nested || null;
+}
+
+/** Prefer stored pool photo; else latest sourced Future Jobs permalink. */
+export async function lookupProfilePictures(
+  organizationId: string,
+  rows: Array<{
+    id: string;
+    profilePictureUrl?: string | null;
+    externalCandidateId?: string | null;
+  }>
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const missingExt = new Map<string, string[]>();
+  for (const row of rows) {
+    const stored = row.profilePictureUrl?.trim();
+    if (stored) {
+      out.set(row.id, stored);
+      continue;
+    }
+    const ext = row.externalCandidateId?.trim();
+    if (!ext) continue;
+    const list = missingExt.get(ext) ?? [];
+    list.push(row.id);
+    missingExt.set(ext, list);
+  }
+  if (!missingExt.size || !isValidObjectId(organizationId)) return out;
+
+  const ids = [...missingExt.keys()];
+  const sourced = await SourcedCandidateModel.find({
+    organizationId: new mongoose.Types.ObjectId(organizationId),
+    $or: [{ externalCandidateId: { $in: ids } }, { candidateId: { $in: ids } }],
+  })
+    .select('externalCandidateId candidateId profilePictureUrl basicProfile.profilePictureUrl')
+    .lean();
+
+  for (const item of sourced) {
+    const pic = sourcedPictureUrl(item);
+    if (!pic) continue;
+    for (const key of [item.externalCandidateId, item.candidateId]) {
+      if (!key) continue;
+      for (const rowId of missingExt.get(key) ?? []) {
+        if (!out.has(rowId)) out.set(rowId, pic);
+      }
+    }
+  }
+  return out;
+}
+
 async function enrichPublic(candidates: SavedCandidateDocument[]) {
   const ownerIds = candidates.map((c) => c.ownerUserId);
   const assignedIds = candidates.map((c) => c.assignedUserId);
@@ -232,23 +289,36 @@ async function enrichPublic(candidates: SavedCandidateDocument[]) {
   const allListIds = candidates.flatMap((c) => c.listIds ?? []);
   const allJobIds = candidates.flatMap((c) => c.jobIds ?? []);
   const orgId = candidates[0]?.organizationId?.toHexString();
-  const [listNames, jobNames] = orgId
+  const [listNames, jobNames, pictures] = orgId
     ? await Promise.all([
         loadListNames(orgId, allListIds),
         loadJobNames(orgId, allJobIds),
+        lookupProfilePictures(
+          orgId,
+          candidates.map((c) => ({
+            id: c._id.toHexString(),
+            profilePictureUrl: c.profilePictureUrl ?? null,
+            externalCandidateId: c.externalCandidateId ?? null,
+          }))
+        ),
       ])
-    : [new Map<string, string>(), new Map<string, string>()];
+    : [new Map<string, string>(), new Map<string, string>(), new Map<string, string>()];
 
-  return candidates.map((c) =>
-    toPublicPoolCandidate(c, {
+  return candidates.map((c) => {
+    const publicRow = toPublicPoolCandidate(c, {
       ownerName: c.ownerUserId ? names.get(c.ownerUserId.toHexString()) ?? null : null,
       assignedName: c.assignedUserId
         ? names.get(c.assignedUserId.toHexString()) ?? null
         : null,
       listNames,
       jobNames,
-    })
-  );
+    });
+    return {
+      ...publicRow,
+      profilePictureUrl:
+        pictures.get(c._id.toHexString()) ?? publicRow.profilePictureUrl ?? null,
+    };
+  });
 }
 
 function toObjectIds(ids: string[] | undefined): mongoose.Types.ObjectId[] {
@@ -371,6 +441,10 @@ export class PoolService {
       email,
       phone,
       linkedinUrl,
+      profilePictureUrl:
+        input.profilePictureUrl === '' || input.profilePictureUrl === undefined
+          ? null
+          : input.profilePictureUrl ?? null,
       headline: input.headline ?? null,
       currentTitle: input.currentTitle ?? null,
       currentCompany: input.currentCompany ?? null,
@@ -418,6 +492,12 @@ export class PoolService {
     if (input.linkedinUrl !== undefined) {
       candidate.linkedinUrl =
         input.linkedinUrl === '' || input.linkedinUrl === null ? null : input.linkedinUrl;
+    }
+    if (input.profilePictureUrl !== undefined) {
+      candidate.profilePictureUrl =
+        input.profilePictureUrl === '' || input.profilePictureUrl === null
+          ? null
+          : input.profilePictureUrl;
     }
     if (input.headline !== undefined) candidate.headline = input.headline;
     if (input.currentTitle !== undefined) candidate.currentTitle = input.currentTitle;
@@ -619,6 +699,7 @@ export class PoolService {
         candidate.linkedinProfileUrl ||
         candidate.basicProfile?.linkedinUrl ||
         null;
+      const profilePictureUrl = sourcedPictureUrl(candidate);
 
       return {
         updateOne: {
@@ -643,6 +724,7 @@ export class PoolService {
               email: null,
               phone: null,
               linkedinUrl,
+              profilePictureUrl,
               headline: candidate.basicProfile?.headline ?? null,
               currentTitle:
                 candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
@@ -656,7 +738,11 @@ export class PoolService {
               createdAt: now,
             },
             $addToSet: { listIds: listOid },
-            $set: { lastActivityAt: now, updatedAt: now },
+            $set: {
+              lastActivityAt: now,
+              updatedAt: now,
+              ...(profilePictureUrl ? { profilePictureUrl } : {}),
+            },
           },
           upsert: true,
         },

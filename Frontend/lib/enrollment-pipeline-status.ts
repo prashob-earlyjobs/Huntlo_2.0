@@ -3,7 +3,7 @@ import type { ApiCampaignEnrollment } from "@/lib/api/outreach";
 /** Single candidate status for campaign table (replaces reply + qualification columns). */
 export type CandidatePipelineStatus =
   | "Awaiting reply"
-  | "Interested"
+  | "Answered"
   | "Not interested"
   | "In qualification"
   | "Qualified"
@@ -55,13 +55,10 @@ export function deriveCandidatePipelineStatus(
   }
 
   if (hasReply) {
-    if (disposition === "interested") {
-      return qual === "pending" ? "Interested" : "In qualification";
-    }
     if (disposition === "not_interested") {
       return "Not interested";
     }
-    return "Interested";
+    return "Answered";
   }
 
   return "Awaiting reply";
@@ -70,7 +67,6 @@ export function deriveCandidatePipelineStatus(
 export function pipelineStatusBadgeClass(status: CandidatePipelineStatus): string {
   switch (status) {
     case "Qualified":
-    case "Interested":
     case "Shortlisted":
       return "bg-success/10 text-success";
     case "Not interested":
@@ -79,6 +75,7 @@ export function pipelineStatusBadgeClass(status: CandidatePipelineStatus): strin
       return "bg-destructive/10 text-destructive";
     case "In qualification":
     case "In screening":
+    case "Answered":
       return "bg-info/10 text-info";
     default:
       return "bg-muted text-muted-foreground";

@@ -683,6 +683,16 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
       (err as Error & { statusCode: number }).statusCode = 400;
       throw err;
     }
+    // Huntlo `/wl/search` stores a synthetic session id. Live FJ has no such session.
+    if (sessionId.startsWith('wl-search-')) {
+      throw createFutureJobsUpstreamError({
+        details: { message: 'Sourcing session not found' },
+        fjHttpStatus: 404,
+        fjOperation: 'POST /wl/sourcing-session/contact/reveal',
+        statusCode: 404,
+        logFailure: false,
+      });
+    }
     return buildRevealResponse(type as 'EMAIL' | 'PHONE', profileUrl);
   }
 
@@ -950,6 +960,22 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     };
   }
 
+  async function searchByJdText(
+    body: { jdText: string },
+    _opts?: FutureJobsRequestOpts
+  ): Promise<FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>> {
+    maybeFail('POST /wl/search');
+    const sessionId = nextSessionId();
+    const docs = buildFakeProfiles(sessionId, 4);
+    return {
+      status: true,
+      statusCode: 200,
+      message: 'Search completed',
+      // Live POST /wl/search returns data as a profile-doc array.
+      data: docs,
+    };
+  }
+
   return {
     createSourcingSession,
     updateSourcingSession,
@@ -963,6 +989,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     getSourcingSessionAnnotation,
     getFilterAutocomplete,
     previewSourcingSession,
+    searchByJdText,
     isFjSessionPending,
     fjSessionPendingMessage,
   };

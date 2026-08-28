@@ -109,8 +109,34 @@ export type CandidateSearchSummary = {
   experienceYears: number | null;
   skills: string[];
   educationPreview?: unknown[];
+  experience?: Array<{
+    company: string;
+    role: string;
+    duration: string;
+    description: string;
+    current: boolean;
+    location?: string;
+    seniority?: string;
+    employmentType?: string;
+    industries?: string[];
+    companyLogoUrl?: string;
+    companyWebsite?: string;
+    companySize?: string;
+    companyHq?: string;
+  }>;
+  education?: Array<{
+    school: string;
+    degree: string;
+    field: string;
+    years: string;
+    location?: string;
+    schoolLogoUrl?: string;
+  }>;
+  summary?: string | null;
+  candidateSummary?: string | null;
   finalScore?: number | null;
   matchScore?: number | null;
+  fit?: string | null;
   linkedinProfileUrl?: string | null;
   linkedinUrl?: string | null;
   profilePictureUrl?: string | null;
@@ -186,13 +212,13 @@ export type SaveSearchResponse = {
   candidateCount?: number;
 };
 
-/** Apply can return pending quickly (~4s wait + short poll); client follows session. */
-const LONG_SEARCH_TIMEOUT_MS = 120_000;
+/** Apply waits on Future Jobs POST /wl/search (up to 120s) plus Huntlo persist. */
+const LONG_SEARCH_TIMEOUT_MS = 135_000;
 
 async function rawPost<T>(
   path: string,
   body: unknown,
-  options?: { timeoutMs?: number }
+  options?: { timeoutMs?: number; signal?: AbortSignal }
 ): Promise<T> {
   const result = await apiClient.request<T>(path, {
     method: "POST",
@@ -200,6 +226,7 @@ async function rawPost<T>(
     raw: true,
     sensitive: false,
     timeoutMs: options?.timeoutMs,
+    signal: options?.signal,
   });
   return result.data;
 }
@@ -220,26 +247,22 @@ async function rawDelete<T>(path: string): Promise<T> {
   return result.data;
 }
 
-export type SearchPreviewResponse = {
+export type PromptFromJobResponse = {
   success: true;
-  count: number;
-  exactCount: number;
-  status: string;
-  message?: string;
-  /** Present when preview auto-peeled skills because estimate was 0. */
-  filterForm?: CandidateFilterForm;
-  skillsRelaxFallbackUsed?: boolean;
+  jobId: string;
+  prompt: string;
+  source: "gemini" | "fallback" | "unavailable";
 };
 
 export interface CandidateSearchApi {
+  promptFromJob(input: {
+    jobId: string;
+    signal?: AbortSignal;
+  }): Promise<PromptFromJobResponse>;
   annotateCandidateSearch(input: {
     prompt: string;
     linkedin_profile_url?: string;
   }): Promise<SearchAnnotationResponse>;
-  previewCandidateSearch(input: {
-    prompt?: string;
-    filterForm: CandidateFilterForm;
-  }): Promise<SearchPreviewResponse>;
   autocompleteCandidateFilter(input: {
     filter_type?: string;
     query: string;
@@ -332,6 +355,16 @@ export interface CandidateSearchApi {
 }
 
 const mockCandidateSearchApi: CandidateSearchApi = {
+  async promptFromJob({ jobId }) {
+    await simulateMockLatency();
+    return {
+      success: true as const,
+      jobId,
+      prompt:
+        "Find MERN stack developers in Bengaluru with 3–6 years of experience. Must-have skills: React, Node.js, MongoDB, Express. Look for people who have shipped production APIs and dashboards.",
+      source: "fallback" as const,
+    };
+  },
   async annotateCandidateSearch({ prompt }) {
     await simulateMockLatency();
     const { INTERPRETED_FILTER_STATE } = await import("@/lib/mock-search");
@@ -340,20 +373,6 @@ const mockCandidateSearchApi: CandidateSearchApi = {
       filterForm: INTERPRETED_FILTER_STATE as unknown as CandidateFilterForm,
       annotation: { prompt },
     };
-  },
-  async previewCandidateSearch({ prompt, filterForm }) {
-    await simulateMockLatency();
-    const keys = Object.keys(filterForm ?? {}).length;
-    const count = Math.max(120, Math.min(8000, 200 + keys * 380 + (prompt?.length ?? 0)));
-    const result = {
-      success: true as const,
-      count,
-      exactCount: count,
-      status: count > 5000 ? "too_broad" : "ok",
-      message: "Search health retrieved",
-    };
-    console.log("[candidate-search/preview] profile count", result);
-    return result;
   },
   async autocompleteCandidateFilter({ query, filter_type }) {
     await simulateMockLatency();
@@ -579,19 +598,18 @@ const mockCandidateSearchApi: CandidateSearchApi = {
 };
 
 const liveCandidateSearchApi: CandidateSearchApi = {
+  async promptFromJob(input) {
+    return rawPost<PromptFromJobResponse>(
+      "/candidates/search/prompt-from-job",
+      { jobId: input.jobId },
+      { timeoutMs: 45_000, signal: input.signal }
+    );
+  },
   async annotateCandidateSearch(input) {
     return rawPost<SearchAnnotationResponse>("/candidates/search/annotate", {
       prompt: input.prompt,
       linkedin_profile_url: input.linkedin_profile_url ?? "",
     });
-  },
-  async previewCandidateSearch(input) {
-    const result = await rawPost<SearchPreviewResponse>("/candidates/search/preview", {
-      prompt: input.prompt ?? "",
-      filterForm: input.filterForm ?? {},
-    });
-    console.log("[candidate-search/preview] profile count", result);
-    return result;
   },
   async autocompleteCandidateFilter(input) {
     const qs = buildQueryString({
@@ -714,16 +732,16 @@ export const candidateSearchApi = createDomainService({
   live: liveCandidateSearchApi,
 });
 
+export async function promptFromJob(
+  input: Parameters<CandidateSearchApi["promptFromJob"]>[0]
+) {
+  return candidateSearchApi.promptFromJob(input);
+}
+
 export async function annotateCandidateSearch(
   input: Parameters<CandidateSearchApi["annotateCandidateSearch"]>[0]
 ) {
   return candidateSearchApi.annotateCandidateSearch(input);
-}
-
-export async function previewCandidateSearch(
-  input: Parameters<CandidateSearchApi["previewCandidateSearch"]>[0]
-) {
-  return candidateSearchApi.previewCandidateSearch(input);
 }
 
 export async function autocompleteCandidateFilter(

@@ -326,6 +326,7 @@ export async function ensureSourcedCandidatesInPool(
     skills?: string[];
     linkedinUrl?: string | null;
     externalCandidateId?: string | null;
+    profilePictureUrl?: string | null;
   }> = []
 ): Promise<string[]> {
   // Full session first — Apply often stores page 1 only until fetch-more runs.
@@ -352,6 +353,7 @@ export async function ensureSourcedCandidatesInPool(
       location: fallback.location || "",
       experienceYears: fallback.experienceYears ?? null,
       skills: fallback.skills ?? [],
+      profilePictureUrl: fallback.profilePictureUrl ?? null,
       educationPreview: [],
       profileSignals: [],
       rank: 0,
@@ -435,6 +437,7 @@ export async function ensureSourcedCandidatesInPool(
       sourceType: "sourcing",
       sourceId: sessionId,
       externalCandidateId: result.externalCandidateId,
+      profilePictureUrl: result.profilePictureUrl || undefined,
     });
     ids.push(created.id);
     if (result.externalCandidateId) {

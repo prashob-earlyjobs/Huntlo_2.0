@@ -80,7 +80,7 @@ export function CandidateCard({
                 </span>
               ) : null}
             </div>
-            <MatchScoreCompact score={candidate.matchScore} />
+            <MatchScoreCompact score={candidate.matchScore} fit={candidate.fit} />
           </div>
           <p className="truncate text-sm text-muted-foreground">
             {candidate.currentRole} · {candidate.currentCompany}
@@ -92,7 +92,7 @@ export function CandidateCard({
             </span>
             <span className="inline-flex items-center gap-1">
               <Timer aria-hidden className="size-3" />
-              {candidate.experienceYears} yrs
+              {candidate.experienceYears != null ? `${candidate.experienceYears} yrs` : "—"}
             </span>
           </div>
         </div>

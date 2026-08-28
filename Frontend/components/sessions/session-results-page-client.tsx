@@ -90,8 +90,13 @@ function mapSearchSummaryToSessionCandidate(
     profileSignals: candidate.profileSignals ?? [],
     rank: candidate.rank ?? 0,
     matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
+    fit: candidate.fit ?? null,
     saved: candidate.saved,
     lists: candidate.lists ?? [],
+    experience: candidate.experience,
+    education: candidate.education,
+    summary: candidate.summary ?? candidate.candidateSummary ?? null,
+    candidateSummary: candidate.candidateSummary ?? candidate.summary ?? null,
   });
 }
 

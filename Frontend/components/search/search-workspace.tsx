@@ -3,22 +3,19 @@
 import Link from "next/link";
 import {
   Briefcase,
-  Check,
   Coins,
   Eraser,
   LoaderCircle,
   PenLine,
   Search,
   SlidersHorizontal,
-  Users,
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FilterPanel } from "@/components/search/filter-panel";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -49,9 +46,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getApiErrorMessage, isQuotaError, jobsApi, plansApi } from "@/lib/api";
 import {
-  annotateCandidateSearch,
   applyCandidateSearch,
-  previewCandidateSearch,
+  promptFromJob,
 } from "@/lib/api/candidate-search";
 import type { JobListItem } from "@/lib/api/contracts";
 import {
@@ -63,26 +59,15 @@ import {
   EXAMPLE_QUERY,
   FILTER_FIELD_INDEX,
   FILTER_SECTIONS,
-  INTERPRETED_FILTER_STATE,
   isFieldActive,
   type FilterValue,
-  type InterpretedCriterion,
   type SavedSearch,
   type SearchFilterState,
 } from "@/lib/mock-search";
-import {
-  filtersToProviderPayload,
-  providerPayloadToFilters,
-} from "@/lib/search-filter-adapters";
+import { filtersToProviderPayload } from "@/lib/search-filter-adapters";
 import { ROUTES, sessionDetailPath } from "@/lib/routes";
 
 const NUMBER_FORMAT = new Intl.NumberFormat("en-IN");
-
-/** UI-only: cap live estimate display at 300+. */
-function formatPreviewReachCount(count: number): string {
-  if (count >= 300) return "300+";
-  return NUMBER_FORMAT.format(count);
-}
 
 function buildPromptFromJob(job: JobListItem): string {
   return `Find ${job.title.toLowerCase()}s in ${job.location} with ${job.experienceMin}–${job.experienceMax} years of experience for the ${job.department} team.`;
@@ -97,151 +82,6 @@ function formatFilterValue(value: FilterValue): string {
   if (low && high) return `${low}–${high}`;
   if (low) return `${low}+`;
   return `up to ${high}`;
-}
-
-/* ------------------------------------------------------------------ */
-/* AI interpretation — grouped, editable rows                          */
-/* ------------------------------------------------------------------ */
-
-function InterpretationPanel({
-  criteria,
-  confirmedIds,
-  onEdit,
-  onRemove,
-  onToggleConfirm,
-  onApply,
-  applied,
-}: {
-  criteria: InterpretedCriterion[];
-  confirmedIds: Set<string>;
-  onEdit: (id: string, value: string) => void;
-  onRemove: (id: string) => void;
-  onToggleConfirm: (id: string) => void;
-  onApply: () => void;
-  applied: boolean;
-}) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-
-  return (
-    <section
-      aria-labelledby="ai-interpretation-heading"
-      className="rounded-lg border border-border border-l-[3px] border-l-primary/40 bg-card p-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2
-            id="ai-interpretation-heading"
-            className="text-[15px] font-semibold text-foreground"
-          >
-            Interpreted criteria
-          </h2>
-          <p className="text-[12px] text-muted-foreground">
-            Confirm, edit or remove each row before searching.
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant={applied ? "outline" : "default"}
-          onClick={onApply}
-          disabled={applied || criteria.length === 0}
-        >
-          {applied ? (
-            <>
-              <Check aria-hidden />
-              Applied to filters
-            </>
-          ) : (
-            "Apply to filters"
-          )}
-        </Button>
-      </div>
-
-      {criteria.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          All interpreted criteria were removed. Re-generate filters or add
-          criteria manually in the filter panel.
-        </p>
-      ) : (
-        <ul className="mt-3 divide-y divide-border">
-          {criteria.map((criterion) => {
-            const isEditing = editingId === criterion.id;
-            const confirmed = confirmedIds.has(criterion.id);
-            return (
-              <li
-                key={criterion.id}
-                className="flex items-center gap-3 py-2 first:pt-0.5 last:pb-0.5"
-              >
-                <span className="w-28 shrink-0 text-xs font-medium text-muted-foreground sm:w-32">
-                  {criterion.label}
-                </span>
-                <div className="min-w-0 flex-1">
-                  {isEditing ? (
-                    <Input
-                      autoFocus
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          onEdit(criterion.id, draft);
-                          setEditingId(null);
-                        }
-                        if (event.key === "Escape") setEditingId(null);
-                      }}
-                      onBlur={() => {
-                        onEdit(criterion.id, draft);
-                        setEditingId(null);
-                      }}
-                      aria-label={`Edit ${criterion.label}`}
-                      className="h-7 text-sm"
-                    />
-                  ) : (
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {criterion.value}
-                    </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant={confirmed ? "secondary" : "ghost"}
-                    onClick={() => onToggleConfirm(criterion.id)}
-                    aria-pressed={confirmed}
-                  >
-                    <Check aria-hidden />
-                    {confirmed ? "Confirmed" : "Confirm"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={`Edit ${criterion.label}`}
-                    onClick={() => {
-                      setEditingId(criterion.id);
-                      setDraft(criterion.value);
-                    }}
-                  >
-                    <PenLine aria-hidden />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={`Remove ${criterion.label}`}
-                    onClick={() => onRemove(criterion.id)}
-                  >
-                    <X aria-hidden />
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
-  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -356,14 +196,7 @@ export function SearchWorkspace() {
   const [saveModeOpen, setSaveModeOpen] = useState(false);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [filters, setFilters] = useState<SearchFilterState>({});
-  const [criteria, setCriteria] = useState<InterpretedCriterion[] | null>(null);
-  const [interpretedFilters, setInterpretedFilters] = useState<SearchFilterState | null>(
-    null
-  );
-  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
-  const [criteriaApplied, setCriteriaApplied] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [interpreting, setInterpreting] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchRemaining, setSearchRemaining] = useState<number | null>(null);
@@ -371,10 +204,37 @@ export function SearchWorkspace() {
   const [recentSearchesLoading, setRecentSearchesLoading] = useState(true);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const [previewCount, setPreviewCount] = useState<number | null>(null);
-  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const previewRequestId = useRef(0);
+  const [promptFromJobLoading, setPromptFromJobLoading] = useState(false);
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
+  const promptFromJobSeq = useRef(0);
+  const promptFromJobAbort = useRef<AbortController | null>(null);
+
+  const fillPromptFromJob = useCallback(async (jobId: string) => {
+    const seq = ++promptFromJobSeq.current;
+    promptFromJobAbort.current?.abort();
+    const ac = new AbortController();
+    promptFromJobAbort.current = ac;
+    setPromptFromJobLoading(true);
+    setError(null);
+    try {
+      const result = await promptFromJob({ jobId, signal: ac.signal });
+      if (seq !== promptFromJobSeq.current) return;
+      setQuery(result.prompt);
+    } catch (err) {
+      if (ac.signal.aborted || seq !== promptFromJobSeq.current) return;
+      const fallback = jobsRef.current.find((item) => item.id === jobId);
+      if (fallback) {
+        setQuery(buildPromptFromJob(fallback));
+        return;
+      }
+      setError(
+        getApiErrorMessage(err, "Could not convert this job into a search prompt.")
+      );
+    } finally {
+      if (seq === promptFromJobSeq.current) setPromptFromJobLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -426,36 +286,30 @@ export function SearchWorkspace() {
 
   useEffect(() => {
     if (appliedJobFromUrl.current || !jobIdFromUrl) return;
-    let cancelled = false;
+    appliedJobFromUrl.current = true;
+    setSelectedJobId(jobIdFromUrl);
+    void fillPromptFromJob(jobIdFromUrl);
 
+    let cancelled = false;
     void (async () => {
-      let job = jobs.find((item) => item.id === jobIdFromUrl) ?? null;
-      if (!job) {
-        try {
-          const detail = await jobsApi.getById(jobIdFromUrl);
-          if (cancelled || !detail) return;
-          job = detail;
-          setJobs((previous) =>
-            previous.some((item) => item.id === detail.id)
-              ? previous
-              : [detail, ...previous]
-          );
-        } catch {
-          return;
-        }
+      if (jobsRef.current.some((item) => item.id === jobIdFromUrl)) return;
+      try {
+        const detail = await jobsApi.getById(jobIdFromUrl);
+        if (cancelled || !detail) return;
+        setJobs((previous) =>
+          previous.some((item) => item.id === detail.id)
+            ? previous
+            : [detail, ...previous]
+        );
+      } catch {
+        // Select still works from jobId; list label may stay empty until jobs load.
       }
-      if (cancelled || !job) return;
-      appliedJobFromUrl.current = true;
-      setSelectedJobId(job.id);
-      setQuery(buildPromptFromJob(job));
-      setCriteria(null);
-      setCriteriaApplied(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [jobIdFromUrl, jobs]);
+  }, [jobIdFromUrl, fillPromptFromJob]);
 
   useEffect(() => {
     if (appliedEditDraft.current) return;
@@ -465,10 +319,7 @@ export function SearchWorkspace() {
     setEditDraft(draft);
     setQuery(draft.prompt);
     setFilters(draft.filters ?? {});
-    setInterpretedFilters(draft.filters ?? null);
-    setCriteriaApplied(Object.keys(draft.filters ?? {}).length > 0);
     setSelectedJobId(draft.jobId);
-    setCriteria(null);
     setFilterDrawerOpen(true);
   }, [editSessionIdFromUrl]);
 
@@ -507,100 +358,7 @@ export function SearchWorkspace() {
     return Array.from(bySection.values());
   }, [activeEntries]);
 
-  const reach = useMemo(() => {
-    if (previewCount == null) return null;
-    return { count: previewCount, status: previewStatus };
-  }, [previewCount, previewStatus]);
-
-  const isFresh =
-    !query.trim() && activeCount === 0 && criteria === null && !searched;
-
-  useEffect(() => {
-    if (activeCount === 0 && !criteriaApplied) {
-      setPreviewCount(null);
-      setPreviewStatus(null);
-      setPreviewLoading(false);
-      return;
-    }
-
-    const requestId = ++previewRequestId.current;
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        setPreviewLoading(true);
-        try {
-          const providerFilters = filtersToProviderPayload(filters);
-          const result = await previewCandidateSearch({
-            prompt: query.trim(),
-            filterForm: providerFilters,
-          });
-          if (previewRequestId.current !== requestId) return;
-          setPreviewCount(result.exactCount ?? result.count ?? 0);
-          setPreviewStatus(result.status ?? null);
-          // Preview auto-peeled skills when estimate was 0 — sync drawer filters.
-          if (result.skillsRelaxFallbackUsed && result.filterForm) {
-            const relaxed = providerPayloadToFilters(result.filterForm);
-            const applySkillBuckets = (
-              previous: SearchFilterState | null
-            ): SearchFilterState => {
-              const next = { ...(previous ?? {}), ...relaxed };
-              delete next.mandatorySkills;
-              delete next.coreSkills;
-              delete next.secondarySkills;
-              if (Array.isArray(relaxed.mandatorySkills) && relaxed.mandatorySkills.length > 0) {
-                next.mandatorySkills = relaxed.mandatorySkills;
-              }
-              if (Array.isArray(relaxed.coreSkills) && relaxed.coreSkills.length > 0) {
-                next.coreSkills = relaxed.coreSkills;
-              }
-              if (Array.isArray(relaxed.secondarySkills) && relaxed.secondarySkills.length > 0) {
-                next.secondarySkills = relaxed.secondarySkills;
-              }
-              return next;
-            };
-            setFilters((previous) => applySkillBuckets(previous));
-            setInterpretedFilters((previous) => applySkillBuckets(previous));
-            setCriteria((previous) => {
-              if (!previous) return previous;
-              const skillParts = [
-                ...(Array.isArray(relaxed.mandatorySkills) ? relaxed.mandatorySkills : []),
-                ...(Array.isArray(relaxed.coreSkills) ? relaxed.coreSkills : []),
-                ...(Array.isArray(relaxed.secondarySkills) ? relaxed.secondarySkills : []),
-              ];
-              return previous
-                .map((criterion) => {
-                  if (criterion.id !== "ic-skills" && criterion.fieldId !== "coreSkills") {
-                    return criterion;
-                  }
-                  if (skillParts.length === 0) return null;
-                  return { ...criterion, value: skillParts.join(", ") };
-                })
-                .filter((item): item is InterpretedCriterion => item != null);
-            });
-          }
-          console.log("[SearchWorkspace] profile count", {
-            count: result.count,
-            exactCount: result.exactCount,
-            status: result.status,
-            skillsRelaxFallbackUsed: result.skillsRelaxFallbackUsed ?? false,
-            activeFilters: activeCount,
-          });
-        } catch (err) {
-          if (previewRequestId.current !== requestId) return;
-          console.warn("[SearchWorkspace] preview profile count failed", err);
-          setPreviewCount(null);
-          setPreviewStatus(null);
-        } finally {
-          if (previewRequestId.current === requestId) {
-            setPreviewLoading(false);
-          }
-        }
-      })();
-    }, 500);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [filters, query, activeCount, criteriaApplied]);
+  const isFresh = !query.trim() && activeCount === 0 && !searched;
 
   function setField(fieldId: string, value: FilterValue | undefined) {
     setFilters((previous) => {
@@ -626,80 +384,10 @@ export function SearchWorkspace() {
 
   function resetAll() {
     setFilters({});
-    setCriteriaApplied(false);
-  }
-
-  async function generateFilters() {
-    if (!query.trim()) return;
-    setInterpreting(true);
-    setError(null);
-    try {
-      const result = await annotateCandidateSearch({ prompt: query.trim() });
-      const filterForm = providerPayloadToFilters(result.filterForm);
-      setInterpretedFilters(filterForm);
-      setFilters({ ...filters, ...filterForm });
-      setCriteriaApplied(true);
-      setFilterDrawerOpen(true);
-      // Build lightweight criteria rows from filter form for the interpretation panel
-      const nextCriteria: InterpretedCriterion[] = [];
-      if (Array.isArray(filterForm.currentTitle) && filterForm.currentTitle.length > 0) {
-        nextCriteria.push({
-          id: "ic-titles",
-          fieldId: "currentTitle",
-          label: "Role",
-          value: filterForm.currentTitle.join(", "),
-        });
-      }
-      const skillParts = [
-        ...(Array.isArray(filterForm.mandatorySkills) ? filterForm.mandatorySkills : []),
-        ...(Array.isArray(filterForm.coreSkills) ? filterForm.coreSkills : []),
-        ...(Array.isArray(filterForm.secondarySkills)
-          ? filterForm.secondarySkills
-          : []),
-      ];
-      if (skillParts.length > 0) {
-        nextCriteria.push({
-          id: "ic-skills",
-          fieldId: "coreSkills",
-          label: "Skills",
-          value: skillParts.join(", "),
-        });
-      }
-      if (Array.isArray(filterForm.location) && filterForm.location.length > 0) {
-        nextCriteria.push({
-          id: "ic-location",
-          fieldId: "location",
-          label: "Location",
-          value: filterForm.location.filter(Boolean).join(", "),
-        });
-      }
-      setCriteria(nextCriteria.length > 0 ? nextCriteria : null);
-      setConfirmedIds(new Set(nextCriteria.map((c) => c.id)));
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setInterpreting(false);
-    }
-  }
-
-  function applyCriteria() {
-    if (!criteria) return;
-    const activeFieldIds = new Set(criteria.map((item) => item.fieldId));
-    const source = interpretedFilters ?? INTERPRETED_FILTER_STATE;
-    const next: SearchFilterState = { ...filters };
-    for (const [fieldId, value] of Object.entries(source)) {
-      if (activeFieldIds.has(fieldId)) next[fieldId] = value as FilterValue;
-    }
-    setFilters(next);
-    setCriteriaApplied(true);
   }
 
   function clearSearch() {
     setQuery("");
-    setCriteria(null);
-    setInterpretedFilters(null);
-    setConfirmedIds(new Set());
-    setCriteriaApplied(false);
     setSearched(false);
     setError(null);
     setPendingMessage(null);
@@ -709,26 +397,11 @@ export function SearchWorkspace() {
     }
   }
 
-  function fillPromptFromJob(jobId: string) {
-    const job = jobOptions.find((item) => item.id === jobId);
-    if (!job) return;
-    setQuery(buildPromptFromJob(job));
-    setCriteria(null);
-    setCriteriaApplied(false);
-  }
-
   function useSavedSearch(saved: SavedSearch) {
     setQuery(saved.query);
-    setCriteria(null);
-    setCriteriaApplied(false);
   }
 
   async function handleSearchClick() {
-    const hasPreparedFilters = criteriaApplied || activeCount > 0;
-    if (!hasPreparedFilters && query.trim()) {
-      await generateFilters();
-      return;
-    }
     if (editDraft) {
       setSaveModeOpen(true);
       return;
@@ -750,7 +423,7 @@ export function SearchWorkspace() {
           ? editDraft?.sessionId || editDraft?.savedSessionId || undefined
           : undefined;
       const result = await applyCandidateSearch({
-        prompt: query.trim() || EXAMPLE_QUERY,
+        prompt: query.trim(),
         filterForm: providerFilters,
         jobId: selectedJobId,
         sessionId: updateSessionId,
@@ -773,7 +446,7 @@ export function SearchWorkspace() {
               JSON.stringify({
                 sessionId: result.sessionId,
                 savedSessionId: result.savedSessionId,
-                prompt: query.trim() || EXAMPLE_QUERY,
+                prompt: query.trim(),
                 filters: nextFilters,
               })
             );
@@ -795,7 +468,7 @@ export function SearchWorkspace() {
             JSON.stringify({
               sessionId: result.sessionId,
               savedSessionId: result.savedSessionId,
-              prompt: query.trim() || EXAMPLE_QUERY,
+              prompt: query.trim(),
               filters: nextFilters,
             })
           );
@@ -817,7 +490,8 @@ export function SearchWorkspace() {
     }
   }
 
-  const canSearch = query.trim().length > 0 || activeCount > 0;
+  const canSearch =
+    !promptFromJobLoading && (query.trim().length > 0 || activeCount > 0);
 
   const filterPanel = (
     <FilterPanel
@@ -861,9 +535,16 @@ export function SearchWorkspace() {
           className="rounded-lg border border-border bg-card p-4"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Label htmlFor="nl-query" className="text-sm font-medium text-foreground">
-              Describe the candidate profile
-            </Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="nl-query" className="text-sm font-medium text-foreground">
+                Describe the candidate profile
+              </Label>
+              {promptFromJobLoading ? (
+                <p className="text-xs text-muted-foreground" role="status">
+                  Converting job description into a search prompt…
+                </p>
+              ) : null}
+            </div>
             {searchRemaining !== null ? (
               <Tooltip>
                 <TooltipTrigger className="inline-flex items-center gap-1 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm">
@@ -877,15 +558,20 @@ export function SearchWorkspace() {
 
           <div
             className="ai-beam-border mt-2 rounded-md border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/50"
-            data-processing={interpreting || searching}
+            data-processing={searching || promptFromJobLoading}
           >
             <Textarea
               id="nl-query"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
+              placeholder={
+                promptFromJobLoading
+                  ? "Writing a searchable prompt from the job description…"
+                  : "Find backend engineers in Bengaluru with 4–7 years of experience, Node.js and AWS skills, currently working at SaaS companies."
+              }
               className="min-h-48 resize-none rounded-b-none border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
-              aria-busy={interpreting || searching}
+              aria-busy={searching || promptFromJobLoading}
+              disabled={promptFromJobLoading}
             />
 
             {/* Composer toolbar */}
@@ -898,7 +584,7 @@ export function SearchWorkspace() {
                     return;
                   }
                   setSelectedJobId(value);
-                  fillPromptFromJob(value);
+                  void fillPromptFromJob(value);
                 }}
               >
                 <SelectTrigger
@@ -906,10 +592,17 @@ export function SearchWorkspace() {
                   className="max-w-48 border-0 bg-transparent shadow-none hover:bg-muted"
                   aria-label="Select job"
                 >
-                  <Briefcase
-                    aria-hidden
-                    className="size-3.5 shrink-0 text-muted-foreground"
-                  />
+                  {promptFromJobLoading ? (
+                    <LoaderCircle
+                      aria-hidden
+                      className="size-3.5 shrink-0 animate-spin text-muted-foreground"
+                    />
+                  ) : (
+                    <Briefcase
+                      aria-hidden
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                  )}
                   <SelectValue placeholder="Select Job">
                     {selectedJob?.title}
                   </SelectValue>
@@ -952,31 +645,12 @@ export function SearchWorkspace() {
                       </SheetDescription>
                     </SheetHeader>
                     <div className="min-h-0 flex-1 overflow-y-auto">{filterPanel}</div>
-                    <SheetFooter className="mt-0 flex-row items-center justify-between gap-3 border-t border-border p-3">
-                      <span className="text-xs text-muted-foreground">
-                        {previewLoading ? (
-                          "Estimating profiles…"
-                        ) : reach ? (
-                          <>
-                            Est. profiles{" "}
-                            <span className="font-medium tabular-nums text-foreground">
-                              {formatPreviewReachCount(reach.count)}
-                            </span>
-                            {reach.status === "too_broad" ? (
-                              <span className="ml-1 text-amber-600 dark:text-amber-400">
-                                (broad)
-                              </span>
-                            ) : null}
-                          </>
-                        ) : (
-                          "Est. profiles —"
-                        )}
-                      </span>
+                    <SheetFooter className="mt-0 flex-row items-center justify-end gap-3 border-t border-border p-3">
                       <Button
                         type="button"
                         size="sm"
-                        disabled={!canSearch || searching || interpreting}
-                        aria-busy={searching}
+                        disabled={!canSearch || searching || promptFromJobLoading}
+                        aria-busy={searching || promptFromJobLoading}
                         onClick={() => {
                           setFilterDrawerOpen(false);
                           void handleSearchClick();
@@ -990,7 +664,7 @@ export function SearchWorkspace() {
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                {query || criteria ? (
+                {query || activeCount > 0 ? (
                   <Tooltip>
                     <TooltipTrigger
                       render={
@@ -1012,36 +686,16 @@ export function SearchWorkspace() {
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  className="relative"
-                  onClick={() => void generateFilters()}
-                  disabled={!query.trim() || interpreting || searching}
-                  aria-busy={interpreting}
-                  aria-label={interpreting ? "Generating filters" : undefined}
-                >
-                  {interpreting ? (
-                    <LoaderCircle
-                      aria-hidden
-                      className="absolute left-1/2 -translate-x-1/2 animate-spin"
-                    />
-                  ) : null}
-                  <span className={interpreting ? "invisible" : undefined}>
-                    Generate filters
-                  </span>
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
                   className="relative"
                   onClick={() => void handleSearchClick()}
-                  disabled={!canSearch || searching || interpreting}
-                  aria-busy={searching || interpreting}
+                  disabled={!canSearch || searching || promptFromJobLoading}
+                  aria-busy={searching || promptFromJobLoading}
                   aria-label={
-                    searching
-                      ? "Finding candidates"
-                      : !criteriaApplied && activeCount === 0 && query.trim()
-                        ? "Generate filters from search"
-                        : undefined
+                    promptFromJobLoading
+                      ? "Writing search prompt"
+                      : searching
+                        ? "Finding candidates"
+                        : "Search"
                   }
                 >
                   {searching ? (
@@ -1081,49 +735,6 @@ export function SearchWorkspace() {
           />
         ) : (
           <>
-            {/* AI interpretation */}
-            {criteria !== null ? (
-              <InterpretationPanel
-                criteria={criteria}
-                confirmedIds={confirmedIds}
-                applied={criteriaApplied}
-                onApply={applyCriteria}
-                onToggleConfirm={(id) =>
-                  setConfirmedIds((previous) => {
-                    const next = new Set(previous);
-                    if (next.has(id)) {
-                      next.delete(id);
-                    } else {
-                      next.add(id);
-                    }
-                    return next;
-                  })
-                }
-                onEdit={(id, value) =>
-                  setCriteria((previous) =>
-                    previous
-                      ? previous.map((item) =>
-                          item.id === id && value.trim()
-                            ? { ...item, value: value.trim() }
-                            : item
-                        )
-                      : previous
-                  )
-                }
-                onRemove={(id) => {
-                  setCriteria((previous) =>
-                    previous ? previous.filter((item) => item.id !== id) : previous
-                  );
-                  setConfirmedIds((previous) => {
-                    const next = new Set(previous);
-                    next.delete(id);
-                    return next;
-                  });
-                  setCriteriaApplied(false);
-                }}
-              />
-            ) : null}
-
             {/* Active filter summary */}
             <section
               aria-labelledby="active-filters-heading"
@@ -1139,29 +750,11 @@ export function SearchWorkspace() {
                     {activeCount}
                   </span>
                 </h2>
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <Users aria-hidden className="size-3.5" />
-                  {previewLoading ? (
-                    "Estimating…"
-                  ) : reach ? (
-                    <>
-                      Est. profiles{" "}
-                      <span className="font-medium tabular-nums text-foreground">
-                        {formatPreviewReachCount(reach.count)}
-                      </span>
-                      {reach.status === "too_broad" ? (
-                        <span className="text-amber-600 dark:text-amber-400">(broad)</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    "Est. profiles —"
-                  )}
-                </span>
               </div>
 
               {activeCount === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">
-                  No filters applied yet. Generate filters from your description or
+                  No filters applied yet. Search uses your description as-is, or
                   refine manually in the filter panel.
                 </p>
               ) : (

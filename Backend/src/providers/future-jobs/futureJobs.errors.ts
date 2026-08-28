@@ -7,6 +7,10 @@ export const FUTURE_JOBS_UPSTREAM_ERROR_CODE = 'FUTURE_JOBS_UPSTREAM_ERROR';
 
 export const FUTURE_JOBS_CIRCUIT_OPEN_CODE = 'FUTURE_JOBS_CIRCUIT_OPEN';
 
+export const FUTURE_JOBS_PROFILE_NOT_FOUND_CODE = 'FUTURE_JOBS_PROFILE_NOT_FOUND';
+
+export const FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE = 'FUTURE_JOBS_INVALID_LINKEDIN_URL';
+
 const FJ_RESPONSE_LOG_MAX_CHARS = 2_000;
 
 const log = () => createChildLogger({ provider: 'future-jobs' });
@@ -81,6 +85,45 @@ export function isFjNoMoreProfilesError(err: unknown): boolean {
   return /no profiles match/i.test(message);
 }
 
+/** FJ reveal-contacts 404 when the LinkedIn URL is not resolvable (often vanity/flagship). */
+export function isFjProfileNotFoundError(err: unknown): boolean {
+  if (!isFutureJobsUpstreamError(err)) return false;
+  if (err.code === FUTURE_JOBS_PROFILE_NOT_FOUND_CODE) return true;
+  if (err.fjHttpStatus !== 404) return false;
+  const details = err.details;
+  let message = err.message || '';
+  if (typeof details === 'string') {
+    message = details;
+  } else if (details && typeof details === 'object') {
+    const o = details as Record<string, unknown>;
+    if (typeof o.message === 'string') message = o.message;
+    else if (typeof o.error === 'string') message = o.error;
+  }
+  return /no profile found/i.test(message);
+}
+
+function fjHttpBodyText(data: unknown): string {
+  if (data == null) return '';
+  if (typeof data === 'string') return data;
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
+}
+
+export function isFjInvalidLinkedinUrlResponse(status: number, data: unknown): boolean {
+  if (status !== 422) return false;
+  return /invalid linkedin profile url|spaces are not allowed/i.test(fjHttpBodyText(data));
+}
+
+/** FJ 422 when reveal-contacts rejects the LinkedIn URL (spaces / not a profile URL). */
+export function isFjInvalidLinkedinUrlError(err: unknown): boolean {
+  if (!isFutureJobsUpstreamError(err)) return false;
+  if (err.code === FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE) return true;
+  return isFjInvalidLinkedinUrlResponse(err.fjHttpStatus, err.details);
+}
+
 function logUpstreamFailure(err: FutureJobsUpstreamError, extra?: Record<string, unknown>): void {
   log().error(
     {
@@ -146,18 +189,32 @@ export function throwIfFjHttpNotOk(
         : '';
   const noMoreProfiles =
     res.status === 400 && /no profiles match/i.test(fjMessage);
+  const revealProfileNotFound =
+    res.status === 404 && /no profile found/i.test(fjMessage);
+  const invalidLinkedinUrl = isFjInvalidLinkedinUrlResponse(res.status, data);
+  const expectedMiss = noMoreProfiles || revealProfileNotFound || invalidLinkedinUrl;
 
   throw createFutureJobsUpstreamError({
     details: data,
     fjHttpStatus: res.status,
     fjOperation: logContext.fjOperation ?? logContext.label,
-    // Business "exhausted" response — not an upstream outage.
-    statusCode: noMoreProfiles ? 400 : 502,
+    // Business "exhausted" / "not found" / invalid-input responses — not an upstream outage.
+    statusCode: expectedMiss ? res.status : 502,
     message: noMoreProfiles
       ? fjMessage || 'No profiles match your search criteria.'
-      : undefined,
-    code: noMoreProfiles ? 'FUTURE_JOBS_NO_MORE_PROFILES' : undefined,
-    logFailure: !noMoreProfiles,
+      : revealProfileNotFound
+        ? fjMessage || 'No profile found for the given linkedin_profile_url'
+        : invalidLinkedinUrl
+          ? 'Invalid LinkedIn profile URL'
+          : undefined,
+    code: noMoreProfiles
+      ? 'FUTURE_JOBS_NO_MORE_PROFILES'
+      : revealProfileNotFound
+        ? FUTURE_JOBS_PROFILE_NOT_FOUND_CODE
+        : invalidLinkedinUrl
+          ? FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE
+          : undefined,
+    logFailure: !expectedMiss,
     logExtra: logContext.extra,
   });
 }

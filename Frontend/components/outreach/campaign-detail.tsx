@@ -549,7 +549,11 @@ function CandidatesTab({
               <TableRow key={candidate.id}>
                 <TableCell className="py-2.5">
                   <div className="flex items-center gap-2.5">
-                    <CandidateAvatar name={candidate.name} className="size-7" />
+                    <CandidateAvatar
+                      name={candidate.name}
+                      src={candidate.profilePictureUrl}
+                      className="size-7"
+                    />
                     {candidate.candidateId ? (
                       <Link
                         href={candidateDetailPath(candidate.candidateId)}
@@ -989,7 +993,11 @@ function QualificationTab({
                 <TableRow key={candidate.id}>
                   <TableCell className="py-2.5">
                     <div className="flex items-center gap-2.5">
-                      <CandidateAvatar name={candidate.name} className="size-7" />
+                      <CandidateAvatar
+                        name={candidate.name}
+                        src={candidate.profilePictureUrl}
+                        className="size-7"
+                      />
                       {candidate.candidateId ? (
                         <Link
                           href={candidateDetailPath(candidate.candidateId)}

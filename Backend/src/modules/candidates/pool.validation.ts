@@ -57,6 +57,9 @@ export const createPoolCandidateSchema = z.object({
   linkedinUrl: z
     .union([z.string().trim().url().max(500), z.literal(''), z.null()])
     .optional(),
+  profilePictureUrl: z
+    .union([z.string().trim().max(2000), z.literal(''), z.null()])
+    .optional(),
   headline: z.string().trim().max(500).nullable().optional(),
   currentTitle: z.string().trim().max(200).nullable().optional(),
   currentCompany: z.string().trim().max(200).nullable().optional(),

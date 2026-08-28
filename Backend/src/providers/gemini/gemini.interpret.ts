@@ -3,7 +3,7 @@ import type { InterpretedCriterion } from '../../modules/sourcing/sourcing.valid
 
 /**
  * Optional Gemini enhancement for interpreted criteria.
- * No-ops when GEMINI_API_KEY is unset — Future Jobs annotation remains the primary path.
+ * No-ops when GEMINI_API_KEY is unset.
  */
 export async function enhanceInterpretedCriteria(
   query: string,

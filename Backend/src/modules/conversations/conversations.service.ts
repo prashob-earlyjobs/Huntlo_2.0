@@ -15,6 +15,7 @@ import {
 } from '../../providers/meta-whatsapp/meta.media.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { lookupProfilePictures } from '../candidates/pool.service.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
   mapModeToCampaignType,
@@ -87,10 +88,10 @@ const CHANNEL_DISPLAY: Record<ConversationChannel, string> = {
 };
 
 const INTEREST_TO_REPLY: Record<InterestLabel, string> = {
-  interested: 'Interested',
+  interested: 'Answered',
   not_interested: 'Not interested',
-  neutral: 'Replied',
-  unclear: 'Replied',
+  neutral: 'Answered',
+  unclear: 'Answered',
   opt_out: 'Not interested',
 };
 
@@ -333,7 +334,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   const [candidate, campaign, job, assignee, latestClass, messages, notes] =
     await Promise.all([
       SavedCandidateModel.findById(thread.candidateId)
-        .select('name email phone currentTitle currentCompany location headline')
+        .select('name email phone currentTitle currentCompany location headline profilePictureUrl externalCandidateId organizationId')
         .lean(),
       thread.campaignId
         ? OutreachCampaignModel.findById(thread.campaignId)
@@ -441,10 +442,23 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     latestClass?.recruiterOverride?.note ||
     null;
 
+  let avatarUrl = candidate?.profilePictureUrl?.trim() || null;
+  if (!avatarUrl && candidate?.externalCandidateId) {
+    const pics = await lookupProfilePictures(String(thread.organizationId), [
+      {
+        id: String(candidate._id),
+        profilePictureUrl: candidate.profilePictureUrl ?? null,
+        externalCandidateId: candidate.externalCandidateId,
+      },
+    ]);
+    avatarUrl = pics.get(String(candidate._id)) ?? null;
+  }
+
   return {
     id: String(thread._id),
     candidateId: String(thread.candidateId),
     candidateName: candidate?.name || 'Unknown candidate',
+    avatarUrl,
     headline: headlineParts.join(' · ') || 'Candidate',
     location: candidate?.location || '',
     channels: thread.channels

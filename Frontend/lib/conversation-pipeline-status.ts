@@ -18,6 +18,7 @@ const QUAL_TO_ENROLLMENT: Record<
 const REPLY_TO_DISPOSITION: Record<Conversation["replyStatus"], string | null> = {
   "Awaiting reply": null,
   Replied: null,
+  Answered: null,
   Interested: "interested",
   "Not interested": "not_interested",
 };
@@ -37,6 +38,7 @@ export function conversationPipelineStatus(
   conversation: Conversation
 ): CandidatePipelineStatus {
   if (conversation.pipelineStatus) {
+    if ((conversation.pipelineStatus as string) === "Interested") return "Answered";
     return conversation.pipelineStatus;
   }
 

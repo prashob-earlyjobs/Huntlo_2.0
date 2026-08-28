@@ -35,7 +35,7 @@ export type BulkRevealItemInput = {
 
 export type BulkRevealJob = {
   id: string;
-  status: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled" | string;
   progress: number;
   counts: {
     success: number;
@@ -167,9 +167,16 @@ const mockCandidatesApi: CandidatesApi = {
       },
     };
   },
-  async lookupRevealedContacts() {
+  async lookupRevealedContacts(input) {
     await simulateMockLatency();
-    return { items: [] };
+    return {
+      items: (input.candidateIds ?? []).map((candidateId) => ({
+        candidateId,
+        linkedinUrl: null,
+        email: { revealed: true, values: ["revealed@example.com"] },
+        mobile: { revealed: true, values: ["+919876543210"] },
+      })),
+    };
   },
 };
 
@@ -255,4 +262,25 @@ export const candidatesApi = createDomainService({
 /** Map UI "phone" kind to API "mobile". */
 export function uiRevealKindToType(kind: "email" | "phone"): RevealContactType {
   return kind === "phone" ? "mobile" : "email";
+}
+
+const BULK_REVEAL_DONE = new Set(["completed", "failed", "cancelled"]);
+
+/** Poll until a bulk reveal job finishes or `timeoutMs` elapses. */
+export async function waitForBulkRevealJob(
+  jobId: string,
+  options?: { timeoutMs?: number }
+): Promise<BulkRevealJob> {
+  const timeoutMs = options?.timeoutMs ?? 180_000;
+  const started = Date.now();
+  let delay = 800;
+  while (Date.now() - started < timeoutMs) {
+    const job = await candidatesApi.getBulkRevealJob(jobId);
+    if (BULK_REVEAL_DONE.has(job.status) || job.progress >= 100) {
+      return job;
+    }
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    delay = Math.min(Math.round(delay * 1.35), 2500);
+  }
+  throw new Error("Contact reveal is taking too long. Try again.");
 }

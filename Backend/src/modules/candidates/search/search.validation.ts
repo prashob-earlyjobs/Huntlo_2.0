@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-const MAX_PROMPT_LENGTH = 5000;
+import { objectIdSchema } from '../../../shared/validation/object-id.js';
+
+/** Match job JD length — /wl/search accepts a full natural-language description. */
+const MAX_PROMPT_LENGTH = 50_000;
+
+export const promptFromJobSchema = z.object({
+  jobId: objectIdSchema,
+});
 
 export const annotateSearchSchema = z
   .object({
@@ -29,8 +36,15 @@ export const annotateSearchSchema = z
     linkedin_profile_url: (value.linkedin_profile_url ?? '').trim(),
   }));
 
+const promptMaxMessage = `Prompt must be at most ${MAX_PROMPT_LENGTH.toLocaleString()} characters`;
+
 export const applySearchSchema = z.object({
-  prompt: z.string().trim().min(1, 'Prompt is required').max(MAX_PROMPT_LENGTH),
+  prompt: z
+    .string()
+    .trim()
+    .max(MAX_PROMPT_LENGTH, promptMaxMessage)
+    .optional()
+    .default(''),
   filterForm: z.record(z.string(), z.unknown()).default({}),
   sessionId: z.string().trim().optional().default(''),
   page: z.coerce.number().int().min(1).max(100).default(1),
@@ -38,14 +52,8 @@ export const applySearchSchema = z.object({
   jobId: z.string().trim().optional().nullable(),
 });
 
-/** Preview expected profile count for filters — no session / no quota. */
-export const previewSearchSchema = z.object({
-  prompt: z.string().trim().max(MAX_PROMPT_LENGTH).optional().default(''),
-  filterForm: z.record(z.string(), z.unknown()).default({}),
-});
-
 export const createSearchSchema = z.object({
-  prompt: z.string().trim().min(1).max(MAX_PROMPT_LENGTH),
+  prompt: z.string().trim().min(1).max(MAX_PROMPT_LENGTH, promptMaxMessage),
   session: z.record(z.string(), z.unknown()).optional(),
   filterForm: z.record(z.string(), z.unknown()).optional(),
   jobId: z.string().trim().optional().nullable(),
@@ -118,7 +126,7 @@ export const fetchMoreBodySchema = z.object({
   limit: z.coerce.number().int().min(1).max(300).optional().default(20),
 });
 
+export type PromptFromJobInput = z.infer<typeof promptFromJobSchema>;
 export type AnnotateSearchInput = z.infer<typeof annotateSearchSchema>;
 export type ApplySearchInput = z.infer<typeof applySearchSchema>;
-export type PreviewSearchInput = z.infer<typeof previewSearchSchema>;
 export type CreateSearchInput = z.infer<typeof createSearchSchema>;

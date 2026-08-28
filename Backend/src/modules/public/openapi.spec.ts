@@ -4,7 +4,7 @@ export const openApiSpec = {
     title: 'Huntlo API',
     version: '0.1.0',
     description:
-      'Huntlo agentic AI recruiting platform API. Candidate search uses annotate → apply → poll → persist → WebSocket.',
+      'Huntlo agentic AI recruiting platform API. Candidate search uses apply (POST /wl/search) → persist.',
   },
   servers: [
     {
@@ -80,11 +80,24 @@ export const openApiSpec = {
         },
       },
     },
+    '/candidates/search/prompt-from-job': {
+      post: {
+        tags: ['Candidate Search'],
+        summary: 'Convert a job JD into a natural-language search prompt',
+        description:
+          'Loads the full job description and rewrites it with Gemini into a talent-search brief for POST /wl/search. Falls back to a structured prompt when GEMINI_API_KEY is unset. Does not consume candidate_search quota.',
+        responses: {
+          '200': { description: '{ prompt, source: gemini | fallback | unavailable }' },
+          '404': { description: 'Job not found in this organization' },
+        },
+      },
+    },
     '/candidates/search/annotate': {
       post: {
         tags: ['Candidate Search'],
-        summary: 'Annotate a natural-language requirement into filterForm',
-        description: 'Does not consume candidate_search quota.',
+        summary: 'No-op filter-form stub (does not call Future Jobs get-annotation)',
+        description:
+          'Does not consume candidate_search quota and does not call Future Jobs. Search apply converts filters to natural language locally.',
         responses: {
           '200': { description: 'filterForm for the advanced-filter drawer' },
         },
@@ -93,13 +106,12 @@ export const openApiSpec = {
     '/candidates/search/apply': {
       post: {
         tags: ['Candidate Search'],
-        summary: 'Apply filters and create/update a Future Jobs sourcing session',
+        summary: 'Search candidates via natural-language jdText (POST /wl/search)',
         description:
-          'Primary search endpoint. Consumes one candidate_search quota. sessionId = Future Jobs id; savedSessionId = Mongo id.',
+          'Converts prompt + drawer filters to natural language, calls Future Jobs POST /wl/search, and waits for the response (no poll). Consumes one candidate_search quota. sessionId = Future Jobs id; savedSessionId = Mongo id.',
         responses: {
           '200': {
-            description:
-              'Candidates on success, or sessionPending when Future Jobs statusCode is 207',
+            description: 'Candidates in the same response; polling is always false',
           },
           '429': { description: 'SEARCH_QUOTA_EXHAUSTED' },
           '422': { description: 'INVALID_SEARCH_PROMPT / INVALID_FILTER_FORM' },

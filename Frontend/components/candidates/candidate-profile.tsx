@@ -353,6 +353,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           <div className="flex min-w-0 items-start gap-3.5">
             <CandidateAvatar
               name={candidate.name}
+              src={candidate.avatarUrl}
               className="size-12 text-base"
             />
             <div className="min-w-0">

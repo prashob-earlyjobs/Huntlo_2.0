@@ -79,6 +79,7 @@ const savedCandidateSchema = new mongoose.Schema(
     email: { type: String, default: null, trim: true, lowercase: true },
     phone: { type: String, default: null, trim: true },
     linkedinUrl: { type: String, default: null, trim: true },
+    profilePictureUrl: { type: String, default: null, trim: true, maxlength: 2000 },
     headline: { type: String, default: null, trim: true, maxlength: 500 },
     currentTitle: { type: String, default: null, trim: true, maxlength: 200 },
     currentCompany: { type: String, default: null, trim: true, maxlength: 200 },

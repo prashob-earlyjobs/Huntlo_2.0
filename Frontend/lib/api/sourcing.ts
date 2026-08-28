@@ -5,7 +5,7 @@ import { createDomainService, simulateMockLatency } from "./service";
 import type { ApiQueryParams } from "./types";
 import { buildQueryString } from "./types";
 import type { InterpretedCriterion } from "@/lib/mock-search";
-import type { SessionState } from "@/lib/mock-sessions";
+import type { EducationEntry, ExperienceEntry, SessionState } from "@/lib/mock-sessions";
 
 export type SourcingListParams = ApiQueryParams & {
   status?: string;
@@ -66,8 +66,13 @@ export type SourcedCandidateApi = {
   profileSignals: string[];
   rank: number;
   matchScore: number | null;
+  fit?: string | null;
   saved?: boolean;
   lists?: string[];
+  experience?: ExperienceEntry[];
+  education?: EducationEntry[];
+  summary?: string | null;
+  candidateSummary?: string | null;
 };
 
 export type CreateSourcingSessionInput = {
@@ -122,36 +127,162 @@ export function mapApiSessionToUi(session: SourcingSessionApi): SourcingSession 
   };
 }
 
+function strField(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function yearToken(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const n = Math.trunc(value);
+    if (n >= 1900 && n <= 2100) return String(n);
+  }
+  const text = strField(value);
+  if (!text) return "";
+  const parsed = Date.parse(text);
+  if (Number.isFinite(parsed)) return String(new Date(parsed).getUTCFullYear());
+  if (/^\d{4}/.test(text)) return text.slice(0, 4);
+  return "";
+}
+
+function locationLabel(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object") return "";
+  const record = value as Record<string, unknown>;
+  const joined = [record.city, record.state, record.country]
+    .map((part) => strField(part))
+    .filter(Boolean)
+    .join(", ");
+  return strField(record.full_location) || strField(record.raw) || joined;
+}
+
+function skillsFromHeadline(headline: string): string[] {
+  if (!headline.trim()) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of headline.split(/[|,]/)) {
+    const label = part.replace(/\s+/g, " ").trim();
+    if (label.length < 2 || label.length > 48) continue;
+    if (/^(open to|ex[- ]|building\b|looking for)/i.test(label)) continue;
+    const key = label.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+    if (out.length >= 16) break;
+  }
+  return out;
+}
+
+function educationFromPreview(preview: unknown[]): EducationEntry[] {
+  if (!Array.isArray(preview)) return [];
+  const rows = preview.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const edu = entry as Record<string, unknown>;
+    if (Array.isArray(edu.schools)) return edu.schools;
+    return [entry];
+  });
+  return rows
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const edu = entry as Record<string, unknown>;
+      const school =
+        strField(edu.institute_name) ||
+        strField(edu.school) ||
+        strField(edu.school_name) ||
+        strField(edu.college) ||
+        strField(edu.university) ||
+        strField(edu.name);
+      const degree = strField(edu.degree_name) || strField(edu.degree);
+      const field =
+        strField(edu.field_of_study) || strField(edu.field) || strField(edu.major);
+      if (!school && !degree) return null;
+      const start = yearToken(
+        edu.start_year ?? edu.startYear ?? edu.start_date ?? edu.startDate
+      );
+      const end = yearToken(
+        edu.end_year ?? edu.endYear ?? edu.end_date ?? edu.endDate
+      );
+      const years = start && end ? `${start}–${end}` : start ? `${start}–Present` : "";
+      const location = locationLabel(edu.location);
+      return {
+        school: school || "—",
+        degree: degree || "—",
+        field: field || "—",
+        years: years || "—",
+        ...(location ? { location } : {}),
+      };
+    })
+    .filter((entry): entry is EducationEntry => Boolean(entry));
+}
+
 export function mapApiCandidateToSessionCandidate(
   candidate: SourcedCandidateApi
 ): SessionCandidate {
   const role = candidate.title ?? "";
   const company = candidate.company ?? "";
   const score =
-    typeof candidate.matchScore === "number"
-      ? Math.round(Math.min(100, Math.max(0, candidate.matchScore * 20)))
-      : 70;
+    typeof candidate.matchScore === "number" && Number.isFinite(candidate.matchScore)
+      ? candidate.matchScore
+      : null;
+  const experience =
+    candidate.experience && candidate.experience.length > 0
+      ? candidate.experience
+      : company
+        ? [
+            {
+              company,
+              role: role || "—",
+              duration: "Current",
+              description: "",
+              current: true,
+            },
+          ]
+        : [];
+  const education =
+    candidate.education && candidate.education.length > 0
+      ? candidate.education
+      : educationFromPreview(candidate.educationPreview);
+  const previousCompany =
+    experience.find((job) => !job.current)?.company ||
+    experience[1]?.company ||
+    "—";
+  const summary =
+    candidate.summary?.trim() ||
+    candidate.candidateSummary?.trim() ||
+    candidate.headline?.trim() ||
+    normalizeLabelList(candidate.profileSignals, 12).join(" · ") ||
+    "";
+  const skills = normalizeLabelList(candidate.skills, 24);
+  const headline =
+    candidate.headline?.trim() ||
+    [role, company].filter(Boolean).join(" · ") ||
+    "Sourced candidate";
 
   return {
     id: candidate.id,
     name: candidate.name,
-    headline:
-      candidate.headline ??
-      ([role, company].filter(Boolean).join(" · ") || "Sourced candidate"),
+    headline,
     currentRole: role || "—",
     currentCompany: company || "—",
-    previousCompany: "—",
+    previousCompany,
     location: candidate.location || "—",
-    experienceYears: candidate.experienceYears ?? 0,
-    skills: normalizeLabelList(candidate.skills, 24),
+    experienceYears:
+      typeof candidate.experienceYears === "number" &&
+      Number.isFinite(candidate.experienceYears)
+        ? candidate.experienceYears
+        : null,
+    skills: skills.length ? skills : skillsFromHeadline(headline),
     matchScore: score,
+    fit:
+      typeof candidate.fit === "string" && candidate.fit.trim()
+        ? candidate.fit.trim()
+        : null,
     matchBreakdown: {
-      skills: score,
-      role: score,
-      experience: score,
-      location: score,
-      industry: score,
-      education: score,
+      skills: score ?? 0,
+      role: score ?? 0,
+      experience: score ?? 0,
+      location: score ?? 0,
+      industry: score ?? 0,
+      education: score ?? 0,
     },
     contactStatus: "Not contacted",
     saved: Boolean(candidate.saved),
@@ -159,6 +290,8 @@ export function mapApiCandidateToSessionCandidate(
       ? candidate.lists.filter((name): name is string => typeof name === "string" && name.trim().length > 0)
       : [],
     linkedin: Boolean(candidate.linkedinUrl),
+    linkedinUrl: candidate.linkedinUrl ?? null,
+    externalCandidateId: candidate.externalCandidateId ?? null,
     avatarUrl: candidate.profilePictureUrl ?? null,
     email: "",
     emailVerified: false,
@@ -166,19 +299,9 @@ export function mapApiCandidateToSessionCandidate(
     phoneVerified: false,
     emailRevealed: false,
     phoneRevealed: false,
-    education: [],
-    experience: company
-      ? [
-          {
-            company,
-            role: role || "—",
-            duration: "Current",
-            description: "",
-            current: true,
-          },
-        ]
-      : [],
-    summary: normalizeLabelList(candidate.profileSignals, 12).join(" · ") || "",
+    education,
+    experience,
+    summary,
     signals: normalizeLabelList(candidate.profileSignals, 12),
     status: "Active",
     updated: "Just now",
@@ -289,7 +412,7 @@ const mockSourcingApi: SourcingApi = {
       educationPreview: [],
       profileSignals: candidate.signals,
       rank: index + 1,
-      matchScore: candidate.matchScore / 20,
+      matchScore: candidate.matchScore,
     }));
   },
   async getProgress(id) {

@@ -44,6 +44,7 @@ function publicCandidateShape(
     profileSignals?: string[];
     rank?: number | null;
     matchScore?: number | null;
+    fit?: string | null;
     createdAt?: Date;
     updatedAt?: Date;
   },
@@ -76,6 +77,7 @@ function publicCandidateShape(
     profileSignals: candidate.profileSignals ?? [],
     rank: candidate.rank ?? 0,
     matchScore: candidate.matchScore ?? null,
+    fit: candidate.fit?.trim() || null,
     enrichedProfile: options.enrichedProfile ?? null,
     revealStatus: {
       email: {

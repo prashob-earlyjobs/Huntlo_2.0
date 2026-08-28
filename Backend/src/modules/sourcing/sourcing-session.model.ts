@@ -57,8 +57,8 @@ const sourcingSessionSchema = new mongoose.Schema(
     },
     name: { type: String, required: true, trim: true, maxlength: 200 },
     sessionTitle: { type: String, default: '', trim: true, maxlength: 200 },
-    naturalLanguageQuery: { type: String, default: '', trim: true, maxlength: 5000 },
-    prompt: { type: String, default: '', trim: true, maxlength: 5000 },
+    naturalLanguageQuery: { type: String, default: '', trim: true, maxlength: 50000 },
+    prompt: { type: String, default: '', trim: true, maxlength: 50000 },
     interpretedCriteria: { type: mongoose.Schema.Types.Mixed, default: [] },
     /** Frontend filter drawer form (original, never mutated by geo fallback). */
     filterForm: { type: mongoose.Schema.Types.Mixed, default: null },

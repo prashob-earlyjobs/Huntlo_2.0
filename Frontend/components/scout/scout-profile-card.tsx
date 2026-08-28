@@ -284,27 +284,20 @@ export function ScoutProfileCard({
             Phone unavailable
           </Button>
         ) : (
-          <ConfirmDialog
-            trigger={
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="w-full justify-start"
-                disabled={revealing !== null}
-              >
-                <Phone aria-hidden />
-                Reveal Phone
-                <span className="ml-auto tabular-nums text-muted-foreground">
-                  {REVEAL_COSTS.mobile} cr
-                </span>
-              </Button>
-            }
-            title={`Reveal ${profile.name.split(" ")[0]}’s phone?`}
-            description={`This uses ${REVEAL_COSTS.mobile} mobile credits. You have ${revealQuota.mobileRemaining.toLocaleString("en-IN")} of ${revealQuota.mobileTotal.toLocaleString("en-IN")} mobile reveals remaining this cycle.`}
-            confirmLabel={`Reveal for ${REVEAL_COSTS.mobile} credits`}
-            onConfirm={() => void handleReveal("mobile")}
-          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            disabled={revealing !== null}
+            onClick={() => void handleReveal("mobile")}
+          >
+            <Phone aria-hidden />
+            Reveal Phone
+            <span className="ml-auto tabular-nums text-muted-foreground">
+              {REVEAL_COSTS.mobile} cr
+            </span>
+          </Button>
         )}
       </div>
       {revealError ? (

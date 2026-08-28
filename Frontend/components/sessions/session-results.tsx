@@ -9,15 +9,16 @@ import {
   LayoutGrid,
   List,
   Loader2,
-  Pencil,
-  RefreshCw,
+  Mail,
+  // Pencil,
+  Phone,
   Rows3,
   Search,
   Send,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AddToListDialog } from "@/components/candidates/add-to-list-dialog";
 import { CandidateCard } from "@/components/sessions/candidate-card";
@@ -55,17 +56,17 @@ import {
 } from "@/components/ui/sheet";
 import { SessionResultsTableSkeleton } from "@/components/sessions/session-results-skeleton";
 import { ensureSourcedCandidatesInPool } from "@/components/outreach/audience-resolve";
-import { getApiErrorMessage, candidatesApi, uiRevealKindToType } from "@/lib/api";
-import { mapCandidateDetailsToSessionCandidate } from "@/lib/api/candidate-details";
+import {
+  getApiErrorMessage,
+  candidatesApi,
+  uiRevealKindToType,
+  waitForBulkRevealJob,
+} from "@/lib/api";
 import {
   applyCandidateSearch,
-  getCandidateDetails,
-  getSourcingSessionProfiles,
   saveSearch,
   unsaveSearch,
-  type CandidateSearchSummary,
 } from "@/lib/api/candidate-search";
-import { mapApiCandidateToSessionCandidate } from "@/lib/api/sourcing";
 import {
   FILTER_SECTIONS,
   INTERPRETED_FILTER_STATE,
@@ -118,7 +119,7 @@ function downloadSessionCandidatesCsv(
     "Location",
     "Experience years",
     "Skills",
-    "Match score",
+    "Fit",
     "Email",
     "Phone",
   ];
@@ -130,7 +131,7 @@ function downloadSessionCandidatesCsv(
     candidate.location,
     candidate.experienceYears,
     candidate.skills.join("; "),
-    candidate.matchScore,
+    candidate.fit ?? candidate.matchScore,
     candidate.emailRevealed ? candidate.email : "",
     candidate.phoneRevealed ? candidate.phone : "",
   ]);
@@ -276,10 +277,6 @@ export function SessionResults({
   const [rerunError, setRerunError] = useState<string | null>(null);
   const [rerunModeOpen, setRerunModeOpen] = useState(false);
   const [rerunMode, setRerunMode] = useState<"new" | "existing">("new");
-  const [refreshingProfiles, setRefreshingProfiles] = useState(false);
-  const [refreshProfilesError, setRefreshProfilesError] = useState<string | null>(
-    null
-  );
   const [searchSaved, setSearchSaved] = useState(
     Boolean(session.isSavedSearch && session.savedListId)
   );
@@ -304,14 +301,14 @@ export function SessionResults({
   const [localCandidates, setLocalCandidates] = useState(candidates);
   const [revealError, setRevealError] = useState<string | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(null);
-  const [drawerDetailsLoading, setDrawerDetailsLoading] = useState(false);
-  const [drawerDetailsError, setDrawerDetailsError] = useState<string | null>(null);
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [addToListCandidateIds, setAddToListCandidateIds] = useState<string[]>([]);
   const [addToListMessage, setAddToListMessage] = useState<string | null>(null);
   const [outreachStarting, setOutreachStarting] = useState(false);
   const [outreachError, setOutreachError] = useState<string | null>(null);
-  const detailsFetchedRef = useRef<Set<string>>(new Set());
+  const [bulkRevealingKind, setBulkRevealingKind] = useState<"email" | "phone" | null>(
+    null
+  );
 
   useEffect(() => {
     if (initialFilters && Object.keys(initialFilters).length > 0) {
@@ -404,18 +401,20 @@ export function SessionResults({
       const prevMap = new Map(prev.map((c) => [c.id, c]));
       return candidates.map((incoming) => {
         const existing = prevMap.get(incoming.id);
-        if (!existing || !detailsFetchedRef.current.has(incoming.id)) {
-          return incoming;
-        }
+        if (!existing) return incoming;
         return {
           ...incoming,
-          experience: existing.experience.length ? existing.experience : incoming.experience,
-          education: existing.education.length ? existing.education : incoming.education,
-          summary: existing.summary || incoming.summary,
-          matchBreakdown: existing.matchBreakdown,
-          avatarUrl: existing.avatarUrl || incoming.avatarUrl,
-          signals: existing.signals.length ? existing.signals : incoming.signals,
-          headline: existing.headline || incoming.headline,
+          experience: incoming.experience.length ? incoming.experience : existing.experience,
+          education: incoming.education.length ? incoming.education : existing.education,
+          summary: incoming.summary || existing.summary,
+          matchBreakdown: incoming.matchBreakdown ?? existing.matchBreakdown,
+          avatarUrl: incoming.avatarUrl || existing.avatarUrl,
+          signals: incoming.signals.length ? incoming.signals : existing.signals,
+          headline: incoming.headline || existing.headline,
+          email: existing.emailRevealed ? existing.email : incoming.email,
+          emailRevealed: existing.emailRevealed || incoming.emailRevealed,
+          phone: existing.phoneRevealed ? existing.phone : incoming.phone,
+          phoneRevealed: existing.phoneRevealed || incoming.phoneRevealed,
         };
       });
     });
@@ -449,45 +448,6 @@ export function SessionResults({
   const [initialLoading, setInitialLoading] = useState(
     session.state === "running" && candidates.length === 0
   );
-
-  useEffect(() => {
-    if (!drawerId) {
-      setDrawerDetailsLoading(false);
-      setDrawerDetailsError(null);
-      return;
-    }
-    if (detailsFetchedRef.current.has(drawerId)) return;
-
-    let cancelled = false;
-    setDrawerDetailsLoading(true);
-    setDrawerDetailsError(null);
-
-    void getCandidateDetails(drawerId, { sessionId: session.id })
-      .then((res) => {
-        if (cancelled) return;
-        detailsFetchedRef.current.add(drawerId);
-        setLocalCandidates((prev) =>
-          prev.map((c) =>
-            c.id === drawerId
-              ? mapCandidateDetailsToSessionCandidate(c, res.candidate)
-              : c
-          )
-        );
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setDrawerDetailsError(
-          getApiErrorMessage(error) || "Could not load full profile details"
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setDrawerDetailsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [drawerId, session.id]);
 
   // Keep the progressive reveal in sync with live candidate growth. Never leave
   // the skeleton stuck after the session leaves "running".
@@ -585,6 +545,9 @@ export function SessionResults({
           location: candidate.location,
           experienceYears: candidate.experienceYears,
           skills: candidate.skills,
+          linkedinUrl: candidate.linkedinUrl ?? null,
+          externalCandidateId: candidate.externalCandidateId ?? null,
+          profilePictureUrl: candidate.avatarUrl ?? null,
         }));
       const poolIds = await ensureSourcedCandidatesInPool(
         session.id,
@@ -682,6 +645,132 @@ export function SessionResults({
     }
   }
 
+  async function revealSelectedContacts(kind: "email" | "phone") {
+    const ids = Array.from(selected);
+    if (!ids.length || bulkRevealingKind) return;
+    const contactType = uiRevealKindToType(kind);
+    const statusKey = kind === "email" ? "emailStatus" : "phoneStatus";
+    const revealedKey = kind === "email" ? "email" : "phone";
+    setBulkRevealingKind(kind);
+    setRevealError(null);
+    setRevealedMap((previous) => {
+      const next = { ...previous };
+      for (const id of ids) {
+        const current = next[id] ?? { email: false, phone: false };
+        next[id] = {
+          ...current,
+          [statusKey]: current[revealedKey] ? "idle" : "loading",
+        };
+      }
+      return next;
+    });
+    try {
+      const job = await candidatesApi.bulkReveal(
+        ids.map((candidateId) => ({
+          candidateId,
+          contactTypes: [contactType],
+        }))
+      );
+      const finished =
+        job.status === "completed" ||
+        job.status === "failed" ||
+        job.status === "cancelled" ||
+        job.progress >= 100
+          ? job
+          : await waitForBulkRevealJob(job.id);
+
+      const lookup = await candidatesApi.lookupRevealedContacts({
+        candidateIds: ids,
+      });
+      const byId = new Map(
+        lookup.items
+          .filter((item) => item.candidateId)
+          .map((item) => [item.candidateId as string, item])
+      );
+
+      setLocalCandidates((previous) =>
+        previous.map((candidate) => {
+          const found = byId.get(candidate.id);
+          if (!found) return candidate;
+          if (kind === "email") {
+            const email = found.email.values[0] ?? "";
+            return {
+              ...candidate,
+              email: email || candidate.email,
+              emailRevealed: Boolean(email) || candidate.emailRevealed,
+            };
+          }
+          const phone = found.mobile.values[0] ?? "";
+          return {
+            ...candidate,
+            phone: phone || candidate.phone,
+            phoneRevealed: Boolean(phone) || candidate.phoneRevealed,
+          };
+        })
+      );
+      setRevealedMap((previous) => {
+        const next = { ...previous };
+        for (const id of ids) {
+          const found = byId.get(id);
+          const current = next[id] ?? { email: false, phone: false };
+          if (kind === "email") {
+            const email = Boolean(found?.email.values[0]);
+            next[id] = {
+              ...current,
+              email,
+              emailStatus: email ? "idle" : "unavailable",
+            };
+          } else {
+            const phone = Boolean(found?.mobile.values[0]);
+            next[id] = {
+              ...current,
+              phone,
+              phoneStatus: phone ? "idle" : "unavailable",
+            };
+          }
+        }
+        return next;
+      });
+
+      const label = kind === "email" ? "email" : "phone";
+      if (finished.status === "failed") {
+        setRevealError(`Could not reveal ${label} for the selected candidates.`);
+      } else if ((finished.counts.quotaExhausted ?? 0) > 0) {
+        setRevealError(
+          `Reveal quota ran out before every selected ${label} was unlocked.`
+        );
+      } else if ((finished.counts.failed ?? 0) > 0) {
+        setRevealError(
+          `Could not reveal ${label} for ${finished.counts.failed} selected candidate${
+            finished.counts.failed === 1 ? "" : "s"
+          }.`
+        );
+      }
+    } catch (err) {
+      setRevealedMap((previous) => {
+        const next = { ...previous };
+        for (const id of ids) {
+          const current = next[id] ?? { email: false, phone: false };
+          next[id] = {
+            ...current,
+            [statusKey]: "idle",
+          };
+        }
+        return next;
+      });
+      setRevealError(
+        getApiErrorMessage(
+          err,
+          kind === "email"
+            ? "Unable to reveal emails."
+            : "Unable to reveal phone numbers."
+        )
+      );
+    } finally {
+      setBulkRevealingKind(null);
+    }
+  }
+
   const activeFilterCount = Object.values(searchFilters).filter(isFieldActive).length;
 
   function updateSearchFilter(fieldId: string, value: FilterValue | undefined) {
@@ -703,49 +792,6 @@ export function SessionResults({
       section.fields.forEach((field) => delete next[field.id]);
       return next;
     });
-  }
-
-  async function refreshProfilesOnce() {
-    if (refreshingProfiles) return;
-    setRefreshingProfiles(true);
-    setRefreshProfilesError(null);
-    try {
-      const result = await getSourcingSessionProfiles(session.id, {
-        force: true,
-        page: 1,
-        limit: 300,
-      });
-      const mapped = (result.candidates ?? []).map(
-        (candidate: CandidateSearchSummary) =>
-          mapApiCandidateToSessionCandidate({
-            id: candidate.id,
-            sourcingSessionId: candidate.sourcingSessionId,
-            externalCandidateId: candidate.candidateId,
-            name: candidate.name,
-            headline: candidate.headline ?? null,
-            linkedinUrl: candidate.linkedinProfileUrl ?? candidate.linkedinUrl ?? null,
-            profilePictureUrl: candidate.profilePictureUrl ?? null,
-            title: candidate.currentRole,
-            company: candidate.currentCompany,
-            location: candidate.location,
-            experienceYears: candidate.experienceYears,
-            skills: candidate.skills ?? [],
-            educationPreview: candidate.educationPreview ?? [],
-            profileSignals: candidate.profileSignals ?? [],
-            rank: candidate.rank ?? 0,
-            matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
-            saved: candidate.saved,
-            lists: candidate.lists ?? [],
-          })
-      );
-      setLocalCandidates(mapped);
-      setProgressCount(mapped.length);
-      setInitialLoading(false);
-    } catch (error) {
-      setRefreshProfilesError(getApiErrorMessage(error));
-    } finally {
-      setRefreshingProfiles(false);
-    }
   }
 
   async function rerunSearch(mode: "new" | "existing") {
@@ -843,6 +889,7 @@ export function SessionResults({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {/*
             <Button
               size="sm"
               variant="outline"
@@ -851,6 +898,7 @@ export function SessionResults({
               <Pencil aria-hidden />
               Edit Search
             </Button>
+            */}
             <Button
               size="sm"
               variant={searchSaved ? "secondary" : "outline"}
@@ -903,11 +951,6 @@ export function SessionResults({
       {revealError ? (
         <p role="alert" className="text-sm text-destructive">
           {revealError}
-        </p>
-      ) : null}
-      {refreshProfilesError ? (
-        <p role="alert" className="text-sm text-destructive">
-          {refreshProfilesError}
         </p>
       ) : null}
       {outreachError ? (
@@ -965,22 +1008,6 @@ export function SessionResults({
                 {activeFilterCount}
               </span>
             ) : null}
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={refreshingProfiles}
-            aria-busy={refreshingProfiles}
-            onClick={() => void refreshProfilesOnce()}
-          >
-            {refreshingProfiles ? (
-              <Loader2 aria-hidden className="animate-spin" />
-            ) : (
-              <RefreshCw aria-hidden />
-            )}
-            {refreshingProfiles ? "Refreshing…" : "Refresh"}
           </Button>
 
           <Select
@@ -1070,23 +1097,33 @@ export function SessionResults({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    void (async () => {
-                      setRevealError(null);
-                      try {
-                        await candidatesApi.bulkReveal(
-                          Array.from(selected).map((candidateId) => ({
-                            candidateId,
-                            contactTypes: ["email", "mobile"] as const,
-                          }))
-                        );
-                      } catch (err) {
-                        setRevealError(getApiErrorMessage(err));
-                      }
-                    })();
-                  }}
+                  disabled={Boolean(bulkRevealingKind)}
+                  aria-busy={bulkRevealingKind === "email"}
+                  onClick={() => void revealSelectedContacts("email")}
                 >
-                  Reveal contacts
+                  {bulkRevealingKind === "email" ? (
+                    <Loader2 aria-hidden className="animate-spin" />
+                  ) : (
+                    <Mail aria-hidden />
+                  )}
+                  {bulkRevealingKind === "email" ? "Revealing…" : "Reveal email"}
+                  <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
+                    {selected.size}
+                  </span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={Boolean(bulkRevealingKind)}
+                  aria-busy={bulkRevealingKind === "phone"}
+                  onClick={() => void revealSelectedContacts("phone")}
+                >
+                  {bulkRevealingKind === "phone" ? (
+                    <Loader2 aria-hidden className="animate-spin" />
+                  ) : (
+                    <Phone aria-hidden />
+                  )}
+                  {bulkRevealingKind === "phone" ? "Revealing…" : "Reveal phone"}
                   <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
                     {selected.size}
                   </span>
@@ -1347,8 +1384,6 @@ export function SessionResults({
         }
         onToggleSave={() => drawerId && openAddToList([drawerId])}
         onAddToOutreach={() => drawerId && void startOutreach([drawerId])}
-        detailsLoading={drawerDetailsLoading}
-        detailsError={drawerDetailsError}
       />
       <AddToListDialog
         open={addToListOpen}
