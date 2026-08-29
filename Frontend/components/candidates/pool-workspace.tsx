@@ -235,6 +235,7 @@ export function PoolWorkspace() {
       if (locationFilter.length > 0 && !locationFilter.includes(candidate.location))
         return false;
       if (
+        candidate.experienceYears == null ||
         candidate.experienceYears < bucket.min ||
         candidate.experienceYears > bucket.max
       )
