@@ -33,18 +33,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { ContactStatus, SessionCandidate } from "@/lib/mock-sessions";
+import type { SessionCandidate } from "@/lib/mock-sessions";
 import { isOpenToWork } from "@/lib/candidate-signals";
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
-const CONTACT_STATUS_CLASSES: Record<ContactStatus, string> = {
+/* const CONTACT_STATUS_CLASSES: Record<ContactStatus, string> = {
   "Not contacted": "bg-muted text-muted-foreground",
   Contacted: "bg-info/10 text-info",
   Replied: "bg-success/10 text-success",
   "In outreach": "bg-brand-subtle text-primary",
-};
+}; */
 
 export function CandidateTable({
   candidates,
@@ -81,7 +81,7 @@ export function CandidateTable({
     <div className="overflow-x-auto">
       <Table>
         <caption className="sr-only">
-          Search results with match scores, contact status and actions
+          Search results with fit scores, contact status and actions
         </caption>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -98,10 +98,9 @@ export function CandidateTable({
             </TableHead>
             <TableHead className={HEAD}>Candidate</TableHead>
             <TableHead className={`${HEAD} text-right`}>Experience</TableHead>
-            <TableHead className={HEAD}>Key skills</TableHead>
-            <TableHead className={HEAD}>Match</TableHead>
+            <TableHead className={HEAD}>Fit</TableHead>
             <TableHead className={HEAD}>Contact</TableHead>
-            <TableHead className={HEAD}>Status</TableHead>
+            {/* <TableHead className={HEAD}>Status</TableHead> */}
             <TableHead className={`${HEAD} w-16 text-right`}>
               <span className="sr-only">Actions</span>
             </TableHead>
@@ -213,30 +212,10 @@ export function CandidateTable({
                 <TableCell
                   className={`${cellPad} text-right text-sm tabular-nums`}
                 >
-                  {candidate.experienceYears} yrs
+                  {candidate.experienceYears != null ? `${candidate.experienceYears} yrs` : "—"}
                 </TableCell>
                 <TableCell className={cellPad}>
-                  <div className="flex max-w-44 items-center gap-1 overflow-hidden">
-                    {candidate.skills.slice(0, 3).map((skill, index) => (
-                      <span
-                        key={`${skill}-${index}`}
-                        className="min-w-0 truncate rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {candidate.skills.length > 3 ? (
-                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                        +{candidate.skills.length - 3}
-                      </span>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell className={cellPad}>
-                  <MatchScoreCompact
-                    score={candidate.matchScore}
-                    showLabel={density === "comfortable"}
-                  />
+                  <MatchScoreCompact score={candidate.matchScore} fit={candidate.fit} />
                 </TableCell>
                 <TableCell className={cellPad}>
                   <ContactReveal
@@ -246,7 +225,7 @@ export function CandidateTable({
                     compact
                   />
                 </TableCell>
-                <TableCell className={cellPad}>
+                {/* <TableCell className={cellPad}>
                   <span
                     className={cn(
                       "inline-flex h-5 items-center rounded-md px-2 text-xs font-medium whitespace-nowrap",
@@ -255,7 +234,7 @@ export function CandidateTable({
                   >
                     {candidate.contactStatus}
                   </span>
-                </TableCell>
+                </TableCell> */}
                 <TableCell className={`${cellPad} text-right`}>
                   <div className="flex items-center justify-end gap-0.5">
                     <Button

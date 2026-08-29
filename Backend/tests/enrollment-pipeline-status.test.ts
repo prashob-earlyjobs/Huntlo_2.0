@@ -24,6 +24,23 @@ describe('deriveEnrollmentPipelineStatus', () => {
     ).toBe('Not interested');
   });
 
+  it('shows Answered when the candidate has replied', () => {
+    expect(
+      deriveEnrollmentPipelineStatus({
+        status: 'replied',
+        qualificationState: { status: 'pending' },
+        replyState: { hasReply: true, disposition: 'interested' },
+      })
+    ).toBe('Answered');
+    expect(
+      deriveEnrollmentPipelineStatus({
+        status: 'replied',
+        qualificationState: { status: 'pending' },
+        replyState: { hasReply: true, disposition: 'neutral' },
+      })
+    ).toBe('Answered');
+  });
+
   it('shows Not interested for an unqualified not-interested reply', () => {
     expect(
       deriveEnrollmentPipelineStatus({

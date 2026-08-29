@@ -9,6 +9,7 @@ import {
 import {
   annotateSearch,
   applySearch,
+  promptFromJob,
   autocompleteFilters,
   claimPublicSearch,
   createSearch,
@@ -20,7 +21,6 @@ import {
   getStoredCandidates,
   legacySearch,
   listSearchSessions,
-  previewSearch,
   saveSearchSession,
   unsaveSearchSession,
 } from './search.controller.js';
@@ -34,17 +34,17 @@ const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware
 export const candidateSearchRouter = Router();
 
 candidateSearchRouter.post(
+  '/search/prompt-from-job',
+  ...orgAuth,
+  requirePermission('sourcing:create', 'sourcing:view'),
+  promptFromJob
+);
+
+candidateSearchRouter.post(
   '/search/annotate',
   ...orgAuth,
   requirePermission('sourcing:create', 'sourcing:view'),
   annotateSearch
-);
-
-candidateSearchRouter.post(
-  '/search/preview',
-  ...orgAuth,
-  requirePermission('sourcing:create', 'sourcing:view'),
-  previewSearch
 );
 
 candidateSearchRouter.post(

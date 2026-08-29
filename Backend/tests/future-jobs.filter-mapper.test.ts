@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildJdTextFromPromptAndFilters,
+  filterFormToNaturalLanguage,
+} from '../src/providers/future-jobs/futureJobs.filterMapping.js';
+import {
   buildSessionPayloadFromPromptAndFilter,
   mergeFilterFormIntoSession,
   normalizeFilterFormForUi,
@@ -329,5 +333,45 @@ describe('skills relax fallback', () => {
 
     expect(nextSkillsRelaxStep(step3.form)).toBeNull();
     expect(canRelaxSkillsFilter(step3.form)).toBe(false);
+  });
+});
+
+describe('filterFormToNaturalLanguage', () => {
+  it('converts drawer filters into a jdText-style sentence', () => {
+    const text = filterFormToNaturalLanguage({
+      currentTitle: 'Java Developer',
+      location: ['Bengaluru'],
+      yearsExpMin: '4',
+      yearsExpMax: '6',
+      openToWork: true,
+    });
+    const lower = text.toLowerCase();
+    expect(lower).toContain('java developer');
+    expect(lower).toContain('bengaluru');
+    expect(lower).toContain('4 to 6 years');
+    expect(lower).toContain('open to work');
+  });
+
+  it('appends filter gist when the prompt does not already include it', () => {
+    const jd = buildJdTextFromPromptAndFilters('Looking for backend engineers', {
+      currentTitle: 'Java Developer',
+      location: ['Bengaluru'],
+    });
+    expect(jd).toMatch(/Looking for backend engineers/);
+    expect(jd.toLowerCase()).toContain('java developer');
+    expect(jd.toLowerCase()).toContain('bengaluru');
+  });
+
+  it('keeps the prompt alone when it already restates the filters', () => {
+    const prompt =
+      'Need a java developer in bengaluru with 4 to 6 years of experience who are currently open to work';
+    const jd = buildJdTextFromPromptAndFilters(prompt, {
+      currentTitle: 'Java Developer',
+      location: ['Bengaluru'],
+      yearsExpMin: '4',
+      yearsExpMax: '6',
+      openToWork: true,
+    });
+    expect(jd).toBe(prompt);
   });
 });

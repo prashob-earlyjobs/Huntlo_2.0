@@ -888,7 +888,11 @@ function ProfilePanel({
   return (
     <div className="space-y-4 p-4">
       <div className="flex items-start gap-3">
-        <CandidateAvatar name={conversation.candidateName} className="size-10" />
+        <CandidateAvatar
+          name={conversation.candidateName}
+          src={conversation.avatarUrl}
+          className="size-10"
+        />
         <div className="min-w-0 flex-1">
           {conversation.candidateId ? (
             <Link
@@ -1031,7 +1035,7 @@ function ProfilePanel({
 const PIPELINE_FILTER_OPTIONS: FilterOption[] = (
   [
     "Awaiting reply",
-    "Interested",
+    "Answered",
     "Not interested",
     "In qualification",
     "Qualified",
@@ -1117,7 +1121,11 @@ function ConversationThread({
           </Button>
         ) : null}
         {!embedded ? (
-          <CandidateAvatar name={selected.candidateName} className="size-8" />
+          <CandidateAvatar
+            name={selected.candidateName}
+            src={selected.avatarUrl}
+            className="size-8"
+          />
         ) : null}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-foreground">
@@ -1493,6 +1501,7 @@ export function ConversationInbox({
                       {!embedded ? (
                         <CandidateAvatar
                           name={conversation.candidateName}
+                          src={conversation.avatarUrl}
                           className="size-8 shrink-0"
                         />
                       ) : null}

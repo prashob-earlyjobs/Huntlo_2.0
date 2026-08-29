@@ -4,7 +4,6 @@ import {
   Building2,
   GraduationCap,
   MapPin,
-  Radar,
   Timer,
   Wrench,
 } from "lucide-react";
@@ -547,20 +546,21 @@ export const FILTER_SECTIONS: FilterSection[] = [
       },
     ],
   },
-  {
-    id: "signals",
-    title: "Candidate Signals",
-    icon: Radar,
-    description: "Intent signals",
-    fields: [
-      {
-        id: "openToWork",
-        label: "Open to work",
-        type: "toggle",
-        hint: "Maps to CAREER_INTEREST open-to-work cards",
-      },
-    ],
-  },
+  // Hidden for now — restore to show Open to work / intent signals in the drawer.
+  // {
+  //   id: "signals",
+  //   title: "Candidate Signals",
+  //   icon: Radar,
+  //   description: "Intent signals",
+  //   fields: [
+  //     {
+  //       id: "openToWork",
+  //       label: "Open to work",
+  //       type: "toggle",
+  //       hint: "Maps to CAREER_INTEREST open-to-work cards",
+  //     },
+  //   ],
+  // },
 ];
 
 /** Flat lookup: field id -> { field, sectionId }. */

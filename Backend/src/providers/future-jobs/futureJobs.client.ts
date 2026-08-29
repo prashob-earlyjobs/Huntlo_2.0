@@ -8,7 +8,10 @@ import { appendFutureJobsCurl, logFutureJobsCurlResponse } from './futureJobs.cu
 import {
   createFutureJobsCircuitOpenError,
   createFutureJobsUpstreamError,
+  isFjInvalidLinkedinUrlError,
+  isFjInvalidLinkedinUrlResponse,
   isFjNoMoreProfilesError,
+  isFjProfileNotFoundError,
   throwIfFjHttpNotOk,
 } from './futureJobs.errors.js';
 import { createMockFutureJobsProvider } from './futureJobs.mock.js';
@@ -65,11 +68,16 @@ function summarizeFjRequest(body: unknown): Record<string, unknown> | undefined 
   const keys = Object.keys(o);
   const out: Record<string, unknown> = { bodyKeys: keys };
   if (typeof o.jd === 'string') out.jdChars = o.jd.length;
+  if (typeof o.jdText === 'string') out.jdTextChars = o.jdText.length;
   if (typeof o.prompt === 'string') out.promptChars = o.prompt.length;
   if (typeof o.query === 'string') out.query = truncateForLog(o.query, 80);
   if (typeof o.filter_type === 'string') out.filterType = o.filter_type;
   if (typeof o.type === 'string') out.type = o.type;
   if (typeof o.revealType === 'string') out.revealType = o.revealType;
+  if (typeof o.linkedin_profile_url === 'string') {
+    out.linkedin_profile_url = o.linkedin_profile_url;
+  }
+  if (Array.isArray(o.revealContactType)) out.revealContactType = o.revealContactType;
   if (typeof o.sessionId === 'string') out.sessionId = o.sessionId;
   if (typeof o.candidateId === 'string') out.candidateId = truncateForLog(o.candidateId, 40);
   if (o.queries && typeof o.queries === 'object' && !Array.isArray(o.queries)) {
@@ -105,6 +113,7 @@ function summarizeFjResponse(data: unknown): Record<string, unknown> {
 
   const docs = bucket.docs;
   if (Array.isArray(docs)) out.docCount = docs.length;
+  else if (Array.isArray(root.data)) out.docCount = root.data.length;
   if (typeof bucket.totalDocs === 'number') out.totalDocs = bucket.totalDocs;
   if (typeof bucket.hasNextPage === 'boolean') out.hasNextPage = bucket.hasNextPage;
 
@@ -227,7 +236,8 @@ async function futureJobsFetch(
   url: string,
   options: RequestInit = {},
   dedupe = false,
-  fjOperation?: string
+  fjOperation?: string,
+  timeoutMsOverride?: number
 ): Promise<DedupedResponse> {
   const method = options.method || 'GET';
   const key = dedupe ? dedupeKey(method, url, typeof options.body === 'string' ? options.body : '') : '';
@@ -236,7 +246,7 @@ async function futureJobsFetch(
     return inFlightRequests.get(key)!;
   }
 
-  const { timeoutMs } = getFutureJobsConfig();
+  const timeoutMs = timeoutMsOverride ?? getFutureJobsConfig().timeoutMs;
 
   appendFutureJobsCurl({
     method,
@@ -287,6 +297,8 @@ async function futureJobsHttpRequest(options: {
   defaultErrorPrefix?: string;
   dedupe?: boolean;
   logContext?: Record<string, unknown>;
+  timeoutMs?: number;
+  maxRetries?: number;
 }): Promise<unknown> {
   const {
     method,
@@ -301,7 +313,10 @@ async function futureJobsHttpRequest(options: {
 
   assertCircuitAllows(fjOperation);
 
-  const { maxRetries, timeoutMs, authStyle } = getFutureJobsConfig();
+  const config = getFutureJobsConfig();
+  const maxRetries = options.maxRetries ?? config.maxRetries;
+  const timeoutMs = options.timeoutMs ?? config.timeoutMs;
+  const authStyle = config.authStyle;
   const authHeaders = buildFjAuthHeaders(apiKey, authStyle);
   const hasBody = body !== undefined && body !== null;
   const init: RequestInit = {
@@ -342,7 +357,8 @@ async function futureJobsHttpRequest(options: {
         url,
         init,
         dedupe && method.toUpperCase() === 'GET',
-        fjOperation
+        fjOperation,
+        timeoutMs
       );
       const text = await res.text();
       const data = await parseJsonSafe(text);
@@ -364,8 +380,13 @@ async function futureJobsHttpRequest(options: {
           res.status === 400 &&
           typeof responseSummary.message === 'string' &&
           /no profiles match/i.test(String(responseSummary.message));
+        const revealProfileNotFound =
+          res.status === 404 &&
+          typeof responseSummary.message === 'string' &&
+          /no profile found/i.test(String(responseSummary.message));
+        const invalidLinkedinUrl = isFjInvalidLinkedinUrlResponse(res.status, data);
 
-        if (noMoreProfiles) {
+        if (noMoreProfiles || revealProfileNotFound || invalidLinkedinUrl) {
           log().info(
             {
               fjOperation,
@@ -378,7 +399,11 @@ async function futureJobsHttpRequest(options: {
               ...responseSummary,
               ...logContext,
             },
-            `FJ ← ${fjOperation} no more profiles`
+            noMoreProfiles
+              ? `FJ ← ${fjOperation} no more profiles`
+              : invalidLinkedinUrl
+                ? `FJ ← ${fjOperation} invalid linkedin url`
+                : `FJ ← ${fjOperation} profile not found`
           );
           throwIfFjHttpNotOk(res, data, {
             label: `${fjOperation || defaultErrorPrefix} HTTP ${res.status}`,
@@ -458,7 +483,12 @@ async function futureJobsHttpRequest(options: {
           );
           throw err;
         }
-        if (code === 'FUTURE_JOBS_NO_MORE_PROFILES' || isFjNoMoreProfilesError(err)) {
+        if (
+          code === 'FUTURE_JOBS_NO_MORE_PROFILES' ||
+          isFjNoMoreProfilesError(err) ||
+          isFjProfileNotFoundError(err) ||
+          isFjInvalidLinkedinUrlError(err)
+        ) {
           throw err;
         }
       }
@@ -930,7 +960,12 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       logContext: {
         sessionId,
         revealType: type,
-        linkedinProfileUrlLen: profileUrl.length,
+        linkedin_profile_url: profileUrl,
+        query: {
+          sourcingSessionId: sessionId,
+          linkedin_profile_url: profileUrl,
+          revealType: type,
+        },
       },
     })) as FutureJobsApiResponse;
   }
@@ -953,22 +988,27 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       throw err;
     }
 
-    const revealContactType = type === 'EMAIL' ? ['email'] : ['phone'];
+    const revealBody = {
+      linkedin_profile_url: profileUrl,
+      revealContactType: type === 'EMAIL' ? ['email'] : ['phone'],
+    };
     const url = `${baseUrl}/wl/scout-people/reveal-contacts`;
+
+    log().info(
+      { fjOperation: 'POST /wl/scout-people/reveal-contacts', body: revealBody },
+      'FJ reveal-contacts request body'
+    );
 
     return (await futureJobsHttpRequest({
       method: 'POST',
       url,
-      body: {
-        linkedin_profile_url: profileUrl,
-        revealContactType,
-      },
+      body: revealBody,
       apiKey,
       fjOperation: 'POST /wl/scout-people/reveal-contacts',
       defaultErrorPrefix: 'Future Jobs scout reveal-contacts',
       logContext: {
         revealType: type,
-        linkedinProfileUrlLen: profileUrl.length,
+        body: revealBody,
       },
     })) as FutureJobsApiResponse;
   }
@@ -1128,6 +1168,35 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     })) as FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsPreviewData>;
   }
 
+  /** Wait up to 2 minutes — /wl/search returns profiles in the same response. */
+  const JD_SEARCH_TIMEOUT_MS = 120_000;
+
+  async function searchByJdText(
+    body: { jdText: string },
+    opts: FutureJobsRequestOpts = {}
+  ): Promise<FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>> {
+    const delegate = resolveDelegate();
+    if (delegate) return delegate.searchByJdText(body, opts);
+
+    const { baseUrl, apiKey } = getFutureJobsConfig();
+    assertFutureJobsApiKey(apiKey);
+
+    const jdText = String(body?.jdText ?? '').trim();
+    const url = `${baseUrl}/wl/search`;
+    return (await futureJobsHttpRequest({
+      method: 'POST',
+      url,
+      body: { jdText },
+      apiKey,
+      traceId: opts.traceId,
+      fjOperation: 'POST /wl/search',
+      defaultErrorPrefix: 'Future Jobs search',
+      timeoutMs: opts.timeoutMs ?? JD_SEARCH_TIMEOUT_MS,
+      maxRetries: opts.maxRetries ?? 0,
+      logContext: { jdTextChars: jdText.length },
+    })) as FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>;
+  }
+
   return {
     createSourcingSession,
     updateSourcingSession,
@@ -1141,6 +1210,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     getSourcingSessionAnnotation,
     getFilterAutocomplete,
     previewSourcingSession,
+    searchByJdText,
     isFjSessionPending,
     fjSessionPendingMessage,
   };

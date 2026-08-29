@@ -20,9 +20,15 @@ import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate
 import { SourcingSessionModel } from '../src/modules/sourcing/sourcing-session.model.js';
 import {
   extractRevealValues,
+  FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE,
+  FUTURE_JOBS_PROFILE_NOT_FOUND_CODE,
+  linkedinUrlsForContactReveal,
+  linkedinUrlsFromScoutLookup,
+  normalizeFjProfileDoc,
   normalizeLinkedinProfileUrl,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
+  throwIfFjHttpNotOk,
 } from '../src/providers/future-jobs/index.js';
 import { IdempotencyModel } from '../src/shared/idempotency/idempotency.model.js';
 import {
@@ -51,29 +57,43 @@ async function registerAndAuth(
   };
 }
 
-async function seedCandidate(organizationId: string, ownerUserId: string) {
+async function seedCandidate(
+  organizationId: string,
+  ownerUserId: string,
+  options: {
+    externalSessionId?: string;
+    linkedinUrl?: string;
+    externalCandidateId?: string;
+    rawDoc?: unknown;
+  } = {}
+) {
   const session = await SourcingSessionModel.create({
     organizationId,
     ownerUserId,
     name: 'Reveal test session',
     naturalLanguageQuery: 'engineers',
-    externalSessionId: 'mock-fj-session-reveal-1',
+    externalSessionId: options.externalSessionId ?? 'mock-fj-session-reveal-1',
     status: 'completed',
   });
+
+  const linkedinUrl =
+    options.linkedinUrl ?? 'https://www.linkedin.com/in/AishaRahmanMock';
 
   const candidate = await SourcedCandidateModel.create({
     organizationId,
     sourcingSessionId: session._id,
-    externalCandidateId: 'mock-fj-cand-1',
+    externalCandidateId: options.externalCandidateId ?? 'mock-fj-cand-1',
+    linkedinProfileUrl: linkedinUrl,
     basicProfile: {
       name: 'Aisha Rahman',
       headline: 'Senior Software Engineer',
-      linkedinUrl: 'https://www.linkedin.com/in/AishaRahmanMock',
+      linkedinUrl,
     },
     currentEmployment: { title: 'Senior Software Engineer', company: 'Nimbus Labs' },
     location: 'Bangalore',
     experienceYears: 7,
     skills: ['TypeScript', 'Node.js'],
+    rawDoc: options.rawDoc ?? null,
     rank: 1,
     matchScore: 4.6,
   });
@@ -81,7 +101,7 @@ async function seedCandidate(organizationId: string, ownerUserId: string) {
   return { session, candidate };
 }
 
-describe('extractRevealValues / normalizeLinkedinProfileUrl', () => {
+describe('extractRevealValues / LinkedIn reveal URLs', () => {
   it('extracts email values from revealStatus shape', () => {
     const values = extractRevealValues(
       {
@@ -101,6 +121,137 @@ describe('extractRevealValues / normalizeLinkedinProfileUrl', () => {
     expect(normalizeLinkedinProfileUrl('linkedin.com/in/ACoAAExample/')).toBe(
       'https://www.linkedin.com/in/ACoAAExample'
     );
+  });
+
+  it('prefers opaque ACoAA member URLs over vanity/flagship for reveal-contacts', () => {
+    const vanity = 'https://www.linkedin.com/in/anita-sharma';
+    const memberId = 'ACoAAClExampleId49charsxx';
+    const doc = normalizeFjProfileDoc({
+      profile: {
+        id: memberId,
+        linkedin_flagship_url: vanity,
+        linkedin_profile_url: vanity,
+      },
+    });
+
+    const urls = linkedinUrlsForContactReveal({
+      rawDoc: doc,
+      linkedinProfileUrl: vanity,
+      externalCandidateId: memberId,
+    });
+
+    expect(urls[0]).toBe(`https://www.linkedin.com/in/${memberId}`);
+    expect(urls).toContain(vanity);
+  });
+
+  it('extracts member URN from scout-people lookup so reveal can use the scouted profile', () => {
+    const vanity = 'https://www.linkedin.com/in/jane-doe-us';
+    const memberId = 'ACoAAClUsProfileId49charsxxxx';
+    const urls = linkedinUrlsFromScoutLookup({
+      data: {
+        scoutId: 'scout-1',
+        profile: {
+          id: memberId,
+          linkedin_flagship_url: vanity,
+          linkedin_profile_url: vanity,
+        },
+      },
+    });
+    expect(urls[0]).toBe(`https://www.linkedin.com/in/${memberId}`);
+    expect(urls).toContain(vanity);
+  });
+
+  it('uses lookup linkedin_profile_url ACoAA even when _id is a mongo id and flagship is vanity', () => {
+    const vanity = 'https://www.linkedin.com/in/nilantha-dambadeniya-1a66b91a0';
+    const memberUrl =
+      'https://www.linkedin.com/in/ACoAAC8XAM4BkUNcAqy1cUe9jtUvV3YdwLF-cZw';
+    const urls = linkedinUrlsFromScoutLookup({
+      status: 'SUCCESS',
+      data: {
+        scoutId: '6a92c931a5de5fccdfabccaf',
+        profile: {
+          _id: '6a92c93191285a914952c44c',
+          linkedin_flagship_url: vanity,
+          linkedin_profile_url: memberUrl,
+        },
+      },
+    });
+    expect(urls[0]).toBe(memberUrl);
+    expect(urls).toContain(vanity);
+  });
+
+  it('reads unwrapped scout lookup payloads (data.profile already unpacked)', () => {
+    const memberUrl = 'https://www.linkedin.com/in/ACoAAUnwrappedMemberIdxx';
+    const urls = linkedinUrlsFromScoutLookup({
+      scoutId: 'scout-unwrapped',
+      profile: {
+        linkedin_profile_url: memberUrl,
+        linkedin_flagship_url: 'https://www.linkedin.com/in/jane-doe-us',
+      },
+    });
+    expect(urls[0]).toBe(memberUrl);
+  });
+
+  it('skips name-like ids and does not send LinkedIn URLs that contain spaces', () => {
+    expect(normalizeLinkedinProfileUrl('Amit Shah')).toBe('');
+    expect(normalizeLinkedinProfileUrl('https://www.linkedin.com/in/John Doe')).toBe(
+      'https://www.linkedin.com/in/John%20Doe'
+    );
+
+    const urls = linkedinUrlsForContactReveal({
+      rawDoc: {
+        profile: {
+          id: 'Amit Shah',
+          linkedin_profile_url: 'https://www.linkedin.com/in/amit-shah',
+        },
+      },
+      linkedinProfileUrl: 'Amit Shah',
+      externalCandidateId: 'Amit Shah',
+    });
+
+    expect(urls).toEqual(['https://www.linkedin.com/in/amit-shah']);
+    expect(urls.every((url) => !/\s/.test(url))).toBe(true);
+  });
+
+  it('maps reveal-contacts 404 to FUTURE_JOBS_PROFILE_NOT_FOUND instead of 502', () => {
+    try {
+      throwIfFjHttpNotOk(
+        { ok: false, status: 404 },
+        { message: 'No profile found for the given linkedin_profile_url' },
+        { fjOperation: 'POST /wl/scout-people/reveal-contacts' }
+      );
+      throw new Error('expected throwIfFjHttpNotOk to throw');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: FUTURE_JOBS_PROFILE_NOT_FOUND_CODE,
+        fjHttpStatus: 404,
+        statusCode: 404,
+      });
+    }
+  });
+
+  it('maps reveal-contacts 422 invalid URL to FUTURE_JOBS_INVALID_LINKEDIN_URL instead of 502', () => {
+    try {
+      throwIfFjHttpNotOk(
+        { ok: false, status: 422 },
+        {
+          message: 'Received Data is not valid',
+          statusCode: 422,
+          success: false,
+          errors: [
+            { linkedin_profile_url: 'Invalid LinkedIn profile URL (spaces are not allowed in the URL)' },
+          ],
+        },
+        { fjOperation: 'POST /wl/scout-people/reveal-contacts' }
+      );
+      throw new Error('expected throwIfFjHttpNotOk to throw');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE,
+        fjHttpStatus: 422,
+        statusCode: 422,
+      });
+    }
   });
 });
 
@@ -330,6 +481,70 @@ describe('Candidates reveal API', () => {
       contactType: 'email',
     });
     expect(ledgerCount).toBe(1);
+  });
+
+  it('reveals /wl/search candidates via scout-people instead of sourcing-session', async () => {
+    const { token, organizationId, userId } = await registerAndAuth(agent);
+    const memberId = 'ACoAAClWlSearchRevealId';
+    const vanity = 'https://www.linkedin.com/in/aisha-rahman-search';
+    const { candidate } = await seedCandidate(organizationId, userId, {
+      externalSessionId: `wl-search-${Date.now()}`,
+      linkedinUrl: vanity,
+      externalCandidateId: memberId,
+      rawDoc: {
+        _id: memberId,
+        profile: {
+          id: memberId,
+          linkedin_flagship_url: vanity,
+          linkedin_profile_url: vanity,
+        },
+      },
+    });
+
+    const email = await agent
+      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', 'reveal-wl-search-email-01')
+      .expect(200);
+
+    expect(email.body.data.found).toBe(true);
+    expect(email.body.data.values.length).toBeGreaterThan(0);
+    expect(email.body.data.values[0]).toMatch(/@/);
+
+    const phone = await agent
+      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/mobile`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', 'reveal-wl-search-mobile-01')
+      .expect(200);
+
+    expect(phone.body.data.found).toBe(true);
+    expect(phone.body.data.values.length).toBeGreaterThan(0);
+  });
+
+  it('scouts US vanity URLs via lookup before reveal-contacts', async () => {
+    const { token, organizationId, userId } = await registerAndAuth(agent, '-us');
+    const vanity = 'https://www.linkedin.com/in/jane-doe-seattle';
+    const { candidate } = await seedCandidate(organizationId, userId, {
+      externalSessionId: `wl-search-${Date.now()}`,
+      linkedinUrl: vanity,
+      externalCandidateId: 'jane-doe-seattle',
+      rawDoc: {
+        profile: {
+          linkedin_flagship_url: vanity,
+          linkedin_profile_url: vanity,
+        },
+      },
+    });
+
+    const email = await agent
+      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', 'reveal-us-vanity-email-01')
+      .expect(200);
+
+    expect(email.body.data.found).toBe(true);
+    expect(email.body.data.values.length).toBeGreaterThan(0);
+    expect(email.body.data.values[0]).toMatch(/@/);
   });
 
   it('enriches candidate profile without exposing contacts', async () => {

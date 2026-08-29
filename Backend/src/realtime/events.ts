@@ -63,7 +63,7 @@ export type CandidateSearchPollPayload = {
   error?: string | null;
 };
 
-/** Full candidate-search poll event for annotate→apply→WS flow. */
+/** Full candidate-search poll event after apply. */
 export function emitCandidateSearchPoll(payload: CandidateSearchPollPayload): void {
   const event = {
     type: 'candidates.search.poll' as const,

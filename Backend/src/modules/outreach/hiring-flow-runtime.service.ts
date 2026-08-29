@@ -35,6 +35,47 @@ function log() {
   return getLogger().child({ component: 'hiring-flow-runtime' });
 }
 
+export function isYesNoAnswerType(answerType?: string | null): boolean {
+  return /yes\s*\/\s*no|boolean/i.test(String(answerType || ''));
+}
+
+/** Campaign enrollments that must not keep receiving hiring-flow replies. */
+export function isClosedOutreachEnrollmentStatus(status?: string | null): boolean {
+  return ['completed', 'cancelled', 'opted_out'].includes(String(status || ''));
+}
+
+/**
+ * Hiring-flow statuses that may consume an inbound reply.
+ * `active` / `processing_reply` mean this enrollment is already sending the next step.
+ */
+export function isHiringFlowReplyAdvanceable(status?: string | null): boolean {
+  return ['waiting_reply', 'completed', 'failed'].includes(String(status || ''));
+}
+
+/** True when the "prompt" is only an answer-type label, not a real question. */
+export function isAnswerTypeStubPrompt(text?: string | null): boolean {
+  return /^(yes\s*\/\s*no|boolean|short text|number|text)$/i.test(
+    String(text || '').trim()
+  );
+}
+
+/**
+ * WhatsApp body for an ask_question step.
+ * Editors often put the real question in `label` and type "Yes/No" into `prompt`.
+ */
+export function resolveHiringFlowQuestionBody(step: HiringFlowStep): string {
+  const prompt = String(step.prompt || '').trim();
+  const label = String(step.label || '').trim();
+  if (prompt && !isAnswerTypeStubPrompt(prompt)) return prompt;
+  if (label && !/^new question$/i.test(label)) return label;
+  return prompt || label;
+}
+
+const YES_NO_REPLY_BUTTONS = [
+  { id: 'yes', title: 'Yes' },
+  { id: 'no', title: 'No' },
+];
+
 function fillMetaTemplateBody(
   template: MetaWhatsAppTemplate | null,
   mergeContext: Record<string, string>
@@ -183,8 +224,11 @@ async function ensureThread(input: {
   if (!thread.channels.includes('whatsapp')) {
     thread.channels = [...thread.channels, 'whatsapp'];
   }
-  if (!thread.enrollmentId && input.enrollmentId) {
+  if (input.enrollmentId) {
     thread.enrollmentId = input.enrollmentId as never;
+  }
+  if (input.campaignId) {
+    thread.campaignId = input.campaignId as never;
   }
   if (thread.qualificationStatus === 'pending' || thread.qualificationStatus === 'in_progress') {
     thread.qualificationStatus = 'qualified';
@@ -331,7 +375,7 @@ async function askQuestionStep(input: {
   enrollment: OutreachEnrollmentDocument;
   step: HiringFlowStep;
 }) {
-  const prompt = String(input.step.prompt || '').trim();
+  const prompt = resolveHiringFlowQuestionBody(input.step);
   if (!prompt) return;
 
   const organizationId = String(input.campaign.organizationId);
@@ -346,6 +390,7 @@ async function askQuestionStep(input: {
     enrollmentId: String(input.enrollment._id),
     to: phone,
     body: prompt,
+    replyButtons: isYesNoAnswerType(input.step.answerType) ? YES_NO_REPLY_BUTTONS : null,
   });
 
   const thread = await ensureThread({
@@ -490,6 +535,17 @@ export async function startHiringFlowAfterQualification(input: {
   input.enrollment.hiringFlowState = enrollment.hiringFlowState;
 
   const organizationId = String(input.campaign.organizationId);
+  await OutreachEnrollmentModel.updateMany(
+    {
+      organizationId,
+      candidateId: enrollment.candidateId,
+      _id: { $ne: enrollment._id },
+      'hiringFlowState.status': {
+        $in: ['waiting_reply', 'active', 'processing_reply'],
+      },
+    },
+    { $set: { 'hiringFlowState.status': 'completed' } }
+  );
   const flow = config.hiringFlowId
     ? await HiringFlowModel.findOne({
         _id: config.hiringFlowId,
@@ -625,6 +681,10 @@ export async function advanceHiringFlowOnReply(input: {
   /** True when the candidate attached a file/image (no API call if media expected and received). */
   hasAttachment?: boolean;
 }): Promise<{ advanced: boolean }> {
+  if (isClosedOutreachEnrollmentStatus(input.enrollment.status)) {
+    return { advanced: false };
+  }
+
   let state = input.enrollment.hiringFlowState;
   if (!state?.flowId) {
     return { advanced: false };
@@ -632,11 +692,14 @@ export async function advanceHiringFlowOnReply(input: {
   const flowId = state.flowId;
   const answersSoFar = state.answers || {};
 
-  // Recover flows that sent the opening template then marked completed because
-  // nextStepId was missing — candidate replies ("Yes, continue") must still
-  // run the remaining ask_question steps.
+  // Recover flows that sent the opening template then marked the hiring-flow
+  // completed because nextStepId was missing. Do not reopen `active` —
+  // that status means this enrollment is already sending the next question.
   if (state.status !== 'waiting_reply') {
-    if (!['completed', 'active', 'failed'].includes(String(state.status))) {
+    if (state.status === 'processing_reply' || state.status === 'active') {
+      return { advanced: false };
+    }
+    if (!['completed', 'failed'].includes(String(state.status))) {
       return { advanced: false };
     }
     const flowForResume = await HiringFlowModel.findOne({
@@ -793,14 +856,17 @@ export async function advanceHiringFlowOnReply(input: {
   // attempt = how many times the candidate has already replied to this step
   // (1 on first try, 2 on second, etc.)
   const currentAttempt = stepAttemptsSoFar + 1;
+  const yesNoButtonReply =
+    isYesNoAnswerType(current.answerType) &&
+    /^(yes|y|haan|ha|ok|okay|no|n|nahi|na)$/i.test(input.replyText.trim());
 
-  if (currentAttempt <= MAX_REPROMPTS) {
+  if (!yesNoButtonReply && currentAttempt <= MAX_REPROMPTS) {
     try {
       const { evaluateHiringFlowAnswer } = await import(
         '../../providers/gemini/gemini.conversations.js'
       );
       const evaluation = await evaluateHiringFlowAnswer({
-        questionPrompt: String(current.prompt || ''),
+        questionPrompt: resolveHiringFlowQuestionBody(current),
         answerType: current.answerType,
         candidateReply: input.replyText,
         hasAttachment: Boolean(input.hasAttachment),
@@ -842,6 +908,7 @@ export async function advanceHiringFlowOnReply(input: {
               enrollmentId: String(input.enrollment._id),
               to: phone,
               body: evaluation.repromptMessage,
+              replyButtons: isYesNoAnswerType(current.answerType) ? YES_NO_REPLY_BUTTONS : null,
             });
           }
         } catch (sendErr) {
@@ -870,7 +937,7 @@ export async function advanceHiringFlowOnReply(input: {
   if (
     current.knockout &&
     /^(no|n|nahi|na)\b/i.test(input.replyText.trim()) &&
-    /yes\s*\/\s*no|boolean/i.test(String(current.answerType || ''))
+    isYesNoAnswerType(current.answerType)
   ) {
     input.enrollment.hiringFlowState = {
       flowId: String(flow._id),

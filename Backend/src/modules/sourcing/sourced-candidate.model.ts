@@ -62,6 +62,8 @@ const sourcedCandidateSchema = new mongoose.Schema(
     skills: { type: [String], default: [] },
     educationPreview: { type: [mongoose.Schema.Types.Mixed], default: [] },
     finalScore: { type: Number, default: null },
+    /** Future Jobs string label, e.g. `"strong"`. */
+    fit: { type: String, default: null, trim: true },
     candidateSummary: { type: String, default: null, trim: true },
     contactStatus: { type: String, default: 'Not contacted', trim: true },
     profileSignals: { type: [String], default: [] },

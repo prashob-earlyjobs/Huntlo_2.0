@@ -6,6 +6,7 @@ import { emitOutreachCampaignUpdated } from '../../realtime/events.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { lookupProfilePictures } from '../candidates/pool.service.js';
 import { UserModel } from '../auth/user.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
@@ -1310,9 +1311,17 @@ export const campaignsService = {
     const candidates = await SavedCandidateModel.find({
       _id: { $in: rows.map((r) => r.candidateId) },
     })
-      .select('name email phone currentCompany currentTitle')
+      .select('name email phone currentCompany currentTitle profilePictureUrl externalCandidateId')
       .lean();
     const byId = new Map(candidates.map((c) => [String(c._id), c]));
+    const pictures = await lookupProfilePictures(
+      organizationId,
+      candidates.map((c) => ({
+        id: String(c._id),
+        profilePictureUrl: c.profilePictureUrl ?? null,
+        externalCandidateId: c.externalCandidateId ?? null,
+      }))
+    );
 
     return {
       items: rows.map((row) => {
@@ -1325,11 +1334,19 @@ export const campaignsService = {
           title: c?.currentTitle || null,
           email: c?.email || null,
           phone: c?.phone || null,
+          profilePictureUrl: pictures.get(String(row.candidateId)) ?? c?.profilePictureUrl ?? null,
           status: row.status,
           currentStepIndex: row.currentStepIndex,
           contactAvailability: row.contactAvailability,
           replyState: row.replyState,
           qualificationState: row.qualificationState,
+          hiringFlowState: row.hiringFlowState
+            ? {
+                flowId: row.hiringFlowState.flowId ?? null,
+                status: row.hiringFlowState.status ?? null,
+                answers: row.hiringFlowState.answers || {},
+              }
+            : null,
           screeningState: row.screeningState,
           schedulingState: row.schedulingState,
           nextActionAt: row.nextActionAt?.toISOString() ?? null,

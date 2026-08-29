@@ -68,6 +68,52 @@ export type HiringFlowCreateInput = {
 
 export type HiringFlowUpdateInput = Partial<HiringFlowCreateInput>;
 
+const KNOWN_STEP_TYPES = new Set<HiringFlowStepType>([
+  "send_whatsapp_template",
+  "ask_question",
+  "branch",
+]);
+
+/** Keep one WhatsApp opener; extra template rows from assign/sync are dropped. */
+export function collapseHiringFlowWhatsAppSteps(
+  steps: ApiHiringFlowStep[]
+): ApiHiringFlowStep[] {
+  const valid = steps.filter((step) => KNOWN_STEP_TYPES.has(step.type));
+  const first = valid.find((step) => step.type === "send_whatsapp_template");
+  if (!first) return valid;
+  const rest = valid.filter(
+    (step) => step.id !== first.id && step.type !== "send_whatsapp_template"
+  );
+  const restIds = new Set(rest.map((step) => step.id));
+  const nextStepId =
+    first.nextStepId && restIds.has(first.nextStepId)
+      ? first.nextStepId
+      : rest[0]?.id ?? null;
+  return [{ ...first, nextStepId }, ...rest];
+}
+
+export function withCollapsedHiringFlowSteps(flow: ApiHiringFlow): ApiHiringFlow {
+  const steps = collapseHiringFlowWhatsAppSteps(flow.steps || []);
+  return {
+    ...flow,
+    steps,
+    entryStepId:
+      steps.find((step) => step.type === "send_whatsapp_template")?.id ||
+      flow.entryStepId,
+  };
+}
+
+function stepListSignature(steps: ApiHiringFlowStep[]): string {
+  return (steps || [])
+    .map((step) => `${step.id}:${step.type}:${step.whatsappTemplateId || ""}`)
+    .join("|");
+}
+
+export function hiringFlowNeedsCollapse(flow: ApiHiringFlow): boolean {
+  return stepListSignature(flow.steps || []) !==
+    stepListSignature(collapseHiringFlowWhatsAppSteps(flow.steps || []));
+}
+
 type HiringFlowsApi = {
   list(params?: {
     status?: string;

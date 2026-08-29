@@ -2,7 +2,9 @@ import mongoose from 'mongoose';
 
 import {
   mapFjDocToCandidate,
+  normalizeFjProfileDoc,
   normalizeLinkedinProfileUrl,
+  experienceYearsFromFjDoc,
   type FutureJobsProfileDoc,
 } from '../../../providers/future-jobs/index.js';
 import {
@@ -21,24 +23,57 @@ function splitName(fullName: string): { firstName: string | null; lastName: stri
   return { firstName: parts[0]!, lastName: parts.slice(1).join(' ') };
 }
 
-function experienceYearsFromProfile(profile: Record<string, unknown>): number | null {
-  const raw = profile.years_of_experience_raw;
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  if (typeof raw === 'string' && raw.trim()) {
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
-}
-
 function educationPreviewFromProfile(profile: Record<string, unknown>): unknown[] {
-  if (Array.isArray(profile.education_background)) {
-    return profile.education_background.slice(0, 5);
-  }
-  if (Array.isArray(profile.education)) {
-    return profile.education.slice(0, 5);
+  const education =
+    profile.education && typeof profile.education === 'object' && !Array.isArray(profile.education)
+      ? (profile.education as Record<string, unknown>)
+      : null;
+  const buckets = [
+    profile.education_background,
+    profile.educations,
+    profile.education_history,
+    profile.schools,
+    education?.schools,
+    education?.education_background,
+    Array.isArray(profile.education) ? profile.education : null,
+  ];
+  for (const bucket of buckets) {
+    if (Array.isArray(bucket) && bucket.length > 0) return bucket.slice(0, 8);
   }
   return [];
+}
+
+function skillsFromHeadline(headline: string): string[] {
+  if (!headline.trim()) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of headline.split(/[|,]/)) {
+    const label = part.replace(/\s+/g, ' ').trim();
+    if (label.length < 2 || label.length > 48) continue;
+    if (/^(open to|ex[- ]|building\b|looking for)/i.test(label)) continue;
+    const key = label.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+    if (out.length >= 16) break;
+  }
+  return out;
+}
+
+function summaryFromProfile(profile: Record<string, unknown>): string | null {
+  if (Array.isArray(profile.nuances) && profile.nuances.length) {
+    const joined = profile.nuances
+      .slice(0, 5)
+      .map((n) => String(n ?? '').trim())
+      .filter(Boolean)
+      .join(' · ');
+    if (joined) return joined;
+  }
+  for (const key of ['summary', 'about', 'bio']) {
+    const value = profile[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
 }
 
 function stableFallbackId(mapped: {
@@ -87,7 +122,8 @@ export async function upsertCandidatesFromDocs(options: {
   const seenIds = new Set<string>();
   let duplicateCount = 0;
 
-  for (const doc of docs) {
+  for (const raw of docs) {
+    const doc = (normalizeFjProfileDoc(raw) ?? raw) as FutureJobsProfileDoc;
     const mapped = mapFjDocToCandidate(doc);
     if (!mapped) continue;
 
@@ -97,7 +133,9 @@ export async function upsertCandidatesFromDocs(options: {
         : {};
     const employers = Array.isArray(profile.current_employers_object)
       ? profile.current_employers_object
-      : [];
+      : Array.isArray(profile.current_employers)
+        ? profile.current_employers
+        : [];
     const job =
       employers[0] && typeof employers[0] === 'object'
         ? (employers[0] as Record<string, unknown>)
@@ -115,10 +153,22 @@ export async function upsertCandidatesFromDocs(options: {
     }
     seenIds.add(candidateId);
 
+    const socialHandles =
+      profile.social_handles && typeof profile.social_handles === 'object'
+        ? (profile.social_handles as Record<string, unknown>)
+        : null;
+    const professionalNetwork =
+      socialHandles?.professional_network_identifier &&
+      typeof socialHandles.professional_network_identifier === 'object'
+        ? (socialHandles.professional_network_identifier as Record<string, unknown>)
+        : null;
     const linkedinUrl =
       mapped.linkedin_profile_url ||
       (typeof profile.linkedin_profile_url === 'string'
         ? profile.linkedin_profile_url
+        : null) ||
+      (typeof professionalNetwork?.profile_url === 'string'
+        ? professionalNetwork.profile_url
         : null) ||
       null;
     const linkedinUrlNormalized = linkedinUrl
@@ -139,19 +189,37 @@ export async function upsertCandidatesFromDocs(options: {
         : null);
 
     const name = mapped.name || 'Unknown';
-    const { firstName, lastName } = splitName(name);
+    const { firstName: splitFirst, lastName: splitLast } = splitName(name);
+    const firstName =
+      typeof profile.firstName === 'string' && profile.firstName.trim()
+        ? profile.firstName.trim()
+        : splitFirst;
+    const lastName =
+      typeof profile.lastName === 'string' && profile.lastName.trim()
+        ? profile.lastName.trim()
+        : splitLast;
     const currentRole =
-      typeof job.job_title === 'string' && job.job_title.trim()
+      (typeof job.job_title === 'string' && job.job_title.trim()
         ? job.job_title.trim()
-        : mapped.role !== '—'
-          ? mapped.role
-          : null;
+        : null) ||
+      (typeof job.title === 'string' && job.title.trim() ? job.title.trim() : null) ||
+      (typeof job.employee_title === 'string' && job.employee_title.trim()
+        ? job.employee_title.trim()
+        : null) ||
+      (mapped.role !== '—' ? mapped.role : null);
     const currentCompany =
       (typeof job.company_name === 'string' && job.company_name.trim()
         ? job.company_name.trim()
         : null) ||
+      (typeof job.employer_name === 'string' && job.employer_name.trim()
+        ? job.employer_name.trim()
+        : null) ||
       (typeof job.name === 'string' && job.name.trim() ? job.name.trim() : null);
 
+    const headline =
+      typeof profile.headline === 'string' && profile.headline.trim()
+        ? profile.headline.trim()
+        : currentRole;
     let skillsRaw = labelListFromUnknown(profile.skills, 24);
     if (
       skillsRaw.length === 0 &&
@@ -164,11 +232,20 @@ export async function upsertCandidatesFromDocs(options: {
         .filter((s) => s && s !== '[object Object]')
         .slice(0, 24);
     }
+    if (skillsRaw.length === 0 && headline) {
+      skillsRaw = skillsFromHeadline(headline);
+    }
 
     const matchScore =
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
         ? doc.finalScore
         : null;
+    const fit =
+      typeof doc.fit === 'string' && doc.fit.trim()
+        ? doc.fit.trim()
+        : typeof doc.profile?.fit === 'string' && doc.profile.fit.trim()
+          ? doc.profile.fit.trim()
+          : null;
 
     rankBase += 1;
 
@@ -196,8 +273,7 @@ export async function upsertCandidatesFromDocs(options: {
             currentCompany,
             basicProfile: {
               name,
-              headline:
-                typeof profile.headline === 'string' ? profile.headline : currentRole,
+              headline,
               linkedinUrl,
               profilePictureUrl,
             },
@@ -206,22 +282,16 @@ export async function upsertCandidatesFromDocs(options: {
               company: currentCompany,
             },
             location: mapped.location === '—' ? '' : mapped.location || '',
-            experienceYears: experienceYearsFromProfile(profile),
+            experienceYears: experienceYearsFromFjDoc(doc),
             skills: skillsRaw.slice(0, 24),
             educationPreview: educationPreviewFromProfile(profile),
             profileSignals: profileSignalsFromFjDoc(doc, profile),
             finalScore: matchScore,
             matchScore,
-            candidateSummary:
-              Array.isArray(profile.nuances) && profile.nuances.length
-                ? profile.nuances
-                    .slice(0, 5)
-                    .map((n) => String(n ?? '').trim())
-                    .filter(Boolean)
-                    .join(' · ')
-                : null,
+            fit,
+            candidateSummary: summaryFromProfile(profile),
             mappedCandidate: mapped,
-            rawDoc: doc,
+            rawDoc: raw,
             rawProviderReference: {
               id: candidateId,
               sourcingSessionId: fjSessionId,

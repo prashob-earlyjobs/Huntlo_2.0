@@ -20,10 +20,7 @@ import {
   sourcingApi,
   type SourcingSessionApi,
 } from "@/lib/api";
-import {
-  annotateCandidateSearch,
-  applyCandidateSearch,
-} from "@/lib/api/candidate-search";
+import { applyCandidateSearch } from "@/lib/api/candidate-search";
 import { hydrateSourcingSessionResults } from "@/components/outreach/audience-resolve";
 import { cn } from "@/lib/utils";
 
@@ -129,10 +126,9 @@ export function SourcingSessionPickerDialog({
     setCreating(true);
     setError(null);
     try {
-      const annotated = await annotateCandidateSearch({ prompt });
       const result = await applyCandidateSearch({
         prompt,
-        filterForm: annotated.filterForm,
+        filterForm: {},
         jobId: relatedJobId || null,
         page: 1,
         limit: 300,

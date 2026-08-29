@@ -56,6 +56,7 @@ export type ApiPoolCandidate = {
   email?: string | null;
   phone?: string | null;
   linkedinUrl?: string | null;
+  profilePictureUrl?: string | null;
   headline?: string | null;
   currentTitle?: string | null;
   currentCompany?: string | null;
@@ -270,6 +271,7 @@ export function mapApiPoolCandidateToUi(item: ApiPoolCandidate): PoolCandidate {
     interviews: [],
     notes: [],
     linkedinUrl: item.linkedinUrl ?? null,
+    avatarUrl: item.profilePictureUrl ?? null,
     assigned: item.assigned ?? null,
     tags: item.tags ?? [],
     jobIds: item.jobIds ?? [],

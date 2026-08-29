@@ -161,7 +161,11 @@ export function PoolTable({
                 </TableCell>
                 <TableCell className="py-2.5">
                   <div className="flex items-center gap-2.5">
-                    <CandidateAvatar name={candidate.name} className="size-7" />
+                    <CandidateAvatar
+                      name={candidate.name}
+                      src={candidate.avatarUrl}
+                      className="size-7"
+                    />
                     <div className="min-w-0">
                       <Link
                         href={candidateDetailPath(candidate.id)}

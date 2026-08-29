@@ -7,6 +7,7 @@ import type { OutreachChannel } from "@/lib/mock-outreach";
 export type ReplyStatus =
   | "Awaiting reply"
   | "Replied"
+  | "Answered"
   | "Interested"
   | "Not interested";
 
@@ -18,7 +19,7 @@ export type QualificationState =
 
 export type CandidatePipelineStatus =
   | "Awaiting reply"
-  | "Interested"
+  | "Answered"
   | "Not interested"
   | "In qualification"
   | "Qualified"
@@ -83,6 +84,7 @@ export interface Conversation {
   id: string;
   candidateId: string | null;
   candidateName: string;
+  avatarUrl?: string | null;
   headline: string;
   location: string;
   channels: OutreachChannel[];

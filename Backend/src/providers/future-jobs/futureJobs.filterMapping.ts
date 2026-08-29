@@ -236,3 +236,109 @@ export function applySkillsRelaxStep(form: FutureJobsFilterForm): FutureJobsFilt
 
 /** Cap provider PATCHes when peeling many skills one-by-one. */
 export const MAX_SKILLS_RELAX_STEPS = 12;
+
+function csvList(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? '').trim())
+      .filter(Boolean)
+      .join(', ');
+  }
+  return String(value ?? '').trim();
+}
+
+function skillPhrase(form: Partial<FutureJobsFilterForm>): string {
+  const buckets = form.skills;
+  const parts: string[] = [];
+  if (buckets && typeof buckets === 'object') {
+    const mandatory = csvList(buckets.mandatory);
+    const core = csvList(buckets.core);
+    const secondary = csvList(buckets.secondary);
+    if (mandatory) parts.push(`must have ${mandatory}`);
+    if (core) parts.push(core);
+    if (secondary) parts.push(`nice to have ${secondary}`);
+  }
+  const keywords = csvList(form.keywordSkills);
+  if (keywords && !parts.some((p) => p.toLowerCase().includes(keywords.toLowerCase()))) {
+    parts.push(keywords);
+  }
+  return parts.join(', ');
+}
+
+/**
+ * Turn structured drawer filters into a natural-language requirement string
+ * for POST /wl/search `jdText`.
+ */
+export function filterFormToNaturalLanguage(
+  form: Partial<FutureJobsFilterForm> | null | undefined
+): string {
+  if (!form || typeof form !== 'object') return '';
+
+  const title = csvList(form.currentTitle);
+  const location = csvList(form.location) || csvList(form.selectRegion);
+  const min = String(form.yearsExpMin ?? '').trim();
+  const max = String(form.yearsExpMax ?? '').trim();
+  const skills = skillPhrase(form);
+  const seniority = csvList(form.seniorityLevel);
+  const industry = csvList(form.industry);
+  const functionCategory = csvList(form.functionCategory);
+  const currentCompany = csvList(form.currentCompany);
+  const pastTitle = csvList(form.pastTitle);
+  const pastCompany = csvList(form.pastCompany);
+  const school = csvList(form.school);
+  const certifications = csvList(form.certifications);
+  const employmentType = csvList(form.employmentType);
+  const openToWork = Boolean(form.openToWork);
+  const geoKm = parseGeoDistanceKm(form.geoDistance);
+
+  const clauses: string[] = [];
+  if (title) {
+    clauses.push(title);
+  } else if (seniority && functionCategory) {
+    clauses.push(`${seniority} ${functionCategory}`);
+  } else if (functionCategory) {
+    clauses.push(functionCategory);
+  } else if (seniority) {
+    clauses.push(`${seniority} candidates`);
+  }
+
+  if (location) {
+    clauses.push(geoKm ? `in ${location} (within ${geoKm} km)` : `in ${location}`);
+  }
+
+  if (min && max) clauses.push(`with ${min} to ${max} years of experience`);
+  else if (min) clauses.push(`with at least ${min} years of experience`);
+  else if (max) clauses.push(`with up to ${max} years of experience`);
+
+  if (skills) clauses.push(`skilled in ${skills}`);
+  if (industry) clauses.push(`in the ${industry} industry`);
+  if (currentCompany) clauses.push(`currently at ${currentCompany}`);
+  if (pastTitle) clauses.push(`previously ${pastTitle}`);
+  if (pastCompany) clauses.push(`previously at ${pastCompany}`);
+  if (school) clauses.push(`educated at ${school}`);
+  if (certifications) clauses.push(`certified in ${certifications}`);
+  if (employmentType) clauses.push(`${employmentType} roles`);
+  if (openToWork) clauses.push('who are currently open to work');
+
+  if (clauses.length === 0) return '';
+  if (title || functionCategory || seniority) {
+    return `Need ${clauses.join(' ')}`;
+  }
+  return clauses.join(', ');
+}
+
+/** Combine the recruiter prompt with drawer filters into one Future Jobs jdText. */
+export function buildJdTextFromPromptAndFilters(
+  prompt: string,
+  form?: Partial<FutureJobsFilterForm> | null
+): string {
+  const userText = String(prompt || '').trim();
+  const fromFilters = filterFormToNaturalLanguage(form);
+  if (userText && fromFilters) {
+    const haystack = userText.toLowerCase();
+    const needle = fromFilters.replace(/^need\s+/i, '').slice(0, 48).toLowerCase();
+    if (needle && haystack.includes(needle)) return userText;
+    return `${userText}. ${fromFilters}`;
+  }
+  return userText || fromFilters;
+}

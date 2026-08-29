@@ -2,47 +2,42 @@
 
 import { cn } from "@/lib/utils";
 
-function scoreToneClass(score: number): string {
-  if (score >= 85) return "text-success";
-  if (score >= 70) return "text-primary";
-  if (score >= 50) return "text-warning";
-  return "text-destructive";
+export function formatFitScore(score: number | null | undefined): string {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "—";
+  return String(Number(score.toFixed(2)));
 }
 
-/** Restrained quality label — directional score from Future Jobs, not a precise metric. */
-export function matchQualityLabel(score: number): string {
-  if (score >= 85) return "Strong match";
-  if (score >= 70) return "Good match";
-  if (score >= 50) return "Fair match";
-  return "Weak match";
+export function formatFitLabel(fit: string | null | undefined): string | null {
+  if (typeof fit !== "string") return null;
+  const text = fit.trim().replace(/[_-]+/g, " ");
+  if (!text) return null;
+  return text.replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
-/**
- * Compact numeric match score for the sessions feature — a colored number
- * plus a restrained text label. No ring, no gradient, no false precision.
- */
+export function formatFitDisplay(
+  fit?: string | null,
+  score?: number | null
+): string {
+  return formatFitLabel(fit) ?? formatFitScore(score);
+}
+
+/** Direct Future Jobs fit — string label (e.g. "strong") or numeric score. */
 export function MatchScoreCompact({
   score,
-  showLabel = true,
+  fit,
   className,
 }: {
-  score: number;
-  showLabel?: boolean;
+  score?: number | null;
+  fit?: string | null;
   className?: string;
 }) {
+  const label = formatFitDisplay(fit, score);
   return (
     <span
-      className={cn("inline-flex items-baseline gap-1.5", className)}
-      aria-label={`Match score ${score} out of 100 — ${matchQualityLabel(score)}`}
+      className={cn("text-sm font-semibold tabular-nums text-foreground", className)}
+      aria-label={label === "—" ? "Fit unavailable" : `Fit ${label}`}
     >
-      <span className={cn("text-sm font-semibold tabular-nums", scoreToneClass(score))}>
-        {score}
-      </span>
-      {showLabel ? (
-        <span className="text-[11px] whitespace-nowrap text-muted-foreground">
-          {matchQualityLabel(score)}
-        </span>
-      ) : null}
+      {label}
     </span>
   );
 }

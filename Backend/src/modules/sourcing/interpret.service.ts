@@ -1,8 +1,6 @@
 import {
   DEFAULT_FILTER_FORM,
   enrichFilterFormSkillsFromPrompt,
-  filterFormFromAnnotation,
-  getFutureJobsProvider,
   normalizeFilterFormForUi,
   normalizePromptPlainText,
   type FutureJobsFilterForm,
@@ -155,12 +153,9 @@ export class InterpretService {
       };
     }
 
-    const provider = getFutureJobsProvider();
-    const annotationRes = await provider.getSourcingSessionAnnotation({
-      userText: normalizedQuery,
-    });
-    const annotationData = annotationRes?.data ?? null;
-    let filters = filterFormFromAnnotation(annotationData) as FutureJobsFilterForm;
+    let filters = {
+      ...DEFAULT_FILTER_FORM,
+    } as FutureJobsFilterForm;
     filters = enrichFilterFormSkillsFromPrompt(filters, normalizedQuery) as FutureJobsFilterForm;
     filters = (normalizeFilterFormForUi(filters) ?? filters) as FutureJobsFilterForm;
 
@@ -171,7 +166,7 @@ export class InterpretService {
       query: normalizedQuery,
       interpretedCriteria: criteria,
       normalizedFilters: filters,
-      annotation: annotationData,
+      annotation: null,
     };
   }
 }

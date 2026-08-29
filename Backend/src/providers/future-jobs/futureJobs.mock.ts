@@ -1,4 +1,8 @@
-import { createFutureJobsUpstreamError } from './futureJobs.errors.js';
+import {
+  createFutureJobsUpstreamError,
+  FUTURE_JOBS_PROFILE_NOT_FOUND_CODE,
+} from './futureJobs.errors.js';
+import { normalizeLinkedinProfileUrl } from './futureJobs.reveal.js';
 import type {
   FilterAutocompleteParams,
   FutureJobsAnnotationData,
@@ -31,6 +35,19 @@ const mockMode: MockModeState = {
 
 /** Per-session poll counters for deterministic empty → ready behavior. */
 const sessionPollCounts = new Map<string, number>();
+
+/** LinkedIn URLs scouted via `/lookup`. Reveal-contacts 404s until lookup, matching live FJ. */
+const scoutedLinkedinUrls = new Set<string>();
+
+function markLinkedinScouted(url: string | null | undefined): void {
+  const canonical = normalizeLinkedinProfileUrl(url);
+  if (canonical) scoutedLinkedinUrls.add(canonical);
+}
+
+function wasLinkedinScouted(url: string | null | undefined): boolean {
+  const canonical = normalizeLinkedinProfileUrl(url);
+  return Boolean(canonical && scoutedLinkedinUrls.has(canonical));
+}
 
 let sessionSeq = 0;
 let candidateSeq = 0;
@@ -73,6 +90,7 @@ export function resetMockFutureJobsState(): void {
   mockMode.pending207 = false;
   mockMode.emptyProfiles = false;
   sessionPollCounts.clear();
+  scoutedLinkedinUrls.clear();
   sessionSeq = 0;
   candidateSeq = 0;
 }
@@ -683,6 +701,16 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
       (err as Error & { statusCode: number }).statusCode = 400;
       throw err;
     }
+    // Huntlo `/wl/search` stores a synthetic session id. Live FJ has no such session.
+    if (sessionId.startsWith('wl-search-')) {
+      throw createFutureJobsUpstreamError({
+        details: { message: 'Sourcing session not found' },
+        fjHttpStatus: 404,
+        fjOperation: 'POST /wl/sourcing-session/contact/reveal',
+        statusCode: 404,
+        logFailure: false,
+      });
+    }
     return buildRevealResponse(type as 'EMAIL' | 'PHONE', profileUrl);
   }
 
@@ -697,6 +725,16 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
       const err = new Error('linkedin_profile_url and revealType (PHONE|EMAIL) are required');
       (err as Error & { statusCode: number }).statusCode = 400;
       throw err;
+    }
+    if (!wasLinkedinScouted(profileUrl)) {
+      throw createFutureJobsUpstreamError({
+        details: { message: 'Profile not scouted. Call /lookup before /reveal-contacts.' },
+        fjHttpStatus: 404,
+        fjOperation: 'POST /wl/scout-people/reveal-contacts',
+        statusCode: 404,
+        code: FUTURE_JOBS_PROFILE_NOT_FOUND_CODE,
+        logFailure: false,
+      });
     }
     return buildRevealResponse(type as 'EMAIL' | 'PHONE', profileUrl);
   }
@@ -770,24 +808,32 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     const slug =
       linkedinUrl.match(/\/in\/([^/?#]+)/i)?.[1] ||
       (email ? email.split('@')[0] : 'mock-candidate');
+    const decodedSlug = decodeURIComponent(slug!).replace(/\/+$/, '');
     const profileUrl =
-      linkedinUrl || `https://www.linkedin.com/in/${encodeURIComponent(slug!)}`;
+      linkedinUrl || `https://www.linkedin.com/in/${encodeURIComponent(decodedSlug)}`;
+    const memberSlug = `ACoAAMock${decodedSlug.replace(/[^A-Za-z0-9]/g, '').slice(0, 18)}`;
+    const memberUrl = `https://www.linkedin.com/in/${memberSlug}`;
+
+    markLinkedinScouted(linkedinUrl);
+    markLinkedinScouted(profileUrl);
+    markLinkedinScouted(memberUrl);
 
     return {
       status: 'SUCCESS',
       statusCode: 200,
       message: 'Profile found',
       data: {
-        scoutId: `mock-scout-${slug}`,
+        scoutId: `mock-scout-${decodedSlug}`,
         profile: {
-          _id: `mock-fj-profile-${slug}`,
+          _id: memberSlug,
+          id: memberSlug,
           name: 'Aisha Rahman',
           title: 'Senior Software Engineer',
           headline: 'Senior Software Engineer · Platform · TypeScript',
           location: 'Bengaluru, India',
           summary: 'Builds reliable APIs and hiring systems.',
           linkedin_flagship_url: profileUrl,
-          linkedin_profile_url: profileUrl,
+          linkedin_profile_url: memberUrl,
           profile_picture_url: '',
           num_of_connections: 500,
           skills: ['TypeScript', 'Node.js', 'React'],
@@ -796,7 +842,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
           all_employers: ['Nimbus Labs', 'Orbit Soft'],
           all_schools: ['IISc Bangalore'],
           all_degrees: ['B.Tech'],
-          query_linkedin_profile_urn_or_slug: [slug],
+          query_linkedin_profile_urn_or_slug: [memberSlug, decodedSlug],
           current_employers: [
             {
               employer_name: 'Nimbus Labs',
@@ -950,6 +996,22 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     };
   }
 
+  async function searchByJdText(
+    body: { jdText: string },
+    _opts?: FutureJobsRequestOpts
+  ): Promise<FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>> {
+    maybeFail('POST /wl/search');
+    const sessionId = nextSessionId();
+    const docs = buildFakeProfiles(sessionId, 4);
+    return {
+      status: true,
+      statusCode: 200,
+      message: 'Search completed',
+      // Live POST /wl/search returns data as a profile-doc array.
+      data: docs,
+    };
+  }
+
   return {
     createSourcingSession,
     updateSourcingSession,
@@ -963,6 +1025,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     getSourcingSessionAnnotation,
     getFilterAutocomplete,
     previewSourcingSession,
+    searchByJdText,
     isFjSessionPending,
     fjSessionPendingMessage,
   };

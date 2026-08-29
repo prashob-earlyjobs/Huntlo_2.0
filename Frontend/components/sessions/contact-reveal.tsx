@@ -97,13 +97,11 @@ export type RevealRequestStatus = "idle" | "loading" | "unavailable";
  * must not be charged again.
  */
 /**
- * Only ask for confirmation when a reveal has a real cost implication —
- * mobile reveals cost more, and any reveal type gets a confirmation once
- * its quota is running low. Routine, cheap, well-stocked reveals go through
- * immediately so reviewing candidates stays fast.
+ * Only ask for confirmation when an email reveal’s quota is running low.
+ * Mobile reveals go through immediately — the button already shows the credit cost.
  */
 function needsConfirmation(kind: "email" | "phone", quota: RevealQuota): boolean {
-  if (kind === "phone") return true;
+  if (kind === "phone") return false;
   if (quota.emailTotal <= 0) return false;
   return quota.emailRemaining / quota.emailTotal < 0.1;
 }
@@ -274,22 +272,51 @@ export function ContactReveal({
   const buttonClass = fill ? "w-full" : undefined;
 
   if (compact) {
+    const showEmailValue = emailVisible && Boolean(candidate.email);
+    const showPhoneValue = phoneVisible && Boolean(candidate.phone);
     return (
-      <div className="flex items-center gap-1.5">
-        <ContactIconButton
-          kind="email"
-          value={candidate.email}
-          visible={emailVisible}
-          status={emailStatus}
-          onReveal={onReveal}
-        />
-        <ContactIconButton
-          kind="phone"
-          value={candidate.phone}
-          visible={phoneVisible}
-          status={phoneStatus}
-          onReveal={onReveal}
-        />
+      <div
+        className={cn(
+          "flex min-w-0",
+          showEmailValue || showPhoneValue
+            ? "min-w-40 flex-col items-stretch gap-1"
+            : "items-center gap-1.5"
+        )}
+      >
+        {showEmailValue ? (
+          <RevealedValue
+            icon={Mail}
+            value={candidate.email}
+            verified={candidate.emailVerified}
+            label="email"
+            previouslyRevealed={candidate.emailRevealed && !revealed.email}
+          />
+        ) : (
+          <ContactIconButton
+            kind="email"
+            value={candidate.email}
+            visible={false}
+            status={emailStatus}
+            onReveal={onReveal}
+          />
+        )}
+        {showPhoneValue ? (
+          <RevealedValue
+            icon={Phone}
+            value={candidate.phone}
+            verified={candidate.phoneVerified}
+            label="phone number"
+            previouslyRevealed={candidate.phoneRevealed && !revealed.phone}
+          />
+        ) : (
+          <ContactIconButton
+            kind="phone"
+            value={candidate.phone}
+            visible={false}
+            status={phoneStatus}
+            onReveal={onReveal}
+          />
+        )}
       </div>
     );
   }

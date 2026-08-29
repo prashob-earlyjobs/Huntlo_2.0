@@ -320,7 +320,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               company: candidate.currentCompany,
               role: candidate.currentRole,
               duration:
-                candidate.experienceYears > 0
+                candidate.experienceYears != null && candidate.experienceYears > 0
                   ? `${candidate.experienceYears} yrs total experience`
                   : "Current role",
               description: candidate.headline,
@@ -353,6 +353,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           <div className="flex min-w-0 items-start gap-3.5">
             <CandidateAvatar
               name={candidate.name}
+              src={candidate.avatarUrl}
               className="size-12 text-base"
             />
             <div className="min-w-0">
@@ -373,7 +374,9 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Timer aria-hidden className="size-3" />
-                  {candidate.experienceYears} yrs
+                  {candidate.experienceYears != null
+                    ? `${candidate.experienceYears} yrs`
+                    : "—"}
                 </span>
                 <span>Owner: {candidate.owner}</span>
                 <span>Source: {candidate.source}</span>
@@ -647,7 +650,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 ["Location", candidate.location],
                 [
                   "Experience",
-                  candidate.experienceYears > 0
+                  candidate.experienceYears != null && candidate.experienceYears > 0
                     ? `${candidate.experienceYears} years`
                     : "—",
                 ],

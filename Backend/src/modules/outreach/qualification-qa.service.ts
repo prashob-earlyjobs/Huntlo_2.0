@@ -1893,7 +1893,13 @@ export async function processQualificationAfterReply(input: {
         hfStatus === 'active' ||
         hfStatus === 'failed')
     ) {
-      if (hfStatus === 'processing_reply') {
+      const { isClosedOutreachEnrollmentStatus } = await import(
+        './hiring-flow-runtime.service.js'
+      );
+      if (hfStatus === 'processing_reply' || hfStatus === 'active') {
+        return { action: 'hiring_flow_noop' };
+      }
+      if (isClosedOutreachEnrollmentStatus(hfEnrollment.status)) {
         return { action: 'hiring_flow_noop' };
       }
       try {

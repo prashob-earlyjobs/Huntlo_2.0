@@ -15,7 +15,11 @@ import {
   extractRevealValues,
   FutureJobsUpstreamError,
   getFutureJobsProvider,
+  isFjInvalidLinkedinUrlError,
+  isFjProfileNotFoundError,
   linkedinCacheLookupKeys,
+  linkedinUrlsForContactReveal,
+  linkedinUrlsFromScoutLookup,
   normalizeLinkedinProfileUrl,
   type FutureJobsRevealType,
 } from '../../providers/future-jobs/index.js';
@@ -44,6 +48,171 @@ export function syntheticCandidateIdFromLinkedin(linkedinKey: string): mongoose.
 }
 
 const log = () => createChildLogger({ module: 'candidates-reveal' });
+
+const REVEAL_UPSTREAM_USER_MESSAGE =
+  "We couldn't reveal contact details right now. Please try again shortly.";
+
+function isFutureJobsRevealUrlMiss(error: FutureJobsUpstreamError): boolean {
+  return (
+    error.fjHttpStatus === 404 ||
+    isFjProfileNotFoundError(error) ||
+    isFjInvalidLinkedinUrlError(error)
+  );
+}
+
+function isRevealUrlMiss(error: unknown): error is FutureJobsUpstreamError {
+  return error instanceof FutureJobsUpstreamError && isFutureJobsRevealUrlMiss(error);
+}
+
+function isSyntheticWlSearchSessionId(sessionId: string): boolean {
+  return sessionId.startsWith('wl-search-');
+}
+
+function isMemberUrnLinkedinUrl(url: string): boolean {
+  return /\/in\/ACoAA/i.test(url);
+}
+
+async function scoutThenRevealContact(options: {
+  provider: ReturnType<typeof getFutureJobsProvider>;
+  linkedinKey: string;
+  fjType: FutureJobsRevealType;
+  candidateIdHex: string;
+}): Promise<{ fjResponse: unknown; linkedinKey: string }> {
+  const { provider, linkedinKey, fjType, candidateIdHex } = options;
+
+  log().info(
+    { candidateId: candidateIdHex, linkedinProfileUrlLen: linkedinKey.length },
+    'scouting profile via lookup before reveal-contacts'
+  );
+
+  let lookupFj: unknown = null;
+  try {
+    lookupFj = await provider.scoutPeopleLookup({ linkedin_url: linkedinKey });
+  } catch (error) {
+    if (!isRevealUrlMiss(error)) throw error;
+    log().info(
+      {
+        candidateId: candidateIdHex,
+        linkedinProfileUrlLen: linkedinKey.length,
+        fjHttpStatus: error.fjHttpStatus,
+      },
+      'scout-people lookup miss; still attempting reveal-contacts'
+    );
+  }
+
+  const fromLookup = linkedinUrlsFromScoutLookup(lookupFj);
+  const memberUrls = fromLookup.filter((url) => isMemberUrnLinkedinUrl(url));
+  // Vanity/flagship still 404s on reveal-contacts after lookup. Prefer ACoAA URNs.
+  const preferred = memberUrls.length > 0 ? memberUrls : fromLookup;
+  const revealKeys: string[] = [];
+  const seen = new Set<string>();
+  for (const url of [...preferred, ...(memberUrls.length > 0 ? [] : [linkedinKey])]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    revealKeys.push(url);
+  }
+
+  log().info(
+    {
+      candidateId: candidateIdHex,
+      lookupUrlCount: fromLookup.length,
+      memberUrlCount: memberUrls.length,
+      revealUrlCount: revealKeys.length,
+    },
+    'scout-people lookup resolved reveal urls'
+  );
+
+  const scoutedMemberUrl = memberUrls[0];
+  if (scoutedMemberUrl) {
+    void SourcedCandidateModel.updateOne(
+      { _id: candidateIdHex },
+      { $set: { 'rawDoc.profile.linkedin_profile_url': scoutedMemberUrl } }
+    ).catch(() => undefined);
+  }
+
+  let lastMiss: FutureJobsUpstreamError | null = null;
+  for (const url of revealKeys) {
+    try {
+      return {
+        fjResponse: await provider.scoutPeopleRevealContact(url, fjType),
+        linkedinKey: url,
+      };
+    } catch (error) {
+      if (isRevealUrlMiss(error)) {
+        lastMiss = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastMiss) throw lastMiss;
+  throw new Error('linkedin_profile_url is required for contact reveal');
+}
+
+async function revealContactFromProvider(options: {
+  provider: ReturnType<typeof getFutureJobsProvider>;
+  fjSessionId: string;
+  linkedinKeys: string[];
+  fjType: FutureJobsRevealType;
+  candidateIdHex: string;
+}): Promise<{ fjResponse: unknown; linkedinKey: string }> {
+  const { provider, fjSessionId, linkedinKeys, fjType, candidateIdHex } = options;
+  const canUseSourcingSession =
+    Boolean(fjSessionId) && !isSyntheticWlSearchSessionId(fjSessionId);
+
+  let lastMiss: FutureJobsUpstreamError | null = null;
+  for (const linkedinKey of linkedinKeys) {
+    if (canUseSourcingSession) {
+      try {
+        return {
+          fjResponse: await provider.revealSourcingSessionContact(
+            fjSessionId,
+            linkedinKey,
+            fjType
+          ),
+          linkedinKey,
+        };
+      } catch (error) {
+        if (isRevealUrlMiss(error)) {
+          log().warn(
+            { fjSessionId, candidateId: candidateIdHex, linkedinProfileUrlLen: linkedinKey.length },
+            'sourcing-session reveal miss; scouting then falling back to reveal-contacts'
+          );
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    try {
+      return await scoutThenRevealContact({
+        provider,
+        linkedinKey,
+        fjType,
+        candidateIdHex,
+      });
+    } catch (error) {
+      if (isRevealUrlMiss(error)) {
+        lastMiss = error;
+        log().info(
+          {
+            candidateId: candidateIdHex,
+            linkedinProfileUrlLen: linkedinKey.length,
+            memberUrn: /\/in\/ACoAA/i.test(linkedinKey),
+            fjHttpStatus: error.fjHttpStatus,
+          },
+          'scout-people reveal miss; trying next linkedin url'
+        );
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastMiss) throw lastMiss;
+  throw new Error('linkedin_profile_url is required for contact reveal');
+}
 
 export type ActorContext = {
   userId: string;
@@ -341,8 +510,14 @@ export class RevealService {
     const candidate = await resolveCandidate(actor.organizationId, candidateId);
     const candidateObjectId = candidate._id;
     const candidateIdHex = candidateObjectId.toHexString();
-    const linkedinUrl = candidate.basicProfile?.linkedinUrl ?? null;
-    const linkedinKey = normalizeLinkedinProfileUrl(linkedinUrl);
+    const revealUrls = linkedinUrlsForContactReveal({
+      rawDoc: candidate.rawDoc,
+      linkedinProfileUrl: candidate.linkedinProfileUrl,
+      basicLinkedinUrl: candidate.basicProfile?.linkedinUrl,
+      externalCandidateId: candidate.externalCandidateId || candidate.candidateId,
+    });
+    const linkedinUrl = revealUrls[0] || candidate.linkedinProfileUrl || candidate.basicProfile?.linkedinUrl || null;
+    const linkedinKey = revealUrls[0] || normalizeLinkedinProfileUrl(linkedinUrl);
 
     // 1. Previous reveal for this user+candidate+type
     const previous = await RevealedContactModel.findOne({
@@ -500,25 +675,41 @@ export class RevealService {
       // 4. Call provider
       const provider = getFutureJobsProvider();
       const fjType = toFjRevealType(contactType);
-      let fjResponse: unknown;
+
+      if (!revealUrls.length) {
+        await revealQuotaService.refund(actor.organizationId, reservationId);
+        const result = buildRevealResult({
+          found: false,
+          charged: false,
+          source: 'missing',
+          contactType,
+          values: [],
+          candidateId: candidateIdHex,
+          creditsCharged: 0,
+        });
+        if (options.idempotencyKey) {
+          await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+        }
+        return result;
+      }
 
       const session = await SourcingSessionModel.findById(candidate.sourcingSessionId)
-        .select('externalSessionId')
+        .select('externalSessionId futureJobsSessionId')
         .lean();
-      const externalSessionId =
-        session && typeof session.externalSessionId === 'string'
-          ? session.externalSessionId.trim()
-          : '';
+      const fjSessionId =
+        (typeof session?.futureJobsSessionId === 'string' && session.futureJobsSessionId.trim()) ||
+        (typeof session?.externalSessionId === 'string' && session.externalSessionId.trim()) ||
+        '';
 
-      if (externalSessionId) {
-        fjResponse = await provider.revealSourcingSessionContact(
-          externalSessionId,
-          linkedinKey,
-          fjType
-        );
-      } else {
-        fjResponse = await provider.scoutPeopleRevealContact(linkedinKey, fjType);
-      }
+      const revealed = await revealContactFromProvider({
+        provider,
+        fjSessionId,
+        linkedinKeys: revealUrls,
+        fjType,
+        candidateIdHex,
+      });
+      const fjResponse = revealed.fjResponse;
+      const usedLinkedinKey = revealed.linkedinKey;
 
       // 5. Extract values
       const values = extractRevealValues(fjResponse, fjType);
@@ -541,7 +732,7 @@ export class RevealService {
 
       // 6. Encrypt + upsert cache
       const cache = await upsertContactCache({
-        linkedinUrlKey: linkedinKey,
+        linkedinUrlKey: usedLinkedinKey,
         externalCandidateId: candidate.externalCandidateId,
         contactType,
         values,
@@ -604,7 +795,23 @@ export class RevealService {
     } catch (error) {
       await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
       if (error instanceof FutureJobsUpstreamError) {
-        throw new AppError(error.statusCode, error.code, error.message, {
+        // FJ 404/422 when the LinkedIn key isn't resolvable — soft miss, not an outage.
+        if (isFutureJobsRevealUrlMiss(error)) {
+          const result = buildRevealResult({
+            found: false,
+            charged: false,
+            source: 'missing',
+            contactType,
+            values: [],
+            candidateId: candidateIdHex,
+            creditsCharged: 0,
+          });
+          if (options.idempotencyKey) {
+            await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+          }
+          return result;
+        }
+        throw new AppError(error.statusCode, error.code, REVEAL_UPSTREAM_USER_MESSAGE, {
           cause: error,
         });
       }
@@ -875,7 +1082,19 @@ export class RevealService {
     try {
       const provider = getFutureJobsProvider();
       const fjType = toFjRevealType(contactType);
-      const fjResponse = await provider.scoutPeopleRevealContact(linkedinKey, fjType);
+      const revealUrls = linkedinUrlsForContactReveal({
+        linkedinProfileUrl: linkedinKey,
+        externalCandidateId: input.profileId,
+      });
+      const revealed = await revealContactFromProvider({
+        provider,
+        fjSessionId: '',
+        linkedinKeys: revealUrls.length > 0 ? revealUrls : [linkedinKey],
+        fjType,
+        candidateIdHex,
+      });
+      const fjResponse = revealed.fjResponse;
+      const usedLinkedinKey = revealed.linkedinKey;
       const values = extractRevealValues(fjResponse, fjType);
 
       if (values.length === 0) {
@@ -896,7 +1115,7 @@ export class RevealService {
       }
 
       const cache = await upsertContactCache({
-        linkedinUrlKey: linkedinKey,
+        linkedinUrlKey: usedLinkedinKey,
         externalCandidateId,
         contactType,
         values,
@@ -956,9 +1175,8 @@ export class RevealService {
     } catch (error) {
       await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
       if (error instanceof FutureJobsUpstreamError) {
-        // FJ returns 404 when the LinkedIn key isn't resolvable for reveal —
-        // treat as a soft miss, not an upstream outage.
-        if (error.fjHttpStatus === 404) {
+        // FJ 404/422 when the LinkedIn key isn't resolvable — soft miss, not an outage.
+        if (isFutureJobsRevealUrlMiss(error)) {
           const result = buildRevealResult({
             found: false,
             charged: false,
@@ -973,7 +1191,7 @@ export class RevealService {
           }
           return result;
         }
-        throw new AppError(error.statusCode, error.code, error.message, {
+        throw new AppError(error.statusCode, error.code, REVEAL_UPSTREAM_USER_MESSAGE, {
           cause: error,
         });
       }

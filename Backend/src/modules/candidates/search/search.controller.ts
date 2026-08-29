@@ -9,13 +9,13 @@ import {
   allCandidatesQuerySchema,
   annotateSearchSchema,
   applySearchSchema,
+  promptFromJobSchema,
   autocompleteQuerySchema,
   candidateDetailsQuerySchema,
   claimPublicSearchSchema,
   createSearchSchema,
   fetchMoreBodySchema,
   legacySearchSchema,
-  previewSearchSchema,
   recentSearchesQuerySchema,
   sessionProfilesQuerySchema,
   sessionsListQuerySchema,
@@ -31,16 +31,16 @@ function actorFrom(req: Request) {
   };
 }
 
+export const promptFromJob = asyncHandler(async (req: Request, res: Response) => {
+  const input = promptFromJobSchema.parse(req.body);
+  const result = await candidateSearchService.promptFromJob(actorFrom(req), input);
+  res.status(200).json(result);
+});
+
 export const annotateSearch = asyncHandler(async (req: Request, res: Response) => {
   const input = annotateSearchSchema.parse(req.body);
   const result = await candidateSearchService.annotate(actorFrom(req), input);
   // Annotate returns success payload at top level for frontend drawer contract
-  res.status(200).json(result);
-});
-
-export const previewSearch = asyncHandler(async (req: Request, res: Response) => {
-  const input = previewSearchSchema.parse(req.body);
-  const result = await candidateSearchService.preview(actorFrom(req), input);
   res.status(200).json(result);
 });
 

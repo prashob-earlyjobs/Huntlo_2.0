@@ -2,7 +2,7 @@
 
 export type CandidatePipelineStatus =
   | 'Awaiting reply'
-  | 'Interested'
+  | 'Answered'
   | 'Not interested'
   | 'In qualification'
   | 'Qualified'
@@ -79,13 +79,10 @@ export function deriveEnrollmentPipelineStatus(
   }
 
   if (hasReply) {
-    if (disposition === 'interested') {
-      return qual === 'pending' ? 'Interested' : 'In qualification';
-    }
     if (disposition === 'not_interested') {
       return 'Not interested';
     }
-    return 'Interested';
+    return 'Answered';
   }
 
   return 'Awaiting reply';

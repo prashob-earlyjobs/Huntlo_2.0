@@ -40,6 +40,7 @@ export function mapCandidateDetailsToSessionCandidate(
     profileSignals: details.profileSignals ?? base.signals,
     rank: details.rank ?? 0,
     matchScore: details.matchScore ?? details.finalScore ?? null,
+    fit: details.fit ?? base.fit ?? null,
   });
 
   const summary =

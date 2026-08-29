@@ -8,6 +8,7 @@ import { clearRateLimits } from '../src/middleware/rate-limit.js';
 import { OnboardingModel } from '../src/modules/auth/onboarding.model.js';
 import { UserSessionModel } from '../src/modules/auth/session.model.js';
 import { UserModel } from '../src/modules/auth/user.model.js';
+import { JobModel } from '../src/modules/jobs/job.model.js';
 import { OrganizationMemberModel } from '../src/modules/organizations/member.model.js';
 import { OrganizationModel } from '../src/modules/organizations/organization.model.js';
 import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate.model.js';
@@ -64,10 +65,11 @@ describe('Candidate search workflow', () => {
       QuotaCounterModel.deleteMany({}),
       SourcingSessionModel.deleteMany({}),
       SourcedCandidateModel.deleteMany({}),
+      JobModel.deleteMany({}),
     ]);
   });
 
-  it('annotates prompt into filterForm without consuming quota', async () => {
+  it('annotate does not call Future Jobs and does not consume quota', async () => {
     const app = createApp();
     const agent = request.agent(app);
     const auth = await registerAndAuth(agent);
@@ -163,12 +165,16 @@ describe('Candidate search workflow', () => {
     expect(res.body.sessionId).toBeTruthy();
     expect(res.body.savedSessionId).toBeTruthy();
     expect(res.body.sessionUpdated).toBe(false);
+    expect(res.body.polling).toBe(false);
+    expect(res.body.canFetchMore).toBe(false);
     expect(Array.isArray(res.body.candidates)).toBe(true);
+    expect(res.body.candidates.length).toBeGreaterThan(0);
+    expect(String(res.body.sessionPayload?.jdText ?? '')).toMatch(/react/i);
 
     const stored = await SourcedCandidateModel.countDocuments({
       organizationId: auth.organizationId,
     });
-    expect(stored).toBeGreaterThanOrEqual(0);
+    expect(stored).toBeGreaterThan(0);
 
     const sessions = await SourcingSessionModel.countDocuments({
       organizationId: auth.organizationId,
@@ -177,7 +183,7 @@ describe('Candidate search workflow', () => {
     expect(sessions).toBe(1);
   });
 
-  it('treats Future Jobs 207 as sessionPending not 500', async () => {
+  it('apply waits on /wl/search and does not return sessionPending', async () => {
     setMockFutureJobsMode({ pending207: true });
     const app = createApp();
     const agent = request.agent(app);
@@ -187,16 +193,16 @@ describe('Candidate search workflow', () => {
       .post('/api/v1/candidates/search/apply')
       .set('Authorization', `Bearer ${auth.token}`)
       .send({
-        prompt: 'Java developers in Mumbai',
-        // No location → skip geo expansion path for a direct 207 pending response
+        prompt: 'need a java developer in mumbai with 4 to 6 years of experience who are currently open to work',
         filterForm: { currentTitle: 'Java Developer' },
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(false);
-    expect(res.body.sessionPending).toBe(true);
-    expect(res.body.fjStatusCode).toBe(207);
+    expect(res.body.success).toBe(true);
+    expect(res.body.sessionPending).toBeUndefined();
+    expect(res.body.polling).toBe(false);
     expect(res.body.sessionId).toBeTruthy();
+    expect(res.body.candidates.length).toBeGreaterThan(0);
   });
 
   it('expands geo to 60_km then 120_km', () => {
@@ -410,10 +416,36 @@ describe('Candidate search workflow', () => {
       });
 
     expect(res.status).toBe(200);
-    expect(res.body.sessionId || res.body.sessionPending).toBeTruthy();
+    expect(res.body.sessionId).toBeTruthy();
+    expect(res.body.polling).toBe(false);
   });
 
-  it('apply with empty filterForm auto-annotates and keeps polling from data.sourcing', async () => {
+  it('apply with empty filterForm sends the prompt as jdText', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    const prompt =
+      'i am looking for social media manager in bengaluru with 2 yr experienced';
+    const res = await agent
+      .post('/api/v1/candidates/search/apply')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        prompt,
+        filterForm: {},
+        page: 1,
+        limit: 20,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.polling).toBe(false);
+    expect(res.body.sessionId).toBeTruthy();
+    expect(res.body.sessionPayload?.jdText).toBe(prompt);
+    expect(res.body.candidates.length).toBeGreaterThan(0);
+  });
+
+  it('apply with filters only converts them to natural-language jdText', async () => {
     const app = createApp();
     const agent = request.agent(app);
     const auth = await registerAndAuth(agent);
@@ -422,21 +454,91 @@ describe('Candidate search workflow', () => {
       .post('/api/v1/candidates/search/apply')
       .set('Authorization', `Bearer ${auth.token}`)
       .send({
-        prompt: 'i am looking for social media manager in bengaluru with 2 yr experienced',
-        filterForm: {},
-        page: 1,
-        limit: 20,
+        prompt: '',
+        filterForm: {
+          currentTitle: 'Java Developer',
+          location: ['Bengaluru'],
+          yearsExpMin: '4',
+          yearsExpMax: '6',
+          openToWork: true,
+        },
       });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.sessionId).toBeTruthy();
-    expect(res.body.filterForm?.currentTitle).toBeTruthy();
-    // Structured title query — not stopword skills like "am" / "yr"
-    const titleQuery = res.body.sessionPayload?.queries?.['current_employers.title'];
-    expect(titleQuery?.value?.length).toBeGreaterThan(0);
-    const skillCore = res.body.sessionPayload?.queries?.skills?.value?.core ?? [];
-    expect(skillCore).not.toContain('am');
-    expect(skillCore).not.toContain('yr');
+    expect(res.body.polling).toBe(false);
+    const jdText = String(res.body.sessionPayload?.jdText ?? '').toLowerCase();
+    expect(jdText).toContain('java developer');
+    expect(jdText).toContain('bengaluru');
+    expect(jdText).toContain('open to work');
+  });
+
+  it('rejects apply with empty prompt and empty filters', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    const auth = await registerAndAuth(agent);
+
+    const res = await agent
+      .post('/api/v1/candidates/search/apply')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({ prompt: '', filterForm: {} });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('PROMPT_REQUIRED');
+  });
+
+  it('converts a full job JD into a searchable prompt', async () => {
+    const previousGeminiKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    resetEnvCache();
+
+    try {
+      const app = createApp();
+      const agent = request.agent(app);
+      const auth = await registerAndAuth(agent);
+
+      const created = await agent
+        .post('/api/v1/jobs')
+        .set('Authorization', `Bearer ${auth.token}`)
+        .send({
+          title: 'MERN Stack Developer',
+          department: 'Engineering',
+          location: 'Bengaluru',
+          experienceMin: 3,
+          experienceMax: 6,
+          requiredSkills: ['React', 'Node.js', 'MongoDB'],
+          preferredSkills: ['AWS'],
+          description: '<p>Build APIs and dashboards for hiring teams.</p>',
+          requirements: ['Experience with REST APIs', 'Strong JavaScript'],
+          publish: true,
+        });
+      expect(created.status).toBe(201);
+      const jobId = created.body.data.id as string;
+
+      const missing = await agent
+        .post('/api/v1/candidates/search/prompt-from-job')
+        .set('Authorization', `Bearer ${auth.token}`)
+        .send({ jobId: '000000000000000000000000' });
+      expect(missing.status).toBe(404);
+
+      const res = await agent
+        .post('/api/v1/candidates/search/prompt-from-job')
+        .set('Authorization', `Bearer ${auth.token}`)
+        .send({ jobId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobId).toBe(jobId);
+      expect(res.body.source).toBe('fallback');
+      const prompt = String(res.body.prompt);
+      expect(prompt.toLowerCase()).toContain('mern');
+      expect(prompt).toMatch(/React/i);
+      expect(prompt).toMatch(/Bengaluru/i);
+      expect(prompt).toContain('Build APIs and dashboards');
+    } finally {
+      if (previousGeminiKey !== undefined) process.env.GEMINI_API_KEY = previousGeminiKey;
+      else delete process.env.GEMINI_API_KEY;
+      resetEnvCache();
+    }
   });
 });

@@ -82,8 +82,10 @@ import {
 import {
   getApiErrorMessage,
   mapApiErrorToUiState,
+  hiringFlowsApi,
   outreachApi,
   type ApiCampaignEnrollment,
+  type ApiHiringFlowStep,
   type ApiCampaignSequenceStep,
   type ApiOutreachCampaign,
   type ApiUiState,
@@ -249,7 +251,7 @@ function downloadCsv(filename: string, csv: string) {
 }
 
 function buildQualificationCsv(
-  questions: CampaignQuestion[],
+  columns: ReportColumn[],
   enrollments: ApiCampaignEnrollment[]
 ): string {
   const headers = [
@@ -259,11 +261,10 @@ function buildQualificationCsv(
     "Company",
     "Title",
     "Qualification status",
-    ...questions.map((question) => questionColumnTitle(question)),
+    ...columns.map((column) => column.title),
   ];
   const rows = enrollments.map((candidate) => {
     const status = candidate.qualificationState?.status ?? "pending";
-    const answers = candidate.qualificationState?.answers || {};
     return [
       candidate.name,
       candidate.email ?? "",
@@ -271,9 +272,7 @@ function buildQualificationCsv(
       candidate.company ?? "",
       candidate.title ?? "",
       qualificationStatusLabel(status),
-      ...questions.map((question) =>
-        formatQualificationAnswer(answers[question.id])
-      ),
+      ...columns.map((column) => reportAnswer(candidate, column)),
     ];
   });
   return [headers, ...rows]
@@ -550,7 +549,11 @@ function CandidatesTab({
               <TableRow key={candidate.id}>
                 <TableCell className="py-2.5">
                   <div className="flex items-center gap-2.5">
-                    <CandidateAvatar name={candidate.name} className="size-7" />
+                    <CandidateAvatar
+                      name={candidate.name}
+                      src={candidate.profilePictureUrl}
+                      className="size-7"
+                    />
                     {candidate.candidateId ? (
                       <Link
                         href={candidateDetailPath(candidate.candidateId)}
@@ -705,10 +708,68 @@ type CampaignQuestion = {
   knockoutCondition?: string | null;
 };
 
+type ReportColumn = {
+  id: string;
+  title: string;
+  prompt: string;
+  source: "qualification" | "hiring_flow";
+};
+
+function isAnswerTypeStub(text?: string | null): boolean {
+  return /^(yes\s*\/\s*no|boolean|short text|number|text)$/i.test(
+    String(text || "").trim()
+  );
+}
+
 function questionColumnTitle(question: CampaignQuestion): string {
   const titled = question.title?.trim();
   if (titled) return titled;
   return suggestQuestionTitle(question.prompt) || question.prompt;
+}
+
+function hiringFlowColumnTitle(step: ApiHiringFlowStep): string {
+  const label = String(step.label || "").trim();
+  const prompt = String(step.prompt || "").trim();
+  if (label && !/^new question$/i.test(label) && !isAnswerTypeStub(label)) {
+    return label;
+  }
+  if (prompt && !isAnswerTypeStub(prompt)) {
+    return suggestQuestionTitle(prompt) || prompt;
+  }
+  return label || prompt || "Question";
+}
+
+function hiringFlowColumnsFromSteps(steps: ApiHiringFlowStep[]): ReportColumn[] {
+  return steps
+    .filter((step) => step.type === "ask_question")
+    .map((step) => ({
+      id: step.id,
+      title: hiringFlowColumnTitle(step),
+      prompt: String(step.prompt || step.label || "").trim(),
+      source: "hiring_flow" as const,
+    }));
+}
+
+function qualificationColumnsFromQuestions(
+  questions: CampaignQuestion[]
+): ReportColumn[] {
+  return questions.map((question) => ({
+    id: question.id,
+    title: questionColumnTitle(question),
+    prompt: question.prompt,
+    source: "qualification" as const,
+  }));
+}
+
+function reportAnswer(
+  enrollment: ApiCampaignEnrollment,
+  column: ReportColumn
+): string {
+  const bag =
+    column.source === "hiring_flow"
+      ? enrollment.hiringFlowState?.answers || {}
+      : enrollment.qualificationState?.answers || {};
+  return formatQualificationAnswer(bag[column.id]);
 }
 
 const QUALIFICATION_PAGE_SIZE = 20;
@@ -727,6 +788,7 @@ function QualificationTab({
   questionsState,
   questionsMessage,
   onQuestionsRetry,
+  hiringFlowId,
   reloadToken,
 }: {
   campaignId: string;
@@ -735,6 +797,7 @@ function QualificationTab({
   questionsState: ApiUiState;
   questionsMessage: string | null;
   onQuestionsRetry: () => void;
+  hiringFlowId?: string | null;
   reloadToken: number;
 }) {
   const [page, setPage] = useState(1);
@@ -745,10 +808,44 @@ function QualificationTab({
   const [fetchKey, setFetchKey] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [hiringFlowColumns, setHiringFlowColumns] = useState<ReportColumn[]>([]);
+  const [hiringFlowLoadState, setHiringFlowLoadState] = useState<ApiUiState>(
+    hiringFlowId ? "loading" : "empty"
+  );
+
+  const reportColumns = [
+    ...qualificationColumnsFromQuestions(questions),
+    ...hiringFlowColumns,
+  ];
 
   useEffect(() => {
     setPage(1);
   }, [campaignId]);
+
+  useEffect(() => {
+    if (!hiringFlowId) {
+      setHiringFlowColumns([]);
+      setHiringFlowLoadState("empty");
+      return;
+    }
+    let cancelled = false;
+    setHiringFlowLoadState("loading");
+    void hiringFlowsApi
+      .get(hiringFlowId)
+      .then((flow) => {
+        if (cancelled) return;
+        setHiringFlowColumns(hiringFlowColumnsFromSteps(flow.steps || []));
+        setHiringFlowLoadState("success");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHiringFlowColumns([]);
+        setHiringFlowLoadState("empty");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hiringFlowId, reloadToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -784,14 +881,14 @@ function QualificationTab({
     setExporting(true);
     try {
       const enrollments = await fetchAllQualificationEnrollments(campaignId);
-      const csv = buildQualificationCsv(questions, enrollments);
+      const csv = buildQualificationCsv(reportColumns, enrollments);
       const safeName =
         campaignName
           .trim()
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-|-$/g, "") || "campaign";
-      downloadCsv(`${safeName}-qualification.csv`, csv);
+      downloadCsv(`${safeName}-report.csv`, csv);
     } catch (err) {
       setExportError(getApiErrorMessage(err));
     } finally {
@@ -805,18 +902,27 @@ function QualificationTab({
         state={questionsState === "loading" ? "loading" : "error"}
         message={questionsMessage}
         onRetry={onQuestionsRetry}
-        emptyTitle="No qualification questions"
-        emptyDescription="This campaign has no screening questions configured."
+        emptyTitle="No report questions"
+        emptyDescription="This campaign has no screening or WhatsApp hiring-flow questions."
       />
     );
   }
 
-  if (questions.length === 0) {
+  if (hiringFlowId && hiringFlowLoadState === "loading") {
+    return (
+      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" aria-hidden />
+        Loading WhatsApp hiring-flow answers…
+      </div>
+    );
+  }
+
+  if (reportColumns.length === 0) {
     return (
       <EmptyState
         icon={Bookmark}
-        title="No qualification questions"
-        description="This campaign has no screening questions configured. Add them in the campaign builder Qualification step."
+        title="No report questions"
+        description="This campaign has no screening questions or WhatsApp hiring-flow questions. Add them in the campaign builder After qualification step."
       />
     );
   }
@@ -838,7 +944,7 @@ function QualificationTab({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {pagination.total.toLocaleString("en-IN")} candidate
-          {pagination.total === 1 ? "" : "s"} with qualification answers
+          {pagination.total === 1 ? "" : "s"} with screening and WhatsApp answers
         </p>
         <Button
           type="button"
@@ -863,19 +969,19 @@ function QualificationTab({
       <section className="overflow-x-auto rounded-xl border border-border bg-card">
         <Table>
           <caption className="sr-only">
-            Qualification answers by candidate
+            Qualification and WhatsApp hiring-flow answers by candidate
           </caption>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className={HEAD}>Candidate</TableHead>
               <TableHead className={HEAD}>Status</TableHead>
-              {questions.map((question) => (
+              {reportColumns.map((column) => (
                 <TableHead
-                  key={question.id}
+                  key={`${column.source}-${column.id}`}
                   className={HEAD}
-                  title={question.prompt}
+                  title={column.prompt || column.title}
                 >
-                  {questionColumnTitle(question)}
+                  {column.title}
                 </TableHead>
               ))}
             </TableRow>
@@ -883,12 +989,15 @@ function QualificationTab({
           <TableBody>
             {rows.map((candidate) => {
               const status = candidate.qualificationState?.status ?? "pending";
-              const answers = candidate.qualificationState?.answers || {};
               return (
                 <TableRow key={candidate.id}>
                   <TableCell className="py-2.5">
                     <div className="flex items-center gap-2.5">
-                      <CandidateAvatar name={candidate.name} className="size-7" />
+                      <CandidateAvatar
+                        name={candidate.name}
+                        src={candidate.profilePictureUrl}
+                        className="size-7"
+                      />
                       {candidate.candidateId ? (
                         <Link
                           href={candidateDetailPath(candidate.candidateId)}
@@ -909,13 +1018,11 @@ function QualificationTab({
                       className={stateBadgeClass(status)}
                     />
                   </TableCell>
-                  {questions.map((question) => {
-                    const answer = formatQualificationAnswer(
-                      answers[question.id]
-                    );
+                  {reportColumns.map((column) => {
+                    const answer = reportAnswer(candidate, column);
                     return (
                       <TableCell
-                        key={question.id}
+                        key={`${column.source}-${column.id}`}
                         className={cn(
                           "max-w-56 truncate py-2.5 text-sm",
                           answer ? "text-foreground" : "text-muted-foreground"
@@ -1662,7 +1769,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
-            <TabsTrigger value="qualification">Qualification</TabsTrigger>
+            <TabsTrigger value="qualification">Report</TabsTrigger>
             <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="sequence">Sequence</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -1693,6 +1800,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             questionsState={rawState}
             questionsMessage={rawMessage}
             onQuestionsRetry={() => setReloadKey((k) => k + 1)}
+            hiringFlowId={raw?.qualificationConfig?.hiringFlowId ?? null}
             reloadToken={reloadKey}
           />
         </TabsContent>

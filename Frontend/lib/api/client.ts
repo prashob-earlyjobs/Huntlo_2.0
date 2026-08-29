@@ -88,6 +88,25 @@ async function parseErrorEnvelope(response: Response): Promise<ErrorEnvelope | n
   return null;
 }
 
+function asErrorEnvelope(data: unknown): ErrorEnvelope | null {
+  if (!data || typeof data !== "object") return null;
+  const body = data as { success?: unknown; error?: ErrorEnvelope["error"] };
+  if (body.success === false && body.error && typeof body.error === "object") {
+    return body as ErrorEnvelope;
+  }
+  return null;
+}
+
+function messageFromErrorPayload(error: ErrorEnvelope["error"]): string {
+  const details = error.details ?? [];
+  const detailText = details
+    .map((detail) => detail.message)
+    .filter((message): message is string => Boolean(message?.trim()))
+    .join("; ");
+  if (error.code === "VALIDATION_ERROR" && detailText) return detailText;
+  return error.message?.trim() || detailText;
+}
+
 export class ApiClient {
   private readonly baseUrl: string;
 
@@ -258,13 +277,29 @@ export class ApiClient {
     }
 
     if (options.raw) {
-      const data = (await response.json()) as T;
-      if (!response.ok) {
+      let data: T;
+      try {
+        data = (await response.json()) as T;
+      } catch (error) {
         throw new ApiError({
-          message: `Request failed with status ${response.status}`,
+          message: "Failed to parse API response",
           statusCode: response.status,
-          code: mapStatusToErrorCode(response.status),
+          code: "PARSE_ERROR",
           requestId,
+          cause: error,
+        });
+      }
+      if (!response.ok) {
+        const errorBody = asErrorEnvelope(data);
+        throw new ApiError({
+          message:
+            (errorBody ? messageFromErrorPayload(errorBody.error) : "") ||
+            `Request failed with status ${response.status}`,
+          statusCode: response.status,
+          code: mapStatusToErrorCode(response.status, errorBody?.error.code),
+          details: errorBody?.error.details,
+          requestId: errorBody?.requestId ?? requestId,
+          retryAfter: parseRetryAfter(response.headers.get("Retry-After")),
         });
       }
       return { data, status: response.status, requestId };
@@ -294,7 +329,9 @@ export class ApiClient {
         errorBody?.error.code
       );
       throw new ApiError({
-        message: errorBody?.error.message ?? `Request failed with status ${response.status}`,
+        message:
+          (errorBody ? messageFromErrorPayload(errorBody.error) : "") ||
+          `Request failed with status ${response.status}`,
         statusCode: response.status,
         code,
         details: errorBody?.error.details,

@@ -23,7 +23,7 @@ const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware
 
 export const candidatesRouter = Router();
 
-// Candidate search flow (annotate → apply → profiles) — static paths first
+// Candidate search flow (apply → persist) — static paths first
 candidatesRouter.use(candidateSearchRouter);
 
 // Static paths BEFORE /:candidateId

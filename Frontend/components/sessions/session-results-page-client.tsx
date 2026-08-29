@@ -22,11 +22,22 @@ import type { SessionCandidate, SourcingSession } from "@/lib/mock-sessions";
 import { providerPayloadToFilters } from "@/lib/search-filter-adapters";
 import { useRealtime } from "@/providers/realtime-provider";
 
-const POLL_INTERVAL_MS = 2500;
 const FETCH_MORE_GAP_MS = 1500;
 const MAX_PROGRESS_POLL_ATTEMPTS = 15;
 /** Same ~90s window as the previous 30×3s schedule. */
 const PROGRESS_POLL_INTERVAL_MS = 6000;
+const RESULTS_PAGE_SIZE = 20;
+
+export type SessionResultsPagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+function emptyPagination(pageSize = RESULTS_PAGE_SIZE): SessionResultsPagination {
+  return { page: 1, pageSize, total: 0, totalPages: 1 };
+}
 
 /** Set by search-workspace after Apply; absent when opening search history. */
 function liveSearchStorageKey(sessionId: string) {
@@ -90,8 +101,13 @@ function mapSearchSummaryToSessionCandidate(
     profileSignals: candidate.profileSignals ?? [],
     rank: candidate.rank ?? 0,
     matchScore: candidate.matchScore ?? candidate.finalScore ?? null,
+    fit: candidate.fit ?? null,
     saved: candidate.saved,
     lists: candidate.lists ?? [],
+    experience: candidate.experience,
+    education: candidate.education,
+    summary: candidate.summary ?? candidate.candidateSummary ?? null,
+    candidateSummary: candidate.candidateSummary ?? candidate.summary ?? null,
   });
 }
 
@@ -106,16 +122,61 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notFoundSession, setNotFoundSession] = useState(false);
   const [canFetchMore, setCanFetchMore] = useState(false);
+  const [pagination, setPagination] = useState<SessionResultsPagination>(emptyPagination);
+  const [pageLoading, setPageLoading] = useState(false);
+  const paginationRef = useRef({ page: 1, pageSize: RESULTS_PAGE_SIZE });
   const progressAttemptsRef = useRef<Record<string, number>>({});
   const { subscribe, state: realtimeState } = useRealtime();
 
-  const refresh = useCallback(async (reason: string) => {
-    try {
-      // Prefer MongoDB-stored candidates (no quota, no Future Jobs on reopen)
+  const applyPagination = useCallback((next: SessionResultsPagination) => {
+    paginationRef.current = { page: next.page, pageSize: next.pageSize };
+    setPagination(next);
+  }, []);
+
+  const loadCandidatesPage = useCallback(
+    async (nextPage: number, nextLimit: number) => {
       const stored = await getStoredSessionCandidates(sessionId, {
-        all: true,
+        page: nextPage,
+        limit: nextLimit,
       }).catch(() => null);
 
+      if (stored) {
+        const p = stored.profilesPagination;
+        const pageSize = p?.limit ?? nextLimit;
+        const page = p?.page ?? nextPage;
+        const total = p?.totalDocs ?? stored.candidates.length;
+        const totalPages = Math.max(
+          1,
+          p?.totalPages ?? (Math.ceil(total / pageSize) || 1)
+        );
+        setCandidates(stored.candidates.map(mapSearchSummaryToSessionCandidate));
+        applyPagination({ page, pageSize, total, totalPages });
+        setCanFetchMore(Boolean(stored.canFetchMore));
+        if (stored.filterForm) {
+          setSessionFilters(providerPayloadToFilters(stored.filterForm));
+        }
+        if (stored.sessionId) setFjSessionId(stored.sessionId);
+        return stored.candidates.length;
+      }
+
+      const pageResult = await sourcingApi.getSessionResultsPage(sessionId, {
+        page: nextPage,
+        limit: nextLimit,
+      });
+      setCandidates(pageResult.items.map(mapApiCandidateToSessionCandidate));
+      applyPagination({
+        page: pageResult.pagination.page,
+        pageSize: pageResult.pagination.limit,
+        total: pageResult.pagination.total,
+        totalPages: Math.max(1, pageResult.pagination.totalPages),
+      });
+      return pageResult.items.length;
+    },
+    [applyPagination, sessionId]
+  );
+
+  const refresh = useCallback(async (reason: string) => {
+    try {
       const apiSession = await sourcingApi.getSession(sessionId);
       if (!apiSession) {
         setNotFoundSession(true);
@@ -127,24 +188,11 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       setSession(mapped);
       const externalId =
         (apiSession as { externalSessionId?: string | null }).externalSessionId ??
-        stored?.sessionId ??
         null;
-      setFjSessionId(externalId);
+      if (externalId) setFjSessionId(externalId);
 
-      let candidateCount = 0;
-      if (stored?.candidates?.length) {
-        const mappedCandidates = stored.candidates.map(mapSearchSummaryToSessionCandidate);
-        setCandidates((prev) => mergeCandidates(prev, mappedCandidates));
-        setCanFetchMore(Boolean(stored.canFetchMore));
-        candidateCount = mappedCandidates.length;
-      } else {
-        const apiCandidates = await sourcingApi.getSessionCandidates(sessionId);
-        setCandidates((prev) => mergeCandidates(prev, apiCandidates));
-        candidateCount = apiCandidates.length;
-      }
-      if (stored?.filterForm) {
-        setSessionFilters(providerPayloadToFilters(stored.filterForm));
-      }
+      const { page, pageSize } = paginationRef.current;
+      const candidateCount = await loadCandidatesPage(page, pageSize);
 
       setError(null);
       console.log("[SessionResults][refresh]", {
@@ -154,7 +202,8 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         status: apiSession.status ?? apiSession.state,
         uiState: mapped.state,
         candidateCount,
-        canFetchMore: stored?.canFetchMore ?? null,
+        page,
+        pageSize,
         resultCount: mapped.resultCount,
       });
       return apiSession;
@@ -167,7 +216,12 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       });
       return null;
     }
-  }, [sessionId]);
+  }, [loadCandidatesPage, sessionId]);
+
+  useEffect(() => {
+    applyPagination(emptyPagination());
+    setCandidates([]);
+  }, [applyPagination, sessionId]);
 
   useEffect(() => {
     console.log("[SessionResults][mount]", { sessionId });
@@ -208,12 +262,10 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
 
       try {
         const progress = await sourcingApi.getProgress(sessionId);
-        const stored = await getStoredSessionCandidates(sessionId, { all: true });
+        const { page, pageSize } = paginationRef.current;
+        const candidateCount = await loadCandidatesPage(page, pageSize);
         if (cancelled) return;
 
-        const incoming = stored.candidates.map(mapSearchSummaryToSessionCandidate);
-        setCandidates((prev) => mergeCandidates(prev, incoming));
-        setCanFetchMore(Boolean(stored.canFetchMore));
         setSession((prev) =>
           prev
             ? {
@@ -231,9 +283,9 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
           {
             sessionId,
             progress,
-            candidates: stored.candidates,
-            candidateCount: stored.candidates.length,
-            canFetchMore: stored.canFetchMore,
+            candidateCount,
+            page,
+            pageSize,
           }
         );
       } catch (err) {
@@ -265,7 +317,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       cancelled = true;
       if (timer != null) window.clearTimeout(timer);
     };
-  }, [loadedSessionId, loadedSessionState, sessionId]);
+  }, [loadCandidatesPage, loadedSessionId, loadedSessionState, sessionId]);
 
   const sessionState = session?.state ?? null;
 
@@ -299,8 +351,9 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         if (cancelled) return;
 
         const incoming = result.candidates.map(mapSearchSummaryToSessionCandidate);
-        if (incoming.length > 0) {
-          setCandidates((prev) => mergeCandidates(prev, incoming));
+        const { page, pageSize } = paginationRef.current;
+        if (incoming.length > 0 || result.totalDocs) {
+          await loadCandidatesPage(page, pageSize);
         }
         setCanFetchMore(Boolean(result.canFetchMore));
         setSession((prev) =>
@@ -345,7 +398,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       cancelled = true;
       if (timer != null) window.clearTimeout(timer);
     };
-  }, [canFetchMore, sessionId, sessionState]);
+  }, [canFetchMore, loadCandidatesPage, sessionId, sessionState]);
 
   // Debug: log every realtime event so we can see if the socket is alive.
   useEffect(() => {
@@ -389,8 +442,27 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         ...(data.candidates ?? []),
       ].map(mapSearchSummaryToSessionCandidate);
 
-      if (incoming.length > 0) {
-        setCandidates((prev) => mergeCandidates(prev, incoming));
+      if (incoming.length > 0 && paginationRef.current.page === 1) {
+        setCandidates((prev) => {
+          const merged = mergeCandidates(prev, incoming);
+          return merged.slice(0, paginationRef.current.pageSize);
+        });
+      } else if (incoming.length > 0) {
+        void loadCandidatesPage(
+          paginationRef.current.page,
+          paginationRef.current.pageSize
+        );
+      }
+      if (typeof data.totalDocs === "number") {
+        setPagination((prev) => {
+          const totalPages = Math.max(
+            1,
+            Math.ceil(data.totalDocs! / prev.pageSize) || 1
+          );
+          const next = { ...prev, total: data.totalDocs!, totalPages };
+          paginationRef.current = { page: next.page, pageSize: next.pageSize };
+          return next;
+        });
       }
       if (typeof data.canFetchMore === "boolean") {
         setCanFetchMore(data.canFetchMore);
@@ -414,7 +486,7 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         );
       }
     });
-  }, [subscribe, sessionId, fjSessionId]);
+  }, [loadCandidatesPage, subscribe, sessionId, fjSessionId]);
 
   useEffect(() => {
     return subscribe("candidates.search.completed", (event) => {
@@ -433,6 +505,35 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
       if (matches) void refresh("socket-completed");
     });
   }, [subscribe, sessionId, fjSessionId, refresh]);
+
+  const handlePageChange = useCallback(
+    async (nextPage: number) => {
+      if (nextPage === paginationRef.current.page) return;
+      setPageLoading(true);
+      try {
+        await loadCandidatesPage(nextPage, paginationRef.current.pageSize);
+      } catch (err) {
+        setError(getApiErrorMessage(err));
+      } finally {
+        setPageLoading(false);
+      }
+    },
+    [loadCandidatesPage]
+  );
+
+  const handlePageSizeChange = useCallback(
+    async (nextSize: number) => {
+      setPageLoading(true);
+      try {
+        await loadCandidatesPage(1, nextSize);
+      } catch (err) {
+        setError(getApiErrorMessage(err));
+      } finally {
+        setPageLoading(false);
+      }
+    },
+    [loadCandidatesPage]
+  );
 
   if (notFoundSession) {
     notFound();
@@ -462,6 +563,10 @@ export function SessionResultsPageClient({ sessionId }: { sessionId: string }) {
         candidates={candidates}
         initialFilters={sessionFilters}
         futureJobsSessionId={fjSessionId}
+        pagination={pagination}
+        pageLoading={pageLoading}
+        onPageChange={(page) => void handlePageChange(page)}
+        onPageSizeChange={(pageSize) => void handlePageSizeChange(pageSize)}
       />
     </>
   );

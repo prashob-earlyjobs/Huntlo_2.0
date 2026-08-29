@@ -54,6 +54,14 @@ export interface ExperienceEntry {
   duration: string;
   description: string;
   current: boolean;
+  location?: string;
+  seniority?: string;
+  employmentType?: string;
+  industries?: string[];
+  companyLogoUrl?: string;
+  companyWebsite?: string;
+  companySize?: string;
+  companyHq?: string;
 }
 
 export interface EducationEntry {
@@ -61,6 +69,8 @@ export interface EducationEntry {
   degree: string;
   field: string;
   years: string;
+  location?: string;
+  schoolLogoUrl?: string;
 }
 
 export interface CandidateActivityEntry {
@@ -85,15 +95,19 @@ export interface SessionCandidate {
   currentCompany: string;
   previousCompany: string;
   location: string;
-  experienceYears: number;
+  experienceYears: number | null;
   skills: string[];
-  matchScore: number;
+  matchScore: number | null;
+  /** Future Jobs fit label, e.g. `"strong"`. */
+  fit?: string | null;
   matchBreakdown: MatchBreakdown;
   contactStatus: ContactStatus;
   saved: boolean;
   /** Candidate list names this profile belongs to (when known). */
   lists: string[];
   linkedin: boolean;
+  linkedinUrl?: string | null;
+  externalCandidateId?: string | null;
   /** Future Jobs profile_picture_permalink */
   avatarUrl?: string | null;
   email: string;
@@ -836,12 +850,28 @@ export function getSessionCandidates(session: SourcingSession): SessionCandidate
 export const SORT_OPTIONS = [
   { id: "best-match", label: "Best Match" },
   { id: "relevant-experience", label: "Most Relevant Experience" },
-  { id: "recently-updated", label: "Recently Updated" },
-  { id: "current-company", label: "Current Company" },
   { id: "total-experience", label: "Total Experience" },
 ] as const;
 
 export type SortOptionId = (typeof SORT_OPTIONS)[number]["id"];
+
+const FIT_RANK: Record<string, number> = {
+  strong: 4,
+  good: 3,
+  fair: 2,
+  moderate: 2,
+  average: 2,
+  weak: 1,
+  poor: 1,
+};
+
+function fitSortRank(candidate: SessionCandidate): number {
+  if (typeof candidate.matchScore === "number" && Number.isFinite(candidate.matchScore)) {
+    return candidate.matchScore;
+  }
+  const key = candidate.fit?.trim().toLowerCase() ?? "";
+  return FIT_RANK[key] ?? 0;
+}
 
 export function sortCandidates(
   candidates: SessionCandidate[],
@@ -850,21 +880,17 @@ export function sortCandidates(
   const list = [...candidates];
   switch (sort) {
     case "best-match":
-      return list.sort((a, b) => b.matchScore - a.matchScore);
+      return list.sort((a, b) => fitSortRank(b) - fitSortRank(a));
     case "relevant-experience":
       return list.sort(
         (a, b) =>
           b.matchBreakdown.experience + b.matchBreakdown.role -
           (a.matchBreakdown.experience + a.matchBreakdown.role)
       );
-    case "recently-updated":
-      return list; // mock order already reflects recency labels
-    case "current-company":
-      return list.sort((a, b) =>
-        a.currentCompany.localeCompare(b.currentCompany)
-      );
     case "total-experience":
-      return list.sort((a, b) => b.experienceYears - a.experienceYears);
+      return list.sort(
+        (a, b) => (b.experienceYears ?? -1) - (a.experienceYears ?? -1)
+      );
   }
 }
 

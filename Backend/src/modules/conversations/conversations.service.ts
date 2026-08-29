@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Readable } from 'node:stream';
 
+import { getLogger } from '../../config/logger.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   isGcsMediaStorageEnabled,
@@ -14,6 +15,7 @@ import {
 } from '../../providers/meta-whatsapp/meta.media.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { lookupProfilePictures } from '../candidates/pool.service.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
   mapModeToCampaignType,
@@ -86,10 +88,10 @@ const CHANNEL_DISPLAY: Record<ConversationChannel, string> = {
 };
 
 const INTEREST_TO_REPLY: Record<InterestLabel, string> = {
-  interested: 'Interested',
+  interested: 'Answered',
   not_interested: 'Not interested',
-  neutral: 'Replied',
-  unclear: 'Replied',
+  neutral: 'Answered',
+  unclear: 'Answered',
   opt_out: 'Not interested',
 };
 
@@ -332,7 +334,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   const [candidate, campaign, job, assignee, latestClass, messages, notes] =
     await Promise.all([
       SavedCandidateModel.findById(thread.candidateId)
-        .select('name email phone currentTitle currentCompany location headline')
+        .select('name email phone currentTitle currentCompany location headline profilePictureUrl externalCandidateId organizationId')
         .lean(),
       thread.campaignId
         ? OutreachCampaignModel.findById(thread.campaignId)
@@ -440,10 +442,23 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     latestClass?.recruiterOverride?.note ||
     null;
 
+  let avatarUrl = candidate?.profilePictureUrl?.trim() || null;
+  if (!avatarUrl && candidate?.externalCandidateId) {
+    const pics = await lookupProfilePictures(String(thread.organizationId), [
+      {
+        id: String(candidate._id),
+        profilePictureUrl: candidate.profilePictureUrl ?? null,
+        externalCandidateId: candidate.externalCandidateId,
+      },
+    ]);
+    avatarUrl = pics.get(String(candidate._id)) ?? null;
+  }
+
   return {
     id: String(thread._id),
     candidateId: String(thread.candidateId),
     candidateName: candidate?.name || 'Unknown candidate',
+    avatarUrl,
     headline: headlineParts.join(' · ') || 'Candidate',
     location: candidate?.location || '',
     channels: thread.channels
@@ -626,46 +641,99 @@ export const conversationsService = {
       throw new AppError(404, 'ATTACHMENT_NOT_FOUND', 'Attachment not found.');
     }
 
-    const storageKey = String(attachment.storageKey || '').trim().replace(/\\/g, '/');
-    if (!storageKey) {
-      throw new AppError(404, 'ATTACHMENT_UNAVAILABLE', 'Attachment file is not available.');
-    }
+    const mediaId = String(attachment.mediaId || '').trim();
+    let storageKey = String(attachment.storageKey || '').trim().replace(/\\/g, '/');
+    let mimeType = String(attachment.mimeType || 'application/octet-stream');
+    let fileName = String(attachment.name || `attachment-${index}`);
 
-    const mimeType = String(attachment.mimeType || 'application/octet-stream');
-    const fileName = String(attachment.name || `attachment-${index}`);
-
-    if (isGcsMediaStorageEnabled()) {
-      try {
-        const gcs = await openWhatsAppMediaGcsStream({ relativeKey: storageKey });
-        if (gcs) {
-          return {
-            source: 'gcs',
-            stream: gcs.stream,
-            mimeType: gcs.mimeType || mimeType,
-            fileName,
-          };
+    const openStored = async (key: string) => {
+      const relativeKey = String(key || '').trim().replace(/\\/g, '/');
+      if (!relativeKey) return null;
+      if (isGcsMediaStorageEnabled()) {
+        try {
+          const gcs = await openWhatsAppMediaGcsStream({ relativeKey });
+          if (gcs) {
+            return {
+              source: 'gcs' as const,
+              stream: gcs.stream,
+              mimeType: gcs.mimeType || mimeType,
+              fileName,
+            };
+          }
+          getLogger()
+            .child({ component: 'whatsapp-inbound-media' })
+            .warn({ messageId, relativeKey }, 'WhatsApp media not found in GCS');
+        } catch (error) {
+          getLogger()
+            .child({ component: 'whatsapp-inbound-media' })
+            .warn({ err: error, messageId, relativeKey }, 'GCS media open failed');
         }
-      } catch {
-        // Fall through to local disk for older attachments / misconfigured buckets.
+      }
+
+      const absolutePath = resolveWhatsAppInboundMediaPath(relativeKey);
+      const mediaRoot = path.resolve(getWhatsAppInboundMediaDir());
+      const resolved = path.resolve(absolutePath);
+      if (!resolved.startsWith(mediaRoot + path.sep) && resolved !== mediaRoot) {
+        throw new AppError(400, 'INVALID_ATTACHMENT_PATH', 'Invalid attachment path.');
+      }
+      if (!fs.existsSync(resolved)) return null;
+      return {
+        source: 'local' as const,
+        absolutePath: resolved,
+        mimeType,
+        fileName,
+      };
+    };
+
+    const stored = await openStored(storageKey);
+    if (stored) return stored;
+
+    if (mediaId) {
+      try {
+        const { rehydrateWhatsAppMediaAtIndex } = await import('./provider-sync.js');
+        const restored = await rehydrateWhatsAppMediaAtIndex({
+          organizationId,
+          messageId,
+          index,
+          phoneNumberId: message.recipient,
+          attachment: {
+            name: attachment.name,
+            kind: attachment.kind,
+            mediaId,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+          },
+        });
+        if (restored?.storageKey) {
+          const nextAttachments = [...(message.attachments || [])];
+          nextAttachments[index] = {
+            ...attachment,
+            ...restored,
+          };
+          await ConversationMessageModel.updateOne(
+            { _id: messageId, organizationId },
+            { $set: { attachments: nextAttachments } }
+          );
+          storageKey = String(restored.storageKey).replace(/\\/g, '/');
+          mimeType = String(restored.mimeType || mimeType);
+          fileName = String(restored.name || fileName);
+          const retried = await openStored(storageKey);
+          if (retried) return retried;
+        }
+      } catch (error) {
+        getLogger()
+          .child({ component: 'whatsapp-inbound-media' })
+          .warn(
+            { err: error, messageId, mediaId },
+            'Failed to rehydrate missing WhatsApp media from Meta'
+          );
       }
     }
 
-    const absolutePath = resolveWhatsAppInboundMediaPath(storageKey);
-    const mediaRoot = path.resolve(getWhatsAppInboundMediaDir());
-    const resolved = path.resolve(absolutePath);
-    if (!resolved.startsWith(mediaRoot + path.sep) && resolved !== mediaRoot) {
-      throw new AppError(400, 'INVALID_ATTACHMENT_PATH', 'Invalid attachment path.');
+    if (!storageKey) {
+      throw new AppError(404, 'ATTACHMENT_UNAVAILABLE', 'Attachment file is not available.');
     }
-    if (!fs.existsSync(resolved)) {
-      throw new AppError(404, 'ATTACHMENT_FILE_MISSING', 'Attachment file is missing.');
-    }
-
-    return {
-      source: 'local',
-      absolutePath: resolved,
-      mimeType,
-      fileName,
-    };
+    throw new AppError(404, 'ATTACHMENT_FILE_MISSING', 'Attachment file is missing.');
   },
 
   async reply(organizationId: string, userId: string, id: string, input: ReplyInput) {

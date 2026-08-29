@@ -1,6 +1,7 @@
 import {
   getFutureJobsProvider,
   mapFjDocToCandidate,
+  experienceYearsFromFjDoc,
   type FutureJobsProfileDoc,
 } from '../../providers/future-jobs/index.js';
 import { emitCandidateSearchPoll } from '../../realtime/events.js';
@@ -39,16 +40,6 @@ function educationPreviewFromProfile(profile: Record<string, unknown>): unknown[
     return profile.education.slice(0, 5);
   }
   return [];
-}
-
-function experienceYearsFromProfile(profile: Record<string, unknown>): number | null {
-  const raw = profile.years_of_experience_raw;
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  if (typeof raw === 'string' && raw.trim()) {
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
 }
 
 /** Legacy upsert fallback — prefer search.persist bulkWrite path. */
@@ -95,6 +86,12 @@ async function upsertCandidatesFromDocsLegacy(
       typeof doc.finalScore === 'number' && Number.isFinite(doc.finalScore)
         ? doc.finalScore
         : null;
+    const fit =
+      typeof doc.fit === 'string' && doc.fit.trim()
+        ? doc.fit.trim()
+        : typeof doc.profile?.fit === 'string' && String(doc.profile.fit).trim()
+          ? String(doc.profile.fit).trim()
+          : null;
 
     rankBase += 1;
     const profilePictureUrl =
@@ -153,7 +150,7 @@ async function upsertCandidatesFromDocsLegacy(
             company: currentCompany,
           },
           location: mapped.location === '—' ? '' : mapped.location,
-          experienceYears: experienceYearsFromProfile(profile),
+          experienceYears: experienceYearsFromFjDoc(doc),
           skills: skillsRaw.slice(0, 24),
           educationPreview: educationPreviewFromProfile(profile),
           profileSignals: profileSignalsFromFjDoc(doc, profile),
@@ -167,6 +164,7 @@ async function upsertCandidatesFromDocsLegacy(
           mappedCandidate: mapped,
           matchScore,
           finalScore: matchScore,
+          fit,
           lastSeenAt: new Date(),
         },
         $setOnInsert: {
