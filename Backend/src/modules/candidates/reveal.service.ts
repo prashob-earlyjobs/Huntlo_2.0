@@ -51,13 +51,16 @@ const log = () => createChildLogger({ module: 'candidates-reveal' });
 const REVEAL_UPSTREAM_USER_MESSAGE =
   "We couldn't reveal contact details right now. Please try again shortly.";
 
-function isRevealUrlMiss(error: unknown): error is FutureJobsUpstreamError {
+function isFutureJobsRevealUrlMiss(error: FutureJobsUpstreamError): boolean {
   return (
-    error instanceof FutureJobsUpstreamError &&
-    (error.fjHttpStatus === 404 ||
-      isFjProfileNotFoundError(error) ||
-      isFjInvalidLinkedinUrlError(error))
+    error.fjHttpStatus === 404 ||
+    isFjProfileNotFoundError(error) ||
+    isFjInvalidLinkedinUrlError(error)
   );
+}
+
+function isRevealUrlMiss(error: unknown): error is FutureJobsUpstreamError {
+  return error instanceof FutureJobsUpstreamError && isFutureJobsRevealUrlMiss(error);
 }
 
 function isSyntheticWlSearchSessionId(sessionId: string): boolean {
@@ -708,7 +711,7 @@ export class RevealService {
       await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
       if (error instanceof FutureJobsUpstreamError) {
         // FJ 404/422 when the LinkedIn key isn't resolvable — soft miss, not an outage.
-        if (isRevealUrlMiss(error)) {
+        if (isFutureJobsRevealUrlMiss(error)) {
           const result = buildRevealResult({
             found: false,
             charged: false,
@@ -1088,7 +1091,7 @@ export class RevealService {
       await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
       if (error instanceof FutureJobsUpstreamError) {
         // FJ 404/422 when the LinkedIn key isn't resolvable — soft miss, not an outage.
-        if (isRevealUrlMiss(error)) {
+        if (isFutureJobsRevealUrlMiss(error)) {
           const result = buildRevealResult({
             found: false,
             charged: false,
