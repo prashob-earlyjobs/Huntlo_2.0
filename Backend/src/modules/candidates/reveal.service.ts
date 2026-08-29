@@ -19,6 +19,7 @@ import {
   isFjProfileNotFoundError,
   linkedinCacheLookupKeys,
   linkedinUrlsForContactReveal,
+  linkedinUrlsFromScoutLookup,
   normalizeLinkedinProfileUrl,
   type FutureJobsRevealType,
 } from '../../providers/future-jobs/index.js';
@@ -67,6 +68,88 @@ function isSyntheticWlSearchSessionId(sessionId: string): boolean {
   return sessionId.startsWith('wl-search-');
 }
 
+function isMemberUrnLinkedinUrl(url: string): boolean {
+  return /\/in\/ACoAA/i.test(url);
+}
+
+async function scoutThenRevealContact(options: {
+  provider: ReturnType<typeof getFutureJobsProvider>;
+  linkedinKey: string;
+  fjType: FutureJobsRevealType;
+  candidateIdHex: string;
+}): Promise<{ fjResponse: unknown; linkedinKey: string }> {
+  const { provider, linkedinKey, fjType, candidateIdHex } = options;
+
+  log().info(
+    { candidateId: candidateIdHex, linkedinProfileUrlLen: linkedinKey.length },
+    'scouting profile via lookup before reveal-contacts'
+  );
+
+  let lookupFj: unknown = null;
+  try {
+    lookupFj = await provider.scoutPeopleLookup({ linkedin_url: linkedinKey });
+  } catch (error) {
+    if (!isRevealUrlMiss(error)) throw error;
+    log().info(
+      {
+        candidateId: candidateIdHex,
+        linkedinProfileUrlLen: linkedinKey.length,
+        fjHttpStatus: error.fjHttpStatus,
+      },
+      'scout-people lookup miss; still attempting reveal-contacts'
+    );
+  }
+
+  const fromLookup = linkedinUrlsFromScoutLookup(lookupFj);
+  const memberUrls = fromLookup.filter((url) => isMemberUrnLinkedinUrl(url));
+  // Vanity/flagship still 404s on reveal-contacts after lookup. Prefer ACoAA URNs.
+  const preferred = memberUrls.length > 0 ? memberUrls : fromLookup;
+  const revealKeys: string[] = [];
+  const seen = new Set<string>();
+  for (const url of [...preferred, ...(memberUrls.length > 0 ? [] : [linkedinKey])]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    revealKeys.push(url);
+  }
+
+  log().info(
+    {
+      candidateId: candidateIdHex,
+      lookupUrlCount: fromLookup.length,
+      memberUrlCount: memberUrls.length,
+      revealUrlCount: revealKeys.length,
+    },
+    'scout-people lookup resolved reveal urls'
+  );
+
+  const scoutedMemberUrl = memberUrls[0];
+  if (scoutedMemberUrl) {
+    void SourcedCandidateModel.updateOne(
+      { _id: candidateIdHex },
+      { $set: { 'rawDoc.profile.linkedin_profile_url': scoutedMemberUrl } }
+    ).catch(() => undefined);
+  }
+
+  let lastMiss: FutureJobsUpstreamError | null = null;
+  for (const url of revealKeys) {
+    try {
+      return {
+        fjResponse: await provider.scoutPeopleRevealContact(url, fjType),
+        linkedinKey: url,
+      };
+    } catch (error) {
+      if (isRevealUrlMiss(error)) {
+        lastMiss = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastMiss) throw lastMiss;
+  throw new Error('linkedin_profile_url is required for contact reveal');
+}
+
 async function revealContactFromProvider(options: {
   provider: ReturnType<typeof getFutureJobsProvider>;
   fjSessionId: string;
@@ -94,7 +177,7 @@ async function revealContactFromProvider(options: {
         if (isRevealUrlMiss(error)) {
           log().warn(
             { fjSessionId, candidateId: candidateIdHex, linkedinProfileUrlLen: linkedinKey.length },
-            'sourcing-session reveal miss; falling back to scout-people'
+            'sourcing-session reveal miss; scouting then falling back to reveal-contacts'
           );
         } else {
           throw error;
@@ -103,10 +186,12 @@ async function revealContactFromProvider(options: {
     }
 
     try {
-      return {
-        fjResponse: await provider.scoutPeopleRevealContact(linkedinKey, fjType),
+      return await scoutThenRevealContact({
+        provider,
         linkedinKey,
-      };
+        fjType,
+        candidateIdHex,
+      });
     } catch (error) {
       if (isRevealUrlMiss(error)) {
         lastMiss = error;

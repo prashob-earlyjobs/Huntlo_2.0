@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { PaginationMeta } from "./contracts/envelopes";
 import type { SearchHistoryEntry, SessionCandidate, SourcingSession } from "./contracts";
 import { normalizeLabelList } from "@/lib/normalize-label-list";
 import { createDomainService, simulateMockLatency } from "./service";
@@ -343,6 +344,10 @@ export interface SourcingApi {
   getSessionCandidates(id: string): Promise<SessionCandidate[]>;
   /** Raw sourcing results (includes LinkedIn URL / external IDs for pool sync). */
   getSessionResults(id: string): Promise<SourcedCandidateApi[]>;
+  getSessionResultsPage(
+    id: string,
+    params?: { page?: number; limit?: number }
+  ): Promise<{ items: SourcedCandidateApi[]; pagination: PaginationMeta }>;
   getProgress(id: string): Promise<SourcingProgress>;
   createSession(body: CreateSourcingSessionInput): Promise<SourcingSessionApi>;
   startSession(body: {
@@ -394,6 +399,22 @@ const mockSourcingApi: SourcingApi = {
     const session = getSession(id);
     if (!session) return [];
     return getSessionCandidates(session);
+  },
+  async getSessionResultsPage(id, params) {
+    const all = await this.getSessionResults(id);
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.max(1, params?.limit ?? 20);
+    const start = (page - 1) * limit;
+    const total = all.length;
+    return {
+      items: all.slice(start, start + limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit) || 1),
+      },
+    };
   },
   async getSessionResults(id) {
     const candidates = await this.getSessionCandidates(id);
@@ -504,15 +525,32 @@ const liveSourcingApi: SourcingApi = {
     const items = await this.getSessionResults(id);
     return items.map(mapApiCandidateToSessionCandidate);
   },
+  async getSessionResultsPage(id, params) {
+    const page = Math.max(1, params?.page ?? 1);
+    const limit = Math.max(1, Math.min(300, params?.limit ?? 20));
+    const result = await apiClient.get<{
+      items: SourcedCandidateApi[];
+      pagination?: PaginationMeta;
+    }>(`/sourcing/sessions/${id}/results${buildQueryString({ page, limit })}`);
+    const items = result.data.items ?? [];
+    const pagination = result.data.pagination ??
+      result.meta?.pagination ?? {
+        page,
+        limit,
+        total: items.length,
+        totalPages: 1,
+      };
+    return { items, pagination };
+  },
   async getSessionResults(id) {
     const all: SourcedCandidateApi[] = [];
     for (let page = 1; page <= 20; page += 1) {
-      const result = await apiClient.get<{ items: SourcedCandidateApi[] }>(
-        `/sourcing/sessions/${id}/results${buildQueryString({ page, limit: 300 })}`
-      );
-      const items = result.data.items ?? [];
+      const { items, pagination } = await this.getSessionResultsPage(id, {
+        page,
+        limit: 300,
+      });
       all.push(...items);
-      if (items.length < 300) break;
+      if (page >= pagination.totalPages || items.length < 300) break;
     }
     return all;
   },

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Bookmark,
+  ChevronLeft,
+  ChevronRight,
   Download,
   LayoutGrid,
   List,
@@ -253,16 +255,104 @@ function SessionStateBanner({
   return null;
 }
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+
+function SessionResultsPager({
+  page,
+  pageSize,
+  total,
+  totalPages,
+  disabled,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  disabled?: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+      <p className="text-xs text-muted-foreground">
+        {total === 0
+          ? "No candidates"
+          : `Showing ${rangeStart}–${rangeEnd} of ${total.toLocaleString("en-IN")}`}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          Rows
+          <select
+            value={pageSize}
+            disabled={disabled}
+            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label="Previous page"
+            disabled={disabled || page <= 1}
+            onClick={() => onPageChange(Math.max(1, page - 1))}
+          >
+            <ChevronLeft aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label="Next page"
+            disabled={disabled || page >= totalPages}
+            onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+          >
+            <ChevronRight aria-hidden />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SessionResults({
   session,
   candidates,
   initialFilters,
   futureJobsSessionId = null,
+  pagination,
+  pageLoading = false,
+  onPageChange,
+  onPageSizeChange,
 }: {
   session: SourcingSession;
   candidates: SessionCandidate[];
   initialFilters?: SearchFilterState | null;
   futureJobsSessionId?: string | null;
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+  pageLoading?: boolean;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<SortOptionId>("best-match");
@@ -309,6 +399,10 @@ export function SessionResults({
   const [bulkRevealingKind, setBulkRevealingKind] = useState<"email" | "phone" | null>(
     null
   );
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [pagination?.page, pagination?.pageSize]);
 
   useEffect(() => {
     if (initialFilters && Object.keys(initialFilters).length > 0) {
@@ -840,10 +934,14 @@ export function SessionResults({
 
   const isEmpty = session.state === "empty";
   const isFailed = session.state === "failed";
+  const totalCandidates = pagination?.total ?? visibleCandidates.length;
   const showResults =
-    !isEmpty && !isFailed && !initialLoading && visibleCandidates.length > 0;
+    !isEmpty &&
+    !isFailed &&
+    !initialLoading &&
+    (visibleCandidates.length > 0 || totalCandidates > 0);
   const showNoResults =
-    !isEmpty && !isFailed && !initialLoading && visibleCandidates.length === 0;
+    !isEmpty && !isFailed && !initialLoading && visibleCandidates.length === 0 && totalCandidates === 0;
 
   return (
     <div className="space-y-4">
@@ -972,7 +1070,7 @@ export function SessionResults({
         <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2.5">
           <span className="shrink-0 text-sm text-muted-foreground">
             <span className="font-medium tabular-nums text-foreground">
-              {visibleCandidates.length.toLocaleString("en-IN")}
+              {totalCandidates.toLocaleString("en-IN")}
             </span>{" "}
             candidates
             {selected.size > 0 ? (
@@ -1243,6 +1341,17 @@ export function SessionResults({
               ))}
             </div>
           )}
+          {pagination && onPageChange && onPageSizeChange ? (
+            <SessionResultsPager
+              page={pagination.page}
+              pageSize={pagination.pageSize}
+              total={pagination.total}
+              totalPages={pagination.totalPages}
+              disabled={pageLoading}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
+            />
+          ) : null}
         </section>
       ) : null}
 

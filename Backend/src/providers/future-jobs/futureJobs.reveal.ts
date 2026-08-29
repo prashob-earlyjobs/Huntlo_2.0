@@ -233,6 +233,46 @@ export function linkedinUrlsForContactReveal(input: {
   return [...memberUrls, ...otherUrls];
 }
 
+function scoutLookupProfile(fj: unknown): Record<string, unknown> | null {
+  const root = asRecord(fj);
+  if (!root) return null;
+  const data = asRecord(root.data);
+  const nestedProfile = asRecord(data?.profile) || asRecord(root.profile);
+  if (nestedProfile) return nestedProfile;
+  const listed = Array.isArray(data?.profiles)
+    ? data.profiles
+    : Array.isArray(root.profiles)
+      ? root.profiles
+      : [];
+  const first = listed.length > 0 ? asRecord(listed[0]) : null;
+  if (!first) {
+    return data && (data.linkedin_profile_url || data.linkedin_flagship_url) ? data : null;
+  }
+  return asRecord(first.profile) || first;
+}
+
+/**
+ * LinkedIn URLs from `POST /wl/scout-people/lookup` so reveal-contacts can use
+ * the member URN FJ just scouted. Live FJ still 404s vanity/flagship on
+ * `/reveal-contacts` after lookup — only `profile.linkedin_profile_url` (`/in/ACoAA…`) works.
+ */
+export function linkedinUrlsFromScoutLookup(fj: unknown): string[] {
+  const root = asRecord(fj);
+  const data = asRecord(root?.data) || root;
+  const resolved = scoutLookupProfile(fj);
+  if (!resolved) return [];
+  return linkedinUrlsForContactReveal({
+    rawDoc: resolved,
+    linkedinProfileUrl: asString(resolved.linkedin_profile_url),
+    basicLinkedinUrl: asString(resolved.linkedin_flagship_url),
+    externalCandidateId:
+      asString(resolved.person_id) ||
+      asString(data?.scoutId) ||
+      asString(resolved._id) ||
+      asString(resolved.id),
+  });
+}
+
 /** Keys to try when loading cache (canonical first, then legacy lowercase). */
 export function linkedinCacheLookupKeys(url: string | null | undefined): string[] {
   const canonical = normalizeLinkedinProfileUrl(url);
