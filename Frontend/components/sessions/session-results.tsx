@@ -255,6 +255,14 @@ function SessionStateBanner({
   return null;
 }
 
+function ToolbarCount({ value }: { value: number }) {
+  return (
+    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-brand-subtle px-1 text-[10px] leading-none font-semibold tabular-nums text-primary">
+      {value}
+    </span>
+  );
+}
+
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 function SessionResultsPager({
@@ -1065,211 +1073,208 @@ export function SessionResults({
         </p>
       ) : null}
 
-      {/* Result controls — one compact toolbar */}
+      {/* Result controls */}
       {!isFailed ? (
-        <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2.5">
-          <span className="shrink-0 text-sm text-muted-foreground">
-            <span className="font-medium tabular-nums text-foreground">
-              {totalCandidates.toLocaleString("en-IN")}
-            </span>{" "}
-            candidates
-            {selected.size > 0 ? (
-              <span className="ml-1.5 text-primary">· {selected.size} selected</span>
-            ) : null}
-          </span>
-
-          <div className="relative">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              type="search"
-              value={resultQuery}
-              onChange={(event) => setResultQuery(event.target.value)}
-              placeholder="Search within results…"
-              aria-label="Search within results"
-              className="h-8 w-44 pl-8 text-sm"
-            />
-          </div>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setFilterDrawerOpen(true)}
-          >
-            <SlidersHorizontal aria-hidden />
-            Filters
-            {activeFilterCount > 0 ? (
-              <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
-                {activeFilterCount}
+        <section className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-7 shrink-0 items-center text-sm leading-none text-muted-foreground">
+              <span className="font-medium tabular-nums text-foreground">
+                {totalCandidates.toLocaleString("en-IN")}
               </span>
-            ) : null}
-          </Button>
+              <span className="ml-1">candidates</span>
+              {selected.size > 0 ? (
+                <span className="ml-1.5 text-primary">· {selected.size} selected</span>
+              ) : null}
+            </span>
 
-          <Select
-            value={sort}
-            onValueChange={(value) => value && setSort(value as SortOptionId)}
-          >
-            <SelectTrigger size="sm" className="min-w-40" aria-label="Sort results">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_OPTIONS.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
+            <div className="relative">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                type="search"
+                value={resultQuery}
+                onChange={(event) => setResultQuery(event.target.value)}
+                placeholder="Search within results…"
+                aria-label="Search within results"
+                className="h-7 w-44 pl-8 text-sm"
+              />
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setFilterDrawerOpen(true)}
+            >
+              <SlidersHorizontal aria-hidden />
+              Filters
+              {activeFilterCount > 0 ? (
+                <ToolbarCount value={activeFilterCount} />
+              ) : null}
+            </Button>
+
+            <Select
+              value={sort}
+              onValueChange={(value) => value && setSort(value as SortOptionId)}
+            >
+              <SelectTrigger size="sm" className="h-7 min-w-40" aria-label="Sort results">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div
+              role="group"
+              aria-label="View density"
+              className="hidden h-7 items-center rounded-lg border border-border p-0.5 sm:inline-flex"
+            >
+              {(
+                [
+                  ["comfortable", Rows3, "Comfortable"],
+                  ["compact", List, "Compact"],
+                ] as const
+              ).map(([value, Icon, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={density === value}
+                  aria-label={label}
+                  onClick={() => setDensity(value)}
+                  className={cn(
+                    "inline-flex size-6 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    density === value
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon aria-hidden className="size-3.5" />
+                </button>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
 
-          <div
-            role="group"
-            aria-label="View density"
-            className="hidden items-center rounded-lg border border-border p-0.5 sm:inline-flex"
-          >
-            {(
-              [
-                ["comfortable", Rows3, "Comfortable"],
-                ["compact", List, "Compact"],
-              ] as const
-            ).map(([value, Icon, label]) => (
+            <div
+              role="group"
+              aria-label="View mode"
+              className="inline-flex h-7 items-center rounded-lg border border-border p-0.5"
+            >
               <button
-                key={value}
                 type="button"
-                aria-pressed={density === value}
-                aria-label={label}
-                onClick={() => setDensity(value)}
+                aria-pressed={view === "table"}
+                aria-label="Table view"
+                onClick={() => setView("table")}
                 className={cn(
-                  "rounded-md p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  density === value
+                  "inline-flex size-6 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  view === "table"
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon aria-hidden className="size-3.5" />
+                <List aria-hidden className="size-3.5" />
               </button>
-            ))}
+              <button
+                type="button"
+                aria-pressed={view === "card"}
+                aria-label="Card view"
+                onClick={() => setView("card")}
+                className={cn(
+                  "inline-flex size-6 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  view === "card"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <LayoutGrid aria-hidden className="size-3.5" />
+              </button>
+            </div>
+
+            {selected.size === 0 ? (
+              <div className="ml-auto flex h-7 items-center">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={visibleCandidates.length === 0}
+                  onClick={() =>
+                    downloadSessionCandidatesCsv(
+                      visibleCandidates,
+                      session.name || session.query || "search-results"
+                    )
+                  }
+                >
+                  <Download aria-hidden />
+                  Export
+                </Button>
+              </div>
+            ) : null}
           </div>
 
-          <div
-            role="group"
-            aria-label="View mode"
-            className="inline-flex items-center rounded-lg border border-border p-0.5"
-          >
-            <button
-              type="button"
-              aria-pressed={view === "table"}
-              aria-label="Table view"
-              onClick={() => setView("table")}
-              className={cn(
-                "rounded-md p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                view === "table"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+          {selected.size > 0 ? (
+            <div
+              role="toolbar"
+              aria-label="Bulk actions"
+              className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-2"
             >
-              <List aria-hidden className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              aria-pressed={view === "card"}
-              aria-label="Card view"
-              onClick={() => setView("card")}
-              className={cn(
-                "rounded-md p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                view === "card"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <LayoutGrid aria-hidden className="size-3.5" />
-            </button>
-          </div>
-
-          {/* Bulk actions */}
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {selected.size > 0 ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={Boolean(bulkRevealingKind)}
-                  aria-busy={bulkRevealingKind === "email"}
-                  onClick={() => void revealSelectedContacts("email")}
-                >
-                  {bulkRevealingKind === "email" ? (
-                    <Loader2 aria-hidden className="animate-spin" />
-                  ) : (
-                    <Mail aria-hidden />
-                  )}
-                  {bulkRevealingKind === "email" ? "Revealing…" : "Reveal email"}
-                  <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
-                    {selected.size}
-                  </span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={Boolean(bulkRevealingKind)}
-                  aria-busy={bulkRevealingKind === "phone"}
-                  onClick={() => void revealSelectedContacts("phone")}
-                >
-                  {bulkRevealingKind === "phone" ? (
-                    <Loader2 aria-hidden className="animate-spin" />
-                  ) : (
-                    <Phone aria-hidden />
-                  )}
-                  {bulkRevealingKind === "phone" ? "Revealing…" : "Reveal phone"}
-                  <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
-                    {selected.size}
-                  </span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => openAddToList(Array.from(selected))}
-                >
-                  <Users aria-hidden />
-                  Add to List
-                  <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
-                    {selected.size}
-                  </span>
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={outreachStarting}
-                  onClick={() => void startOutreach(Array.from(selected))}
-                >
-                  {outreachStarting ? (
-                    <Loader2 aria-hidden className="animate-spin" />
-                  ) : (
-                    <Send aria-hidden />
-                  )}
-                  {outreachStarting ? "Starting…" : "Start Outreach"}
-                  <span className="rounded-sm bg-brand-subtle px-1 text-xs font-semibold tabular-nums text-primary">
-                    {selected.size}
-                  </span>
-                </Button>
-              </>
-            ) : (
               <Button
                 size="sm"
-                variant="ghost"
-                disabled={visibleCandidates.length === 0}
-                onClick={() =>
-                  downloadSessionCandidatesCsv(
-                    visibleCandidates,
-                    session.name || session.query || "search-results"
-                  )
-                }
+                variant="outline"
+                disabled={Boolean(bulkRevealingKind)}
+                aria-busy={bulkRevealingKind === "email"}
+                onClick={() => void revealSelectedContacts("email")}
               >
-                <Download aria-hidden />
-                Export
+                {bulkRevealingKind === "email" ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Mail aria-hidden />
+                )}
+                {bulkRevealingKind === "email" ? "Revealing…" : "Reveal email"}
+                <ToolbarCount value={selected.size} />
               </Button>
-            )}
-          </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={Boolean(bulkRevealingKind)}
+                aria-busy={bulkRevealingKind === "phone"}
+                onClick={() => void revealSelectedContacts("phone")}
+              >
+                {bulkRevealingKind === "phone" ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Phone aria-hidden />
+                )}
+                {bulkRevealingKind === "phone" ? "Revealing…" : "Reveal phone"}
+                <ToolbarCount value={selected.size} />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openAddToList(Array.from(selected))}
+              >
+                <Users aria-hidden />
+                Add to List
+                <ToolbarCount value={selected.size} />
+              </Button>
+              <Button
+                size="sm"
+                disabled={outreachStarting}
+                onClick={() => void startOutreach(Array.from(selected))}
+              >
+                {outreachStarting ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : (
+                  <Send aria-hidden />
+                )}
+                {outreachStarting ? "Starting…" : "Start Outreach"}
+                <ToolbarCount value={selected.size} />
+              </Button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

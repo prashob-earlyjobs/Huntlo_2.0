@@ -724,7 +724,6 @@ export class PoolService {
               email: null,
               phone: null,
               linkedinUrl,
-              profilePictureUrl,
               headline: candidate.basicProfile?.headline ?? null,
               currentTitle:
                 candidate.currentRole ?? candidate.currentEmployment?.title ?? null,
@@ -738,6 +737,7 @@ export class PoolService {
               createdAt: now,
             },
             $addToSet: { listIds: listOid },
+            // `$set` (not `$setOnInsert`) — Mongo forbids the same path in both on one upsert.
             $set: {
               lastActivityAt: now,
               updatedAt: now,
