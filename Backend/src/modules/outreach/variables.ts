@@ -170,12 +170,6 @@ export function validateMessageVariables(input: {
 export const validateTemplateVariables = validateMessageVariables;
 
 /**
- * Resolve a template against a merge context. Alias-aware, supports `{{token|fallback}}`
- * and positional `{{1}}` tokens. Never leaves a token unresolved when a fallback is present.
- * When a token has no value and no fallback, the original `{{token}}` text is preserved
- * verbatim so callers can still detect/highlight it.
- */
-/**
  * WhatsApp cold templates use {{1}}, {{2}} while Huntlo merge context uses
  * semantic keys. Map the common outreach positions so free-text merge and
  * conversation previews never leave `{{1}}` / `{{2}}` unfilled when we already
@@ -209,15 +203,24 @@ function lookupMergeValue(
   return null;
 }
 
+export type MergeUnresolvedMode = 'preserve' | 'blank';
+
+/**
+ * Resolve a template against a merge context. Alias-aware, supports `{{token|fallback}}`
+ * and positional `{{1}}` tokens. `unresolved: 'blank'` replaces missing tokens with ''
+ * so email never ships raw `{{current_company}}` text.
+ */
 export function mergeMessageTemplate(
   template: string,
-  context: Record<string, string | null | undefined>
+  context: Record<string, string | null | undefined>,
+  options?: { unresolved?: MergeUnresolvedMode }
 ): string {
+  const unresolved = options?.unresolved ?? 'preserve';
   return template.replace(VARIABLE_RE, (full, rawName: string, rawFallback?: string) => {
     const value = lookupMergeValue(context, rawName);
     if (value != null && String(value).trim() !== '') return String(value);
     if (rawFallback != null) return rawFallback.trim();
-    return full;
+    return unresolved === 'blank' ? '' : full;
   });
 }
 
