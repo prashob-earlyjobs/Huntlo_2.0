@@ -35,6 +35,10 @@ import {
 } from './enrollment.model.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
 import { enrollQualifiedCandidateInCampaignScreening } from './outreach-auto-screening.service.js';
+import {
+  looksLikeCandidateQuestion,
+  looksLikeJdDetailRequest,
+} from './candidate-question-detect.js';
 import { loadOutreachJobContext, formatOutreachJobContextForPrompt } from './job-context.js';
 import {
   emitCampaignThreadUpdated,
@@ -196,6 +200,167 @@ export function normalizeAnswerRecord(
   };
 }
 
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+};
+
+/** Month + year in an answer, if any (e.g. "June 2026", "Jun'26", "2026-06"). */
+export function parseAnswerMonthYear(
+  text: string
+): { year: number; month: number } | null {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+
+  const named = t.match(
+    /\b(january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|may)\.?\s*,?\s*'?(\d{4})\b/i
+  );
+  if (named) {
+    const month = MONTH_INDEX[named[1]!.toLowerCase()];
+    const year = Number(named[2]);
+    if (month != null && Number.isFinite(year)) return { year, month };
+  }
+
+  const apostropheYear = t.match(
+    /\b(january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|may)\.?\s*'(\d{2})\b/i
+  );
+  if (apostropheYear) {
+    const month = MONTH_INDEX[apostropheYear[1]!.toLowerCase()];
+    const yy = Number(apostropheYear[2]);
+    if (month != null && Number.isFinite(yy)) {
+      return { year: yy >= 70 ? 1900 + yy : 2000 + yy, month };
+    }
+  }
+
+  const iso = t.match(/\b(20\d{2})-(\d{1,2})\b/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]) - 1;
+    if (month >= 0 && month <= 11) return { year, month };
+  }
+
+  const slash = t.match(/\b(\d{1,2})\/(20\d{2})\b/);
+  if (slash) {
+    const month = Number(slash[1]) - 1;
+    const year = Number(slash[2]);
+    if (month >= 0 && month <= 11) return { year, month };
+  }
+
+  return null;
+}
+
+function monthYearIsOnOrBefore(parsed: { year: number; month: number }, now: Date): boolean {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  return parsed.year < y || (parsed.year === y && parsed.month <= m);
+}
+
+function isCompletionQuestion(prompt: string): boolean {
+  return /\b(graduat|degree|diploma|college|education|have you (already )?(finish|complete)|finished (your )?(degree|graduation|college|education)|completed (your )?(graduation|degree|college|education|course))\b/i.test(
+    prompt
+  );
+}
+
+/** Sentence-level yes/no — a bare "yes" or "Yes I've completed…" both count. */
+function yesNoPolarity(raw: string): 'yes' | 'no' | null {
+  if (
+    /\b(not yet|haven'?t|have not|still (studying|pursuing|in college)|currently (pursuing|studying|in college)|not completed|didn'?t complete|did not complete)\b/i.test(
+      raw
+    )
+  ) {
+    return 'no';
+  }
+  if (/^(y|yes|yeah|yep|yup|true|1)\b/i.test(raw)) return 'yes';
+  if (/^(n|no|nope|nah|false|0)\b/i.test(raw)) return 'no';
+  if (/\b(i'?ve completed|i have completed|already completed|completed my)\b/i.test(raw)) {
+    return 'yes';
+  }
+  return null;
+}
+
+function isYearsExperienceQuestion(question: QualificationQuestion): boolean {
+  const hay = `${question.prompt || ''} ${question.answerType || ''} ${question.knockoutCondition || ''}`.toLowerCase();
+  if (/\b(notice|stipend|salary|ctc|lpa|package|compensation|pay)\b/.test(hay)) {
+    return false;
+  }
+  return (
+    /\bhow many years\b/.test(hay) ||
+    /\b(experience|exp)\b/.test(hay) ||
+    (/\b(years?|yrs?)\b/.test(hay) && /\b(sales|bd|intern)\b/.test(hay))
+  );
+}
+
+/**
+ * Convert an experience answer to years when the candidate named a duration.
+ * "2 months" → 2/12; "1 year 3 months" → 1.25. Bare numbers are not converted here.
+ */
+export function parseExperienceYearsInAnswer(raw: string): number | null {
+  const t = raw.toLowerCase().replace(/,/g, '');
+  if (
+    /\b(fresher|freshers|no experience|zero experience|don't have (any )?experience|do not have (any )?experience)\b/.test(
+      t
+    )
+  ) {
+    return 0;
+  }
+
+  const yearsMatch = t.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b/);
+  const monthsMatch = t.match(/(\d+(?:\.\d+)?)\s*(?:months?|mos?)\b/);
+  const weeksMatch = t.match(/(\d+(?:\.\d+)?)\s*(?:weeks?|wks?)\b/);
+  const daysMatch = t.match(/(\d+(?:\.\d+)?)\s*(?:days?)\b/);
+
+  if (!yearsMatch && !monthsMatch && !weeksMatch && !daysMatch) return null;
+
+  let years = 0;
+  if (yearsMatch) years += Number(yearsMatch[1]);
+  if (monthsMatch) years += Number(monthsMatch[1]) / 12;
+  if (weeksMatch) years += Number(weeksMatch[1]) / 52;
+  // Ignore stray "15 days" (usually notice) when they already named months/years.
+  if (!yearsMatch && !monthsMatch && !weeksMatch && daysMatch) {
+    years += Number(daysMatch[1]) / 365;
+  }
+  return Number.isFinite(years) ? years : null;
+}
+
+function parseNumberAnswer(question: QualificationQuestion, raw: string): number | null {
+  if (isYearsExperienceQuestion(question)) {
+    const duration = parseExperienceYearsInAnswer(raw);
+    if (duration != null) return duration;
+  }
+  const stripped = raw.replace(/[^\d.-]/g, '');
+  if (!stripped || stripped === '-' || stripped === '.') return null;
+  const num = Number.parseFloat(stripped);
+  return Number.isFinite(num) ? num : null;
+}
+
+function knockoutFailReason(question: QualificationQuestion, answer: string): string {
+  const cond = String(question.knockoutCondition || 'knockout').trim();
+  const snippet = answer.replace(/\s+/g, ' ').trim().slice(0, 140);
+  return `Not qualified: "${snippet}" failed knockout "${cond}".`;
+}
+
 /** Prefer deterministic knockout rules over Gemini when the rule is clear. */
 function resolveKnockoutDecision(
   question: QualificationQuestion,
@@ -210,7 +375,8 @@ function resolveKnockoutDecision(
 /** Evaluate knockout rules. Returns fail only when clearly matched. */
 export function evaluateKnockout(
   question: QualificationQuestion,
-  rawAnswer: unknown
+  rawAnswer: unknown,
+  now: Date = new Date()
 ): 'pass' | 'fail' | 'unknown' {
   if (!question.knockout) return 'pass';
   const condition = String(question.knockoutCondition || '').toLowerCase();
@@ -218,16 +384,39 @@ export function evaluateKnockout(
   if (!raw) return 'unknown';
 
   const type = String(question.answerType || '').toLowerCase();
-  const isYesNo = type.includes('yes') || type.includes('no') || type === 'boolean';
+  const isYesNo =
+    type.includes('yes') ||
+    type.includes('no') ||
+    type === 'boolean' ||
+    condition.includes('if no') ||
+    condition.includes('if yes');
   const isNumber = type.includes('number') || type.includes('days');
 
   if (isYesNo) {
-    const isNo = /^(n|no|false|0|nah|nope)$/i.test(raw);
-    const isYes = /^(y|yes|true|1|yeah|yep)$/i.test(raw);
-    if (condition.includes('reject if no') || condition.includes('if no')) {
+    const rejectIfNo = condition.includes('reject if no') || condition.includes('if no');
+    const rejectIfYes = condition.includes('reject if yes') || condition.includes('if yes');
+
+    if (isCompletionQuestion(question.prompt || '')) {
+      const polarEarly = yesNoPolarity(raw);
+      if (polarEarly === 'no') {
+        if (rejectIfNo) return 'fail';
+        if (rejectIfYes) return 'pass';
+      }
+      const when = parseAnswerMonthYear(raw);
+      if (when) {
+        const alreadyDone = monthYearIsOnOrBefore(when, now);
+        if (rejectIfNo) return alreadyDone ? 'pass' : 'fail';
+        if (rejectIfYes) return alreadyDone ? 'fail' : 'pass';
+      }
+    }
+
+    const polar = yesNoPolarity(raw);
+    const isNo = polar === 'no';
+    const isYes = polar === 'yes';
+    if (rejectIfNo) {
       return isNo ? 'fail' : isYes ? 'pass' : 'unknown';
     }
-    if (condition.includes('reject if yes') || condition.includes('if yes')) {
+    if (rejectIfYes) {
       return isYes ? 'fail' : isNo ? 'pass' : 'unknown';
     }
     // Default knockout Yes/No: "No" fails.
@@ -235,8 +424,8 @@ export function evaluateKnockout(
   }
 
   if (isNumber) {
-    const num = Number.parseFloat(raw.replace(/[^\d.-]/g, ''));
-    if (!Number.isFinite(num)) return 'unknown';
+    const num = parseNumberAnswer(question, raw);
+    if (num == null) return 'unknown';
     const moreThan = condition.match(/(?:more than|greater than|>\s*|gt\s+)\s*(\d+(?:\.\d+)?)/);
     const lessThan = condition.match(/(?:less than|<\s*|lt\s+)\s*(\d+(?:\.\d+)?)/);
     const atLeast = condition.match(/(?:at least|>=)\s*(\d+(?:\.\d+)?)/);
@@ -972,8 +1161,7 @@ async function processEmailQualificationReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason:
-          evaluation.reason || `Knockout on ${q.id}: ${q.knockoutCondition || 'failed'}`,
+        reason: knockoutFailReason(q, value),
       });
       return { action: 'rejected_knockout' };
     }
@@ -1454,19 +1642,6 @@ async function completeQualification(input: {
 function shouldHandOffAfterQuestions(config: QualificationConfig): boolean {
   const takeover = String(config.takeoverCondition || '');
   return takeover.includes('After qualification');
-}
-
-/**
- * Detect whether the candidate is asking us something (vs answering).
- * Used only to decide whether to answer from the JD — screening answer
- * acceptance is always decided by Gemini via evaluateScreeningAnswer.
- */
-function looksLikeCandidateQuestion(bodyText: string, intent?: string | null): boolean {
-  const text = bodyText.trim();
-  if (!text) return false;
-  if (/\?/.test(text)) return true;
-  if (intent === 'ask_question') return true;
-  return false;
 }
 
 async function persistOutboundAiReply(input: {
@@ -2043,24 +2218,6 @@ export async function processQualificationAfterReply(input: {
   // Never block Q&A sends on a missing/false aiReplyEnabled flag (legacy campaigns).
   // Classification-only mode is no longer exposed in the builder.
 
-  // Answer candidate questions from the linked JD before continuing Q&A.
-  // While a screening question is open, Gemini decides answer vs question later —
-  // skip the early JD pass so we don't answer from JD before evaluating the screening reply.
-  const waitingForAnswer = nextQuestionIndex(enrollment) >= 0;
-  const jdReply = waitingForAnswer
-    ? { answered: false, handedOff: false }
-    : await maybeAnswerCandidateQuestion({
-        campaign: input.campaign,
-        enrollment,
-        threadId: input.threadId,
-        bodyText: input.bodyText,
-        intent: input.intent,
-        preferredChannel: input.preferredChannel,
-      });
-  if (jdReply.handedOff) {
-    return { action: 'answered_and_handed_off' };
-  }
-
   let questions = await ensureJdQualificationQuestions(input.campaign);
   if (questions.length === 0) {
     // Last-resort defaults so engaged replies always get a follow-up question.
@@ -2188,14 +2345,37 @@ export async function processQualificationAfterReply(input: {
     'Qualification screening state'
   );
 
+  // Share a JD brief when they ask for details — including without a "?".
+  // While a screening question is open, only intercept clear "more details / JD"
+  // requests so a real screening answer that happens to contain "?" is still scored.
+  const shouldAnswerFromJd =
+    waitingIndex >= 0
+      ? looksLikeJdDetailRequest(input.bodyText)
+      : looksLikeCandidateQuestion(input.bodyText, input.intent);
+  const jdReply = shouldAnswerFromJd
+    ? await maybeAnswerCandidateQuestion({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        bodyText: input.bodyText,
+        intent: input.intent,
+        preferredChannel: input.preferredChannel,
+      })
+    : { answered: false, handedOff: false };
+  if (jdReply.handedOff) {
+    return { action: 'answered_and_handed_off' };
+  }
+
   // Not yet asked anything — send all predefined questions in one email (email) or Q1 (WhatsApp).
   if (waitingIndex < 0) {
+    if (jdReply.answered) {
+      return { action: 'answered_only' };
+    }
     const engaged =
       input.interest === 'interested' ||
       input.interest === 'maybe' ||
       input.interest === 'neutral' ||
       input.interest === 'unclear' ||
-      jdReply.answered ||
       input.intent === 'ask_question' ||
       input.intent === 'request_call' ||
       input.intent === 'provide_info' ||
@@ -2247,13 +2427,9 @@ export async function processQualificationAfterReply(input: {
     });
     return {
       action: result.sent
-        ? jdReply.answered
-          ? emailBatch
-            ? 'answered_then_asked_all'
-            : 'answered_then_asked_first'
-          : emailBatch
-            ? 'asked_all_questions'
-            : 'asked_first'
+        ? emailBatch
+          ? 'asked_all_questions'
+          : 'asked_first'
         : `ask_failed:${result.error}`,
     };
   }
@@ -2313,6 +2489,32 @@ export async function processQualificationAfterReply(input: {
       status: 'qualified',
     });
     return { action: 'completed' };
+  }
+
+  // They asked for JD details instead of answering — share the brief, then re-ask.
+  if (jdReply.answered) {
+    const current = questions[waitingIndex];
+    if (current) {
+      const emailBatch =
+        !preferWhatsAppScreening(input.preferredChannel, input.campaign) &&
+        openScreeningQuestions(questions, enrollment).length >= 2;
+      const missed = openScreeningQuestions(questions, enrollment);
+      const result = await sendQualificationQuestion({
+        campaign: input.campaign,
+        enrollment,
+        threadId: input.threadId,
+        question: emailBatch ? missed[0]! : current,
+        questionIndex: waitingIndex,
+        preferredChannel: screeningChannel === 'email' ? 'email' : input.preferredChannel,
+        allQuestions: questions,
+        ...(emailBatch
+          ? { batchQuestions: missed, batchKind: 'missed' as const }
+          : {}),
+      });
+      return {
+        action: result.sent ? 'answered_then_reasked' : `ask_failed:${result.error}`,
+      };
+    }
   }
 
   let idx = waitingIndex;
@@ -2437,9 +2639,7 @@ export async function processQualificationAfterReply(input: {
         enrollment,
         threadId: input.threadId,
         status: 'rejected',
-        reason:
-          evaluation.reason ||
-          `Knockout on ${current.id}: ${current.knockoutCondition || 'failed'}`,
+        reason: knockoutFailReason(current, value),
       });
       return { action: 'rejected_knockout' };
     }

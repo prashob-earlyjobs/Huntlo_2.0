@@ -29,6 +29,7 @@ import {
   findApprovedMetaTemplate,
   type MetaWhatsAppTemplate,
 } from '../../providers/meta-whatsapp/meta.templates.js';
+import { hydrateCandidateMergeFields } from './candidate-merge-hydrate.js';
 import { buildCandidateMergeContext } from './variables.js';
 
 function log() {
@@ -297,11 +298,14 @@ async function loadMergeContext(
   enrollment: OutreachEnrollmentDocument
 ) {
   const organizationId = String(campaign.organizationId);
-  const candidate = await SavedCandidateModel.findOne({
-    _id: enrollment.candidateId,
+  const candidate = await hydrateCandidateMergeFields(
     organizationId,
-    deletedAt: null,
-  }).lean();
+    await SavedCandidateModel.findOne({
+      _id: enrollment.candidateId,
+      organizationId,
+      deletedAt: null,
+    }).lean()
+  );
   const job = campaign.jobId
     ? await JobModel.findById(campaign.jobId).select('title').lean()
     : null;

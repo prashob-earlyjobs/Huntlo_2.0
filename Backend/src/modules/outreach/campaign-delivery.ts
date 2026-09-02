@@ -52,6 +52,7 @@ import {
 } from '../voice/voice-qualification-sync.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { hydrateCandidateMergeFields } from './candidate-merge-hydrate.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { JobModel } from '../jobs/job.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
@@ -177,12 +178,13 @@ export type IntegrationSecrets = NonNullable<
 >;
 
 async function loadCandidate(organizationId: string, candidateId: mongoose.Types.ObjectId) {
-  return SavedCandidateModel.findOne({
+  const candidate = await SavedCandidateModel.findOne({
     _id: candidateId,
     organizationId,
   })
-    .select('name email phone currentTitle currentCompany location')
+    .select('name email phone currentTitle currentCompany location externalCandidateId')
     .lean();
+  return hydrateCandidateMergeFields(organizationId, candidate);
 }
 
 /**
@@ -195,16 +197,20 @@ async function buildMergeContext(
   candidate: Awaited<ReturnType<typeof loadCandidate>>
 ): Promise<Record<string, string>> {
   const [job, organization, owner] = await Promise.all([
-    campaign.jobId ? JobModel.findById(campaign.jobId).select('title').lean() : null,
+    campaign.jobId ? JobModel.findById(campaign.jobId).select('title locations').lean() : null,
     OrganizationModel.findById(campaign.organizationId).select('name').lean(),
     UserModel.findById(campaign.ownerUserId).select('firstName').lean(),
   ]);
+
+  const jobLocation = (job?.locations || [])
+    .map((value) => String(value || '').trim())
+    .find(Boolean);
 
   return buildCandidateMergeContext(candidate, {
     jobTitle: job?.title || null,
     companyName: organization?.name || null,
     recruiterName: owner?.firstName || null,
-    location: candidate?.location || null,
+    location: jobLocation || candidate?.location || null,
   });
 }
 
@@ -1087,8 +1093,14 @@ export async function executeCampaignMessageStep(input: {
       relatedEntityId: jobId,
     });
 
-    const renderedSubject = mergeMessageTemplate(step.subject || campaign.name, mergeContext);
-    const renderedBody = mergeMessageTemplate(step.body || step.note || '', mergeContext);
+    const renderedSubject = mergeMessageTemplate(
+      step.subject || campaign.name,
+      mergeContext,
+      { unresolved: 'blank' }
+    );
+    const renderedBody = mergeMessageTemplate(step.body || step.note || '', mergeContext, {
+      unresolved: 'blank',
+    });
     const threading = await resolveSequenceEmailThreading({
       organizationId,
       enrollmentId: String(enrollment._id),

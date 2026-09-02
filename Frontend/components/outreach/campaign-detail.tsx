@@ -59,6 +59,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -261,6 +268,7 @@ function buildQualificationCsv(
     "Company",
     "Title",
     "Qualification status",
+    "AI summary",
     ...columns.map((column) => column.title),
   ];
   const rows = enrollments.map((candidate) => {
@@ -272,6 +280,7 @@ function buildQualificationCsv(
       candidate.company ?? "",
       candidate.title ?? "",
       qualificationStatusLabel(status),
+      candidate.aiSummary ?? "",
       ...columns.map((column) => reportAnswer(candidate, column)),
     ];
   });
@@ -281,19 +290,22 @@ function buildQualificationCsv(
 }
 
 async function fetchAllQualificationEnrollments(
-  campaignId: string
+  campaignId: string,
+  qualificationStatus?: string
 ): Promise<ApiCampaignEnrollment[]> {
   const limit = 100;
-  const first = await outreachApi.listEnrollmentsPage(campaignId, {
+  const params = {
     page: 1,
     limit,
-  });
+    ...(qualificationStatus ? { qualificationStatus } : {}),
+  };
+  const first = await outreachApi.listEnrollmentsPage(campaignId, params);
   const items = [...first.items];
   const totalPages = Math.max(1, Number(first.pagination.totalPages) || 1);
   for (let page = 2; page <= totalPages; page += 1) {
     const next = await outreachApi.listEnrollmentsPage(campaignId, {
+      ...params,
       page,
-      limit,
     });
     items.push(...next.items);
   }
@@ -774,6 +786,17 @@ function reportAnswer(
 
 const QUALIFICATION_PAGE_SIZE = 20;
 
+const QUALIFICATION_STATUS_FILTERS = [
+  { id: "all", label: "All statuses" },
+  { id: "pending", label: "Pending" },
+  { id: "in_progress", label: "In progress" },
+  { id: "qualified", label: "Qualified" },
+  { id: "rejected", label: "Not qualified" },
+  { id: "skipped", label: "Skipped" },
+] as const;
+
+type QualificationStatusFilter = (typeof QUALIFICATION_STATUS_FILTERS)[number]["id"];
+
 const EMPTY_QUAL_PAGINATION: PaginationMeta = {
   page: 1,
   limit: QUALIFICATION_PAGE_SIZE,
@@ -801,6 +824,7 @@ function QualificationTab({
   reloadToken: number;
 }) {
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<QualificationStatusFilter>("all");
   const [rows, setRows] = useState<ApiCampaignEnrollment[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_QUAL_PAGINATION);
   const [state, setState] = useState<ApiUiState>("loading");
@@ -820,6 +844,7 @@ function QualificationTab({
 
   useEffect(() => {
     setPage(1);
+    setStatusFilter("all");
   }, [campaignId]);
 
   useEffect(() => {
@@ -855,6 +880,7 @@ function QualificationTab({
         const next = await outreachApi.listEnrollmentsPage(campaignId, {
           page,
           limit: QUALIFICATION_PAGE_SIZE,
+          ...(statusFilter !== "all" ? { qualificationStatus: statusFilter } : {}),
         });
         if (cancelled) return;
         setRows(next.items);
@@ -862,7 +888,9 @@ function QualificationTab({
         const nextPage = Number(next.pagination.page) || 1;
         if (nextPage !== page) setPage(nextPage);
         setMessage(null);
-        setState(next.items.length === 0 ? "empty" : "success");
+        setState(
+          next.items.length === 0 && statusFilter === "all" ? "empty" : "success"
+        );
       } catch (err) {
         if (cancelled) return;
         setRows([]);
@@ -874,13 +902,16 @@ function QualificationTab({
     return () => {
       cancelled = true;
     };
-  }, [campaignId, page, reloadToken, fetchKey]);
+  }, [campaignId, page, statusFilter, reloadToken, fetchKey]);
 
   async function handleExportCsv() {
     setExportError(null);
     setExporting(true);
     try {
-      const enrollments = await fetchAllQualificationEnrollments(campaignId);
+      const enrollments = await fetchAllQualificationEnrollments(
+        campaignId,
+        statusFilter === "all" ? undefined : statusFilter
+      );
       const csv = buildQualificationCsv(reportColumns, enrollments);
       const safeName =
         campaignName
@@ -942,24 +973,48 @@ function QualificationTab({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
+        <p className="min-w-0 text-xs text-muted-foreground">
           {pagination.total.toLocaleString("en-IN")} candidate
           {pagination.total === 1 ? "" : "s"} with screening and WhatsApp answers
         </p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={exporting || rows.length === 0}
-          onClick={() => void handleExportCsv()}
-        >
-          {exporting ? (
-            <Loader2 aria-hidden className="animate-spin" />
-          ) : (
-            <Download aria-hidden />
-          )}
-          {exporting ? "Exporting…" : "Export CSV"}
-        </Button>
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              if (!value) return;
+              setStatusFilter(value as QualificationStatusFilter);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger size="sm" className="min-w-36" aria-label="Filter by status">
+              <SelectValue>
+                {QUALIFICATION_STATUS_FILTERS.find((option) => option.id === statusFilter)
+                  ?.label ?? "All statuses"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {QUALIFICATION_STATUS_FILTERS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={exporting || pagination.total === 0}
+            onClick={() => void handleExportCsv()}
+          >
+            {exporting ? (
+              <Loader2 aria-hidden className="animate-spin" />
+            ) : (
+              <Download aria-hidden />
+            )}
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+        </div>
       </div>
       {exportError ? (
         <p role="alert" className="text-xs text-destructive">
@@ -969,25 +1024,36 @@ function QualificationTab({
       <section className="overflow-x-auto rounded-xl border border-border bg-card">
         <Table>
           <caption className="sr-only">
-            Qualification and WhatsApp hiring-flow answers by candidate
+            Qualification answers, WhatsApp hiring-flow answers, and post-call AI summaries by candidate
           </caption>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className={HEAD}>Candidate</TableHead>
               <TableHead className={HEAD}>Status</TableHead>
+              <TableHead className={cn(HEAD, "min-w-48")}>AI summary</TableHead>
               {reportColumns.map((column) => (
                 <TableHead
                   key={`${column.source}-${column.id}`}
-                  className={HEAD}
+                  className="h-auto min-w-44 max-w-56 py-2 text-xs font-medium whitespace-normal text-muted-foreground"
                   title={column.prompt || column.title}
                 >
-                  {column.title}
+                  <span className="line-clamp-2">{column.title}</span>
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((candidate) => {
+            {rows.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell
+                  colSpan={3 + reportColumns.length}
+                  className="py-8 text-center text-sm text-muted-foreground"
+                >
+                  No candidates with this status.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((candidate) => {
               const status = candidate.qualificationState?.status ?? "pending";
               return (
                 <TableRow key={candidate.id}>
@@ -1018,6 +1084,20 @@ function QualificationTab({
                       className={stateBadgeClass(status)}
                     />
                   </TableCell>
+                  <TableCell className="max-w-72 py-2.5">
+                    {candidate.aiSummary ? (
+                      <Tooltip>
+                        <TooltipTrigger className="line-clamp-2 text-left text-sm text-foreground">
+                          {candidate.aiSummary}
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="start" className="whitespace-pre-wrap">
+                          {candidate.aiSummary}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   {reportColumns.map((column) => {
                     const answer = reportAnswer(candidate, column);
                     return (
@@ -1035,7 +1115,8 @@ function QualificationTab({
                   })}
                 </TableRow>
               );
-            })}
+            })
+            )}
           </TableBody>
         </Table>
       </section>

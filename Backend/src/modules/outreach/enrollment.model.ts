@@ -16,6 +16,16 @@ export const ENROLLMENT_STATUSES = [
 ] as const;
 export type EnrollmentStatus = (typeof ENROLLMENT_STATUSES)[number];
 
+export const ENROLLMENT_QUALIFICATION_STATUSES = [
+  'pending',
+  'in_progress',
+  'qualified',
+  'rejected',
+  'skipped',
+] as const;
+export type EnrollmentQualificationStatus =
+  (typeof ENROLLMENT_QUALIFICATION_STATUSES)[number];
+
 export const STOP_REASONS = [
   'candidate_replied',
   'candidate_opted_out',
@@ -182,7 +192,7 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
         {
           status: {
             type: String,
-            enum: ['pending', 'in_progress', 'qualified', 'rejected', 'skipped'],
+            enum: [...ENROLLMENT_QUALIFICATION_STATUSES],
             default: 'pending',
           },
           answers: { type: Schema.Types.Mixed, default: {} },

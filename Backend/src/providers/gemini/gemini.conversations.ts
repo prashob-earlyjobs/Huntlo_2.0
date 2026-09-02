@@ -7,8 +7,19 @@ import type {
   InterestLabel,
   IntentLabel,
 } from '../../modules/conversations/reply-classification.model.js';
+import { looksLikeJdDetailRequest } from '../../modules/outreach/candidate-question-detect.js';
 
 export const GEMINI_CONVERSATIONS_MODEL = 'gemini-2.5-flash';
+
+function todayForKnockoutPrompt(now = new Date()): string {
+  const iso = now.toISOString().slice(0, 10);
+  const human = now.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return `Today's date is ${human} (${iso}). Treat this as "now". When the question is whether the candidate has already completed graduation / a degree / a course, compare any month-year in their answer to today: on or before today means they HAVE completed it (knockout pass for "Reject if No"). A month-year after today means they have not completed it yet. Never assume the current year is 2024 or 2025.`;
+}
 /** Always Backend/gemini-email-prompts.txt (not dependent on process.cwd()). */
 const GEMINI_EMAIL_PROMPT_LOG = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -186,6 +197,12 @@ function heuristicClassify(input: ClassifyReplyInput): ClassifyReplyResult {
     interest = 'not_interested';
     intent = 'decline';
     confidence = 0.8;
+  } else if (looksLikeJdDetailRequest(text)) {
+    interest = /\b(yes|yeah|interested|sounds good|happy to)\b/.test(text)
+      ? 'interested'
+      : 'neutral';
+    intent = 'ask_question';
+    confidence = 0.82;
   } else if (/\b(interested|yes|sounds good|happy to|open to|available)\b/.test(text)) {
     interest = 'interested';
     intent = 'provide_info';
@@ -313,6 +330,10 @@ export async function classifyConversationReply(
 
   const prompt = `You classify recruiting candidate replies. Never decide hire/reject/qualify as final.
 Return JSON with keys: interest (${INTEREST_HINT}), intent (${INTENT_HINT}), extractedVariables (object), confidence (0-1), suggestedQualificationStatus (in_progress|handed_off|null), handoffRecommended (boolean), summary (string).
+
+Intent rules:
+- intent=ask_question when the candidate wants more details about the role/JD/job (e.g. "share further details", "send more info", "tell me about the role") — even without a "?" and even if they also say yes/interested.
+- A bare "yes" / "interested" with no request for details is provide_info, not ask_question.
 
 extractedVariables: when the body answers a listed qualification question, prefer that question's id as the key and a concise normalized value. Do not invent facts.
 
@@ -476,7 +497,8 @@ Return JSON: { "body": string, "canAnswer": boolean, "compensationRelated": bool
 Rules:
 - If the JD does not contain the answer, set canAnswer=false and write a short honest reply that you will confirm with the hiring team (do not invent facts).
 - Keep the reply concise (WhatsApp-friendly, under 600 characters when possible).
-- Do not ask qualification screening questions here.
+- Do not ask qualification screening questions here (notice period, location, CTC, experience, etc.).
+- After the brief, you may add one short line inviting them to reply if they want to continue. Do not ask a screening question in that line.
 - Do not promise offers, visas, or salaries unless present in the JD.
 - compensationRelated=true if the question is about pay/CTC/salary/benefits money.
 
@@ -803,15 +825,19 @@ Return JSON only:
 }
 
 Rules:
+- ${todayForKnockoutPrompt()}
 - Use the job description and role context below when judging knockout rules and whether an answer fits the role (do not invent JD facts).
 - Judge by meaning in conversation context, NOT by format. Soft / informal / approximate answers that address the open question count as answers.
 - answerType is only a storage hint for answerValue shape. NEVER set answersQuestion=false only because the reply is not a number, not yes/no, missing units (e.g. "days"), or not in a preferred format.
 - If the open question asks about notice period, availability, or joining timeline, any clear availability signal answers it. Normalize answerValue to a short phrase that preserves their meaning.
 - isNotAnAnswer=true ONLY when the reply does not address this question at all (pure engagement like willingness to chat/call, off-topic, or empty of relevant info).
-- isCandidateQuestion=true when the candidate is mainly asking us something (they may also answer — set answersQuestion independently).
+- isCandidateQuestion=true when the candidate is mainly asking us something (they may also answer — set answersQuestion independently). Requests for more details / JD / info about the role (with or without a "?") are questions, not screening answers.
+- If the reply is only asking for job details and does not address the open screening question, answersQuestion=false and isCandidateQuestion=true.
 - answersQuestion and isNotAnAnswer must agree: if they addressed this question, answersQuestion=true and isNotAnAnswer=false.
 - answerValue: concise normalized value when answersQuestion is true (keep their meaning; do not invent). null when answersQuestion is false.
 - knockout: if a knockout rule is provided, evaluate that RULE as the authority for this question (e.g. "more than 5" / "reject if > 5 LPA"). Do NOT fail the knockout only because JD compensation uses different units/period (monthly thousands vs LPA) or a different band. Use JD only as secondary context when the knockout rule itself is ambiguous. Fail only when the answer clearly matches the knockout rule. Otherwise "pass" or "unknown".
+- Convert duration units before comparing to a years threshold. "2 months" / "2 month internship" is ~0.17 years, NOT 2 years. "Reject if more than 1" on years of experience is a MAXIMUM (too much experience fails). Months of internship PASS. "2 years" fails.
+- If knockout=fail, reason must say they failed that knockout / are not qualified. Never write that they "pass" a knockout in a rejection reason.
 - Prefer conversation context: the last recruiter message is usually the open question.
 - If the recruiter's last message listed multiple numbered screening questions and the candidate replied with numbered lines (1., 2., 3.), map each line to the matching question by position and meaning.
 - If Classifier extractedVariables already contains a value for id "${input.question.id}", treat it as a strong signal the candidate answered that question (still verify against the reply).
@@ -941,10 +967,13 @@ Return JSON only:
 }
 
 Rules:
+- ${todayForKnockoutPrompt()}
 - Use ONLY the job description / role context below plus the screening Q&A — do not invent requirements.
 - Explicit knockout rules on screening questions are AUTHORITATIVE for those questions.
   Example: if expected CTC/LPA has knockout "more than 5" and the candidate answered 5 LPA (or less), that criterion PASSES.
   Do NOT reject solely because the JD salary band differs or uses different units (e.g. JD "30k-40k per month" vs answer "5 LPA").
+- "Reject if more than N years" of experience is a MAXIMUM. Months of internship (2 months, 6 months) are less than 1 year and PASS. Convert months/weeks to years before comparing. Do not treat the number 2 in "2 months" as 2 years.
+- If outcome=rejected, reason must say they failed a knockout or requirement — never that they passed it.
 - outcome="rejected" ONLY when a knockout rule clearly fails OR an answer is clearly incompatible with a stated JD must-have that has NO knockout rule covering that criterion.
 - If answers are vague but not failing knockouts, outcome="qualified".
 - failedQuestionId: id of the question that caused rejection, or null if qualified.
