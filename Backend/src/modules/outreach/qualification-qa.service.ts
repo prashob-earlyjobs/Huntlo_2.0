@@ -190,13 +190,22 @@ function answerValue(entry: unknown): string {
 export function normalizeAnswerRecord(
   value: unknown,
   source: 'ai' | 'candidate' | 'recruiter',
-  byUserId?: string | null
+  byUserId?: string | null,
+  media?: {
+    kind: string;
+    name: string;
+    mimeType: string | null;
+    url: string;
+    messageId: string;
+    attachmentIndex: number;
+  } | null
 ) {
   return {
     value: answerValue(value),
     source,
     at: new Date().toISOString(),
     ...(byUserId ? { byUserId } : {}),
+    ...(media ? { media } : {}),
   };
 }
 
@@ -2027,6 +2036,13 @@ export async function processQualificationAfterReply(input: {
   extractedVariables?: Record<string, unknown>;
   preferredChannel?: 'email' | 'whatsapp' | null;
   hasAttachment?: boolean;
+  messageId?: string | null;
+  attachments?: Array<{
+    name?: string | null;
+    url?: string | null;
+    mimeType?: string | null;
+    kind?: string | null;
+  }> | null;
 }): Promise<{ action: string }> {
   log().info(
     {
@@ -2086,6 +2102,8 @@ export async function processQualificationAfterReply(input: {
           enrollment: hfEnrollment,
           replyText: input.bodyText,
           hasAttachment: input.hasAttachment,
+          messageId: input.messageId,
+          attachments: input.attachments,
         });
         return {
           action: advanced.advanced ? 'hiring_flow_advanced' : 'hiring_flow_noop',
@@ -2623,11 +2641,32 @@ export async function processQualificationAfterReply(input: {
       (evaluation.answerValue && evaluation.answerValue.trim()) ||
       input.bodyText.trim();
 
+    let answerMedia:
+      | {
+          kind: string;
+          name: string;
+          mimeType: string | null;
+          url: string;
+          messageId: string;
+          attachmentIndex: number;
+        }
+      | null = null;
+    if (input.messageId && input.attachments && input.attachments.length > 0) {
+      const { buildAnswerMediaFromMessageAttachment } = await import(
+        './enrollment-answer-media.js'
+      );
+      answerMedia = buildAnswerMediaFromMessageAttachment({
+        messageId: String(input.messageId),
+        attachmentIndex: 0,
+        attachment: input.attachments[0]!,
+      });
+    }
+
     enrollment.qualificationState = {
       status: 'in_progress',
       answers: {
         ...enrollment.qualificationState.answers,
-        [current.id]: normalizeAnswerRecord(value, 'candidate'),
+        [current.id]: normalizeAnswerRecord(value, 'candidate', null, answerMedia),
       },
     };
 
