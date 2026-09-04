@@ -1,5 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import mongoose from 'mongoose';
 
 import { createApp } from '../src/app.js';
 import { connectDatabase, disconnectDatabase } from '../src/config/database.js';
@@ -17,6 +18,8 @@ import { OutreachCampaignModel } from '../src/modules/outreach/campaign.model.js
 import { OutreachEnrollmentModel } from '../src/modules/outreach/enrollment.model.js';
 import { CampaignJobModel } from '../src/modules/outreach/campaign-job.model.js';
 import { campaignsService } from '../src/modules/outreach/campaigns.service.js';
+import { ScreeningCandidateModel } from '../src/modules/screening/screening-candidate.model.js';
+import { VoiceCallModel } from '../src/modules/voice/voice-call.model.js';
 import { AuditLogModel } from '../src/shared/audit/audit.service.js';
 import { startMemoryMongo, stopMemoryMongo } from './helpers/memory-mongo.js';
 
@@ -87,6 +90,8 @@ describe('Outreach campaigns', () => {
       SavedCandidateModel.deleteMany({}),
       JobModel.deleteMany({}),
       UserIntegrationModel.deleteMany({}),
+      VoiceCallModel.deleteMany({}),
+      ScreeningCandidateModel.deleteMany({}),
       AuditLogModel.deleteMany({}),
       UserSessionModel.deleteMany({}),
       OnboardingModel.deleteMany({}),
@@ -455,6 +460,18 @@ describe('Outreach campaigns', () => {
     expect(enrollments.status).toBe(200);
     expect(enrollments.body.data.length).toBe(2);
 
+    const pendingOnly = await agent
+      .get(`/api/v1/outreach/campaigns/${id}/enrollments?qualificationStatus=pending`)
+      .set('Authorization', `Bearer ${auth.token}`);
+    expect(pendingOnly.status).toBe(200);
+    expect(pendingOnly.body.data.length).toBe(2);
+
+    const qualifiedOnly = await agent
+      .get(`/api/v1/outreach/campaigns/${id}/enrollments?qualificationStatus=qualified`)
+      .set('Authorization', `Bearer ${auth.token}`);
+    expect(qualifiedOnly.status).toBe(200);
+    expect(qualifiedOnly.body.data.length).toBe(0);
+
     const pause = await agent
       .post(`/api/v1/outreach/campaigns/${id}/pause`)
       .set('Authorization', `Bearer ${auth.token}`);
@@ -466,6 +483,110 @@ describe('Outreach campaigns', () => {
       .set('Authorization', `Bearer ${auth.token}`);
     expect(resume.status).toBe(200);
     expect(resume.body.data.status).toBe('running');
+  });
+
+  it('includes post-call AI summaries on enrollment list', async () => {
+    const auth = await registerAndAuth(agent);
+
+    const voiceCandidate = await agent
+      .post('/api/v1/candidate-pool')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        name: 'Ada Lovelace',
+        email: 'ada-summary@example.com',
+        phone: '9876543210',
+        status: 'saved',
+      });
+    expect(voiceCandidate.status).toBe(201);
+
+    const screeningCandidate = await agent
+      .post('/api/v1/candidate-pool')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        name: 'Grace Hopper',
+        email: 'grace-summary@example.com',
+        phone: '9876543211',
+        status: 'saved',
+      });
+    expect(screeningCandidate.status).toBe(201);
+
+    const created = await agent
+      .post('/api/v1/outreach/campaigns')
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        name: 'Report summaries',
+        sequenceSteps: [{ type: 'email', order: 0, subject: 'Hello', body: 'Hi' }],
+      });
+    expect(created.status).toBe(201);
+    const id = created.body.data.id as string;
+
+    const audience = await agent
+      .post(`/api/v1/outreach/campaigns/${id}/audience`)
+      .set('Authorization', `Bearer ${auth.token}`)
+      .send({
+        candidateIds: [voiceCandidate.body.data.id, screeningCandidate.body.data.id],
+      });
+    expect(audience.status).toBe(200);
+
+    const enrollments = await agent
+      .get(`/api/v1/outreach/campaigns/${id}/enrollments`)
+      .set('Authorization', `Bearer ${auth.token}`);
+    expect(enrollments.status).toBe(200);
+    expect(enrollments.body.data.length).toBe(2);
+    expect(
+      enrollments.body.data.every((row: { aiSummary: string | null }) => row.aiSummary === null)
+    ).toBe(true);
+
+    const ada = enrollments.body.data.find(
+      (row: { name: string }) => row.name === 'Ada Lovelace'
+    ) as { id: string; candidateId: string };
+    const grace = enrollments.body.data.find(
+      (row: { name: string }) => row.name === 'Grace Hopper'
+    ) as { id: string; candidateId: string };
+    expect(ada).toBeTruthy();
+    expect(grace).toBeTruthy();
+
+    await VoiceCallModel.create({
+      organizationId: auth.organizationId,
+      source: 'outreach',
+      campaignId: id,
+      enrollmentId: ada.id,
+      candidateId: ada.candidateId,
+      callId: 'report-call-1',
+      requestId: 'report-req-1',
+      contactName: 'Ada Lovelace',
+      toNumber: '9876543210',
+      toNumberDigits: '9876543210',
+      status: 'completed',
+      summaryText: 'Interested in the role. 30 day notice.',
+    });
+
+    const screeningId = new mongoose.Types.ObjectId();
+    await OutreachEnrollmentModel.updateOne(
+      { _id: grace.id },
+      { $set: { 'screeningState.screeningId': String(screeningId) } }
+    );
+    await ScreeningCandidateModel.create({
+      organizationId: auth.organizationId,
+      screeningId,
+      candidateId: grace.candidateId,
+      enrollmentId: grace.id,
+      callStatus: 'completed',
+      summary: 'Screening call: strong communication, open to relocate.',
+    });
+
+    const withSummaries = await agent
+      .get(`/api/v1/outreach/campaigns/${id}/enrollments`)
+      .set('Authorization', `Bearer ${auth.token}`);
+    expect(withSummaries.status).toBe(200);
+    expect(
+      withSummaries.body.data.find((row: { name: string }) => row.name === 'Ada Lovelace')
+        ?.aiSummary
+    ).toBe('Interested in the role. 30 day notice.');
+    expect(
+      withSummaries.body.data.find((row: { name: string }) => row.name === 'Grace Hopper')
+        ?.aiSummary
+    ).toBe('Screening call: strong communication, open to relocate.');
   });
 
   it('rejects invalid variables and stops enrollment messaging', async () => {

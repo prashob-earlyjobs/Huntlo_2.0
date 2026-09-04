@@ -29,6 +29,7 @@ import {
   findApprovedMetaTemplate,
   type MetaWhatsAppTemplate,
 } from '../../providers/meta-whatsapp/meta.templates.js';
+import { hydrateCandidateMergeFields } from './candidate-merge-hydrate.js';
 import { buildCandidateMergeContext } from './variables.js';
 
 function log() {
@@ -297,11 +298,14 @@ async function loadMergeContext(
   enrollment: OutreachEnrollmentDocument
 ) {
   const organizationId = String(campaign.organizationId);
-  const candidate = await SavedCandidateModel.findOne({
-    _id: enrollment.candidateId,
+  const candidate = await hydrateCandidateMergeFields(
     organizationId,
-    deletedAt: null,
-  }).lean();
+    await SavedCandidateModel.findOne({
+      _id: enrollment.candidateId,
+      organizationId,
+      deletedAt: null,
+    }).lean()
+  );
   const job = campaign.jobId
     ? await JobModel.findById(campaign.jobId).select('title').lean()
     : null;
@@ -680,6 +684,13 @@ export async function advanceHiringFlowOnReply(input: {
   replyText: string;
   /** True when the candidate attached a file/image (no API call if media expected and received). */
   hasAttachment?: boolean;
+  messageId?: string | null;
+  attachments?: Array<{
+    name?: string | null;
+    url?: string | null;
+    mimeType?: string | null;
+    kind?: string | null;
+  }> | null;
 }): Promise<{ advanced: boolean }> {
   if (isClosedOutreachEnrollmentStatus(input.enrollment.status)) {
     return { advanced: false };
@@ -706,11 +717,15 @@ export async function advanceHiringFlowOnReply(input: {
       _id: state.flowId,
       organizationId: input.campaign.organizationId,
     }).lean();
-    const unusedQuestion = (flowForResume?.steps || []).some(
-      (step) =>
-        step.type === 'ask_question' &&
-        !String(answersSoFar[step.id] || '').trim()
-    );
+    const unusedQuestion = (flowForResume?.steps || []).some((step) => {
+      if (step.type !== 'ask_question') return false;
+      const raw = answersSoFar[step.id];
+      const text =
+        raw && typeof raw === 'object' && raw !== null && 'value' in raw
+          ? String((raw as { value?: unknown }).value ?? '').trim()
+          : String(raw || '').trim();
+      return !text;
+    });
     if (!unusedQuestion || !flowForResume) return { advanced: false };
     const entry =
       findStep(flowForResume.steps, flowForResume.entryStepId) ||
@@ -929,9 +944,24 @@ export async function advanceHiringFlowOnReply(input: {
   }
   // ── End of Gemini validation ─────────────────────────────────────────────
 
+  let storedAnswer: unknown = input.replyText;
+  if (input.messageId && input.attachments && input.attachments.length > 0) {
+    const { buildAnswerMediaFromMessageAttachment } = await import(
+      './enrollment-answer-media.js'
+    );
+    storedAnswer = {
+      value: input.replyText,
+      media: buildAnswerMediaFromMessageAttachment({
+        messageId: String(input.messageId),
+        attachmentIndex: 0,
+        attachment: input.attachments[0]!,
+      }),
+    };
+  }
+
   const answers = {
     ...(state.answers || {}),
-    [current.id]: input.replyText,
+    [current.id]: storedAnswer,
   };
 
   if (

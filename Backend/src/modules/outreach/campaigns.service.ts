@@ -7,6 +7,8 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { lookupProfilePictures } from '../candidates/pool.service.js';
+import { ScreeningCandidateModel } from '../screening/screening-candidate.model.js';
+import { VoiceCallModel } from '../voice/voice-call.model.js';
 import { UserModel } from '../auth/user.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import {
@@ -29,6 +31,7 @@ import { recordCampaignActivity, CampaignActivityModel } from './campaign-activi
 import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } from './campaign-validate.js';
 import { enrichCampaignContactsForLaunch } from './campaign-launch-reveal.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
+import { enrichEnrollmentRowsWithAnswerMedia } from './enrollment-answer-media.js';
 import {
   BullOutreachJobModel,
   cancelJobsForCampaign,
@@ -90,6 +93,119 @@ function normalizeSteps(steps?: CreateInput['sequenceSteps']): CampaignSequenceS
       : null,
     config: step.config || {},
   }));
+}
+
+function trimAiSummary(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  return text || null;
+}
+
+async function loadEnrollmentAiSummaries(input: {
+  organizationId: string;
+  campaignId: string;
+  rows: Array<{
+    _id: unknown;
+    candidateId: unknown;
+    screeningState?: { screeningId?: unknown } | null;
+  }>;
+}): Promise<Map<string, string>> {
+  const summaries = new Map<string, string>();
+  if (input.rows.length === 0) return summaries;
+
+  const enrollmentIds = input.rows.map((row) => row._id);
+  const candidateIds = input.rows.map((row) => row.candidateId);
+  const screeningIds = [
+    ...new Set(
+      input.rows
+        .map((row) => row.screeningState?.screeningId)
+        .filter((id): id is NonNullable<typeof id> => Boolean(id))
+        .map(String)
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    ),
+  ];
+  const screeningObjectIds = screeningIds.map((id) => new mongoose.Types.ObjectId(id));
+
+  const voiceMatch: Record<string, unknown>[] = [
+    { enrollmentId: { $in: enrollmentIds } },
+    { campaignId: input.campaignId, candidateId: { $in: candidateIds } },
+  ];
+  if (screeningObjectIds.length > 0) {
+    voiceMatch.push({
+      screeningId: { $in: screeningObjectIds },
+      candidateId: { $in: candidateIds },
+    });
+  }
+
+  const [voiceCalls, screeningRows] = await Promise.all([
+    VoiceCallModel.find({
+      organizationId: input.organizationId,
+      $and: [
+        { $or: voiceMatch },
+        {
+          $or: [
+            { summaryText: { $nin: [null, ''] } },
+            { 'callResult.summary': { $nin: [null, ''] } },
+          ],
+        },
+      ],
+    })
+      .select('enrollmentId candidateId summaryText callResult.summary updatedAt')
+      .sort({ updatedAt: -1 })
+      .lean(),
+    screeningObjectIds.length > 0
+      ? ScreeningCandidateModel.find({
+          organizationId: input.organizationId,
+          screeningId: { $in: screeningObjectIds },
+          candidateId: { $in: candidateIds },
+          summary: { $nin: [null, ''] },
+        })
+          .select('enrollmentId candidateId screeningId summary')
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const voiceByEnrollment = new Map<string, string>();
+  const voiceByCandidate = new Map<string, string>();
+  for (const call of voiceCalls) {
+    const text =
+      trimAiSummary(call.summaryText) || trimAiSummary(call.callResult?.summary);
+    if (!text) continue;
+    if (call.enrollmentId) {
+      const key = String(call.enrollmentId);
+      if (!voiceByEnrollment.has(key)) voiceByEnrollment.set(key, text);
+    }
+    if (call.candidateId) {
+      const key = String(call.candidateId);
+      if (!voiceByCandidate.has(key)) voiceByCandidate.set(key, text);
+    }
+  }
+
+  const screeningByEnrollment = new Map<string, string>();
+  const screeningByPair = new Map<string, string>();
+  for (const row of screeningRows) {
+    const text = trimAiSummary(row.summary);
+    if (!text) continue;
+    if (row.enrollmentId) screeningByEnrollment.set(String(row.enrollmentId), text);
+    screeningByPair.set(`${String(row.screeningId)}:${String(row.candidateId)}`, text);
+  }
+
+  for (const row of input.rows) {
+    const enrollmentId = String(row._id);
+    const candidateId = String(row.candidateId);
+    const screeningId = row.screeningState?.screeningId
+      ? String(row.screeningState.screeningId)
+      : null;
+    const text =
+      screeningByEnrollment.get(enrollmentId) ||
+      (screeningId ? screeningByPair.get(`${screeningId}:${candidateId}`) : null) ||
+      voiceByEnrollment.get(enrollmentId) ||
+      voiceByCandidate.get(candidateId) ||
+      null;
+    if (text) summaries.set(enrollmentId, text);
+  }
+
+  return summaries;
 }
 
 async function ownerName(userId: string): Promise<string> {
@@ -1303,6 +1419,15 @@ export const campaignsService = {
     await loadCampaign(organizationId, id);
     const filter: Record<string, unknown> = { organizationId, campaignId: id };
     if (query.status) filter.status = query.status;
+    if (query.qualificationStatus === 'pending') {
+      filter.$or = [
+        { 'qualificationState.status': 'pending' },
+        { 'qualificationState.status': { $exists: false } },
+        { 'qualificationState.status': null },
+      ];
+    } else if (query.qualificationStatus) {
+      filter['qualificationState.status'] = query.qualificationStatus;
+    }
     const skip = (query.page - 1) * query.limit;
     const [rows, total] = await Promise.all([
       OutreachEnrollmentModel.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(query.limit).lean(),
@@ -1314,17 +1439,29 @@ export const campaignsService = {
       .select('name email phone currentCompany currentTitle profilePictureUrl externalCandidateId')
       .lean();
     const byId = new Map(candidates.map((c) => [String(c._id), c]));
-    const pictures = await lookupProfilePictures(
-      organizationId,
-      candidates.map((c) => ({
-        id: String(c._id),
-        profilePictureUrl: c.profilePictureUrl ?? null,
-        externalCandidateId: c.externalCandidateId ?? null,
-      }))
-    );
+    const [pictures, aiSummaries, enrichedRows] = await Promise.all([
+      lookupProfilePictures(
+        organizationId,
+        candidates.map((c) => ({
+          id: String(c._id),
+          profilePictureUrl: c.profilePictureUrl ?? null,
+          externalCandidateId: c.externalCandidateId ?? null,
+        }))
+      ),
+      loadEnrollmentAiSummaries({
+        organizationId,
+        campaignId: id,
+        rows,
+      }),
+      enrichEnrollmentRowsWithAnswerMedia({
+        organizationId,
+        campaignId: id,
+        rows,
+      }),
+    ]);
 
     return {
-      items: rows.map((row) => {
+      items: enrichedRows.map((row) => {
         const c = byId.get(String(row.candidateId));
         return {
           id: String(row._id),
@@ -1349,6 +1486,7 @@ export const campaignsService = {
             : null,
           screeningState: row.screeningState,
           schedulingState: row.schedulingState,
+          aiSummary: aiSummaries.get(String(row._id)) ?? null,
           nextActionAt: row.nextActionAt?.toISOString() ?? null,
           lastActionAt: row.lastActionAt?.toISOString() ?? null,
           stopReason: row.stopReason,

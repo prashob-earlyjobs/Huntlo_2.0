@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
     // doesn't steal Turbopack's project root detection.
     root: configDir,
   },
+  async redirects() {
+    return [
+      {
+        source: "/huntlo-discovery-call",
+        destination: "https://cal.id/team/huntlo/huntlo-discovery-call",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
