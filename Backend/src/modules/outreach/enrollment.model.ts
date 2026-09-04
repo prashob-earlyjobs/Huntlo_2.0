@@ -95,7 +95,7 @@ export type OutreachEnrollmentDocument = Document & {
     flowId: string | null;
     currentStepId: string | null;
     status: 'idle' | 'active' | 'waiting_reply' | 'processing_reply' | 'completed' | 'failed';
-    answers: Record<string, string>;
+    answers: Record<string, unknown>;
     /** Number of re-prompt attempts per step id (to avoid infinite loops). */
     retryAttempts: Record<string, number>;
   } | null;

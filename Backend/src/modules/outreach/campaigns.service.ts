@@ -31,6 +31,7 @@ import { recordCampaignActivity, CampaignActivityModel } from './campaign-activi
 import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } from './campaign-validate.js';
 import { enrichCampaignContactsForLaunch } from './campaign-launch-reveal.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
+import { enrichEnrollmentRowsWithAnswerMedia } from './enrollment-answer-media.js';
 import {
   BullOutreachJobModel,
   cancelJobsForCampaign,
@@ -1438,7 +1439,7 @@ export const campaignsService = {
       .select('name email phone currentCompany currentTitle profilePictureUrl externalCandidateId')
       .lean();
     const byId = new Map(candidates.map((c) => [String(c._id), c]));
-    const [pictures, aiSummaries] = await Promise.all([
+    const [pictures, aiSummaries, enrichedRows] = await Promise.all([
       lookupProfilePictures(
         organizationId,
         candidates.map((c) => ({
@@ -1452,10 +1453,15 @@ export const campaignsService = {
         campaignId: id,
         rows,
       }),
+      enrichEnrollmentRowsWithAnswerMedia({
+        organizationId,
+        campaignId: id,
+        rows,
+      }),
     ]);
 
     return {
-      items: rows.map((row) => {
+      items: enrichedRows.map((row) => {
         const c = byId.get(String(row.candidateId));
         return {
           id: String(row._id),
