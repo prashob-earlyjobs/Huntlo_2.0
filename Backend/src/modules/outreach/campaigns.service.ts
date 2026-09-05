@@ -7,6 +7,7 @@ import { overlayHcgWhatsappOverallAiStatus, countHcgWhatsappOverviewStats } from
 import { overlayHcgHunarOverallAiStatus, countHcgHunarOverviewStats } from '../conversations/hcg-hunar-overlay.js';
 import { overlayHcgZyvkaOverallAiStatus, countHcgZyvkaOverviewStats } from '../conversations/hcg-zyvka-overlay.js';
 import { emitOutreachCampaignUpdated } from '../../realtime/events.js';
+import { getLogger } from '../../config/logger.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
@@ -37,7 +38,6 @@ import {
   BullOutreachJobModel,
   cancelJobsForCampaign,
   cancelJobsForEnrollment,
-  scheduleFirstSends,
   scheduleJob,
 } from '../../bull-outreach/index.js';
 import type {
@@ -371,14 +371,44 @@ async function enqueueFirstJobs(campaign: OutreachCampaignDocument, enrollmentId
         : first.type === 'ai_voice'
           ? 'ai_voice'
           : null;
-  await scheduleFirstSends({
-    organizationId: String(campaign.organizationId),
-    campaignId: String(campaign._id),
-    enrollmentIds,
-    stepId: first.id,
-    channel,
-    runAt: new Date(),
-  });
+
+  const { processBullJob } = await import('../../bull-outreach/process-job.js');
+  const log = getLogger().child({ component: 'campaign-launch-send' });
+  const campaignId = String(campaign._id);
+
+  for (const enrollmentId of enrollmentIds) {
+    const job = await scheduleJob({
+      kind: 'send',
+      channel,
+      organizationId: String(campaign.organizationId),
+      campaignId,
+      enrollmentId,
+      stepId: first.id,
+      runAt: new Date(),
+    });
+    if (!job) continue;
+
+    // Claim so the worker cron cannot also pick this first send.
+    const claimed = await BullOutreachJobModel.findOneAndUpdate(
+      { _id: job._id, status: 'pending' },
+      { $set: { status: 'running' } },
+      { new: true }
+    );
+    if (!claimed) continue;
+
+    try {
+      log.info(
+        { campaignId, enrollmentId, jobId: String(job._id), stepType: first.type },
+        'Sending first sequence step on launch (no worker wait)'
+      );
+      await processBullJob(String(job._id));
+    } catch (error) {
+      log.warn(
+        { err: error, campaignId, enrollmentId, jobId: String(job._id) },
+        'Launch send failed'
+      );
+    }
+  }
 }
 
 function channelFromStepType(
