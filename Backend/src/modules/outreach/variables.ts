@@ -340,7 +340,7 @@ export function employmentFromHeadline(headline?: string | null): {
   if (!text) return { role: null, company: null };
   const match = text.match(/^(.*?)\s+(?:at|@|—|–|-)\s+(.+)$/i);
   if (match) {
-    return { role: match[1].trim() || null, company: match[2].trim() || null };
+    return { role: match[1]?.trim() || null, company: match[2]?.trim() || null };
   }
   return { role: text, company: null };
 }
