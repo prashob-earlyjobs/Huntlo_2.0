@@ -5,6 +5,7 @@ import type { Readable } from 'node:stream';
 
 import { getLogger } from '../../config/logger.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { escapeRegex } from '../../shared/validation/regex.js';
 import {
   isGcsMediaStorageEnabled,
   openWhatsAppMediaGcsStream,
@@ -59,6 +60,34 @@ import {
   type InterestLabel,
 } from './reply-classification.model.js';
 import { classifyAndAttach } from './inbound-sync.service.js';
+import {
+  findHcgGmailConversation,
+  hcgGmailLastPreview,
+  hcgGmailMessagesToEvents,
+  hcgGmailStatus,
+  overlayHcgGmailOnListItems,
+} from './hcg-gmail-overlay.js';
+import {
+  findHcgWhatsappConversation,
+  hcgWhatsappLastPreview,
+  hcgWhatsappMessagesToEvents,
+  hcgWhatsappStatus,
+  overlayHcgWhatsappOnListItems,
+} from './hcg-whatsapp-overlay.js';
+import {
+  findHcgHunarCommunication,
+  hcgHunarLastPreview,
+  hcgHunarStatus,
+  hcgHunarToEvents,
+  overlayHcgHunarOnListItems,
+} from './hcg-hunar-overlay.js';
+import {
+  findHcgZyvkaCommunication,
+  hcgZyvkaLastPreview,
+  hcgZyvkaStatus,
+  hcgZyvkaToEvents,
+  overlayHcgZyvkaOnListItems,
+} from './hcg-zyvka-overlay.js';
 import type {
   aiDraftBodySchema,
   assignBodySchema,
@@ -392,7 +421,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     campaign?.sequenceSteps?.find((s) => s.templateId)?.templateId ||
     null;
 
-  const events = await Promise.all(
+  let events = await Promise.all(
     messages.map(async (msg) => {
       let authorName = candidate?.name || 'Candidate';
       if (msg.direction !== 'inbound') {
@@ -433,7 +462,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   ].filter(Boolean);
 
   const autoScreening = Boolean(campaign?.qualificationConfig?.autoScreening);
-  const pipelineStatus = deriveEnrollmentPipelineStatus(enrollment, {
+  let pipelineStatus = deriveEnrollmentPipelineStatus(enrollment, {
     autoScreening,
     threadQualificationStatus: thread.qualificationStatus,
   });
@@ -454,6 +483,81 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     avatarUrl = pics.get(String(candidate._id)) ?? null;
   }
 
+  let lastMessage = thread.lastMessagePreview || '';
+  let lastTime = relativeTime(thread.lastMessageAt);
+  let overallAIDescription: string | null = null;
+  const hcg = await findHcgGmailConversation(
+    thread.campaignId ? String(thread.campaignId) : null,
+    candidate?.email || null
+  );
+  const hcgWa = await findHcgWhatsappConversation(
+    thread.campaignId ? String(thread.campaignId) : null,
+    candidate?.phone || null
+  );
+  if (hcg?.messages?.length) {
+    const gmailEvents = hcgGmailMessagesToEvents(hcg, candidate?.name || 'Candidate');
+    const otherEvents = events.filter((event) => event.channel !== 'Email');
+    events = [...otherEvents, ...gmailEvents].sort((a, b) => {
+      const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
+      const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
+      return left - right;
+    }) as typeof events;
+    const status = hcgGmailStatus(hcg);
+    replyStatus = status.replyStatus;
+    pipelineStatus = status.pipelineStatus;
+    const preview = hcgGmailLastPreview(hcg);
+    if (preview.lastMessage) lastMessage = preview.lastMessage;
+    if (preview.lastTime !== '—') lastTime = preview.lastTime;
+    overallAIDescription = String(hcg.overallAIDescription || '').trim() || null;
+  } else if (hcgWa?.messages?.length) {
+      const waEvents = hcgWhatsappMessagesToEvents(hcgWa, candidate?.name || 'Candidate');
+      const otherEvents = events.filter((event) => event.channel !== 'WhatsApp');
+      events = [...otherEvents, ...waEvents].sort((a, b) => {
+        const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
+        const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
+        return left - right;
+      }) as typeof events;
+      const status = hcgWhatsappStatus(hcgWa);
+      replyStatus = status.replyStatus;
+      pipelineStatus = status.pipelineStatus;
+      const preview = hcgWhatsappLastPreview(hcgWa);
+      if (preview.lastMessage) lastMessage = preview.lastMessage;
+      if (preview.lastTime !== '—') lastTime = preview.lastTime;
+      overallAIDescription = String(hcgWa.overallAIDescription || '').trim() || null;
+  }
+
+  const hcgHunar = await findHcgHunarCommunication(
+    thread.campaignId ? String(thread.campaignId) : null,
+    candidate?.phone || null
+  );
+  const hcgZyvka = hcgHunar
+    ? null
+    : await findHcgZyvkaCommunication(
+        thread.campaignId ? String(thread.campaignId) : null,
+        candidate?.phone || null
+      );
+  const hcgVoice = hcgHunar || hcgZyvka;
+  if (hcgVoice) {
+    const voiceEvents = hcgHunar ? hcgHunarToEvents(hcgHunar) : hcgZyvkaToEvents(hcgZyvka!);
+    const otherEvents = events.filter((event) => event.channel !== 'AI Voice');
+    events = [...otherEvents, ...voiceEvents].sort((a, b) => {
+      const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
+      const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
+      return left - right;
+    }) as typeof events;
+    if (!hcg?.messages?.length && !hcgWa?.messages?.length) {
+      const status = hcgHunar ? hcgHunarStatus(hcgHunar) : hcgZyvkaStatus(hcgZyvka!);
+      replyStatus = status.replyStatus;
+      pipelineStatus = status.pipelineStatus;
+      const preview = hcgHunar ? hcgHunarLastPreview(hcgHunar) : hcgZyvkaLastPreview(hcgZyvka!);
+      if (preview.lastMessage) lastMessage = preview.lastMessage;
+      if (preview.lastTime !== '—') lastTime = preview.lastTime;
+      const description = String(hcgVoice.overallAIDescription || '').trim();
+      const result = (hcgVoice.call_result as { result?: { summary?: string } } | undefined)?.result;
+      overallAIDescription = description || String(result?.summary || '').trim() || overallAIDescription;
+    }
+  }
+
   return {
     id: String(thread._id),
     candidateId: String(thread.candidateId),
@@ -472,8 +576,8 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       : 'single_channel',
     jobId: thread.jobId ? String(thread.jobId) : null,
     jobTitle: job?.title || null,
-    lastMessage: thread.lastMessagePreview || '',
-    lastTime: relativeTime(thread.lastMessageAt),
+    lastMessage,
+    lastTime,
     unread: (thread.unreadCount || 0) > 0,
     unreadCount: thread.unreadCount || 0,
     replyStatus,
@@ -481,6 +585,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     qualification: QUAL_DISPLAY[thread.qualificationStatus] || 'Pending',
     qualificationStatus: thread.qualificationStatus,
     qualificationReason,
+    overallAIDescription,
     screeningStatus: enrollment?.screeningState?.status || 'not_started',
     screeningId: enrollment?.screeningState?.screeningId ?? null,
     screeningDecision: enrollment?.screeningState?.decision ?? null,
@@ -517,6 +622,93 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   };
 }
 
+/** Inbox rows — preview only. Open a thread to load messages via get/markRead. */
+async function toListConversation(thread: ConversationThreadDocument) {
+  const [candidate, campaign, job, enrollment] = await Promise.all([
+    SavedCandidateModel.findById(thread.candidateId)
+      .select(
+        'name email phone currentTitle currentCompany location headline profilePictureUrl'
+      )
+      .lean(),
+    thread.campaignId
+      ? OutreachCampaignModel.findById(thread.campaignId)
+          .select('name campaignType mode sequenceSteps qualificationConfig.autoScreening')
+          .lean()
+      : null,
+    thread.jobId ? JobModel.findById(thread.jobId).select('title').lean() : null,
+    thread.enrollmentId ? OutreachEnrollmentModel.findById(thread.enrollmentId).lean() : null,
+  ]);
+
+  const headlineParts = [
+    candidate?.currentTitle || candidate?.headline,
+    candidate?.currentCompany,
+  ].filter(Boolean);
+  const autoScreening = Boolean(campaign?.qualificationConfig?.autoScreening);
+  const pipelineStatus = deriveEnrollmentPipelineStatus(enrollment, {
+    autoScreening,
+    threadQualificationStatus: thread.qualificationStatus,
+  });
+  const stepIndex = enrollment?.currentStepIndex ?? 0;
+  const totalSteps = campaign?.sequenceSteps?.length || 0;
+
+  let replyStatus = 'Awaiting reply';
+  if (thread.status === 'opted_out') replyStatus = 'Not interested';
+  else if (thread.lastCandidateMessageAt) replyStatus = 'Replied';
+
+  return {
+    id: String(thread._id),
+    candidateId: String(thread.candidateId),
+    candidateName: candidate?.name || 'Unknown candidate',
+    avatarUrl: candidate?.profilePictureUrl?.trim() || null,
+    headline: headlineParts.join(' · ') || 'Candidate',
+    location: candidate?.location || '',
+    channels: thread.channels
+      .filter((c) => c !== 'note')
+      .map((c) => CHANNEL_DISPLAY[c])
+      .filter(Boolean),
+    campaignId: thread.campaignId ? String(thread.campaignId) : '',
+    campaignName: campaign?.name || '—',
+    campaignType: campaign
+      ? campaign.campaignType || mapModeToCampaignType(campaign.mode)
+      : 'single_channel',
+    jobId: thread.jobId ? String(thread.jobId) : null,
+    jobTitle: job?.title || null,
+    lastMessage: thread.lastMessagePreview || '',
+    lastTime: relativeTime(thread.lastMessageAt),
+    unread: (thread.unreadCount || 0) > 0,
+    unreadCount: thread.unreadCount || 0,
+    replyStatus,
+    pipelineStatus,
+    qualification: QUAL_DISPLAY[thread.qualificationStatus] || 'Pending',
+    qualificationStatus: thread.qualificationStatus,
+    qualificationReason: enrollment?.qualificationState?.reason || null,
+    overallAIDescription: null as string | null,
+    screeningStatus: enrollment?.screeningState?.status || 'not_started',
+    screeningId: enrollment?.screeningState?.screeningId ?? null,
+    screeningDecision: enrollment?.screeningState?.decision ?? null,
+    autoScreening,
+    sequenceStep: totalSteps > 0 ? `Step ${Math.min(stepIndex + 1, totalSteps)} of ${totalSteps}` : '—',
+    nextAction:
+      thread.automationStatus === 'stopped'
+        ? 'Automation stopped'
+        : thread.status === 'handed_off'
+          ? 'Recruiter handoff'
+          : 'Continue conversation',
+    email: candidate?.email || null,
+    phone: candidate?.phone || null,
+    notes: [],
+    events: [],
+    status: thread.status,
+    automationStatus: thread.automationStatus,
+    assignedUserId: thread.assignedUserId ? String(thread.assignedUserId) : null,
+    assignedUserName: 'Unassigned',
+    enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
+    lastClassification: null,
+    createdAt: thread.createdAt.toISOString(),
+    updatedAt: thread.updatedAt.toISOString(),
+  };
+}
+
 export const conversationsService = {
   async list(organizationId: string, query: ListQuery) {
     const filter: Record<string, unknown> = { organizationId };
@@ -530,30 +722,31 @@ export const conversationsService = {
     if (query.unreadOnly) filter.unreadCount = { $gt: 0 };
     if (query.channel) filter.channels = query.channel;
 
-    const skip = (query.page - 1) * query.limit;
-    let threads = await ConversationThreadModel.find(filter)
-      .sort({ lastMessageAt: -1, updatedAt: -1 })
-      .skip(skip)
-      .limit(query.limit);
-
-    if (query.q) {
-      const q = query.q.toLowerCase();
-      const candidateIds = await SavedCandidateModel.find({
-        organizationId,
-        name: { $regex: query.q, $options: 'i' },
-      })
+    const q = String(query.q || '').trim();
+    if (q) {
+      const rx = new RegExp(escapeRegex(q), 'i');
+      const named = await SavedCandidateModel.find({ organizationId, name: rx })
         .select('_id')
         .lean();
-      const idSet = new Set(candidateIds.map((c) => String(c._id)));
-      threads = threads.filter(
-        (t) =>
-          idSet.has(String(t.candidateId)) ||
-          (t.lastMessagePreview || '').toLowerCase().includes(q)
-      );
+      filter.$or = [
+        { lastMessagePreview: rx },
+        { candidateId: { $in: named.map((row) => row._id) } },
+      ];
     }
 
-    const total = await ConversationThreadModel.countDocuments(filter);
-    const items = await Promise.all(threads.map((t) => toDisplayConversation(t)));
+    const skip = (query.page - 1) * query.limit;
+    const [threads, total] = await Promise.all([
+      ConversationThreadModel.find(filter)
+        .sort({ lastMessageAt: -1, updatedAt: -1 })
+        .skip(skip)
+        .limit(query.limit),
+      ConversationThreadModel.countDocuments(filter),
+    ]);
+    const items = await Promise.all(threads.map((thread) => toListConversation(thread)));
+    await overlayHcgGmailOnListItems(items);
+    await overlayHcgWhatsappOnListItems(items);
+    await overlayHcgHunarOnListItems(items);
+    await overlayHcgZyvkaOnListItems(items);
 
     return {
       items,
@@ -572,7 +765,150 @@ export const conversationsService = {
   },
 
   async listMessages(organizationId: string, id: string, query: ListMessagesQuery) {
-    await loadThread(organizationId, id);
+    const thread = await loadThread(organizationId, id);
+    const candidate = await SavedCandidateModel.findById(thread.candidateId)
+      .select('name email phone')
+      .lean();
+    const hcg = await findHcgGmailConversation(
+      thread.campaignId ? String(thread.campaignId) : null,
+      candidate?.email || null
+    );
+    if (hcg?.messages?.length) {
+      const events = hcgGmailMessagesToEvents(hcg, candidate?.name || 'Candidate');
+      const items = events.map((event, index) => ({
+        id: event.id || `hcg-${index}`,
+        provider: 'gmail' as const,
+        channel: 'email' as const,
+        direction: event.direction,
+        sender: event.authorName,
+        recipient: event.direction === 'inbound' ? 'You' : candidate?.email || null,
+        subject: event.subject,
+        bodyText: event.text,
+        bodyHtml: undefined as string | undefined,
+        deliveryStatus: 'delivered' as const,
+        messageType: 'message' as const,
+        aiGenerated: false,
+        attachments: [] as unknown[],
+        sentAt: event.sentAt || null,
+        receivedAt: event.direction === 'inbound' ? event.sentAt || null : null,
+        createdAt: event.sentAt || new Date().toISOString(),
+      }));
+      return {
+        items,
+        pagination: {
+          page: 1,
+          limit: items.length,
+          total: items.length,
+          totalPages: 1,
+        },
+      };
+    }
+
+    const hcgWa = await findHcgWhatsappConversation(
+      thread.campaignId ? String(thread.campaignId) : null,
+      candidate?.phone || null
+    );
+    if (hcgWa?.messages?.length) {
+      const events = hcgWhatsappMessagesToEvents(hcgWa, candidate?.name || 'Candidate');
+      const items = events.map((event, index) => ({
+        id: event.id || `hcg-wa-${index}`,
+        provider: 'whatsapp' as const,
+        channel: 'whatsapp' as const,
+        direction: event.direction,
+        sender: event.authorName,
+        recipient: event.direction === 'inbound' ? 'You' : candidate?.phone || null,
+        subject: event.subject,
+        bodyText: event.text,
+        bodyHtml: undefined as string | undefined,
+        deliveryStatus: 'delivered' as const,
+        messageType: 'message' as const,
+        aiGenerated: false,
+        attachments: [] as unknown[],
+        sentAt: event.sentAt || null,
+        receivedAt: event.direction === 'inbound' ? event.sentAt || null : null,
+        createdAt: event.sentAt || new Date().toISOString(),
+      }));
+      return {
+        items,
+        pagination: {
+          page: 1,
+          limit: items.length,
+          total: items.length,
+          totalPages: 1,
+        },
+      };
+    }
+
+    const hcgHunar = await findHcgHunarCommunication(
+      thread.campaignId ? String(thread.campaignId) : null,
+      candidate?.phone || null
+    );
+    if (hcgHunar) {
+      const events = hcgHunarToEvents(hcgHunar);
+      const items = events.map((event, index) => ({
+        id: event.id || `hcg-hunar-${index}`,
+        provider: 'hunar' as const,
+        channel: 'ai_voice' as const,
+        direction: event.direction,
+        sender: event.authorName,
+        recipient: candidate?.phone || null,
+        subject: null,
+        bodyText: event.text,
+        bodyHtml: JSON.stringify(event.voiceSummary || {}),
+        deliveryStatus: event.deliveryStatus,
+        messageType: 'voice_summary' as const,
+        aiGenerated: true,
+        attachments: [] as unknown[],
+        sentAt: event.sentAt || null,
+        receivedAt: null,
+        createdAt: event.sentAt || new Date().toISOString(),
+      }));
+      return {
+        items,
+        pagination: {
+          page: 1,
+          limit: items.length,
+          total: items.length,
+          totalPages: 1,
+        },
+      };
+    }
+
+    const hcgZyvka = await findHcgZyvkaCommunication(
+      thread.campaignId ? String(thread.campaignId) : null,
+      candidate?.phone || null
+    );
+    if (hcgZyvka) {
+      const events = hcgZyvkaToEvents(hcgZyvka);
+      const items = events.map((event, index) => ({
+        id: event.id || `hcg-zyvka-${index}`,
+        provider: 'zyastra' as const,
+        channel: 'ai_voice' as const,
+        direction: event.direction,
+        sender: event.authorName,
+        recipient: candidate?.phone || null,
+        subject: null,
+        bodyText: event.text,
+        bodyHtml: JSON.stringify(event.voiceSummary || {}),
+        deliveryStatus: event.deliveryStatus,
+        messageType: 'voice_summary' as const,
+        aiGenerated: true,
+        attachments: [] as unknown[],
+        sentAt: event.sentAt || null,
+        receivedAt: null,
+        createdAt: event.sentAt || new Date().toISOString(),
+      }));
+      return {
+        items,
+        pagination: {
+          page: 1,
+          limit: items.length,
+          total: items.length,
+          totalPages: 1,
+        },
+      };
+    }
+
     const skip = (query.page - 1) * query.limit;
     const [docs, total] = await Promise.all([
       ConversationMessageModel.find({ organizationId, threadId: id })

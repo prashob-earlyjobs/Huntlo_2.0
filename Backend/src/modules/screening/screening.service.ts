@@ -20,19 +20,14 @@ import {
   getHunarVoicePersona,
   isHunarConfigured,
 } from '../../providers/hunar/hunar.config.js';
-import {
-  isZyastraConfigured,
-  triggerZyastraVoiceCall,
-} from '../../providers/zyastra/index.js';
+import { sendZyastraCallViaGateway } from '../../providers/zyastra/zyastra.gateway.js';
 import { emitScreeningResultUpdated } from '../../realtime/events.js';
 import {
   buildRoshniAgentPrompt,
   ROSHNI_INTRODUCTION,
 } from '../voice/roshni-prompt.js';
-import { analysisVariablesFromResultSchema } from '../voice/voice-qualification-sync.js';
 import {
   isIndianE164,
-  mapPool,
   resolveIntroduction,
   resolveVoiceTokens,
   sanitizeHunarPromptText,
@@ -720,15 +715,6 @@ export const screeningService = {
     const issues: Array<{ id: string; severity: 'error' | 'warning'; code: string; message: string }> =
       [];
 
-    if (!isHunarConfigured() && !isZyastraConfigured()) {
-      issues.push({
-        id: 'provider',
-        severity: 'error',
-        code: 'PROVIDER_DISCONNECTED',
-        message: 'No voice provider configured. Set HUNAR_VOICE_API_KEY and/or ZYASTRA_API_KEY + ZYASTRA_API_SECRET.',
-      });
-    }
-
     const integration = await UserIntegrationModel.findOne({
       organizationId,
       provider: 'hunar',
@@ -786,12 +772,10 @@ export const screeningService = {
     }
 
     let hasIndian = false;
-    let hasInternational = false;
     for (const candidate of pool) {
       const mobile = toHunarMobile(String(candidate.phone || ''));
       if (!mobile) continue;
       if (isIndianE164(mobile)) hasIndian = true;
-      else hasInternational = true;
     }
     if (hasIndian && !isHunarConfigured()) {
       issues.push({
@@ -799,14 +783,6 @@ export const screeningService = {
         severity: 'error',
         code: 'HUNAR_API_KEY_MISSING',
         message: 'Indian (+91) numbers require Hunar. Set HUNAR_VOICE_API_KEY.',
-      });
-    }
-    if (hasInternational && !isZyastraConfigured()) {
-      issues.push({
-        id: 'provider_zyastra',
-        severity: 'error',
-        code: 'ZYASTRA_API_KEY_MISSING',
-        message: 'Non-Indian numbers require Zyastra. Set ZYASTRA_API_KEY and ZYASTRA_API_SECRET.',
       });
     }
 
@@ -1015,25 +991,6 @@ export const screeningService = {
         'Hunar voice API key is not configured. Set HUNAR_VOICE_API_KEY.'
       );
     }
-    if (internationalCallees.length > 0 && !isZyastraConfigured()) {
-      throw new AppError(
-        503,
-        'ZYASTRA_API_KEY_MISSING',
-        'Non-Indian numbers require Zyastra. Set ZYASTRA_API_KEY and ZYASTRA_API_SECRET.'
-      );
-    }
-    if (internationalCallees.length > 0) {
-      const base = String(
-        process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_BASE_URL || ''
-      ).trim();
-      if (!base) {
-        throw new AppError(
-          503,
-          'VOICE_CALLBACK_URL_MISSING',
-          'PUBLIC_API_BASE_URL is not configured. Set it so voice providers can deliver call callbacks.'
-        );
-      }
-    }
 
     if (indianCallees.length > 0) {
       if (doc.providerAgentId) {
@@ -1087,6 +1044,7 @@ export const screeningService = {
           maxRetryCount: doc.callSettings.maxRetryCount,
           retryIntervalHours: doc.callSettings.retryIntervalHours,
         },
+        questions: doc.questions || [],
       });
       lastLaunchRequestId = bulk.requestId || lastLaunchRequestId;
       for (const callee of indianCallees) {
@@ -1096,51 +1054,39 @@ export const screeningService = {
     }
 
     if (internationalCallees.length > 0) {
-      const analysisVariables = analysisVariablesFromResultSchema(resultSchema);
-      const results = await mapPool(internationalCallees, 4, async (callee) => {
-        const nameParts = String(callee.name || '')
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean);
-        const firstName = nameParts[0] || 'Candidate';
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
-        const personalFirstMessage = introduction.includes('{callee_name}')
-          ? introduction.replace(/\{callee_name\}/g, callee.name || firstName)
-          : introduction;
-        const triggered = await triggerZyastraVoiceCall({
-          candidate: {
-            phoneNumber: callee.mobile,
-            firstName,
-            ...(lastName ? { lastName } : {}),
-          },
-          agent: {
-            prompt: agentPrompt,
+      const firstMessage =
+        String(introduction || '').trim() || 'Hello, am I speaking with {callee_name}?';
+      const data = internationalCallees.map((callee) => {
+        const personalFirstMessage = firstMessage.includes('{callee_name}')
+          ? firstMessage.replace(/\{callee_name\}/g, callee.name || 'Candidate')
+          : firstMessage;
+        return {
+          callee_name: callee.name || 'Candidate',
+          mobile_number: callee.mobile,
+          custom_data: {
             firstMessage: personalFirstMessage,
             preferredLanguage: 'en-US',
-          },
-          voiceConfiguration: { engine: 'global-std', speed: 1.0 },
-          analysisVariables,
-          metadata: {
-            source: 'screening',
-            organizationId,
-            screeningId: id,
             candidateId: callee.candidateId,
-            batchRequestId,
           },
-        });
-        return { callee, triggered };
+        };
       });
+      const bulk = await sendZyastraCallViaGateway({
+        campaignId: id,
+        prompt: agentPrompt,
+        data,
+        questions: doc.questions || [],
+      });
+      const zyastraRequestId = bulk.requestId || batchRequestId;
+      if (!indianCallees.length) lastLaunchRequestId = zyastraRequestId;
 
-      for (const { callee, triggered } of results) {
-        callee.row.providerCallId = triggered.callId;
-        callee.row.providerRequestId = triggered.requestId || batchRequestId;
+      for (const callee of internationalCallees) {
+        callee.row.providerRequestId = zyastraRequestId;
         await callee.row.save();
-
         await seedPendingVoiceCalls({
           organizationId,
           source: 'screening',
           screeningId: id,
-          requestId: triggered.requestId || batchRequestId,
+          requestId: zyastraRequestId,
           agentId: null,
           provider: 'zyastra',
           contacts: [
@@ -1149,16 +1095,11 @@ export const screeningService = {
               name: callee.name,
               phone: callee.mobile,
               mobileDigits: callee.mobileDigits,
-              callId: triggered.callId,
             },
           ],
           maxRetries: 0,
           status: 'queued',
         });
-      }
-
-      if (!indianCallees.length && results[0]?.triggered.requestId) {
-        lastLaunchRequestId = results[0].triggered.requestId;
       }
     }
 

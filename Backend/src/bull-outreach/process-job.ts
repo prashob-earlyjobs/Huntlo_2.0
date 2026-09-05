@@ -222,6 +222,24 @@ async function runSendOrFollowup(mongoJobId: string) {
         };
         job.markModified('details');
       }
+
+      if (delivery.outcome === 'skipped' && delivery.reason === 'candidate_replied') {
+        const replyChannel =
+          delivery.channel === 'whatsapp' || delivery.channel === 'email'
+            ? delivery.channel
+            : enrollment.replyState?.channel || null;
+        enrollment.replyState = {
+          hasReply: true,
+          disposition: enrollment.replyState?.disposition || null,
+          repliedAt: enrollment.replyState?.repliedAt || new Date(),
+          channel: replyChannel,
+        };
+        await enrollment.save();
+        await campaignsService.stopEnrollment(String(enrollment._id), 'candidate_replied');
+        job.status = 'cancelled';
+        await job.save();
+        return;
+      }
     } else {
       // wait / conditional / recruiter_task — just move on
     }

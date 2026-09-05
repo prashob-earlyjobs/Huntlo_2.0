@@ -169,12 +169,12 @@ export function validateMessageVariables(input: {
 /** Alias — same behavior, more descriptive name for template-authoring call sites. */
 export const validateTemplateVariables = validateMessageVariables;
 
-/**
- * Resolve a template against a merge context. Alias-aware, supports `{{token|fallback}}`
- * and positional `{{1}}` tokens. Never leaves a token unresolved when a fallback is present.
- * When a token has no value and no fallback, the original `{{token}}` text is preserved
- * verbatim so callers can still detect/highlight it.
- */
+export type MergeUnresolvedMode = 'keep' | 'blank';
+
+function tidyEmptyMergeGaps(text: string): string {
+  return text.replace(/[ \t]+([,.;:!?])/g, '$1').replace(/[ \t]{2,}/g, ' ');
+}
+
 /**
  * WhatsApp cold templates use {{1}}, {{2}} while Huntlo merge context uses
  * semantic keys. Map the common outreach positions so free-text merge and
@@ -209,16 +209,94 @@ function lookupMergeValue(
   return null;
 }
 
+/**
+ * Resolve a template against a merge context. Alias-aware, supports `{{token|fallback}}`
+ * and positional `{{1}}` tokens. Never leaves a token unresolved when a fallback is present.
+ * Default (`unresolved: 'keep'`): when a token has no value and no fallback, the original
+ * `{{token}}` text is preserved so previews can still highlight it.
+ * Send path (`unresolved: 'blank'`): allowed/positional tokens become empty so they never
+ * ship in the actual email.
+ */
 export function mergeMessageTemplate(
   template: string,
-  context: Record<string, string | null | undefined>
+  context: Record<string, string | null | undefined>,
+  options?: { unresolved?: MergeUnresolvedMode }
 ): string {
-  return template.replace(VARIABLE_RE, (full, rawName: string, rawFallback?: string) => {
+  const unresolved = options?.unresolved ?? 'keep';
+  const merged = template.replace(VARIABLE_RE, (full, rawName: string, rawFallback?: string) => {
     const value = lookupMergeValue(context, rawName);
     if (value != null && String(value).trim() !== '') return String(value);
     if (rawFallback != null) return rawFallback.trim();
+    if (unresolved === 'blank') {
+      const canonical = canonicalizeTokenName(rawName);
+      if (ALLOWED_SET.has(canonical) || isPositionalVariable(canonical)) return '';
+    }
     return full;
   });
+  return unresolved === 'blank' ? tidyEmptyMergeGaps(merged) : merged;
+}
+
+export const MESSAGE_VARIABLE_FALLBACKS: Record<AllowedMessageVariable, string> = {
+  first_name: 'there',
+  last_name: '',
+  candidate_name: 'there',
+  job_title: 'this role',
+  company_name: 'our team',
+  location: 'your area',
+  recruiter_name: 'the recruiting team',
+  current_company: 'your company',
+  current_role: 'your current role',
+  candidate_email: '',
+  candidate_phone: '',
+};
+
+/** Fill any missing allowlisted merge keys with send-safe fallback copy. */
+export function applyMergeFallbacks(
+  context: Record<string, string | null | undefined>
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (value != null && String(value).trim() !== '') next[key] = String(value).trim();
+  }
+  for (const key of ALLOWED_MESSAGE_VARIABLES) {
+    if (next[key]) continue;
+    const fallback = MESSAGE_VARIABLE_FALLBACKS[key];
+    if (fallback) next[key] = fallback;
+  }
+  return next;
+}
+
+function decodeMergeTemplate(template: string): string {
+  return template
+    .replace(/&#123;/g, '{')
+    .replace(/&#125;/g, '}')
+    .replace(/&lbrace;/gi, '{')
+    .replace(/&rbrace;/gi, '}');
+}
+
+function stripLeftoverAllowedTokens(text: string): string {
+  return tidyEmptyMergeGaps(
+    text.replace(
+      /\{\{[\s\u00a0\u200b]*([a-zA-Z_][a-zA-Z0-9_]*|[0-9]+)[\s\u00a0\u200b]*\}\}/g,
+      (full, rawName: string) => {
+        const canonical = canonicalizeTokenName(rawName);
+        if (ALLOWED_SET.has(canonical) || isPositionalVariable(canonical)) return '';
+        return full;
+      }
+    )
+  );
+}
+
+/** Send-time merge: never leave `{{first_name}}` / `{{job_title}}` / etc. in outbound copy. */
+export function mergeOutboundMessage(
+  template: string,
+  context: Record<string, string | null | undefined>
+): string {
+  const decoded = decodeMergeTemplate(template);
+  const merged = mergeMessageTemplate(decoded, applyMergeFallbacks(context), {
+    unresolved: 'blank',
+  });
+  return stripLeftoverAllowedTokens(merged);
 }
 
 /** Backward-compatible name used across templates/preview call sites. */
@@ -250,7 +328,22 @@ export type CandidateMergeSource = {
   currentTitle?: string | null;
   currentCompany?: string | null;
   location?: string | null;
+  headline?: string | null;
 } | null;
+
+/** Pull role / company out of a LinkedIn-style headline ("Engineer at Acme"). */
+export function employmentFromHeadline(headline?: string | null): {
+  role: string | null;
+  company: string | null;
+} {
+  const text = String(headline || '').trim();
+  if (!text) return { role: null, company: null };
+  const match = text.match(/^(.*?)\s+(?:at|@|—|–|-)\s+(.+)$/i);
+  if (match) {
+    return { role: match[1].trim() || null, company: match[2].trim() || null };
+  }
+  return { role: text, company: null };
+}
 
 export type CandidateMergeExtras = {
   /** Title of the role being pitched (distinct from the candidate's own current title). */
@@ -277,12 +370,13 @@ export function buildCandidateMergeContext(
 
   const fullName = String(candidate?.name || '').trim();
   const [firstName, ...restName] = fullName.split(/\s+/).filter(Boolean);
+  const fromHeadline = employmentFromHeadline(candidate?.headline);
 
   set('first_name', firstName || null);
   set('last_name', restName.join(' ') || null);
   set('candidate_name', fullName || null);
-  set('current_company', candidate?.currentCompany);
-  set('current_role', candidate?.currentTitle);
+  set('current_company', candidate?.currentCompany || fromHeadline.company);
+  set('current_role', candidate?.currentTitle || fromHeadline.role);
   set('job_title', extras?.jobTitle ?? candidate?.currentTitle);
   set('company_name', extras?.companyName);
   set('location', extras?.location ?? candidate?.location);

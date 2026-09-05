@@ -28,6 +28,7 @@ import { applyVoiceResultToQualificationState } from '../src/modules/voice/voice
 import { AuditLogModel } from '../src/shared/audit/audit.service.js';
 import * as hunarClient from '../src/providers/hunar/hunar.client.js';
 import * as zyastraClient from '../src/providers/zyastra/zyastra.client.js';
+import * as zyastraGateway from '../src/providers/zyastra/zyastra.gateway.js';
 import {
   parseZyastraWebhookPayload,
   verifyZyastraWebhook,
@@ -81,20 +82,22 @@ vi.mock('../src/providers/hunar/hunar.client.js', async () => {
   };
 });
 
+vi.mock('../src/providers/zyastra/zyastra.gateway.js', () => ({
+  sendZyastraCallViaGateway: vi.fn(
+    async (input: { campaignId?: string; data?: unknown[] }) => ({
+      requestId: `zy-gw-${String(input.campaignId || 'camp')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(0, 12)}`,
+      dialedCount: Array.isArray(input.data) ? input.data.length : 0,
+      response: { ok: true },
+    })
+  ),
+}));
+
 vi.mock('../src/providers/zyastra/zyastra.client.js', async () => {
   const actual = await vi.importActual<
     typeof import('../src/providers/zyastra/zyastra.client.js')
   >('../src/providers/zyastra/zyastra.client.js');
-
-  const triggerZyastraVoiceCall = vi.fn(
-    async (input: { candidate: { phoneNumber: string } }) => ({
-      requestId: `zy-req-${input.candidate.phoneNumber.replace(/\D/g, '')}`,
-      callId: `zy-call-${input.candidate.phoneNumber.replace(/\D/g, '')}`,
-      callReferenceId: `zy-ref-${input.candidate.phoneNumber.replace(/\D/g, '')}`,
-      status: 'queued',
-      response: { ok: true },
-    })
-  );
 
   const resolveZyastraRecordingUrl = vi.fn(
     async (input: { callId: string; webhookRecordingUrl?: string | null }) => {
@@ -114,12 +117,10 @@ vi.mock('../src/providers/zyastra/zyastra.client.js', async () => {
 
   return {
     ...actual,
-    triggerZyastraVoiceCall,
     resolveZyastraRecordingUrl,
     fetchZyastraRecording,
     zyastraClient: {
       ...actual.zyastraClient,
-      triggerZyastraVoiceCall,
       resolveZyastraRecordingUrl,
       fetchZyastraRecording,
     },
@@ -171,7 +172,7 @@ describe('Zyastra routing + webhook', () => {
     clearRateLimits();
     vi.mocked(hunarClient.createHunarBulkCalls).mockClear();
     vi.mocked(hunarClient.createHunarVoiceAgent).mockClear();
-    vi.mocked(zyastraClient.triggerZyastraVoiceCall).mockClear();
+    vi.mocked(zyastraGateway.sendZyastraCallViaGateway).mockClear();
     vi.mocked(zyastraClient.resolveZyastraRecordingUrl).mockClear();
     vi.mocked(zyastraClient.fetchZyastraRecording).mockClear();
     await Promise.all([
@@ -427,7 +428,7 @@ describe('Zyastra routing + webhook', () => {
     });
   });
 
-  it('passes analysisVariables on US launch-voice dials', async () => {
+  it('posts zyvkay gateway payload with questions on US launch-voice dials', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent);
 
     const candidate = await SavedCandidateModel.create({
@@ -483,10 +484,14 @@ describe('Zyastra routing + webhook', () => {
       .send({});
 
     expect(res.status).toBe(200);
-    expect(zyastraClient.triggerZyastraVoiceCall).toHaveBeenCalled();
-    const triggerArg = vi.mocked(zyastraClient.triggerZyastraVoiceCall).mock.calls[0]![0];
-    expect(triggerArg.analysisVariables).toEqual(
-      expect.arrayContaining(['notice_period', 'summary', 'notice_answer'])
+    expect(zyastraGateway.sendZyastraCallViaGateway).toHaveBeenCalled();
+    const triggerArg = vi.mocked(zyastraGateway.sendZyastraCallViaGateway).mock.calls[0]![0];
+    expect(triggerArg.prompt).toBe('Screen for the role.');
+    expect(triggerArg.data[0]?.custom_data?.firstMessage).toBeTruthy();
+    expect(triggerArg.questions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prompt: 'What is your notice period?' }),
+      ])
     );
   });
 
@@ -536,13 +541,13 @@ describe('Zyastra routing + webhook', () => {
       .send({});
 
     expect(res.status).toBe(200);
-    expect(zyastraClient.triggerZyastraVoiceCall).toHaveBeenCalledTimes(1);
+    expect(zyastraGateway.sendZyastraCallViaGateway).toHaveBeenCalledTimes(1);
     expect(hunarClient.createHunarBulkCalls).not.toHaveBeenCalled();
 
     const calls = await VoiceCallModel.find({ campaignId: campaign._id }).lean();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.provider).toBe('zyastra');
-    expect(calls[0]?.callId).toContain('zy-call-');
+    expect(calls[0]?.callId).toMatch(/^pending:/);
   });
 
   it('launch-voice dials +91 via Hunar and US via Zyastra', async () => {
@@ -609,7 +614,7 @@ describe('Zyastra routing + webhook', () => {
 
     expect(res.status).toBe(200);
     expect(hunarClient.createHunarBulkCalls).toHaveBeenCalledTimes(1);
-    expect(zyastraClient.triggerZyastraVoiceCall).toHaveBeenCalledTimes(1);
+    expect(zyastraGateway.sendZyastraCallViaGateway).toHaveBeenCalledTimes(1);
 
     const callees = vi.mocked(hunarClient.createHunarBulkCalls).mock.calls[0]![0] as {
       callees: Array<{ mobile_number: string }>;
@@ -653,18 +658,19 @@ describe('Zyastra routing + webhook', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({});
     expect(launch.status).toBe(200);
-    expect(zyastraClient.triggerZyastraVoiceCall).toHaveBeenCalled();
+    expect(zyastraGateway.sendZyastraCallViaGateway).toHaveBeenCalled();
     expect(hunarClient.createHunarBulkCalls).not.toHaveBeenCalled();
     expect(hunarClient.createHunarVoiceAgent).not.toHaveBeenCalled();
 
     const row = await ScreeningCandidateModel.findOne({ screeningId }).lean();
-    expect(row?.providerCallId).toMatch(/^zy-call-/);
+    expect(row?.providerCallId).toBeFalsy();
+    expect(row?.providerRequestId).toBeTruthy();
 
     const webhookPayload = {
       event: 'call.completed',
       eventId: `evt-${Date.now()}`,
       data: {
-        callId: row!.providerCallId,
+        callId: 'zy-call-ada-1',
         callReferenceId: row!.providerRequestId,
         status: 'completed',
         durationSeconds: 120,

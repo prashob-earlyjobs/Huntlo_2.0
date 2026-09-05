@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import mongoose from 'mongoose';
 
+import { overlayHcgGmailOverallAiStatus, countHcgGmailOverviewStats } from '../conversations/hcg-gmail-overlay.js';
+import { overlayHcgWhatsappOverallAiStatus, countHcgWhatsappOverviewStats } from '../conversations/hcg-whatsapp-overlay.js';
+import { overlayHcgHunarOverallAiStatus, countHcgHunarOverviewStats } from '../conversations/hcg-hunar-overlay.js';
+import { overlayHcgZyvkaOverallAiStatus, countHcgZyvkaOverviewStats } from '../conversations/hcg-zyvka-overlay.js';
 import { emitOutreachCampaignUpdated } from '../../realtime/events.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { JobModel } from '../jobs/job.model.js';
@@ -212,6 +216,32 @@ export async function refreshCampaignStats(campaignId: string) {
   stats.replies = replyTruth?.replies || 0;
   stats.interested = replyTruth?.interested || 0;
   stats.qualified = replyTruth?.qualified || counts.qualified || 0;
+
+  const hcgStats = await countHcgGmailOverviewStats(campaignId);
+  const hcgWaStats = await countHcgWhatsappOverviewStats(campaignId);
+  const hcgHunarStats = await countHcgHunarOverviewStats(campaignId);
+  const hcgZyvkaStats = await countHcgZyvkaOverviewStats(campaignId);
+  stats.replies = Math.max(
+    stats.replies,
+    hcgStats.replies,
+    hcgWaStats.replies,
+    hcgHunarStats.replies,
+    hcgZyvkaStats.replies
+  );
+  stats.interested = Math.max(
+    stats.interested,
+    hcgStats.interested,
+    hcgWaStats.interested,
+    hcgHunarStats.interested,
+    hcgZyvkaStats.interested
+  );
+  stats.qualified = Math.max(
+    stats.qualified,
+    hcgStats.qualified,
+    hcgWaStats.qualified,
+    hcgHunarStats.qualified,
+    hcgZyvkaStats.qualified
+  );
 
   // Succeeded send jobs are the source of truth for Contacted/Delivered.
   // (Nested Mixed `stats.sent++` was often not persisted by Mongoose.)
@@ -1323,37 +1353,62 @@ export const campaignsService = {
       }))
     );
 
+    const items = rows.map((row) => {
+      const c = byId.get(String(row.candidateId));
+      return {
+        id: String(row._id),
+        candidateId: String(row.candidateId),
+        name: c?.name || 'Unknown',
+        company: c?.currentCompany || null,
+        title: c?.currentTitle || null,
+        email: c?.email || null,
+        phone: c?.phone || null,
+        profilePictureUrl: pictures.get(String(row.candidateId)) ?? c?.profilePictureUrl ?? null,
+        status: row.status,
+        currentStepIndex: row.currentStepIndex,
+        contactAvailability: row.contactAvailability,
+        replyState: row.replyState,
+        qualificationState: row.qualificationState,
+        hiringFlowState: row.hiringFlowState
+          ? {
+              flowId: row.hiringFlowState.flowId ?? null,
+              status: row.hiringFlowState.status ?? null,
+              answers: row.hiringFlowState.answers || {},
+            }
+          : null,
+        screeningState: row.screeningState,
+        schedulingState: row.schedulingState,
+        nextActionAt: row.nextActionAt?.toISOString() ?? null,
+        lastActionAt: row.lastActionAt?.toISOString() ?? null,
+        stopReason: row.stopReason,
+        overallAIStatus: null as string | null,
+        overallAIDescription: null as string | null,
+        gmailQuestions: [] as Array<{
+          id: string;
+          question: string;
+          asked: boolean;
+          answer: string;
+          status: string;
+          description: string;
+        }>,
+      };
+    });
+    const gmailQuestionColumns = await overlayHcgGmailOverallAiStatus(id, items);
+    const whatsappQuestionColumns = await overlayHcgWhatsappOverallAiStatus(id, items);
+    const hunarQuestionColumns = await overlayHcgHunarOverallAiStatus(id, items);
+    const zyvkaQuestionColumns = await overlayHcgZyvkaOverallAiStatus(id, items);
+    const questionColumns =
+      gmailQuestionColumns.length > 0
+        ? gmailQuestionColumns
+        : whatsappQuestionColumns.length > 0
+          ? whatsappQuestionColumns
+          : hunarQuestionColumns.length > 0
+            ? hunarQuestionColumns
+            : zyvkaQuestionColumns;
+
     return {
-      items: rows.map((row) => {
-        const c = byId.get(String(row.candidateId));
-        return {
-          id: String(row._id),
-          candidateId: String(row.candidateId),
-          name: c?.name || 'Unknown',
-          company: c?.currentCompany || null,
-          title: c?.currentTitle || null,
-          email: c?.email || null,
-          phone: c?.phone || null,
-          profilePictureUrl: pictures.get(String(row.candidateId)) ?? c?.profilePictureUrl ?? null,
-          status: row.status,
-          currentStepIndex: row.currentStepIndex,
-          contactAvailability: row.contactAvailability,
-          replyState: row.replyState,
-          qualificationState: row.qualificationState,
-          hiringFlowState: row.hiringFlowState
-            ? {
-                flowId: row.hiringFlowState.flowId ?? null,
-                status: row.hiringFlowState.status ?? null,
-                answers: row.hiringFlowState.answers || {},
-              }
-            : null,
-          screeningState: row.screeningState,
-          schedulingState: row.schedulingState,
-          nextActionAt: row.nextActionAt?.toISOString() ?? null,
-          lastActionAt: row.lastActionAt?.toISOString() ?? null,
-          stopReason: row.stopReason,
-        };
-      }),
+      items,
+      gmailQuestionColumns: questionColumns,
       pagination: {
         page: query.page,
         limit: query.limit,

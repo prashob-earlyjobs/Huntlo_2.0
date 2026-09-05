@@ -49,9 +49,16 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     };
   }, [refresh]);
 
-  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated"], () => {
+  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated", "hcg.gmail.updated", "hcg.whatsapp.updated", "hcg.hunar.updated", "hcg.zyvkay.updated"], (event) => {
+    const data =
+      event?.data && typeof event.data === "object"
+        ? (event.data as { campaignId?: string | null })
+        : null;
+    if (data?.campaignId && String(data.campaignId) !== String(id)) {
+      return;
+    }
     void refresh();
-  }, { debounceMs: 1500 });
+  }, { debounceMs: 800 });
 
   if (loading && !campaign) {
     return <CampaignDetailSkeleton />;

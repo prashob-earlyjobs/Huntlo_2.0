@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Field, StepCard } from "@/components/outreach/builder-ui";
 import type { BuilderState, UpdateBuilder } from "@/components/outreach/builder-types";
+import { JobAsyncSelect } from "@/components/shared/job-async-select";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -13,7 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { JobListItem } from "@/lib/api/contracts";
 import { teamApi, type ApiTeamMember } from "@/lib/api/team";
 import { CAMPAIGN_TYPES } from "@/lib/mock-outreach";
 import { useAuth } from "@/providers";
@@ -22,12 +22,10 @@ export function SetupStep({
   state,
   update,
   showErrors,
-  jobs,
 }: {
   state: BuilderState;
   update: UpdateBuilder;
   showErrors: boolean;
-  jobs: JobListItem[];
 }) {
   const { user } = useAuth();
   const [owners, setOwners] = useState<ApiTeamMember[]>([]);
@@ -146,12 +144,6 @@ export function SetupStep({
     state.owner.trim() ||
     null;
 
-  const activeJobs = jobs.filter((job) => job.status !== "Archived");
-  const jobLabel =
-    activeJobs.find((job) => job.id === state.jobId)?.title ||
-    jobs.find((job) => job.id === state.jobId)?.title ||
-    null;
-
   return (
     <StepCard
       title="Campaign Setup"
@@ -177,27 +169,15 @@ export function SetupStep({
           label="Related job"
           htmlFor="campaign-job"
           required
-          hint="Personalisation variables like {{job_title}} resolve from this job."
+          hint="Type to search jobs. Personalisation variables like {{job_title}} resolve from this job."
         >
-          <Select
-            value={state.jobId || undefined}
-            onValueChange={(value) => value && update("jobId", value)}
-          >
-            <SelectTrigger
-              id="campaign-job"
-              className="w-full"
-              aria-invalid={showErrors && !state.jobId}
-            >
-              <SelectValue placeholder="Select a job">{jobLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {activeJobs.map((job) => (
-                <SelectItem key={job.id} value={job.id}>
-                  {job.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <JobAsyncSelect
+            inputId="campaign-job"
+            value={state.jobId || null}
+            invalid={showErrors && !state.jobId}
+            placeholder="Search jobs…"
+            onChange={(jobId) => update("jobId", jobId ?? "")}
+          />
           {showErrors && !state.jobId ? (
             <p role="alert" className="text-xs text-destructive">
               Related job is required.

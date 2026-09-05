@@ -676,7 +676,7 @@ export function CampaignBuilder({
       </nav>
 
       {current === 0 ? (
-        <SetupStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
+        <SetupStep state={state} update={update} showErrors={showErrors} />
       ) : current === 1 ? (
         <AudienceStep
           state={state}

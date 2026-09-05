@@ -507,6 +507,30 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           campaignDeliveryMetrics.recordSent(delivery.channel);
           campaignDeliveryMetrics.recordDelivered();
         }
+      } else if (delivery.outcome === 'skipped' && delivery.reason === 'candidate_replied') {
+        const replyChannel =
+          delivery.channel === 'whatsapp' || delivery.channel === 'email'
+            ? delivery.channel
+            : enrollment.replyState?.channel || null;
+        enrollment.replyState = {
+          hasReply: true,
+          disposition: enrollment.replyState?.disposition || null,
+          repliedAt: enrollment.replyState?.repliedAt || new Date(),
+          channel: replyChannel,
+        };
+        await enrollment.save();
+        await campaignsService.stopEnrollment(String(enrollment._id), 'candidate_replied');
+        leased.status = 'cancelled';
+        leased.result = {
+          stepId: step.id,
+          type: step.type,
+          channel: delivery.channel || channelForStep(step.type) || null,
+          delivery: delivery.outcome,
+          reason: delivery.reason,
+        };
+        await leased.save();
+        processed += 1;
+        continue;
       } else if (delivery.outcome === 'skipped' && delivery.reason !== 'non_message') {
         const skipChannel =
           delivery.channel || channelForStep(step.type) || 'email';

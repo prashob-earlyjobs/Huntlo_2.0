@@ -24,6 +24,7 @@ import {
   type ConversationChannel,
 } from '../conversations/conversation-thread.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { UserIntegrationModel } from '../integrations/user-integration.model.js';
 import { sendAdHocMessage } from './campaign-delivery.js';
 import {
   OutreachCampaignModel,
@@ -1925,6 +1926,30 @@ export async function processQualificationAfterReply(input: {
     }
   }
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Gmail outreach hands auto-replies to the communication gateway.
+  if (input.preferredChannel !== 'whatsapp') {
+    const integrationId = input.campaign.channelConfig?.email?.integrationId;
+    const row =
+      integrationId && mongoose.Types.ObjectId.isValid(integrationId)
+        ? await UserIntegrationModel.findById(integrationId).select('provider').lean()
+        : await UserIntegrationModel.findOne({
+            organizationId: input.campaign.organizationId,
+            userId: input.campaign.ownerUserId,
+            category: 'email',
+            status: { $in: ['connected', 'needs_attention'] },
+          })
+            .sort({ isDefault: -1, updatedAt: -1 })
+            .select('provider')
+            .lean();
+    if (row?.provider === 'gmail') {
+      log().info(
+        { enrollmentId: input.enrollmentId, campaignId: String(input.campaign._id) },
+        'Qualification skipped — Gmail auto-replies handled by communication gateway'
+      );
+      return { action: 'skipped_external_gmail_autoreply' };
+    }
+  }
 
   // Qualification + AI reply are always-on in the product UI. Only skip when the
   // campaign has no questions AND was explicitly disabled (legacy).

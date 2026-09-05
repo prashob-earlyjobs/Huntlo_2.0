@@ -5,6 +5,10 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { getEnv } from './config/env.js';
 import { getLogger } from './config/logger.js';
 import { attachWebSocketServer } from './realtime/server.js';
+import { startHcgGmailChangeStream } from './realtime/hcg-gmail-change-stream.js';
+import { startHcgWhatsappChangeStream } from './realtime/hcg-whatsapp-change-stream.js';
+import { startHcgHunarChangeStream } from './realtime/hcg-hunar-change-stream.js';
+import { startHcgZyvkaChangeStream } from './realtime/hcg-zyvka-change-stream.js';
 import { stopRealtimeRedisBridge } from './realtime/redis-bridge.js';
 import { registerProcessHandlers, shutdownGracefully } from './shared/process/handlers.js';
 
@@ -19,6 +23,10 @@ async function startServer(): Promise<void> {
   const app = createApp();
   const httpServer = createServer(app);
   const realtime = attachWebSocketServer(httpServer);
+  const stopHcgGmailChangeStream = startHcgGmailChangeStream();
+  const stopHcgWhatsappChangeStream = startHcgWhatsappChangeStream();
+  const stopHcgHunarChangeStream = startHcgHunarChangeStream();
+  const stopHcgZyvkaChangeStream = startHcgZyvkaChangeStream();
 
   await new Promise<void>((resolve) => {
     httpServer.listen(env.PORT, () => {
@@ -42,6 +50,10 @@ async function startServer(): Promise<void> {
           await realtime.close();
         }
 
+        await stopHcgGmailChangeStream();
+        await stopHcgWhatsappChangeStream();
+        await stopHcgHunarChangeStream();
+        await stopHcgZyvkaChangeStream();
         await stopRealtimeRedisBridge();
         await disconnectDatabase();
       });

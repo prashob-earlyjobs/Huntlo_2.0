@@ -208,7 +208,7 @@ function CreateTemplateDialog({
                   key={variable}
                   type="button"
                   onClick={() => setBody((previous) => `${previous} ${variable}`)}
-                  className="rounded-md bg-brand-subtle px-1.5 py-0.5 font-mono text-[11px] text-primary outline-none transition-colors hover:bg-brand-subtle/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="cursor-pointer rounded-md bg-brand-subtle px-1.5 py-0.5 font-mono text-[11px] text-primary outline-none transition-colors hover:bg-brand-subtle/70 focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   {variable}
                 </button>

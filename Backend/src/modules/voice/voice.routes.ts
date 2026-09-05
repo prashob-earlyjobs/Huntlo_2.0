@@ -351,6 +351,7 @@ voiceRoutes.post(
       firstMessage,
       preferredLanguage: indian.length === contacts.length ? undefined : 'en-US',
       analysisVariables: analysisVariablesFromResultSchema(qualificationExtras.resultSchema),
+      questions: campaign.qualificationConfig?.questions || [],
     });
 
     if (campaign.status === 'draft' || campaign.status === 'scheduled') {

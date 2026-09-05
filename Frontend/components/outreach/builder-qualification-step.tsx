@@ -312,17 +312,25 @@ export function QualificationStep({
                       Knockout question
                     </label>
                     {question.knockout ? (
-                      <Input
-                        value={question.knockoutCondition}
-                        onChange={(event) =>
-                          updateQuestion(question.id, {
-                            knockoutCondition: event.target.value,
-                          })
-                        }
-                        placeholder="Reject if…"
-                        className="h-8 text-xs"
-                        aria-label={`Knockout condition for question ${index + 1}`}
-                      />
+                      <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-md border border-input focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/50">
+                        <span className="flex shrink-0 items-center pl-2.5 text-xs text-muted-foreground">
+                          Reject if
+                        </span>
+                        <Input
+                          value={question.knockoutCondition.replace(
+                            /^reject\s+if\s+/i,
+                            ""
+                          )}
+                          onChange={(event) =>
+                            updateQuestion(question.id, {
+                              knockoutCondition: event.target.value,
+                            })
+                          }
+                          placeholder="yes, more than 60…"
+                          className="h-8 border-0 text-xs shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+                          aria-label={`Knockout condition for question ${index + 1}`}
+                        />
+                      </div>
                     ) : null}
                   </div>
                 </li>

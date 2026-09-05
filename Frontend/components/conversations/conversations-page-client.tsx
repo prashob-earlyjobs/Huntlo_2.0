@@ -17,7 +17,13 @@ import type { Conversation } from "@/lib/mock-conversations";
 import { ROUTES } from "@/lib/routes";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
+
+const CHANNEL_API: Record<string, "email" | "whatsapp" | "ai_voice"> = {
+  Email: "email",
+  WhatsApp: "whatsapp",
+  "AI Voice": "ai_voice",
+};
 
 function mergeById(existing: Conversation[], incoming: Conversation[]) {
   if (existing.length === 0) return incoming;
@@ -34,27 +40,53 @@ export function ConversationsPageClient() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [channelFilter, setChannelFilter] = useState<string[]>([]);
   const requestIdRef = useRef(0);
 
-  const refresh = useCallback(async (opts?: { showLoading?: boolean }) => {
-    const requestId = ++requestIdRef.current;
-    if (opts?.showLoading) setLoading(true);
-    try {
-      const result = await conversationsApi.list({ page: 1, limit: PAGE_SIZE });
-      if (requestId !== requestIdRef.current) return;
-      setConversations(result.items);
-      setPage(1);
-      setTotalPages(result.pagination.totalPages);
-      setTotal(result.pagination.total);
-      setError(null);
-    } catch (err) {
-      if (requestId !== requestIdRef.current) return;
-      if (isAbortError(err)) return;
-      setError(getApiErrorMessage(err, "Unable to load conversations."));
-    } finally {
-      if (requestId === requestIdRef.current) setLoading(false);
-    }
-  }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  const listParams = useCallback(
+    (pageNumber: number) => ({
+      page: pageNumber,
+      limit: PAGE_SIZE,
+      q: searchQuery || undefined,
+      unreadOnly: unreadOnly || undefined,
+      channel:
+        channelFilter.length === 1
+          ? CHANNEL_API[channelFilter[0] ?? ""]
+          : undefined,
+    }),
+    [searchQuery, unreadOnly, channelFilter]
+  );
+
+  const refresh = useCallback(
+    async (opts?: { showLoading?: boolean }) => {
+      const requestId = ++requestIdRef.current;
+      if (opts?.showLoading) setLoading(true);
+      try {
+        const result = await conversationsApi.list(listParams(1));
+        if (requestId !== requestIdRef.current) return;
+        setConversations(result.items);
+        setPage(1);
+        setTotalPages(result.pagination.totalPages);
+        setTotal(result.pagination.total);
+        setError(null);
+      } catch (err) {
+        if (requestId !== requestIdRef.current) return;
+        if (isAbortError(err)) return;
+        setError(getApiErrorMessage(err, "Unable to load conversations."));
+      } finally {
+        if (requestId === requestIdRef.current) setLoading(false);
+      }
+    },
+    [listParams]
+  );
 
   const loadMore = useCallback(async () => {
     if (loadingMore || page >= totalPages) return;
@@ -62,10 +94,7 @@ export function ConversationsPageClient() {
     const requestId = ++requestIdRef.current;
     setLoadingMore(true);
     try {
-      const result = await conversationsApi.list({
-        page: nextPage,
-        limit: PAGE_SIZE,
-      });
+      const result = await conversationsApi.list(listParams(nextPage));
       if (requestId !== requestIdRef.current) return;
       setConversations((previous) => mergeById(previous, result.items));
       setPage(result.pagination.page);
@@ -79,7 +108,7 @@ export function ConversationsPageClient() {
     } finally {
       if (requestId === requestIdRef.current) setLoadingMore(false);
     }
-  }, [loadingMore, page, totalPages]);
+  }, [listParams, loadingMore, page, totalPages]);
 
   useEffect(() => {
     void refresh({ showLoading: true });
@@ -93,6 +122,10 @@ export function ConversationsPageClient() {
       "conversation.message.created",
       "campaign.thread.updated",
       "conversation.qualification.updated",
+      "hcg.gmail.updated",
+      "hcg.whatsapp.updated",
+      "hcg.hunar.updated",
+      "hcg.zyvkay.updated",
     ],
     () => {
       void refresh();
@@ -132,9 +165,14 @@ export function ConversationsPageClient() {
           hasMore={page < totalPages}
           loadingMore={loadingMore}
           totalCount={total}
-          onLoadMore={() => {
-            void loadMore();
-          }}
+          serverPaginated
+          searchQuery={searchInput}
+          onSearchQueryChange={setSearchInput}
+          unreadOnly={unreadOnly}
+          onUnreadOnlyChange={setUnreadOnly}
+          channelFilter={channelFilter}
+          onChannelFilterChange={setChannelFilter}
+          onLoadMore={loadMore}
         />
       )}
     </div>

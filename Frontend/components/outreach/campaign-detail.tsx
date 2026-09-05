@@ -85,6 +85,7 @@ import {
   hiringFlowsApi,
   outreachApi,
   type ApiCampaignEnrollment,
+  type ApiGmailQuestionColumn,
   type ApiHiringFlowStep,
   type ApiCampaignSequenceStep,
   type ApiOutreachCampaign,
@@ -140,7 +141,7 @@ function firstIncompleteBuilderStep(
   if (errors.length === 0) return 5;
   return Math.min(...errors.map((issue) => builderStepForValidationIssue(issue.id)));
 }
-const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
+const HEAD = "h-9 max-w-[10rem] truncate text-xs font-medium text-muted-foreground";
 
 /* ------------------------------------------------------------------ */
 /* Display helpers                                                      */
@@ -264,14 +265,16 @@ function buildQualificationCsv(
     ...columns.map((column) => column.title),
   ];
   const rows = enrollments.map((candidate) => {
-    const status = candidate.qualificationState?.status ?? "pending";
+    const status =
+      candidate.overallAIStatus ||
+      qualificationStatusLabel(candidate.qualificationState?.status ?? "pending");
     return [
       candidate.name,
       candidate.email ?? "",
       candidate.phone ?? "",
       candidate.company ?? "",
       candidate.title ?? "",
-      qualificationStatusLabel(status),
+      status,
       ...columns.map((column) => reportAnswer(candidate, column)),
     ];
   });
@@ -320,6 +323,33 @@ function Badge({ text, className }: { text: string; className: string }) {
     >
       {text}
     </span>
+  );
+}
+
+function StatusBadge({
+  text,
+  className,
+  description,
+}: {
+  text: string;
+  className: string;
+  description?: string | null;
+}) {
+  const badge = <Badge text={text} className={className} />;
+  const hint = String(description || "").trim();
+  if (!hint) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        className="inline-flex cursor-default outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        aria-label={`${text}: ${hint}`}
+      >
+        {badge}
+      </TooltipTrigger>
+      <TooltipContent className="max-w-sm whitespace-pre-wrap">
+        {hint}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -539,9 +569,11 @@ function CandidatesTab({
         </TableHeader>
         <TableBody>
           {enrollments.map((candidate) => {
-            const pipelineStatus = deriveCandidatePipelineStatus(candidate, {
-              autoScreening,
-            });
+            const pipelineStatus =
+              candidate.overallAIStatus ||
+              deriveCandidatePipelineStatus(candidate, {
+                autoScreening,
+              });
             const scheduling = candidate.schedulingState?.status ?? "not_started";
             const isBusy = busyId === candidate.id;
             const canAct = Boolean(candidate.candidateId);
@@ -599,9 +631,10 @@ function CandidatesTab({
                   Step {candidate.currentStepIndex + 1}
                 </TableCell>
                 <TableCell className="py-2.5">
-                  <Badge
+                  <StatusBadge
                     text={pipelineStatus}
                     className={pipelineStatusBadgeClass(pipelineStatus)}
+                    description={candidate.overallAIDescription}
                   />
                 </TableCell>
                 <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
@@ -712,7 +745,7 @@ type ReportColumn = {
   id: string;
   title: string;
   prompt: string;
-  source: "qualification" | "hiring_flow";
+  source: "qualification" | "hiring_flow" | "gmail";
 };
 
 function isAnswerTypeStub(text?: string | null): boolean {
@@ -737,6 +770,74 @@ function hiringFlowColumnTitle(step: ApiHiringFlowStep): string {
     return suggestQuestionTitle(prompt) || prompt;
   }
   return label || prompt || "Question";
+}
+
+function gmailColumnsFromApi(columns: ApiGmailQuestionColumn[]): ReportColumn[] {
+  return columns.map((column) => ({
+    id: column.id,
+    title: column.title || column.prompt || column.id,
+    prompt: column.prompt || column.title || column.id,
+    source: "gmail" as const,
+  }));
+}
+
+function shortReportColumnTitle(column: ReportColumn, questions: CampaignQuestion[]): string {
+  const match =
+    questions.find((question) => question.id === column.id) ||
+    questions.find(
+      (question) =>
+        normalizeQuestionText(question.prompt) === normalizeQuestionText(column.prompt) ||
+        normalizeQuestionText(question.prompt) === normalizeQuestionText(column.title) ||
+        normalizeQuestionText(question.title) === normalizeQuestionText(column.title)
+    );
+  const raw = match
+    ? questionColumnTitle(match)
+    : suggestQuestionTitle(column.prompt || column.title) || column.title;
+  const title = String(raw || "Question").trim();
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
+function normalizeQuestionText(value?: string | null): string {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function gmailQuestionAnswer(
+  enrollment: ApiCampaignEnrollment,
+  column: ReportColumn
+): string {
+  const questions = enrollment.gmailQuestions || [];
+  const match =
+    questions.find((row) => row.id === column.id) ||
+    questions.find(
+      (row) =>
+        normalizeQuestionText(row.question) === normalizeQuestionText(column.prompt) ||
+        normalizeQuestionText(row.question) === normalizeQuestionText(column.title)
+    );
+  if (!match) return "";
+  if (match.answer) return match.answer;
+  if (match.status === "passed") return "Passed";
+  if (match.status === "failed") return "Failed";
+  if (match.asked) return "Asked";
+  return "";
+}
+
+function gmailQuestionHint(
+  enrollment: ApiCampaignEnrollment,
+  column: ReportColumn
+): string {
+  const questions = enrollment.gmailQuestions || [];
+  const match =
+    questions.find((row) => row.id === column.id) ||
+    questions.find(
+      (row) =>
+        normalizeQuestionText(row.question) === normalizeQuestionText(column.prompt) ||
+        normalizeQuestionText(row.question) === normalizeQuestionText(column.title)
+    );
+  if (!match) return "";
+  return [titleCase(match.status), match.description].filter(Boolean).join(" — ");
 }
 
 function hiringFlowColumnsFromSteps(steps: ApiHiringFlowStep[]): ReportColumn[] {
@@ -765,6 +866,11 @@ function reportAnswer(
   enrollment: ApiCampaignEnrollment,
   column: ReportColumn
 ): string {
+  if (column.source === "gmail") {
+    return gmailQuestionAnswer(enrollment, column);
+  }
+  const fromGmail = gmailQuestionAnswer(enrollment, column);
+  if (fromGmail) return fromGmail;
   const bag =
     column.source === "hiring_flow"
       ? enrollment.hiringFlowState?.answers || {}
@@ -809,12 +915,20 @@ function QualificationTab({
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [hiringFlowColumns, setHiringFlowColumns] = useState<ReportColumn[]>([]);
+  const [gmailQuestionColumns, setGmailQuestionColumns] = useState<ReportColumn[]>(
+    []
+  );
   const [hiringFlowLoadState, setHiringFlowLoadState] = useState<ApiUiState>(
     hiringFlowId ? "loading" : "empty"
   );
 
   const reportColumns = [
-    ...qualificationColumnsFromQuestions(questions),
+    ...(gmailQuestionColumns.length > 0
+      ? gmailQuestionColumns.map((column) => ({
+          ...column,
+          title: shortReportColumnTitle(column, questions),
+        }))
+      : qualificationColumnsFromQuestions(questions)),
     ...hiringFlowColumns,
   ];
 
@@ -858,6 +972,7 @@ function QualificationTab({
         });
         if (cancelled) return;
         setRows(next.items);
+        setGmailQuestionColumns(gmailColumnsFromApi(next.gmailQuestionColumns ?? []));
         setPagination(next.pagination);
         const nextPage = Number(next.pagination.page) || 1;
         if (nextPage !== page) setPage(nextPage);
@@ -866,6 +981,7 @@ function QualificationTab({
       } catch (err) {
         if (cancelled) return;
         setRows([]);
+        setGmailQuestionColumns([]);
         setPagination(EMPTY_QUAL_PAGINATION);
         setState(mapApiErrorToUiState(err));
         setMessage(getApiErrorMessage(err));
@@ -917,12 +1033,23 @@ function QualificationTab({
     );
   }
 
+  if (state === "loading") {
+    return (
+      <ApiFeedback
+        state="loading"
+        message={null}
+        emptyTitle="No candidates enrolled"
+        emptyDescription="Enroll candidates to collect qualification answers."
+      />
+    );
+  }
+
   if (reportColumns.length === 0) {
     return (
       <EmptyState
         icon={Bookmark}
         title="No report questions"
-        description="This campaign has no screening questions or WhatsApp hiring-flow questions. Add them in the campaign builder After qualification step."
+        description="Gmail screening questions will appear here once the communication gateway writes them to this campaign. You can also add qualification questions in the campaign builder."
       />
     );
   }
@@ -944,7 +1071,7 @@ function QualificationTab({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {pagination.total.toLocaleString("en-IN")} candidate
-          {pagination.total === 1 ? "" : "s"} with screening and WhatsApp answers
+          {pagination.total === 1 ? "" : "s"} with Gmail screening answers
         </p>
         <Button
           type="button"
@@ -969,7 +1096,7 @@ function QualificationTab({
       <section className="overflow-x-auto rounded-xl border border-border bg-card">
         <Table>
           <caption className="sr-only">
-            Qualification and WhatsApp hiring-flow answers by candidate
+            Gmail screening answers by candidate
           </caption>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -988,7 +1115,16 @@ function QualificationTab({
           </TableHeader>
           <TableBody>
             {rows.map((candidate) => {
-              const status = candidate.qualificationState?.status ?? "pending";
+              const statusLabel =
+                candidate.overallAIStatus ||
+                qualificationStatusLabel(
+                  candidate.qualificationState?.status ?? "pending"
+                );
+              const statusClass = candidate.overallAIStatus
+                ? pipelineStatusBadgeClass(candidate.overallAIStatus)
+                : stateBadgeClass(
+                    candidate.qualificationState?.status ?? "pending"
+                  );
               return (
                 <TableRow key={candidate.id}>
                   <TableCell className="py-2.5">
@@ -1013,13 +1149,15 @@ function QualificationTab({
                     </div>
                   </TableCell>
                   <TableCell className="py-2.5">
-                    <Badge
-                      text={qualificationStatusLabel(status)}
-                      className={stateBadgeClass(status)}
+                    <StatusBadge
+                      text={statusLabel}
+                      className={statusClass}
+                      description={candidate.overallAIDescription}
                     />
                   </TableCell>
                   {reportColumns.map((column) => {
                     const answer = reportAnswer(candidate, column);
+                    const hint = gmailQuestionHint(candidate, column);
                     return (
                       <TableCell
                         key={`${column.source}-${column.id}`}
@@ -1027,7 +1165,7 @@ function QualificationTab({
                           "max-w-56 truncate py-2.5 text-sm",
                           answer ? "text-foreground" : "text-muted-foreground"
                         )}
-                        title={answer || undefined}
+                        title={hint || answer || undefined}
                       >
                         {answer || "—"}
                       </TableCell>
@@ -1427,9 +1565,19 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
   );
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
-  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated"], () => {
+  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated", "hcg.gmail.updated", "hcg.whatsapp.updated", "hcg.hunar.updated", "hcg.zyvkay.updated"], (event) => {
+    const data =
+      event?.data && typeof event.data === "object"
+        ? (event.data as { campaignId?: string | null })
+        : null;
+    if (
+      data?.campaignId &&
+      String(data.campaignId) !== String(campaign.id)
+    ) {
+      return;
+    }
     setReloadKey((key) => key + 1);
-  }, { debounceMs: 1500 });
+  }, { debounceMs: 800 });
 
   useEffect(() => {
     let cancelled = false;

@@ -41,6 +41,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { apiClient, conversationsApi } from "@/lib/api";
 import type {
   Conversation,
@@ -141,6 +146,10 @@ function groupConversations(conversations: Conversation[]): InboxRow[] {
       unread: unreadCount > 0,
       unreadCount,
       events: mergeEvents(rows),
+      overallAIDescription:
+        rows
+          .map((row) => String(row.overallAIDescription || "").trim())
+          .find(Boolean) || primary.overallAIDescription,
       threadIds: rows.map((row) => row.id),
     };
   });
@@ -175,6 +184,23 @@ function stripEmailQuotedReply(raw: string): string {
   return lines.join("\n").trim();
 }
 
+function stripGmailQuoteHtml(html: string): string {
+  return String(html || "")
+    .replace(/<div[^>]*class="[^"]*gmail_quote[^"]*"[\s\S]*$/i, "")
+    .replace(/<blockquote[\s\S]*$/i, "")
+    .trim();
+}
+
+function sanitizeEmailHtml(html: string): string {
+  return stripGmailQuoteHtml(html)
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "")
+    .replace(/<\/?(?:html|head|body|meta|link|form|input|button|textarea|select)[^>]*>/gi, "");
+}
+
 /* ------------------------------------------------------------------ */
 /* Badges                                                               */
 /* ------------------------------------------------------------------ */
@@ -182,15 +208,14 @@ function stripEmailQuotedReply(raw: string): string {
 function MiniBadge({
   text,
   className,
-  title,
+  description,
 }: {
   text: string;
   className: string;
-  title?: string;
+  description?: string | null;
 }) {
-  return (
+  const badge = (
     <span
-      title={title}
       className={cn(
         "inline-flex h-5 items-center rounded-md px-1.5 text-[11px] font-medium whitespace-nowrap",
         className
@@ -199,20 +224,34 @@ function MiniBadge({
       {text}
     </span>
   );
+  const hint = String(description || "").trim();
+  if (!hint) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<span />}
+        className="inline-flex cursor-default outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        aria-label={`${text}: ${hint}`}
+      >
+        {badge}
+      </TooltipTrigger>
+      <TooltipContent className="max-w-sm whitespace-pre-wrap">
+        {hint}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function qualificationBadgeTooltip(conversation: Conversation): string | undefined {
+  const ai = String(conversation.overallAIDescription || "").trim();
+  if (ai) return ai;
   const pipeline = conversationPipelineStatus(conversation);
   if (pipeline === "Qualified") {
-    return (
-      conversation.qualificationReason ||
-      "Candidate was marked qualified."
-    );
+    return conversation.qualificationReason || "Candidate was marked qualified.";
   }
   if (pipeline === "Not qualified") {
     return (
-      conversation.qualificationReason ||
-      "Candidate was marked not qualified."
+      conversation.qualificationReason || "Candidate was marked not qualified."
     );
   }
   return undefined;
@@ -807,6 +846,11 @@ function EventBubble({ event }: { event: ConversationEvent }) {
     displayText = stripEmailQuotedReply(displayText);
   }
 
+  const html =
+    event.channel === "Email" && event.html
+      ? sanitizeEmailHtml(event.html)
+      : "";
+
   const hasMedia = (event.attachments?.length || 0) > 0;
   const isMediaPlaceholder =
     hasMedia &&
@@ -841,7 +885,12 @@ function EventBubble({ event }: { event: ConversationEvent }) {
           {event.subject}
         </p>
       ) : null}
-      {!isMediaPlaceholder && displayText ? (
+      {!isMediaPlaceholder && html ? (
+        <div
+          className="mt-1 break-words text-sm leading-relaxed text-foreground [overflow-wrap:anywhere] [&_a]:text-primary [&_a]:underline [&_blockquote]:hidden [&_div]:my-1 [&_li]:ml-4 [&_ol]:list-decimal [&_p]:my-1 [&_ul]:list-disc"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      ) : !isMediaPlaceholder && displayText ? (
         <p className="mt-1 break-words text-sm leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
           {displayText}
         </p>
@@ -953,6 +1002,7 @@ function ProfilePanel({
               className={pipelineStatusBadgeClass(
                 conversationPipelineStatus(conversation)
               )}
+              description={qualificationBadgeTooltip(conversation)}
             />
           </dd>
         </div>
@@ -1150,7 +1200,7 @@ function ConversationThread({
           className={pipelineStatusBadgeClass(
             conversationPipelineStatus(selected)
           )}
-          title={qualificationBadgeTooltip(selected)}
+          description={qualificationBadgeTooltip(selected)}
         />
         {!embedded && !profileOpen && onOpenProfile ? (
           <Button
@@ -1190,6 +1240,13 @@ export function ConversationInbox({
   loadingMore = false,
   totalCount,
   onLoadMore,
+  serverPaginated = false,
+  searchQuery,
+  onSearchQueryChange,
+  unreadOnly: unreadOnlyProp,
+  onUnreadOnlyChange,
+  channelFilter: channelFilterProp,
+  onChannelFilterChange,
 }: {
   conversations: Conversation[];
   className?: string;
@@ -1199,6 +1256,14 @@ export function ConversationInbox({
   loadingMore?: boolean;
   totalCount?: number;
   onLoadMore?: () => void;
+  /** Search / unread / single-channel filters are applied by the list API. */
+  serverPaginated?: boolean;
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
+  unreadOnly?: boolean;
+  onUnreadOnlyChange?: (value: boolean) => void;
+  channelFilter?: string[];
+  onChannelFilterChange?: (value: string[]) => void;
 }) {
   const embedded = variant === "embedded";
   const isLgUp = useIsLgUp();
@@ -1207,14 +1272,20 @@ export function ConversationInbox({
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "You";
   const [items, setItems] = useState(conversations);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [channelFilter, setChannelFilter] = useState<string[]>([]);
+  const [queryState, setQueryState] = useState("");
+  const [channelFilterState, setChannelFilterState] = useState<string[]>([]);
   const [pipelineFilter, setPipelineFilter] = useState<string[]>([]);
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [unreadOnlyState, setUnreadOnlyState] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [addedNotes, setAddedNotes] = useState<Record<string, Conversation["notes"]>>({});
   const [profileOpen, setProfileOpen] = useState(false);
   const timelineEndRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const query = searchQuery ?? queryState;
+  const setQuery = onSearchQueryChange ?? setQueryState;
+  const channelFilter = channelFilterProp ?? channelFilterState;
+  const unreadOnly = unreadOnlyProp ?? unreadOnlyState;
 
   useEffect(() => {
     setItems((previous) => {
@@ -1261,8 +1332,12 @@ export function ConversationInbox({
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
+    const apiHandlesSearch = serverPaginated;
+    const apiHandlesUnread = serverPaginated;
+    const apiHandlesChannel = serverPaginated && channelFilter.length === 1;
     const matched = items.filter((conversation) => {
       if (
+        !apiHandlesSearch &&
         normalized &&
         !`${conversation.candidateName} ${conversation.campaignName} ${conversation.lastMessage}`
           .toLowerCase()
@@ -1270,6 +1345,7 @@ export function ConversationInbox({
       )
         return false;
       if (
+        !apiHandlesChannel &&
         channelFilter.length > 0 &&
         !conversation.channels.some((channel) => channelFilter.includes(channel))
       )
@@ -1279,12 +1355,24 @@ export function ConversationInbox({
         !pipelineFilter.includes(conversationPipelineStatus(conversation))
       )
         return false;
-      if (unreadOnly && (!conversation.unread || readIds.has(conversation.id)))
+      if (
+        !apiHandlesUnread &&
+        unreadOnly &&
+        (!conversation.unread || readIds.has(conversation.id))
+      )
         return false;
       return true;
     });
     return groupConversations(matched);
-  }, [items, query, channelFilter, pipelineFilter, unreadOnly, readIds]);
+  }, [
+    items,
+    query,
+    channelFilter,
+    pipelineFilter,
+    unreadOnly,
+    readIds,
+    serverPaginated,
+  ]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
@@ -1313,6 +1401,78 @@ export function ConversationInbox({
       scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
     }
   }, [selectedId, events.length, events[events.length - 1]?.id]);
+
+  const selectedPreview = conversations.find((row) => row.id === selectedId);
+  const hydrateKey = selectedPreview
+    ? [
+        selectedId,
+        selectedPreview.lastMessage,
+        selectedPreview.lastTime,
+        selectedPreview.pipelineStatus,
+        selectedPreview.replyStatus,
+      ].join(":")
+    : selectedId;
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    void conversationsApi
+      .markRead(selectedId)
+      .then((updated) => {
+        if (cancelled || !updated || typeof updated !== "object" || !("id" in updated)) {
+          return;
+        }
+        setItems((previous) =>
+          previous.map((row) => {
+            if (row.id !== updated.id) return row;
+            const nextEvents =
+              (updated.events?.length ?? 0) >= (row.events?.length ?? 0)
+                ? updated.events?.length
+                  ? updated.events
+                  : row.events
+                : row.events;
+            return {
+              ...row,
+              ...updated,
+              events: nextEvents,
+              unread: false,
+              unreadCount: 0,
+            };
+          })
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrateKey, selectedId]);
+
+  useEffect(() => {
+    if (!hasMore || !onLoadMore || loadingMore) return;
+    const el = loadMoreSentinelRef.current;
+    if (!el) return;
+    const root = el.closest(".overflow-auto");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) onLoadMore();
+      },
+      { root: root instanceof Element ? root : null, rootMargin: "120px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, onLoadMore, conversations.length]);
+
+  function setChannelFilter(next: string[] | ((previous: string[]) => string[])) {
+    const value = typeof next === "function" ? next(channelFilter) : next;
+    if (onChannelFilterChange) onChannelFilterChange(value);
+    else setChannelFilterState(value);
+  }
+
+  function setUnreadOnly(next: boolean | ((previous: boolean) => boolean)) {
+    const value = typeof next === "function" ? next(unreadOnly) : next;
+    if (onUnreadOnlyChange) onUnreadOnlyChange(value);
+    else setUnreadOnlyState(value);
+  }
 
   function toggle(setter: React.Dispatch<React.SetStateAction<string[]>>) {
     return (id: string) =>
@@ -1344,33 +1504,6 @@ export function ConversationInbox({
           .getElementById("conversation-detail")
           ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
-    }
-    for (const threadId of threadIds) {
-      void conversationsApi
-        .markRead(threadId)
-        .then((updated) => {
-          if (updated && typeof updated === "object" && "id" in updated) {
-            setItems((previous) =>
-              previous.map((row) => {
-                if (row.id !== updated.id) return row;
-                const nextEvents =
-                  (updated.events?.length ?? 0) >= (row.events?.length ?? 0)
-                    ? updated.events?.length
-                      ? updated.events
-                      : row.events
-                    : row.events;
-                return {
-                  ...row,
-                  ...updated,
-                  events: nextEvents,
-                  unread: false,
-                  unreadCount: 0,
-                };
-              })
-            );
-          }
-        })
-        .catch(() => undefined);
     }
   }
 
@@ -1570,7 +1703,7 @@ export function ConversationInbox({
                           <MiniBadge
                             text={pipeline}
                             className={pipelineStatusBadgeClass(pipeline)}
-                            title={qualificationBadgeTooltip(conversation)}
+                            description={qualificationBadgeTooltip(conversation)}
                           />
                           {isUnread ? (
                             <span
@@ -1589,7 +1722,7 @@ export function ConversationInbox({
             )}
           </ul>
           {hasMore ? (
-            <div className="border-t border-border p-2">
+            <div ref={loadMoreSentinelRef} className="border-t border-border p-2">
               <Button
                 type="button"
                 size="sm"
