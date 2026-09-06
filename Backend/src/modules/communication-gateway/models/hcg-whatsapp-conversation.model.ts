@@ -16,6 +16,10 @@ export type HcgWhatsappConversationMessage = {
   snippet?: string;
   body?: string;
   template?: string;
+  type?: string;
+  mediaId?: string;
+  mimeType?: string;
+  mediaPath?: string;
   direction?: HcgMessageDirection;
   internalDate?: string;
 };
@@ -43,6 +47,10 @@ const conversationMessageSchema = new Schema(
     snippet: String,
     body: String,
     template: String,
+    type: { type: String, default: 'text' },
+    mediaId: String,
+    mimeType: String,
+    mediaPath: String,
     direction: { type: String, enum: HCG_MESSAGE_DIRECTIONS },
     internalDate: String,
   },

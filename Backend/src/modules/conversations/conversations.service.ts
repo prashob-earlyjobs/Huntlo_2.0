@@ -77,6 +77,7 @@ import {
 import {
   findHcgHunarCommunication,
   hcgHunarLastPreview,
+  hcgHunarOverallAiStatus,
   hcgHunarStatus,
   hcgHunarToEvents,
   overlayHcgHunarOnListItems,
@@ -84,6 +85,7 @@ import {
 import {
   findHcgZyvkaCommunication,
   hcgZyvkaLastPreview,
+  hcgZyvkaOverallAiStatus,
   hcgZyvkaStatus,
   hcgZyvkaToEvents,
   overlayHcgZyvkaOnListItems,
@@ -556,6 +558,28 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       const result = (hcgVoice.call_result as { result?: { summary?: string } } | undefined)?.result;
       overallAIDescription = description || String(result?.summary || '').trim() || overallAIDescription;
     }
+    if (thread.campaignId && candidate?.phone) {
+      const overallAiStatus = hcgHunar
+        ? hcgHunarOverallAiStatus(hcgHunar)
+        : hcgZyvkaOverallAiStatus(hcgZyvka!);
+      void import('../outreach/post-qualification-hcg.js')
+        .then(({ startPostQualificationWhatsAppFromHcgVoice }) =>
+          startPostQualificationWhatsAppFromHcgVoice({
+            campaignId: String(thread.campaignId),
+            phone: String(candidate.phone),
+            overallAiStatus,
+            source: hcgHunar ? 'hunar' : 'zyvkay',
+          })
+        )
+        .catch((error) => {
+          getLogger()
+            .child({ component: 'conversations' })
+            .warn(
+              { err: error, campaignId: String(thread.campaignId) },
+              'Post-qualification WhatsApp catch-up from thread view failed'
+            );
+        });
+    }
   }
 
   return {
@@ -823,7 +847,7 @@ export const conversationsService = {
         deliveryStatus: 'delivered' as const,
         messageType: 'message' as const,
         aiGenerated: false,
-        attachments: [] as unknown[],
+        attachments: event.attachments || [],
         sentAt: event.sentAt || null,
         receivedAt: event.direction === 'inbound' ? event.sentAt || null : null,
         createdAt: event.sentAt || new Date().toISOString(),

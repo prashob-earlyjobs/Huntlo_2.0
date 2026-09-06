@@ -304,6 +304,16 @@ function attachmentApiPath(url: string): string {
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
+function isDirectMediaUrl(url: string): boolean {
+  const trimmed = String(url || "").trim();
+  if (!/^https?:\/\//i.test(trimmed)) return false;
+  try {
+    return !new URL(trimmed).pathname.includes("/api/v1/");
+  } catch {
+    return false;
+  }
+}
+
 function useAuthenticatedBlobUrl(
   url: string | null | undefined,
   preferredMimeType?: string | null
@@ -312,7 +322,19 @@ function useAuthenticatedBlobUrl(
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const path = attachmentApiPath(url || "");
+    const raw = String(url || "").trim();
+    if (!raw) {
+      setObjectUrl(null);
+      setFailed(false);
+      return;
+    }
+    if (isDirectMediaUrl(raw)) {
+      setObjectUrl(raw);
+      setFailed(false);
+      return;
+    }
+
+    const path = attachmentApiPath(raw);
     if (!path) {
       setObjectUrl(null);
       setFailed(false);
@@ -466,10 +488,10 @@ function MessageAttachmentView({
           </Button>
         </div>
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="max-h-[90vh] max-w-[min(96vw,52rem)] gap-3 overflow-hidden p-4 sm:p-5">
-            <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 pr-8">
-              <DialogTitle className="truncate text-sm font-medium">
-                {attachment.name || "Image"}
+          <DialogContent className="max-h-[min(90vh,40rem)] w-[min(calc(100%-2rem),36rem)] gap-3 overflow-hidden p-4 sm:max-w-xl sm:p-5">
+            <DialogHeader className="min-w-0 flex-row items-center justify-between gap-2 space-y-0 pr-10">
+              <DialogTitle className="min-w-0 truncate text-sm font-medium">
+                Image
               </DialogTitle>
               <Button
                 type="button"
@@ -482,12 +504,12 @@ function MessageAttachmentView({
                 Download
               </Button>
             </DialogHeader>
-            <div className="flex max-h-[min(75vh,40rem)] items-center justify-center overflow-auto rounded-lg bg-muted/40 p-2">
+            <div className="flex min-h-0 min-w-0 max-h-[min(70vh,32rem)] items-center justify-center overflow-hidden rounded-lg bg-muted/40 p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={objectUrl}
                 alt={attachment.name || "Image"}
-                className="max-h-[min(72vh,38rem)] max-w-full object-contain"
+                className="max-h-[min(68vh,30rem)] max-w-full object-contain"
               />
             </div>
           </DialogContent>

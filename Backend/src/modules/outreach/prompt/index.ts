@@ -93,3 +93,11 @@ export function buildWhatsAppAutoCalendlyPrompt(input: ScreeningPromptBase & { c
 export function buildWhatsAppScreeningClosePrompt(input: ScreeningPromptBase): string {
   return fillScreeningPrompt('whatsapp-screening-close', input);
 }
+
+/**
+ * After a Hunar/Zyvka qualify: opening WhatsApp template is sent with autoReply.
+ * Gateway asks hiring-flow questions one per reply, then closes.
+ */
+export function buildWhatsAppPostQualificationPrompt(input: ScreeningPromptBase): string {
+  return fillScreeningPrompt('whatsapp-post-qualification', input);
+}

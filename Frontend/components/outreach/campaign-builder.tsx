@@ -21,6 +21,7 @@ import { SetupStep } from "@/components/outreach/builder-setup-step";
 import {
   applyCampaignType,
   applyEnabledChannels,
+  campaignHasAiVoice,
   estimatedUnlockCredits,
   initialBuilderState,
   launchWarnings,
@@ -191,7 +192,9 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
       autoScreening: state.autoScreening,
-      autoWhatsAppAfterQualification: state.autoWhatsAppAfterQualification,
+      autoWhatsAppAfterQualification: campaignHasAiVoice(state)
+        ? state.autoWhatsAppAfterQualification
+        : false,
       hiringFlowId: state.hiringFlowId,
       autoWhatsAppTemplateId: state.autoWhatsAppTemplateId,
     },
@@ -445,6 +448,15 @@ export function CampaignBuilder({
           previous,
           value as BuilderState["enabledChannels"]
         );
+      }
+      if (key === "autoScreening") {
+        const next = { ...previous, autoScreening: Boolean(value) };
+        if (campaignHasAiVoice(next)) return next;
+        return {
+          ...next,
+          autoWhatsAppAfterQualification: false,
+          hiringFlowId: null,
+        };
       }
       return { ...previous, [key]: value };
     });

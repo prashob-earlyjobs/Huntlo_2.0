@@ -173,6 +173,18 @@ export type QualificationConfig = {
   autoWhatsAppTemplateId?: string | null;
 };
 
+/** Keep Auto-send WhatsApp until Hunar/Zyvka finishes when this campaign still has a voice screen. */
+function shouldWaitForVoiceBeforeHiringFlow(
+  campaign: OutreachCampaignDocument,
+  enrollment: OutreachEnrollmentDocument
+): boolean {
+  if (Boolean(campaign.qualificationConfig?.autoScreening)) return true;
+  const voiceSteps = (campaign.sequenceSteps || []).filter((step) => step.type === 'ai_voice');
+  if (!voiceSteps.length) return false;
+  const completed = new Set(enrollment.sequenceState?.completedStepIds || []);
+  return voiceSteps.some((step) => Boolean(step.id) && !completed.has(step.id));
+}
+
 function answerValue(entry: unknown): string {
   if (entry == null) return '';
   if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
@@ -1378,16 +1390,27 @@ async function completeQualification(input: {
 
   const config = campaign.qualificationConfig as QualificationConfig;
   if (status === 'qualified' && config.autoWhatsAppAfterQualification) {
-    try {
-      const { startHiringFlowAfterQualification } = await import(
-        './hiring-flow-runtime.service.js'
+    if (shouldWaitForVoiceBeforeHiringFlow(campaign, enrollment)) {
+      log().info(
+        {
+          enrollmentId: String(enrollment._id),
+          campaignId: String(campaign._id),
+          autoScreening: Boolean(config.autoScreening),
+        },
+        'Hiring-flow WhatsApp deferred until after Hunar/Zyvka call'
       );
-      await startHiringFlowAfterQualification({ campaign, enrollment });
-    } catch (error) {
-      log().warn(
-        { err: error, enrollmentId: String(enrollment._id), campaignId: String(campaign._id) },
-        'Post-qualification hiring flow start failed'
-      );
+    } else {
+      try {
+        const { startHiringFlowAfterQualification } = await import(
+          './hiring-flow-runtime.service.js'
+        );
+        await startHiringFlowAfterQualification({ campaign, enrollment });
+      } catch (error) {
+        log().warn(
+          { err: error, enrollmentId: String(enrollment._id), campaignId: String(campaign._id) },
+          'Post-qualification hiring flow start failed'
+        );
+      }
     }
   }
   if (status === 'qualified' && config.autoScreening) {
