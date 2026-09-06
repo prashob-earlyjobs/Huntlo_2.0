@@ -192,6 +192,34 @@ describe('gmail auto-calendly prompt', () => {
     expect(prompt).toContain('notice_period');
     expect(prompt).not.toMatch(/\{\{[a-z_]+\}\}/);
   });
+
+  it('fills the post-qualification WhatsApp prompt with hiring-flow questions', async () => {
+    const { buildWhatsAppPostQualificationPrompt } = await import(
+      '../src/modules/outreach/prompt/index.js'
+    );
+    const prompt = buildWhatsAppPostQualificationPrompt({
+      jobText: 'Delivery Partner',
+      candidateName: 'Gokul Kumar',
+      currentRole: 'Rider',
+      experience: '2 years',
+      skills: 'Two-wheeler',
+      location: 'Bengaluru, India',
+      email: 'gokul@example.com',
+      screening: [
+        {
+          id: 'q-licence',
+          question: 'Do you have a valid driving licence?',
+          required: true,
+          pass_condition: 'Reject if no',
+        },
+      ],
+    });
+    expect(prompt).toContain('already completed a voice screening call');
+    expect(prompt).toContain('Ask exactly ONE unanswered required question');
+    expect(prompt).toContain('q-licence');
+    expect(prompt).toContain('Do you have a valid driving licence?');
+    expect(prompt).not.toMatch(/\{\{[a-z_]+\}\}/);
+  });
 });
 
 describe('formatKnockoutPassCondition', () => {

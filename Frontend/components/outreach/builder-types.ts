@@ -78,6 +78,28 @@ export function isSingleChannelCampaign(state: Pick<BuilderState, "campaignType"
   return state.campaignType === "Single Channel";
 }
 
+/** Hiring-flow WhatsApp after qualify is only for campaigns that will place a Hunar/Zyvka call. */
+export function campaignHasAiVoice(
+  state: Pick<BuilderState, "enabledChannels" | "steps" | "autoScreening">
+) {
+  if (state.autoScreening) return true;
+  if (state.enabledChannels.includes("AI Voice")) return true;
+  return state.steps.some((step) => STEP_CHANNELS[step.type] === "AI Voice");
+}
+
+function withVoiceDependentQualification(
+  state: BuilderState,
+  patch: Partial<BuilderState>
+): BuilderState {
+  const next = { ...state, ...patch };
+  if (campaignHasAiVoice(next)) return next;
+  return {
+    ...next,
+    autoWhatsAppAfterQualification: false,
+    hiringFlowId: null,
+  };
+}
+
 function pruneStepsToChannels(
   steps: SequenceStep[],
   enabledChannels: OutreachChannel[]
@@ -157,7 +179,7 @@ export function applyCampaignType(
   campaignType: string
 ): BuilderState {
   if (campaignType !== "Single Channel") {
-    return { ...state, campaignType };
+    return withVoiceDependentQualification(state, { campaignType });
   }
 
   const channel = state.enabledChannels[0] ?? "Email";
@@ -168,12 +190,11 @@ export function applyCampaignType(
   if (channel === "WhatsApp") {
     steps = ensureWhatsAppColdSequence(steps);
   }
-  return {
-    ...state,
+  return withVoiceDependentQualification(state, {
     campaignType,
     enabledChannels: [channel],
     steps,
-  };
+  });
 }
 
 /** Seed at least one send step for the primary enabled channel when the sequence is empty. */
@@ -223,11 +244,10 @@ export function applyEnabledChannels(
     steps = ensureDefaultSequenceSteps(steps, nextChannels);
   }
 
-  return {
-    ...state,
+  return withVoiceDependentQualification(state, {
     enabledChannels: nextChannels,
     steps,
-  };
+  });
 }
 
 export function initialBuilderState(): BuilderState {

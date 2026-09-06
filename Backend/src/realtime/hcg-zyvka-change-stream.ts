@@ -113,6 +113,25 @@ async function flushPending(docId: string): Promise<void> {
     overallAIStatus: formatHcgOverallAiStatus(hcgZyvkaOverallAiStatus(pending.doc as never)),
     reasons: [...pending.reasons],
   });
+
+  const phone = String(pending.doc.mobileNumber || status?.to_number || '').trim();
+  const overallAiStatus = hcgZyvkaOverallAiStatus(pending.doc as never);
+  if (phone) {
+    const { startPostQualificationWhatsAppFromHcgVoice } = await import(
+      '../modules/outreach/post-qualification-hcg.js'
+    );
+    await startPostQualificationWhatsAppFromHcgVoice({
+      campaignId,
+      phone,
+      overallAiStatus,
+      source: 'zyvkay',
+    }).catch((error) => {
+      logger().warn(
+        { err: error, campaignId, phone },
+        'Post-qualification WhatsApp from Zyvka HCG update failed'
+      );
+    });
+  }
 }
 
 function queueChange(change: ZyvkaCommunicationChange): void {

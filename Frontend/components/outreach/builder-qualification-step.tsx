@@ -8,7 +8,7 @@ import type {
   BuilderState,
   UpdateBuilder,
 } from "@/components/outreach/builder-types";
-import { stepErrors } from "@/components/outreach/builder-types";
+import { campaignHasAiVoice, stepErrors } from "@/components/outreach/builder-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -58,6 +58,7 @@ export function QualificationStep({
   showErrors: boolean;
 }) {
   const errors = showErrors ? stepErrors(4, state) : [];
+  const showAutoWhatsApp = campaignHasAiVoice(state);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [hiringFlows, setHiringFlows] = useState<ApiHiringFlow[]>([]);
@@ -344,15 +345,17 @@ export function QualificationStep({
             After qualification
           </h3>
           <div className="grid gap-2 lg:grid-cols-2">
-            <ToggleRow
-              id="qual-auto-whatsapp"
-              label="Auto-send WhatsApp"
-              description="After qualification, run a hiring flow (or a single WhatsApp template)."
-              checked={state.autoWhatsAppAfterQualification}
-              onChange={(checked) =>
-                update("autoWhatsAppAfterQualification", checked)
-              }
-            />
+            {showAutoWhatsApp ? (
+              <ToggleRow
+                id="qual-auto-whatsapp"
+                label="Auto-send WhatsApp"
+                description="After the Hunar/Zyvka call, run a hiring flow (or a single WhatsApp template)."
+                checked={state.autoWhatsAppAfterQualification}
+                onChange={(checked) =>
+                  update("autoWhatsAppAfterQualification", checked)
+                }
+              />
+            ) : null}
             <ToggleRow
               id="qual-auto-screening"
               label="Auto-start AI screening"
@@ -368,7 +371,7 @@ export function QualificationStep({
               onChange={(checked) => update("autoCalendly", checked)}
             />
           </div>
-          {state.autoWhatsAppAfterQualification ? (
+          {showAutoWhatsApp && state.autoWhatsAppAfterQualification ? (
             <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-3">
               <Field
                 label="Hiring flow"

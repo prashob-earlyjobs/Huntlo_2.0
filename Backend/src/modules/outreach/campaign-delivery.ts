@@ -66,6 +66,7 @@ import {
   hcgGmailThreadIdOf,
   waitForHcgGmailConversation,
 } from '../conversations/hcg-gmail-overlay.js';
+import { HcgWhatsappConversationModel } from '../communication-gateway/models/hcg-whatsapp-conversation.model.js';
 import {
   findHcgWhatsappConversation,
   hcgWhatsappShouldStopSequence,
@@ -1610,6 +1611,105 @@ export async function executeCampaignMessageStep(input: {
   }
 }
 
+function isGatewayWhatsAppProvider(provider: string | undefined): boolean {
+  return provider === 'huntlo-whatsapp' || provider === 'meta-whatsapp';
+}
+
+/** Reuse the campaign's WhatsApp thread so inbound still matches campaignId. */
+async function armHcgWhatsappPostQualification(input: {
+  campaignId: string;
+  to: string;
+  threadId: string;
+  prompt: string;
+}) {
+  const phone = String(input.to || '').replace(/\D/g, '');
+  await HcgWhatsappConversationModel.updateOne(
+    { threadId: input.threadId },
+    {
+      $set: {
+        autoReply: true,
+        prompt: input.prompt,
+        campaignId: input.campaignId,
+        ...(phone ? { phone } : {}),
+        overallAIStatus: 'in_qualification',
+        overallAIDescription: 'Post-qualification WhatsApp questions',
+      },
+      $setOnInsert: {
+        threadId: input.threadId,
+        messages: [],
+        questions: [],
+      },
+    },
+    { upsert: true }
+  );
+}
+
+async function sendHiringFlowWhatsAppViaGateway(input: {
+  to: string;
+  campaignId: string;
+  enrollmentId: string;
+  organizationId: string;
+  provider: string;
+  template?: string | null;
+  variables?: string[];
+  body?: string | null;
+  prompt?: string | null;
+  autoReply?: boolean;
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string }> {
+  const autoReply = input.autoReply === true;
+  const prompt = autoReply ? String(input.prompt || '').trim() || null : null;
+  const hcg = await findHcgWhatsappConversation(input.campaignId, input.to);
+  const existingThreadId = hcgWhatsappThreadIdOf(hcg);
+  const result = await sendWhatsAppViaGateway({
+    to: input.to,
+    campaignId: input.campaignId,
+    template: input.template || null,
+    variables: input.variables || [],
+    body: input.template ? null : input.body || null,
+    prompt,
+    autoReply,
+    threadId: existingThreadId,
+  });
+  const threadId = result.threadId || existingThreadId;
+  if (autoReply && prompt && threadId) {
+    await armHcgWhatsappPostQualification({
+      campaignId: input.campaignId,
+      to: input.to,
+      threadId,
+      prompt,
+    });
+  }
+  await stampWhatsAppOutboundRoute({
+    providerMessageId: result.messageId,
+    toPhone: input.to,
+    provider: input.provider,
+    organizationId: input.organizationId,
+    campaignId: input.campaignId,
+    enrollmentId: input.enrollmentId,
+  }).catch((error) => {
+    getLogger()
+      .child({ component: 'hiring-flow-whatsapp' })
+      .warn({ err: error, to: input.to }, 'Failed to stamp hiring-flow WhatsApp outbound route');
+  });
+  getLogger()
+    .child({ component: 'hiring-flow-whatsapp' })
+    .info(
+      {
+        campaignId: input.campaignId,
+        enrollmentId: input.enrollmentId,
+        threadId,
+        template: input.template || null,
+        autoReply,
+      },
+      'Hiring-flow WhatsApp sent via communication gateway'
+    );
+  return {
+    providerMessageId: result.messageId,
+    provider: input.provider,
+    threadId: threadId || undefined,
+  };
+}
+
 /** Ad-hoc WhatsApp template send used by post-qualification hiring flows. */
 export async function sendHiringFlowWhatsAppTemplate(input: {
   organizationId: string;
@@ -1632,6 +1732,44 @@ export async function sendHiringFlowWhatsAppTemplate(input: {
       statusCode: 400,
     });
   }
+
+  if (isGatewayWhatsAppProvider(integration.secrets.provider)) {
+    const catalogue = getApprovedTemplate(String(input.templateId));
+    if (catalogue) {
+      return sendHiringFlowWhatsAppViaGateway({
+        to: input.to,
+        campaignId: input.campaignId,
+        enrollmentId: input.enrollmentId,
+        organizationId: input.organizationId,
+        provider: integration.secrets.provider,
+        template: getMetaTemplateName(catalogue),
+        variables: buildMetaBodyParameters(catalogue.id, input.mergeContext),
+      });
+    }
+    const metaTemplate = await findApprovedMetaTemplate(String(input.templateId));
+    if (metaTemplate) {
+      return sendHiringFlowWhatsAppViaGateway({
+        to: input.to,
+        campaignId: input.campaignId,
+        enrollmentId: input.enrollmentId,
+        organizationId: input.organizationId,
+        provider: integration.secrets.provider,
+        template: isForceTestWhatsAppTemplate() ? 'hello_world' : metaTemplate.name,
+        variables: isForceTestWhatsAppTemplate()
+          ? []
+          : buildMetaTemplateBodyParameters(metaTemplate.variableCount, input.mergeContext),
+      });
+    }
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      body: input.body,
+    });
+  }
+
   const sent = await sendWhatsAppViaIntegration({
     secrets: integration.secrets,
     to: input.to,
@@ -1643,6 +1781,86 @@ export async function sendHiringFlowWhatsAppTemplate(input: {
     enrollmentId: input.enrollmentId,
   });
   return { providerMessageId: sent.messageId, provider: sent.provider };
+}
+
+/**
+ * Post-qualify WhatsApp for Huntlo/Meta: /messages/send?autoReply=true with the
+ * same campaignId so the gateway thread stays matched and asks questions.
+ * Returns null when the org is on Gupshup (Huntlo still owns that playbook).
+ */
+export async function sendPostQualificationWhatsAppViaGateway(input: {
+  organizationId: string;
+  userId: string;
+  campaignId: string;
+  enrollmentId: string;
+  to: string;
+  templateId: string;
+  body: string;
+  mergeContext: Record<string, string>;
+  prompt: string;
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string } | null> {
+  const integration = await resolveIntegration(
+    input.organizationId,
+    input.userId,
+    'whatsapp',
+    null
+  );
+  if (!integration) {
+    throw Object.assign(new Error('No connected WhatsApp integration for hiring flow.'), {
+      statusCode: 400,
+    });
+  }
+  if (!isGatewayWhatsAppProvider(integration.secrets.provider)) {
+    return null;
+  }
+
+  const prompt = String(input.prompt || '').trim();
+  if (!prompt) {
+    throw Object.assign(new Error('prompt is required when autoReply is true'), {
+      statusCode: 400,
+    });
+  }
+
+  const catalogue = getApprovedTemplate(String(input.templateId));
+  if (catalogue) {
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      template: getMetaTemplateName(catalogue),
+      variables: buildMetaBodyParameters(catalogue.id, input.mergeContext),
+      prompt,
+      autoReply: true,
+    });
+  }
+  const metaTemplate = await findApprovedMetaTemplate(String(input.templateId));
+  if (metaTemplate) {
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      template: isForceTestWhatsAppTemplate() ? 'hello_world' : metaTemplate.name,
+      variables: isForceTestWhatsAppTemplate()
+        ? []
+        : buildMetaTemplateBodyParameters(metaTemplate.variableCount, input.mergeContext),
+      prompt,
+      autoReply: true,
+    });
+  }
+  return sendHiringFlowWhatsAppViaGateway({
+    to: input.to,
+    campaignId: input.campaignId,
+    enrollmentId: input.enrollmentId,
+    organizationId: input.organizationId,
+    provider: integration.secrets.provider,
+    body: input.body,
+    prompt,
+    autoReply: true,
+  });
 }
 
 /** Ad-hoc WhatsApp free-text send used by hiring-flow question steps. */
@@ -1666,6 +1884,25 @@ export async function sendHiringFlowWhatsAppText(input: {
       statusCode: 400,
     });
   }
+
+  if (isGatewayWhatsAppProvider(integration.secrets.provider)) {
+    const buttons = (input.replyButtons || [])
+      .map((button) => String(button.title || '').trim())
+      .filter(Boolean);
+    const body =
+      buttons.length > 0
+        ? `${input.body}\n\nReply ${buttons.join(' or ')}.`
+        : input.body;
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      body,
+    });
+  }
+
   const sent = await sendWhatsAppViaIntegration({
     secrets: integration.secrets,
     to: input.to,

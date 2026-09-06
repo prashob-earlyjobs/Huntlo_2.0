@@ -12,6 +12,7 @@ type HcgWhatsappConversationLean = {
   threadId?: string;
   phone?: string;
   campaignId?: string | null;
+  autoReply?: boolean;
   overallAIStatus?: string | null;
   overallAIDescription?: string | null;
   messages?: HcgWhatsappConversationMessage[];
@@ -188,6 +189,29 @@ export function hcgWhatsappLastPreview(doc: HcgWhatsappConversationLean): {
   };
 }
 
+function hcgWhatsappImageAttachment(msg: HcgWhatsappConversationMessage) {
+  const type = String(msg.type || '').toLowerCase();
+  const mediaPath = String(msg.mediaPath || '').trim();
+  if (type !== 'image' || !mediaPath) return [];
+  let name = 'image.jpg';
+  try {
+    const last = new URL(mediaPath).pathname.split('/').filter(Boolean).at(-1);
+    name = decodeURIComponent(last || '') || name;
+  } catch {
+    const last = mediaPath.split('?')[0]?.split('/').filter(Boolean).at(-1);
+    name = decodeURIComponent(last || '') || name;
+  }
+  return [
+    {
+      name,
+      size: '',
+      url: mediaPath,
+      mimeType: String(msg.mimeType || 'image/jpeg'),
+      kind: 'image' as const,
+    },
+  ];
+}
+
 export function hcgWhatsappMessagesToEvents(
   doc: HcgWhatsappConversationLean,
   candidateName: string
@@ -196,6 +220,7 @@ export function hcgWhatsappMessagesToEvents(
     const inbound = msg.direction === 'inbound';
     const at = messageDate(msg);
     const text = messageText(msg);
+    const attachments = hcgWhatsappImageAttachment(msg);
     return {
       id: msg.messageId || `hcg-whatsapp-${index}`,
       channel: 'WhatsApp',
@@ -207,7 +232,7 @@ export function hcgWhatsappMessagesToEvents(
       time: relativeTime(at),
       delivery: inbound ? undefined : 'Sent',
       error: undefined,
-      attachments: [],
+      attachments,
       voiceSummary: undefined,
       sentAt: at?.toISOString(),
       direction: inbound ? ('inbound' as const) : ('outbound' as const),
@@ -254,7 +279,12 @@ export async function findHcgWhatsappConversation(
   const docs = (await HcgWhatsappConversationModel.find(
     campaignIdQuery([cid])
   ).lean()) as HcgWhatsappConversationLean[];
-  const match = docs.find((doc) => campaignIdOf(doc) === cid && docTouchesPhone(doc, em));
+  const matches = docs.filter((doc) => campaignIdOf(doc) === cid && docTouchesPhone(doc, em));
+  matches.sort((a, b) => {
+    if (Boolean(a.autoReply) !== Boolean(b.autoReply)) return a.autoReply ? -1 : 1;
+    return (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0);
+  });
+  const match = matches[0];
   return (match as HcgWhatsappConversationDocument) || null;
 }
 
