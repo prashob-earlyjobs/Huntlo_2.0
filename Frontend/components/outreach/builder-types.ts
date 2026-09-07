@@ -87,16 +87,19 @@ export function campaignHasAiVoice(
   return state.steps.some((step) => STEP_CHANNELS[step.type] === "AI Voice");
 }
 
-function withVoiceDependentQualification(
+export function withVoiceDependentQualification(
   state: BuilderState,
   patch: Partial<BuilderState>
 ): BuilderState {
   const next = { ...state, ...patch };
-  if (campaignHasAiVoice(next)) return next;
+  const hasVoice = campaignHasAiVoice(next);
   return {
     ...next,
-    autoWhatsAppAfterQualification: false,
-    hiringFlowId: null,
+    autoWhatsAppAfterQualification: hasVoice
+      ? next.autoWhatsAppAfterQualification
+      : false,
+    hiringFlowId: hasVoice ? next.hiringFlowId : null,
+    autoCalendly: hasVoice ? false : next.autoCalendly,
   };
 }
 

@@ -59,6 +59,7 @@ export function QualificationStep({
 }) {
   const errors = showErrors ? stepErrors(4, state) : [];
   const showAutoWhatsApp = campaignHasAiVoice(state);
+  const showAutoCalendly = !showAutoWhatsApp;
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [hiringFlows, setHiringFlows] = useState<ApiHiringFlow[]>([]);
@@ -363,13 +364,15 @@ export function QualificationStep({
               checked={state.autoScreening}
               onChange={(checked) => update("autoScreening", checked)}
             />
-            <ToggleRow
-              id="qual-auto-calendly"
-              label="Auto-send Calendly"
-              description="Send a scheduling link after qualification completes."
-              checked={state.autoCalendly}
-              onChange={(checked) => update("autoCalendly", checked)}
-            />
+            {showAutoCalendly ? (
+              <ToggleRow
+                id="qual-auto-calendly"
+                label="Auto-send Calendly"
+                description="Send a scheduling link after qualification completes."
+                checked={state.autoCalendly}
+                onChange={(checked) => update("autoCalendly", checked)}
+              />
+            ) : null}
           </div>
           {showAutoWhatsApp && state.autoWhatsAppAfterQualification ? (
             <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-3">

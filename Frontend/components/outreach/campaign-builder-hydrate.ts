@@ -17,7 +17,7 @@ import {
   type SequenceStep,
   type SequenceStepType,
 } from "@/lib/mock-outreach";
-import { initialBuilderState, type BuilderState } from "@/components/outreach/builder-types";
+import { campaignHasAiVoice, initialBuilderState, type BuilderState } from "@/components/outreach/builder-types";
 
 const STEP_TYPE_FROM_API: Record<string, SequenceStepType> = {
   email: "Send Email",
@@ -145,6 +145,15 @@ export function builderStateFromCampaign(
       };
     }) ?? base.questions;
   const cappedQuestions = questions.slice(0, MAX_QUALIFICATION_QUESTIONS);
+  const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
+  const hydratedChannels =
+    enabledChannels.length > 0 ? enabledChannels : base.enabledChannels;
+  const hydratedSteps = steps.length > 0 ? steps : base.steps;
+  const hasVoice = campaignHasAiVoice({
+    enabledChannels: hydratedChannels,
+    steps: hydratedSteps,
+    autoScreening,
+  });
 
   return {
     ...base,
@@ -172,15 +181,14 @@ export function builderStateFromCampaign(
             invalid: 0,
           }
         : null,
-    enabledChannels:
-      enabledChannels.length > 0 ? enabledChannels : base.enabledChannels,
+    enabledChannels: hydratedChannels,
     connections: Object.fromEntries(
       CHANNEL_CONFIGS.map((config) => [
         config.channel,
         "Disconnected" as ChannelConnection,
       ])
     ) as Record<OutreachChannel, ChannelConnection>,
-    steps: steps.length > 0 ? steps : base.steps,
+    steps: hydratedSteps,
     classificationEnabled: true,
     questions: cappedQuestions,
     aiReplyEnabled: true,
@@ -191,8 +199,8 @@ export function builderStateFromCampaign(
       )
         ? campaign.qualificationConfig.takeoverCondition
         : TAKEOVER_CONDITIONS[2],
-    autoScreening: Boolean(campaign.qualificationConfig?.autoScreening),
-    autoCalendly: Boolean(campaign.schedulingConfig?.enabled),
+    autoScreening,
+    autoCalendly: hasVoice ? false : Boolean(campaign.schedulingConfig?.enabled),
     autoWhatsAppAfterQualification: Boolean(
       campaign.qualificationConfig?.autoWhatsAppAfterQualification
     ),
