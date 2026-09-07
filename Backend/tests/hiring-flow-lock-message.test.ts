@@ -138,6 +138,7 @@ describe('collectHiringFlowQuestions', () => {
         type: 'ask_question',
         label: 'Licence',
         prompt: 'Do you have a valid driving licence?',
+        answerType: 'Yes / No',
         knockout: true,
         knockoutCondition: 'no',
         nextStepId: 'step-q2',
@@ -158,12 +159,18 @@ describe('collectHiringFlowQuestions', () => {
         id: 'step-q1',
         question: 'Do you have a valid driving licence?',
         required: true,
+        answer_type: 'yes_no',
         pass_condition: 'Reject if no',
+        buttons: [
+          { id: 'yes', title: 'Yes' },
+          { id: 'no', title: 'No' },
+        ],
       },
       {
         id: 'step-q2',
         question: 'Do you have your own two-wheeler?',
         required: true,
+        answer_type: 'text',
         pass_condition: 'Informational only; any reasonable answer is acceptable',
       },
     ]);

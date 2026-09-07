@@ -41,6 +41,8 @@ type ScreeningPromptQuestion = {
   question: string;
   required: boolean;
   pass_condition: string;
+  answer_type?: 'yes_no' | 'text';
+  buttons?: Array<{ id: string; title: string }>;
 };
 
 type ScreeningPromptBase = {
