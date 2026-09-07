@@ -26,6 +26,7 @@ import {
   initialBuilderState,
   launchWarnings,
   stepErrors,
+  withVoiceDependentQualification,
   type BuilderState,
 } from "@/components/outreach/builder-types";
 import { builderStateFromCampaign } from "@/components/outreach/campaign-builder-hydrate";
@@ -199,8 +200,9 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       autoWhatsAppTemplateId: state.autoWhatsAppTemplateId,
     },
     schedulingConfig: {
-      enabled: state.autoCalendly,
-      provider: state.autoCalendly ? "calendly" : null,
+      enabled: campaignHasAiVoice(state) ? false : state.autoCalendly,
+      provider:
+        campaignHasAiVoice(state) || !state.autoCalendly ? null : "calendly",
     },
   };
 }
@@ -450,13 +452,9 @@ export function CampaignBuilder({
         );
       }
       if (key === "autoScreening") {
-        const next = { ...previous, autoScreening: Boolean(value) };
-        if (campaignHasAiVoice(next)) return next;
-        return {
-          ...next,
-          autoWhatsAppAfterQualification: false,
-          hiringFlowId: null,
-        };
+        return withVoiceDependentQualification(previous, {
+          autoScreening: Boolean(value),
+        });
       }
       return { ...previous, [key]: value };
     });
