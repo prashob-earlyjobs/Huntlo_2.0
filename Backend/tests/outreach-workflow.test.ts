@@ -210,7 +210,12 @@ describe('gmail auto-calendly prompt', () => {
           id: 'q-licence',
           question: 'Do you have a valid driving licence?',
           required: true,
+          answer_type: 'yes_no',
           pass_condition: 'Reject if no',
+          buttons: [
+            { id: 'yes', title: 'Yes' },
+            { id: 'no', title: 'No' },
+          ],
         },
       ],
     });
@@ -298,6 +303,103 @@ describe('sendWhatsAppViaGateway payload', () => {
     expect(body.prompt).toBeUndefined();
     expect(body.template).toBeUndefined();
     expect(body.body).toBe('Following up');
+  });
+
+  it('posts Yes/No chips with the Postman body+buttons payload', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: { conversationId: 'adadad' } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { sendWhatsAppViaGateway } = await import(
+      '../src/providers/whatsapp/whatsapp.gateway.js'
+    );
+    await sendWhatsAppViaGateway({
+      to: '918592929642',
+      campaignId: 'asdad',
+      body: 'Do you have a two-wheeler?',
+      autoReply: false,
+      threadId: 'adadad',
+      buttons: [
+        { id: 'yes', title: 'Yes' },
+        { id: 'no', title: 'No' },
+      ],
+      prompt: 'should not be sent on a chip message',
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(String(url)).toBe('http://localhost:5055/api/v1/messages/send');
+    expect(String(url)).not.toContain('autoReply');
+    expect(JSON.parse(init.body)).toEqual({
+      type: 'whatsapp',
+      vendor: 'huntlo',
+      to: '918592929642',
+      campaignId: 'asdad',
+      threadId: 'adadad',
+      body: 'Do you have a two-wheeler?',
+      buttons: [
+        { id: 'yes', title: 'Yes' },
+        { id: 'no', title: 'No' },
+      ],
+    });
+  });
+
+  it('omits questions and template buttons so gateway Joi accepts WhatsApp send', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: { conversationId: 'wa-thread-1' } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { sendWhatsAppViaGateway } = await import(
+      '../src/providers/whatsapp/whatsapp.gateway.js'
+    );
+    await sendWhatsAppViaGateway({
+      to: '918592929642',
+      campaignId: 'camp-wa',
+      template: 'resume_share',
+      variables: ['Gokul', 'Delivery Partner'],
+      prompt: 'Ask one screening question',
+      autoReply: true,
+      buttons: [
+        { id: 'yes', title: 'Yes' },
+        { id: 'no', title: 'No' },
+      ],
+      questions: [
+        {
+          id: 'step-q1',
+          question: 'Do you have a valid driving licence?',
+          required: true,
+          answer_type: 'yes_no',
+          pass_condition: 'Reject if no',
+        },
+      ],
+    });
+    const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
+    const body = JSON.parse(init.body) as Record<string, unknown>;
+    expect(body.template).toBe('resume_share');
+    expect(body.prompt).toBe('Ask one screening question');
+    expect(body.questions).toBeUndefined();
+    expect(body.buttons).toBeUndefined();
+  });
+
+  it('surfaces gateway Joi array errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ success: false, error: ['"questions" is not allowed'] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { sendWhatsAppViaGateway } = await import(
+      '../src/providers/whatsapp/whatsapp.gateway.js'
+    );
+    await expect(
+      sendWhatsAppViaGateway({
+        to: '918592929642',
+        campaignId: 'camp-wa',
+        template: 'delivery_partner',
+        autoReply: true,
+        prompt: 'Ask one screening question',
+      })
+    ).rejects.toThrow('"questions" is not allowed');
   });
 });
 

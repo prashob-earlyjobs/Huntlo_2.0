@@ -2,7 +2,11 @@ import mongoose from 'mongoose';
 
 import { getLogger } from '../../config/logger.js';
 import { sendGmailMessage, sendGmailViaGateway } from '../../providers/gmail/gmail.send.js';
-import { sendWhatsAppViaGateway } from '../../providers/whatsapp/whatsapp.gateway.js';
+import {
+  sendWhatsAppViaGateway,
+  type GatewayWhatsAppButton,
+  type GatewayWhatsAppQuestion,
+} from '../../providers/whatsapp/whatsapp.gateway.js';
 import { buildSchedulingUrl } from '../../providers/calendly/calendly.client.js';
 import { getGmailThreadingMeta } from '../../providers/gmail/gmail.fetch.js';
 import { refreshGmailAccessToken } from '../../providers/gmail/gmail.oauth.js';
@@ -1655,11 +1659,14 @@ async function sendHiringFlowWhatsAppViaGateway(input: {
   body?: string | null;
   prompt?: string | null;
   autoReply?: boolean;
+  buttons?: GatewayWhatsAppButton[] | null;
+  questions?: GatewayWhatsAppQuestion[] | null;
+  threadId?: string | null;
 }): Promise<{ providerMessageId?: string; provider: string; threadId?: string }> {
   const autoReply = input.autoReply === true;
   const prompt = autoReply ? String(input.prompt || '').trim() || null : null;
   const hcg = await findHcgWhatsappConversation(input.campaignId, input.to);
-  const existingThreadId = hcgWhatsappThreadIdOf(hcg);
+  const existingThreadId = String(input.threadId || '').trim() || hcgWhatsappThreadIdOf(hcg);
   const result = await sendWhatsAppViaGateway({
     to: input.to,
     campaignId: input.campaignId,
@@ -1669,6 +1676,8 @@ async function sendHiringFlowWhatsAppViaGateway(input: {
     prompt,
     autoReply,
     threadId: existingThreadId,
+    buttons: input.buttons,
+    questions: input.questions,
   });
   const threadId = result.threadId || existingThreadId;
   if (autoReply && prompt && threadId) {
@@ -1720,7 +1729,7 @@ export async function sendHiringFlowWhatsAppTemplate(input: {
   templateId: string;
   body: string;
   mergeContext: Record<string, string>;
-}): Promise<{ providerMessageId?: string; provider: string }> {
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string }> {
   const integration = await resolveIntegration(
     input.organizationId,
     input.userId,
@@ -1798,6 +1807,7 @@ export async function sendPostQualificationWhatsAppViaGateway(input: {
   body: string;
   mergeContext: Record<string, string>;
   prompt: string;
+  questions?: GatewayWhatsAppQuestion[] | null;
 }): Promise<{ providerMessageId?: string; provider: string; threadId?: string } | null> {
   const integration = await resolveIntegration(
     input.organizationId,
@@ -1833,6 +1843,7 @@ export async function sendPostQualificationWhatsAppViaGateway(input: {
       variables: buildMetaBodyParameters(catalogue.id, input.mergeContext),
       prompt,
       autoReply: true,
+      questions: input.questions,
     });
   }
   const metaTemplate = await findApprovedMetaTemplate(String(input.templateId));
@@ -1849,6 +1860,7 @@ export async function sendPostQualificationWhatsAppViaGateway(input: {
         : buildMetaTemplateBodyParameters(metaTemplate.variableCount, input.mergeContext),
       prompt,
       autoReply: true,
+      questions: input.questions,
     });
   }
   return sendHiringFlowWhatsAppViaGateway({
@@ -1860,6 +1872,7 @@ export async function sendPostQualificationWhatsAppViaGateway(input: {
     body: input.body,
     prompt,
     autoReply: true,
+    questions: input.questions,
   });
 }
 
@@ -1872,7 +1885,8 @@ export async function sendHiringFlowWhatsAppText(input: {
   to: string;
   body: string;
   replyButtons?: MetaReplyButton[] | null;
-}): Promise<{ providerMessageId?: string; provider: string }> {
+  threadId?: string | null;
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string }> {
   const integration = await resolveIntegration(
     input.organizationId,
     input.userId,
@@ -1887,19 +1901,21 @@ export async function sendHiringFlowWhatsAppText(input: {
 
   if (isGatewayWhatsAppProvider(integration.secrets.provider)) {
     const buttons = (input.replyButtons || [])
-      .map((button) => String(button.title || '').trim())
-      .filter(Boolean);
-    const body =
-      buttons.length > 0
-        ? `${input.body}\n\nReply ${buttons.join(' or ')}.`
-        : input.body;
+      .map((button) => ({
+        id: String(button.id || '').trim(),
+        title: String(button.title || '').trim(),
+      }))
+      .filter((button) => button.id && button.title);
     return sendHiringFlowWhatsAppViaGateway({
       to: input.to,
       campaignId: input.campaignId,
       enrollmentId: input.enrollmentId,
       organizationId: input.organizationId,
       provider: integration.secrets.provider,
-      body,
+      body: input.body,
+      buttons,
+      autoReply: false,
+      threadId: input.threadId,
     });
   }
 
