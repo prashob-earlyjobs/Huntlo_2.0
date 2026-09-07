@@ -39,8 +39,8 @@ export function formatKnockoutPassCondition(condition: string | null | undefined
 type ScreeningPromptQuestion = {
   id: string;
   question: string;
-  required: boolean;
-  pass_condition: string;
+  required?: boolean;
+  pass_condition?: string;
   answer_type?: 'yes_no' | 'text';
   buttons?: Array<{ id: string; title: string }>;
 };

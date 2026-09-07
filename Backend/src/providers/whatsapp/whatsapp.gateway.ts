@@ -92,10 +92,14 @@ export async function sendWhatsAppViaGateway(input: {
     };
   };
   if (!res.ok) {
+    const gatewayError = data.error;
     const errorMessage =
-      (typeof data.error === 'string' && data.error) ||
-      (Array.isArray(data.error) && data.error.filter(Boolean).join('; ')) ||
-      (typeof data.error === 'object' && data.error?.message) ||
+      (typeof gatewayError === 'string' && gatewayError) ||
+      (Array.isArray(gatewayError) && gatewayError.filter(Boolean).join('; ')) ||
+      (gatewayError &&
+        typeof gatewayError === 'object' &&
+        !Array.isArray(gatewayError) &&
+        gatewayError.message) ||
       data.message ||
       `WhatsApp gateway send failed (${res.status})`;
     throw Object.assign(new Error(errorMessage), {
