@@ -129,6 +129,21 @@ async function flushPending(docId: string): Promise<void> {
         'Post-qualification WhatsApp from Hunar HCG update failed'
       );
     });
+
+    const { applyHuntlo360FromHcgOverallAiStatus } = await import(
+      '../modules/huntlo-360/hcg-qualification-transition.js'
+    );
+    await applyHuntlo360FromHcgOverallAiStatus({
+      campaignId,
+      overallAiStatus,
+      phone,
+      source: 'hunar',
+    }).catch((error) => {
+      logger().warn(
+        { err: error, campaignId, phone },
+        'Huntlo 360 transition from Hunar HCG update failed'
+      );
+    });
   }
 }
 

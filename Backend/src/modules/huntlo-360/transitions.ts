@@ -7,6 +7,7 @@ import { campaignsService } from '../outreach/campaigns.service.js';
 import { screeningFacade } from '../screening/index.js';
 import { assessmentFacade } from '../assessments/index.js';
 import { schedulingFacade } from '../scheduling/index.js';
+import { ScheduleCandidateModel } from '../scheduling/scheduling.facade.js';
 import {
   Huntlo360CandidateStateModel,
   Huntlo360TransitionModel,
@@ -260,26 +261,79 @@ async function ensureSchedulingInvite(input: {
   const channel =
     input.workflow.schedulingConfig.channel === 'whatsapp' ? 'whatsapp' : 'email';
 
+  // Reload — concurrent HCG whatsapp+sync paths may have already linked / sent.
+  const fresh = await Huntlo360CandidateStateModel.findById(input.state._id);
+  if (fresh) {
+    if (fresh.scheduleCandidateId) {
+      input.state.scheduleCandidateId = fresh.scheduleCandidateId;
+    }
+    if (fresh.schedulingStatus) {
+      input.state.schedulingStatus = fresh.schedulingStatus;
+    }
+  }
+  if (
+    input.state.schedulingStatus === 'link_sent' ||
+    input.state.schedulingStatus === 'booked'
+  ) {
+    return;
+  }
+
   if (!input.state.scheduleCandidateId) {
-    const link = await schedulingFacade.createLink({
+    const existingLink = await ScheduleCandidateModel.findOne({
       organizationId: input.organizationId,
       workflowId: input.workflowId,
-      campaignId: input.workflow.campaignId ? String(input.workflow.campaignId) : null,
       candidateId: input.candidateId,
-      enrollmentId: input.state.enrollmentId ? String(input.state.enrollmentId) : null,
-      ownerUserId: String(input.workflow.ownerUserId),
-      provider: input.workflow.schedulingConfig.provider,
-      eventTypeUri: input.workflow.schedulingConfig.eventTypeUri,
-      channel,
-      bookingExpiryHours: input.workflow.schedulingConfig.bookingExpiryHours,
-      jobId: input.workflow.jobId ? String(input.workflow.jobId) : null,
-    });
-    input.state.scheduleCandidateId = link._id;
-    await flowSupportService
-      .addIds(input.workflowId, {
-        scheduleCandidateIds: [String(link._id)],
-      })
-      .catch(() => undefined);
+      status: { $nin: ['cancelled', 'expired'] },
+    }).sort({ createdAt: -1 });
+    if (existingLink) {
+      input.state.scheduleCandidateId = existingLink._id;
+    } else {
+      const link = await schedulingFacade.createLink({
+        organizationId: input.organizationId,
+        workflowId: input.workflowId,
+        campaignId: input.workflow.campaignId ? String(input.workflow.campaignId) : null,
+        candidateId: input.candidateId,
+        enrollmentId: input.state.enrollmentId ? String(input.state.enrollmentId) : null,
+        ownerUserId: String(input.workflow.ownerUserId),
+        provider: input.workflow.schedulingConfig.provider,
+        eventTypeUri: input.workflow.schedulingConfig.eventTypeUri,
+        channel,
+        bookingExpiryHours: input.workflow.schedulingConfig.bookingExpiryHours,
+        jobId: input.workflow.jobId ? String(input.workflow.jobId) : null,
+      });
+      const claimedState = await Huntlo360CandidateStateModel.findOneAndUpdate(
+        {
+          _id: input.state._id,
+          $or: [{ scheduleCandidateId: null }, { scheduleCandidateId: { $exists: false } }],
+        },
+        { $set: { scheduleCandidateId: link._id } },
+        { new: true }
+      );
+      if (!claimedState?.scheduleCandidateId) {
+        const winner = await Huntlo360CandidateStateModel.findById(input.state._id)
+          .select('scheduleCandidateId')
+          .lean();
+        input.state.scheduleCandidateId = winner?.scheduleCandidateId || link._id;
+        if (
+          winner?.scheduleCandidateId &&
+          String(winner.scheduleCandidateId) !== String(link._id)
+        ) {
+          await ScheduleCandidateModel.findByIdAndUpdate(link._id, {
+            $set: { status: 'cancelled' },
+          }).catch(() => undefined);
+        }
+      } else {
+        input.state.scheduleCandidateId = link._id;
+        await flowSupportService
+          .addIds(input.workflowId, {
+            scheduleCandidateIds: [String(link._id)],
+          })
+          .catch(() => undefined);
+      }
+    }
+    await Huntlo360CandidateStateModel.findByIdAndUpdate(input.state._id, {
+      $set: { scheduleCandidateId: input.state.scheduleCandidateId },
+    }).catch(() => undefined);
   }
 
   const delivery = await schedulingFacade.deliverInvite({
@@ -289,6 +343,12 @@ async function ensureSchedulingInvite(input: {
     channel,
   });
   input.state.schedulingStatus = delivery.status;
+  await Huntlo360CandidateStateModel.findByIdAndUpdate(input.state._id, {
+    $set: {
+      scheduleCandidateId: input.state.scheduleCandidateId,
+      schedulingStatus: delivery.status,
+    },
+  }).catch(() => undefined);
   if (input.state.enrollmentId) {
     await OutreachEnrollmentModel.findByIdAndUpdate(input.state.enrollmentId, {
       $set: {
@@ -308,14 +368,13 @@ export async function applyWorkflowTransition(input: TransitionInput) {
   if (existing) {
     const state = await Huntlo360CandidateStateModel.findById(existing.candidateStateId);
     // Earlier builds moved candidates to screening without scheduling a Hunar dial.
-    // Re-fire createSession (idempotent) so qualification_pass always launches.
+    // Only re-fire when no screening session was linked yet — avoids duplicate dials
+    // when qualification_pass is replayed from HCG sync/change streams.
     if (
       state &&
       existing.toStage === 'screening' &&
       input.event === 'qualification_pass' &&
-      (!state.screeningId ||
-        !state.screeningStatus ||
-        ['pending', 'scheduled', 'queued'].includes(String(state.screeningStatus)))
+      !state.screeningId
     ) {
       const workflow = await Huntlo360WorkflowModel.findOne({
         _id: input.workflowId,
@@ -347,6 +406,8 @@ export async function applyWorkflowTransition(input: TransitionInput) {
       });
       const shouldSend =
         Boolean(workflow?.schedulingConfig?.enabled) &&
+        state.schedulingStatus !== 'link_sent' &&
+        state.schedulingStatus !== 'booked' &&
         (existing.toStage === 'scheduling' ||
           state.currentStage === 'scheduling' ||
           (input.event === 'screening_pass' &&

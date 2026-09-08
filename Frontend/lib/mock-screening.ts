@@ -524,6 +524,10 @@ export interface ScreeningResult {
   duration: string;
   overallScore: number;
   recommendation: AiRecommendation;
+  /** HCG hunar overallAIStatus label when available. */
+  overallAIStatus?: string | null;
+  /** HCG call_status.answered_by when available. */
+  answeredBy?: string | null;
   knockoutFailed?: boolean;
   keyVariables: string[];
   completedDate: string;
@@ -696,9 +700,19 @@ export interface ResultActivityEntry {
 export interface ScreeningResultDetail {
   resultId: string;
   summary: string;
+  /** HCG overallAIDescription when different from the call summary. */
+  statusNote?: string | null;
   strengths: string[];
   concerns: string[];
   keyAnswers: { question: string; answer: string }[];
+  /** HCG hunar `questions` for the summary aside. */
+  hcgQuestions: Array<{
+    id: string;
+    question: string;
+    answer: string;
+    status: string;
+    description?: string;
+  }>;
   salaryExpectation: string;
   noticePeriod: string;
   preferredLocation: string;
@@ -744,6 +758,32 @@ export const RESULT_DETAILS: Record<string, ScreeningResultDetail> = {
       {
         question: "Availability",
         answer: "Can start after serving notice; open to joining earlier if buyout is supported.",
+      },
+    ],
+    hcgQuestions: [
+      {
+        id: "q-1",
+        question: "What is your current / expected CTC?",
+        answer: "₹42–48 LPA",
+        status: "passed",
+      },
+      {
+        id: "q-2",
+        question: "What is your notice period?",
+        answer: "45 days (negotiable with buyout)",
+        status: "passed",
+      },
+      {
+        id: "q-3",
+        question: "Preferred work location?",
+        answer: "Bengaluru · hybrid 3 days",
+        status: "passed",
+      },
+      {
+        id: "q-4",
+        question: "Interest in this role?",
+        answer: "High — asked about team size and on-call rotation",
+        status: "passed",
       },
     ],
     salaryExpectation: "₹42–48 LPA",
@@ -964,6 +1004,12 @@ export function getResultDetail(id: string): ScreeningResultDetail | undefined {
         answer: result.keyVariables.join(" · "),
       },
     ],
+    hcgQuestions: result.keyVariables.map((value, index) => ({
+      id: `q-${index + 1}`,
+      question: `Question ${index + 1}`,
+      answer: value,
+      status: "passed",
+    })),
     salaryExpectation: result.keyVariables.find((v) => v.includes("LPA")) ?? "—",
     noticePeriod: result.keyVariables.find((v) => v.includes("notice") || v.includes("d ")) ?? "—",
     preferredLocation:

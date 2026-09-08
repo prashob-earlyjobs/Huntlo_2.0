@@ -284,6 +284,22 @@ export async function createHunarBulkCalls(input: {
     throw err;
   }
 
+  // Gateway/Hunar will dial each payload row — never send the same mobile twice.
+  const seenMobiles = new Set<string>();
+  const callees = input.callees.filter((row) => {
+    const digits = String(row.mobile_number || '').replace(/\D/g, '');
+    const key = digits.length > 10 ? digits.slice(-10) : digits;
+    if (!key || seenMobiles.has(key)) return false;
+    seenMobiles.add(key);
+    return true;
+  });
+  if (!callees.length) {
+    const err = new Error('No candidates have a valid phone number for AI voice calls.');
+    (err as Error & { code?: string; statusCode?: number }).code = 'VOICE_NO_VALID_PHONES';
+    (err as Error & { statusCode?: number }).statusCode = 400;
+    throw err;
+  }
+
   // Hunar request_id max length is 64 (alphanumeric + _ - .)
   const requestId = String(input.requestId || `${entityId}-${randomUUID()}`)
     .replace(/[^a-zA-Z0-9_.-]/g, '-')
@@ -292,7 +308,7 @@ export async function createHunarBulkCalls(input: {
   const body = await sendHunarCallViaGateway({
     agentId,
     campaignId: entityId,
-    data: input.callees,
+    data: callees,
     questions: input.questions,
   });
 
@@ -309,7 +325,7 @@ export async function createHunarBulkCalls(input: {
 
   return {
     requestId: body.requestId || requestId,
-    dialedCount: body.dialedCount || input.callees.length,
+    dialedCount: body.dialedCount || callees.length,
     response: body.response,
   };
 }

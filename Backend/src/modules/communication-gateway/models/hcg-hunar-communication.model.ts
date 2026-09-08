@@ -1,6 +1,11 @@
 import mongoose, { type Document, type Model, Schema } from 'mongoose';
 
-import { type HcgOverallAiStatus } from './hcg.types.js';
+import {
+  HCG_QUESTION_STATUSES,
+  type HcgOverallAiStatus,
+  type HcgQuestionStatus,
+  type HcgScreeningQuestion,
+} from './hcg.types.js';
 
 export type HcgHunarCallStatus = {
   agent_id?: string;
@@ -57,6 +62,7 @@ export type HcgHunarCommunicationDocument = Document & {
   callId?: string;
   overallAIStatus?: HcgOverallAiStatus | string | null;
   overallAIDescription?: string | null;
+  questions: HcgScreeningQuestion[];
   call_status?: HcgHunarCallStatus | null;
   call_recording?: HcgHunarCallRecording | null;
   call_result?: HcgHunarCallResult | null;
@@ -73,6 +79,23 @@ const hcgHunarCommunicationSchema = new Schema<HcgHunarCommunicationDocument>(
     callId: String,
     overallAIStatus: { type: String, default: 'awaiting_reply' },
     overallAIDescription: String,
+    questions: {
+      type: [
+        {
+          id: String,
+          question: String,
+          asked: { type: Boolean, default: false },
+          answer: String,
+          status: {
+            type: String,
+            enum: HCG_QUESTION_STATUSES as unknown as string[],
+            default: 'unanswered' satisfies HcgQuestionStatus,
+          },
+          description: String,
+        },
+      ],
+      default: [],
+    },
     call_status: Schema.Types.Mixed,
     call_recording: Schema.Types.Mixed,
     call_result: Schema.Types.Mixed,

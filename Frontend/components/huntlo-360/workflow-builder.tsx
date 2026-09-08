@@ -1205,11 +1205,42 @@ function ScreeningStep({
       <div className="space-y-5">
         <ToggleRow
           id="wf-screening"
-          label="Voice screening enabled"
-          description="Skip this step to shortlist straight from qualification."
+          label="Add a voice screening call"
+          description="After text Q&A passes, call them before booking. Turn off to go straight to interview invite (or recruiter review)."
           checked={state.screeningEnabled}
-          onChange={(checked) => update("screeningEnabled", checked)}
+          onChange={(checked) => {
+            update("screeningEnabled", checked);
+            if (checked) {
+              // Screening wins over “book right after qualify”.
+              update("autoSendAfterQualification", false);
+              if (!state.autoSendAfterScreening) {
+                update("autoSendAfterScreening", true);
+              }
+            } else if (state.autoSendAfterScreening) {
+              // Keep auto-booking when dropping the call step.
+              update("autoSendAfterQualification", true);
+              update("autoSendAfterScreening", false);
+            }
+          }}
         />
+
+        {state.screeningEnabled ? (
+          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            Path:{" "}
+            <span className="font-medium text-foreground">
+              Text Q&A → voice call → interview invite
+            </span>{" "}
+            (invite timing is set in Interview booking).
+          </p>
+        ) : (
+          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            Path:{" "}
+            <span className="font-medium text-foreground">
+              Text Q&A → interview invite
+            </span>{" "}
+            (no voice call).
+          </p>
+        )}
 
         {state.screeningEnabled ? (
           <>
@@ -1618,21 +1649,72 @@ function SchedulingStep({
           </Select>
         </Field>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          <ToggleRow
-            id="wf-auto-qual"
-            label="Book right after they qualify"
-            description="Skip the screening call and send the interview link as soon as they pass qualification."
-            checked={state.autoSendAfterQualification}
-            onChange={(checked) => update("autoSendAfterQualification", checked)}
-          />
-          <ToggleRow
-            id="wf-auto-screen"
-            label="Book automatically after screening"
-            description="Recommended. Send the interview link when the screening score is high enough — no manual approval."
-            checked={state.autoSendAfterScreening}
-            onChange={(checked) => update("autoSendAfterScreening", checked)}
-          />
+        <div className="space-y-3 rounded-lg border border-border p-3 sm:p-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              When to send the interview link
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {state.screeningEnabled
+                ? "Voice screening is on — the invite can only go out after the call passes."
+                : "Voice screening is off — the invite can go out right after text Q&A."}
+            </p>
+          </div>
+
+          <ol className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <li className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+              Text Q&A
+            </li>
+            <li aria-hidden>→</li>
+            {state.screeningEnabled ? (
+              <>
+                <li className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+                  Voice call
+                </li>
+                <li aria-hidden>→</li>
+              </>
+            ) : null}
+            <li
+              className={cn(
+                "rounded-md px-2 py-1 font-medium",
+                (state.screeningEnabled
+                  ? state.autoSendAfterScreening
+                  : state.autoSendAfterQualification)
+                  ? "bg-brand-subtle/50 text-primary"
+                  : "bg-muted text-foreground"
+              )}
+            >
+              {(state.screeningEnabled
+                ? state.autoSendAfterScreening
+                : state.autoSendAfterQualification)
+                ? "Interview link (auto)"
+                : "Recruiter sends link"}
+            </li>
+          </ol>
+
+          {state.screeningEnabled ? (
+            <ToggleRow
+              id="wf-auto-screen"
+              label="Send invite automatically after they pass the call"
+              description="If off, a recruiter must send the Calendly link manually."
+              checked={state.autoSendAfterScreening}
+              onChange={(checked) => {
+                update("autoSendAfterScreening", checked);
+                update("autoSendAfterQualification", false);
+              }}
+            />
+          ) : (
+            <ToggleRow
+              id="wf-auto-qual"
+              label="Send invite automatically after they pass text Q&A"
+              description="If off, a recruiter must send the Calendly link manually."
+              checked={state.autoSendAfterQualification}
+              onChange={(checked) => {
+                update("autoSendAfterQualification", checked);
+                update("autoSendAfterScreening", false);
+              }}
+            />
+          )}
         </div>
       </div>
     </StepCard>
@@ -1742,11 +1824,13 @@ function ReviewStep({
           ? `Calendly via ${state.schedulingChannel}`
           : `No Calendly event · ${state.schedulingChannel}`,
         `Reminders: ${formatReminderHours(state.reminderHours)} · link expires after ${state.bookingExpiry}`,
-        state.autoSendAfterScreening
-          ? "Books automatically after screening"
+        state.screeningEnabled
+          ? state.autoSendAfterScreening
+            ? "Invite auto-sends after the screening call passes"
+            : "Recruiter sends the interview link after screening"
           : state.autoSendAfterQualification
-            ? "Books automatically after qualification"
-            : "Needs recruiter to send the link",
+            ? "Invite auto-sends after text Q&A passes"
+            : "Recruiter sends the interview link after qualification",
       ],
     },
   ];

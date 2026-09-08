@@ -105,6 +105,27 @@ async function flushPending(docId: string): Promise<void> {
     questionCount: questions.length,
     reasons: [...pending.reasons],
   });
+
+  const overallAiStatus = pending.doc.overallAIStatus
+    ? String(pending.doc.overallAIStatus)
+    : '';
+  const email = String(pending.doc.emailAddress || '').trim();
+  if (overallAiStatus && email) {
+    const { applyHuntlo360FromHcgOverallAiStatus } = await import(
+      '../modules/huntlo-360/hcg-qualification-transition.js'
+    );
+    await applyHuntlo360FromHcgOverallAiStatus({
+      campaignId,
+      overallAiStatus,
+      email,
+      source: 'gmail',
+    }).catch((error) => {
+      logger().warn(
+        { err: error, campaignId, email },
+        'Huntlo 360 transition from Gmail HCG update failed'
+      );
+    });
+  }
 }
 
 function queueChange(change: GmailConversationChange): void {

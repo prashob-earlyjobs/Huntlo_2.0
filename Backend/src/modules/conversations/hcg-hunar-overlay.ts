@@ -18,6 +18,14 @@ type HcgHunarLean = {
   callId?: string | null;
   overallAIStatus?: string | null;
   overallAIDescription?: string | null;
+  questions?: Array<{
+    id?: string;
+    question?: string;
+    asked?: boolean;
+    answer?: string;
+    status?: string;
+    description?: string;
+  }> | null;
   call_status?: HcgHunarCallStatus | null;
   call_recording?: HcgHunarCallRecording | null;
   call_result?: HcgHunarCallResult | null;
@@ -260,6 +268,24 @@ function questionLabel(key: string, index: number): string {
 }
 
 export function mapHcgHunarQuestions(doc: HcgHunarLean): HcgHunarQuestionView[] {
+  const stored = Array.isArray(doc.questions) ? doc.questions : [];
+  if (stored.length > 0) {
+    return stored
+      .map((raw, index) => {
+        const question = String(raw?.question || '').trim();
+        const id = String(raw?.id || '').trim() || (question ? `q-${index + 1}` : '');
+        return {
+          id,
+          question,
+          asked: Boolean(raw?.asked),
+          answer: raw?.answer == null ? '' : String(raw.answer).trim(),
+          status: String(raw?.status || 'unanswered').trim() || 'unanswered',
+          description: String(raw?.description || '').trim(),
+        };
+      })
+      .filter((row) => row.id || row.question);
+  }
+
   const result = callResultPayload(doc);
   const rows: HcgHunarQuestionView[] = [];
   const qKeys = Object.keys(result)
@@ -291,6 +317,124 @@ export function mapHcgHunarQuestions(doc: HcgHunarLean): HcgHunarQuestionView[] 
     });
   }
   return rows.filter((row) => row.id);
+}
+
+const KEY_ANSWER_FIELDS: Array<{ key: string; label: string }> = [
+  { key: 'skills_and_tools', label: 'Skills and tools' },
+  { key: 'interest_level', label: 'Interest level' },
+  { key: 'final_outcome', label: 'Final outcome' },
+  { key: 'candidate_status', label: 'Candidate status' },
+  { key: 'notice_period', label: 'Notice period' },
+  { key: 'expected_ctc', label: 'Expected CTC' },
+  { key: 'ctc', label: 'Current CTC' },
+  { key: 'location', label: 'Location' },
+  { key: 'experience', label: 'Experience' },
+  { key: 'relevant_experience', label: 'Relevant experience' },
+  { key: 'education', label: 'Education' },
+  { key: 'recent_project', label: 'Recent project' },
+  { key: 'role_interest_confirmation', label: 'Role interest' },
+];
+
+function meaningfulResultText(value: string): boolean {
+  return Boolean(value.trim()) && !isBlankAnswer(value);
+}
+
+function scoreFromHunarResult(result: Record<string, unknown>): number | null {
+  const communication = Number(result.communication);
+  if (Number.isFinite(communication) && communication > 0) {
+    return Math.round(communication);
+  }
+  const eligibility = Number(resultText(result, 'eligibility_score'));
+  if (!Number.isFinite(eligibility) || eligibility <= 0) return null;
+  // eligibility_score is usually 1–5; map to ~20–100 for the result header.
+  if (eligibility <= 5) return Math.round(eligibility * 20);
+  return Math.round(eligibility);
+}
+
+function durationSecondsFromHunar(doc: HcgHunarLean): number | null {
+  const status = callStatusOf(doc);
+  const seconds = Number(status.duration_seconds);
+  if (Number.isFinite(seconds) && seconds > 0) return Math.round(seconds);
+  const minutes = Number(status.duration_minutes);
+  if (Number.isFinite(minutes) && minutes > 0) return Math.round(minutes * 60);
+  return null;
+}
+
+/** Flat overlay for screening result detail (status, summary, score, Q&A, etc.). */
+export function buildHcgHunarScreeningResultOverlay(doc: HcgHunarLean): {
+  overallAIStatus: string | null;
+  overallAIDescription: string | null;
+  summary: string | null;
+  overallScore: number | null;
+  durationSeconds: number | null;
+  recordingReference: string | null;
+  answeredBy: string | null;
+  hcgQuestions: HcgHunarQuestionView[];
+  strengths: string[];
+  concerns: string[];
+  keyAnswers: Array<{ question: string; answer: string }>;
+  extractedVariables: Record<string, unknown>;
+  triggeredKnockouts: string[];
+} {
+  const result = callResultPayload(doc);
+  const status = callStatusOf(doc);
+  const recordingUrl = String(callRecordingOf(doc).recording_url || '').trim();
+  const callSummaryText = resultText(result, 'summary');
+  const overallAIDescription = String(doc.overallAIDescription || '').trim();
+  const eligibilityReason = resultText(result, 'eligibility_reason');
+
+  const keyAnswers = KEY_ANSWER_FIELDS.flatMap(({ key, label }) => {
+    const answer = resultText(result, key);
+    return meaningfulResultText(answer) ? [{ question: label, answer }] : [];
+  });
+
+  const strengths: string[] = [];
+  const skills = resultText(result, 'skills_and_tools');
+  const interest = resultText(result, 'interest_level');
+  const candidateStatus = resultText(result, 'candidate_status');
+  if (meaningfulResultText(skills)) strengths.push(`Skills: ${skills}`);
+  if (meaningfulResultText(interest)) strengths.push(`Interest: ${interest}`);
+  if (meaningfulResultText(candidateStatus)) strengths.push(candidateStatus);
+
+  const concerns: string[] = [];
+  if (meaningfulResultText(eligibilityReason)) concerns.push(eligibilityReason);
+
+  const triggeredKnockouts = Array.isArray(result.knockouts_triggered)
+    ? result.knockouts_triggered.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+
+  const skipExtracted = new Set([
+    'summary',
+    'candidate_questions',
+    'knockouts_triggered',
+    'eligibility_reason',
+  ]);
+  const extractedVariables: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(result)) {
+    if (skipExtracted.has(key)) continue;
+    if (Array.isArray(value)) {
+      if (value.length > 0) extractedVariables[key] = value;
+      continue;
+    }
+    const text = value == null ? '' : String(value).trim();
+    if (meaningfulResultText(text)) extractedVariables[key] = text;
+  }
+
+  return {
+    overallAIStatus: formatHcgOverallAiStatus(hcgHunarOverallAiStatus(doc)),
+    overallAIDescription: overallAIDescription || null,
+    summary: callSummaryText || overallAIDescription || null,
+    overallScore: scoreFromHunarResult(result),
+    durationSeconds: durationSecondsFromHunar(doc),
+    recordingReference: recordingUrl || null,
+    answeredBy: String(status.answered_by || '').trim() || null,
+    hcgQuestions: mapHcgHunarQuestions(doc),
+    strengths,
+    concerns,
+    keyAnswers,
+    extractedVariables,
+    triggeredKnockouts,
+  };
 }
 
 function collectHcgHunarQuestionColumns(docs: HcgHunarLean[]): HcgHunarQuestionColumn[] {
@@ -357,14 +501,35 @@ export async function findHcgHunarCommunication(
   campaignId: string | null | undefined,
   phone: string | null | undefined
 ): Promise<HcgHunarCommunicationDocument | null> {
-  const cid = String(campaignId || '').trim();
+  return findHcgHunarCommunicationByCampaignIds(
+    campaignId ? [String(campaignId)] : [],
+    phone
+  );
+}
+
+/** Prefer the most recent HCG hunar doc across outreach + screening batch ids. */
+export async function findHcgHunarCommunicationByCampaignIds(
+  campaignIds: Array<string | null | undefined>,
+  phone: string | null | undefined
+): Promise<HcgHunarCommunicationDocument | null> {
+  const ids = [
+    ...new Set(campaignIds.map((id) => String(id || '').trim()).filter(Boolean)),
+  ];
   const digits = normalizePhone(phone);
-  if (!cid || !digits) return null;
+  if (!ids.length || !digits) return null;
   const docs = (await HcgHunarCommunicationModel.find(
-    campaignIdQuery([cid])
+    campaignIdQuery(ids)
   ).lean()) as HcgHunarLean[];
-  const match = docs.find((doc) => campaignIdOf(doc) === cid && phoneMatches(doc, digits));
-  return (match as HcgHunarCommunicationDocument) || null;
+  const matches = docs.filter(
+    (doc) => ids.includes(campaignIdOf(doc)) && phoneMatches(doc, digits)
+  );
+  if (!matches.length) return null;
+  matches.sort((a, b) => {
+    const left = a.updatedAt?.getTime?.() || 0;
+    const right = b.updatedAt?.getTime?.() || 0;
+    return right - left;
+  });
+  return (matches[0] as HcgHunarCommunicationDocument) || null;
 }
 
 export async function overlayHcgHunarOnListItems(
