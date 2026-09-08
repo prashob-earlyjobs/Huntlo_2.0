@@ -100,6 +100,27 @@ async function flushPending(docId: string): Promise<void> {
     questionCount: questions.length,
     reasons: [...pending.reasons],
   });
+
+  const overallAiStatus = pending.doc.overallAIStatus
+    ? String(pending.doc.overallAIStatus)
+    : '';
+  const phone = String(pending.doc.phone || '').trim();
+  if (overallAiStatus && phone) {
+    const { applyHuntlo360FromHcgOverallAiStatus } = await import(
+      '../modules/huntlo-360/hcg-qualification-transition.js'
+    );
+    await applyHuntlo360FromHcgOverallAiStatus({
+      campaignId,
+      overallAiStatus,
+      phone,
+      source: 'whatsapp',
+    }).catch((error) => {
+      logger().warn(
+        { err: error, campaignId, phone },
+        'Huntlo 360 transition from WhatsApp HCG update failed'
+      );
+    });
+  }
 }
 
 function queueChange(change: WhatsappConversationChange): void {

@@ -148,6 +148,9 @@ function mapBatch(row: Record<string, unknown>): ScreeningBatch {
 function mapResult(row: Record<string, unknown>): ScreeningResult {
   const extracted = (row.extractedVariables as Record<string, unknown>) || {};
   const knockoutResults = mapKnockoutResults(row);
+  const overallAIStatus = row.overallAIStatus
+    ? String(row.overallAIStatus).trim() || null
+    : null;
   return {
     id: String(row.id),
     candidateId: (row.candidateId as string | null) ?? null,
@@ -162,6 +165,8 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
     duration: formatDuration(row.durationSeconds as number | null),
     overallScore: Number(row.overallScore ?? 0),
     recommendation: mapRecommendation(row.recommendation as string | null),
+    overallAIStatus,
+    answeredBy: row.answeredBy ? String(row.answeredBy).trim() || null : null,
     knockoutFailed: knockoutResults.some((item) => !item.passed),
     keyVariables: Object.entries(extracted)
       .filter(
@@ -388,10 +393,46 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
 
   return {
     resultId: String(row.id),
-    summary: String(row.summary || "No summary yet."),
-    strengths: asStringList(extracted.strengths),
-    concerns: asStringList(extracted.concerns),
-    keyAnswers: keyAnswersFromExtracted,
+    summary: String(row.summary || row.overallAIDescription || "No summary yet."),
+    statusNote: (() => {
+      const note = String(row.overallAIDescription || "").trim();
+      const summary = String(row.summary || "").trim();
+      if (!note || note === summary) return null;
+      return note;
+    })(),
+    strengths: Array.isArray(row.strengths)
+      ? asStringList(row.strengths)
+      : asStringList(extracted.strengths),
+    concerns: Array.isArray(row.concerns)
+      ? asStringList(row.concerns)
+      : asStringList(extracted.concerns),
+    keyAnswers:
+      Array.isArray(row.keyAnswers) && row.keyAnswers.length > 0
+        ? (row.keyAnswers as Array<Record<string, unknown>>)
+            .map((item) => {
+              const question = String(item.question || "").trim();
+              const answer = String(item.answer || "").trim();
+              if (!question || !answer) return null;
+              return { question, answer };
+            })
+            .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        : keyAnswersFromExtracted,
+    hcgQuestions: Array.isArray(row.hcgQuestions)
+      ? (row.hcgQuestions as Array<Record<string, unknown>>)
+          .map((item, index) => {
+            const question = String(item.question || "").trim();
+            const id = String(item.id || "").trim() || `q-${index + 1}`;
+            if (!question && !String(item.answer || "").trim()) return null;
+            return {
+              id,
+              question: question || id,
+              answer: String(item.answer || "").trim() || "—",
+              status: String(item.status || "unanswered"),
+              description: String(item.description || "").trim() || undefined,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      : [],
     salaryExpectation: String(
       extracted.salary ||
         extracted.salary_expectation ||

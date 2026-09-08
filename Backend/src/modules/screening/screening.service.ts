@@ -35,6 +35,10 @@ import {
   toHunarMobile,
 } from '../voice/voice-dialer.service.js';
 import {
+  buildHcgHunarScreeningResultOverlay,
+  findHcgHunarCommunicationByCampaignIds,
+} from '../conversations/hcg-hunar-overlay.js';
+import {
   ScreeningModel,
   defaultScreeningStats,
   type ScreeningDocument,
@@ -210,6 +214,20 @@ function toResultDisplay(
     transcript: row.transcript,
     recordingReference: row.recordingReference,
     summary: row.summary,
+    overallAIStatus: null as string | null,
+    overallAIDescription: null as string | null,
+    answeredBy: null as string | null,
+    strengths: [] as string[],
+    concerns: [] as string[],
+    keyAnswers: [] as Array<{ question: string; answer: string }>,
+    hcgQuestions: [] as Array<{
+      id: string;
+      question: string;
+      asked: boolean;
+      answer: string;
+      status: string;
+      description: string;
+    }>,
     extractedVariables: row.extractedVariables,
     scoreBreakdown: row.scoreBreakdown,
     overallScore: row.overallScore,
@@ -963,6 +981,13 @@ export const screeningService = {
     };
     const launchCallees: LaunchCallee[] = [];
     for (const row of rows) {
+      // Already placed a Hunar/Zyvka dial while still awaiting webhook — skip.
+      if (
+        row.callStatus === 'queued' &&
+        (Boolean(row.providerRequestId) || Number(row.attempts || 0) > 0)
+      ) {
+        continue;
+      }
       const candidate = byId.get(String(row.candidateId));
       if (!candidate?.phone) continue;
       const mobile = toHunarMobile(candidate.phone);
@@ -977,12 +1002,98 @@ export const screeningService = {
       });
     }
 
-    if (!launchCallees.length) {
+    // One phone → one dial. Prefer the first selected candidateId when several share a number.
+    if (candidateIds.length > 0) {
+      const rank = new Map(candidateIds.map((id, index) => [id, index]));
+      launchCallees.sort(
+        (left, right) =>
+          (rank.get(left.candidateId) ?? Number.MAX_SAFE_INTEGER) -
+          (rank.get(right.candidateId) ?? Number.MAX_SAFE_INTEGER)
+      );
+    }
+
+    // Phones already dialed on this screening batch (other candidate rows).
+    const priorDialedRows = await ScreeningCandidateModel.find({
+      screeningId: id,
+      candidateId: { $nin: launchCallees.map((c) => c.row.candidateId) },
+      $or: [
+        { providerRequestId: { $nin: [null, ''] } },
+        { attempts: { $gt: 0 } },
+        {
+          callStatus: {
+            $in: [
+              'ringing',
+              'in_progress',
+              'completed',
+              'no_answer',
+              'failed',
+              'busy',
+              'voicemail',
+              'cancelled',
+            ],
+          },
+        },
+      ],
+    })
+      .select('candidateId')
+      .lean();
+    const priorCandidates = priorDialedRows.length
+      ? await SavedCandidateModel.find({
+          _id: { $in: priorDialedRows.map((row) => row.candidateId) },
+          organizationId,
+        })
+          .select('phone')
+          .lean()
+      : [];
+    const priorPhones = new Set(
+      priorCandidates
+        .map((candidate) => {
+          const mobile = toHunarMobile(String(candidate.phone || ''));
+          if (!mobile) return '';
+          const digits = mobile.replace(/\D/g, '');
+          return digits.length > 10 ? digits.slice(-10) : digits;
+        })
+        .filter(Boolean)
+    );
+
+    const uniqueCallees: LaunchCallee[] = [];
+    const duplicatePhoneCallees: LaunchCallee[] = [];
+    const seenPhones = new Set<string>(priorPhones);
+    for (const callee of launchCallees) {
+      const key =
+        callee.mobileDigits.length > 10
+          ? callee.mobileDigits.slice(-10)
+          : callee.mobileDigits;
+      if (!key || seenPhones.has(key)) {
+        duplicatePhoneCallees.push(callee);
+        continue;
+      }
+      seenPhones.add(key);
+      uniqueCallees.push(callee);
+    }
+    for (const duplicate of duplicatePhoneCallees) {
+      duplicate.row.callStatus = 'cancelled';
+      duplicate.row.error =
+        'Skipped — another candidate with the same phone number was already dialed (or selected) for this screening.';
+      await duplicate.row.save();
+    }
+
+    if (!uniqueCallees.length) {
+      // All candidates already dialed (or no phones) — treat as success for re-launches.
+      if (rows.length > 0) {
+        doc.status = 'running';
+        doc.launchedAt = doc.launchedAt || new Date();
+        await doc.save();
+        return toDisplay(doc, {
+          ownerName: await ownerName(String(doc.ownerUserId)),
+          jobTitle: await jobTitle(doc.jobId),
+        });
+      }
       throw new AppError(400, 'VOICE_NO_VALID_PHONES', 'No candidates have a valid phone number.');
     }
 
-    const indianCallees = launchCallees.filter((c) => c.indian);
-    const internationalCallees = launchCallees.filter((c) => !c.indian);
+    const indianCallees = uniqueCallees.filter((c) => c.indian);
+    const internationalCallees = uniqueCallees.filter((c) => !c.indian);
 
     if (indianCallees.length > 0 && !isHunarConfigured()) {
       throw new AppError(
@@ -1003,7 +1114,7 @@ export const screeningService = {
     }
 
     // Reserve 1 voice minute per dial attempt up front; commit actual usage on webhook.
-    for (const callee of launchCallees) {
+    for (const callee of uniqueCallees) {
       const row = callee.row;
       const key = `screening:${id}:candidate:${String(row.candidateId)}:attempt:${row.attempts + 1}`;
       await quotaService.reserveUsage({
@@ -1049,6 +1160,7 @@ export const screeningService = {
       lastLaunchRequestId = bulk.requestId || lastLaunchRequestId;
       for (const callee of indianCallees) {
         callee.row.providerRequestId = bulk.requestId;
+        callee.row.callStatus = 'ringing';
         await callee.row.save();
       }
     }
@@ -1081,6 +1193,7 @@ export const screeningService = {
 
       for (const callee of internationalCallees) {
         callee.row.providerRequestId = zyastraRequestId;
+        callee.row.callStatus = 'ringing';
         await callee.row.save();
         await seedPendingVoiceCalls({
           organizationId,
@@ -1312,13 +1425,15 @@ export const screeningService = {
       // best-effort enrollment badge sync
     }
 
-    const candidate = await SavedCandidateModel.findById(row.candidateId).select('name').lean();
+    const candidate = await SavedCandidateModel.findById(row.candidateId)
+      .select('name phone')
+      .lean();
     const screening = await ScreeningModel.findById(row.screeningId)
       .select('name jobId knockouts evaluationCriteria questions callSettings')
       .lean();
     const linkedJobTitle = screening?.jobId ? await jobTitle(screening.jobId) : null;
     const activity = await buildResultActivity(row);
-    return toResultDisplay(row, {
+    const display = toResultDisplay(row, {
       name: candidate?.name || 'Unknown',
       jobId: screening?.jobId ? String(screening.jobId) : null,
       jobTitle: linkedJobTitle,
@@ -1333,6 +1448,59 @@ export const screeningService = {
       attemptsMax: screening?.callSettings?.maxAttempts ?? 2,
       activity,
     });
+
+    // Prefer gateway Hunar fields on the result detail UI when present.
+    const hcg = await findHcgHunarCommunicationByCampaignIds(
+      [String(row.screeningId)],
+      candidate?.phone
+    );
+    if (hcg) {
+      const overlay = buildHcgHunarScreeningResultOverlay(hcg);
+      if (overlay.overallAIStatus) display.overallAIStatus = overlay.overallAIStatus;
+      if (overlay.overallAIDescription) {
+        display.overallAIDescription = overlay.overallAIDescription;
+      }
+      if (overlay.summary) display.summary = overlay.summary;
+      if (
+        overlay.overallScore != null &&
+        (display.overallScore == null || display.overallScore === 0)
+      ) {
+        display.overallScore = overlay.overallScore;
+      }
+      if (
+        overlay.durationSeconds != null &&
+        (display.durationSeconds == null || display.durationSeconds <= 0)
+      ) {
+        display.durationSeconds = overlay.durationSeconds;
+      }
+      if (overlay.recordingReference && !display.recordingReference) {
+        display.recordingReference = overlay.recordingReference;
+      }
+      if (overlay.answeredBy) display.answeredBy = overlay.answeredBy;
+      if (overlay.hcgQuestions.length > 0) display.hcgQuestions = overlay.hcgQuestions;
+      if (overlay.strengths.length > 0) display.strengths = overlay.strengths;
+      if (overlay.concerns.length > 0) display.concerns = overlay.concerns;
+      if (overlay.keyAnswers.length > 0) display.keyAnswers = overlay.keyAnswers;
+      if (Object.keys(overlay.extractedVariables).length > 0) {
+        display.extractedVariables = {
+          ...(display.extractedVariables && typeof display.extractedVariables === 'object'
+            ? display.extractedVariables
+            : {}),
+          ...overlay.extractedVariables,
+        };
+      }
+      if (overlay.triggeredKnockouts.length > 0) {
+        display.triggeredKnockouts = [
+          ...new Set([...(display.triggeredKnockouts || []), ...overlay.triggeredKnockouts]),
+        ];
+        display.knockoutResults = buildKnockoutResults(
+          display.knockouts || [],
+          display.triggeredKnockouts
+        );
+      }
+    }
+
+    return display;
   },
 
   async setDecision(

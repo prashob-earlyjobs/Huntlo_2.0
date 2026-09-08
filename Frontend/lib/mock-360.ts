@@ -466,50 +466,90 @@ export const WORKFLOW_CANDIDATES: WorkflowCandidate[] = [
 
 export interface WorkflowScreening {
   id: string;
+  candidateId: string | null;
   candidate: string;
+  phone: string | null;
+  provider: "hunar" | "zyvkay";
+  callStatus: string;
+  aiStatus: string | null;
   attempt: string;
   duration: string | null;
   score: number | null;
   outcome: string;
+  summary: string | null;
   time: string;
+  lastActivityAt: string | null;
+  screeningResultId: string | null;
 }
 
 export const WORKFLOW_SCREENINGS: WorkflowScreening[] = [
   {
     id: "ws-1",
+    candidateId: null,
     candidate: "Priya Nair",
-    attempt: "Attempt 1 of 3",
+    phone: null,
+    provider: "hunar",
+    callStatus: "Completed",
+    aiStatus: "Shortlisted",
+    attempt: "Voice attempt",
     duration: "7m 40s",
     score: 92,
     outcome: "Passed — auto-shortlisted",
+    summary: null,
     time: "2d ago",
+    lastActivityAt: null,
+    screeningResultId: null,
   },
   {
     id: "ws-2",
+    candidateId: null,
     candidate: "Rahul Venkatesh",
-    attempt: "Attempt 1 of 3",
+    phone: null,
+    provider: "hunar",
+    callStatus: "Completed",
+    aiStatus: "Shortlisted",
+    attempt: "Voice attempt",
     duration: "6m 12s",
     score: 84,
     outcome: "Passed — auto-shortlisted",
+    summary: null,
     time: "Today, 9:55 AM",
+    lastActivityAt: null,
+    screeningResultId: null,
   },
   {
     id: "ws-3",
+    candidateId: null,
     candidate: "Ishaan Mehta",
-    attempt: "Attempt 2 of 3",
+    phone: null,
+    provider: "hunar",
+    callStatus: "Completed",
+    aiStatus: "In screening",
+    attempt: "Voice attempt",
     duration: "5m 03s",
     score: 71,
     outcome: "Below minimum score — recruiter review",
+    summary: null,
     time: "2d ago",
+    lastActivityAt: null,
+    screeningResultId: null,
   },
   {
     id: "ws-4",
+    candidateId: null,
     candidate: "Sneha Kulkarni",
-    attempt: "Attempt 1 of 3",
+    phone: null,
+    provider: "hunar",
+    callStatus: "No answer",
+    aiStatus: null,
+    attempt: "Voice attempt",
     duration: null,
     score: null,
     outcome: "Unanswered — retry in 24h",
+    summary: null,
     time: "3h ago",
+    lastActivityAt: null,
+    screeningResultId: null,
   },
 ];
 

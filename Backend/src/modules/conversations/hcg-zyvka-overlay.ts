@@ -379,14 +379,35 @@ export async function findHcgZyvkaCommunication(
   campaignId: string | null | undefined,
   phone: string | null | undefined
 ): Promise<HcgZyvkaCommunicationDocument | null> {
-  const cid = String(campaignId || '').trim();
+  return findHcgZyvkaCommunicationByCampaignIds(
+    campaignId ? [String(campaignId)] : [],
+    phone
+  );
+}
+
+/** Prefer the most recent HCG zyvka doc across outreach + screening batch ids. */
+export async function findHcgZyvkaCommunicationByCampaignIds(
+  campaignIds: Array<string | null | undefined>,
+  phone: string | null | undefined
+): Promise<HcgZyvkaCommunicationDocument | null> {
+  const ids = [
+    ...new Set(campaignIds.map((id) => String(id || '').trim()).filter(Boolean)),
+  ];
   const digits = normalizePhone(phone);
-  if (!cid || !digits) return null;
+  if (!ids.length || !digits) return null;
   const docs = (await HcgZyvkaCommunicationModel.find(
-    campaignIdQuery([cid])
+    campaignIdQuery(ids)
   ).lean()) as HcgZyvkaLean[];
-  const match = docs.find((doc) => campaignIdOf(doc) === cid && phoneMatches(doc, digits));
-  return (match as HcgZyvkaCommunicationDocument) || null;
+  const matches = docs.filter(
+    (doc) => ids.includes(campaignIdOf(doc)) && phoneMatches(doc, digits)
+  );
+  if (!matches.length) return null;
+  matches.sort((a, b) => {
+    const left = a.updatedAt?.getTime?.() || 0;
+    const right = b.updatedAt?.getTime?.() || 0;
+    return right - left;
+  });
+  return (matches[0] as HcgZyvkaCommunicationDocument) || null;
 }
 
 export async function overlayHcgZyvkaOnListItems(
