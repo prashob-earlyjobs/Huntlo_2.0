@@ -1172,7 +1172,12 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
   const JD_SEARCH_TIMEOUT_MS = 120_000;
 
   async function searchByJdText(
-    body: { jdText: string },
+    body: {
+      jdText: string;
+      filters?: {
+        years_of_experience_raw?: { type: 'RANGE'; value: [number, number] };
+      };
+    },
     opts: FutureJobsRequestOpts = {}
   ): Promise<FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>> {
     const delegate = resolveDelegate();
@@ -1182,18 +1187,25 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     assertFutureJobsApiKey(apiKey);
 
     const jdText = String(body?.jdText ?? '').trim();
+    const filters =
+      body?.filters && typeof body.filters === 'object' && Object.keys(body.filters).length > 0
+        ? body.filters
+        : undefined;
     const url = `${baseUrl}/wl/search`;
     return (await futureJobsHttpRequest({
       method: 'POST',
       url,
-      body: { jdText },
+      body: filters ? { jdText, filters } : { jdText },
       apiKey,
       traceId: opts.traceId,
       fjOperation: 'POST /wl/search',
       defaultErrorPrefix: 'Future Jobs search',
       timeoutMs: opts.timeoutMs ?? JD_SEARCH_TIMEOUT_MS,
       maxRetries: opts.maxRetries ?? 0,
-      logContext: { jdTextChars: jdText.length },
+      logContext: {
+        jdTextChars: jdText.length,
+        hasYearsFilter: Boolean(filters?.years_of_experience_raw),
+      },
     })) as FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>;
   }
 
