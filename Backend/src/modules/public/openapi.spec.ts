@@ -108,7 +108,7 @@ export const openApiSpec = {
         tags: ['Candidate Search'],
         summary: 'Search candidates via natural-language jdText (POST /wl/search)',
         description:
-          'Converts prompt + drawer filters to natural language, calls Future Jobs POST /wl/search, and waits for the response (no poll). Consumes one candidate_search quota. sessionId = Future Jobs id; savedSessionId = Mongo id.',
+          'Converts prompt + drawer filters to natural language, calls Future Jobs POST /wl/search with optional structured YoE filters, and waits for the response (no poll). Consumes one candidate_search quota. sessionId = Future Jobs id; savedSessionId = Mongo id.',
         responses: {
           '200': {
             description: 'Candidates in the same response; polling is always false',
