@@ -25,6 +25,13 @@ import { applyWorkflowTransition } from './transitions.js';
 
 const PASS_STATUSES = new Set(['qualified', 'shortlisted']);
 const FAIL_STATUSES = new Set(['not_qualified', 'rejected']);
+/** Outreach/voice interest advances 360 into screening; screening pass stays score-based. */
+const QUALIFICATION_PASS_STATUSES = new Set(['qualified', 'shortlisted', 'interested']);
+const QUALIFICATION_FAIL_STATUSES = new Set([
+  'not_qualified',
+  'rejected',
+  'not_interested',
+]);
 
 function log() {
   return getLogger().child({ component: 'hcg-qualification-transition' });
@@ -68,8 +75,8 @@ export function hcgStatusToQualificationEvent(
   overallAiStatus: string
 ): 'qualification_pass' | 'qualification_fail' | null {
   const status = normalizeAiStatus(overallAiStatus);
-  if (PASS_STATUSES.has(status)) return 'qualification_pass';
-  if (FAIL_STATUSES.has(status)) return 'qualification_fail';
+  if (QUALIFICATION_PASS_STATUSES.has(status)) return 'qualification_pass';
+  if (QUALIFICATION_FAIL_STATUSES.has(status)) return 'qualification_fail';
   return null;
 }
 

@@ -192,7 +192,7 @@ export function hcgZyvkaDerivedAiStatus(doc: HcgZyvkaLean): string {
   if (Number.isFinite(score) && score >= 4) return 'qualified';
   if (Number.isFinite(score) && score > 0 && score <= 2) return 'not_qualified';
   if (interest.includes('interested') || outcome.includes('interested')) return 'interested';
-  if (status === 'COMPLETED') return 'in_screening';
+  if (status === 'COMPLETED') return 'in_qualification';
   return 'awaiting_reply';
 }
 

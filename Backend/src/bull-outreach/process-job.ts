@@ -174,12 +174,31 @@ async function runSendOrFollowup(mongoJobId: string) {
       stepType === 'ai_voice' ||
       stepType === 'scheduling_link'
     ) {
-      const delivery = await executeCampaignMessageStep({
-        campaign,
-        enrollment,
-        step,
-        jobId: String(job._id),
-      });
+      // Idempotency: if a prior attempt already sent but post-send work failed,
+      // reuse the cached outcome (mirrors campaign-worker).
+      let delivery: Awaited<ReturnType<typeof executeCampaignMessageStep>>;
+      const cached = job.details?.deliveryResult as
+        | Awaited<ReturnType<typeof executeCampaignMessageStep>>
+        | undefined;
+      if (job.details?.deliveredAt && cached?.outcome === 'sent') {
+        delivery = cached;
+      } else {
+        delivery = await executeCampaignMessageStep({
+          campaign,
+          enrollment,
+          step,
+          jobId: String(job._id),
+        });
+        if (delivery.outcome === 'sent') {
+          job.details = {
+            ...(job.details || {}),
+            deliveredAt: new Date().toISOString(),
+            deliveryResult: delivery as unknown as Record<string, unknown>,
+          };
+          job.markModified('details');
+          await job.save();
+        }
+      }
 
       if (delivery.outcome === 'sent') {
         const channel = delivery.channel;
