@@ -720,6 +720,20 @@ export interface ScreeningResultDetail {
   categories: ScoreCategory[];
   knockouts: KnockoutResult[];
   transcript: TranscriptTurn[];
+  modality?: "voice" | "video";
+  interviewLink?: string | null;
+  videoResponses?: Array<{
+    id: string;
+    questionNumber: number;
+    questionText: string;
+    responseText: string;
+    transcriptionStatus: string;
+    transcriptionText: string;
+    responseDuration: number | null;
+    audioUrl: string | null;
+    videoUrl: string | null;
+    isSkipped: boolean;
+  }>;
   recording: {
     durationSeconds: number;
     label: string;

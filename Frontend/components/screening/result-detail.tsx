@@ -58,13 +58,6 @@ function aiBadgeClass(status: string | null | undefined, fallback: AiRecommendat
   return REC_CLASSES["Needs review"];
 }
 
-const DECISION_CLASSES: Record<RecruiterDecision, string> = {
-  Pending: "bg-muted text-muted-foreground",
-  Shortlisted: "bg-brand-subtle text-primary",
-  Rejected: "bg-destructive/10 text-destructive",
-  "Interview scheduled": "bg-info/10 text-info",
-};
-
 const ACTIVITY_ICONS: Record<
   ResultActivityIcon,
   typeof PhoneCall
@@ -108,6 +101,87 @@ function EmptyDetail({
     <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
       <p className="text-sm font-medium text-foreground">{title}</p>
       <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function VideoResponsesPanel({
+  responses,
+  interviewLink,
+}: {
+  responses: NonNullable<ScreeningResultDetail["videoResponses"]>;
+  interviewLink?: string | null;
+}) {
+  if (responses.length === 0) {
+    return (
+      <div className="space-y-3">
+        <EmptyDetail
+          title="No interview responses yet"
+          description="Responses appear after the candidate finishes the video interview. Refresh this page to pull the latest from Hyrefast."
+        />
+        {interviewLink ? (
+          <p className="text-center text-xs text-muted-foreground">
+            Invite link:{" "}
+            <a
+              href={interviewLink}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-4"
+            >
+              Open interview
+            </a>
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {responses.map((item) => {
+        const transcript =
+          item.transcriptionText ||
+          item.responseText ||
+          (item.isSkipped
+            ? "Skipped"
+            : item.transcriptionStatus === "processing"
+              ? "Transcription in progress…"
+              : "No transcript yet");
+        return (
+          <section
+            key={item.id}
+            className="overflow-hidden rounded-xl border border-border bg-card"
+          >
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                Question {item.questionNumber}
+                {item.responseDuration != null
+                  ? ` · ${Math.round(item.responseDuration)}s`
+                  : ""}
+                {item.isSkipped ? " · Skipped" : ""}
+              </p>
+              <h3 className="mt-1 text-sm font-semibold text-foreground">
+                {item.questionText || "Interview question"}
+              </h3>
+            </div>
+            <div className="space-y-3 px-4 py-3">
+              {item.videoUrl ? (
+                <video
+                  controls
+                  preload="metadata"
+                  src={item.videoUrl}
+                  className="aspect-video w-full rounded-lg bg-black"
+                />
+              ) : item.audioUrl ? (
+                <audio controls preload="metadata" src={item.audioUrl} className="w-full" />
+              ) : null}
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                {transcript}
+              </p>
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -329,8 +403,18 @@ function AudioPlayerUI({
 
 function SummaryTab({ detail }: { detail: ScreeningResultDetail }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <section className="rounded-xl border border-border bg-card p-4 lg:col-span-2">
+    <div
+      className={cn(
+        "grid gap-4",
+        detail.modality === "video" ? "" : "lg:grid-cols-3"
+      )}
+    >
+      <section
+        className={cn(
+          "rounded-xl border border-border bg-card p-4",
+          detail.modality === "video" ? "" : "lg:col-span-2"
+        )}
+      >
         <h3 className="text-sm font-semibold text-foreground">
           AI-generated summary
         </h3>
@@ -417,49 +501,51 @@ function SummaryTab({ detail }: { detail: ScreeningResultDetail }) {
         </div>
       </section>
 
-      <aside className="space-y-3">
-        {detail.hcgQuestions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center">
-            <p className="text-sm font-medium text-foreground">No questions yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Screening questions from the voice call will appear here.
-            </p>
-          </div>
-        ) : (
-          detail.hcgQuestions.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-xl border border-border bg-card p-4"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-xs font-medium text-muted-foreground">
-                  {item.question}
-                </p>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize",
-                    item.status === "passed"
-                      ? "bg-success/10 text-success"
-                      : item.status === "failed"
-                        ? "bg-destructive/10 text-destructive"
-                        : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {item.status.replace(/_/g, " ") || "unanswered"}
-                </span>
-              </div>
-              <p className="mt-1.5 text-sm font-semibold text-foreground">
-                {item.answer || "—"}
+      {detail.modality === "video" ? null : (
+        <aside className="space-y-3">
+          {detail.hcgQuestions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center">
+              <p className="text-sm font-medium text-foreground">No questions yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Screening questions from the voice call will appear here.
               </p>
-              {item.description ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {item.description}
-                </p>
-              ) : null}
             </div>
-          ))
-        )}
-      </aside>
+          ) : (
+            detail.hcgQuestions.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-xl border border-border bg-card p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {item.question}
+                  </p>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                      item.status === "passed"
+                        ? "bg-success/10 text-success"
+                        : item.status === "failed"
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {item.status.replace(/_/g, " ") || "unanswered"}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm font-semibold text-foreground">
+                  {item.answer || "—"}
+                </p>
+                {item.description ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.description}
+                  </p>
+                ) : null}
+              </div>
+            ))
+          )}
+        </aside>
+      )}
     </div>
   );
 }
@@ -818,7 +904,6 @@ export function ResultDetail({
                     result.recommendation
                   )}
                 />
-                <Badge text={decision} className={DECISION_CLASSES[decision]} />
                 {detail.knockouts.some((item) => !item.passed) ? (
                   <Badge
                     text="Knockout failed"
@@ -848,61 +933,63 @@ export function ResultDetail({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() => {
-                setDecision("Interview scheduled");
-                flash(
-                  `Open scheduling for ${result.candidateName} from Schedule.`
-                );
-              }}
-            >
-              <CalendarClock aria-hidden />
-              Schedule
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                void runMutation(
-                  () => screeningApi.callAgainResult(result.id),
-                  `Queued another call for ${result.candidateName}.`,
-                  "Pending"
-                )
-              }
-            >
-              <Phone aria-hidden />
-              Call again
-            </Button>
+        {detail.modality !== "video" ? (
+          <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setDecision("Interview scheduled");
+                  flash(
+                    `Open scheduling for ${result.candidateName} from Schedule.`
+                  );
+                }}
+              >
+                <CalendarClock aria-hidden />
+                Schedule
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  void runMutation(
+                    () => screeningApi.callAgainResult(result.id),
+                    `Queued another call for ${result.candidateName}.`,
+                    "Pending"
+                  )
+                }
+              >
+                <Phone aria-hidden />
+                Call again
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setNoteOpen((previous) => !previous)}
+              >
+                <StickyNote aria-hidden />
+                Add note
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  flash("Report download will be available from exports.")
+                }
+              >
+                <Download aria-hidden />
+                Download
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setNoteOpen((previous) => !previous)}
-            >
-              <StickyNote aria-hidden />
-              Add note
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                flash("Report download will be available from exports.")
-              }
-            >
-              <Download aria-hidden />
-              Download
-            </Button>
-          </div>
-        </div>
+        ) : null}
 
-        {noteOpen ? (
+        {detail.modality !== "video" && noteOpen ? (
           <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
             <Textarea
               value={note}
@@ -948,8 +1035,12 @@ export function ResultDetail({
         <div className="overflow-x-auto">
           <TabsList className="min-w-max">
             <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="recording">Recording</TabsTrigger>
-            <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+            <TabsTrigger value="recording">
+              {detail.modality === "video" ? "Responses" : "Recording"}
+            </TabsTrigger>
+            {detail.modality === "video" ? null : (
+              <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+            )}
             <TabsTrigger value="extracted">Extracted Data</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
@@ -959,16 +1050,25 @@ export function ResultDetail({
           <SummaryTab detail={detail} />
         </TabsContent>
         <TabsContent value="recording" className="pt-3">
-          <AudioPlayerUI
-            durationSeconds={detail.recording.durationSeconds}
-            label={detail.recording.label}
-            size={detail.recording.size}
-            url={detail.recording.url}
-          />
+          {detail.modality === "video" ? (
+            <VideoResponsesPanel
+              responses={detail.videoResponses || []}
+              interviewLink={detail.interviewLink}
+            />
+          ) : (
+            <AudioPlayerUI
+              durationSeconds={detail.recording.durationSeconds}
+              label={detail.recording.label}
+              size={detail.recording.size}
+              url={detail.recording.url}
+            />
+          )}
         </TabsContent>
-        <TabsContent value="scorecard" className="pt-3">
-          <ScorecardTab result={result} detail={detail} />
-        </TabsContent>
+        {detail.modality === "video" ? null : (
+          <TabsContent value="scorecard" className="pt-3">
+            <ScorecardTab result={result} detail={detail} />
+          </TabsContent>
+        )}
         <TabsContent value="extracted" className="pt-3">
           <ExtractedTab detail={detail} />
         </TabsContent>

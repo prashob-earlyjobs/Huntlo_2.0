@@ -30,7 +30,7 @@ import { integrationsRouter } from './modules/integrations/index.js';
 import { outreachRouter, campaignRoutes } from './modules/outreach/index.js';
 import { conversationsRouter } from './modules/conversations/index.js';
 import { huntlo360Router } from './modules/huntlo-360/index.js';
-import { screeningRouter } from './modules/screening/index.js';
+import { screeningRouter, hyrefastWebhookRouter } from './modules/screening/index.js';
 import {
   hunarVoiceWebhookRouter,
   voiceDefaultsRouter,
@@ -119,6 +119,8 @@ export function createApp(): Express {
   app.use('/api/v1/public/webhooks/dodo', dodoWebhookRouter);
   app.use('/api/v1/webhooks/razorpay', razorpayWebhookRouter);
   app.use('/api/v1/public/webhooks/razorpay', razorpayWebhookRouter);
+  app.use('/api/v1/webhooks/hyrefast', hyrefastWebhookRouter);
+  app.use('/api/v1/public/webhooks/hyrefast', hyrefastWebhookRouter);
 
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));

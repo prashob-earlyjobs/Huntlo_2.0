@@ -47,6 +47,32 @@ export type ScreeningCallSettings = {
   voicemailBehaviour: string;
 };
 
+export const SCREENING_MODALITIES = ['voice', 'video'] as const;
+export type ScreeningModality = (typeof SCREENING_MODALITIES)[number];
+
+export type VideoSkillConfig = {
+  skillName: string;
+  proficiency: string;
+};
+
+export type VideoTopicFocusConfig = {
+  name: string;
+  discussionMinutes?: number | null;
+  reason?: string | null;
+  sampleQuestions?: string[];
+};
+
+export type ScreeningVideoConfig = {
+  mustHaveSkills: VideoSkillConfig[];
+  goodToHaveSkills: VideoSkillConfig[];
+  bonusSkills: VideoSkillConfig[];
+  topicsFocus: VideoTopicFocusConfig[];
+  topicsAvoid: string[];
+  interviewStandard: boolean;
+  interviewConversation: boolean;
+  hyrefastJobId?: string | null;
+};
+
 export type ScreeningStats = {
   enrolled: number;
   queued: number;
@@ -86,6 +112,7 @@ export type ScreeningDocument = Document & {
   name: string;
   description: string | null;
   objective: string | null;
+  modality: ScreeningModality;
   language: string | null;
   voice: string | null;
   tone: string | null;
@@ -100,6 +127,7 @@ export type ScreeningDocument = Document & {
   /** Human-readable knockout rules; a match forces Reject regardless of score. */
   knockouts: string[];
   callSettings: ScreeningCallSettings;
+  videoConfig: ScreeningVideoConfig | null;
   candidateIds: string[];
   providerAgentId: string | null;
   status: ScreeningStatus;
@@ -135,6 +163,12 @@ const screeningSchema = new Schema<ScreeningDocument>(
     name: { type: String, required: true, trim: true, maxlength: 200 },
     description: { type: String, default: null },
     objective: { type: String, default: null },
+    modality: {
+      type: String,
+      enum: SCREENING_MODALITIES,
+      default: 'voice',
+      index: true,
+    },
     language: { type: String, default: null },
     voice: { type: String, default: null },
     tone: { type: String, default: null },
@@ -195,6 +229,53 @@ const screeningSchema = new Schema<ScreeningDocument>(
         timezone: "Candidate's local timezone",
         voicemailBehaviour: 'Leave a short callback message',
       }),
+    },
+    videoConfig: {
+      type: {
+        mustHaveSkills: {
+          type: [
+            {
+              skillName: { type: String, required: true },
+              proficiency: { type: String, default: 'L3' },
+            },
+          ],
+          default: [],
+        },
+        goodToHaveSkills: {
+          type: [
+            {
+              skillName: { type: String, required: true },
+              proficiency: { type: String, default: 'L3' },
+            },
+          ],
+          default: [],
+        },
+        bonusSkills: {
+          type: [
+            {
+              skillName: { type: String, required: true },
+              proficiency: { type: String, default: 'L3' },
+            },
+          ],
+          default: [],
+        },
+        topicsFocus: {
+          type: [
+            {
+              name: { type: String, required: true },
+              discussionMinutes: { type: Number, default: null },
+              reason: { type: String, default: null },
+              sampleQuestions: { type: [String], default: [] },
+            },
+          ],
+          default: [],
+        },
+        topicsAvoid: { type: [String], default: [] },
+        interviewStandard: { type: Boolean, default: true },
+        interviewConversation: { type: Boolean, default: true },
+        hyrefastJobId: { type: String, default: null },
+      },
+      default: null,
     },
     candidateIds: { type: [String], default: [] },
     providerAgentId: { type: String, default: null },

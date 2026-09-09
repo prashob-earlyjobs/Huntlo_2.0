@@ -38,3 +38,10 @@ export type {
 export { parseJobDescription, GEMINI_JOBS_MODEL } from './gemini.jobs.js';
 export type { ParsedJobDescription } from './gemini.jobs.js';
 export { rewriteJobAsSearchPrompt, extractSearchPromptFromGeminiText } from './gemini.search-prompt.js';
+export {
+  evaluateVideoInterviewResponses,
+  fingerprintVideoResponses,
+  recommendationFromCommunicationScore,
+  GEMINI_SCREENING_VIDEO_MODEL,
+} from './gemini.screening-video.js';
+export type { VideoInterviewEvaluation } from './gemini.screening-video.js';

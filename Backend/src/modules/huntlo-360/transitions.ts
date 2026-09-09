@@ -221,6 +221,8 @@ async function ensureScreeningLaunchForTransition(input: {
     organizationId: input.organizationId,
     workflowId: input.workflowId,
     campaignId: input.workflow.campaignId ? String(input.workflow.campaignId) : null,
+    jobId: input.workflow.jobId ? String(input.workflow.jobId) : null,
+    name: String(input.workflow.name || '').trim() || 'AI screening',
     candidateId: input.candidateId,
     enrollmentId: input.state.enrollmentId ? String(input.state.enrollmentId) : null,
     ownerUserId: String(input.workflow.ownerUserId),
