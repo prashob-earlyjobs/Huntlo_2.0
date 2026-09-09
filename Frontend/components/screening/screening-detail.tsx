@@ -133,7 +133,7 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
       limit: 100,
       screeningId,
     });
-    setResults(next);
+    setResults(next.items);
     setError(null);
   }, [screeningId]);
 

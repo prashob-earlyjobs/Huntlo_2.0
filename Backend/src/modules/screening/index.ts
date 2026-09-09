@@ -1,6 +1,8 @@
 export { screeningRouter } from './screening.routes.js';
 export { screeningService } from './screening.service.js';
 export { processHunarWebhook } from './webhook.service.js';
+export { hyrefastWebhookRouter } from './hyrefast-webhook.routes.js';
+export { processHyrefastWebhook } from './hyrefast-webhook.service.js';
 export { ScreeningModel } from './screening.model.js';
 export { ScreeningCandidateModel } from './screening-candidate.model.js';
 export { VoiceWebhookEventModel } from './voice-webhook-event.model.js';

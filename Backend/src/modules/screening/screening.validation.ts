@@ -24,6 +24,7 @@ export const createScreeningSchema = z.object({
   sourceModule: z.string().max(40).optional(),
   description: z.string().trim().max(5000).nullable().optional(),
   objective: z.string().max(5000).nullable().optional(),
+  modality: z.enum(['voice', 'video']).optional(),
   language: z.string().max(40).nullable().optional(),
   voice: z.string().max(80).nullable().optional(),
   tone: z.string().max(80).nullable().optional(),
@@ -72,6 +73,51 @@ export const createScreeningSchema = z.object({
       voicemailBehaviour: z.string().trim().min(1).max(120).optional(),
     })
     .optional(),
+  videoConfig: z
+    .object({
+      mustHaveSkills: z
+        .array(
+          z.object({
+            skillName: z.string().trim().min(1).max(120),
+            proficiency: z.string().trim().min(1).max(10).default('L3'),
+          })
+        )
+        .max(50)
+        .optional(),
+      goodToHaveSkills: z
+        .array(
+          z.object({
+            skillName: z.string().trim().min(1).max(120),
+            proficiency: z.string().trim().min(1).max(10).default('L3'),
+          })
+        )
+        .max(50)
+        .optional(),
+      bonusSkills: z
+        .array(
+          z.object({
+            skillName: z.string().trim().min(1).max(120),
+            proficiency: z.string().trim().min(1).max(10).default('L3'),
+          })
+        )
+        .max(50)
+        .optional(),
+      topicsFocus: z
+        .array(
+          z.object({
+            name: z.string().trim().min(1).max(200),
+            discussionMinutes: z.number().int().min(1).max(60).nullable().optional(),
+            reason: z.string().trim().max(500).nullable().optional(),
+            sampleQuestions: z.array(z.string().trim().max(500)).max(20).optional(),
+          })
+        )
+        .max(20)
+        .optional(),
+      topicsAvoid: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
+      interviewStandard: z.boolean().optional(),
+      interviewConversation: z.boolean().optional(),
+    })
+    .optional(),
   candidateIds: z.array(objectId).max(500).optional(),
 });
 
@@ -86,10 +132,45 @@ export const listCandidatesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
+const AI_RECOMMENDATIONS = ['shortlist', 'reject', 'review'] as const;
+
+function csvList(value: string | string[] | undefined): string[] | undefined {
+  if (!value) return undefined;
+  const parts = Array.isArray(value) ? value : value.split(',');
+  const normalized = parts
+    .map((part) => part.trim().toLowerCase().replace(/\s+/g, '_'))
+    .map((part) => {
+      if (part === 'needs_review') return 'review';
+      if (part === 'interview_scheduled') return 'call_again';
+      return part;
+    })
+    .filter(Boolean);
+  return normalized.length ? normalized : undefined;
+}
+
 export const listResultsQuerySchema = z.object({
   screeningId: objectId.optional(),
   jobId: objectId.optional(),
-  decision: z.enum(RECRUITER_DECISIONS).optional(),
+  decision: z
+    .union([z.enum(RECRUITER_DECISIONS), z.string()])
+    .optional()
+    .transform((value) => {
+      const parts = csvList(value);
+      if (!parts) return undefined;
+      const allowed = new Set<string>(RECRUITER_DECISIONS);
+      const filtered = parts.filter((part) => allowed.has(part));
+      return filtered.length ? filtered : undefined;
+    }),
+  recommendation: z
+    .union([z.enum(AI_RECOMMENDATIONS), z.string()])
+    .optional()
+    .transform((value) => {
+      const parts = csvList(value);
+      if (!parts) return undefined;
+      const allowed = new Set<string>(AI_RECOMMENDATIONS);
+      const filtered = parts.filter((part) => allowed.has(part));
+      return filtered.length ? filtered : undefined;
+    }),
   q: z.string().trim().max(120).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),

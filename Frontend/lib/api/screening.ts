@@ -4,7 +4,8 @@ import type {
   ScreeningResult,
 } from "./contracts";
 import { createDomainService, simulateMockLatency } from "./service";
-import type { ApiQueryParams } from "./types";
+import type { PaginationMeta } from "./contracts/envelopes";
+import type { ApiQueryParams, PaginatedResponse } from "./types";
 import { buildQueryString } from "./types";
 import type {
   AiRecommendation,
@@ -20,6 +21,7 @@ export type ScreeningCreateInput = {
   jobId?: string | null;
   description?: string | null;
   objective?: string | null;
+  modality?: "voice" | "video";
   language?: string | null;
   voice?: string | null;
   tone?: string | null;
@@ -55,6 +57,20 @@ export type ScreeningCreateInput = {
     timezone?: string;
     voicemailBehaviour?: string;
   };
+  videoConfig?: {
+    mustHaveSkills?: Array<{ skillName: string; proficiency: string }>;
+    goodToHaveSkills?: Array<{ skillName: string; proficiency: string }>;
+    bonusSkills?: Array<{ skillName: string; proficiency: string }>;
+    topicsFocus?: Array<{
+      name: string;
+      discussionMinutes?: number | null;
+      reason?: string | null;
+      sampleQuestions?: string[];
+    }>;
+    topicsAvoid?: string[];
+    interviewStandard?: boolean;
+    interviewConversation?: boolean;
+  };
   candidateIds?: string[];
 };
 
@@ -62,7 +78,7 @@ export interface ScreeningApi {
   listBatches(params?: ApiQueryParams): Promise<ScreeningBatch[]>;
   getBatch(id: string): Promise<ScreeningBatch | null>;
   createBatch(input: ScreeningCreateInput): Promise<ScreeningBatch>;
-  listResults(params?: ApiQueryParams): Promise<ScreeningResult[]>;
+  listResults(params?: ApiQueryParams): Promise<PaginatedResponse<ScreeningResult>>;
   getResult(id: string): Promise<ScreeningResult | null>;
   getResultDetail(id: string): Promise<ScreeningResultDetail | null>;
   launchBatch(id: string): Promise<ScreeningBatch>;
@@ -115,6 +131,25 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
+const KEY_VARIABLE_HIDE = new Set([
+  "knockouts_triggered",
+  "knockoutsTriggered",
+  "failed_knockouts",
+  "interviewLink",
+  "hyrefastJobId",
+  "hyrefastInterviewId",
+]);
+
+function buildKeyVariables(extracted: Record<string, unknown>): string[] {
+  const applicationId = String(extracted.hyrefastApplicationId || "").trim();
+  if (applicationId) return [applicationId];
+
+  return Object.entries(extracted)
+    .filter(([key]) => !KEY_VARIABLE_HIDE.has(key))
+    .slice(0, 3)
+    .map(([, value]) => formatExtractedValue(value));
+}
+
 function mapBatch(row: Record<string, unknown>): ScreeningBatch {
   const callSettings = (row.callSettings as { maxAttempts?: number } | undefined) || {};
   const stats = (row.stats as { totalAttempts?: number } | undefined) || {};
@@ -145,6 +180,20 @@ function mapBatch(row: Record<string, unknown>): ScreeningBatch {
   };
 }
 
+function formatCompletedDate(value: unknown): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function mapResult(row: Record<string, unknown>): ScreeningResult {
   const extracted = (row.extractedVariables as Record<string, unknown>) || {};
   const knockoutResults = mapKnockoutResults(row);
@@ -168,18 +217,8 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
     overallAIStatus,
     answeredBy: row.answeredBy ? String(row.answeredBy).trim() || null : null,
     knockoutFailed: knockoutResults.some((item) => !item.passed),
-    keyVariables: Object.entries(extracted)
-      .filter(
-        ([key]) =>
-          ![
-            "knockouts_triggered",
-            "knockoutsTriggered",
-            "failed_knockouts",
-          ].includes(key)
-      )
-      .slice(0, 3)
-      .map(([, value]) => formatExtractedValue(value)),
-    completedDate: String(row.completedAt || row.lastActivity || ""),
+    keyVariables: buildKeyVariables(extracted),
+    completedDate: formatCompletedDate(row.completedAt || row.lastActivity),
     decision: mapDecision(
       (row.recruiterDecision as string) || (row.decision as string)
     ),
@@ -460,6 +499,28 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
     categories: breakdownCategories,
     knockouts: mapKnockoutResults(row),
     transcript: parseTranscriptTurns(row.transcript),
+    modality:
+      String(row.modality || "").trim() === "video" ? ("video" as const) : ("voice" as const),
+    interviewLink: row.interviewLink
+      ? String(row.interviewLink)
+      : extracted.interviewLink
+        ? String(extracted.interviewLink)
+        : null,
+    videoResponses: Array.isArray(row.videoResponses)
+      ? (row.videoResponses as Array<Record<string, unknown>>).map((item, index) => ({
+          id: String(item.id || `vr-${index + 1}`),
+          questionNumber: Number(item.questionNumber ?? index + 1) || index + 1,
+          questionText: String(item.questionText || ""),
+          responseText: String(item.responseText || ""),
+          transcriptionStatus: String(item.transcriptionStatus || ""),
+          transcriptionText: String(item.transcriptionText || ""),
+          responseDuration:
+            typeof item.responseDuration === "number" ? item.responseDuration : null,
+          audioUrl: item.audioUrl ? String(item.audioUrl) : null,
+          videoUrl: item.videoUrl ? String(item.videoUrl) : null,
+          isSkipped: Boolean(item.isSkipped),
+        }))
+      : [],
     recording: {
       durationSeconds: Number(row.durationSeconds ?? 0),
       label: recordingUrl
@@ -468,7 +529,20 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
       size: recordingUrl ? "External" : "—",
       url: recordingUrl,
     },
-    extracted: extractedForDisplay.map(([label, value], index) => ({
+    extracted: extractedForDisplay
+      .filter(
+        ([key]) =>
+          ![
+            "interviewLink",
+            "hyrefastApplicationId",
+            "hyrefastJobId",
+            "hyrefastInterviewId",
+            "hyrefastLastEventId",
+            "hyrefastLastEvent",
+            "hyrefastCandidateId",
+          ].includes(key)
+      )
+      .map(([label, value], index) => ({
       id: `ex-${index}`,
       label: humanizeLabel(label),
       value: formatExtractedValue(value),
@@ -568,8 +642,25 @@ const mockScreeningApi: ScreeningApi = {
     const { SCREENING_RESULTS } = await import("@/lib/mock-screening");
     const screeningId =
       typeof params?.screeningId === "string" ? params.screeningId : null;
-    if (!screeningId) return SCREENING_RESULTS;
-    return SCREENING_RESULTS.filter((result) => result.screeningId === screeningId);
+    const q =
+      typeof params?.q === "string" ? params.q.trim().toLowerCase() : "";
+    let items = screeningId
+      ? SCREENING_RESULTS.filter((result) => result.screeningId === screeningId)
+      : [...SCREENING_RESULTS];
+    if (q) {
+      items = items.filter((result) =>
+        `${result.candidateName} ${result.jobTitle} ${result.screeningName}`
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    const page = Math.max(1, Number(params?.page ?? 1) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit ?? 50) || 50));
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const start = (page - 1) * limit;
+    const pagination: PaginationMeta = { page, limit, total, totalPages };
+    return { items: items.slice(start, start + limit), pagination };
   },
   async getResult(id) {
     await simulateMockLatency();
@@ -648,7 +739,23 @@ const liveScreeningApi: ScreeningApi = {
     const result = await apiClient.get<Record<string, unknown>[]>(
       `/screenings/results${buildQueryString(params)}`
     );
-    return result.data.map(mapResult);
+    const pagination = result.meta?.pagination;
+    return {
+      items: result.data.map(mapResult),
+      pagination: pagination
+        ? {
+            page: pagination.page,
+            limit: pagination.limit,
+            total: pagination.total,
+            totalPages: pagination.totalPages,
+          }
+        : {
+            page: Number(params?.page ?? 1) || 1,
+            limit: Number(params?.limit ?? 50) || 50,
+            total: result.data.length,
+            totalPages: 1,
+          },
+    };
   },
   async getResult(id) {
     try {
