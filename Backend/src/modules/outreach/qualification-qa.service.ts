@@ -1803,7 +1803,7 @@ async function ensureHuntlo360QualificationConfig(
   return campaign.qualificationConfig as QualificationConfig;
 }
 
-async function notifyHuntlo360QualificationComplete(input: {
+export async function notifyHuntlo360QualificationComplete(input: {
   campaign: OutreachCampaignDocument;
   enrollment: OutreachEnrollmentDocument;
   status: 'qualified' | 'rejected' | 'handed_off';

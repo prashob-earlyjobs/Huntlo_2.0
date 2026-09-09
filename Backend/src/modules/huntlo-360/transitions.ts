@@ -368,13 +368,11 @@ export async function applyWorkflowTransition(input: TransitionInput) {
   if (existing) {
     const state = await Huntlo360CandidateStateModel.findById(existing.candidateStateId);
     // Earlier builds moved candidates to screening without scheduling a Hunar dial.
-    // Only re-fire when no screening session was linked yet — avoids duplicate dials
-    // when qualification_pass is replayed from HCG sync/change streams.
+    // Re-fire when no screening row yet, OR when the row exists but was never dialed.
     if (
       state &&
       existing.toStage === 'screening' &&
-      input.event === 'qualification_pass' &&
-      !state.screeningId
+      input.event === 'qualification_pass'
     ) {
       const workflow = await Huntlo360WorkflowModel.findOne({
         _id: input.workflowId,
@@ -382,15 +380,31 @@ export async function applyWorkflowTransition(input: TransitionInput) {
         deletedAt: null,
       });
       if (workflow?.screeningConfig?.enabled) {
-        await ensureScreeningLaunchForTransition({
-          organizationId: input.organizationId,
-          workflowId: input.workflowId,
-          candidateId: input.candidateId,
-          workflow,
-          state,
-          timezone: null,
-        });
-        await state.save();
+        let needsLaunch = !state.screeningId;
+        if (state.screeningId) {
+          const { ScreeningCandidateModel } = await import(
+            '../screening/screening-candidate.model.js'
+          );
+          const row = await ScreeningCandidateModel.findById(state.screeningId)
+            .select('providerRequestId attempts callStatus')
+            .lean();
+          needsLaunch =
+            !row ||
+            (!row.providerRequestId &&
+              Number(row.attempts || 0) === 0 &&
+              (!row.callStatus || row.callStatus === 'queued'));
+        }
+        if (needsLaunch) {
+          await ensureScreeningLaunchForTransition({
+            organizationId: input.organizationId,
+            workflowId: input.workflowId,
+            candidateId: input.candidateId,
+            workflow,
+            state,
+            timezone: null,
+          });
+          await state.save();
+        }
       }
     }
     if (

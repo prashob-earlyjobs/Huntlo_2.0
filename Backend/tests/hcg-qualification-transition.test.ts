@@ -19,10 +19,14 @@ describe('hcgStatusToQualificationEvent', () => {
 
   it('ignores in-progress statuses', () => {
     expect(hcgStatusToQualificationEvent('awaiting_reply')).toBeNull();
-    expect(hcgStatusToQualificationEvent('interested')).toBeNull();
     expect(hcgStatusToQualificationEvent('in_qualification')).toBeNull();
     expect(hcgStatusToQualificationEvent('in_screening')).toBeNull();
     expect(hcgStatusToQualificationEvent('')).toBeNull();
+  });
+
+  it('maps interested voice outcomes to qualification_pass', () => {
+    expect(hcgStatusToQualificationEvent('interested')).toBe('qualification_pass');
+    expect(hcgStatusToQualificationEvent('not_interested')).toBe('qualification_fail');
   });
 });
 

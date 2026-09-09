@@ -1040,6 +1040,49 @@ async function launchVoiceCall(input: {
     }) || { maxRetryCount: 2, retryIntervalHours: 6 }
   );
 
+  // Idempotency: never place a second outreach dial for the same enrollment/phone
+  // on this campaign (Bull retries previously re-hit Hunar).
+  const { VoiceCallModel } = await import('../voice/voice-call.model.js');
+  const phoneDigits = String(input.phone || '').replace(/\D/g, '');
+  const national =
+    phoneDigits.length > 10 ? phoneDigits.slice(-10) : phoneDigits;
+  const priorDial = await VoiceCallModel.findOne({
+    campaignId,
+    source: 'outreach',
+    status: { $ne: 'cancelled' },
+    $or: [
+      { enrollmentId: input.enrollmentId },
+      ...(national
+        ? [
+            {
+              toNumberDigits: {
+                $in: [national, phoneDigits, `91${national}`].filter(Boolean),
+              },
+            },
+          ]
+        : []),
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .select('callId requestId provider status')
+    .lean();
+  if (priorDial) {
+    getLogger().info(
+      {
+        campaignId,
+        enrollmentId: input.enrollmentId,
+        priorCallId: priorDial.callId,
+        priorStatus: priorDial.status,
+      },
+      'Skipping duplicate outreach voice dial — already dialed this enrollment/phone'
+    );
+    return {
+      messageId: String(priorDial.callId || priorDial.requestId || ''),
+      provider: priorDial.provider === 'zyastra' ? 'zyastra' : 'hunar',
+      script: agentPrompt,
+    };
+  }
+
   const launched = await launchBulkVoiceCalls({
     organizationId: input.organizationId,
     userId: input.userId,
