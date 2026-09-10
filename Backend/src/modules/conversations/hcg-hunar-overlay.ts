@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { mapHunarCallStatus } from '../../providers/hunar/hunar.webhook.js';
 import { type CandidatePipelineStatus } from '../outreach/enrollment-pipeline-status.js';
 import {
   HcgHunarCommunicationModel,
@@ -8,6 +9,7 @@ import {
   type HcgHunarCallStatus,
   type HcgHunarCommunicationDocument,
 } from '../communication-gateway/models/hcg-hunar-communication.model.js';
+import { HcgZyvkaCommunicationModel } from '../communication-gateway/models/hcg-zyvka-communication.model.js';
 import { formatHcgOverallAiStatus } from './hcg-gmail-overlay.js';
 
 type HcgHunarLean = {
@@ -359,6 +361,154 @@ function durationSecondsFromHunar(doc: HcgHunarLean): number | null {
   const minutes = Number(status.duration_minutes);
   if (Number.isFinite(minutes) && minutes > 0) return Math.round(minutes * 60);
   return null;
+}
+
+function recommendationFromHcgVoice(
+  result: Record<string, unknown>,
+  overallScore: number | null,
+  minShortlistScore: number
+): string | null {
+  if (String(result.summary || '').trim().toUpperCase() === 'NOT ENGAGED') {
+    return 'review';
+  }
+  const outcome = String(result.final_outcome || '').trim().toLowerCase();
+  const interest = String(result.interest_level || result.interest || '')
+    .trim()
+    .toLowerCase();
+  if (
+    outcome.includes('not_interested') ||
+    outcome.includes('not interested') ||
+    interest.includes('not interested')
+  ) {
+    return 'reject';
+  }
+  if (overallScore != null) {
+    if (overallScore >= minShortlistScore) return 'shortlist';
+    if (overallScore < minShortlistScore - 15) return 'reject';
+    return 'review';
+  }
+  return null;
+}
+
+function applyHcgVoiceDocToScreeningListItem(
+  item: {
+    callStatus: string;
+    overallScore: number | null;
+    recommendation: string | null;
+    overallAIStatus: string | null;
+    overallAIDescription: string | null;
+    summary: string | null;
+    durationSeconds: number | null;
+    answeredBy: string | null;
+    completedAt: string | null;
+    lastActivity: string;
+  },
+  doc: HcgHunarLean,
+  minShortlistScore: number
+): void {
+  const overlay = buildHcgHunarScreeningResultOverlay(doc);
+  const rawStatus = hcgHunarCallStatusValue(doc);
+  item.callStatus = mapHunarCallStatus(rawStatus, overlay.answeredBy || undefined);
+  if (overlay.overallAIStatus) item.overallAIStatus = overlay.overallAIStatus;
+  if (overlay.overallAIDescription) {
+    item.overallAIDescription = overlay.overallAIDescription;
+  }
+  if (overlay.summary) item.summary = overlay.summary;
+  if (overlay.overallScore != null) {
+    item.overallScore = overlay.overallScore;
+  }
+  const recommendation = recommendationFromHcgVoice(
+    callResultPayload(doc),
+    overlay.overallScore,
+    minShortlistScore
+  );
+  if (recommendation) item.recommendation = recommendation;
+  if (overlay.durationSeconds != null && overlay.durationSeconds > 0) {
+    item.durationSeconds = overlay.durationSeconds;
+  }
+  if (overlay.answeredBy) item.answeredBy = overlay.answeredBy;
+  const preview = hcgHunarLastPreview(doc);
+  if (preview.lastAt) {
+    item.lastActivity = preview.lastAt.toISOString();
+    if (item.callStatus === 'completed') {
+      item.completedAt = preview.lastAt.toISOString();
+    }
+  }
+}
+
+/**
+ * Prefer gateway voice truth on screening results list (status, score, recommendation, dates).
+ * Reads `hcg_hunar_communications` first, then `hcg_zyvkay_communications`.
+ */
+export async function overlayHcgVoiceOnScreeningResultList(
+  items: Array<{
+    screeningId: string;
+    candidateId: string;
+    modality?: string;
+    /** Extra campaign ids to match (e.g. linked outreach campaignId). */
+    hcgCampaignIds?: string[];
+    callStatus: string;
+    overallScore: number | null;
+    recommendation: string | null;
+    overallAIStatus: string | null;
+    overallAIDescription: string | null;
+    summary: string | null;
+    durationSeconds: number | null;
+    answeredBy: string | null;
+    completedAt: string | null;
+    lastActivity: string;
+  }>,
+  phonesByCandidateId: Map<string, string>,
+  minScoreByScreeningId: Map<string, number>
+): Promise<void> {
+  const voiceItems = items.filter((item) => String(item.modality || 'voice') !== 'video');
+  if (voiceItems.length === 0) return;
+
+  const screeningIds = [
+    ...new Set(
+      voiceItems
+        .flatMap((item) => [
+          String(item.screeningId || '').trim(),
+          ...(item.hcgCampaignIds || []).map((id) => String(id || '').trim()),
+        ])
+        .filter(Boolean)
+    ),
+  ];
+  if (screeningIds.length === 0) return;
+
+  const [hunarDocs, zyvkaDocs] = (await Promise.all([
+    HcgHunarCommunicationModel.find(campaignIdQuery(screeningIds)).lean(),
+    HcgZyvkaCommunicationModel.find(campaignIdQuery(screeningIds)).lean(),
+  ])) as [HcgHunarLean[], HcgHunarLean[]];
+
+  for (const item of voiceItems) {
+    const phone = phonesByCandidateId.get(String(item.candidateId)) || '';
+    const screeningId = String(item.screeningId || '').trim();
+    if (!phone || !screeningId) continue;
+
+    const matchIds = new Set(
+      [screeningId, ...(item.hcgCampaignIds || []).map((id) => String(id || '').trim())].filter(
+        Boolean
+      )
+    );
+
+    const hunar =
+      hunarDocs.find((doc) => matchIds.has(campaignIdOf(doc)) && phoneMatches(doc, phone)) ||
+      null;
+    const zyvka =
+      !hunar
+        ? zyvkaDocs.find((doc) => matchIds.has(campaignIdOf(doc)) && phoneMatches(doc, phone)) ||
+          null
+        : null;
+    const doc = hunar || zyvka;
+    if (!doc) continue;
+
+    applyHcgVoiceDocToScreeningListItem(
+      item,
+      doc,
+      minScoreByScreeningId.get(screeningId) ?? 70
+    );
+  }
 }
 
 /** Flat overlay for screening result detail (status, summary, score, Q&A, etc.). */
