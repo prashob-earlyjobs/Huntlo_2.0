@@ -609,6 +609,7 @@ async function syncOutreachEnrollment(
   if (!campaignForHiringFlow) {
     campaignForHiringFlow = await OutreachCampaignModel.findById(row.campaignId);
   }
+
   await maybeStartPostQualificationHiringFlow({
     campaign: campaignForHiringFlow,
     enrollment,
@@ -630,6 +631,36 @@ async function syncOutreachEnrollment(
   const becameTerminal =
     isVoiceCallTerminal(row) &&
     (!previousStatus || !isVoiceCallTerminal({ status: previousStatus as VoiceCallStatus }));
+
+  // Huntlo 360: voice used to update enrollment only — never advanced the workflow,
+  // so screening never launched after the outreach call.
+  if (campaignForHiringFlow?.sourceModule === 'huntlo360') {
+    const nextQual = enrollment.qualificationState?.status || 'pending';
+    let notifyStatus: 'qualified' | 'rejected' | null = null;
+    if (
+      (nextQual === 'qualified' || nextQual === 'rejected') &&
+      previousQualificationStatus !== nextQual
+    ) {
+      notifyStatus = nextQual;
+    } else if (
+      becameTerminal &&
+      nextQual !== 'qualified' &&
+      nextQual !== 'rejected'
+    ) {
+      if (voiceDisposition === 'interested') notifyStatus = 'qualified';
+      else if (voiceDisposition === 'not_interested') notifyStatus = 'rejected';
+    }
+    if (notifyStatus) {
+      const { notifyHuntlo360QualificationComplete } = await import(
+        '../outreach/qualification-qa.service.js'
+      );
+      await notifyHuntlo360QualificationComplete({
+        campaign: campaignForHiringFlow,
+        enrollment,
+        status: notifyStatus,
+      }).catch(() => undefined);
+    }
+  }
 
   if (becameTerminal) {
     // Dedupe: same callId + status already recorded (e.g. parallel webhooks).

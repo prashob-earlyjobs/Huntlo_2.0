@@ -29,6 +29,7 @@ export {
   listAllowedVariables,
   buildCandidateMergeContext,
   mergeMessageTemplate,
+  mergeOutboundMessage,
   resolveFallbackValues,
   listMissingVariables,
   renderTemplate,

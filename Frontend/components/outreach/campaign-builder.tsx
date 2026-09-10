@@ -21,10 +21,12 @@ import { SetupStep } from "@/components/outreach/builder-setup-step";
 import {
   applyCampaignType,
   applyEnabledChannels,
+  campaignHasAiVoice,
   estimatedUnlockCredits,
   initialBuilderState,
   launchWarnings,
   stepErrors,
+  withVoiceDependentQualification,
   type BuilderState,
 } from "@/components/outreach/builder-types";
 import { builderStateFromCampaign } from "@/components/outreach/campaign-builder-hydrate";
@@ -191,13 +193,16 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
       autoScreening: state.autoScreening,
-      autoWhatsAppAfterQualification: state.autoWhatsAppAfterQualification,
+      autoWhatsAppAfterQualification: campaignHasAiVoice(state)
+        ? state.autoWhatsAppAfterQualification
+        : false,
       hiringFlowId: state.hiringFlowId,
       autoWhatsAppTemplateId: state.autoWhatsAppTemplateId,
     },
     schedulingConfig: {
-      enabled: state.autoCalendly,
-      provider: state.autoCalendly ? "calendly" : null,
+      enabled: campaignHasAiVoice(state) ? false : state.autoCalendly,
+      provider:
+        campaignHasAiVoice(state) || !state.autoCalendly ? null : "calendly",
     },
   };
 }
@@ -446,6 +451,11 @@ export function CampaignBuilder({
           value as BuilderState["enabledChannels"]
         );
       }
+      if (key === "autoScreening") {
+        return withVoiceDependentQualification(previous, {
+          autoScreening: Boolean(value),
+        });
+      }
       return { ...previous, [key]: value };
     });
   }
@@ -676,7 +686,7 @@ export function CampaignBuilder({
       </nav>
 
       {current === 0 ? (
-        <SetupStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
+        <SetupStep state={state} update={update} showErrors={showErrors} />
       ) : current === 1 ? (
         <AudienceStep
           state={state}

@@ -405,7 +405,7 @@ function StepEditor({
                   onClick={() =>
                     onChange({ ...step, body: `${step.body} ${variable}` })
                   }
-                  className="rounded-md bg-brand-subtle px-1.5 py-0.5 font-mono text-[11px] text-primary outline-none transition-colors hover:bg-brand-subtle/70 focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="cursor-pointer rounded-md bg-brand-subtle px-1.5 py-0.5 font-mono text-[11px] text-primary outline-none transition-colors hover:bg-brand-subtle/70 focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   {variable}
                 </button>

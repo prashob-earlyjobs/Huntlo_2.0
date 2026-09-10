@@ -270,6 +270,160 @@ export type CampaignUpdatedPayload = {
   userId?: string;
 };
 
+export type HcgGmailUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  gmailThreadId: string | null;
+  overallAIStatus: string | null;
+  messageCount: number;
+  questionCount: number;
+  reasons: Array<'message' | 'status' | 'questions' | 'upsert'>;
+  userId?: string;
+};
+
+export function emitHcgGmailUpdated(payload: HcgGmailUpdatedPayload): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime('hcg.gmail.updated', event, orgTarget(payload.organizationId, payload.userId));
+  emitCampaignThreadUpdated({
+    organizationId: payload.organizationId,
+    campaignId: payload.campaignId,
+    threadId: payload.gmailThreadId || payload.campaignId,
+    status: 'open',
+    unreadCount: 0,
+    qualificationStatus: 'pending',
+    userId: payload.userId,
+  });
+  if (payload.reasons.includes('message') || payload.reasons.includes('upsert')) {
+    emitConversationMessageCreated({
+      organizationId: payload.organizationId,
+      threadId: payload.gmailThreadId || payload.campaignId,
+      messageId: `hcg-${payload.gmailThreadId || payload.campaignId}-${payload.messageCount}`,
+      campaignId: payload.campaignId,
+      candidateId: '',
+      direction: 'inbound',
+      channel: 'email',
+      userId: payload.userId,
+    });
+  }
+}
+
+export type HcgWhatsappUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  whatsappThreadId: string | null;
+  overallAIStatus: string | null;
+  messageCount: number;
+  questionCount: number;
+  reasons: Array<'message' | 'status' | 'questions' | 'upsert'>;
+  userId?: string;
+};
+
+export function emitHcgWhatsappUpdated(payload: HcgWhatsappUpdatedPayload): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime('hcg.whatsapp.updated', event, orgTarget(payload.organizationId, payload.userId));
+  emitCampaignThreadUpdated({
+    organizationId: payload.organizationId,
+    campaignId: payload.campaignId,
+    threadId: payload.whatsappThreadId || payload.campaignId,
+    status: 'open',
+    unreadCount: 0,
+    qualificationStatus: 'pending',
+    userId: payload.userId,
+  });
+  if (payload.reasons.includes('message') || payload.reasons.includes('upsert')) {
+    emitConversationMessageCreated({
+      organizationId: payload.organizationId,
+      threadId: payload.whatsappThreadId || payload.campaignId,
+      messageId: `hcg-wa-${payload.whatsappThreadId || payload.campaignId}-${payload.messageCount}`,
+      campaignId: payload.campaignId,
+      candidateId: '',
+      direction: 'inbound',
+      channel: 'whatsapp',
+      userId: payload.userId,
+    });
+  }
+}
+
+export type HcgHunarUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  callId: string | null;
+  callStatus: string | null;
+  overallAIStatus: string | null;
+  reasons: Array<'status' | 'recording' | 'result' | 'upsert'>;
+  userId?: string;
+};
+
+export function emitHcgHunarUpdated(payload: HcgHunarUpdatedPayload): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime('hcg.hunar.updated', event, orgTarget(payload.organizationId, payload.userId));
+  emitCampaignThreadUpdated({
+    organizationId: payload.organizationId,
+    campaignId: payload.campaignId,
+    threadId: payload.callId || payload.campaignId,
+    status: 'open',
+    unreadCount: 0,
+    qualificationStatus: 'pending',
+    userId: payload.userId,
+  });
+  emitConversationMessageCreated({
+    organizationId: payload.organizationId,
+    threadId: payload.callId || payload.campaignId,
+    messageId: `hcg-hunar-${payload.callId || payload.campaignId}`,
+    campaignId: payload.campaignId,
+    candidateId: '',
+    direction: 'outbound',
+    channel: 'ai_voice',
+    userId: payload.userId,
+  });
+}
+
+export type HcgZyvkaUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  callId: string | null;
+  callStatus: string | null;
+  overallAIStatus: string | null;
+  reasons: Array<'status' | 'recording' | 'result' | 'upsert'>;
+  userId?: string;
+};
+
+export function emitHcgZyvkaUpdated(payload: HcgZyvkaUpdatedPayload): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime('hcg.zyvkay.updated', event, orgTarget(payload.organizationId, payload.userId));
+  emitCampaignThreadUpdated({
+    organizationId: payload.organizationId,
+    campaignId: payload.campaignId,
+    threadId: payload.callId || payload.campaignId,
+    status: 'open',
+    unreadCount: 0,
+    qualificationStatus: 'pending',
+    userId: payload.userId,
+  });
+  emitConversationMessageCreated({
+    organizationId: payload.organizationId,
+    threadId: payload.callId || payload.campaignId,
+    messageId: `hcg-zyvka-${payload.callId || payload.campaignId}`,
+    campaignId: payload.campaignId,
+    candidateId: '',
+    direction: 'outbound',
+    channel: 'ai_voice',
+    userId: payload.userId,
+  });
+}
+
 export function emitCampaignUpdated(payload: CampaignUpdatedPayload): void {
   const event = {
     ...payload,

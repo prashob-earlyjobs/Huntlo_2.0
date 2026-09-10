@@ -8,7 +8,7 @@ import type {
   BuilderState,
   UpdateBuilder,
 } from "@/components/outreach/builder-types";
-import { stepErrors } from "@/components/outreach/builder-types";
+import { campaignHasAiVoice, stepErrors } from "@/components/outreach/builder-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -58,6 +58,8 @@ export function QualificationStep({
   showErrors: boolean;
 }) {
   const errors = showErrors ? stepErrors(4, state) : [];
+  const showAutoWhatsApp = campaignHasAiVoice(state);
+  const showAutoCalendly = !showAutoWhatsApp;
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [hiringFlows, setHiringFlows] = useState<ApiHiringFlow[]>([]);
@@ -312,17 +314,25 @@ export function QualificationStep({
                       Knockout question
                     </label>
                     {question.knockout ? (
-                      <Input
-                        value={question.knockoutCondition}
-                        onChange={(event) =>
-                          updateQuestion(question.id, {
-                            knockoutCondition: event.target.value,
-                          })
-                        }
-                        placeholder="Reject if…"
-                        className="h-8 text-xs"
-                        aria-label={`Knockout condition for question ${index + 1}`}
-                      />
+                      <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-md border border-input focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/50">
+                        <span className="flex shrink-0 items-center pl-2.5 text-xs text-muted-foreground">
+                          Reject if
+                        </span>
+                        <Input
+                          value={question.knockoutCondition.replace(
+                            /^reject\s+if\s+/i,
+                            ""
+                          )}
+                          onChange={(event) =>
+                            updateQuestion(question.id, {
+                              knockoutCondition: event.target.value,
+                            })
+                          }
+                          placeholder="yes, more than 60…"
+                          className="h-8 border-0 text-xs shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+                          aria-label={`Knockout condition for question ${index + 1}`}
+                        />
+                      </div>
                     ) : null}
                   </div>
                 </li>
@@ -336,15 +346,17 @@ export function QualificationStep({
             After qualification
           </h3>
           <div className="grid gap-2 lg:grid-cols-2">
-            <ToggleRow
-              id="qual-auto-whatsapp"
-              label="Auto-send WhatsApp"
-              description="After qualification, run a hiring flow (or a single WhatsApp template)."
-              checked={state.autoWhatsAppAfterQualification}
-              onChange={(checked) =>
-                update("autoWhatsAppAfterQualification", checked)
-              }
-            />
+            {showAutoWhatsApp ? (
+              <ToggleRow
+                id="qual-auto-whatsapp"
+                label="Auto-send WhatsApp"
+                description="After the Hunar/Zyvka call, run a hiring flow (or a single WhatsApp template)."
+                checked={state.autoWhatsAppAfterQualification}
+                onChange={(checked) =>
+                  update("autoWhatsAppAfterQualification", checked)
+                }
+              />
+            ) : null}
             <ToggleRow
               id="qual-auto-screening"
               label="Auto-start AI screening"
@@ -352,15 +364,17 @@ export function QualificationStep({
               checked={state.autoScreening}
               onChange={(checked) => update("autoScreening", checked)}
             />
-            <ToggleRow
-              id="qual-auto-calendly"
-              label="Auto-send Calendly"
-              description="Send a scheduling link after qualification completes."
-              checked={state.autoCalendly}
-              onChange={(checked) => update("autoCalendly", checked)}
-            />
+            {showAutoCalendly ? (
+              <ToggleRow
+                id="qual-auto-calendly"
+                label="Auto-send Calendly"
+                description="Send a scheduling link after qualification completes."
+                checked={state.autoCalendly}
+                onChange={(checked) => update("autoCalendly", checked)}
+              />
+            ) : null}
           </div>
-          {state.autoWhatsAppAfterQualification ? (
+          {showAutoWhatsApp && state.autoWhatsAppAfterQualification ? (
             <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-3">
               <Field
                 label="Hiring flow"

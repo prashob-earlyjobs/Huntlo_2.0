@@ -4,11 +4,13 @@ import type { z } from 'zod';
 
 import { AppError } from '../../shared/errors/app-error.js';
 import { quotaService } from '../../shared/usage/index.js';
+import { escapeRegex } from '../../shared/validation/regex.js';
 import { UserModel } from '../auth/user.model.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { UserIntegrationModel } from '../integrations/user-integration.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
+import { OrganizationModel } from '../organizations/organization.model.js';
 import {
   createHunarBulkCalls,
   createHunarVoiceAgent,
@@ -20,19 +22,14 @@ import {
   getHunarVoicePersona,
   isHunarConfigured,
 } from '../../providers/hunar/hunar.config.js';
-import {
-  isZyastraConfigured,
-  triggerZyastraVoiceCall,
-} from '../../providers/zyastra/index.js';
+import { sendZyastraCallViaGateway } from '../../providers/zyastra/zyastra.gateway.js';
 import { emitScreeningResultUpdated } from '../../realtime/events.js';
 import {
   buildRoshniAgentPrompt,
   ROSHNI_INTRODUCTION,
 } from '../voice/roshni-prompt.js';
-import { analysisVariablesFromResultSchema } from '../voice/voice-qualification-sync.js';
 import {
   isIndianE164,
-  mapPool,
   resolveIntroduction,
   resolveVoiceTokens,
   sanitizeHunarPromptText,
@@ -40,16 +37,56 @@ import {
   toHunarMobile,
 } from '../voice/voice-dialer.service.js';
 import {
+  buildHcgHunarScreeningResultOverlay,
+  findHcgHunarCommunicationByCampaignIds,
+  hcgHunarCallStatusValue,
+  overlayHcgVoiceOnScreeningResultList,
+} from '../conversations/hcg-hunar-overlay.js';
+import {
+  findHcgZyvkaCommunicationByCampaignIds,
+  hcgZyvkaCallStatusValue,
+} from '../conversations/hcg-zyvka-overlay.js';
+import { mapHunarCallStatus } from '../../providers/hunar/hunar.webhook.js';
+import {
+  createHyrefastApplication,
+  createHyrefastJob,
+  disableHyrefastConversationMode,
+  enableHyrefastConversationMode,
+  getHyrefastInterviewLink,
+  listHyrefastResponses,
+  publishHyrefastJob,
+  sendHyrefastInterview,
+  setHyrefastJobQuestions,
+  setHyrefastJobSkills,
+  setHyrefastJobTopics,
+  type HyrefastQuestionItem,
+  type HyrefastResponseItem,
+  type HyrefastTopicItem,
+} from '../../providers/hyrefast/hyrefast.client.js';
+import { isHyrefastConfigured } from '../../providers/hyrefast/hyrefast.config.js';
+import {
+  evaluateVideoInterviewResponses,
+  fingerprintVideoResponses,
+  recommendationFromCommunicationScore,
+} from '../../providers/gemini/gemini.screening-video.js';
+import {
   ScreeningModel,
   defaultScreeningStats,
   type ScreeningDocument,
+  type ScreeningVideoConfig,
 } from './screening.model.js';
 import {
   ScreeningCandidateModel,
   type ScreeningCandidateDocument,
 } from './screening-candidate.model.js';
 import { VoiceWebhookEventModel } from './voice-webhook-event.model.js';
-import { mapEvaluationScores, minutesFromDuration, decisionFromAiRecommendation } from './scoring.js';
+import {
+  mapEvaluationScores,
+  minutesFromDuration,
+  decisionFromAiRecommendation,
+  deriveRecommendation,
+} from './scoring.js';
+import { mergeOutboundMessage } from '../outreach/variables.js';
 import type {
   createScreeningSchema,
   listCandidatesQuerySchema,
@@ -110,6 +147,22 @@ async function jobTitle(jobId: mongoose.Types.ObjectId | null) {
   return job?.title ? String(job.title) : null;
 }
 
+async function jobMergeExtras(jobId: mongoose.Types.ObjectId | null): Promise<{
+  title: string | null;
+  location: string | null;
+}> {
+  if (!jobId) return { title: null, location: null };
+  const job = await JobModel.findById(jobId).select('title locations').lean();
+  if (!job) return { title: null, location: null };
+  const locations = Array.isArray(job.locations)
+    ? job.locations.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+  return {
+    title: job.title ? String(job.title) : null,
+    location: locations.slice(0, 3).join(', ') || null,
+  };
+}
+
 async function loadScreening(organizationId: string, id: string) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new AppError(400, 'INVALID_ID', 'Invalid screening id.');
@@ -121,6 +174,221 @@ async function loadScreening(organizationId: string, id: string) {
   });
   if (!doc) throw new AppError(404, 'SCREENING_NOT_FOUND', 'Screening not found.');
   return doc;
+}
+
+function normalizeVideoProficiency(value: string | null | undefined): string {
+  const raw = String(value || 'L3').trim().toUpperCase();
+  if (raw === 'L1' || raw === 'L2') return 'L1';
+  if (raw === 'L4' || raw === 'L5') return 'L5';
+  return 'L3';
+}
+
+function mapVideoConfigInput(
+  input: CreateInput['videoConfig'] | undefined
+): ScreeningVideoConfig | null {
+  if (!input) return null;
+  return {
+    mustHaveSkills: (input.mustHaveSkills || [])
+      .map((skill) => ({
+        skillName: String(skill.skillName || '').trim(),
+        proficiency: normalizeVideoProficiency(skill.proficiency),
+      }))
+      .filter((skill) => skill.skillName),
+    goodToHaveSkills: (input.goodToHaveSkills || [])
+      .map((skill) => ({
+        skillName: String(skill.skillName || '').trim(),
+        proficiency: normalizeVideoProficiency(skill.proficiency),
+      }))
+      .filter((skill) => skill.skillName),
+    bonusSkills: (input.bonusSkills || [])
+      .map((skill) => ({
+        skillName: String(skill.skillName || '').trim(),
+        proficiency: normalizeVideoProficiency(skill.proficiency),
+      }))
+      .filter((skill) => skill.skillName),
+    topicsFocus: (input.topicsFocus || [])
+      .map((topic) => ({
+        name: String(topic.name || '').trim(),
+        discussionMinutes:
+          typeof topic.discussionMinutes === 'number'
+            ? topic.discussionMinutes
+            : null,
+        reason: topic.reason ? String(topic.reason).trim() : null,
+        sampleQuestions: (topic.sampleQuestions || [])
+          .map((q) => String(q || '').trim())
+          .filter(Boolean),
+      }))
+      .filter((topic) => topic.name),
+    topicsAvoid: (input.topicsAvoid || [])
+      .map((topic) => String(topic || '').trim())
+      .filter(Boolean),
+    interviewStandard: input.interviewConversation === true ? false : true,
+    interviewConversation: input.interviewConversation === true,
+    hyrefastJobId: null,
+  };
+}
+
+function toHyrefastSkills(
+  skills: Array<{ skillName: string; proficiency: string }>
+) {
+  return skills.map((skill) => ({
+    skill_name: skill.skillName,
+    proficiency: normalizeVideoProficiency(skill.proficiency),
+  }));
+}
+
+/** Hyrefast rejects publish unless the job has ≥1 must-have skill. */
+function resolveHyrefastSkillsPayload(
+  videoConfig: ScreeningVideoConfig,
+  title: string
+): {
+  mustHave: ReturnType<typeof toHyrefastSkills>;
+  goodToHave: ReturnType<typeof toHyrefastSkills>;
+  bonus: ReturnType<typeof toHyrefastSkills>;
+} {
+  const mustHave = toHyrefastSkills(videoConfig.mustHaveSkills || []);
+  const goodToHave = toHyrefastSkills(videoConfig.goodToHaveSkills || []);
+  const bonus = toHyrefastSkills(videoConfig.bonusSkills || []);
+  if (mustHave.length > 0) {
+    return { mustHave, goodToHave, bonus };
+  }
+  const fallbackName = String(title || 'Role fit')
+    .trim()
+    .slice(0, 60) || 'Role fit';
+  return {
+    mustHave: [{ skill_name: fallbackName, proficiency: 'L3' }],
+    goodToHave,
+    bonus,
+  };
+}
+
+function toHyrefastQuestions(
+  videoConfig: ScreeningVideoConfig,
+  title: string,
+  screeningQuestions?: Array<{ prompt?: string | null } | null> | null,
+  mergeContext?: Record<string, string | null | undefined>
+): HyrefastQuestionItem[] {
+  const resolveCopy = (text: string) =>
+    mergeOutboundMessage(text, {
+      job_title: title,
+      ...(mergeContext || {}),
+    });
+
+  const fromScreening = (screeningQuestions || [])
+    .map((question, index) => {
+      const text = resolveCopy(String(question?.prompt || '').trim());
+      if (!text) return null;
+      return {
+        title: text,
+        question_type: 'video' as const,
+        question_proficiency: 'L3',
+        order: index + 1,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  // Standard mode: prefer recruiter-authored screening questions.
+  if (videoConfig.interviewConversation !== true && fromScreening.length > 0) {
+    return fromScreening.slice(0, 12);
+  }
+
+  const fromSamples: HyrefastQuestionItem[] = [];
+  for (const topic of videoConfig.topicsFocus || []) {
+    const topicName = String(topic.name || '').trim();
+    for (const sample of topic.sampleQuestions || []) {
+      const text = resolveCopy(String(sample || '').trim());
+      if (!text) continue;
+      fromSamples.push({
+        title: text,
+        topic_name: topicName || undefined,
+        question_type: 'video',
+        question_proficiency: 'L3',
+        order: fromSamples.length + 1,
+      });
+    }
+  }
+  if (fromSamples.length > 0) return fromSamples.slice(0, 8);
+
+  const topicFallback = (videoConfig.topicsFocus || [])
+    .map((topic) => String(topic.name || '').trim())
+    .filter(Boolean)
+    .slice(0, 5)
+    .map((topicName, index) => ({
+      title: `Tell us about your experience with ${topicName}.`,
+      topic_name: topicName,
+      question_type: 'video',
+      question_proficiency: 'L3',
+      order: index + 1,
+    }));
+  if (topicFallback.length > 0) return topicFallback;
+
+  if (fromScreening.length > 0) return fromScreening.slice(0, 12);
+
+  return [
+    {
+      title: `Walk us through a recent project relevant to ${title}.`,
+      topic_name: title,
+      question_type: 'video',
+      question_proficiency: 'L3',
+      order: 1,
+    },
+    {
+      title: 'Describe a challenging problem you solved and how you approached it.',
+      question_type: 'video',
+      question_proficiency: 'L3',
+      order: 2,
+    },
+  ];
+}
+
+function toHyrefastTopics(
+  videoConfig: ScreeningVideoConfig,
+  title: string
+): { topicsToFocus: HyrefastTopicItem[]; topicsToAvoid: string[] } {
+  const topicsToFocus = (videoConfig.topicsFocus || [])
+    .map((topic) => {
+      const name = String(topic.name || '').trim();
+      if (!name) return null;
+      const minutes =
+        typeof topic.discussionMinutes === 'number' &&
+        topic.discussionMinutes >= 1 &&
+        topic.discussionMinutes <= 60
+          ? topic.discussionMinutes
+          : 15;
+      return {
+        name,
+        reason: String(topic.reason || '').trim() || undefined,
+        discussionMinutes: minutes,
+        sampleQuestions: (topic.sampleQuestions || [])
+          .map((q) => String(q || '').trim())
+          .filter(Boolean),
+      };
+    })
+    .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic));
+
+  return {
+    topicsToFocus: topicsToFocus.length
+      ? topicsToFocus
+      : [{ name: title || 'Role discussion', discussionMinutes: 15 }],
+    topicsToAvoid: (videoConfig.topicsAvoid || [])
+      .map((topic) => String(topic || '').trim())
+      .filter(Boolean),
+  };
+}
+
+async function syncHyrefastConversationMode(
+  jobId: string,
+  enabled: boolean
+): Promise<void> {
+  if (enabled) {
+    await enableHyrefastConversationMode(jobId);
+  } else {
+    try {
+      await disableHyrefastConversationMode(jobId);
+    } catch {
+      // Job may already be standard-only; ignore disable failures.
+    }
+  }
 }
 
 function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle: string | null }) {
@@ -136,6 +404,7 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     workflowId: doc.workflowId ? String(doc.workflowId) : null,
     sourceModule: doc.sourceModule,
     description: doc.description,
+    modality: doc.modality || 'voice',
     status: STATUS_DISPLAY[doc.status] || doc.status,
     statusRaw: doc.status,
     objective: doc.objective,
@@ -151,6 +420,7 @@ function toDisplay(doc: ScreeningDocument, extras: { ownerName: string; jobTitle
     minShortlistScore: doc.minShortlistScore ?? 70,
     knockouts: doc.knockouts || [],
     callSettings: doc.callSettings,
+    videoConfig: doc.videoConfig || null,
     candidateIds: doc.candidateIds,
     candidates: doc.stats.enrolled,
     completed: doc.stats.completed,
@@ -188,6 +458,11 @@ function toResultDisplay(
       detail: string;
       time: string;
     }>;
+    modality?: 'voice' | 'video';
+    videoResponses?: HyrefastResponseItem[];
+    interviewLink?: string | null;
+    strengths?: string[];
+    concerns?: string[];
   }
 ) {
   const configuredKnockouts = (extras.knockouts || [])
@@ -215,6 +490,20 @@ function toResultDisplay(
     transcript: row.transcript,
     recordingReference: row.recordingReference,
     summary: row.summary,
+    overallAIStatus: null as string | null,
+    overallAIDescription: null as string | null,
+    answeredBy: null as string | null,
+    strengths: extras.strengths || [],
+    concerns: extras.concerns || [],
+    keyAnswers: [] as Array<{ question: string; answer: string }>,
+    hcgQuestions: [] as Array<{
+      id: string;
+      question: string;
+      asked: boolean;
+      answer: string;
+      status: string;
+      description: string;
+    }>,
     extractedVariables: row.extractedVariables,
     scoreBreakdown: row.scoreBreakdown,
     overallScore: row.overallScore,
@@ -225,6 +514,9 @@ function toResultDisplay(
     evaluationCriteria: extras.evaluationCriteria || [],
     questions: extras.questions || [],
     activity: extras.activity || [],
+    modality: extras.modality || 'voice',
+    videoResponses: extras.videoResponses || [],
+    interviewLink: extras.interviewLink || null,
     completedAt: row.completedAt?.toISOString() ?? null,
     error: row.error,
     lastActivity: row.updatedAt.toISOString(),
@@ -275,8 +567,109 @@ function buildKnockoutResults(
   });
 }
 
+/** Pull call status / score / recommendation from HCG hunar or zyvka onto voice candidate rows. */
+async function syncVoiceCandidatesFromHcg(
+  screening: ScreeningDocument,
+  rows: ScreeningCandidateDocument[]
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  const screeningId = String(screening._id);
+  const minShortlistScore = screening.minShortlistScore ?? 70;
+  const linkedCampaignId = screening.campaignId ? String(screening.campaignId) : '';
+
+  const candidates = await SavedCandidateModel.find({
+    _id: { $in: rows.map((row) => row.candidateId) },
+  })
+    .select('phone')
+    .lean();
+  const phones = new Map(
+    candidates.map((c) => [String(c._id), String(c.phone || '').trim()])
+  );
+
+  const items = rows.map((row) => ({
+    screeningId,
+    candidateId: String(row.candidateId),
+    modality: 'voice' as const,
+    hcgCampaignIds: linkedCampaignId ? [linkedCampaignId] : [],
+    callStatus: String(row.callStatus || 'queued'),
+    overallScore: row.overallScore ?? null,
+    recommendation: row.recommendation ?? null,
+    overallAIStatus: null as string | null,
+    overallAIDescription: null as string | null,
+    summary: row.summary ?? null,
+    durationSeconds: row.durationSeconds ?? null,
+    answeredBy: null as string | null,
+    completedAt: row.completedAt?.toISOString() ?? null,
+    lastActivity: row.updatedAt?.toISOString?.() ?? new Date().toISOString(),
+  }));
+
+  await overlayHcgVoiceOnScreeningResultList(
+    items,
+    phones,
+    new Map([[screeningId, minShortlistScore]])
+  );
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    const item = items[i];
+    if (!row || !item) continue;
+
+    let dirty = false;
+    if (item.callStatus && item.callStatus !== row.callStatus) {
+      row.callStatus = item.callStatus as typeof row.callStatus;
+      dirty = true;
+    }
+    if (item.overallScore != null && item.overallScore !== row.overallScore) {
+      row.overallScore = item.overallScore;
+      dirty = true;
+    }
+    if (item.recommendation && item.recommendation !== row.recommendation) {
+      row.recommendation = item.recommendation;
+      dirty = true;
+    }
+    if (
+      item.durationSeconds != null &&
+      item.durationSeconds > 0 &&
+      item.durationSeconds !== row.durationSeconds
+    ) {
+      row.durationSeconds = item.durationSeconds;
+      dirty = true;
+    }
+    if (item.summary && item.summary !== row.summary) {
+      row.summary = item.summary;
+      dirty = true;
+    }
+    if (item.completedAt) {
+      const completedAt = new Date(item.completedAt);
+      if (
+        Number.isFinite(completedAt.getTime()) &&
+        (!row.completedAt || row.completedAt.getTime() !== completedAt.getTime())
+      ) {
+        row.completedAt = completedAt;
+        dirty = true;
+      }
+    }
+    if (row.recruiterDecision === 'pending') {
+      const autoDecision = decisionFromAiRecommendation(row.recommendation);
+      if (autoDecision) {
+        row.recruiterDecision = autoDecision;
+        dirty = true;
+      }
+    }
+    if (dirty) await row.save();
+  }
+}
+
 export async function refreshScreeningStats(screeningId: string) {
-  const rows = await ScreeningCandidateModel.find({ screeningId }).lean();
+  const screening = await ScreeningModel.findById(screeningId);
+  if (!screening) return defaultScreeningStats();
+
+  const rows = await ScreeningCandidateModel.find({ screeningId });
+  if (String(screening.modality || 'voice') !== 'video') {
+    await syncVoiceCandidatesFromHcg(screening, rows);
+  }
+
   const stats = defaultScreeningStats();
   stats.enrolled = rows.length;
   let scoreSum = 0;
@@ -299,8 +692,6 @@ export async function refreshScreeningStats(screeningId: string) {
   }
   stats.averageScore = scoreCount ? Math.round(scoreSum / scoreCount) : null;
 
-  const screening = await ScreeningModel.findById(screeningId);
-  if (!screening) return stats;
   screening.stats = stats;
   screening.markModified('stats');
 
@@ -578,6 +969,7 @@ export const screeningService = {
       name: input.name,
       description: input.description ?? null,
       objective: input.objective ?? null,
+      modality: input.modality === 'video' ? 'video' : 'voice',
       language: input.language ? String(input.language).toUpperCase() : getHunarVoiceLanguage(),
       voice: input.voice ? String(input.voice).toUpperCase() : getHunarVoicePersona(),
       tone: input.tone ?? null,
@@ -603,6 +995,8 @@ export const screeningService = {
           input.callSettings?.voicemailBehaviour ??
           'Leave a short callback message',
       },
+      videoConfig:
+        input.modality === 'video' ? mapVideoConfigInput(input.videoConfig) : null,
       candidateIds: input.candidateIds || [],
       status: 'draft',
       stats: defaultScreeningStats(),
@@ -719,14 +1113,109 @@ export const screeningService = {
     const doc = await loadScreening(organizationId, id);
     const issues: Array<{ id: string; severity: 'error' | 'warning'; code: string; message: string }> =
       [];
+    const isVideo = doc.modality === 'video';
 
-    if (!isHunarConfigured() && !isZyastraConfigured()) {
-      issues.push({
-        id: 'provider',
-        severity: 'error',
-        code: 'PROVIDER_DISCONNECTED',
-        message: 'No voice provider configured. Set HUNAR_VOICE_API_KEY and/or ZYASTRA_API_KEY + ZYASTRA_API_SECRET.',
-      });
+    if (isVideo) {
+      if (!isHyrefastConfigured()) {
+        issues.push({
+          id: 'provider_hyrefast',
+          severity: 'error',
+          code: 'HYREFAST_API_KEY_MISSING',
+          message: 'Video screening requires HYREFAST_API_KEY on the server.',
+        });
+      }
+
+      const wantsConversation = doc.videoConfig?.interviewConversation === true;
+      if (wantsConversation) {
+        const mustHave = doc.videoConfig?.mustHaveSkills || [];
+        if (!mustHave.some((skill) => skill.skillName?.trim())) {
+          issues.push({
+            id: 'skills',
+            severity: 'error',
+            code: 'VIDEO_SKILLS_REQUIRED',
+            message: 'Add at least one must-have skill for Conversation mode.',
+          });
+        }
+        if (!(doc.videoConfig?.topicsFocus || []).some((t) => t.name?.trim())) {
+          issues.push({
+            id: 'topics',
+            severity: 'error',
+            code: 'VIDEO_TOPICS_REQUIRED',
+            message: 'Add at least one focus topic for Conversation mode.',
+          });
+        }
+      } else if (
+        !(doc.questions || []).some((question) => String(question.prompt || '').trim())
+      ) {
+        issues.push({
+          id: 'questions',
+          severity: 'error',
+          code: 'VIDEO_QUESTIONS_REQUIRED',
+          message: 'Add at least one interview question for Standard mode.',
+        });
+      }
+
+      if (
+        !doc.videoConfig?.interviewStandard &&
+        !doc.videoConfig?.interviewConversation
+      ) {
+        issues.push({
+          id: 'interview_mode',
+          severity: 'error',
+          code: 'VIDEO_MODE_REQUIRED',
+          message: 'Select standard or conversation interview mode.',
+        });
+      }
+      if (
+        doc.videoConfig?.interviewStandard &&
+        doc.videoConfig?.interviewConversation
+      ) {
+        issues.push({
+          id: 'interview_mode',
+          severity: 'error',
+          code: 'VIDEO_MODE_EXCLUSIVE',
+          message: 'Choose only one interview mode: Standard or Conversation.',
+        });
+      }
+
+      const enrolled = await ScreeningCandidateModel.countDocuments({ screeningId: id });
+      if (enrolled === 0 && !doc.candidateIds.length) {
+        issues.push({
+          id: 'audience',
+          severity: 'error',
+          code: 'AUDIENCE_EMPTY',
+          message: 'Add candidates before launch.',
+        });
+      }
+
+      const candidates = await ScreeningCandidateModel.find({ screeningId: id }).lean();
+      const pool = await SavedCandidateModel.find({
+        _id: { $in: candidates.map((c) => c.candidateId) },
+        organizationId,
+      }).lean();
+      const withEmail = pool.filter((c) => String(c.email || '').trim()).length;
+      const withPhone = pool.filter((c) => String(c.phone || '').trim()).length;
+      if (candidates.length > 0 && withEmail === 0) {
+        issues.push({
+          id: 'contacts',
+          severity: 'error',
+          code: 'NO_EMAIL_CONTACTS',
+          message: 'No candidates have an email for video interview invites.',
+        });
+      }
+      if (candidates.length > 0 && withPhone === 0) {
+        issues.push({
+          id: 'contacts_phone',
+          severity: 'error',
+          code: 'NO_PHONE_CONTACTS',
+          message: 'Video invites require a phone number on each candidate (provider requirement).',
+        });
+      }
+
+      const ok = !issues.some((i) => i.severity === 'error');
+      doc.lastValidation = { ok, checkedAt: new Date(), issues };
+      await doc.save();
+      return { ok, issues };
     }
 
     const integration = await UserIntegrationModel.findOne({
@@ -786,12 +1275,10 @@ export const screeningService = {
     }
 
     let hasIndian = false;
-    let hasInternational = false;
     for (const candidate of pool) {
       const mobile = toHunarMobile(String(candidate.phone || ''));
       if (!mobile) continue;
       if (isIndianE164(mobile)) hasIndian = true;
-      else hasInternational = true;
     }
     if (hasIndian && !isHunarConfigured()) {
       issues.push({
@@ -799,14 +1286,6 @@ export const screeningService = {
         severity: 'error',
         code: 'HUNAR_API_KEY_MISSING',
         message: 'Indian (+91) numbers require Hunar. Set HUNAR_VOICE_API_KEY.',
-      });
-    }
-    if (hasInternational && !isZyastraConfigured()) {
-      issues.push({
-        id: 'provider_zyastra',
-        severity: 'error',
-        code: 'ZYASTRA_API_KEY_MISSING',
-        message: 'Non-Indian numbers require Zyastra. Set ZYASTRA_API_KEY and ZYASTRA_API_SECRET.',
       });
     }
 
@@ -847,6 +1326,10 @@ export const screeningService = {
       throw new AppError(400, 'LAUNCH_VALIDATION_FAILED', 'Screening failed launch validation.', {
         meta: { issues: validation.issues },
       });
+    }
+
+    if (doc.modality === 'video') {
+      return this.launchVideo(organizationId, userId, id, options);
     }
 
     const roshni = await buildRoshniAgentPrompt({
@@ -987,6 +1470,13 @@ export const screeningService = {
     };
     const launchCallees: LaunchCallee[] = [];
     for (const row of rows) {
+      // Already placed a Hunar/Zyvka dial while still awaiting webhook — skip.
+      if (
+        row.callStatus === 'queued' &&
+        (Boolean(row.providerRequestId) || Number(row.attempts || 0) > 0)
+      ) {
+        continue;
+      }
       const candidate = byId.get(String(row.candidateId));
       if (!candidate?.phone) continue;
       const mobile = toHunarMobile(candidate.phone);
@@ -1001,12 +1491,98 @@ export const screeningService = {
       });
     }
 
-    if (!launchCallees.length) {
+    // One phone → one dial. Prefer the first selected candidateId when several share a number.
+    if (candidateIds.length > 0) {
+      const rank = new Map(candidateIds.map((id, index) => [id, index]));
+      launchCallees.sort(
+        (left, right) =>
+          (rank.get(left.candidateId) ?? Number.MAX_SAFE_INTEGER) -
+          (rank.get(right.candidateId) ?? Number.MAX_SAFE_INTEGER)
+      );
+    }
+
+    // Phones already dialed on this screening batch (other candidate rows).
+    const priorDialedRows = await ScreeningCandidateModel.find({
+      screeningId: id,
+      candidateId: { $nin: launchCallees.map((c) => c.row.candidateId) },
+      $or: [
+        { providerRequestId: { $nin: [null, ''] } },
+        { attempts: { $gt: 0 } },
+        {
+          callStatus: {
+            $in: [
+              'ringing',
+              'in_progress',
+              'completed',
+              'no_answer',
+              'failed',
+              'busy',
+              'voicemail',
+              'cancelled',
+            ],
+          },
+        },
+      ],
+    })
+      .select('candidateId')
+      .lean();
+    const priorCandidates = priorDialedRows.length
+      ? await SavedCandidateModel.find({
+          _id: { $in: priorDialedRows.map((row) => row.candidateId) },
+          organizationId,
+        })
+          .select('phone')
+          .lean()
+      : [];
+    const priorPhones = new Set(
+      priorCandidates
+        .map((candidate) => {
+          const mobile = toHunarMobile(String(candidate.phone || ''));
+          if (!mobile) return '';
+          const digits = mobile.replace(/\D/g, '');
+          return digits.length > 10 ? digits.slice(-10) : digits;
+        })
+        .filter(Boolean)
+    );
+
+    const uniqueCallees: LaunchCallee[] = [];
+    const duplicatePhoneCallees: LaunchCallee[] = [];
+    const seenPhones = new Set<string>(priorPhones);
+    for (const callee of launchCallees) {
+      const key =
+        callee.mobileDigits.length > 10
+          ? callee.mobileDigits.slice(-10)
+          : callee.mobileDigits;
+      if (!key || seenPhones.has(key)) {
+        duplicatePhoneCallees.push(callee);
+        continue;
+      }
+      seenPhones.add(key);
+      uniqueCallees.push(callee);
+    }
+    for (const duplicate of duplicatePhoneCallees) {
+      duplicate.row.callStatus = 'cancelled';
+      duplicate.row.error =
+        'Skipped — another candidate with the same phone number was already dialed (or selected) for this screening.';
+      await duplicate.row.save();
+    }
+
+    if (!uniqueCallees.length) {
+      // All candidates already dialed (or no phones) — treat as success for re-launches.
+      if (rows.length > 0) {
+        doc.status = 'running';
+        doc.launchedAt = doc.launchedAt || new Date();
+        await doc.save();
+        return toDisplay(doc, {
+          ownerName: await ownerName(String(doc.ownerUserId)),
+          jobTitle: await jobTitle(doc.jobId),
+        });
+      }
       throw new AppError(400, 'VOICE_NO_VALID_PHONES', 'No candidates have a valid phone number.');
     }
 
-    const indianCallees = launchCallees.filter((c) => c.indian);
-    const internationalCallees = launchCallees.filter((c) => !c.indian);
+    const indianCallees = uniqueCallees.filter((c) => c.indian);
+    const internationalCallees = uniqueCallees.filter((c) => !c.indian);
 
     if (indianCallees.length > 0 && !isHunarConfigured()) {
       throw new AppError(
@@ -1014,25 +1590,6 @@ export const screeningService = {
         'HUNAR_API_KEY_MISSING',
         'Hunar voice API key is not configured. Set HUNAR_VOICE_API_KEY.'
       );
-    }
-    if (internationalCallees.length > 0 && !isZyastraConfigured()) {
-      throw new AppError(
-        503,
-        'ZYASTRA_API_KEY_MISSING',
-        'Non-Indian numbers require Zyastra. Set ZYASTRA_API_KEY and ZYASTRA_API_SECRET.'
-      );
-    }
-    if (internationalCallees.length > 0) {
-      const base = String(
-        process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_BASE_URL || ''
-      ).trim();
-      if (!base) {
-        throw new AppError(
-          503,
-          'VOICE_CALLBACK_URL_MISSING',
-          'PUBLIC_API_BASE_URL is not configured. Set it so voice providers can deliver call callbacks.'
-        );
-      }
     }
 
     if (indianCallees.length > 0) {
@@ -1046,7 +1603,7 @@ export const screeningService = {
     }
 
     // Reserve 1 voice minute per dial attempt up front; commit actual usage on webhook.
-    for (const callee of launchCallees) {
+    for (const callee of uniqueCallees) {
       const row = callee.row;
       const key = `screening:${id}:candidate:${String(row.candidateId)}:attempt:${row.attempts + 1}`;
       await quotaService.reserveUsage({
@@ -1087,60 +1644,51 @@ export const screeningService = {
           maxRetryCount: doc.callSettings.maxRetryCount,
           retryIntervalHours: doc.callSettings.retryIntervalHours,
         },
+        questions: doc.questions || [],
       });
       lastLaunchRequestId = bulk.requestId || lastLaunchRequestId;
       for (const callee of indianCallees) {
         callee.row.providerRequestId = bulk.requestId;
+        callee.row.callStatus = 'ringing';
         await callee.row.save();
       }
     }
 
     if (internationalCallees.length > 0) {
-      const analysisVariables = analysisVariablesFromResultSchema(resultSchema);
-      const results = await mapPool(internationalCallees, 4, async (callee) => {
-        const nameParts = String(callee.name || '')
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean);
-        const firstName = nameParts[0] || 'Candidate';
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
-        const personalFirstMessage = introduction.includes('{callee_name}')
-          ? introduction.replace(/\{callee_name\}/g, callee.name || firstName)
-          : introduction;
-        const triggered = await triggerZyastraVoiceCall({
-          candidate: {
-            phoneNumber: callee.mobile,
-            firstName,
-            ...(lastName ? { lastName } : {}),
-          },
-          agent: {
-            prompt: agentPrompt,
+      const firstMessage =
+        String(introduction || '').trim() || 'Hello, am I speaking with {callee_name}?';
+      const data = internationalCallees.map((callee) => {
+        const personalFirstMessage = firstMessage.includes('{callee_name}')
+          ? firstMessage.replace(/\{callee_name\}/g, callee.name || 'Candidate')
+          : firstMessage;
+        return {
+          callee_name: callee.name || 'Candidate',
+          mobile_number: callee.mobile,
+          custom_data: {
             firstMessage: personalFirstMessage,
             preferredLanguage: 'en-US',
-          },
-          voiceConfiguration: { engine: 'global-std', speed: 1.0 },
-          analysisVariables,
-          metadata: {
-            source: 'screening',
-            organizationId,
-            screeningId: id,
             candidateId: callee.candidateId,
-            batchRequestId,
           },
-        });
-        return { callee, triggered };
+        };
       });
+      const bulk = await sendZyastraCallViaGateway({
+        campaignId: id,
+        prompt: agentPrompt,
+        data,
+        questions: doc.questions || [],
+      });
+      const zyastraRequestId = bulk.requestId || batchRequestId;
+      if (!indianCallees.length) lastLaunchRequestId = zyastraRequestId;
 
-      for (const { callee, triggered } of results) {
-        callee.row.providerCallId = triggered.callId;
-        callee.row.providerRequestId = triggered.requestId || batchRequestId;
+      for (const callee of internationalCallees) {
+        callee.row.providerRequestId = zyastraRequestId;
+        callee.row.callStatus = 'ringing';
         await callee.row.save();
-
         await seedPendingVoiceCalls({
           organizationId,
           source: 'screening',
           screeningId: id,
-          requestId: triggered.requestId || batchRequestId,
+          requestId: zyastraRequestId,
           agentId: null,
           provider: 'zyastra',
           contacts: [
@@ -1149,16 +1697,11 @@ export const screeningService = {
               name: callee.name,
               phone: callee.mobile,
               mobileDigits: callee.mobileDigits,
-              callId: triggered.callId,
             },
           ],
           maxRetries: 0,
           status: 'queued',
         });
-      }
-
-      if (!indianCallees.length && results[0]?.triggered.requestId) {
-        lastLaunchRequestId = results[0].triggered.requestId;
       }
     }
 
@@ -1166,6 +1709,235 @@ export const screeningService = {
     doc.launchedAt = doc.launchedAt || new Date();
     doc.pausedAt = null;
     doc.lastLaunchRequestId = lastLaunchRequestId;
+    doc.version += 1;
+    await doc.save();
+    await refreshScreeningStats(id);
+
+    return toDisplay(doc, {
+      ownerName: await ownerName(String(doc.ownerUserId)),
+      jobTitle: await jobTitle(doc.jobId),
+    });
+  },
+
+  async launchVideo(
+    organizationId: string,
+    _userId: string,
+    id: string,
+    options?: { candidateIds?: string[] }
+  ) {
+    const doc = await loadScreening(organizationId, id);
+    if (!isHyrefastConfigured()) {
+      throw new AppError(
+        400,
+        'HYREFAST_API_KEY_MISSING',
+        'Video screening requires HYREFAST_API_KEY on the server.'
+      );
+    }
+
+    const videoConfig = doc.videoConfig;
+    if (!videoConfig) {
+      throw new AppError(
+        400,
+        'VIDEO_CONFIG_REQUIRED',
+        'Video screening configuration is missing.'
+      );
+    }
+
+    const wantsConversation = videoConfig.interviewConversation === true;
+    if (wantsConversation) {
+      if (!videoConfig.mustHaveSkills?.some((skill) => skill.skillName?.trim())) {
+        throw new AppError(
+          400,
+          'VIDEO_SKILLS_REQUIRED',
+          'Add at least one must-have skill before launching Conversation mode.'
+        );
+      }
+      if (!(videoConfig.topicsFocus || []).some((t) => t.name?.trim())) {
+        throw new AppError(
+          400,
+          'VIDEO_TOPICS_REQUIRED',
+          'Add at least one focus topic before enabling Conversation mode.'
+        );
+      }
+    } else if (
+      !(doc.questions || []).some((question) => String(question.prompt || '').trim())
+    ) {
+      throw new AppError(
+        400,
+        'VIDEO_QUESTIONS_REQUIRED',
+        'Add at least one interview question before launching Standard mode.'
+      );
+    }
+
+    const jobExtras = await jobMergeExtras(doc.jobId);
+    const title = jobExtras.title || doc.name || 'Video screening role';
+    const org = await OrganizationModel.findById(organizationId).select('name').lean();
+
+    let hyrefastJobId = String(videoConfig.hyrefastJobId || '').trim();
+    const questionMerge = {
+      location: jobExtras.location,
+      company_name: org?.name ? String(org.name) : null,
+      job_title: title,
+    };
+    const hyrefastQuestions = toHyrefastQuestions(
+      videoConfig,
+      title,
+      doc.questions || [],
+      questionMerge
+    );
+    const hyrefastSkills = resolveHyrefastSkillsPayload(videoConfig, title);
+
+    if (!hyrefastJobId) {
+      try {
+        const created = await createHyrefastJob({ title });
+        hyrefastJobId = created.id;
+        // Required by Hyrefast publish for both Standard and Conversation.
+        await setHyrefastJobSkills(hyrefastJobId, hyrefastSkills);
+
+        // Topics must be saved before conversation-mode/enable (Hyrefast eligibility).
+        await setHyrefastJobTopics(
+          hyrefastJobId,
+          toHyrefastTopics(videoConfig, title)
+        );
+
+        // Hyrefast rejects interview invites unless the job has at least one question.
+        await setHyrefastJobQuestions(hyrefastJobId, hyrefastQuestions);
+
+        await publishHyrefastJob(hyrefastJobId);
+        await syncHyrefastConversationMode(hyrefastJobId, wantsConversation);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Hyrefast job setup failed.';
+        throw new AppError(502, 'HYREFAST_SETUP_FAILED', message);
+      }
+
+      doc.videoConfig = {
+        ...videoConfig,
+        hyrefastJobId,
+      };
+    } else {
+      // Re-sync topics/questions/mode for jobs created earlier or relaunched.
+      try {
+        await setHyrefastJobSkills(hyrefastJobId, hyrefastSkills);
+        await setHyrefastJobTopics(
+          hyrefastJobId,
+          toHyrefastTopics(videoConfig, title)
+        );
+        await setHyrefastJobQuestions(hyrefastJobId, hyrefastQuestions);
+        await syncHyrefastConversationMode(hyrefastJobId, wantsConversation);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Hyrefast job update failed.';
+        throw new AppError(502, 'HYREFAST_SETUP_FAILED', message);
+      }
+    }
+
+    const rows = await ScreeningCandidateModel.find({
+      screeningId: id,
+      ...(options?.candidateIds?.length
+        ? { candidateId: { $in: options.candidateIds } }
+        : {}),
+      callStatus: { $in: ['queued', 'failed', 'no_answer', 'busy', 'cancelled'] },
+    });
+
+    const candidates = await SavedCandidateModel.find({
+      _id: { $in: rows.map((row) => row.candidateId) },
+      organizationId,
+    }).lean();
+    const byId = new Map(candidates.map((c) => [String(c._id), c]));
+
+    let attempted = 0;
+    for (const row of rows) {
+      const candidate = byId.get(String(row.candidateId));
+      if (!candidate) continue;
+      attempted += 1;
+      const email = String(candidate.email || '').trim();
+      const phone =
+        toHunarMobile(String(candidate.phone || '')) ||
+        String(candidate.phone || '').trim();
+      const name = String(candidate.name || 'Candidate').trim() || 'Candidate';
+      if (!email || !phone) {
+        row.callStatus = 'failed';
+        row.error = !email
+          ? 'Missing email for video invite'
+          : 'Missing phone for video invite';
+        await row.save();
+        continue;
+      }
+
+      try {
+        const existingAppId = String(
+          (row.extractedVariables as { hyrefastApplicationId?: string } | null)
+            ?.hyrefastApplicationId ||
+            row.providerRequestId ||
+            ''
+        ).trim();
+
+        let applicationId = existingAppId;
+        let interviewLink = String(
+          (row.extractedVariables as { interviewLink?: string } | null)
+            ?.interviewLink || ''
+        ).trim();
+
+        if (!applicationId) {
+          const application = await createHyrefastApplication({
+            jobId: hyrefastJobId,
+            email,
+            name,
+            number: phone,
+          });
+          applicationId = application.id;
+          interviewLink =
+            application.interviewLink ||
+            (await getHyrefastInterviewLink(application.id)).interviewLink;
+        } else if (!interviewLink) {
+          interviewLink = (
+            await getHyrefastInterviewLink(applicationId)
+          ).interviewLink;
+        }
+
+        // interview-link only returns the URL; send-interview triggers Hyrefast email.
+        const sent = await sendHyrefastInterview(applicationId);
+        row.providerRequestId = applicationId;
+        row.providerCallId = hyrefastJobId;
+        // Awaiting candidate to open/complete the video interview (not dialing).
+        row.callStatus = 'ringing';
+        row.providerStatus = sent.status || 'interview_invite_sent';
+        row.error = null;
+        row.extractedVariables = {
+          ...(row.extractedVariables || {}),
+          interviewLink,
+          hyrefastApplicationId: applicationId,
+          hyrefastJobId,
+          ...(sent.interviewId ? { hyrefastInterviewId: sent.interviewId } : {}),
+        };
+        await row.save();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Hyrefast invite failed';
+        row.callStatus = 'failed';
+        row.error = message;
+        await row.save();
+      }
+    }
+
+    if (attempted === 0) {
+      throw new AppError(
+        400,
+        'VIDEO_NO_CANDIDATES',
+        'No candidates were eligible to invite for this video screening.'
+      );
+    }
+
+    // Persist Hyrefast job + running status even when some/all invites fail —
+    // per-candidate errors are stored on screening candidates for the UI.
+    doc.videoConfig = {
+      ...(doc.videoConfig || videoConfig),
+      hyrefastJobId,
+    };
+    doc.status = 'running';
+    doc.launchedAt = doc.launchedAt || new Date();
+    doc.pausedAt = null;
+    doc.lastLaunchRequestId = hyrefastJobId;
     doc.version += 1;
     await doc.save();
     await refreshScreeningStats(id);
@@ -1278,9 +2050,19 @@ export const screeningService = {
   async listResults(organizationId: string, query: ListResultsQuery) {
     const filter: Record<string, unknown> = { organizationId };
     if (query.screeningId) filter.screeningId = query.screeningId;
-    if (query.decision) filter.recruiterDecision = query.decision;
+    if (query.decision?.length === 1) {
+      filter.recruiterDecision = query.decision[0];
+    } else if (query.decision && query.decision.length > 1) {
+      filter.recruiterDecision = { $in: query.decision };
+    }
+    if (query.recommendation?.length) {
+      const recommendations = new Set(query.recommendation);
+      if (recommendations.has('review')) recommendations.add('needs_review');
+      const values = [...recommendations];
+      filter.recommendation =
+        values.length === 1 ? values[0] : { $in: values };
+    }
 
-    let screeningIds: mongoose.Types.ObjectId[] | null = null;
     if (query.jobId) {
       const screenings = await ScreeningModel.find({
         organizationId,
@@ -1289,8 +2071,17 @@ export const screeningService = {
       })
         .select('_id')
         .lean();
-      screeningIds = screenings.map((s) => s._id);
-      filter.screeningId = { $in: screeningIds };
+      filter.screeningId = { $in: screenings.map((s) => s._id) };
+    }
+
+    if (query.q) {
+      const matched = await SavedCandidateModel.find({
+        organizationId,
+        name: { $regex: escapeRegex(query.q), $options: 'i' },
+      })
+        .select('_id')
+        .lean();
+      filter.candidateId = { $in: matched.map((c) => c._id) };
     }
 
     const skip = (query.page - 1) * query.limit;
@@ -1306,33 +2097,60 @@ export const screeningService = {
     const candidates = await SavedCandidateModel.find({
       _id: { $in: rows.map((r) => r.candidateId) },
     })
-      .select('name')
+      .select('name phone')
       .lean();
     const screenings = await ScreeningModel.find({
       _id: { $in: rows.map((r) => r.screeningId) },
     })
-      .select('name jobId knockouts')
+      .select('name jobId knockouts modality minShortlistScore campaignId')
       .lean();
     const names = new Map(candidates.map((c) => [String(c._id), c.name]));
+    const phones = new Map(
+      candidates.map((c) => [String(c._id), String(c.phone || '').trim()])
+    );
     const screeningMap = new Map(screenings.map((s) => [String(s._id), s]));
+    const minScoreByScreeningId = new Map(
+      screenings.map((s) => [String(s._id), s.minShortlistScore ?? 70])
+    );
 
-    let items = rows.map((row) => {
+    // Video: keep recommendation aligned with communication score (>= threshold → shortlist).
+    for (const row of rows) {
       const screening = screeningMap.get(String(row.screeningId));
-      return toResultDisplay(row, {
-        name: names.get(String(row.candidateId)) || 'Unknown',
-        jobId: screening?.jobId ? String(screening.jobId) : null,
-        screeningName: screening?.name || '',
-        knockouts: screening?.knockouts || [],
-      });
-    });
-
-    if (query.q) {
-      const q = query.q.toLowerCase();
-      items = items.filter((item) => item.name.toLowerCase().includes(q));
+      if (String(screening?.modality || '') !== 'video') continue;
+      if (typeof row.overallScore !== 'number') continue;
+      const expected = recommendationFromCommunicationScore(
+        row.overallScore,
+        screening?.minShortlistScore ?? 70
+      );
+      if (row.recommendation === expected) continue;
+      row.recommendation = expected;
+      const autoDecision = decisionFromAiRecommendation(expected);
+      if (autoDecision && row.recruiterDecision === 'pending') {
+        row.recruiterDecision = autoDecision;
+      }
+      await row.save();
     }
 
+    const items = rows.map((row) => {
+      const screening = screeningMap.get(String(row.screeningId));
+      const linkedCampaignId = screening?.campaignId ? String(screening.campaignId) : '';
+      return {
+        ...toResultDisplay(row, {
+          name: names.get(String(row.candidateId)) || 'Unknown',
+          jobId: screening?.jobId ? String(screening.jobId) : null,
+          screeningName: screening?.name || '',
+          knockouts: screening?.knockouts || [],
+          modality: String(screening?.modality || '') === 'video' ? 'video' : 'voice',
+        }),
+        hcgCampaignIds: linkedCampaignId ? [linkedCampaignId] : [],
+      };
+    });
+
+    // Voice list: prefer HCG hunar / zyvka for status, score, recommendation, dates.
+    await overlayHcgVoiceOnScreeningResultList(items, phones, minScoreByScreeningId);
+
     return {
-      items,
+      items: items.map(({ hcgCampaignIds: _hcgCampaignIds, ...item }) => item),
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -1371,13 +2189,163 @@ export const screeningService = {
       // best-effort enrollment badge sync
     }
 
-    const candidate = await SavedCandidateModel.findById(row.candidateId).select('name').lean();
+    const candidate = await SavedCandidateModel.findById(row.candidateId)
+      .select('name phone')
+      .lean();
     const screening = await ScreeningModel.findById(row.screeningId)
-      .select('name jobId knockouts evaluationCriteria questions callSettings')
+      .select(
+        'name jobId knockouts evaluationCriteria questions callSettings modality minShortlistScore'
+      )
       .lean();
     const linkedJobTitle = screening?.jobId ? await jobTitle(screening.jobId) : null;
     const activity = await buildResultActivity(row);
-    return toResultDisplay(row, {
+    const modality =
+      String(screening?.modality || '').trim() === 'video' ? 'video' : 'voice';
+
+    let videoResponses: HyrefastResponseItem[] = [];
+    let interviewLink =
+      String(
+        (row.extractedVariables as { interviewLink?: string } | null)?.interviewLink ||
+          ''
+      ).trim() || null;
+    const applicationId = String(
+      (row.extractedVariables as { hyrefastApplicationId?: string } | null)
+        ?.hyrefastApplicationId ||
+        row.providerRequestId ||
+        ''
+    ).trim();
+
+    if (modality === 'video' && applicationId && isHyrefastConfigured()) {
+      try {
+        const listed = await listHyrefastResponses(applicationId);
+        videoResponses = listed.items;
+      } catch {
+        // Best-effort — result page still loads without Hyrefast responses.
+        videoResponses = [];
+      }
+    }
+
+    const videoKeyAnswers = videoResponses
+      .filter((item) => !item.isSkipped)
+      .map((item) => ({
+        question: item.questionText || `Question ${item.questionNumber}`,
+        answer:
+          item.transcriptionText ||
+          item.responseText ||
+          (item.transcriptionStatus === 'processing'
+            ? 'Transcription in progress…'
+            : item.transcriptionStatus
+              ? `Transcription: ${item.transcriptionStatus}`
+              : '—'),
+      }));
+    const videoDurationSeconds = videoResponses.reduce((sum, item) => {
+      return sum + (typeof item.responseDuration === 'number' ? item.responseDuration : 0);
+    }, 0);
+    const firstVideoUrl =
+      videoResponses.find((item) => item.videoUrl)?.videoUrl ||
+      videoResponses.find((item) => item.audioUrl)?.audioUrl ||
+      null;
+    const transcriptFromVideo =
+      videoResponses.length > 0
+        ? videoResponses
+            .map((item) => {
+              const answer =
+                item.transcriptionText || item.responseText || '';
+              if (!answer && !item.questionText) return '';
+              return `Q${item.questionNumber}: ${item.questionText}\nA: ${answer || '(no transcript yet)'}`;
+            })
+            .filter(Boolean)
+            .join('\n\n')
+        : null;
+
+    let videoStrengths: string[] = Array.isArray(
+      (row.extractedVariables as { strengths?: unknown } | null)?.strengths
+    )
+      ? ((row.extractedVariables as { strengths: string[] }).strengths || [])
+          .map((item) => String(item).trim())
+          .filter(Boolean)
+      : [];
+    let videoConcerns: string[] = Array.isArray(
+      (row.extractedVariables as { concerns?: unknown } | null)?.concerns
+    )
+      ? ((row.extractedVariables as { concerns: string[] }).concerns || [])
+          .map((item) => String(item).trim())
+          .filter(Boolean)
+      : [];
+
+    if (modality === 'video' && videoResponses.length > 0) {
+      const fingerprint = fingerprintVideoResponses(videoResponses);
+      const priorFingerprint = String(
+        (row.extractedVariables as { hyrefastEvalFingerprint?: string } | null)
+          ?.hyrefastEvalFingerprint || ''
+      ).trim();
+      const needsEval =
+        fingerprint !== priorFingerprint ||
+        row.overallScore == null ||
+        videoStrengths.length === 0;
+
+      if (needsEval) {
+        try {
+          const evaluation = await evaluateVideoInterviewResponses({
+            candidateName: candidate?.name || 'Unknown',
+            jobTitle: linkedJobTitle,
+            screeningName: screening?.name || '',
+            minShortlistScore: screening?.minShortlistScore ?? 70,
+            responses: videoResponses,
+          });
+          if (evaluation) {
+            row.overallScore = evaluation.overallScore;
+            row.scoreBreakdown = {
+              ...(row.scoreBreakdown || {}),
+              communication: evaluation.communication,
+            };
+            row.recommendation = evaluation.recommendation;
+            row.summary = evaluation.summary;
+            videoStrengths = evaluation.strengths;
+            videoConcerns = evaluation.concerns;
+            row.extractedVariables = {
+              ...(row.extractedVariables || {}),
+              strengths: evaluation.strengths,
+              concerns: evaluation.concerns,
+              summary: evaluation.summary,
+              communication: evaluation.communication,
+              hyrefastEvalFingerprint: evaluation.fingerprint,
+              hyrefastEvalModel: evaluation.model,
+            };
+            if (row.callStatus !== 'completed' && videoResponses.some((r) => r.transcriptionText)) {
+              row.callStatus = 'completed';
+              row.completedAt = row.completedAt || new Date();
+              row.providerStatus = row.providerStatus || 'interview_evaluated';
+            }
+            const autoDecision = decisionFromAiRecommendation(evaluation.recommendation);
+            if (autoDecision && row.recruiterDecision === 'pending') {
+              row.recruiterDecision = autoDecision;
+            }
+            await row.save();
+            await refreshScreeningStats(String(row.screeningId));
+          }
+        } catch {
+          // Scoring is best-effort; still return responses.
+        }
+      } else if (typeof row.overallScore === 'number') {
+        // Reconcile legacy Gemini recommendations that ignored the score threshold.
+        const expected = recommendationFromCommunicationScore(
+          row.overallScore,
+          screening?.minShortlistScore ?? 70
+        );
+        if (row.recommendation !== expected) {
+          row.recommendation = expected;
+          const autoDecision = decisionFromAiRecommendation(expected);
+          if (autoDecision && row.recruiterDecision === 'pending') {
+            row.recruiterDecision = autoDecision;
+          }
+          await row.save();
+          await refreshScreeningStats(String(row.screeningId));
+        }
+      }
+    }
+
+    const display = toResultDisplay(row, {
       name: candidate?.name || 'Unknown',
       jobId: screening?.jobId ? String(screening.jobId) : null,
       jobTitle: linkedJobTitle,
@@ -1391,7 +2359,98 @@ export const screeningService = {
       })),
       attemptsMax: screening?.callSettings?.maxAttempts ?? 2,
       activity,
+      modality,
+      videoResponses,
+      interviewLink,
+      strengths: videoStrengths,
+      concerns: videoConcerns,
     });
+
+    if (modality === 'video') {
+      if (videoKeyAnswers.length > 0) display.keyAnswers = videoKeyAnswers;
+      if (transcriptFromVideo) display.transcript = transcriptFromVideo;
+      if (firstVideoUrl && !display.recordingReference) {
+        display.recordingReference = firstVideoUrl;
+      }
+      if (
+        videoDurationSeconds > 0 &&
+        (display.durationSeconds == null || display.durationSeconds <= 0)
+      ) {
+        display.durationSeconds = Math.round(videoDurationSeconds);
+      }
+      if (row.summary) display.summary = row.summary;
+    }
+
+    // Prefer gateway Hunar/Zyvka fields on the result detail UI when present.
+    const hcg =
+      (await findHcgHunarCommunicationByCampaignIds(
+        [String(row.screeningId)],
+        candidate?.phone
+      )) ||
+      (modality === 'voice'
+        ? await findHcgZyvkaCommunicationByCampaignIds(
+            [String(row.screeningId)],
+            candidate?.phone
+          )
+        : null);
+    if (hcg) {
+      const overlay = buildHcgHunarScreeningResultOverlay(hcg as never);
+      const statusValue =
+        hcgHunarCallStatusValue(hcg as never) || hcgZyvkaCallStatusValue(hcg as never);
+      if (statusValue) {
+        display.callStatus = mapHunarCallStatus(
+          statusValue,
+          overlay.answeredBy || undefined
+        ) as typeof display.callStatus;
+      }
+      if (overlay.overallAIStatus) display.overallAIStatus = overlay.overallAIStatus;
+      if (overlay.overallAIDescription) {
+        display.overallAIDescription = overlay.overallAIDescription;
+      }
+      if (overlay.summary) display.summary = overlay.summary;
+      if (overlay.overallScore != null) {
+        display.overallScore = overlay.overallScore;
+        const expected = deriveRecommendation(
+          null,
+          overlay.overallScore,
+          screening?.minShortlistScore ?? 70
+        );
+        if (expected) display.recommendation = expected;
+      }
+      if (
+        overlay.durationSeconds != null &&
+        (display.durationSeconds == null || display.durationSeconds <= 0)
+      ) {
+        display.durationSeconds = overlay.durationSeconds;
+      }
+      if (overlay.recordingReference && !display.recordingReference) {
+        display.recordingReference = overlay.recordingReference;
+      }
+      if (overlay.answeredBy) display.answeredBy = overlay.answeredBy;
+      if (overlay.hcgQuestions.length > 0) display.hcgQuestions = overlay.hcgQuestions;
+      if (overlay.strengths.length > 0) display.strengths = overlay.strengths;
+      if (overlay.concerns.length > 0) display.concerns = overlay.concerns;
+      if (overlay.keyAnswers.length > 0) display.keyAnswers = overlay.keyAnswers;
+      if (Object.keys(overlay.extractedVariables).length > 0) {
+        display.extractedVariables = {
+          ...(display.extractedVariables && typeof display.extractedVariables === 'object'
+            ? display.extractedVariables
+            : {}),
+          ...overlay.extractedVariables,
+        };
+      }
+      if (overlay.triggeredKnockouts.length > 0) {
+        display.triggeredKnockouts = [
+          ...new Set([...(display.triggeredKnockouts || []), ...overlay.triggeredKnockouts]),
+        ];
+        display.knockoutResults = buildKnockoutResults(
+          display.knockouts || [],
+          display.triggeredKnockouts
+        );
+      }
+    }
+
+    return display;
   },
 
   async setDecision(
@@ -1406,6 +2465,7 @@ export const screeningService = {
     if (decision === 'call_again') {
       row.callStatus = 'queued';
       row.completedAt = null;
+      row.error = null;
     }
     await row.save();
     await refreshScreeningStats(String(row.screeningId));
@@ -1424,12 +2484,14 @@ export const screeningService = {
 
     if (decision === 'call_again') {
       const screening = await loadScreening(organizationId, String(row.screeningId));
-      if (screening.status === 'running' || screening.status === 'paused') {
-        await this.launch(organizationId, userId, String(screening._id));
+      if (['running', 'paused', 'draft'].includes(screening.status)) {
+        await this.launch(organizationId, userId, String(screening._id), {
+          candidateIds: [String(row.candidateId)],
+        });
       }
     }
 
-    return result;
+    return this.getResult(organizationId, id);
   },
 
   async addNote(organizationId: string, userId: string, id: string, text: string) {
@@ -1450,6 +2512,7 @@ export const screeningService = {
     organizationId: string;
     workflowId: string;
     campaignId?: string | null;
+    jobId?: string | null;
     candidateId: string;
     enrollmentId?: string | null;
     ownerUserId?: string | null;
@@ -1478,6 +2541,12 @@ export const screeningService = {
         ...(input.knockouts || []).map((k) => String(k || '').trim()).filter(Boolean),
       ]),
     ];
+    const screeningName = String(input.name || '').trim() || 'AI screening';
+    const jobObjectId =
+      input.jobId && mongoose.Types.ObjectId.isValid(input.jobId)
+        ? new mongoose.Types.ObjectId(input.jobId)
+        : null;
+
     let screening = await ScreeningModel.findOne({
       organizationId: input.organizationId,
       workflowId: input.workflowId,
@@ -1489,8 +2558,9 @@ export const screeningService = {
         ownerUserId: input.ownerUserId || input.organizationId,
         workflowId: input.workflowId,
         campaignId: input.campaignId || null,
+        jobId: jobObjectId,
         sourceModule: 'huntlo360',
-        name: input.name,
+        name: screeningName,
         language: input.language
           ? String(input.language).trim().toUpperCase()
           : getHunarVoiceLanguage(),
@@ -1543,6 +2613,18 @@ export const screeningService = {
         )
       ) {
         screening.questions = normalizedQuestions;
+        dirty = true;
+      }
+      // Upgrade legacy "Huntlo 360 screening · <workflowId>" names + missing job link.
+      const legacyName =
+        /^Huntlo 360 screening · /i.test(String(screening.name || '')) ||
+        String(screening.name || '').includes(String(input.workflowId));
+      if (legacyName && screening.name !== screeningName) {
+        screening.name = screeningName;
+        dirty = true;
+      }
+      if (jobObjectId && (!screening.jobId || String(screening.jobId) !== String(jobObjectId))) {
+        screening.jobId = jobObjectId;
         dirty = true;
       }
       if (dirty) await screening.save();

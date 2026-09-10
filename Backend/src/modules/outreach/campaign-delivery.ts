@@ -1,7 +1,13 @@
 import mongoose from 'mongoose';
 
 import { getLogger } from '../../config/logger.js';
-import { sendGmailMessage } from '../../providers/gmail/gmail.send.js';
+import { sendGmailMessage, sendGmailViaGateway } from '../../providers/gmail/gmail.send.js';
+import {
+  sendWhatsAppViaGateway,
+  type GatewayWhatsAppButton,
+  type GatewayWhatsAppQuestion,
+} from '../../providers/whatsapp/whatsapp.gateway.js';
+import { buildSchedulingUrl } from '../../providers/calendly/calendly.client.js';
 import { getGmailThreadingMeta } from '../../providers/gmail/gmail.fetch.js';
 import { refreshGmailAccessToken } from '../../providers/gmail/gmail.oauth.js';
 import { sendGupshupTemplate, sendGupshupText } from '../../providers/gupshup/gupshup.send.js';
@@ -58,7 +64,30 @@ import { JobModel } from '../jobs/job.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
 import { ConversationMessageModel } from '../conversations/conversation-message.model.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
-import { buildCandidateMergeContext, mergeMessageTemplate } from './variables.js';
+import {
+  findHcgGmailConversation,
+  hcgGmailApiMessageIdHint,
+  hcgGmailShouldStopSequence,
+  hcgGmailThreadIdOf,
+  waitForHcgGmailConversation,
+} from '../conversations/hcg-gmail-overlay.js';
+import { HcgWhatsappConversationModel } from '../communication-gateway/models/hcg-whatsapp-conversation.model.js';
+import {
+  findHcgWhatsappConversation,
+  hcgWhatsappShouldStopSequence,
+  hcgWhatsappThreadIdOf,
+  waitForHcgWhatsappConversation,
+} from '../conversations/hcg-whatsapp-overlay.js';
+import { getOrgCalendlyCredentials } from '../scheduling/calendly-credentials.js';
+import { applyMergeFallbacks, buildCandidateMergeContext, mergeOutboundMessage } from './variables.js';
+import { formatOutreachJobContextForPrompt, loadOutreachJobContext } from './job-context.js';
+import {
+  buildAutoCalendlyPrompt,
+  buildScreeningClosePrompt,
+  buildWhatsAppAutoCalendlyPrompt,
+  buildWhatsAppScreeningClosePrompt,
+  formatKnockoutPassCondition,
+} from './prompt/index.js';
 import {
   OutreachCampaignModel,
   type CampaignSequenceStep,
@@ -154,7 +183,101 @@ async function resolveSequenceEmailThreading(input: {
   };
 }
 
-export type DeliverySkipReason = 'missing_email' | 'missing_phone' | 'non_message';
+function isFollowUpEmailSequenceStep(
+  campaign: OutreachCampaignDocument,
+  step: CampaignSequenceStep
+): boolean {
+  const emailSteps = [...(campaign.sequenceSteps || [])]
+    .filter((item) => item.type === 'email' || item.type === 'scheduling_link')
+    .sort((a, b) => a.order - b.order);
+  return emailSteps.length > 0 && emailSteps[0]?.id !== step.id;
+}
+
+function isFollowUpWhatsAppSequenceStep(
+  campaign: OutreachCampaignDocument,
+  step: CampaignSequenceStep
+): boolean {
+  const waSteps = [...(campaign.sequenceSteps || [])]
+    .filter((item) => item.type === 'whatsapp')
+    .sort((a, b) => a.order - b.order);
+  return waSteps.length > 0 && waSteps[0]?.id !== step.id;
+}
+
+function asReplySubject(original: string | null | undefined, fallback: string): string {
+  const base = String(original || fallback || '').trim() || fallback;
+  return /^re\s*:/i.test(base) ? base : `Re: ${base}`;
+}
+
+async function resolveGatewaySequenceThreading(input: {
+  organizationId: string;
+  enrollmentId: string;
+  campaignId: string;
+  email: string;
+  fallbackSubject: string;
+  accessToken: string;
+  waitForThread: boolean;
+}): Promise<{
+  subject: string;
+  threadId: string | null;
+  inReplyTo: string | null;
+  references: string | null;
+}> {
+  const huntlo = await resolveSequenceEmailThreading({
+    organizationId: input.organizationId,
+    enrollmentId: input.enrollmentId,
+    fallbackSubject: input.fallbackSubject,
+  });
+
+  let hcg = await findHcgGmailConversation(input.campaignId, input.email);
+  if (input.waitForThread && !hcgGmailThreadIdOf(hcg) && !huntlo.providerThreadId) {
+    hcg = await waitForHcgGmailConversation(input.campaignId, input.email);
+  }
+
+  let threadId = huntlo.providerThreadId || hcgGmailThreadIdOf(hcg);
+  let inReplyTo = huntlo.inReplyTo;
+  let references = huntlo.references || inReplyTo;
+  const hint = huntlo.gmailMessageIdHint || hcgGmailApiMessageIdHint(hcg);
+
+  if (hint && input.accessToken) {
+    const meta = await getGmailThreadingMeta(input.accessToken, hint);
+    if (!threadId && meta.threadId) threadId = meta.threadId;
+    if (!inReplyTo && meta.rfcMessageId) {
+      inReplyTo = meta.rfcMessageId;
+      references = meta.rfcMessageId;
+    }
+  }
+
+  return {
+    subject: asReplySubject(hcg?.subject || huntlo.subject, input.fallbackSubject),
+    threadId,
+    inReplyTo,
+    references: references || inReplyTo,
+  };
+}
+
+export type DeliverySkipReason =
+  | 'missing_email'
+  | 'missing_phone'
+  | 'non_message'
+  | 'candidate_replied';
+
+export async function enrollmentHasLiveGatewayReply(input: {
+  campaignId: string;
+  email?: string | null;
+  phone?: string | null;
+}): Promise<boolean> {
+  const email = String(input.email || '').trim();
+  const phone = String(input.phone || '').trim();
+  if (email) {
+    const gmail = await findHcgGmailConversation(input.campaignId, email);
+    if (hcgGmailShouldStopSequence(gmail)) return true;
+  }
+  if (phone) {
+    const wa = await findHcgWhatsappConversation(input.campaignId, phone);
+    if (hcgWhatsappShouldStopSequence(wa)) return true;
+  }
+  return false;
+}
 
 export type DeliveryResult =
   | {
@@ -182,36 +305,50 @@ async function loadCandidate(organizationId: string, candidateId: mongoose.Types
     _id: candidateId,
     organizationId,
   })
-    .select('name email phone currentTitle currentCompany location externalCandidateId')
+    .select(
+      'name email phone currentTitle currentCompany location headline experienceYears skills externalCandidateId'
+    )
     .lean();
   return hydrateCandidateMergeFields(organizationId, candidate);
 }
 
 /**
  * Build the personalization merge context for a campaign + candidate pair.
- * `job_title` reflects the role being pitched (campaign.jobId); `current_role` /
- * `current_company` reflect the candidate's own profile.
+ * `job_title` / `location` / `company_name` come from the linked job + org;
+ * `current_role` / `current_company` reflect the candidate's own profile.
  */
 async function buildMergeContext(
   campaign: OutreachCampaignDocument,
   candidate: Awaited<ReturnType<typeof loadCandidate>>
 ): Promise<Record<string, string>> {
   const [job, organization, owner] = await Promise.all([
-    campaign.jobId ? JobModel.findById(campaign.jobId).select('title locations').lean() : null,
+    campaign.jobId
+      ? JobModel.findById(campaign.jobId).select('title locations workplaceType').lean()
+      : null,
     OrganizationModel.findById(campaign.organizationId).select('name').lean(),
-    UserModel.findById(campaign.ownerUserId).select('firstName').lean(),
+    UserModel.findById(campaign.ownerUserId).select('firstName lastName companyName').lean(),
   ]);
 
-  const jobLocation = (job?.locations || [])
-    .map((value) => String(value || '').trim())
-    .find(Boolean);
+  const jobLocations = Array.isArray(job?.locations)
+    ? job.locations.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+  const recruiterName = [owner?.firstName, owner?.lastName]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ');
 
-  return buildCandidateMergeContext(candidate, {
-    jobTitle: job?.title || null,
-    companyName: organization?.name || null,
-    recruiterName: owner?.firstName || null,
-    location: jobLocation || candidate?.location || null,
-  });
+  return applyMergeFallbacks(
+    buildCandidateMergeContext(candidate, {
+      jobTitle: job?.title || campaign.name || null,
+      companyName: organization?.name || owner?.companyName || null,
+      recruiterName: recruiterName || null,
+      location:
+        jobLocations.join(', ') ||
+        (typeof job?.workplaceType === 'string' && job.workplaceType.trim()) ||
+        candidate?.location ||
+        null,
+    })
+  );
 }
 
 async function resolveIntegration(
@@ -907,6 +1044,49 @@ async function launchVoiceCall(input: {
     }) || { maxRetryCount: 2, retryIntervalHours: 6 }
   );
 
+  // Idempotency: never place a second outreach dial for the same enrollment/phone
+  // on this campaign (Bull retries previously re-hit Hunar).
+  const { VoiceCallModel } = await import('../voice/voice-call.model.js');
+  const phoneDigits = String(input.phone || '').replace(/\D/g, '');
+  const national =
+    phoneDigits.length > 10 ? phoneDigits.slice(-10) : phoneDigits;
+  const priorDial = await VoiceCallModel.findOne({
+    campaignId,
+    source: 'outreach',
+    status: { $ne: 'cancelled' },
+    $or: [
+      { enrollmentId: input.enrollmentId },
+      ...(national
+        ? [
+            {
+              toNumberDigits: {
+                $in: [national, phoneDigits, `91${national}`].filter(Boolean),
+              },
+            },
+          ]
+        : []),
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .select('callId requestId provider status')
+    .lean();
+  if (priorDial) {
+    getLogger().info(
+      {
+        campaignId,
+        enrollmentId: input.enrollmentId,
+        priorCallId: priorDial.callId,
+        priorStatus: priorDial.status,
+      },
+      'Skipping duplicate outreach voice dial — already dialed this enrollment/phone'
+    );
+    return {
+      messageId: String(priorDial.callId || priorDial.requestId || ''),
+      provider: priorDial.provider === 'zyastra' ? 'zyastra' : 'hunar',
+      script: agentPrompt,
+    };
+  }
+
   const launched = await launchBulkVoiceCalls({
     organizationId: input.organizationId,
     userId: input.userId,
@@ -929,6 +1109,7 @@ async function launchVoiceCall(input: {
     agentPrompt,
     firstMessage: introduction || undefined,
     preferredLanguage: needsHunar ? undefined : 'en-US',
+    questions: input.campaign.qualificationConfig?.questions || [],
     // Zyastra extracts these; include schema keys + common Roshni/Zyastra aliases.
     analysisVariables: needsHunar
       ? undefined
@@ -1069,6 +1250,16 @@ export async function executeCampaignMessageStep(input: {
     return { outcome: 'skipped', reason: 'missing_phone', channel: messageType };
   }
 
+  if (
+    await enrollmentHasLiveGatewayReply({
+      campaignId: String(campaign._id),
+      email,
+      phone,
+    })
+  ) {
+    return { outcome: 'skipped', reason: 'candidate_replied', channel: messageType };
+  }
+
   const mergeContext = await buildMergeContext(campaign, candidate);
 
   if (messageType === 'email') {
@@ -1093,34 +1284,149 @@ export async function executeCampaignMessageStep(input: {
       relatedEntityId: jobId,
     });
 
-    const renderedSubject = mergeMessageTemplate(
-      step.subject || campaign.name,
-      mergeContext,
-      { unresolved: 'blank' }
-    );
-    const renderedBody = mergeMessageTemplate(step.body || step.note || '', mergeContext, {
-      unresolved: 'blank',
-    });
-    const threading = await resolveSequenceEmailThreading({
-      organizationId,
-      enrollmentId: String(enrollment._id),
-      fallbackSubject: renderedSubject,
-    });
+    const renderedSubject = mergeOutboundMessage(step.subject || campaign.name, mergeContext);
+    const renderedBody = mergeOutboundMessage(step.body || step.note || '', mergeContext);
 
     try {
-      const sent = await sendEmailViaIntegration({
-        secrets: integration.secrets,
-        to: email,
-        subject: threading.providerThreadId || threading.gmailMessageIdHint
-          ? threading.subject
-          : renderedSubject,
-        body: renderedBody,
-        fromOverride: campaign.channelConfig.email?.senderEmail,
-        providerThreadId: threading.providerThreadId,
-        inReplyTo: threading.inReplyTo,
-        references: threading.references,
-        gmailMessageIdHint: threading.gmailMessageIdHint,
-      });
+      let sent: { messageId?: string; providerThreadId?: string; provider: string };
+      let subjectOut = renderedSubject;
+
+      if (integration.secrets.provider === 'gmail') {
+        const accessToken = await withFreshEmailToken(integration.secrets);
+        if (!accessToken) {
+          throw Object.assign(new Error('No access token for Gmail email send.'), {
+            statusCode: 401,
+          });
+        }
+
+        const html = /<[a-z][\s\S]*>/i.test(renderedBody)
+          ? renderedBody
+          : `<p>${renderedBody
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\n/g, '<br>')}</p>`;
+
+        const followUp = isFollowUpEmailSequenceStep(campaign, step);
+        const autoCalendly = Boolean(campaign.schedulingConfig?.enabled);
+        const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
+        const autoWhatsApp = Boolean(campaign.qualificationConfig?.autoWhatsAppAfterQualification);
+        const noAfterQualificationAction = !autoCalendly && !autoScreening && !autoWhatsApp;
+
+        let prompt: string | null = null;
+        if (!followUp && (autoCalendly || noAfterQualificationAction)) {
+          const jobCtx = await loadOutreachJobContext(
+            campaign.jobId ? String(campaign.jobId) : null
+          );
+          const promptBase = {
+            jobText: formatOutreachJobContextForPrompt(jobCtx, campaign.name),
+            candidateName: candidate?.name || 'Candidate',
+            currentRole: candidate?.currentTitle || '',
+            experience:
+              candidate?.experienceYears != null ? `${candidate.experienceYears} years` : '',
+            skills: Array.isArray(candidate?.skills) ? candidate.skills.join(', ') : '',
+            location: candidate?.location || '',
+            email,
+            screening: (campaign.qualificationConfig?.questions || []).map((q) => ({
+              id: q.id,
+              question: q.prompt,
+              required: true,
+              pass_condition:
+                q.knockout && q.knockoutCondition
+                  ? formatKnockoutPassCondition(q.knockoutCondition)
+                  : 'Informational only; any reasonable answer is acceptable',
+            })),
+          };
+
+          if (autoCalendly) {
+            const calendly = await getOrgCalendlyCredentials(organizationId, userId);
+            let calendlyUrl = String(
+              campaign.schedulingConfig?.eventTypeUri || calendly?.schedulingUrl || ''
+            ).trim();
+            if (calendlyUrl) {
+              calendlyUrl = buildSchedulingUrl(calendlyUrl, {
+                name: candidate?.name || undefined,
+                email,
+                utmSource: 'huntlo',
+              });
+            }
+            prompt = buildAutoCalendlyPrompt({ ...promptBase, calendlyUrl });
+          } else {
+            prompt = buildScreeningClosePrompt(promptBase);
+          }
+        }
+
+        let threadId: string | null = null;
+        let inReplyTo: string | null = null;
+        let references: string | null = null;
+        if (followUp) {
+          const threading = await resolveGatewaySequenceThreading({
+            organizationId,
+            enrollmentId: String(enrollment._id),
+            campaignId: String(campaign._id),
+            email,
+            fallbackSubject: renderedSubject,
+            accessToken,
+            waitForThread: true,
+          });
+          subjectOut = threading.subject;
+          threadId = threading.threadId;
+          inReplyTo = threading.inReplyTo;
+          references = threading.references;
+          if (!threadId || !inReplyTo) {
+            logger.warn(
+              {
+                component: 'email-threading',
+                campaignId: String(campaign._id),
+                enrollmentId: String(enrollment._id),
+                hasThreadId: Boolean(threadId),
+                hasInReplyTo: Boolean(inReplyTo),
+              },
+              'Gateway Gmail follow-up missing threadId or In-Reply-To — may create a new inbox thread'
+            );
+          }
+        }
+
+        const result = await sendGmailViaGateway({
+          accessToken,
+          to: email,
+          subject: subjectOut,
+          html,
+          campaignId: String(campaign._id),
+          prompt: followUp ? null : prompt,
+          autoReply: followUp ? false : Boolean(prompt),
+          threadId,
+          inReplyTo,
+          references,
+        });
+        sent = {
+          messageId: result.messageId,
+          providerThreadId: result.threadId || threadId || undefined,
+          provider: 'gmail',
+        };
+      } else {
+        const threading = await resolveSequenceEmailThreading({
+          organizationId,
+          enrollmentId: String(enrollment._id),
+          fallbackSubject: renderedSubject,
+        });
+        subjectOut =
+          threading.providerThreadId || threading.gmailMessageIdHint
+            ? threading.subject
+            : renderedSubject;
+        sent = await sendEmailViaIntegration({
+          secrets: integration.secrets,
+          to: email,
+          subject: subjectOut,
+          body: renderedBody,
+          fromOverride: campaign.channelConfig.email?.senderEmail,
+          providerThreadId: threading.providerThreadId,
+          inReplyTo: threading.inReplyTo,
+          references: threading.references,
+          gmailMessageIdHint: threading.gmailMessageIdHint,
+        });
+      }
+
       await quotaService.commitUsage({
         organizationId,
         metric: 'email_outreach',
@@ -1132,9 +1438,7 @@ export async function executeCampaignMessageStep(input: {
         providerMessageId: sent.messageId,
         providerThreadId: sent.providerThreadId,
         provider: sent.provider,
-        renderedSubject: threading.providerThreadId || threading.gmailMessageIdHint
-          ? threading.subject
-          : renderedSubject,
+        renderedSubject: subjectOut,
         renderedBody,
       };
     } catch (error) {
@@ -1180,7 +1484,7 @@ export async function executeCampaignMessageStep(input: {
     if (isColdTemplate && templateId) {
       conversationBody = renderWhatsAppTemplatePreview(templateId, mergeContext);
     } else {
-      conversationBody = mergeMessageTemplate(step.body || step.note || '', mergeContext);
+      conversationBody = mergeOutboundMessage(step.body || step.note || '', mergeContext);
     }
 
     if (!conversationBody.trim() || /\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(conversationBody)) {
@@ -1201,17 +1505,107 @@ export async function executeCampaignMessageStep(input: {
     }
 
     try {
-      const sent = await sendWhatsAppViaIntegration({
-        secrets: integration.secrets,
-        to: phone,
-        // For cold templates this body is preview-only; Meta gets template + params.
-        body: conversationBody,
-        templateId: isColdTemplate ? templateId : null,
-        mergeContext,
-        organizationId,
-        campaignId: String(campaign._id),
-        enrollmentId: String(enrollment._id),
-      });
+      const useGateway =
+        integration.secrets.provider === 'huntlo-whatsapp' ||
+        integration.secrets.provider === 'meta-whatsapp';
+
+      let sent: { messageId?: string; provider: string };
+      let providerThreadId = String(phone || '').replace(/\D/g, '') || phone;
+
+      if (useGateway) {
+        const followUp = isFollowUpWhatsAppSequenceStep(campaign, step);
+        const autoCalendly = Boolean(campaign.schedulingConfig?.enabled);
+        const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
+        const autoWhatsApp = Boolean(campaign.qualificationConfig?.autoWhatsAppAfterQualification);
+        const noAfterQualificationAction = !autoCalendly && !autoScreening && !autoWhatsApp;
+
+        let prompt: string | null = null;
+        if (!followUp && (autoCalendly || noAfterQualificationAction)) {
+          const jobCtx = await loadOutreachJobContext(
+            campaign.jobId ? String(campaign.jobId) : null
+          );
+          const promptBase = {
+            jobText: formatOutreachJobContextForPrompt(jobCtx, campaign.name),
+            candidateName: candidate?.name || 'Candidate',
+            currentRole: candidate?.currentTitle || '',
+            experience:
+              candidate?.experienceYears != null ? `${candidate.experienceYears} years` : '',
+            skills: Array.isArray(candidate?.skills) ? candidate.skills.join(', ') : '',
+            location: candidate?.location || '',
+            email: email || '',
+            screening: (campaign.qualificationConfig?.questions || []).map((q) => ({
+              id: q.id,
+              question: q.prompt,
+              required: true,
+              pass_condition:
+                q.knockout && q.knockoutCondition
+                  ? formatKnockoutPassCondition(q.knockoutCondition)
+                  : 'Informational only; any reasonable answer is acceptable',
+            })),
+          };
+          if (autoCalendly) {
+            const calendly = await getOrgCalendlyCredentials(organizationId, userId);
+            let calendlyUrl = String(
+              campaign.schedulingConfig?.eventTypeUri || calendly?.schedulingUrl || ''
+            ).trim();
+            if (calendlyUrl) {
+              calendlyUrl = buildSchedulingUrl(calendlyUrl, {
+                name: candidate?.name || undefined,
+                email: email || undefined,
+                utmSource: 'huntlo',
+              });
+            }
+            prompt = buildWhatsAppAutoCalendlyPrompt({ ...promptBase, calendlyUrl });
+          } else {
+            prompt = buildWhatsAppScreeningClosePrompt(promptBase);
+          }
+        }
+
+        let threadId: string | null = null;
+        if (followUp) {
+          let hcg = await findHcgWhatsappConversation(String(campaign._id), phone);
+          if (!hcgWhatsappThreadIdOf(hcg)) {
+            hcg = await waitForHcgWhatsappConversation(String(campaign._id), phone);
+          }
+          threadId = hcgWhatsappThreadIdOf(hcg);
+          if (!threadId) {
+            logger.warn(
+              {
+                component: 'whatsapp-threading',
+                campaignId: String(campaign._id),
+                enrollmentId: String(enrollment._id),
+              },
+              'Gateway WhatsApp follow-up missing threadId — may start a new conversation'
+            );
+          }
+        }
+
+        const catalogue =
+          isColdTemplate && templateId ? getApprovedTemplate(String(templateId)) : null;
+        const result = await sendWhatsAppViaGateway({
+          to: phone,
+          campaignId: String(campaign._id),
+          template: catalogue ? getMetaTemplateName(catalogue) : null,
+          variables: catalogue ? buildMetaBodyParameters(catalogue.id, mergeContext) : [],
+          body: catalogue ? null : conversationBody,
+          prompt: followUp ? null : prompt,
+          autoReply: followUp ? false : Boolean(prompt),
+          threadId,
+        });
+        sent = { messageId: result.messageId, provider: 'huntlo-whatsapp' };
+        providerThreadId = result.threadId || threadId || providerThreadId;
+      } else {
+        sent = await sendWhatsAppViaIntegration({
+          secrets: integration.secrets,
+          to: phone,
+          body: conversationBody,
+          templateId: isColdTemplate ? templateId : null,
+          mergeContext,
+          organizationId,
+          campaignId: String(campaign._id),
+          enrollmentId: String(enrollment._id),
+        });
+      }
       await quotaService.commitUsage({
         organizationId,
         metric: 'whatsapp_outreach',
@@ -1222,8 +1616,7 @@ export async function executeCampaignMessageStep(input: {
         channel: 'whatsapp',
         providerMessageId: sent.messageId,
         provider: sent.provider,
-        // Same key inbound webhooks use (candidate phone) so replies map to this outreach.
-        providerThreadId: String(phone || '').replace(/\D/g, '') || phone,
+        providerThreadId,
         renderedBody: conversationBody,
       };
     } catch (error) {
@@ -1269,6 +1662,110 @@ export async function executeCampaignMessageStep(input: {
   }
 }
 
+function isGatewayWhatsAppProvider(provider: string | undefined): boolean {
+  return provider === 'huntlo-whatsapp' || provider === 'meta-whatsapp';
+}
+
+/** Reuse the campaign's WhatsApp thread so inbound still matches campaignId. */
+async function armHcgWhatsappPostQualification(input: {
+  campaignId: string;
+  to: string;
+  threadId: string;
+  prompt: string;
+}) {
+  const phone = String(input.to || '').replace(/\D/g, '');
+  await HcgWhatsappConversationModel.updateOne(
+    { threadId: input.threadId },
+    {
+      $set: {
+        autoReply: true,
+        prompt: input.prompt,
+        campaignId: input.campaignId,
+        ...(phone ? { phone } : {}),
+        overallAIStatus: 'in_qualification',
+        overallAIDescription: 'Post-qualification WhatsApp questions',
+      },
+      $setOnInsert: {
+        threadId: input.threadId,
+        messages: [],
+        questions: [],
+      },
+    },
+    { upsert: true }
+  );
+}
+
+async function sendHiringFlowWhatsAppViaGateway(input: {
+  to: string;
+  campaignId: string;
+  enrollmentId: string;
+  organizationId: string;
+  provider: string;
+  template?: string | null;
+  variables?: string[];
+  body?: string | null;
+  prompt?: string | null;
+  autoReply?: boolean;
+  buttons?: GatewayWhatsAppButton[] | null;
+  questions?: GatewayWhatsAppQuestion[] | null;
+  threadId?: string | null;
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string }> {
+  const autoReply = input.autoReply === true;
+  const prompt = autoReply ? String(input.prompt || '').trim() || null : null;
+  const hcg = await findHcgWhatsappConversation(input.campaignId, input.to);
+  const existingThreadId = String(input.threadId || '').trim() || hcgWhatsappThreadIdOf(hcg);
+  const result = await sendWhatsAppViaGateway({
+    to: input.to,
+    campaignId: input.campaignId,
+    template: input.template || null,
+    variables: input.variables || [],
+    body: input.template ? null : input.body || null,
+    prompt,
+    autoReply,
+    threadId: existingThreadId,
+    buttons: input.buttons,
+    questions: input.questions,
+  });
+  const threadId = result.threadId || existingThreadId;
+  if (autoReply && prompt && threadId) {
+    await armHcgWhatsappPostQualification({
+      campaignId: input.campaignId,
+      to: input.to,
+      threadId,
+      prompt,
+    });
+  }
+  await stampWhatsAppOutboundRoute({
+    providerMessageId: result.messageId,
+    toPhone: input.to,
+    provider: input.provider,
+    organizationId: input.organizationId,
+    campaignId: input.campaignId,
+    enrollmentId: input.enrollmentId,
+  }).catch((error) => {
+    getLogger()
+      .child({ component: 'hiring-flow-whatsapp' })
+      .warn({ err: error, to: input.to }, 'Failed to stamp hiring-flow WhatsApp outbound route');
+  });
+  getLogger()
+    .child({ component: 'hiring-flow-whatsapp' })
+    .info(
+      {
+        campaignId: input.campaignId,
+        enrollmentId: input.enrollmentId,
+        threadId,
+        template: input.template || null,
+        autoReply,
+      },
+      'Hiring-flow WhatsApp sent via communication gateway'
+    );
+  return {
+    providerMessageId: result.messageId,
+    provider: input.provider,
+    threadId: threadId || undefined,
+  };
+}
+
 /** Ad-hoc WhatsApp template send used by post-qualification hiring flows. */
 export async function sendHiringFlowWhatsAppTemplate(input: {
   organizationId: string;
@@ -1279,7 +1776,7 @@ export async function sendHiringFlowWhatsAppTemplate(input: {
   templateId: string;
   body: string;
   mergeContext: Record<string, string>;
-}): Promise<{ providerMessageId?: string; provider: string }> {
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string }> {
   const integration = await resolveIntegration(
     input.organizationId,
     input.userId,
@@ -1291,6 +1788,44 @@ export async function sendHiringFlowWhatsAppTemplate(input: {
       statusCode: 400,
     });
   }
+
+  if (isGatewayWhatsAppProvider(integration.secrets.provider)) {
+    const catalogue = getApprovedTemplate(String(input.templateId));
+    if (catalogue) {
+      return sendHiringFlowWhatsAppViaGateway({
+        to: input.to,
+        campaignId: input.campaignId,
+        enrollmentId: input.enrollmentId,
+        organizationId: input.organizationId,
+        provider: integration.secrets.provider,
+        template: getMetaTemplateName(catalogue),
+        variables: buildMetaBodyParameters(catalogue.id, input.mergeContext),
+      });
+    }
+    const metaTemplate = await findApprovedMetaTemplate(String(input.templateId));
+    if (metaTemplate) {
+      return sendHiringFlowWhatsAppViaGateway({
+        to: input.to,
+        campaignId: input.campaignId,
+        enrollmentId: input.enrollmentId,
+        organizationId: input.organizationId,
+        provider: integration.secrets.provider,
+        template: isForceTestWhatsAppTemplate() ? 'hello_world' : metaTemplate.name,
+        variables: isForceTestWhatsAppTemplate()
+          ? []
+          : buildMetaTemplateBodyParameters(metaTemplate.variableCount, input.mergeContext),
+      });
+    }
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      body: input.body,
+    });
+  }
+
   const sent = await sendWhatsAppViaIntegration({
     secrets: integration.secrets,
     to: input.to,
@@ -1304,16 +1839,23 @@ export async function sendHiringFlowWhatsAppTemplate(input: {
   return { providerMessageId: sent.messageId, provider: sent.provider };
 }
 
-/** Ad-hoc WhatsApp free-text send used by hiring-flow question steps. */
-export async function sendHiringFlowWhatsAppText(input: {
+/**
+ * Post-qualify WhatsApp for Huntlo/Meta: /messages/send?autoReply=true with the
+ * same campaignId so the gateway thread stays matched and asks questions.
+ * Returns null when the org is on Gupshup (Huntlo still owns that playbook).
+ */
+export async function sendPostQualificationWhatsAppViaGateway(input: {
   organizationId: string;
   userId: string;
   campaignId: string;
   enrollmentId: string;
   to: string;
+  templateId: string;
   body: string;
-  replyButtons?: MetaReplyButton[] | null;
-}): Promise<{ providerMessageId?: string; provider: string }> {
+  mergeContext: Record<string, string>;
+  prompt: string;
+  questions?: GatewayWhatsAppQuestion[] | null;
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string } | null> {
   const integration = await resolveIntegration(
     input.organizationId,
     input.userId,
@@ -1325,6 +1867,105 @@ export async function sendHiringFlowWhatsAppText(input: {
       statusCode: 400,
     });
   }
+  if (!isGatewayWhatsAppProvider(integration.secrets.provider)) {
+    return null;
+  }
+
+  const prompt = String(input.prompt || '').trim();
+  if (!prompt) {
+    throw Object.assign(new Error('prompt is required when autoReply is true'), {
+      statusCode: 400,
+    });
+  }
+
+  const catalogue = getApprovedTemplate(String(input.templateId));
+  if (catalogue) {
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      template: getMetaTemplateName(catalogue),
+      variables: buildMetaBodyParameters(catalogue.id, input.mergeContext),
+      prompt,
+      autoReply: true,
+      questions: input.questions,
+    });
+  }
+  const metaTemplate = await findApprovedMetaTemplate(String(input.templateId));
+  if (metaTemplate) {
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      template: isForceTestWhatsAppTemplate() ? 'hello_world' : metaTemplate.name,
+      variables: isForceTestWhatsAppTemplate()
+        ? []
+        : buildMetaTemplateBodyParameters(metaTemplate.variableCount, input.mergeContext),
+      prompt,
+      autoReply: true,
+      questions: input.questions,
+    });
+  }
+  return sendHiringFlowWhatsAppViaGateway({
+    to: input.to,
+    campaignId: input.campaignId,
+    enrollmentId: input.enrollmentId,
+    organizationId: input.organizationId,
+    provider: integration.secrets.provider,
+    body: input.body,
+    prompt,
+    autoReply: true,
+    questions: input.questions,
+  });
+}
+
+/** Ad-hoc WhatsApp free-text send used by hiring-flow question steps. */
+export async function sendHiringFlowWhatsAppText(input: {
+  organizationId: string;
+  userId: string;
+  campaignId: string;
+  enrollmentId: string;
+  to: string;
+  body: string;
+  replyButtons?: MetaReplyButton[] | null;
+  threadId?: string | null;
+}): Promise<{ providerMessageId?: string; provider: string; threadId?: string }> {
+  const integration = await resolveIntegration(
+    input.organizationId,
+    input.userId,
+    'whatsapp',
+    null
+  );
+  if (!integration) {
+    throw Object.assign(new Error('No connected WhatsApp integration for hiring flow.'), {
+      statusCode: 400,
+    });
+  }
+
+  if (isGatewayWhatsAppProvider(integration.secrets.provider)) {
+    const buttons = (input.replyButtons || [])
+      .map((button) => ({
+        id: String(button.id || '').trim(),
+        title: String(button.title || '').trim(),
+      }))
+      .filter((button) => button.id && button.title);
+    return sendHiringFlowWhatsAppViaGateway({
+      to: input.to,
+      campaignId: input.campaignId,
+      enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
+      provider: integration.secrets.provider,
+      body: input.body,
+      buttons,
+      autoReply: false,
+      threadId: input.threadId,
+    });
+  }
+
   const sent = await sendWhatsAppViaIntegration({
     secrets: integration.secrets,
     to: input.to,

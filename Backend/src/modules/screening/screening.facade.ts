@@ -22,6 +22,8 @@ export const screeningFacade = {
     organizationId: string;
     workflowId: string;
     campaignId?: string | null;
+    jobId?: string | null;
+    name?: string | null;
     candidateId: string;
     enrollmentId?: string | null;
     ownerUserId?: string | null;
@@ -48,14 +50,17 @@ export const screeningFacade = {
             'Why are you interested in this opportunity right now?',
             'What is your notice period, and when could you start?',
           ];
+    const screeningName =
+      String(input.name || '').trim() || 'AI screening';
     const { screening, candidate } = await screeningService.ensureWorkflowCandidate({
       organizationId: input.organizationId,
       workflowId: input.workflowId,
       campaignId: input.campaignId,
+      jobId: input.jobId,
       candidateId: input.candidateId,
       enrollmentId: input.enrollmentId,
       ownerUserId: input.ownerUserId,
-      name: `Huntlo 360 screening · ${input.workflowId}`,
+      name: screeningName,
       language: input.language,
       questions,
       knockouts: input.knockouts,

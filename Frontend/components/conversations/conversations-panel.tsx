@@ -121,6 +121,10 @@ export function ConversationsPanel({
       "conversation.message.created",
       "campaign.thread.updated",
       "conversation.qualification.updated",
+      "hcg.gmail.updated",
+      "hcg.whatsapp.updated",
+      "hcg.hunar.updated",
+      "hcg.zyvkay.updated",
     ],
     (event) => {
       const data =

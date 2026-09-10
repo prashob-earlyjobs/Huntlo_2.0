@@ -24,6 +24,7 @@ import {
   type ConversationChannel,
 } from '../conversations/conversation-thread.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { UserIntegrationModel } from '../integrations/user-integration.model.js';
 import { sendAdHocMessage } from './campaign-delivery.js';
 import {
   OutreachCampaignModel,
@@ -175,6 +176,18 @@ export type QualificationConfig = {
   hiringFlowId?: string | null;
   autoWhatsAppTemplateId?: string | null;
 };
+
+/** Keep Auto-send WhatsApp until Hunar/Zyvka finishes when this campaign still has a voice screen. */
+function shouldWaitForVoiceBeforeHiringFlow(
+  campaign: OutreachCampaignDocument,
+  enrollment: OutreachEnrollmentDocument
+): boolean {
+  if (Boolean(campaign.qualificationConfig?.autoScreening)) return true;
+  const voiceSteps = (campaign.sequenceSteps || []).filter((step) => step.type === 'ai_voice');
+  if (!voiceSteps.length) return false;
+  const completed = new Set(enrollment.sequenceState?.completedStepIds || []);
+  return voiceSteps.some((step) => Boolean(step.id) && !completed.has(step.id));
+}
 
 function answerValue(entry: unknown): string {
   if (entry == null) return '';
@@ -1574,16 +1587,27 @@ async function completeQualification(input: {
 
   const config = campaign.qualificationConfig as QualificationConfig;
   if (status === 'qualified' && config.autoWhatsAppAfterQualification) {
-    try {
-      const { startHiringFlowAfterQualification } = await import(
-        './hiring-flow-runtime.service.js'
+    if (shouldWaitForVoiceBeforeHiringFlow(campaign, enrollment)) {
+      log().info(
+        {
+          enrollmentId: String(enrollment._id),
+          campaignId: String(campaign._id),
+          autoScreening: Boolean(config.autoScreening),
+        },
+        'Hiring-flow WhatsApp deferred until after Hunar/Zyvka call'
       );
-      await startHiringFlowAfterQualification({ campaign, enrollment });
-    } catch (error) {
-      log().warn(
-        { err: error, enrollmentId: String(enrollment._id), campaignId: String(campaign._id) },
-        'Post-qualification hiring flow start failed'
-      );
+    } else {
+      try {
+        const { startHiringFlowAfterQualification } = await import(
+          './hiring-flow-runtime.service.js'
+        );
+        await startHiringFlowAfterQualification({ campaign, enrollment });
+      } catch (error) {
+        log().warn(
+          { err: error, enrollmentId: String(enrollment._id), campaignId: String(campaign._id) },
+          'Post-qualification hiring flow start failed'
+        );
+      }
     }
   }
   if (status === 'qualified' && config.autoScreening) {
@@ -1963,7 +1987,7 @@ async function ensureHuntlo360QualificationConfig(
   return campaign.qualificationConfig as QualificationConfig;
 }
 
-async function notifyHuntlo360QualificationComplete(input: {
+export async function notifyHuntlo360QualificationComplete(input: {
   campaign: OutreachCampaignDocument;
   enrollment: OutreachEnrollmentDocument;
   status: 'qualified' | 'rejected' | 'handed_off';
@@ -2118,6 +2142,30 @@ export async function processQualificationAfterReply(input: {
     }
   }
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Gmail outreach hands auto-replies to the communication gateway.
+  if (input.preferredChannel !== 'whatsapp') {
+    const integrationId = input.campaign.channelConfig?.email?.integrationId;
+    const row =
+      integrationId && mongoose.Types.ObjectId.isValid(integrationId)
+        ? await UserIntegrationModel.findById(integrationId).select('provider').lean()
+        : await UserIntegrationModel.findOne({
+            organizationId: input.campaign.organizationId,
+            userId: input.campaign.ownerUserId,
+            category: 'email',
+            status: { $in: ['connected', 'needs_attention'] },
+          })
+            .sort({ isDefault: -1, updatedAt: -1 })
+            .select('provider')
+            .lean();
+    if (row?.provider === 'gmail') {
+      log().info(
+        { enrollmentId: input.enrollmentId, campaignId: String(input.campaign._id) },
+        'Qualification skipped — Gmail auto-replies handled by communication gateway'
+      );
+      return { action: 'skipped_external_gmail_autoreply' };
+    }
+  }
 
   // Qualification + AI reply are always-on in the product UI. Only skip when the
   // campaign has no questions AND was explicitly disabled (legacy).

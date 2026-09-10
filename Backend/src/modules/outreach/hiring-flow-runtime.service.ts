@@ -31,6 +31,15 @@ import {
 } from '../../providers/meta-whatsapp/meta.templates.js';
 import { hydrateCandidateMergeFields } from './candidate-merge-hydrate.js';
 import { buildCandidateMergeContext } from './variables.js';
+import { formatOutreachJobContextForPrompt, loadOutreachJobContext } from './job-context.js';
+import {
+  buildWhatsAppPostQualificationPrompt,
+  formatKnockoutPassCondition,
+} from './prompt/index.js';
+import {
+  WHATSAPP_YES_NO_BUTTONS,
+  type GatewayWhatsAppQuestion,
+} from '../../providers/whatsapp/whatsapp.gateway.js';
 
 function log() {
   return getLogger().child({ component: 'hiring-flow-runtime' });
@@ -186,6 +195,193 @@ export function resolveNextHiringFlowStep(
     cursor = hop;
   }
   return sequentialStepAfter(steps, current, replyText);
+}
+
+/** Prebuilt ask_question steps in playbook order (no branch evaluation). */
+export function collectHiringFlowQuestions(
+  steps: HiringFlowStep[],
+  entryStepId?: string | null
+): GatewayWhatsAppQuestion[] {
+  const questions: GatewayWhatsAppQuestion[] = [];
+  const entry = findStep(steps, entryStepId) || steps[0] || null;
+  let cursor: HiringFlowStep | null = entry;
+  const seen = new Set<string>();
+  while (cursor && !seen.has(cursor.id)) {
+    seen.add(cursor.id);
+    if (cursor.type === 'ask_question') {
+      const question = resolveHiringFlowQuestionBody(cursor);
+      if (question) {
+        const yesNo = isYesNoAnswerType(cursor.answerType);
+        questions.push({
+          id: cursor.id,
+          question,
+          required: true,
+          answer_type: yesNo ? 'yes_no' : 'text',
+          pass_condition:
+            cursor.knockout && cursor.knockoutCondition
+              ? formatKnockoutPassCondition(cursor.knockoutCondition)
+              : 'Informational only; any reasonable answer is acceptable',
+          ...(yesNo ? { buttons: WHATSAPP_YES_NO_BUTTONS } : {}),
+        });
+      }
+    }
+    cursor = resolveNextHiringFlowStep(steps, cursor, '') || null;
+  }
+  return questions;
+}
+
+function firstWhatsAppTemplateId(steps: HiringFlowStep[], entryStepId?: string | null): string | null {
+  const entry = findStep(steps, entryStepId) || steps[0] || null;
+  if (entry?.type === 'send_whatsapp_template' && entry.whatsappTemplateId) {
+    return String(entry.whatsappTemplateId).trim() || null;
+  }
+  const first = steps.find((step) => step.type === 'send_whatsapp_template');
+  return String(first?.whatsappTemplateId || '').trim() || null;
+}
+
+async function buildPostQualificationPrompt(input: {
+  campaign: OutreachCampaignDocument;
+  enrollment: OutreachEnrollmentDocument;
+  questions: GatewayWhatsAppQuestion[];
+}): Promise<{ prompt: string; phone: string; mergeContext: Record<string, string> }> {
+  const { candidate, phone, mergeContext } = await loadMergeContext(
+    input.campaign,
+    input.enrollment
+  );
+  const cand = (candidate || {}) as {
+    name?: string | null;
+    currentTitle?: string | null;
+    experienceYears?: number | null;
+    skills?: string[] | null;
+    location?: string | null;
+    email?: string | null;
+  };
+  const jobCtx = await loadOutreachJobContext(
+    input.campaign.jobId ? String(input.campaign.jobId) : null
+  );
+  return {
+    phone,
+    mergeContext,
+    prompt: buildWhatsAppPostQualificationPrompt({
+      jobText: formatOutreachJobContextForPrompt(jobCtx, input.campaign.name),
+      candidateName: cand.name || 'Candidate',
+      currentRole: cand.currentTitle || '',
+      experience: cand.experienceYears != null ? `${cand.experienceYears} years` : '',
+      skills: Array.isArray(cand.skills) ? cand.skills.join(', ') : '',
+      location: cand.location || '',
+      email: cand.email || '',
+      screening: input.questions,
+    }),
+  };
+}
+
+async function sendPostQualificationGatewayWhatsApp(input: {
+  campaign: OutreachCampaignDocument;
+  enrollment: OutreachEnrollmentDocument;
+  templateId: string;
+  questions: GatewayWhatsAppQuestion[];
+}): Promise<'sent' | 'not_gateway' | 'failed'> {
+  const catalogue = getApprovedTemplate(input.templateId);
+  const metaTemplate = catalogue ? null : await findApprovedMetaTemplate(input.templateId);
+  if (!catalogue && !metaTemplate) return 'failed';
+
+  const { phone, mergeContext, prompt } = await buildPostQualificationPrompt({
+    campaign: input.campaign,
+    enrollment: input.enrollment,
+    questions: input.questions,
+  });
+  if (!phone) return 'failed';
+
+  const previewBody = catalogue
+    ? renderWhatsAppTemplatePreview(input.templateId, mergeContext)
+    : fillMetaTemplateBody(metaTemplate, mergeContext);
+
+  try {
+    const { sendPostQualificationWhatsAppViaGateway } = await import('./campaign-delivery.js');
+    const sent = await sendPostQualificationWhatsAppViaGateway({
+      organizationId: String(input.campaign.organizationId),
+      userId: String(input.campaign.ownerUserId),
+      campaignId: String(input.campaign._id),
+      enrollmentId: String(input.enrollment._id),
+      to: phone,
+      templateId: input.templateId,
+      body: previewBody || catalogue?.body || metaTemplate?.body || '',
+      mergeContext,
+      prompt,
+      questions: input.questions,
+    });
+    if (!sent) return 'not_gateway';
+
+    const thread = await ensureThread({
+      organizationId: String(input.campaign.organizationId),
+      candidateId: String(input.enrollment.candidateId),
+      campaignId: String(input.campaign._id),
+      enrollmentId: String(input.enrollment._id),
+    });
+    await persistOutboundMessage({
+      organizationId: String(input.campaign.organizationId),
+      threadId: String(thread._id),
+      campaignId: String(input.campaign._id),
+      candidateId: String(input.enrollment.candidateId),
+      body: previewBody || catalogue?.body || metaTemplate?.body || '',
+      providerMessageId: sent.providerMessageId || null,
+      to: phone,
+    });
+
+    const firstQuestion = input.questions[0];
+    if (firstQuestion?.answer_type === 'yes_no' && firstQuestion.question) {
+      try {
+        const { sendHiringFlowWhatsAppText } = await import('./campaign-delivery.js');
+        const chip = await sendHiringFlowWhatsAppText({
+          organizationId: String(input.campaign.organizationId),
+          userId: String(input.campaign.ownerUserId),
+          campaignId: String(input.campaign._id),
+          enrollmentId: String(input.enrollment._id),
+          to: phone,
+          body: firstQuestion.question,
+          replyButtons: YES_NO_REPLY_BUTTONS,
+          threadId: sent.threadId || null,
+        });
+        await persistOutboundMessage({
+          organizationId: String(input.campaign.organizationId),
+          threadId: String(thread._id),
+          campaignId: String(input.campaign._id),
+          candidateId: String(input.enrollment.candidateId),
+          body: firstQuestion.question,
+          providerMessageId: chip.providerMessageId || null,
+          to: phone,
+        });
+        log().info(
+          {
+            campaignId: String(input.campaign._id),
+            enrollmentId: String(input.enrollment._id),
+            questionId: firstQuestion.id,
+            threadId: chip.threadId || sent.threadId || null,
+          },
+          'Post-qualification Yes/No chip sent via gateway'
+        );
+      } catch (chipError) {
+        log().warn(
+          { err: chipError, templateId: input.templateId, questionId: firstQuestion.id },
+          'Post-qualification Yes/No chip send failed'
+        );
+      }
+    }
+    log().info(
+      {
+        campaignId: String(input.campaign._id),
+        enrollmentId: String(input.enrollment._id),
+        templateId: input.templateId,
+        questionCount: input.questions.length,
+        threadId: sent.threadId || null,
+      },
+      'Post-qualification WhatsApp sent via gateway autoReply'
+    );
+    return 'sent';
+  } catch (error) {
+    log().warn({ err: error, templateId: input.templateId }, 'Post-qualification gateway WhatsApp failed');
+    return 'failed';
+  }
 }
 
 async function ensureThread(input: {
@@ -378,6 +574,7 @@ async function askQuestionStep(input: {
   campaign: OutreachCampaignDocument;
   enrollment: OutreachEnrollmentDocument;
   step: HiringFlowStep;
+  threadId?: string | null;
 }) {
   const prompt = resolveHiringFlowQuestionBody(input.step);
   if (!prompt) return;
@@ -395,6 +592,7 @@ async function askQuestionStep(input: {
     to: phone,
     body: prompt,
     replyButtons: isYesNoAnswerType(input.step.answerType) ? YES_NO_REPLY_BUTTONS : null,
+    threadId: input.threadId,
   });
 
   const thread = await ensureThread({
@@ -422,18 +620,22 @@ export async function executeHiringFlowStep(input: {
   steps: HiringFlowStep[];
   replyText?: string;
 }): Promise<{ currentStepId: string | null; status: string }> {
+  let lastGatewayThreadId: string | undefined;
   let step: HiringFlowStep | null = input.step;
 
   for (let guard = 0; step && guard < 20; guard += 1) {
     if (step.type === 'send_whatsapp_template') {
-      await runWhatsAppTemplateStep({
+      const sent = await runWhatsAppTemplateStep({
         campaign: input.campaign,
         enrollment: input.enrollment,
         step,
       });
-      // Pause after the template and wait for the candidate's reply before
-      // executing the next step. Without this, sequential steps fire instantly.
+      lastGatewayThreadId = sent?.threadId || lastGatewayThreadId;
       const next = resolveNextHiringFlowStep(input.steps, step, input.replyText);
+      if (next?.type === 'ask_question' && isYesNoAnswerType(next.answerType)) {
+        step = next;
+        continue;
+      }
       if (next) {
         input.enrollment.hiringFlowState = {
           flowId: input.flowId,
@@ -461,6 +663,7 @@ export async function executeHiringFlowStep(input: {
         campaign: input.campaign,
         enrollment: input.enrollment,
         step,
+        threadId: lastGatewayThreadId,
       });
       input.enrollment.hiringFlowState = {
         flowId: input.flowId,
@@ -585,6 +788,29 @@ export async function startHiringFlowAfterQualification(input: {
       return { started: false, reason: 'template_missing' };
     }
     try {
+      const gateway = await sendPostQualificationGatewayWhatsApp({
+        campaign: input.campaign,
+        enrollment,
+        templateId,
+        questions: [],
+      });
+      if (gateway === 'sent') {
+        enrollment.hiringFlowState = {
+          flowId: null,
+          currentStepId: null,
+          status: 'completed',
+          answers: {},
+          retryAttempts: {},
+        };
+        await enrollment.save();
+        input.enrollment.hiringFlowState = enrollment.hiringFlowState;
+        return { started: true, stepId: 'ad-hoc-wa' };
+      }
+      if (gateway === 'failed') {
+        throw Object.assign(new Error('Post-qualification WhatsApp send failed'), {
+          statusCode: 502,
+        });
+      }
       await runWhatsAppTemplateStep({
         campaign: input.campaign,
         enrollment,
@@ -644,6 +870,34 @@ export async function startHiringFlowAfterQualification(input: {
   };
   await enrollment.save();
   input.enrollment.hiringFlowState = enrollment.hiringFlowState;
+
+  const templateId = firstWhatsAppTemplateId(flow.steps, flow.entryStepId);
+  if (templateId) {
+    const gateway = await sendPostQualificationGatewayWhatsApp({
+      campaign: input.campaign,
+      enrollment,
+      templateId,
+      questions: collectHiringFlowQuestions(flow.steps, flow.entryStepId),
+    });
+    if (gateway === 'sent') {
+      flow.usageCount = (flow.usageCount || 0) + 1;
+      await flow.save();
+      input.enrollment.hiringFlowState = enrollment.hiringFlowState;
+      return { started: true, stepId: entry.id };
+    }
+    if (gateway === 'failed') {
+      enrollment.hiringFlowState = {
+        flowId: enrollment.hiringFlowState?.flowId ?? null,
+        currentStepId: enrollment.hiringFlowState?.currentStepId ?? null,
+        status: 'failed',
+        answers: enrollment.hiringFlowState?.answers ?? {},
+        retryAttempts: enrollment.hiringFlowState?.retryAttempts ?? {},
+      };
+      await enrollment.save();
+      input.enrollment.hiringFlowState = enrollment.hiringFlowState;
+      return { started: false, reason: 'start_failed' };
+    }
+  }
 
   try {
     const advanced = await executeHiringFlowStep({

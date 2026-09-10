@@ -6,6 +6,7 @@ import {
   AudioLines,
   Briefcase,
   CheckCircle2,
+  ChevronDown,
   ListChecks,
   Pencil,
   Plus,
@@ -35,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   getApiErrorMessage,
@@ -44,7 +46,7 @@ import {
   type ApiTeamMember,
   type ScreeningCreateInput,
 } from "@/lib/api";
-import type { JobListItem } from "@/lib/api/contracts";
+import type { JobDetail, JobListItem } from "@/lib/api/contracts";
 import {
   ATTEMPT_OPTIONS,
   CALL_WINDOWS,
@@ -90,6 +92,20 @@ interface BuilderQuestion {
   evaluationEnabled: boolean;
 }
 
+interface VideoSkill {
+  id: string;
+  skillName: string;
+  proficiency: string;
+}
+
+interface VideoTopicFocus {
+  id: string;
+  name: string;
+  discussionMinutes: string;
+  reason: string;
+  sampleQuestions: string;
+}
+
 interface BuilderState {
   name: string;
   screeningMode: "voice" | "video";
@@ -108,6 +124,13 @@ interface BuilderState {
   tone: string;
   introduction: string;
   agentPrompt: string;
+  videoMustHaveSkills: VideoSkill[];
+  videoGoodToHaveSkills: VideoSkill[];
+  videoBonusSkills: VideoSkill[];
+  videoTopicsFocus: VideoTopicFocus[];
+  videoTopicsAvoid: Array<{ id: string; text: string }>;
+  videoInterviewStandard: boolean;
+  videoInterviewConversation: boolean;
   questions: BuilderQuestion[];
   knockouts: string[];
   minShortlistScore: string;
@@ -116,6 +139,172 @@ interface BuilderState {
   callWindow: string;
   timezone: string;
   voicemail: string;
+}
+
+const SKILL_PROFICIENCY_OPTIONS = [
+  {
+    label: "Easy",
+    short: "E",
+    value: "L1",
+    chipClass: "text-emerald-700 dark:text-emerald-400",
+  },
+  {
+    label: "Medium",
+    short: "M",
+    value: "L3",
+    chipClass: "text-amber-700 dark:text-amber-400",
+  },
+  {
+    label: "Hard",
+    short: "H",
+    value: "L5",
+    chipClass: "text-rose-700 dark:text-rose-400",
+  },
+] as const;
+
+type SkillProficiencyApi = (typeof SKILL_PROFICIENCY_OPTIONS)[number]["value"];
+
+/** Map any stored/API level onto Easy/Medium/Hard for the dropdown. */
+function toUiSkillProficiency(value: string): SkillProficiencyApi {
+  if (value === "L1" || value === "L2") return "L1";
+  if (value === "L4" || value === "L5") return "L5";
+  return "L3";
+}
+
+function skillProficiencyOption(value: string) {
+  const normalized = toUiSkillProficiency(value);
+  return (
+    SKILL_PROFICIENCY_OPTIONS.find((option) => option.value === normalized) ??
+    SKILL_PROFICIENCY_OPTIONS[1]
+  );
+}
+
+function SkillProficiencyMark({ value }: { value: string }) {
+  const option = skillProficiencyOption(value);
+  return (
+    <span
+      className={cn("text-[11px] font-bold leading-none", option.chipClass)}
+      title={option.label}
+    >
+      {option.short}
+    </span>
+  );
+}
+
+function newVideoSkill(): VideoSkill {
+  return {
+    id: `skill-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    skillName: "",
+    proficiency: "L3",
+  };
+}
+
+function newVideoTopicFocus(): VideoTopicFocus {
+  return {
+    id: `topic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: "",
+    discussionMinutes: "15",
+    reason: "",
+    sampleQuestions: "",
+  };
+}
+
+function proficiencyFromSeniority(seniority: string | null | undefined): SkillProficiencyApi {
+  const value = String(seniority || "").toLowerCase();
+  if (
+    value.includes("lead") ||
+    value.includes("principal") ||
+    value.includes("staff") ||
+    value.includes("director") ||
+    value.includes("senior")
+  ) {
+    return "L5";
+  }
+  if (value.includes("junior") || value.includes("entry") || value.includes("intern")) {
+    return "L1";
+  }
+  return "L3";
+}
+
+function mapNamesToVideoSkills(
+  names: string[] | null | undefined,
+  proficiency: string,
+  { keepEmptyRow }: { keepEmptyRow: boolean }
+): VideoSkill[] {
+  const cleaned = (names ?? [])
+    .map((name) => String(name || "").trim())
+    .filter(Boolean);
+  if (!cleaned.length) {
+    return keepEmptyRow ? [newVideoSkill()] : [];
+  }
+  return cleaned.map((skillName, index) => ({
+    id: `skill-job-${index}-${skillName.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}`,
+    skillName: skillName.slice(0, 60),
+    proficiency,
+  }));
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function videoDefaultsFromJob(job: JobDetail): Pick<
+  BuilderState,
+  | "videoMustHaveSkills"
+  | "videoGoodToHaveSkills"
+  | "videoBonusSkills"
+  | "videoTopicsFocus"
+  | "videoTopicsAvoid"
+  | "videoInterviewStandard"
+  | "videoInterviewConversation"
+> {
+  const proficiency = proficiencyFromSeniority(job.seniority);
+  const topicLines = (
+    job.requirements?.length
+      ? job.requirements
+      : job.responsibilities?.length
+        ? job.responsibilities
+        : []
+  )
+    .map((line) => stripHtml(String(line || "")))
+    .filter(Boolean)
+    .slice(0, 5);
+
+  const videoTopicsFocus: VideoTopicFocus[] = topicLines.length
+    ? topicLines.map((line, index) => ({
+        id: `topic-job-${index}`,
+        name: line.slice(0, 120),
+        discussionMinutes: "10",
+        reason: `From ${job.title} job requirements`,
+        sampleQuestions: "",
+      }))
+    : [
+        {
+          id: `topic-job-title`,
+          name: job.title,
+          discussionMinutes: "15",
+          reason: stripHtml(job.description || "").slice(0, 160) ||
+            `Interview focus for ${job.title}`,
+          sampleQuestions: "",
+        },
+      ];
+
+  return {
+    videoMustHaveSkills: mapNamesToVideoSkills(job.requiredSkills, proficiency, {
+      keepEmptyRow: true,
+    }),
+    videoGoodToHaveSkills: mapNamesToVideoSkills(job.preferredSkills, "L3", {
+      keepEmptyRow: false,
+    }),
+    videoBonusSkills: [],
+    videoTopicsFocus,
+    videoTopicsAvoid: [],
+    videoInterviewStandard: true,
+    videoInterviewConversation: false,
+  };
 }
 
 function initialState(): BuilderState {
@@ -137,6 +326,13 @@ function initialState(): BuilderState {
     tone: SCREENING_TONE_OPTIONS[0].value,
     introduction: ROSHNI_INTRODUCTION,
     agentPrompt: defaultAiVoiceStepBody(),
+    videoMustHaveSkills: [newVideoSkill()],
+    videoGoodToHaveSkills: [],
+    videoBonusSkills: [],
+    videoTopicsFocus: [newVideoTopicFocus()],
+    videoTopicsAvoid: [],
+    videoInterviewStandard: true,
+    videoInterviewConversation: false,
     questions: DEFAULT_QUESTIONS.map((question, index) => ({
       id: `q-${index + 1}`,
       type: question.type,
@@ -161,7 +357,7 @@ type Update = <K extends keyof BuilderState>(
   value: BuilderState[K]
 ) => void;
 
-const STEPS = [
+const ALL_STEPS = [
   { id: "details", title: "Screening Details" },
   { id: "candidates", title: "Candidate Selection" },
   { id: "agent", title: "Agent Configuration" },
@@ -169,16 +365,30 @@ const STEPS = [
   { id: "evaluation", title: "Evaluation" },
   { id: "call", title: "Call Settings" },
   { id: "review", title: "Review and Launch" },
-];
+] as const;
 
-function stepErrors(step: number, state: BuilderState): string[] {
+type StepId = (typeof ALL_STEPS)[number]["id"];
+
+function stepsForMode(state: BuilderState) {
+  if (state.screeningMode === "video") {
+    return ALL_STEPS.filter(
+      (step) =>
+        step.id !== "questions" &&
+        step.id !== "evaluation" &&
+        step.id !== "call"
+    );
+  }
+  return [...ALL_STEPS];
+}
+
+function stepErrorsById(stepId: StepId, state: BuilderState): string[] {
   const errors: string[] = [];
-  if (step === 0) {
+  if (stepId === "details") {
     if (!state.name.trim()) errors.push("Screening name is required.");
     if (!state.ownerUserId) errors.push("Select the campaign owner.");
     if (!state.jobId) errors.push("Select the related job.");
   }
-  if (step === 1) {
+  if (stepId === "candidates") {
     if (!state.source) {
       errors.push("Choose where screening candidates come from.");
     } else if (state.source === "Saved List" && !state.sourceDetail) {
@@ -200,16 +410,46 @@ function stepErrors(step: number, state: BuilderState): string[] {
       errors.push("This audience has no candidates yet.");
     }
   }
-  if (step === 2) {
-    if (!state.introduction.trim()) errors.push("Introduction script is required.");
-    if (!state.agentPrompt.trim()) errors.push("Agent prompt is required.");
+  if (stepId === "agent") {
+    if (state.screeningMode === "video") {
+      if (
+        !state.videoInterviewStandard &&
+        !state.videoInterviewConversation
+      ) {
+        errors.push("Select standard or conversation interview mode.");
+      }
+      if (state.videoInterviewStandard && state.videoInterviewConversation) {
+        errors.push("Choose only one interview mode.");
+      }
+      if (state.videoInterviewConversation) {
+        if (
+          state.videoMustHaveSkills.every((skill) => !skill.skillName.trim())
+        ) {
+          errors.push("Add at least one must-have skill.");
+        }
+        if (state.videoTopicsFocus.every((topic) => !topic.name.trim())) {
+          errors.push(
+            "Add at least one focus topic for Conversation mode."
+          );
+        }
+      } else if (state.questions.every((question) => !question.text.trim())) {
+        errors.push("Add at least one interview question.");
+      }
+    } else {
+      if (!state.introduction.trim()) {
+        errors.push("Introduction script is required.");
+      }
+      if (!state.agentPrompt.trim()) {
+        errors.push("Agent prompt is required.");
+      }
+    }
   }
-  if (step === 3) {
+  if (stepId === "questions") {
     if (state.questions.every((question) => !question.text.trim())) {
       errors.push("Add at least one screening question.");
     }
   }
-  if (step === 4) {
+  if (stepId === "evaluation") {
     const score = Number(state.minShortlistScore);
     if (Number.isNaN(score) || score < 0 || score > 100) {
       errors.push("Minimum shortlist score must be between 0 and 100.");
@@ -219,15 +459,18 @@ function stepErrors(step: number, state: BuilderState): string[] {
 }
 
 function allErrors(state: BuilderState): string[] {
-  return [0, 1, 2, 3, 4, 5].flatMap((step) => stepErrors(step, state));
+  return stepsForMode(state).flatMap((step) =>
+    stepErrorsById(step.id, state)
+  );
 }
 
 /** Highest step index reachable: all prior steps must be valid. */
 function maxReachableStep(state: BuilderState): number {
-  for (let index = 0; index < STEPS.length; index += 1) {
-    if (stepErrors(index, state).length > 0) return index;
+  const steps = stepsForMode(state);
+  for (let index = 0; index < steps.length; index += 1) {
+    if (stepErrorsById(steps[index].id, state).length > 0) return index;
   }
-  return STEPS.length - 1;
+  return steps.length - 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -293,9 +536,10 @@ function DetailsStep({
               {
                 value: "video" as const,
                 title: "Video screening",
-                description: "Async video interviews. Coming soon.",
+                description:
+                  "Async video interviews. Available now.",
                 icon: Video,
-                disabled: true,
+                disabled: false,
               },
             ] as const
           ).map((option) => {
@@ -316,8 +560,8 @@ function DetailsStep({
                   option.disabled
                     ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
                     : selected
-                      ? "border-primary/50 bg-brand-subtle/20"
-                      : "border-border hover:bg-muted/40"
+                      ? "cursor-pointer border-primary/50 bg-brand-subtle/20"
+                      : "cursor-pointer border-border hover:bg-muted/40"
                 )}
               >
                 <span
@@ -624,6 +868,765 @@ function AgentStep({
   );
 }
 
+function filledSkillCount(skills: VideoSkill[]): number {
+  return skills.filter((skill) => skill.skillName.trim()).length;
+}
+
+function VideoSkillEditor({
+  skills,
+  onChange,
+  required,
+  showErrors,
+  emptyLabel,
+  addLabel,
+}: {
+  skills: VideoSkill[];
+  onChange: (skills: VideoSkill[]) => void;
+  required?: boolean;
+  showErrors?: boolean;
+  emptyLabel: string;
+  addLabel: string;
+}) {
+  const [draftName, setDraftName] = useState("");
+  const [draftLevel, setDraftLevel] = useState<SkillProficiencyApi>("L3");
+  const missingRequired =
+    Boolean(required) &&
+    Boolean(showErrors) &&
+    filledSkillCount(skills) === 0;
+
+  function commitDraft() {
+    const name = draftName.trim().slice(0, 60);
+    if (!name) return;
+    onChange([
+      ...skills.filter((skill) => skill.skillName.trim()),
+      {
+        id: `skill-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        skillName: name,
+        proficiency: draftLevel,
+      },
+    ]);
+    setDraftName("");
+    setDraftLevel("L3");
+  }
+
+  const visible = skills.filter((skill) => skill.skillName.trim());
+
+  return (
+    <div className="space-y-3">
+      {visible.length === 0 ? (
+        <p
+          className={cn(
+            "rounded-lg border border-dashed px-3 py-6 text-center text-xs",
+            missingRequired
+              ? "border-destructive/50 text-destructive"
+              : "border-border text-muted-foreground"
+          )}
+        >
+          {emptyLabel}
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {visible.map((skill) => (
+            <li
+              key={skill.id}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/40 py-1 pl-2.5 pr-1 sm:max-w-[14rem]"
+            >
+              <span
+                className="min-w-0 flex-1 truncate text-xs font-medium text-foreground"
+                title={skill.skillName}
+              >
+                {skill.skillName}
+              </span>
+              <Select
+                value={toUiSkillProficiency(skill.proficiency)}
+                onValueChange={(value) =>
+                  value &&
+                  onChange(
+                    skills.map((row) =>
+                      row.id === skill.id
+                        ? {
+                            ...row,
+                            proficiency: toUiSkillProficiency(value),
+                          }
+                        : row
+                    )
+                  )
+                }
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-auto w-auto min-w-0 gap-0 rounded-none border-0 bg-transparent p-0 shadow-none [&>svg]:hidden"
+                  aria-label={`${skill.skillName} difficulty: ${skillProficiencyOption(skill.proficiency).label}`}
+                >
+                  <SelectValue>
+                    <SkillProficiencyMark value={skill.proficiency} />
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {SKILL_PROFICIENCY_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className="text-foreground data-highlighted:text-foreground"
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                className="size-6 rounded-full"
+                aria-label={`Remove ${skill.skillName}`}
+                onClick={() =>
+                  onChange(skills.filter((row) => row.id !== skill.id))
+                }
+              >
+                <Trash2 aria-hidden className="size-3" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={draftName}
+          onChange={(event) => setDraftName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitDraft();
+            }
+          }}
+          placeholder={addLabel}
+          className="min-w-40 flex-1 text-xs"
+          maxLength={60}
+          aria-invalid={missingRequired}
+        />
+        <Select
+          value={draftLevel}
+          onValueChange={(value) =>
+            value && setDraftLevel(toUiSkillProficiency(value))
+          }
+        >
+          <SelectTrigger
+            size="sm"
+            className="w-auto min-w-24 gap-1.5 px-2"
+            aria-label={`New skill difficulty: ${skillProficiencyOption(draftLevel).label}`}
+          >
+            <SelectValue>
+              <span className="text-xs font-medium text-foreground">
+                {skillProficiencyOption(draftLevel).label}
+              </span>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {SKILL_PROFICIENCY_OPTIONS.map((option) => (
+              <SelectItem
+                key={option.value}
+                value={option.value}
+                className="text-foreground data-highlighted:text-foreground"
+              >
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={commitDraft}
+          disabled={!draftName.trim()}
+        >
+          <Plus aria-hidden />
+          Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function VideoAgentStep({
+  state,
+  update,
+  showErrors,
+  jobTitle,
+  defaultsLoading,
+  defaultsError,
+}: {
+  state: BuilderState;
+  update: Update;
+  showErrors: boolean;
+  jobTitle: string | null;
+  defaultsLoading: boolean;
+  defaultsError: string | null;
+}) {
+  const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
+  const [avoidDraft, setAvoidDraft] = useState("");
+  const selectedMode = state.videoInterviewConversation
+    ? "conversation"
+    : "standard";
+  const modeInvalid =
+    showErrors &&
+    ((!state.videoInterviewStandard && !state.videoInterviewConversation) ||
+      (state.videoInterviewStandard && state.videoInterviewConversation));
+
+  const mustCount = filledSkillCount(state.videoMustHaveSkills);
+  const goodCount = filledSkillCount(state.videoGoodToHaveSkills);
+  const bonusCount = filledSkillCount(state.videoBonusSkills);
+  const focusCount = state.videoTopicsFocus.filter((topic) =>
+    topic.name.trim()
+  ).length;
+  const avoidCount = state.videoTopicsAvoid.filter((topic) =>
+    topic.text.trim()
+  ).length;
+
+  function addAvoidTopic() {
+    const text = avoidDraft.trim();
+    if (!text) return;
+    update("videoTopicsAvoid", [
+      ...state.videoTopicsAvoid.filter((topic) => topic.text.trim()),
+      {
+        id: `avoid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text,
+      },
+    ]);
+    setAvoidDraft("");
+  }
+
+  return (
+    <StepCard
+      title="Agent Configuration"
+      description={
+        state.videoInterviewConversation
+          ? "Configure Conversation mode with skills and topics for adaptive AI dialogue."
+          : "Choose Standard mode and add the structured interview questions candidates will answer."
+      }
+    >
+      <div className="space-y-4">
+        {state.videoInterviewConversation ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              {defaultsLoading ? (
+                "Loading job defaults…"
+              ) : defaultsError ? (
+                <span className="text-destructive">{defaultsError}</span>
+              ) : jobTitle ? (
+                <>
+                  Synced from{" "}
+                  <span className="font-medium text-foreground">{jobTitle}</span>
+                  <span className="text-muted-foreground"> · editable</span>
+                </>
+              ) : (
+                "Pick a job in Screening Details to auto-fill skills and topics."
+              )}
+            </p>
+            <p className="text-[11px] tabular-nums text-muted-foreground">
+              {mustCount} must · {goodCount + bonusCount} optional · {focusCount}{" "}
+              topics
+            </p>
+          </div>
+        ) : null}
+
+        <div
+          className={cn(
+            "grid gap-2 sm:grid-cols-2",
+            modeInvalid && "rounded-lg ring-1 ring-destructive/60"
+          )}
+          role="radiogroup"
+          aria-label="Interview mode"
+        >
+          {(
+            [
+              {
+                key: "standard" as const,
+                title: "Standard",
+                description: "Structured async prompts",
+                disabled: false,
+              },
+              {
+                key: "conversation" as const,
+                title: "Conversation",
+                description: "Adaptive AI dialogue",
+                disabled: true,
+              },
+            ] as const
+          ).map((mode) => {
+            const checked = selectedMode === mode.key;
+            return (
+              <button
+                key={mode.key}
+                type="button"
+                role="radio"
+                aria-checked={checked}
+                aria-disabled={mode.disabled || undefined}
+                disabled={mode.disabled}
+                onClick={() => {
+                  if (mode.disabled) return;
+                  if (mode.key === "standard") {
+                    update("videoInterviewStandard", true);
+                    update("videoInterviewConversation", false);
+                  } else {
+                    update("videoInterviewStandard", false);
+                    update("videoInterviewConversation", true);
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  mode.disabled
+                    ? "cursor-not-allowed border-border opacity-50"
+                    : "cursor-pointer",
+                  !mode.disabled && checked
+                    ? "border-primary/50 bg-brand-subtle/20"
+                    : !mode.disabled
+                      ? "border-border hover:bg-muted/40"
+                      : null
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "flex size-4 shrink-0 items-center justify-center rounded-full border",
+                    checked && !mode.disabled
+                      ? "border-primary"
+                      : "border-border bg-card"
+                  )}
+                >
+                  {checked && !mode.disabled ? (
+                    <span className="size-2 rounded-full bg-primary" />
+                  ) : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">
+                    {mode.title}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {mode.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {modeInvalid ? (
+          <p className="text-xs text-destructive">
+            Choose either Standard or Conversation.
+          </p>
+        ) : null}
+
+        {state.videoInterviewConversation ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-xl border border-border p-3 sm:p-4">
+            <div className="mb-3 flex items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold text-foreground">Skills</h3>
+              <p className="text-[11px] text-muted-foreground">
+                Press Enter to add
+              </p>
+            </div>
+            <Tabs defaultValue="must" className="w-full">
+              <TabsList className="grid h-auto w-full grid-cols-3">
+                <TabsTrigger value="must" className="gap-1.5 px-2 text-xs">
+                  Must
+                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                    {mustCount}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="good" className="gap-1.5 px-2 text-xs">
+                  Nice
+                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                    {goodCount}
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="bonus" className="gap-1.5 px-2 text-xs">
+                  Bonus
+                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                    {bonusCount}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="must" className="pt-3">
+                <VideoSkillEditor
+                  skills={state.videoMustHaveSkills}
+                  onChange={(skills) => update("videoMustHaveSkills", skills)}
+                  required
+                  showErrors={showErrors}
+                  emptyLabel="No must-have skills yet."
+                  addLabel="Add must-have skill"
+                />
+              </TabsContent>
+              <TabsContent value="good" className="pt-3">
+                <VideoSkillEditor
+                  skills={state.videoGoodToHaveSkills}
+                  onChange={(skills) => update("videoGoodToHaveSkills", skills)}
+                  emptyLabel="No nice-to-have skills yet."
+                  addLabel="Add nice-to-have skill"
+                />
+              </TabsContent>
+              <TabsContent value="bonus" className="pt-3">
+                <VideoSkillEditor
+                  skills={state.videoBonusSkills}
+                  onChange={(skills) => update("videoBonusSkills", skills)}
+                  emptyLabel="No bonus skills yet."
+                  addLabel="Add bonus skill"
+                />
+              </TabsContent>
+            </Tabs>
+          </section>
+
+          <section className="rounded-xl border border-border p-3 sm:p-4">
+            <div className="mb-3 flex items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold text-foreground">Topics</h3>
+              <p className="text-[11px] text-muted-foreground">
+                {focusCount} focus · {avoidCount} avoid
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {state.videoTopicsFocus.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">
+                  No focus topics yet.
+                </p>
+              ) : (
+                state.videoTopicsFocus.map((topic, index) => {
+                  const expanded = expandedTopicId === topic.id;
+                  return (
+                    <div
+                      key={topic.id}
+                      className="rounded-lg border border-border"
+                    >
+                      <div className="flex items-center gap-1.5 p-2">
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
+                          aria-expanded={expanded}
+                          onClick={() =>
+                            setExpandedTopicId(expanded ? null : topic.id)
+                          }
+                        >
+                          <ChevronDown
+                            aria-hidden
+                            className={cn(
+                              "size-3.5 shrink-0 text-muted-foreground transition-transform",
+                              expanded && "rotate-180"
+                            )}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+                            {topic.name.trim() || `Topic ${index + 1}`}
+                          </span>
+                          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                            {topic.discussionMinutes || "—"}m
+                          </span>
+                        </button>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          className="size-7"
+                          aria-label={`Remove topic ${index + 1}`}
+                          onClick={() =>
+                            update(
+                              "videoTopicsFocus",
+                              state.videoTopicsFocus.filter(
+                                (row) => row.id !== topic.id
+                              )
+                            )
+                          }
+                        >
+                          <Trash2 aria-hidden className="size-3.5" />
+                        </Button>
+                      </div>
+                      {expanded ? (
+                        <div className="space-y-2 border-t border-border p-2.5">
+                          <Input
+                            value={topic.name}
+                            onChange={(event) =>
+                              update(
+                                "videoTopicsFocus",
+                                state.videoTopicsFocus.map((row) =>
+                                  row.id === topic.id
+                                    ? { ...row, name: event.target.value }
+                                    : row
+                                )
+                              )
+                            }
+                            placeholder="Topic name"
+                            className="text-xs"
+                          />
+                          <div className="flex items-center gap-2">
+                            <label className="shrink-0 text-[11px] text-muted-foreground">
+                              Minutes
+                            </label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={60}
+                              value={topic.discussionMinutes}
+                              onChange={(event) =>
+                                update(
+                                  "videoTopicsFocus",
+                                  state.videoTopicsFocus.map((row) =>
+                                    row.id === topic.id
+                                      ? {
+                                          ...row,
+                                          discussionMinutes: event.target.value,
+                                        }
+                                      : row
+                                  )
+                                )
+                              }
+                              className="w-20 text-xs"
+                            />
+                          </div>
+                          <Input
+                            value={topic.reason}
+                            onChange={(event) =>
+                              update(
+                                "videoTopicsFocus",
+                                state.videoTopicsFocus.map((row) =>
+                                  row.id === topic.id
+                                    ? { ...row, reason: event.target.value }
+                                    : row
+                                )
+                              )
+                            }
+                            placeholder="Why this topic matters"
+                            className="text-xs"
+                          />
+                          <Textarea
+                            value={topic.sampleQuestions}
+                            onChange={(event) =>
+                              update(
+                                "videoTopicsFocus",
+                                state.videoTopicsFocus.map((row) =>
+                                  row.id === topic.id
+                                    ? {
+                                        ...row,
+                                        sampleQuestions: event.target.value,
+                                      }
+                                    : row
+                                )
+                              )
+                            }
+                            placeholder="Sample questions (one per line)"
+                            className="min-h-16 font-mono text-xs"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
+              )}
+
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  const topic = newVideoTopicFocus();
+                  update("videoTopicsFocus", [
+                    ...state.videoTopicsFocus,
+                    topic,
+                  ]);
+                  setExpandedTopicId(topic.id);
+                }}
+              >
+                <Plus aria-hidden />
+                Add focus topic
+              </Button>
+            </div>
+
+            <div className="mt-4 space-y-2 border-t border-border pt-3">
+              <p className="text-xs font-medium text-foreground">Avoid</p>
+              {avoidCount > 0 ? (
+                <ul className="flex flex-wrap gap-1.5">
+                  {state.videoTopicsAvoid
+                    .filter((topic) => topic.text.trim())
+                    .map((topic) => (
+                      <li
+                        key={topic.id}
+                        className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2.5 pr-1"
+                      >
+                        <span className="truncate text-xs text-foreground">
+                          {topic.text}
+                        </span>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          className="size-5 rounded-full"
+                          aria-label={`Remove avoid topic ${topic.text}`}
+                          onClick={() =>
+                            update(
+                              "videoTopicsAvoid",
+                              state.videoTopicsAvoid.filter(
+                                (row) => row.id !== topic.id
+                              )
+                            )
+                          }
+                        >
+                          <Trash2 aria-hidden className="size-3" />
+                        </Button>
+                      </li>
+                    ))}
+                </ul>
+              ) : null}
+              <div className="flex gap-2">
+                <Input
+                  value={avoidDraft}
+                  onChange={(event) => setAvoidDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addAvoidTopic();
+                    }
+                  }}
+                  placeholder="Topic to skip"
+                  className="flex-1 text-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addAvoidTopic}
+                  disabled={!avoidDraft.trim()}
+                >
+                  <Plus aria-hidden />
+                  Add
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+        ) : (
+          <VideoStandardQuestionsEditor
+            state={state}
+            update={update}
+            showErrors={showErrors}
+          />
+        )}
+      </div>
+    </StepCard>
+  );
+}
+
+function VideoStandardQuestionsEditor({
+  state,
+  update,
+  showErrors,
+}: {
+  state: BuilderState;
+  update: Update;
+  showErrors: boolean;
+}) {
+  const questionsInvalid =
+    showErrors && state.questions.every((question) => !question.text.trim());
+
+  function updateQuestion(id: string, patch: Partial<BuilderQuestion>) {
+    update(
+      "questions",
+      state.questions.map((question) =>
+        question.id === id ? { ...question, ...patch } : question
+      )
+    );
+  }
+
+  return (
+    <section
+      className={cn(
+        "space-y-3 rounded-xl border border-border p-3 sm:p-4",
+        questionsInvalid && "ring-1 ring-destructive/60"
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            Interview questions
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            These prompts are sent to Hyrefast when you launch.
+          </p>
+        </div>
+        <p className="text-[11px] tabular-nums text-muted-foreground">
+          {state.questions.filter((q) => q.text.trim()).length} added
+        </p>
+      </div>
+
+      {state.questions.map((question, index) => (
+        <div
+          key={question.id}
+          className="space-y-2 rounded-lg border border-border p-3"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium tabular-nums text-muted-foreground">
+              Q{index + 1}
+            </span>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="ml-auto"
+              aria-label={`Remove question ${index + 1}`}
+              onClick={() =>
+                update(
+                  "questions",
+                  state.questions.filter((q) => q.id !== question.id)
+                )
+              }
+            >
+              <Trash2 aria-hidden />
+            </Button>
+          </div>
+          <Textarea
+            value={question.text}
+            onChange={(event) =>
+              updateQuestion(question.id, { text: event.target.value })
+            }
+            aria-label={`Question ${index + 1} text`}
+            placeholder="e.g. Describe a project where you owned the outcome end to end"
+            className="min-h-16 text-sm"
+          />
+        </div>
+      ))}
+
+      {state.questions.length < 12 ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            update("questions", [
+              ...state.questions,
+              {
+                id: `q-${Date.now()}`,
+                type: "Custom",
+                text: "",
+                required: false,
+                followUp: "",
+                expectedVariable: "",
+                evaluationEnabled: true,
+              },
+            ])
+          }
+        >
+          <Plus aria-hidden />
+          Add question
+        </Button>
+      ) : (
+        <p className="text-xs text-muted-foreground">Maximum 12 questions.</p>
+      )}
+
+      {questionsInvalid ? (
+        <p className="text-xs text-destructive">
+          Add at least one interview question.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function QuestionsStep({
   state,
   update,
@@ -658,7 +1661,8 @@ function QuestionsStep({
               <Select
                 value={question.type}
                 onValueChange={(value) =>
-                  value && updateQuestion(question.id, { type: value as QuestionType })
+                  value &&
+                  updateQuestion(question.id, { type: value as QuestionType })
                 }
               >
                 <SelectTrigger
@@ -1075,15 +2079,21 @@ function ReviewStep({
   const stats = state.audiencePreview;
   const activeQuestions = state.questions.filter((q) => q.text.trim());
   const capturedAnswers = answerCaptureQuestions(state);
+  const steps = stepsForMode(state);
+
+  function goToStep(stepId: StepId) {
+    const index = steps.findIndex((step) => step.id === stepId);
+    if (index >= 0) goTo(index);
+  }
 
   const sections: {
-    step: number;
+    stepId: StepId;
     icon: typeof AudioLines;
     title: string;
     lines: string[];
   }[] = [
     {
-      step: 0,
+      stepId: "details",
       icon: Briefcase,
       title: "Details",
       lines: [
@@ -1094,7 +2104,7 @@ function ReviewStep({
       ],
     },
     {
-      step: 1,
+      stepId: "candidates",
       icon: Users,
       title: "Candidates",
       lines: stats
@@ -1107,63 +2117,98 @@ function ReviewStep({
           : ["No source selected"],
     },
     {
-      step: 2,
-      icon: AudioLines,
+      stepId: "agent",
+      icon: state.screeningMode === "video" ? Video : AudioLines,
       title: "Agent",
-      lines: [
-        `${SCREENING_LANGUAGE_OPTIONS.find((o) => o.value === state.language)?.label || state.language} · ${SCREENING_VOICE_OPTIONS.find((o) => o.value === state.voice)?.label || state.voice} · ${SCREENING_TONE_OPTIONS.find((o) => o.value === state.tone)?.label || state.tone}`,
-        isRoshniAgentPrompt(state.agentPrompt)
-          ? "Roshni agent prompt configured"
-          : "Custom agent prompt configured",
-      ],
+      lines:
+        state.screeningMode === "video"
+          ? state.videoInterviewConversation
+            ? [
+                "Conversation mode",
+                `${state.videoMustHaveSkills.filter((s) => s.skillName.trim()).length} must-have · ${state.videoGoodToHaveSkills.filter((s) => s.skillName.trim()).length} good-to-have · ${state.videoBonusSkills.filter((s) => s.skillName.trim()).length} bonus skills`,
+                `${state.videoTopicsFocus.filter((t) => t.name.trim()).length} focus topics · ${state.videoTopicsAvoid.filter((t) => t.text.trim()).length} avoid`,
+              ]
+            : [
+                "Standard mode",
+                `${activeQuestions.length} interview question${activeQuestions.length === 1 ? "" : "s"}`,
+                ...activeQuestions.slice(0, 3).map(
+                  (question, index) =>
+                    `Q${index + 1}: ${questionAnswerLabel(question, index)}`
+                ),
+                activeQuestions.length > 3
+                  ? `+${activeQuestions.length - 3} more`
+                  : null,
+              ].filter((line): line is string => Boolean(line))
+          : [
+              `${SCREENING_LANGUAGE_OPTIONS.find((o) => o.value === state.language)?.label || state.language} · ${SCREENING_VOICE_OPTIONS.find((o) => o.value === state.voice)?.label || state.voice} · ${SCREENING_TONE_OPTIONS.find((o) => o.value === state.tone)?.label || state.tone}`,
+              isRoshniAgentPrompt(state.agentPrompt)
+                ? "Roshni agent prompt configured"
+                : "Custom agent prompt configured",
+            ],
     },
-    {
-      step: 3,
-      icon: ListChecks,
-      title: "Questions",
-      lines: [
-        `${activeQuestions.length} questions`,
-        `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} capture answers · ${activeQuestions.filter((q) => q.followUp.trim()).length} with follow-ups`,
-        ...activeQuestions.slice(0, 3).map((question, index) => {
-          const bits = [
-            `Q${index + 1} ${question.type}`,
-            question.expectedVariable.trim()
-              ? `→ ${question.expectedVariable.trim()}`
-              : null,
-            question.required ? "required" : null,
-          ].filter(Boolean);
-          return bits.join(" · ");
-        }),
-        activeQuestions.length > 3
-          ? `+${activeQuestions.length - 3} more`
-          : null,
-      ].filter((line): line is string => Boolean(line)),
-    },
-    {
-      step: 4,
-      icon: CheckCircle2,
-      title: "Evaluation",
-      lines: [
-        `Shortlist at communication ≥ ${state.minShortlistScore}/100`,
-        `${capturedAnswers.length} answer field${capturedAnswers.length === 1 ? "" : "s"} · ${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
-      ],
-    },
-    {
-      step: 5,
-      icon: AudioLines,
-      title: "Call settings",
-      lines: [
-        `${state.attempts} attempts · ${state.delay} apart`,
-        `${state.callWindow} · ${state.timezone}`,
-        `Retry on no answer · ${state.voicemail}`,
-      ],
-    },
+    ...(state.screeningMode === "voice"
+      ? [
+          {
+            stepId: "questions" as const,
+            icon: ListChecks,
+            title: "Questions",
+            lines: [
+              `${activeQuestions.length} questions`,
+              `${activeQuestions.filter((q) => q.required).length} required · ${activeQuestions.filter((q) => q.evaluationEnabled).length} capture answers · ${activeQuestions.filter((q) => q.followUp.trim()).length} with follow-ups`,
+              ...activeQuestions.slice(0, 3).map((question, index) => {
+                const bits = [
+                  `Q${index + 1} ${question.type}`,
+                  question.expectedVariable.trim()
+                    ? `→ ${question.expectedVariable.trim()}`
+                    : null,
+                  question.required ? "required" : null,
+                ].filter(Boolean);
+                return bits.join(" · ");
+              }),
+              activeQuestions.length > 3
+                ? `+${activeQuestions.length - 3} more`
+                : null,
+            ].filter((line): line is string => Boolean(line)),
+          },
+        ]
+      : []),
+    ...(state.screeningMode === "voice"
+      ? [
+          {
+            stepId: "evaluation" as const,
+            icon: CheckCircle2,
+            title: "Evaluation",
+            lines: [
+              `Shortlist at communication ≥ ${state.minShortlistScore}/100`,
+              `${capturedAnswers.length} answer field${capturedAnswers.length === 1 ? "" : "s"} · ${state.knockouts.length} knockout${state.knockouts.length === 1 ? "" : "s"}`,
+            ],
+          },
+        ]
+      : []),
+    ...(state.screeningMode === "voice"
+      ? [
+          {
+            stepId: "call" as const,
+            icon: AudioLines,
+            title: "Call settings",
+            lines: [
+              `${state.attempts} attempts · ${state.delay} apart`,
+              `${state.callWindow} · ${state.timezone}`,
+              `Retry on no answer · ${state.voicemail}`,
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (
     <StepCard
       title="Review and Launch"
-      description="Everything the voice agent will do. No calls are placed from this UI preview."
+      description={
+        state.screeningMode === "video"
+          ? "Review the video screening setup before launch."
+          : "Everything the voice agent will do. No calls are placed from this UI preview."
+      }
     >
       <div className="space-y-4">
         <ErrorList errors={errors} />
@@ -1184,7 +2229,7 @@ function ReviewStep({
                 <Button
                   size="xs"
                   variant="ghost"
-                  onClick={() => goTo(section.step)}
+                  onClick={() => goToStep(section.stepId)}
                 >
                   <Pencil aria-hidden />
                   Edit
@@ -1224,6 +2269,19 @@ const OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
   },
 };
 
+const VIDEO_OUTCOME_COPY: Record<Outcome, { title: string; description: string }> = {
+  draft: {
+    title: "Draft saved",
+    description:
+      "Your video screening was saved as a draft. Finish and launch it any time from the AI Screening home.",
+  },
+  launched: {
+    title: "Video screening launched",
+    description:
+      "Interview links were created for eligible candidates. Share or deliver those invites to start async video interviews.",
+  },
+};
+
 async function resolveAudienceIds(state: BuilderState): Promise<string[]> {
   return resolveAudienceCandidateIds({
     source: state.source,
@@ -1237,12 +2295,13 @@ function toCreateInput(
   state: BuilderState,
   candidateIds: string[]
 ): ScreeningCreateInput {
-  return {
+  const base: ScreeningCreateInput = {
     name: state.name.trim(),
     ownerUserId: state.ownerUserId || undefined,
     jobId: state.jobId || null,
     description: state.description.trim() || null,
     objective: state.objective || null,
+    modality: state.screeningMode,
     language: state.language,
     voice: state.voice,
     tone: state.tone,
@@ -1282,6 +2341,48 @@ function toCreateInput(
     },
     candidateIds,
   };
+
+  if (state.screeningMode !== "video") return base;
+
+  return {
+    ...base,
+    videoConfig: {
+      mustHaveSkills: state.videoMustHaveSkills
+        .filter((skill) => skill.skillName.trim())
+        .map((skill) => ({
+          skillName: skill.skillName.trim().slice(0, 60),
+          proficiency: toUiSkillProficiency(skill.proficiency),
+        })),
+      goodToHaveSkills: state.videoGoodToHaveSkills
+        .filter((skill) => skill.skillName.trim())
+        .map((skill) => ({
+          skillName: skill.skillName.trim().slice(0, 60),
+          proficiency: toUiSkillProficiency(skill.proficiency),
+        })),
+      bonusSkills: state.videoBonusSkills
+        .filter((skill) => skill.skillName.trim())
+        .map((skill) => ({
+          skillName: skill.skillName.trim().slice(0, 60),
+          proficiency: toUiSkillProficiency(skill.proficiency),
+        })),
+      topicsFocus: state.videoTopicsFocus
+        .filter((topic) => topic.name.trim())
+        .map((topic) => ({
+          name: topic.name.trim().slice(0, 200),
+          discussionMinutes: Number(topic.discussionMinutes) || null,
+          reason: topic.reason.trim() || null,
+          sampleQuestions: topic.sampleQuestions
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean),
+        })),
+      topicsAvoid: state.videoTopicsAvoid
+        .map((topic) => topic.text.trim())
+        .filter(Boolean),
+      interviewStandard: state.videoInterviewStandard,
+      interviewConversation: state.videoInterviewConversation,
+    },
+  };
 }
 
 export function ScreeningBuilder() {
@@ -1306,6 +2407,63 @@ export function ScreeningBuilder() {
     introduction: ROSHNI_INTRODUCTION,
     agentPrompt: defaultAiVoiceStepBody(),
   });
+  const [videoDefaultsLoading, setVideoDefaultsLoading] = useState(false);
+  const [videoDefaultsError, setVideoDefaultsError] = useState<string | null>(
+    null
+  );
+  const [videoDefaultsJobTitle, setVideoDefaultsJobTitle] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    if (state.screeningMode !== "video" || !state.jobId) {
+      setVideoDefaultsLoading(false);
+      setVideoDefaultsError(null);
+      if (!state.jobId) setVideoDefaultsJobTitle(null);
+      return;
+    }
+
+    let cancelled = false;
+    const jobId = state.jobId;
+    setVideoDefaultsLoading(true);
+    setVideoDefaultsError(null);
+
+    void jobsApi
+      .getById(jobId)
+      .then((detail) => {
+        if (cancelled) return;
+        if (!detail) {
+          setVideoDefaultsError("Could not load the selected job.");
+          setVideoDefaultsJobTitle(null);
+          return;
+        }
+        const defaults = videoDefaultsFromJob(detail);
+        setVideoDefaultsJobTitle(detail.title);
+        setState((previous) => {
+          if (
+            previous.jobId !== jobId ||
+            previous.screeningMode !== "video"
+          ) {
+            return previous;
+          }
+          return { ...previous, ...defaults };
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setVideoDefaultsError(
+          getApiErrorMessage(error, "Unable to load job defaults.")
+        );
+        setVideoDefaultsJobTitle(null);
+      })
+      .finally(() => {
+        if (!cancelled) setVideoDefaultsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.jobId, state.screeningMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1420,10 +2578,18 @@ export function ScreeningBuilder() {
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
 
-  const currentErrors = stepErrors(current, state);
+  const steps = stepsForMode(state);
+  const currentStepId = steps[current]?.id ?? "details";
+  const currentErrors = stepErrorsById(currentStepId, state);
   const showErrors = attempted.has(current);
   const launchErrors = allErrors(state);
   const reachable = maxReachableStep(state);
+
+  useEffect(() => {
+    if (current >= steps.length) {
+      setCurrent(Math.max(0, steps.length - 1));
+    }
+  }, [current, steps.length]);
 
   function goTo(step: number) {
     if (step > reachable) {
@@ -1441,12 +2607,12 @@ export function ScreeningBuilder() {
       setAttempted((previous) => new Set(previous).add(current));
       return;
     }
-    goTo(Math.min(current + 1, STEPS.length - 1));
+    goTo(Math.min(current + 1, steps.length - 1));
   }
 
   async function submit(mode: Outcome) {
     if (mode === "launched" && launchErrors.length > 0) {
-      setAttempted(new Set([0, 1, 2, 3, 4]));
+      setAttempted(new Set(steps.map((_, index) => index)));
       return;
     }
     setSubmitting(true);
@@ -1469,7 +2635,10 @@ export function ScreeningBuilder() {
   }
 
   if (outcome) {
-    const copy = OUTCOME_COPY[outcome];
+    const copy =
+      state.screeningMode === "video"
+        ? VIDEO_OUTCOME_COPY[outcome]
+        : OUTCOME_COPY[outcome];
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-6 py-20 text-center">
         <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/10">
@@ -1534,16 +2703,20 @@ export function ScreeningBuilder() {
         className="rounded-xl border border-border bg-card p-4"
       >
         <Stepper
-          steps={STEPS}
+          steps={steps}
           currentStep={current}
           onStepSelect={goTo}
           maxEnabledStep={reachable}
           errorSteps={
             new Set(
-              STEPS.map((_, index) => index).filter(
-                (index) =>
-                  attempted.has(index) && stepErrors(index, state).length > 0
-              )
+              steps
+                .map((step, index) => ({ step, index }))
+                .filter(
+                  ({ step, index }) =>
+                    attempted.has(index) &&
+                    stepErrorsById(step.id, state).length > 0
+                )
+                .map(({ index }) => index)
             )
           }
         />
@@ -1556,7 +2729,7 @@ export function ScreeningBuilder() {
         </p>
       ) : null}
 
-      {current === 0 ? (
+      {currentStepId === "details" ? (
         <DetailsStep
           state={state}
           update={update}
@@ -1569,30 +2742,45 @@ export function ScreeningBuilder() {
           ownersError={ownersError}
           retryLoading={() => setLoadVersion((version) => version + 1)}
         />
-      ) : current === 1 ? (
+      ) : currentStepId === "candidates" ? (
         <AudienceStep
           state={state}
           update={update}
           showErrors={showErrors}
           title="Candidate Selection"
-          description="Choose who receives the voice screening call. Candidates without a phone number are skipped."
+          description={
+            state.screeningMode === "video"
+              ? "Choose who receives the video screening invite."
+              : "Choose who receives the voice screening call. Candidates without a phone number are skipped."
+          }
           sourceErrorLabel="Choose where screening candidates come from."
           importListNamePrefix="Screening import"
           importListDescription="Candidates imported for an AI screening batch"
           importListTags={["screening-import"]}
         />
-      ) : current === 2 ? (
-        <AgentStep
-          state={state}
-          update={update}
-          showErrors={showErrors}
-          voiceDefaults={voiceDefaults}
-        />
-      ) : current === 3 ? (
+      ) : currentStepId === "agent" ? (
+        state.screeningMode === "video" ? (
+          <VideoAgentStep
+            state={state}
+            update={update}
+            showErrors={showErrors}
+            jobTitle={videoDefaultsJobTitle}
+            defaultsLoading={videoDefaultsLoading}
+            defaultsError={videoDefaultsError}
+          />
+        ) : (
+          <AgentStep
+            state={state}
+            update={update}
+            showErrors={showErrors}
+            voiceDefaults={voiceDefaults}
+          />
+        )
+      ) : currentStepId === "questions" ? (
         <QuestionsStep state={state} update={update} />
-      ) : current === 4 ? (
+      ) : currentStepId === "evaluation" ? (
         <EvaluationStep state={state} update={update} showErrors={showErrors} />
-      ) : current === 5 ? (
+      ) : currentStepId === "call" ? (
         <CallSettingsStep state={state} update={update} />
       ) : (
         <ReviewStep state={state} errors={launchErrors} goTo={goTo} jobs={jobs} />
@@ -1622,7 +2810,7 @@ export function ScreeningBuilder() {
             Save Draft
           </Button>
 
-          {current < STEPS.length - 1 ? (
+          {current < steps.length - 1 ? (
             <Button type="button" size="sm" onClick={next} disabled={submitting}>
               Continue
               <ArrowRight aria-hidden />
@@ -1640,7 +2828,7 @@ export function ScreeningBuilder() {
           )}
         </div>
 
-        {current === STEPS.length - 1 && launchErrors.length > 0 ? (
+        {current === steps.length - 1 && launchErrors.length > 0 ? (
           <p className="w-full text-right text-xs text-destructive">
             Resolve the errors above to launch.
           </p>

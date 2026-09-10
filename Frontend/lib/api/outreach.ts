@@ -262,6 +262,25 @@ export type ApiCampaignEnrollment = {
   nextActionAt: string | null;
   lastActionAt: string | null;
   stopReason: string | null;
+  /** Gmail gateway `overallAIStatus` when a matching hcg_gmail_conversations doc exists. */
+  overallAIStatus?: string | null;
+  /** Gmail gateway `overallAIDescription` for the status tooltip. */
+  overallAIDescription?: string | null;
+  /** Screening Q&A from `hcg_gmail_conversations.questions`. */
+  gmailQuestions?: Array<{
+    id: string;
+    question: string;
+    asked: boolean;
+    answer: string;
+    status: string;
+    description: string;
+  }>;
+};
+
+export type ApiGmailQuestionColumn = {
+  id: string;
+  title: string;
+  prompt: string;
 };
 
 export type ListEnrollmentsParams = ApiQueryParams & {
@@ -463,7 +482,11 @@ export interface OutreachApi {
   listEnrollmentsPage(
     id: string,
     params?: ListEnrollmentsParams
-  ): Promise<{ items: ApiCampaignEnrollment[]; pagination: PaginationMeta }>;
+  ): Promise<{
+    items: ApiCampaignEnrollment[];
+    pagination: PaginationMeta;
+    gmailQuestionColumns?: ApiGmailQuestionColumn[];
+  }>;
   getActivity(id: string): Promise<
     Array<{ id: string; type: string; title: string; detail: string | null; createdAt: string }>
   >;
@@ -1129,8 +1152,12 @@ const liveOutreachApi: OutreachApi = {
       `/outreach-campaigns/${id}/enrollments${buildQueryString(params)}`
     );
     const pagination = result.meta?.pagination;
+    const gmailQuestionColumns = Array.isArray(result.meta?.gmailQuestionColumns)
+      ? (result.meta.gmailQuestionColumns as ApiGmailQuestionColumn[])
+      : [];
     return {
       items: result.data,
+      gmailQuestionColumns,
       pagination: pagination
         ? {
             page: pagination.page,

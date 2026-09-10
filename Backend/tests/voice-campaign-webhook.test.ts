@@ -9,11 +9,16 @@ vi.mock('../src/modules/outreach/campaign-delivery.js', async (importOriginal) =
       providerMessageId: 'wa-hiring-flow-1',
       provider: 'meta',
     }),
+    sendPostQualificationWhatsAppViaGateway: vi.fn().mockResolvedValue({
+      providerMessageId: 'wa-hiring-flow-1',
+      provider: 'huntlo-whatsapp',
+      threadId: 'hcg-wa-post-qual-1',
+    }),
   };
 });
 
 import { createApp } from '../src/app.js';
-import { sendHiringFlowWhatsAppTemplate } from '../src/modules/outreach/campaign-delivery.js';
+import { sendHiringFlowWhatsAppTemplate, sendPostQualificationWhatsAppViaGateway } from '../src/modules/outreach/campaign-delivery.js';
 import { connectDatabase, disconnectDatabase } from '../src/config/database.js';
 import { resetEnvCache } from '../src/config/env.js';
 import { clearRateLimits } from '../src/middleware/rate-limit.js';
@@ -98,6 +103,7 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
   beforeEach(async () => {
     clearRateLimits();
     vi.mocked(sendHiringFlowWhatsAppTemplate).mockClear();
+    vi.mocked(sendPostQualificationWhatsAppViaGateway).mockClear();
     await Promise.all([
       UserModel.deleteMany({}),
       UserSessionModel.deleteMany({}),
@@ -341,6 +347,7 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     );
     expect(updated!.qualificationState.answers['q-marriage']?.value).toBe('Single');
     expect(sendHiringFlowWhatsAppTemplate).not.toHaveBeenCalled();
+    expect(sendPostQualificationWhatsAppViaGateway).not.toHaveBeenCalled();
   });
 
   it('starts post-qualification WhatsApp when voice screening qualifies the candidate', async () => {
@@ -429,13 +436,17 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(sendHiringFlowWhatsAppTemplate).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(sendHiringFlowWhatsAppTemplate).mock.calls[0][0]).toMatchObject({
+    expect(sendHiringFlowWhatsAppTemplate).not.toHaveBeenCalled();
+    expect(sendPostQualificationWhatsAppViaGateway).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendPostQualificationWhatsAppViaGateway).mock.calls[0][0]).toMatchObject({
       campaignId: String(campaign._id),
       enrollmentId: String(enrollment._id),
       to: '+919876543213',
       templateId: 'resume_share',
     });
+    expect(String(vi.mocked(sendPostQualificationWhatsAppViaGateway).mock.calls[0][0].prompt)).toContain(
+      'already completed a voice screening call'
+    );
 
     const updated = await OutreachEnrollmentModel.findById(enrollment._id);
     expect(updated!.qualificationState.status).toBe('qualified');
@@ -513,6 +524,7 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     });
 
     vi.mocked(sendHiringFlowWhatsAppTemplate).mockClear();
+    vi.mocked(sendPostQualificationWhatsAppViaGateway).mockClear();
     const res = await postSignedHunarWebhook(
       agent,
       `/api/integrations/voice/hunar/call-summary?campaignId=${String(campaign._id)}`,
@@ -532,7 +544,7 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(sendHiringFlowWhatsAppTemplate).toHaveBeenCalledTimes(1);
+    expect(sendPostQualificationWhatsAppViaGateway).toHaveBeenCalledTimes(1);
 
     const updated = await OutreachEnrollmentModel.findById(enrollment._id);
     expect(updated!.hiringFlowState?.status).toBe('completed');
@@ -611,6 +623,7 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     });
 
     vi.mocked(sendHiringFlowWhatsAppTemplate).mockClear();
+    vi.mocked(sendPostQualificationWhatsAppViaGateway).mockClear();
     const res = await postSignedHunarWebhook(
       agent,
       `/api/integrations/voice/hunar/call-result?campaignId=${String(campaign._id)}`,
@@ -631,7 +644,7 @@ describe('AI voice — campaign webhooks + VoiceCall stubs', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(sendHiringFlowWhatsAppTemplate).toHaveBeenCalledTimes(1);
+    expect(sendPostQualificationWhatsAppViaGateway).toHaveBeenCalledTimes(1);
 
     const updated = await OutreachEnrollmentModel.findById(enrollment._id);
     expect(updated!.qualificationState.status).toBe('in_progress');

@@ -13,11 +13,10 @@ import {
   SkipBack,
   SkipForward,
   StickyNote,
-  Volume2,
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
@@ -45,12 +44,19 @@ const REC_CLASSES: Record<AiRecommendation, string> = {
   "Needs review": "bg-warning/10 text-warning",
 };
 
-const DECISION_CLASSES: Record<RecruiterDecision, string> = {
-  Pending: "bg-muted text-muted-foreground",
-  Shortlisted: "bg-brand-subtle text-primary",
-  Rejected: "bg-destructive/10 text-destructive",
-  "Interview scheduled": "bg-info/10 text-info",
-};
+function aiBadgeClass(status: string | null | undefined, fallback: AiRecommendation): string {
+  const raw = String(status || "").toLowerCase();
+  if (!raw) return REC_CLASSES[fallback];
+  if (raw.includes("shortlist")) return REC_CLASSES.Shortlist;
+  if (
+    raw.includes("reject") ||
+    raw.includes("not interested") ||
+    raw.includes("not qualified")
+  ) {
+    return REC_CLASSES.Reject;
+  }
+  return REC_CLASSES["Needs review"];
+}
 
 const ACTIVITY_ICONS: Record<
   ResultActivityIcon,
@@ -99,6 +105,87 @@ function EmptyDetail({
   );
 }
 
+function VideoResponsesPanel({
+  responses,
+  interviewLink,
+}: {
+  responses: NonNullable<ScreeningResultDetail["videoResponses"]>;
+  interviewLink?: string | null;
+}) {
+  if (responses.length === 0) {
+    return (
+      <div className="space-y-3">
+        <EmptyDetail
+          title="No interview responses yet"
+          description="Responses appear after the candidate finishes the video interview. Refresh this page to pull the latest from Hyrefast."
+        />
+        {interviewLink ? (
+          <p className="text-center text-xs text-muted-foreground">
+            Invite link:{" "}
+            <a
+              href={interviewLink}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-4"
+            >
+              Open interview
+            </a>
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {responses.map((item) => {
+        const transcript =
+          item.transcriptionText ||
+          item.responseText ||
+          (item.isSkipped
+            ? "Skipped"
+            : item.transcriptionStatus === "processing"
+              ? "Transcription in progress…"
+              : "No transcript yet");
+        return (
+          <section
+            key={item.id}
+            className="overflow-hidden rounded-xl border border-border bg-card"
+          >
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                Question {item.questionNumber}
+                {item.responseDuration != null
+                  ? ` · ${Math.round(item.responseDuration)}s`
+                  : ""}
+                {item.isSkipped ? " · Skipped" : ""}
+              </p>
+              <h3 className="mt-1 text-sm font-semibold text-foreground">
+                {item.questionText || "Interview question"}
+              </h3>
+            </div>
+            <div className="space-y-3 px-4 py-3">
+              {item.videoUrl ? (
+                <video
+                  controls
+                  preload="metadata"
+                  src={item.videoUrl}
+                  className="aspect-video w-full rounded-lg bg-black"
+                />
+              ) : item.audioUrl ? (
+                <audio controls preload="metadata" src={item.audioUrl} className="w-full" />
+              ) : null}
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                {transcript}
+              </p>
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 function AudioPlayerUI({
   durationSeconds,
   label,
@@ -111,17 +198,37 @@ function AudioPlayerUI({
   url: string | null;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const trackRef = useRef<HTMLButtonElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
-  const effectiveDuration = useMemo(() => {
-    const fromAudio = audioRef.current?.duration;
-    if (fromAudio && Number.isFinite(fromAudio) && fromAudio > 0) {
-      return fromAudio;
+  const [duration, setDuration] = useState(
+    durationSeconds > 0 ? durationSeconds : 0
+  );
+
+  useEffect(() => {
+    if (durationSeconds > 0) {
+      setDuration((current) => (current > 0 ? current : durationSeconds));
     }
-    return durationSeconds > 0 ? durationSeconds : 0;
-  }, [durationSeconds, position, playing]);
-  const progress =
-    effectiveDuration > 0 ? (position / effectiveDuration) * 100 : 0;
+  }, [durationSeconds]);
+
+  const bars = useMemo(
+    () =>
+      Array.from({ length: 48 }, (_, index) => {
+        const wave =
+          28 +
+          Math.round(
+            36 * Math.abs(Math.sin(index * 0.55)) +
+              18 * Math.abs(Math.sin(index * 1.3 + 0.4))
+          );
+        return Math.min(92, wave);
+      }),
+    []
+  );
+
+  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
+  const shortLabel = label.includes("_")
+    ? label.replace(/^.*\//, "").replace(/_[0-9]+_plivo\.wav$/i, ".wav")
+    : label;
 
   async function togglePlay() {
     const audio = audioRef.current;
@@ -141,9 +248,19 @@ function AudioPlayerUI({
 
   function scrub(next: number) {
     const audio = audioRef.current;
-    const clamped = Math.max(0, Math.min(effectiveDuration || next, next));
+    const max = duration > 0 ? duration : next;
+    const clamped = Math.max(0, Math.min(max, next));
     setPosition(clamped);
     if (audio) audio.currentTime = clamped;
+  }
+
+  function seekFromClientX(clientX: number) {
+    const track = trackRef.current;
+    if (!track || duration <= 0) return;
+    const rect = track.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    scrub(ratio * duration);
   }
 
   if (!url) {
@@ -156,103 +273,129 @@ function AudioPlayerUI({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground">Recording</h3>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {label} · {size}
-          </p>
+    <section className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <FileAudio aria-hidden className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">
+              Call recording
+            </h3>
+            <p className="truncate text-xs text-muted-foreground" title={label}>
+              {shortLabel}
+              {size && size !== "—" ? ` · ${size}` : null}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge
-            text={playing ? "Playing" : "Paused"}
-            className={
-              playing ? "bg-info/10 text-info" : "bg-muted text-muted-foreground"
-            }
-          />
-          <Button size="sm" variant="outline" nativeButton={false} render={<a href={url} target="_blank" rel="noreferrer" />}>
-            <Download aria-hidden />
-            Open
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={<a href={url} target="_blank" rel="noreferrer" download />}
+        >
+          <Download aria-hidden />
+          Download
+        </Button>
       </div>
 
-      <audio
-        ref={audioRef}
-        src={url}
-        preload="metadata"
-        className="sr-only"
-        onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
-        onEnded={() => setPlaying(false)}
-        onPause={() => setPlaying(false)}
-        onPlay={() => setPlaying(true)}
-      />
-
-      <div
-        aria-hidden
-        className="mt-4 flex h-16 items-end gap-0.5 overflow-hidden rounded-lg bg-muted/50 px-2 py-2"
-      >
-        {Array.from({ length: 64 }).map((_, index) => {
-          const height = 20 + ((index * 17) % 60);
-          const filled = (index / 64) * 100 <= progress;
-          return (
-            <span
-              key={index}
-              className={cn(
-                "w-full rounded-sm",
-                filled ? "bg-primary/70" : "bg-border"
-              )}
-              style={{ height: `${height}%` }}
-            />
-          );
-        })}
-      </div>
-
-      <div className="mt-3">
-        <input
-          type="range"
-          min={0}
-          max={Math.max(1, Math.floor(effectiveDuration))}
-          value={Math.floor(position)}
-          onChange={(event) => scrub(Number(event.target.value))}
-          aria-label="Playback position"
-          className="w-full accent-primary"
+      <div className="px-4 py-5">
+        <audio
+          ref={audioRef}
+          src={url}
+          preload="metadata"
+          className="sr-only"
+          onLoadedMetadata={(event) => {
+            const next = event.currentTarget.duration;
+            if (Number.isFinite(next) && next > 0) setDuration(next);
+          }}
+          onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+          onEnded={() => {
+            setPlaying(false);
+            setPosition(0);
+          }}
+          onPause={() => setPlaying(false)}
+          onPlay={() => setPlaying(true)}
         />
-        <div className="mt-1 flex justify-between text-[11px] tabular-nums text-muted-foreground">
-          <span>{formatTime(position)}</span>
-          <span>{formatTime(effectiveDuration)}</span>
-        </div>
-      </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Skip back 10 seconds"
-          onClick={() => scrub(position - 10)}
-        >
-          <SkipBack aria-hidden />
-        </Button>
-        <Button
-          size="icon"
-          aria-label={playing ? "Pause" : "Play"}
-          onClick={() => void togglePlay()}
-        >
-          {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Skip forward 10 seconds"
-          onClick={() => scrub(position + 10)}
-        >
-          <SkipForward aria-hidden />
-        </Button>
-        <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Volume2 aria-hidden className="size-3.5" />
-          100%
-        </span>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Button
+            size="icon"
+            className="size-11 shrink-0 rounded-full"
+            aria-label={playing ? "Pause" : "Play"}
+            onClick={() => void togglePlay()}
+          >
+            {playing ? (
+              <Pause aria-hidden className="size-5" />
+            ) : (
+              <Play aria-hidden className="size-5 translate-x-px" />
+            )}
+          </Button>
+
+          <div className="min-w-0 flex-1">
+            <button
+              ref={trackRef}
+              type="button"
+              aria-label="Seek recording"
+              className="relative flex h-12 w-full cursor-pointer items-end gap-px overflow-hidden rounded-lg bg-muted/60 px-1.5 py-2"
+              onClick={(event) => seekFromClientX(event.clientX)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowLeft") {
+                  event.preventDefault();
+                  scrub(position - 5);
+                }
+                if (event.key === "ArrowRight") {
+                  event.preventDefault();
+                  scrub(position + 5);
+                }
+              }}
+            >
+              {bars.map((height, index) => {
+                const filled = (index / bars.length) * 100 <= progress;
+                return (
+                  <span
+                    key={index}
+                    className={cn(
+                      "w-full rounded-[1px] transition-colors",
+                      filled ? "bg-primary" : "bg-foreground/15"
+                    )}
+                    style={{ height: `${height}%` }}
+                  />
+                );
+              })}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-2 w-0.5 rounded-full bg-foreground"
+                style={{ left: `calc(${progress}% - 1px)` }}
+              />
+            </button>
+
+            <div className="mt-2 flex items-center justify-between text-[11px] tabular-nums text-muted-foreground">
+              <span>{formatTime(position)}</span>
+              <span>{formatTime(duration)}</span>
+            </div>
+          </div>
+
+          <div className="hidden shrink-0 items-center gap-1 sm:flex">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Skip back 10 seconds"
+              onClick={() => scrub(position - 10)}
+            >
+              <SkipBack aria-hidden />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Skip forward 10 seconds"
+              onClick={() => scrub(position + 10)}
+            >
+              <SkipForward aria-hidden />
+            </Button>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -260,14 +403,29 @@ function AudioPlayerUI({
 
 function SummaryTab({ detail }: { detail: ScreeningResultDetail }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <section className="rounded-xl border border-border bg-card p-4 lg:col-span-2">
+    <div
+      className={cn(
+        "grid gap-4",
+        detail.modality === "video" ? "" : "lg:grid-cols-3"
+      )}
+    >
+      <section
+        className={cn(
+          "rounded-xl border border-border bg-card p-4",
+          detail.modality === "video" ? "" : "lg:col-span-2"
+        )}
+      >
         <h3 className="text-sm font-semibold text-foreground">
           AI-generated summary
         </h3>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           {detail.summary}
         </p>
+        {detail.statusNote ? (
+          <p className="mt-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            {detail.statusNote}
+          </p>
+        ) : null}
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
@@ -343,80 +501,52 @@ function SummaryTab({ detail }: { detail: ScreeningResultDetail }) {
         </div>
       </section>
 
-      <aside className="space-y-3">
-        {(
-          [
-            ["Salary expectation", detail.salaryExpectation],
-            ["Notice period", detail.noticePeriod],
-            ["Preferred location", detail.preferredLocation],
-            ["Candidate interest", detail.candidateInterest],
-          ] as const
-        ).map(([label, value]) => (
-          <div
-            key={label}
-            className="rounded-xl border border-border bg-card p-4"
-          >
-            <p className="text-xs font-medium text-muted-foreground">{label}</p>
-            <p className="mt-1.5 text-sm font-semibold text-foreground">{value}</p>
-          </div>
-        ))}
-      </aside>
-    </div>
-  );
-}
-
-function TranscriptTab({ detail }: { detail: ScreeningResultDetail }) {
-  if (detail.transcript.length === 0) {
-    return (
-      <EmptyDetail
-        title="No transcript yet"
-        description="Transcript text is stored when Hunar includes it in call-summary or call-result webhooks."
-      />
-    );
-  }
-
-  return (
-    <section className="rounded-xl border border-border bg-card p-4">
-      <h3 className="text-sm font-semibold text-foreground">Call transcript</h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        Speakers labelled as AI agent and candidate when available
-      </p>
-      <ol className="mt-4 space-y-3">
-        {detail.transcript.map((turn) => (
-          <li
-            key={turn.id}
-            className={cn(
-              "flex gap-3",
-              turn.speaker === "Candidate" && "flex-row-reverse"
-            )}
-          >
-            <span
-              className={cn(
-                "mt-1 flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
-                turn.speaker === "AI"
-                  ? "bg-brand-subtle text-primary"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              {turn.speaker === "AI" ? "AI" : "C"}
-            </span>
-            <div
-              className={cn(
-                "max-w-[85%] rounded-xl px-3 py-2",
-                turn.speaker === "AI"
-                  ? "bg-brand-subtle/40 text-foreground"
-                  : "bg-muted text-foreground"
-              )}
-            >
-              <p className="text-sm leading-relaxed">{turn.text}</p>
-              <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-                {turn.time} · {turn.speaker}
+      {detail.modality === "video" ? null : (
+        <aside className="space-y-3">
+          {detail.hcgQuestions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center">
+              <p className="text-sm font-medium text-foreground">No questions yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Screening questions from the voice call will appear here.
               </p>
             </div>
-          </li>
-        ))}
-      </ol>
-    </section>
+          ) : (
+            detail.hcgQuestions.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-xl border border-border bg-card p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {item.question}
+                  </p>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                      item.status === "passed"
+                        ? "bg-success/10 text-success"
+                        : item.status === "failed"
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {item.status.replace(/_/g, " ") || "unanswered"}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm font-semibold text-foreground">
+                  {item.answer || "—"}
+                </p>
+                {item.description ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.description}
+                  </p>
+                ) : null}
+              </div>
+            ))
+          )}
+        </aside>
+      )}
+    </div>
   );
 }
 
@@ -746,6 +876,17 @@ export function ResultDetail({
                     <span>{result.duration}</span>
                   </>
                 ) : null}
+                {result.answeredBy ? (
+                  <>
+                    <span aria-hidden className="text-border">
+                      ·
+                    </span>
+                    <span>
+                      Answered by{" "}
+                      {result.answeredBy.replace(/_/g, " ").toLowerCase()}
+                    </span>
+                  </>
+                ) : null}
                 {result.completedDate ? (
                   <>
                     <span aria-hidden className="text-border">
@@ -757,10 +898,12 @@ export function ResultDetail({
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge
-                  text={`AI: ${result.recommendation}`}
-                  className={REC_CLASSES[result.recommendation]}
+                  text={`AI: ${result.overallAIStatus || result.recommendation}`}
+                  className={aiBadgeClass(
+                    result.overallAIStatus,
+                    result.recommendation
+                  )}
                 />
-                <Badge text={decision} className={DECISION_CLASSES[decision]} />
                 {detail.knockouts.some((item) => !item.passed) ? (
                   <Badge
                     text="Knockout failed"
@@ -790,61 +933,63 @@ export function ResultDetail({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() => {
-                setDecision("Interview scheduled");
-                flash(
-                  `Open scheduling for ${result.candidateName} from Schedule.`
-                );
-              }}
-            >
-              <CalendarClock aria-hidden />
-              Schedule
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                void runMutation(
-                  () => screeningApi.callAgainResult(result.id),
-                  `Queued another call for ${result.candidateName}.`,
-                  "Pending"
-                )
-              }
-            >
-              <Phone aria-hidden />
-              Call again
-            </Button>
+        {detail.modality !== "video" ? (
+          <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setDecision("Interview scheduled");
+                  flash(
+                    `Open scheduling for ${result.candidateName} from Schedule.`
+                  );
+                }}
+              >
+                <CalendarClock aria-hidden />
+                Schedule
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  void runMutation(
+                    () => screeningApi.callAgainResult(result.id),
+                    `Queued another call for ${result.candidateName}.`,
+                    "Pending"
+                  )
+                }
+              >
+                <Phone aria-hidden />
+                Call again
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setNoteOpen((previous) => !previous)}
+              >
+                <StickyNote aria-hidden />
+                Add note
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  flash("Report download will be available from exports.")
+                }
+              >
+                <Download aria-hidden />
+                Download
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setNoteOpen((previous) => !previous)}
-            >
-              <StickyNote aria-hidden />
-              Add note
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                flash("Report download will be available from exports.")
-              }
-            >
-              <Download aria-hidden />
-              Download
-            </Button>
-          </div>
-        </div>
+        ) : null}
 
-        {noteOpen ? (
+        {detail.modality !== "video" && noteOpen ? (
           <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
             <Textarea
               value={note}
@@ -890,9 +1035,12 @@ export function ResultDetail({
         <div className="overflow-x-auto">
           <TabsList className="min-w-max">
             <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="transcript">Transcript</TabsTrigger>
-            <TabsTrigger value="recording">Recording</TabsTrigger>
-            <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+            <TabsTrigger value="recording">
+              {detail.modality === "video" ? "Responses" : "Recording"}
+            </TabsTrigger>
+            {detail.modality === "video" ? null : (
+              <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+            )}
             <TabsTrigger value="extracted">Extracted Data</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
@@ -901,20 +1049,26 @@ export function ResultDetail({
         <TabsContent value="summary" className="pt-3">
           <SummaryTab detail={detail} />
         </TabsContent>
-        <TabsContent value="transcript" className="pt-3">
-          <TranscriptTab detail={detail} />
-        </TabsContent>
         <TabsContent value="recording" className="pt-3">
-          <AudioPlayerUI
-            durationSeconds={detail.recording.durationSeconds}
-            label={detail.recording.label}
-            size={detail.recording.size}
-            url={detail.recording.url}
-          />
+          {detail.modality === "video" ? (
+            <VideoResponsesPanel
+              responses={detail.videoResponses || []}
+              interviewLink={detail.interviewLink}
+            />
+          ) : (
+            <AudioPlayerUI
+              durationSeconds={detail.recording.durationSeconds}
+              label={detail.recording.label}
+              size={detail.recording.size}
+              url={detail.recording.url}
+            />
+          )}
         </TabsContent>
-        <TabsContent value="scorecard" className="pt-3">
-          <ScorecardTab result={result} detail={detail} />
-        </TabsContent>
+        {detail.modality === "video" ? null : (
+          <TabsContent value="scorecard" className="pt-3">
+            <ScorecardTab result={result} detail={detail} />
+          </TabsContent>
+        )}
         <TabsContent value="extracted" className="pt-3">
           <ExtractedTab detail={detail} />
         </TabsContent>

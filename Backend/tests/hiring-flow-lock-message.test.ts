@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { HiringFlowStep } from '../src/modules/outreach/hiring-flow.model.js';
 import { ensureSingleLockedWhatsAppStep } from '../src/modules/outreach/hiring-flows.service.js';
 import {
+  collectHiringFlowQuestions,
   isClosedOutreachEnrollmentStatus,
   isHiringFlowReplyAdvanceable,
   isYesNoAnswerType,
@@ -125,6 +126,54 @@ describe('resolveNextHiringFlowStep', () => {
     const next = resolveNextHiringFlowStep(steps, steps[0]!, 'Yes, continue');
 
     expect(next?.id).toBe('step-q1');
+  });
+});
+
+describe('collectHiringFlowQuestions', () => {
+  it('collects ask_question steps in order after the opening template', () => {
+    const steps: HiringFlowStep[] = [
+      wa('step-wa', 'resume_share', 'step-q1'),
+      {
+        id: 'step-q1',
+        type: 'ask_question',
+        label: 'Licence',
+        prompt: 'Do you have a valid driving licence?',
+        answerType: 'Yes / No',
+        knockout: true,
+        knockoutCondition: 'no',
+        nextStepId: 'step-q2',
+        branches: [],
+      },
+      {
+        id: 'step-q2',
+        type: 'ask_question',
+        label: 'Two-wheeler',
+        prompt: 'Do you have your own two-wheeler?',
+        nextStepId: null,
+        branches: [],
+      },
+    ];
+
+    expect(collectHiringFlowQuestions(steps, 'step-wa')).toEqual([
+      {
+        id: 'step-q1',
+        question: 'Do you have a valid driving licence?',
+        required: true,
+        answer_type: 'yes_no',
+        pass_condition: 'Reject if no',
+        buttons: [
+          { id: 'yes', title: 'Yes' },
+          { id: 'no', title: 'No' },
+        ],
+      },
+      {
+        id: 'step-q2',
+        question: 'Do you have your own two-wheeler?',
+        required: true,
+        answer_type: 'text',
+        pass_condition: 'Informational only; any reasonable answer is acceptable',
+      },
+    ]);
   });
 });
 

@@ -25,7 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ConversationsPanel } from "@/components/conversations/conversations-panel";
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
@@ -53,11 +53,13 @@ import {
   type Workflow360,
   type WorkflowCandidate,
   type WorkflowException,
+  type WorkflowScreening,
   type WorkflowStatus,
 } from "@/lib/mock-360";
 import { CHANNEL_ICONS } from "@/lib/mock-outreach";
-import { candidateDetailPath, jobDetailPath, workflowEditPath } from "@/lib/routes";
+import { candidateDetailPath, jobDetailPath, screeningResultPath, workflowEditPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
@@ -384,18 +386,182 @@ function CandidatesTab({ candidates }: { candidates: WorkflowCandidate[] }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Screening + interviews                                               */
+/* Screening (HCG voice attempts)                                       */
 /* ------------------------------------------------------------------ */
 
-function ScreeningTab() {
+const CALL_STATUS_CLASSES: Record<string, string> = {
+  Queued: "bg-muted text-muted-foreground",
+  Calling: "bg-info/10 text-info",
+  Ringing: "bg-info/10 text-info",
+  "In progress": "bg-info/10 text-info",
+  Completed: "bg-success/10 text-success",
+  "No answer": "bg-warning/10 text-warning",
+  Busy: "bg-warning/10 text-warning",
+  Failed: "bg-destructive/10 text-destructive",
+  Cancelled: "bg-muted text-muted-foreground",
+};
+
+function ScreeningTab({ workflowId }: { workflowId: string }) {
+  const [rows, setRows] = useState<WorkflowScreening[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const next = await huntlo360Api.listScreening(workflowId);
+      setRows(next);
+    } catch {
+      setRows([]);
+    }
+  }, [workflowId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        await refresh();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
+
+  useRealtimeRefresh(
+    ["hcg.hunar.updated", "hcg.zyvkay.updated", "screening.result.updated"],
+    () => {
+      void refresh();
+    },
+    { debounceMs: 800 }
+  );
+
+  if (loading) {
+    return (
+      <p className="px-1 py-6 text-sm text-muted-foreground">
+        Loading screening attempts…
+      </p>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        icon={AudioLines}
+        title="No screening data"
+        description="AI voice screening attempts from HCG for this workflow will appear here."
+      />
+    );
+  }
+
   return (
-    <EmptyState
-      icon={AudioLines}
-      title="No screening data"
-      description="AI voice screening attempts for this workflow will appear here."
-    />
+    <section className="overflow-x-auto rounded-xl border border-border bg-card">
+      <Table>
+        <caption className="sr-only">
+          AI voice screening attempts from HCG for this workflow
+        </caption>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className={HEAD}>Candidate</TableHead>
+            <TableHead className={HEAD}>Call status</TableHead>
+            <TableHead className={HEAD}>AI status</TableHead>
+            <TableHead className={HEAD}>Duration</TableHead>
+            <TableHead className={`${HEAD} text-right`}>Score</TableHead>
+            <TableHead className={HEAD}>Last activity</TableHead>
+            <TableHead className={`${HEAD} w-10 text-right`}>
+              <span className="sr-only">Actions</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell className="py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <CandidateAvatar name={row.candidate} className="size-7" />
+                  <div className="min-w-0">
+                    {row.candidateId ? (
+                      <Link
+                        href={candidateDetailPath(row.candidateId)}
+                        className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                      >
+                        {row.candidate}
+                      </Link>
+                    ) : (
+                      <span className="text-sm font-medium text-foreground">
+                        {row.candidate}
+                      </span>
+                    )}
+                    {row.summary ? (
+                      <p
+                        className="max-w-[14rem] truncate text-[11px] text-muted-foreground"
+                        title={row.summary}
+                      >
+                        {row.summary}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className="py-2.5">
+                <Badge
+                  text={row.callStatus}
+                  className={
+                    CALL_STATUS_CLASSES[row.callStatus] ||
+                    "bg-muted text-muted-foreground"
+                  }
+                />
+              </TableCell>
+              <TableCell className="py-2.5 text-sm text-muted-foreground">
+                {row.aiStatus || "—"}
+              </TableCell>
+              <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
+                {row.duration || "—"}
+              </TableCell>
+              <TableCell className="py-2.5 text-right">
+                {typeof row.score === "number" ? (
+                  <Badge
+                    text={String(row.score)}
+                    className={
+                      row.score >= 75
+                        ? "bg-success/10 text-success"
+                        : row.score >= 50
+                          ? "bg-warning/10 text-warning"
+                          : "bg-destructive/10 text-destructive"
+                    }
+                  />
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
+                {row.time}
+              </TableCell>
+              <TableCell className="py-2.5 text-right">
+                {row.screeningResultId ? (
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`View screening result for ${row.candidate}`}
+                    nativeButton={false}
+                    render={<Link href={screeningResultPath(row.screeningResultId)} />}
+                  >
+                    <Eye aria-hidden />
+                  </Button>
+                ) : null}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Screening + interviews                                               */
+/* ------------------------------------------------------------------ */
 
 function InterviewsTab() {
   return (
@@ -514,6 +680,10 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    setStatus(workflow.status);
+  }, [workflow.status]);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
@@ -539,7 +709,7 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
     return () => {
       cancelled = true;
     };
-  }, [workflow.id]);
+  }, [workflow.id, workflow.lastActivity, workflow.replied, workflow.qualified, workflow.screened, workflow.shortlisted]);
 
   function flash(text: string) {
     setFeedback(text);
@@ -780,7 +950,7 @@ export function WorkflowDetail({ workflow }: { workflow: Workflow360 }) {
           )}
         </TabsContent>
         <TabsContent value="screening" className="pt-3">
-          <ScreeningTab />
+          <ScreeningTab workflowId={workflow.id} />
         </TabsContent>
         <TabsContent value="interviews" className="pt-3">
           <InterviewsTab />

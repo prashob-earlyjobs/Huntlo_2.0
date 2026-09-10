@@ -276,8 +276,9 @@ export async function resolveZyastraRecordingUrl(input: {
 }
 
 /**
- * Trigger one AI voice call via Zyastra (non-bulk).
- * Used for non-Indian E.164 numbers.
+ * Direct Zyastra trigger (unused by Huntlo launch). Outreach and screening
+ * dials go through `sendZyastraCallViaGateway` (`vendor: zyvkay`).
+ * Kept for recording/call-detail helpers that still talk to Zyastra APIs.
  */
 export async function triggerZyastraVoiceCall(
   input: ZyastraTriggerInput

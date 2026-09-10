@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  ChevronLeft,
+  ChevronRight,
   Eye,
+  Mail,
   MoreHorizontal,
   Phone,
   Search,
@@ -9,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
@@ -36,10 +39,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getApiErrorMessage, screeningApi } from "@/lib/api";
 import type {
   AiRecommendation,
-  RecruiterDecision,
+  CallStatus,
   ScreeningResult,
 } from "@/lib/mock-screening";
 import {
@@ -52,6 +60,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
+const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
 const REC_CLASSES: Record<AiRecommendation, string> = {
   Shortlist: "bg-success/10 text-success",
@@ -59,11 +68,27 @@ const REC_CLASSES: Record<AiRecommendation, string> = {
   "Needs review": "bg-warning/10 text-warning",
 };
 
-const DECISION_CLASSES: Record<RecruiterDecision, string> = {
-  Pending: "bg-muted text-muted-foreground",
-  Shortlisted: "bg-brand-subtle text-primary",
-  Rejected: "bg-destructive/10 text-destructive",
-  "Interview scheduled": "bg-info/10 text-info",
+const CALL_CLASSES: Record<CallStatus, string> = {
+  Queued: "bg-muted text-muted-foreground",
+  Ringing: "bg-info/10 text-info",
+  Completed: "bg-success/10 text-success",
+  "No answer": "bg-warning/10 text-warning",
+  Voicemail: "bg-warning/10 text-warning",
+  Failed: "bg-destructive/10 text-destructive",
+  "Opted out": "bg-destructive/10 text-destructive",
+};
+
+const RECOMMENDATION_API: Record<string, string> = {
+  Shortlist: "shortlist",
+  Reject: "reject",
+  "Needs review": "review",
+};
+
+const DECISION_API: Record<string, string> = {
+  Pending: "pending",
+  Shortlisted: "shortlisted",
+  Rejected: "rejected",
+  "Interview scheduled": "call_again",
 };
 
 function Badge({ text, className }: { text: string; className: string }) {
@@ -81,11 +106,18 @@ function Badge({ text, className }: { text: string; className: string }) {
 
 function ResultRowActions({
   result,
+  modality = "voice",
+  busy,
+  onInviteOrCallAgain,
   onAction,
 }: {
   result: ScreeningResult;
+  modality?: "voice" | "video";
+  busy?: boolean;
+  onInviteOrCallAgain: (result: ScreeningResult) => void;
   onAction: (message: string) => void;
 }) {
+  const isVideo = modality === "video";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -94,6 +126,7 @@ function ResultRowActions({
             size="icon-sm"
             variant="ghost"
             aria-label={`Actions for ${result.candidateName}`}
+            disabled={busy}
           />
         }
       >
@@ -116,10 +149,17 @@ function ResultRowActions({
         ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => onAction(`Queued another call for “${result.candidateName}”.`)}
+          disabled={busy}
+          onClick={() => onInviteOrCallAgain(result)}
         >
-          <Phone aria-hidden />
-          Call again
+          {isVideo ? <Mail aria-hidden /> : <Phone aria-hidden />}
+          {busy
+            ? isVideo
+              ? "Inviting…"
+              : "Queuing…"
+            : isVideo
+              ? "Invite again"
+              : "Call again"}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onAction(`Note added for “${result.candidateName}”.`)}
@@ -134,25 +174,66 @@ function ResultRowActions({
 
 export function ResultsWorkspace({
   screeningId,
+  modality = "voice",
 }: {
   screeningId?: string;
+  modality?: "voice" | "video";
 } = {}) {
   const [results, setResults] = useState<ScreeningResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [recommendationFilter, setRecommendationFilter] = useState<string[]>([]);
   const [decisionFilter, setDecisionFilter] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const isVideo = modality === "video";
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => window.clearTimeout(id);
+  }, [query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery, recommendationFilter, decisionFilter, pageSize, screeningId]);
 
   const refresh = useCallback(async () => {
+    const recommendation = recommendationFilter
+      .map((value) => RECOMMENDATION_API[value])
+      .filter(Boolean)
+      .join(",");
+    const decision = decisionFilter
+      .map((value) => DECISION_API[value])
+      .filter(Boolean)
+      .join(",");
+
     const next = await screeningApi.listResults({
-      limit: 100,
+      page,
+      limit: pageSize,
+      q: debouncedQuery || undefined,
+      recommendation: recommendation || undefined,
+      decision: decision || undefined,
       ...(screeningId ? { screeningId } : {}),
     });
-    setResults(next);
+    setResults(next.items);
+    setTotal(next.pagination.total);
+    setTotalPages(Math.max(1, next.pagination.totalPages));
+    if (next.pagination.page !== page) setPage(next.pagination.page);
     setError(null);
-  }, [screeningId]);
+  }, [
+    page,
+    pageSize,
+    debouncedQuery,
+    recommendationFilter,
+    decisionFilter,
+    screeningId,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +243,9 @@ export function ResultsWorkspace({
         await refresh();
       } catch (err) {
         if (cancelled) return;
+        setResults([]);
+        setTotal(0);
+        setTotalPages(1);
         setError(getApiErrorMessage(err, "Unable to load screening results."));
       } finally {
         if (!cancelled) setLoading(false);
@@ -189,34 +273,38 @@ export function ResultsWorkspace({
     "Interview scheduled",
   ].map((value) => ({ id: value, label: value }));
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return results.filter((result) => {
-      if (
-        normalized &&
-        !`${result.candidateName} ${result.jobTitle} ${result.screeningName}`
-          .toLowerCase()
-          .includes(normalized)
-      )
-        return false;
-      if (
-        recommendationFilter.length > 0 &&
-        !recommendationFilter.includes(result.recommendation)
-      )
-        return false;
-      if (
-        decisionFilter.length > 0 &&
-        !decisionFilter.includes(result.decision)
-      )
-        return false;
-      return true;
-    });
-  }, [results, query, recommendationFilter, decisionFilter]);
-
   const hasFilters =
     Boolean(query) ||
     recommendationFilter.length > 0 ||
     decisionFilter.length > 0;
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
+
+  async function inviteOrCallAgain(result: ScreeningResult) {
+    if (busyId) return;
+    setBusyId(result.id);
+    try {
+      await screeningApi.callAgainResult(result.id);
+      await refresh();
+      flash(
+        isVideo
+          ? `Re-sent video invite for “${result.candidateName}”.`
+          : `Queued another call for “${result.candidateName}”.`
+      );
+    } catch (err) {
+      flash(
+        getApiErrorMessage(
+          err,
+          isVideo
+            ? "Unable to re-invite this candidate."
+            : "Unable to queue another call."
+        )
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   function flash(text: string) {
     setMessage(text);
@@ -235,7 +323,7 @@ export function ResultsWorkspace({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search candidates, jobs, batches…"
+              placeholder="Search candidates…"
               aria-label="Search screening results"
               className="pl-8"
             />
@@ -305,13 +393,13 @@ export function ResultsWorkspace({
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium tabular-nums text-foreground">
-              {filtered.length}
+              {total}
             </span>{" "}
             results
           </p>
         </div>
 
-        {filtered.length > 0 ? (
+        {results.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <caption className="sr-only">
@@ -320,24 +408,23 @@ export function ResultsWorkspace({
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className={HEAD}>Candidate</TableHead>
-                  <TableHead className={HEAD}>Job</TableHead>
+                  {!screeningId ? (
+                    <TableHead className={HEAD}>Job</TableHead>
+                  ) : null}
                   <TableHead className={HEAD}>Call status</TableHead>
-                  <TableHead className={HEAD}>Attempts</TableHead>
                   <TableHead className={HEAD}>Duration</TableHead>
                   <TableHead className={`${HEAD} text-right`}>
                     Overall score
                   </TableHead>
                   <TableHead className={HEAD}>Recommendation</TableHead>
-                  <TableHead className={HEAD}>Key variables</TableHead>
                   <TableHead className={HEAD}>Completed date</TableHead>
-                  <TableHead className={HEAD}>Recruiter decision</TableHead>
                   <TableHead className={`${HEAD} w-10 text-right`}>
                     <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((result) => (
+                {results.map((result) => (
                   <TableRow key={result.id}>
                     <TableCell className="py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -363,25 +450,44 @@ export function ResultsWorkspace({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="py-2.5 whitespace-nowrap">
-                      {result.jobId ? (
-                        <Link
-                          href={jobDetailPath(result.jobId)}
-                          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-                        >
-                          {result.jobTitle}
-                        </Link>
+                    {!screeningId ? (
+                      <TableCell className="py-2.5 whitespace-nowrap">
+                        {result.jobId ? (
+                          <Link
+                            href={jobDetailPath(result.jobId)}
+                            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                          >
+                            {result.jobTitle}
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            {result.jobTitle}
+                          </span>
+                        )}
+                      </TableCell>
+                    ) : null}
+                    <TableCell className="py-2.5">
+                      {result.error ? (
+                        <Tooltip>
+                          <TooltipTrigger
+                            className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                            aria-label={`${result.callStatus}: ${result.error}`}
+                          >
+                            <Badge
+                              text={result.callStatus}
+                              className={CALL_CLASSES[result.callStatus]}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-72 text-left leading-snug">
+                            {result.error}
+                          </TooltipContent>
+                        </Tooltip>
                       ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {result.jobTitle}
-                        </span>
+                        <Badge
+                          text={result.callStatus}
+                          className={CALL_CLASSES[result.callStatus]}
+                        />
                       )}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-sm text-muted-foreground">
-                      {result.callStatus}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
-                      {result.attemptsUsed}/{result.attemptsMax}
                     </TableCell>
                     <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
                       {result.duration}
@@ -415,36 +521,26 @@ export function ResultsWorkspace({
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="py-2.5">
-                      <div className="flex max-w-56 flex-wrap gap-1">
-                        {result.keyVariables.map((variable) => (
-                          <span
-                            key={variable}
-                            className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                          >
-                            {variable}
-                          </span>
-                        ))}
-                      </div>
-                    </TableCell>
                     <TableCell className="py-2.5 text-sm whitespace-nowrap text-muted-foreground">
                       {result.completedDate}
                     </TableCell>
-                    <TableCell className="py-2.5">
-                      <Badge
-                        text={result.decision}
-                        className={DECISION_CLASSES[result.decision]}
-                      />
-                    </TableCell>
                     <TableCell className="py-2.5 text-right">
-                      <ResultRowActions result={result} onAction={flash} />
+                      <ResultRowActions
+                        result={result}
+                        modality={modality}
+                        busy={busyId === result.id}
+                        onInviteOrCallAgain={(row) =>
+                          void inviteOrCallAgain(row)
+                        }
+                        onAction={flash}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-        ) : (
+        ) : !loading ? (
           <EmptyState
             icon={Search}
             title={
@@ -461,7 +557,60 @@ export function ResultsWorkspace({
             actionHref={screeningId ? undefined : ROUTES.screening}
             className="m-4 border-0"
           />
-        )}
+        ) : null}
+
+        {total > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              {loading
+                ? "Loading…"
+                : `Showing ${rangeStart}–${rangeEnd} of ${total.toLocaleString("en-IN")}`}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                Rows
+                <select
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                  className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="Previous page"
+                  disabled={loading || page <= 1}
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                >
+                  <ChevronLeft aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="Next page"
+                  disabled={loading || page >= totalPages}
+                  onClick={() =>
+                    setPage((value) => Math.min(totalPages, value + 1))
+                  }
+                >
+                  <ChevronRight aria-hidden />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );

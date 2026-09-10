@@ -136,7 +136,7 @@ function deriveScoreFromOutcome(result: Record<string, unknown>): number | null 
   return null;
 }
 
-function deriveRecommendation(
+export function deriveRecommendation(
   result: Record<string, unknown> | null,
   overallScore: number | null,
   minScore: number

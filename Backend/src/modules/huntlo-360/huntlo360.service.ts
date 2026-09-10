@@ -23,6 +23,7 @@ import {
 import { compileCampaignPayload } from './compiler.js';
 import { applyWorkflowTransition, refreshStageStats } from './transitions.js';
 import { flowSupportService } from './flow-support.service.js';
+import { countHcgJourneyStats } from '../conversations/hcg-journey-stats.js';
 import type {
   createWorkflowSchema,
   listCandidatesQuerySchema,
@@ -161,6 +162,42 @@ async function toDisplay(
     failed: 'Failed',
   };
 
+  // Candidate-state funnel (cumulative). Qualification = passed qual / entered screening+.
+  // HCG overlay below separates Screening vs Shortlist when gateway statuses are ahead of stages.
+  let replied =
+    doc.stageStats.qualification +
+    doc.stageStats.screening +
+    doc.stageStats.recruiter_review +
+    doc.stageStats.scheduling +
+    doc.stageStats.completed;
+  let qualified =
+    doc.stageStats.screening +
+    doc.stageStats.recruiter_review +
+    doc.stageStats.scheduling +
+    doc.stageStats.completed;
+  let screened =
+    doc.stageStats.screening +
+    doc.stageStats.recruiter_review +
+    doc.stageStats.scheduling +
+    doc.stageStats.completed;
+  let shortlisted =
+    doc.stageStats.recruiter_review +
+    doc.stageStats.scheduling +
+    doc.stageStats.completed;
+  const scheduled = doc.stageStats.scheduling + doc.stageStats.completed;
+
+  if (doc.campaignId) {
+    try {
+      const hcg = await countHcgJourneyStats(String(doc.campaignId));
+      replied = Math.max(replied, hcg.replied);
+      qualified = Math.max(qualified, hcg.qualified);
+      screened = Math.max(screened, hcg.screened);
+      shortlisted = Math.max(shortlisted, hcg.shortlisted);
+    } catch {
+      // Journey still renders from candidate-state stageStats.
+    }
+  }
+
   const base = {
     id: String(doc._id),
     organizationId: String(doc.organizationId),
@@ -174,11 +211,11 @@ async function toDisplay(
     campaignId: doc.campaignId ? String(doc.campaignId) : null,
     channels,
     candidates: doc.stageStats.enrolled,
-    replied: doc.stageStats.qualification + doc.stageStats.screening + doc.stageStats.recruiter_review + doc.stageStats.scheduling + doc.stageStats.completed,
-    qualified: doc.stageStats.recruiter_review + doc.stageStats.scheduling + doc.stageStats.completed,
-    screened: doc.stageStats.screening + doc.stageStats.recruiter_review + doc.stageStats.scheduling + doc.stageStats.completed,
-    shortlisted: doc.stageStats.recruiter_review + doc.stageStats.scheduling + doc.stageStats.completed,
-    scheduled: doc.stageStats.scheduling + doc.stageStats.completed,
+    replied,
+    qualified,
+    screened,
+    shortlisted,
+    scheduled,
     stageStats: doc.stageStats,
     qualificationConfig: doc.qualificationConfig,
     screeningConfig: doc.screeningConfig,
@@ -350,7 +387,7 @@ export const huntlo360Service = {
     const skip = (query.page - 1) * query.limit;
     const [docs, total] = await Promise.all([
       Huntlo360WorkflowModel.find(filter)
-        .sort({ updatedAt: -1 })
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(query.limit),
       Huntlo360WorkflowModel.countDocuments(filter),
@@ -391,6 +428,14 @@ export const huntlo360Service = {
     const doc = await loadWorkflow(organizationId, id);
     // Recompute stage stats (and auto-complete when every candidate is done).
     if (doc.status === 'running' || doc.status === 'paused') {
+      // Catch up HCG-qualified candidates that never got qualification_pass
+      // (gateway owns Gmail Q&A; change streams may have missed earlier updates).
+      if (doc.campaignId) {
+        const { syncHuntlo360QualificationsFromHcg } = await import(
+          './hcg-qualification-transition.js'
+        );
+        await syncHuntlo360QualificationsFromHcg(String(doc.campaignId)).catch(() => undefined);
+      }
       await refreshStageStats(id);
       const refreshed = await loadWorkflow(organizationId, id);
       return toDisplay(refreshed, {
@@ -926,6 +971,16 @@ export const huntlo360Service = {
       stageStats,
       campaignId: latest.campaignId ? String(latest.campaignId) : doc.campaignId ? String(doc.campaignId) : null,
     };
+  },
+
+  async listScreening(organizationId: string, id: string) {
+    const doc = await loadWorkflow(organizationId, id);
+    const { listWorkflowScreeningFromHcg } = await import('./hcg-screening-list.js');
+    return listWorkflowScreeningFromHcg({
+      organizationId,
+      workflowId: id,
+      campaignId: doc.campaignId ? String(doc.campaignId) : null,
+    });
   },
 
   async exceptions(organizationId: string, id: string) {
