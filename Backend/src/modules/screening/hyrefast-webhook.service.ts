@@ -8,7 +8,7 @@ import { ScreeningCandidateModel } from './screening-candidate.model.js';
 import { VoiceWebhookEventModel } from './voice-webhook-event.model.js';
 import { refreshScreeningStats } from './screening.service.js';
 
-const log = getLogger({ module: 'hyrefast-webhook' });
+const log = getLogger().child({ component: 'hyrefast-webhook' });
 
 const MAX_SKEW_MS = 5 * 60 * 1000;
 
