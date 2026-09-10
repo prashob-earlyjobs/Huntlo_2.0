@@ -279,7 +279,7 @@ export interface ScreeningQuestionTemplate {
 export const DEFAULT_QUESTIONS: ScreeningQuestionTemplate[] = [
   {
     type: "Introduction",
-    text: "Hi {{first_name}}, thanks for taking this call. Could you briefly introduce yourself and your current role?",
+    text: "Hi {{first_name}}, Could you briefly introduce yourself and your current role?",
     expectedVariable: "current_role",
   },
   {
@@ -306,12 +306,7 @@ export const DEFAULT_QUESTIONS: ScreeningQuestionTemplate[] = [
     type: "Location",
     text: "Are you open to working from {{location}} in a hybrid setup?",
     expectedVariable: "preferred_location",
-  },
-  {
-    type: "Availability",
-    text: "When would you be available to start if things move quickly?",
-    expectedVariable: "availability",
-  },
+  }
 ];
 
 export const EVALUATION_CATEGORIES = [
