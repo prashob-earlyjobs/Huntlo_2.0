@@ -272,7 +272,7 @@ const screeningSchema = new Schema<ScreeningDocument>(
         },
         topicsAvoid: { type: [String], default: [] },
         interviewStandard: { type: Boolean, default: true },
-        interviewConversation: { type: Boolean, default: true },
+        interviewConversation: { type: Boolean, default: false },
         hyrefastJobId: { type: String, default: null },
       },
       default: null,

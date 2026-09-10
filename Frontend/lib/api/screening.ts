@@ -177,6 +177,8 @@ function mapBatch(row: Record<string, unknown>): ScreeningBatch {
     owner: String(row.owner || "Unknown"),
     lastActivity: String(row.lastActivity || ""),
     objective: String(row.objective || ""),
+    modality:
+      String(row.modality || "").trim() === "video" ? ("video" as const) : ("voice" as const),
   };
 }
 
@@ -222,6 +224,7 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
     decision: mapDecision(
       (row.recruiterDecision as string) || (row.decision as string)
     ),
+    error: row.error ? String(row.error).trim() || null : null,
   };
 }
 

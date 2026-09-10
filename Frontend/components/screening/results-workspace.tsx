@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Mail,
   MoreHorizontal,
   Phone,
   Search,
@@ -38,6 +39,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getApiErrorMessage, screeningApi } from "@/lib/api";
 import type {
   AiRecommendation,
@@ -100,11 +106,18 @@ function Badge({ text, className }: { text: string; className: string }) {
 
 function ResultRowActions({
   result,
+  modality = "voice",
+  busy,
+  onInviteOrCallAgain,
   onAction,
 }: {
   result: ScreeningResult;
+  modality?: "voice" | "video";
+  busy?: boolean;
+  onInviteOrCallAgain: (result: ScreeningResult) => void;
   onAction: (message: string) => void;
 }) {
+  const isVideo = modality === "video";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -113,6 +126,7 @@ function ResultRowActions({
             size="icon-sm"
             variant="ghost"
             aria-label={`Actions for ${result.candidateName}`}
+            disabled={busy}
           />
         }
       >
@@ -135,10 +149,17 @@ function ResultRowActions({
         ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => onAction(`Queued another call for “${result.candidateName}”.`)}
+          disabled={busy}
+          onClick={() => onInviteOrCallAgain(result)}
         >
-          <Phone aria-hidden />
-          Call again
+          {isVideo ? <Mail aria-hidden /> : <Phone aria-hidden />}
+          {busy
+            ? isVideo
+              ? "Inviting…"
+              : "Queuing…"
+            : isVideo
+              ? "Invite again"
+              : "Call again"}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onAction(`Note added for “${result.candidateName}”.`)}
@@ -153,8 +174,10 @@ function ResultRowActions({
 
 export function ResultsWorkspace({
   screeningId,
+  modality = "voice",
 }: {
   screeningId?: string;
+  modality?: "voice" | "video";
 } = {}) {
   const [results, setResults] = useState<ScreeningResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,6 +191,8 @@ export function ResultsWorkspace({
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const isVideo = modality === "video";
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -255,6 +280,31 @@ export function ResultsWorkspace({
 
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, total);
+
+  async function inviteOrCallAgain(result: ScreeningResult) {
+    if (busyId) return;
+    setBusyId(result.id);
+    try {
+      await screeningApi.callAgainResult(result.id);
+      await refresh();
+      flash(
+        isVideo
+          ? `Re-sent video invite for “${result.candidateName}”.`
+          : `Queued another call for “${result.candidateName}”.`
+      );
+    } catch (err) {
+      flash(
+        getApiErrorMessage(
+          err,
+          isVideo
+            ? "Unable to re-invite this candidate."
+            : "Unable to queue another call."
+        )
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   function flash(text: string) {
     setMessage(text);
@@ -358,7 +408,9 @@ export function ResultsWorkspace({
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className={HEAD}>Candidate</TableHead>
-                  <TableHead className={HEAD}>Job</TableHead>
+                  {!screeningId ? (
+                    <TableHead className={HEAD}>Job</TableHead>
+                  ) : null}
                   <TableHead className={HEAD}>Call status</TableHead>
                   <TableHead className={HEAD}>Duration</TableHead>
                   <TableHead className={`${HEAD} text-right`}>
@@ -398,25 +450,44 @@ export function ResultsWorkspace({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="py-2.5 whitespace-nowrap">
-                      {result.jobId ? (
-                        <Link
-                          href={jobDetailPath(result.jobId)}
-                          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-                        >
-                          {result.jobTitle}
-                        </Link>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {result.jobTitle}
-                        </span>
-                      )}
-                    </TableCell>
+                    {!screeningId ? (
+                      <TableCell className="py-2.5 whitespace-nowrap">
+                        {result.jobId ? (
+                          <Link
+                            href={jobDetailPath(result.jobId)}
+                            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                          >
+                            {result.jobTitle}
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            {result.jobTitle}
+                          </span>
+                        )}
+                      </TableCell>
+                    ) : null}
                     <TableCell className="py-2.5">
-                      <Badge
-                        text={result.callStatus}
-                        className={CALL_CLASSES[result.callStatus]}
-                      />
+                      {result.error ? (
+                        <Tooltip>
+                          <TooltipTrigger
+                            className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                            aria-label={`${result.callStatus}: ${result.error}`}
+                          >
+                            <Badge
+                              text={result.callStatus}
+                              className={CALL_CLASSES[result.callStatus]}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-72 text-left leading-snug">
+                            {result.error}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Badge
+                          text={result.callStatus}
+                          className={CALL_CLASSES[result.callStatus]}
+                        />
+                      )}
                     </TableCell>
                     <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
                       {result.duration}
@@ -454,7 +525,15 @@ export function ResultsWorkspace({
                       {result.completedDate}
                     </TableCell>
                     <TableCell className="py-2.5 text-right">
-                      <ResultRowActions result={result} onAction={flash} />
+                      <ResultRowActions
+                        result={result}
+                        modality={modality}
+                        busy={busyId === result.id}
+                        onInviteOrCallAgain={(row) =>
+                          void inviteOrCallAgain(row)
+                        }
+                        onAction={flash}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

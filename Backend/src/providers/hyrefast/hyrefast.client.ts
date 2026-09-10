@@ -78,6 +78,10 @@ function formatHyrefastError(
   httpStatus: number,
   status: string
 ): string {
+  if (httpStatus === 429) {
+    return 'Rate limit reached (too many requests). Wait a minute and try launching again.';
+  }
+
   const base =
     message ||
     `Hyrefast ${method} ${url} failed (${httpStatus}${status ? ` / ${status}` : ''}).`;
@@ -93,6 +97,11 @@ function formatHyrefastError(
     .filter(Boolean);
 
   if (reasons.length === 0) return base;
+  // Prefer actionable violation reasons (e.g. parallel consideration) over the
+  // generic "requires acknowledgement" wrapper.
+  if (/acknowledgement/i.test(base) || /policy warning/i.test(base)) {
+    return reasons.join(' ');
+  }
   return `${base} ${reasons.join(' ')}`;
 }
 

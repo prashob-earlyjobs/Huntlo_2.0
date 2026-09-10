@@ -5,6 +5,7 @@ import {
   Copy,
   Download,
   Eye,
+  Mail,
   MoreHorizontal,
   Pause,
   Pencil,
@@ -37,6 +38,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { getApiErrorMessage, screeningApi } from "@/lib/api";
@@ -118,15 +124,27 @@ function OverviewTab({ batch }: { batch: ScreeningBatch }) {
         ))}
       </div>
 
-      <ResultsWorkspace screeningId={batch.id} />
+      <ResultsWorkspace
+        screeningId={batch.id}
+        modality={batch.modality === "video" ? "video" : "voice"}
+      />
     </div>
   );
 }
 
-function CandidatesTab({ screeningId }: { screeningId: string }) {
+function CandidatesTab({
+  screeningId,
+  modality = "voice",
+}: {
+  screeningId: string;
+  modality?: "voice" | "video";
+}) {
   const [results, setResults] = useState<ScreeningResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const isVideo = modality === "video";
 
   const refresh = useCallback(async () => {
     const next = await screeningApi.listResults({
@@ -158,6 +176,37 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
   useRealtimeRefresh("screening.result.updated", () => {
     void refresh().catch(() => undefined);
   });
+
+  useEffect(() => {
+    if (!actionMessage) return;
+    const id = window.setTimeout(() => setActionMessage(null), 2800);
+    return () => window.clearTimeout(id);
+  }, [actionMessage]);
+
+  async function inviteOrCallAgain(result: ScreeningResult) {
+    if (busyId) return;
+    setBusyId(result.id);
+    try {
+      await screeningApi.callAgainResult(result.id);
+      await refresh();
+      setActionMessage(
+        isVideo
+          ? `Re-sent video invite for ${result.candidateName}.`
+          : `Queued another call for ${result.candidateName}.`
+      );
+    } catch (err) {
+      setActionMessage(
+        getApiErrorMessage(
+          err,
+          isVideo
+            ? "Unable to re-invite this candidate."
+            : "Unable to queue another call."
+        )
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -197,7 +246,16 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
   }
 
   return (
-    <section className="overflow-x-auto rounded-xl border border-border bg-card">
+    <div className="space-y-3">
+      {actionMessage ? (
+        <p
+          role="status"
+          className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
+        >
+          {actionMessage}
+        </p>
+      ) : null}
+      <section className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
         <caption className="sr-only">
           Candidates enrolled in this screening batch
@@ -205,7 +263,9 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className={HEAD}>Candidate</TableHead>
-            <TableHead className={HEAD}>Call status</TableHead>
+            <TableHead className={HEAD}>
+              {isVideo ? "Invite status" : "Call status"}
+            </TableHead>
             <TableHead className={HEAD}>Attempts</TableHead>
             <TableHead className={HEAD}>Duration</TableHead>
             <TableHead className={`${HEAD} text-right`}>Score</TableHead>
@@ -239,13 +299,33 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
                 </div>
               </TableCell>
               <TableCell className="py-2.5">
-                <Badge
-                  text={result.callStatus}
-                  className={
-                    CALL_CLASSES[result.callStatus] ??
-                    "bg-muted text-muted-foreground"
-                  }
-                />
+                {result.error ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                      aria-label={`${result.callStatus}: ${result.error}`}
+                    >
+                      <Badge
+                        text={result.callStatus}
+                        className={
+                          CALL_CLASSES[result.callStatus] ??
+                          "bg-muted text-muted-foreground"
+                        }
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-72 text-left leading-snug">
+                      {result.error}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Badge
+                    text={result.callStatus}
+                    className={
+                      CALL_CLASSES[result.callStatus] ??
+                      "bg-muted text-muted-foreground"
+                    }
+                  />
+                )}
               </TableCell>
               <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground">
                 {result.attemptsUsed}/{result.attemptsMax}
@@ -281,6 +361,7 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
                         size="icon-sm"
                         variant="ghost"
                         aria-label={`Actions for ${result.candidateName}`}
+                        disabled={busyId === result.id}
                       />
                     }
                   >
@@ -305,9 +386,22 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
                         View profile
                       </DropdownMenuItem>
                     ) : null}
-                    <DropdownMenuItem>
-                      <Phone aria-hidden />
-                      Call again
+                    <DropdownMenuItem
+                      disabled={busyId === result.id}
+                      onClick={() => void inviteOrCallAgain(result)}
+                    >
+                      {isVideo ? (
+                        <Mail aria-hidden />
+                      ) : (
+                        <Phone aria-hidden />
+                      )}
+                      {busyId === result.id
+                        ? isVideo
+                          ? "Inviting…"
+                          : "Queuing…"
+                        : isVideo
+                          ? "Invite again"
+                          : "Call again"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -316,7 +410,8 @@ function CandidatesTab({ screeningId }: { screeningId: string }) {
           ))}
         </TableBody>
       </Table>
-    </section>
+      </section>
+    </div>
   );
 }
 
@@ -508,7 +603,10 @@ export function ScreeningDetail({ batch }: { batch: ScreeningBatch }) {
           <OverviewTab batch={batch} />
         </TabsContent>
         <TabsContent value="candidates" className="pt-3">
-          <CandidatesTab screeningId={batch.id} />
+          <CandidatesTab
+            screeningId={batch.id}
+            modality={batch.modality === "video" ? "video" : "voice"}
+          />
         </TabsContent>
         <TabsContent value="settings" className="pt-3">
           <SettingsTab />

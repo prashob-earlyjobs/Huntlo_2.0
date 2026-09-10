@@ -115,6 +115,7 @@ export interface ScreeningBatch {
   owner: string;
   lastActivity: string;
   objective: string;
+  modality?: "voice" | "video";
 }
 
 export const SCREENING_BATCHES: ScreeningBatch[] = [
@@ -532,6 +533,8 @@ export interface ScreeningResult {
   keyVariables: string[];
   completedDate: string;
   decision: RecruiterDecision;
+  /** Per-candidate invite/call failure reason when present. */
+  error?: string | null;
 }
 
 export const SCREENING_RESULTS: ScreeningResult[] = [
