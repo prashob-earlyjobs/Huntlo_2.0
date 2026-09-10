@@ -10,6 +10,7 @@ import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { UserIntegrationModel } from '../integrations/user-integration.model.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
+import { OrganizationModel } from '../organizations/organization.model.js';
 import {
   createHunarBulkCalls,
   createHunarVoiceAgent,
@@ -85,6 +86,7 @@ import {
   decisionFromAiRecommendation,
   deriveRecommendation,
 } from './scoring.js';
+import { mergeOutboundMessage } from '../outreach/variables.js';
 import type {
   createScreeningSchema,
   listCandidatesQuerySchema,
@@ -143,6 +145,22 @@ async function jobTitle(jobId: mongoose.Types.ObjectId | null) {
   if (!jobId) return null;
   const job = await JobModel.findById(jobId).select('title').lean();
   return job?.title ? String(job.title) : null;
+}
+
+async function jobMergeExtras(jobId: mongoose.Types.ObjectId | null): Promise<{
+  title: string | null;
+  location: string | null;
+}> {
+  if (!jobId) return { title: null, location: null };
+  const job = await JobModel.findById(jobId).select('title locations').lean();
+  if (!job) return { title: null, location: null };
+  const locations = Array.isArray(job.locations)
+    ? job.locations.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+  return {
+    title: job.title ? String(job.title) : null,
+    location: locations.slice(0, 3).join(', ') || null,
+  };
 }
 
 async function loadScreening(organizationId: string, id: string) {
@@ -247,11 +265,18 @@ function resolveHyrefastSkillsPayload(
 function toHyrefastQuestions(
   videoConfig: ScreeningVideoConfig,
   title: string,
-  screeningQuestions?: Array<{ prompt?: string | null } | null> | null
+  screeningQuestions?: Array<{ prompt?: string | null } | null> | null,
+  mergeContext?: Record<string, string | null | undefined>
 ): HyrefastQuestionItem[] {
+  const resolveCopy = (text: string) =>
+    mergeOutboundMessage(text, {
+      job_title: title,
+      ...(mergeContext || {}),
+    });
+
   const fromScreening = (screeningQuestions || [])
     .map((question, index) => {
-      const text = String(question?.prompt || '').trim();
+      const text = resolveCopy(String(question?.prompt || '').trim());
       if (!text) return null;
       return {
         title: text,
@@ -271,7 +296,7 @@ function toHyrefastQuestions(
   for (const topic of videoConfig.topicsFocus || []) {
     const topicName = String(topic.name || '').trim();
     for (const sample of topic.sampleQuestions || []) {
-      const text = String(sample || '').trim();
+      const text = resolveCopy(String(sample || '').trim());
       if (!text) continue;
       fromSamples.push({
         title: text,
@@ -1744,16 +1769,21 @@ export const screeningService = {
       );
     }
 
-    const title =
-      (await jobTitle(doc.jobId)) ||
-      doc.name ||
-      'Video screening role';
+    const jobExtras = await jobMergeExtras(doc.jobId);
+    const title = jobExtras.title || doc.name || 'Video screening role';
+    const org = await OrganizationModel.findById(organizationId).select('name').lean();
 
     let hyrefastJobId = String(videoConfig.hyrefastJobId || '').trim();
+    const questionMerge = {
+      location: jobExtras.location,
+      company_name: org?.name ? String(org.name) : null,
+      job_title: title,
+    };
     const hyrefastQuestions = toHyrefastQuestions(
       videoConfig,
       title,
-      doc.questions || []
+      doc.questions || [],
+      questionMerge
     );
     const hyrefastSkills = resolveHyrefastSkillsPayload(videoConfig, title);
 

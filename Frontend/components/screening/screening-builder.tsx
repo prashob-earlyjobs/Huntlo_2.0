@@ -1586,7 +1586,7 @@ function VideoStandardQuestionsEditor({
               updateQuestion(question.id, { text: event.target.value })
             }
             aria-label={`Question ${index + 1} text`}
-            placeholder="Question text"
+            placeholder="e.g. Describe a project where you owned the outcome end to end"
             className="min-h-16 text-sm"
           />
         </div>
