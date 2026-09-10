@@ -1688,6 +1688,8 @@ export const campaignsService = {
     );
     await cancelJobsForEnrollment(String(enrollment._id));
     await refreshCampaignStats(String(enrollment.campaignId));
+    const { queueAtsEnrollmentSync } = await import('../integrations/ats-sync-back.service.js');
+    queueAtsEnrollmentSync(String(enrollment._id));
     return enrollment;
   },
 };

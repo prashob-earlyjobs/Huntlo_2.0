@@ -15,7 +15,11 @@ async function upsertOne(options: {
 }): Promise<{ id: string; created: boolean }> {
   const orgOid = new mongoose.Types.ObjectId(options.organizationId);
   const userOid = new mongoose.Types.ObjectId(options.userId);
-  const externalId = `zwayam:${options.app.id}`;
+  // Amplify historically used `zwayam:` — keep that for existing pool rows.
+  const externalId =
+    options.provider === 'zwayam-amplify'
+      ? `zwayam:${options.app.id}`
+      : `${options.provider}:${options.app.id}`;
   const email = options.app.email?.trim().toLowerCase() || null;
 
   let existing = await SavedCandidateModel.findOne({

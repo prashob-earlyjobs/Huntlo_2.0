@@ -237,7 +237,8 @@ export function AtsAudiencePicker({
       <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
         <p className="text-sm font-medium text-foreground">No ATS connected</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Connect Zwayam Amplify under Integrations → ATS to import applicants.
+          Connect Zoho Recruit (or another ATS) under Integrations → ATS to
+          import applicants.
         </p>
         <Link
           href={ROUTES.integrations}
@@ -261,7 +262,7 @@ export function AtsAudiencePicker({
               "ATS provider"}
           </p>
           <p className="text-xs text-muted-foreground">
-            Applications are available in Amplify for 90 days.
+            Pick a job opening, then select candidates to add to this campaign.
           </p>
         </div>
         {providers.length > 1 ? (
@@ -281,7 +282,7 @@ export function AtsAudiencePicker({
           <Input
             value={jobSearch}
             onChange={(event) => setJobSearch(event.target.value)}
-            placeholder="Search Amplify jobs"
+            placeholder="Search job openings"
           />
           {loadingJobs ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -290,7 +291,7 @@ export function AtsAudiencePicker({
             </div>
           ) : jobs.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No Amplify jobs found. Publish a job through Amplify first, then
+              No job openings found. Create or open a job in your ATS, then
               refresh.
             </p>
           ) : (

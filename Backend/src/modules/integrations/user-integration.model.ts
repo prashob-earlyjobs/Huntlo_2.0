@@ -14,6 +14,7 @@ export const INTEGRATION_PROVIDERS = [
   'calendly',
   'future-jobs',
   'zwayam-amplify',
+  'zoho-recruit',
 ] as const;
 export type IntegrationProviderId = (typeof INTEGRATION_PROVIDERS)[number];
 
@@ -50,6 +51,7 @@ export const PROVIDER_CATEGORY: Record<IntegrationProviderId, IntegrationCategor
   calendly: 'scheduling',
   'future-jobs': 'candidate_data',
   'zwayam-amplify': 'ats',
+  'zoho-recruit': 'ats',
 };
 
 export type UserIntegrationDocument = Document & {
