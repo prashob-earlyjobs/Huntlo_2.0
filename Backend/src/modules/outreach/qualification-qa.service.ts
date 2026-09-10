@@ -1670,6 +1670,11 @@ async function completeQualification(input: {
     enrollment,
     status,
   });
+
+  if (status === 'qualified' || status === 'rejected') {
+    const { queueAtsEnrollmentSync } = await import('../integrations/ats-sync-back.service.js');
+    queueAtsEnrollmentSync(String(enrollment._id));
+  }
 }
 
 function shouldHandOffAfterQuestions(config: QualificationConfig): boolean {

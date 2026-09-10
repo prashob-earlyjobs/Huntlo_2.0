@@ -352,9 +352,6 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
 
   const campaign = await OutreachCampaignModel.findById(campaignId);
   if (!campaign) return { applied: false, reason: 'campaign_missing' };
-  if (campaign.sourceModule !== 'huntlo360') {
-    return { applied: false, reason: 'not_huntlo360' };
-  }
 
   const email = normalizeEmail(input.email);
   const phone = String(input.phone || '').trim();
@@ -372,7 +369,7 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
         hasEmail: Boolean(email),
         hasPhone: Boolean(phone),
       },
-      'Huntlo 360 HCG qualification skipped — enrollment not found'
+      'HCG qualification skipped — enrollment not found'
     );
     return { applied: false, reason: 'enrollment_missing' };
   }
@@ -381,15 +378,7 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
     return { applied: false, reason: 'opted_out' };
   }
 
-  const workflow = await Huntlo360WorkflowModel.findOne({
-    organizationId: campaign.organizationId,
-    campaignId: campaign._id,
-    deletedAt: null,
-    status: { $in: ['running', 'paused'] },
-  }).select('_id screeningConfig');
-  if (!workflow) return { applied: false, reason: 'workflow_missing' };
-
-  // Keep enrollment Q&A state in sync with gateway outcome (UI + downstream gates).
+  // Keep enrollment Q&A state in sync with gateway outcome (UI + ATS write-back).
   const qualStatus = event === 'qualification_pass' ? 'qualified' : 'rejected';
   if (enrollment.qualificationState?.status !== qualStatus) {
     enrollment.qualificationState = {
@@ -402,6 +391,21 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
     enrollment.markModified('qualificationState');
     await enrollment.save().catch(() => undefined);
   }
+
+  const { queueAtsEnrollmentSync } = await import('../integrations/ats-sync-back.service.js');
+  queueAtsEnrollmentSync(String(enrollment._id));
+
+  if (campaign.sourceModule !== 'huntlo360') {
+    return { applied: true, reason: 'ats_sync' };
+  }
+
+  const workflow = await Huntlo360WorkflowModel.findOne({
+    organizationId: campaign.organizationId,
+    campaignId: campaign._id,
+    deletedAt: null,
+    status: { $in: ['running', 'paused'] },
+  }).select('_id screeningConfig');
+  if (!workflow) return { applied: false, reason: 'workflow_missing' };
 
   try {
     const result = await applyWorkflowTransition({

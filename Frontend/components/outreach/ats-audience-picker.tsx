@@ -191,6 +191,14 @@ export function AtsAudiencePicker({
     );
   }
 
+  function toggleSelectAll() {
+    setApplyIds((prev) => {
+      const ids = applications.map((app) => app.id);
+      const allSelected = ids.length > 0 && ids.every((id) => prev.includes(id));
+      return allSelected ? [] : ids;
+    });
+  }
+
   async function importSelected() {
     if (!providerId || !selectedJobId || applyIds.length === 0) return;
     setImporting(true);
@@ -252,6 +260,11 @@ export function AtsAudiencePicker({
   }
 
   const selectedJob = jobs.find((job) => job.id === selectedJobId) || null;
+  const allApplicantIds = applications.map((app) => app.id);
+  const allApplicantsSelected =
+    allApplicantIds.length > 0 &&
+    allApplicantIds.every((id) => applyIds.includes(id));
+  const someApplicantsSelected = applyIds.length > 0 && !allApplicantsSelected;
 
   return (
     <div className="space-y-4">
@@ -354,6 +367,30 @@ export function AtsAudiencePicker({
           ) : (
             <>
               <ul className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-border">
+                <li className="sticky top-0 z-10 border-b border-border bg-card">
+                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-muted/40">
+                    <input
+                      type="checkbox"
+                      checked={allApplicantsSelected}
+                      ref={(node) => {
+                        if (node) node.indeterminate = someApplicantsSelected;
+                      }}
+                      onChange={toggleSelectAll}
+                      aria-label={
+                        allApplicantsSelected
+                          ? "Deselect all applicants"
+                          : "Select all applicants"
+                      }
+                      className="size-4 rounded border-border"
+                    />
+                    <span className="text-sm font-medium text-foreground">
+                      {allApplicantsSelected ? "Deselect all" : "Select all"}
+                      <span className="ml-1 font-normal text-muted-foreground">
+                        ({applications.length})
+                      </span>
+                    </span>
+                  </label>
+                </li>
                 {applications.map((app) => {
                   const checked = applyIds.includes(app.id);
                   return (

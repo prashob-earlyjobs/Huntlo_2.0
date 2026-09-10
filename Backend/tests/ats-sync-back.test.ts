@@ -21,6 +21,13 @@ describe('ats sync-back mapping', () => {
         qualificationStatus: 'qualified',
       })
     ).toBe('Qualified');
+    expect(
+      mapEnrollmentToAtsStatus({
+        status: 'active',
+        stopReason: null,
+        qualificationStatus: 'interested',
+      })
+    ).toBe('Qualified');
   });
 
   it('maps completed outreach to Contacted', () => {

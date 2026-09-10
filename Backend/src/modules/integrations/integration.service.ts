@@ -1175,7 +1175,17 @@ export const integrationsService = {
         'This ATS provider cannot list applications.'
       );
     }
-    const ctx = await buildProviderContext(doc);
+    await this.ensureFreshAccessToken(organizationId, String(doc._id));
+    const fresh = await UserIntegrationModel.findById(doc._id);
+    if (fresh?.errorCode === 'TOKEN_REFRESH_FAILED') {
+      throw new AppError(
+        400,
+        'ATS_TOKEN_EXPIRED',
+        fresh.errorMessage ||
+          'ATS token expired and could not be refreshed. Disconnect and reconnect under Integrations → ATS.'
+      );
+    }
+    const ctx = await buildProviderContext(fresh || doc);
     const { atsImportService } = await import('./ats-import.service.js');
     return atsImportService.importApplications({
       organizationId,

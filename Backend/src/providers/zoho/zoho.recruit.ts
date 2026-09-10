@@ -229,9 +229,11 @@ function mapCandidate(
     location,
     experienceYears,
     resumeUrl,
+    // Job-associated lists expose Application_Status (pipeline). Candidate_Status
+    // is the profile field and is often absent on /associate rows.
     stage:
-      asString(raw.Candidate_Status) ||
       asString(raw.Application_Status) ||
+      asString(raw.Candidate_Status) ||
       asString(raw.Status),
   };
 }
@@ -387,8 +389,9 @@ async function recruitWriteJson(
 }
 
 /**
- * POST /recruit/v2/Candidates/status — change candidate status (+ optional comments).
- * Status labels are org-configured; callers should tolerate failures and still add a note.
+ * PUT /recruit/v2/Candidates/status — change job-pipeline Application_Status
+ * (and Candidate_Status when jobids are omitted). Zoho rejects POST on this path.
+ * Then PUT /Candidates so the profile Candidate_Status stays in sync.
  */
 export async function changeZohoRecruitCandidateStatus(
   accessToken: string,
@@ -413,9 +416,23 @@ export async function changeZohoRecruitCandidateStatus(
   const jobId = String(input.jobId || '').trim();
   if (jobId) row.jobids = [jobId];
 
-  await recruitWriteJson(accessToken, 'POST', '/Candidates/status', dataCenter, {
-    data: [row],
-  });
+  let statusError: unknown;
+  try {
+    await recruitWriteJson(accessToken, 'PUT', '/Candidates/status', dataCenter, {
+      data: [row],
+    });
+  } catch (error) {
+    statusError = error;
+  }
+
+  try {
+    await recruitWriteJson(accessToken, 'PUT', '/Candidates', dataCenter, {
+      data: [{ id: candidateId, Candidate_Status: status }],
+    });
+  } catch (error) {
+    if (statusError) throw statusError;
+    throw error;
+  }
 }
 
 /**

@@ -44,7 +44,9 @@ export function mapEnrollmentToAtsStatus(input: {
   const stop = String(input.stopReason || '').toLowerCase();
   const status = String(input.status || '').toLowerCase();
 
-  if (qual === 'qualified') return 'Qualified';
+  if (qual === 'qualified' || qual === 'shortlisted' || qual === 'interested') {
+    return 'Qualified';
+  }
   if (qual === 'rejected' || stop === 'qualification_rejected') return 'Rejected';
   if (status === 'opted_out' || stop === 'candidate_opted_out') return 'Junk Candidate';
   if (status === 'completed' || stop === 'sequence_completed') return 'Contacted';
@@ -152,6 +154,7 @@ export async function syncEnrollmentOutcomeToAts(
     })();
 
   if (!atsCandidateId) {
+    logger.info({ enrollmentId, provider }, 'ats sync-back skipped — missing ATS candidate id');
     return { skipped: true, reason: 'missing_ats_candidate_id' };
   }
 
@@ -173,6 +176,7 @@ export async function syncEnrollmentOutcomeToAts(
     integrationId = null;
   }
   if (!integrationId) {
+    logger.info({ enrollmentId, provider }, 'ats sync-back skipped — ATS not connected');
     return { skipped: true, reason: 'ats_not_connected', provider };
   }
 
@@ -236,6 +240,11 @@ export async function syncEnrollmentOutcomeToAts(
     };
     candidate.markModified('customFields');
     await candidate.save();
+
+    logger.info(
+      { enrollmentId, provider, ok: result.ok, message: result.message, candidateStatus },
+      'ats sync-back completed'
+    );
 
     return {
       skipped: false,
