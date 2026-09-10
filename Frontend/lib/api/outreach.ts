@@ -257,6 +257,8 @@ export type ApiCampaignEnrollment = {
     decision?: 'shortlisted' | 'rejected' | 'pending' | null;
   } | null;
   schedulingState: { status: string; bookingUrl: string | null } | null;
+  /** Latest post-call AI summary (screening or outreach voice). */
+  aiSummary?: string | null;
   nextActionAt: string | null;
   lastActionAt: string | null;
   stopReason: string | null;
@@ -283,6 +285,7 @@ export type ApiGmailQuestionColumn = {
 
 export type ListEnrollmentsParams = ApiQueryParams & {
   status?: string;
+  qualificationStatus?: string;
   page?: number;
   limit?: number;
 };

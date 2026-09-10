@@ -997,10 +997,16 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
   }
 
   async function searchByJdText(
-    body: { jdText: string },
+    body: {
+      jdText: string;
+      filters?: {
+        years_of_experience_raw?: { type: 'RANGE'; value: [number, number] };
+      };
+    },
     _opts?: FutureJobsRequestOpts
   ): Promise<FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>> {
     maybeFail('POST /wl/search');
+    void body;
     const sessionId = nextSessionId();
     const docs = buildFakeProfiles(sessionId, 4);
     return {

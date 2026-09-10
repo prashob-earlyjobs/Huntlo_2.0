@@ -55,6 +55,9 @@ import {
   parseGeoDistanceKm,
   filterFormToNaturalLanguage,
   buildJdTextFromPromptAndFilters,
+  buildWlSearchFilters,
+  yearsRangeFromFilterForm,
+  parseYearsExperienceRangeFromText,
 } from './futureJobs.filterMapping.js';
 import {
   extractSearchProfileDocs,
@@ -133,6 +136,7 @@ export {
   baseSessionFromPrompt,
   buildFjAuthHeaders,
   buildJdTextFromPromptAndFilters,
+  buildWlSearchFilters,
   buildSessionPayloadForApply,
   buildSessionPayloadFromPromptAndFilter,
   buildSourcingSessionPayloadFromPrompt,
@@ -170,14 +174,20 @@ export {
   normalizePromptPlainText,
   normalizeRegionForFutureJobs,
   parseGeoDistanceKm,
+  parseYearsExperienceRangeFromText,
   promptForSourcingApi,
+  yearsRangeFromFilterForm,
   resetFutureJobsCircuit,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
   shouldUseFutureJobsMock,
 };
 
-export type { GeoExpandStep } from './futureJobs.filterMapping.js';
+export type {
+  GeoExpandStep,
+  WlSearchFilters,
+  WlSearchRangeFilter,
+} from './futureJobs.filterMapping.js';
 
 export type {
   FutureJobsFilterForm as FilterForm,

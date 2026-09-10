@@ -342,3 +342,103 @@ export function buildJdTextFromPromptAndFilters(
   }
   return userText || fromFilters;
 }
+
+/** Future Jobs `/wl/search` structured filter clause. */
+export type WlSearchRangeFilter = { type: 'RANGE'; value: [number, number] };
+
+export type WlSearchFilters = {
+  years_of_experience_raw?: WlSearchRangeFilter;
+};
+
+function parseYearsBound(value: unknown): number | null {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Build YoE RANGE from drawer yearsExpMin / yearsExpMax (no Gemini). */
+export function yearsRangeFromFilterForm(
+  form?: Partial<FutureJobsFilterForm> | null
+): WlSearchRangeFilter | null {
+  if (!form || typeof form !== 'object') return null;
+  const lo = parseYearsBound(form.yearsExpMin);
+  const hi = parseYearsBound(form.yearsExpMax);
+  if (lo == null && hi == null) return null;
+  const finalLo = lo != null ? lo : hi!;
+  const finalHi = hi != null ? hi : lo!;
+  return { type: 'RANGE', value: [finalLo, finalHi] };
+}
+
+/**
+ * Heuristic YoE extract from NL (used when Gemini is unavailable).
+ * e.g. "4–7 years", "around 2 years", "at least 5 years".
+ */
+export function parseYearsExperienceRangeFromText(text: string): WlSearchRangeFilter | null {
+  const raw = String(text || '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const range =
+    raw.match(
+      /(\d+(?:\.\d+)?)\s*(?:-|–|—|to|through|thru)\s*(\d+(?:\.\d+)?)\s*(?:\+)?\s*(?:years?|yrs?\.?)/i
+    ) ||
+    raw.match(
+      /(\d+(?:\.\d+)?)\s*(?:-|–|—|to|through|thru)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?\.?)?\s*(?:of\s+)?(?:experience|exp\b)/i
+    );
+  if (range) {
+    const a = Number(range[1]);
+    const b = Number(range[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      return { type: 'RANGE', value: [Math.min(a, b), Math.max(a, b)] };
+    }
+  }
+
+  const around = raw.match(
+    /(?:around|about|approximately|roughly|~)\s*(\d+(?:\.\d+)?)\s*(?:\+)?\s*(?:years?|yrs?\.?)/i
+  );
+  if (around) {
+    const n = Number(around[1]);
+    if (Number.isFinite(n)) {
+      const lo = Math.max(0, Math.floor(n - 1));
+      const hi = Math.ceil(n + 1);
+      return { type: 'RANGE', value: [lo, hi] };
+    }
+  }
+
+  const atLeast = raw.match(
+    /(?:at\s+least|minimum(?:\s+of)?|min\.?)\s*(\d+(?:\.\d+)?)\s*(?:\+)?\s*(?:years?|yrs?\.?)/i
+  );
+  if (atLeast) {
+    const n = Number(atLeast[1]);
+    if (Number.isFinite(n)) return { type: 'RANGE', value: [n, n] };
+  }
+
+  const upTo = raw.match(
+    /(?:up\s+to|at\s+most|maximum(?:\s+of)?|max\.?)\s*(\d+(?:\.\d+)?)\s*(?:\+)?\s*(?:years?|yrs?\.?)/i
+  );
+  if (upTo) {
+    const n = Number(upTo[1]);
+    if (Number.isFinite(n)) return { type: 'RANGE', value: [0, n] };
+  }
+
+  const single = raw.match(
+    /(\d+(?:\.\d+)?)\s*(?:\+)?\s*(?:years?|yrs?\.?)\s*(?:of\s+)?(?:experience|exp\b)?/i
+  );
+  if (single) {
+    const n = Number(single[1]);
+    if (Number.isFinite(n)) return { type: 'RANGE', value: [n, n] };
+  }
+
+  return null;
+}
+
+/** Prefer drawer YoE; otherwise use a prompt-derived range. */
+export function buildWlSearchFilters(input: {
+  form?: Partial<FutureJobsFilterForm> | null;
+  yearsFromPrompt?: WlSearchRangeFilter | null;
+}): WlSearchFilters | undefined {
+  const fromForm = yearsRangeFromFilterForm(input.form);
+  const yoe = fromForm ?? input.yearsFromPrompt ?? null;
+  if (!yoe) return undefined;
+  return { years_of_experience_raw: yoe };
+}

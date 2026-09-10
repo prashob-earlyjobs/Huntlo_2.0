@@ -1,8 +1,14 @@
 export {
   processQualificationAfterReply,
   evaluateKnockout,
+  parseAnswerMonthYear,
+  parseExperienceYearsInAnswer,
   sendQualificationQuestion,
 } from './qualification-qa.service.js';
+export {
+  looksLikeCandidateQuestion,
+  looksLikeJdDetailRequest,
+} from './candidate-question-detect.js';
 export { outreachRouter } from './outreach.routes.js';
 export { campaignRoutes } from './campaign.routes.js';
 export { outreachTemplatesService } from './templates.service.js';

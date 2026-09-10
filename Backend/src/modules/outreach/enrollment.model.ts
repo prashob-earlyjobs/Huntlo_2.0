@@ -16,6 +16,16 @@ export const ENROLLMENT_STATUSES = [
 ] as const;
 export type EnrollmentStatus = (typeof ENROLLMENT_STATUSES)[number];
 
+export const ENROLLMENT_QUALIFICATION_STATUSES = [
+  'pending',
+  'in_progress',
+  'qualified',
+  'rejected',
+  'skipped',
+] as const;
+export type EnrollmentQualificationStatus =
+  (typeof ENROLLMENT_QUALIFICATION_STATUSES)[number];
+
 export const STOP_REASONS = [
   'candidate_replied',
   'candidate_opted_out',
@@ -85,7 +95,7 @@ export type OutreachEnrollmentDocument = Document & {
     flowId: string | null;
     currentStepId: string | null;
     status: 'idle' | 'active' | 'waiting_reply' | 'processing_reply' | 'completed' | 'failed';
-    answers: Record<string, string>;
+    answers: Record<string, unknown>;
     /** Number of re-prompt attempts per step id (to avoid infinite loops). */
     retryAttempts: Record<string, number>;
   } | null;
@@ -99,6 +109,14 @@ export type OutreachEnrollmentDocument = Document & {
     code: string | null;
     message: string | null;
     at: Date | null;
+  } | null;
+  /** Last ATS write-back attempt (Zoho Recruit, etc.). */
+  atsSyncBack: {
+    lastKey: string | null;
+    lastAt: Date | null;
+    lastOk: boolean | null;
+    lastMessage: string | null;
+    provider: string | null;
   } | null;
   createdAt: Date;
   updatedAt: Date;
@@ -182,7 +200,7 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
         {
           status: {
             type: String,
-            enum: ['pending', 'in_progress', 'qualified', 'rejected', 'skipped'],
+            enum: [...ENROLLMENT_QUALIFICATION_STATUSES],
             default: 'pending',
           },
           answers: { type: Schema.Types.Mixed, default: {} },
@@ -253,6 +271,19 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
           code: { type: String, default: null },
           message: { type: String, default: null },
           at: { type: Date, default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+    atsSyncBack: {
+      type: new Schema(
+        {
+          lastKey: { type: String, default: null },
+          lastAt: { type: Date, default: null },
+          lastOk: { type: Boolean, default: null },
+          lastMessage: { type: String, default: null },
+          provider: { type: String, default: null },
         },
         { _id: false }
       ),

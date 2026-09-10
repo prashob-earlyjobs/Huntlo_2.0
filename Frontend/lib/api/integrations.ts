@@ -228,6 +228,10 @@ export interface IntegrationsApi {
     providerId: string,
     body?: Record<string, unknown>
   ): Promise<ConnectResult>;
+  completeOAuthCallback(
+    providerId: string,
+    query: Record<string, string | null | undefined>
+  ): Promise<ConnectResult>;
   test(id: string): Promise<{ ok: boolean; message: string; integration?: SafeIntegration }>;
   setDefault(id: string): Promise<SafeIntegration>;
   update(id: string, body: Record<string, unknown>): Promise<SafeIntegration>;
@@ -297,6 +301,9 @@ const mockIntegrationsApi: IntegrationsApi = {
       },
     };
   },
+  async completeOAuthCallback(providerId) {
+    return this.connect(providerId);
+  },
   async test() {
     await simulateMockLatency();
     return { ok: true, message: "Mock connection OK" };
@@ -360,6 +367,20 @@ const liveIntegrationsApi: IntegrationsApi = {
     const result = await apiClient.post<ConnectResult>(
       `/integrations/${providerId}/connect`,
       body,
+      { sensitive: true }
+    );
+    return result.data;
+  },
+  async completeOAuthCallback(providerId, query) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value != null && String(value).trim()) {
+        params.set(key, String(value));
+      }
+    }
+    const qs = params.toString();
+    const result = await apiClient.get<ConnectResult>(
+      `/integrations/${encodeURIComponent(providerId)}/callback${qs ? `?${qs}` : ""}`,
       { sensitive: true }
     );
     return result.data;

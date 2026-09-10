@@ -1668,6 +1668,8 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
               enrollment: hfEnrollment,
               replyText: input.bodyText,
               hasAttachment: (input.attachments || []).length > 0,
+              messageId: String(message._id),
+              attachments: message.attachments || input.attachments || null,
             });
             if (advanced.advanced || liveHf(hfEnrollment.hiringFlowState?.status)) {
               skipClassify = true;
@@ -1963,6 +1965,12 @@ export async function classifyAndAttach(input: {
           preferredChannel:
             (winnerChannel || channel) === 'whatsapp' ? 'whatsapp' : 'email',
           hasAttachment: input.hasAttachment,
+          messageId: input.messageId,
+          attachments: (
+            await ConversationMessageModel.findById(input.messageId)
+              .select('attachments')
+              .lean()
+          )?.attachments || null,
         });
         getLogger()
           .child({ component: 'inbound-sync' })

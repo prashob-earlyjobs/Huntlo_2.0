@@ -58,6 +58,7 @@ import {
 } from '../voice/voice-qualification-sync.js';
 import { UserModel } from '../auth/user.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
+import { hydrateCandidateMergeFields } from './candidate-merge-hydrate.js';
 import { integrationsService } from '../integrations/integration.service.js';
 import { JobModel } from '../jobs/job.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
@@ -300,12 +301,15 @@ export type IntegrationSecrets = NonNullable<
 >;
 
 async function loadCandidate(organizationId: string, candidateId: mongoose.Types.ObjectId) {
-  return SavedCandidateModel.findOne({
+  const candidate = await SavedCandidateModel.findOne({
     _id: candidateId,
     organizationId,
   })
-    .select('name email phone currentTitle currentCompany location headline experienceYears skills')
+    .select(
+      'name email phone currentTitle currentCompany location headline experienceYears skills externalCandidateId'
+    )
     .lean();
+  return hydrateCandidateMergeFields(organizationId, candidate);
 }
 
 /**

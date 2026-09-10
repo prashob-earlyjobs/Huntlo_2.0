@@ -9,11 +9,11 @@ import { AISearchPanel } from "@/components/dashboard/ai-search-panel";
 import { CampaignPerformance } from "@/components/dashboard/campaign-performance";
 import { DashboardBodySkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { OverviewMetricCard } from "@/components/dashboard/overview-metric-card";
-import { PipelineFunnel } from "@/components/dashboard/pipeline-funnel";
+// import { PipelineFunnel } from "@/components/dashboard/pipeline-funnel";
 import { PlanUsageCard } from "@/components/dashboard/plan-usage-card";
 import { UpcomingInterviews } from "@/components/dashboard/upcoming-interviews";
 import { PageHeader } from "@/components/shared/page-header";
-import { SectionHeader } from "@/components/shared/section-header";
+// import { SectionHeader } from "@/components/shared/section-header";
 import { Button } from "@/components/ui/button";
 import { analyticsApi, getApiErrorMessage } from "@/lib/api";
 import {
@@ -23,7 +23,7 @@ import {
   type ChannelComparisonPoint,
   type InlineStat,
   type OverviewMetric,
-  type PipelineStage,
+  // type PipelineStage,
   type UpcomingInterview,
   type UsageGroup,
 } from "@/lib/mock-dashboard";
@@ -41,7 +41,7 @@ export function DashboardHomeClient() {
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<OverviewMetric[]>([]);
   const [secondary, setSecondary] = useState<InlineStat[]>([]);
-  const [stages, setStages] = useState<PipelineStage[]>([]);
+  // const [stages, setStages] = useState<PipelineStage[]>([]);
   const [jobs, setJobs] = useState<ActiveJob[]>([]);
   const [interviews, setInterviews] = useState<UpcomingInterview[]>([]);
   const [summary, setSummary] = useState<CampaignSummaryStat[]>([]);
@@ -58,14 +58,14 @@ export function DashboardHomeClient() {
       try {
         const [
           summaryRes,
-          pipelineRes,
+          // pipelineRes,
           jobsRes,
           interviewsRes,
           campaignRes,
           usageRes,
         ] = await Promise.all([
           analyticsApi.getDashboardSummary({ preset: "30d" }),
-          analyticsApi.getDashboardPipeline({ preset: "30d" }),
+          // analyticsApi.getDashboardPipeline({ preset: "30d" }),
           analyticsApi.getDashboardJobs({ preset: "30d" }),
           analyticsApi.getDashboardInterviews({ preset: "30d" }),
           analyticsApi.getCampaignPerformance({ preset: "30d" }),
@@ -79,7 +79,7 @@ export function DashboardHomeClient() {
           })
         );
         setSecondary(summaryRes.secondary);
-        setStages(pipelineRes.stages);
+        // setStages(pipelineRes.stages);
         setJobs(jobsRes.items);
         setInterviews(interviewsRes.items);
         setSummary(campaignRes.summary);
@@ -106,7 +106,7 @@ export function DashboardHomeClient() {
           setError(getApiErrorMessage(err));
           setMetrics([]);
           setSecondary([]);
-          setStages([]);
+          // setStages([]);
           setJobs([]);
           setInterviews([]);
           setSummary([]);
@@ -190,11 +190,9 @@ export function DashboardHomeClient() {
           </section>
 
           <section>
-            <SectionHeader title="Pipeline" className="mb-2.5" />
-            <PipelineFunnel stages={stages} />
-            <div className="mt-4 border-t border-border pt-4">
-              <ActiveJobsTable jobs={jobs} />
-            </div>
+            {/* <SectionHeader title="Pipeline" className="mb-2.5" />
+            <PipelineFunnel stages={stages} /> */}
+            <ActiveJobsTable jobs={jobs} />
           </section>
 
           <UpcomingInterviews interviews={interviews} />
