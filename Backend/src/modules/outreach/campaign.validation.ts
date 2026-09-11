@@ -8,6 +8,7 @@ import {
   normalizeCampaignStatusAlias,
   SEQUENCE_STEP_TYPES,
 } from './campaign.model.js';
+import { ENROLLMENT_QUALIFICATION_STATUSES } from './enrollment.model.js';
 
 const objectId = z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 
@@ -152,6 +153,7 @@ export const campaignIdParamSchema = z.object({
 
 export const listEnrollmentsQuerySchema = z.object({
   status: z.string().optional(),
+  qualificationStatus: z.enum(ENROLLMENT_QUALIFICATION_STATUSES).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });

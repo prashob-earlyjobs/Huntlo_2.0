@@ -623,6 +623,13 @@ async function syncOutreachEnrollment(
       enrollmentId: String(row.enrollmentId),
       status: enrollment.status,
     });
+    const nextQual = enrollment.qualificationState?.status || '';
+    if (nextQual === 'qualified' || nextQual === 'rejected') {
+      const { queueAtsEnrollmentSync } = await import(
+        '../integrations/ats-sync-back.service.js'
+      );
+      queueAtsEnrollmentSync(String(enrollment._id));
+    }
   }
 
   // Hunar sends call-status / call-result / call-recording / call-summary separately.

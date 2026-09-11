@@ -37,6 +37,43 @@ describe('outreach personalization', () => {
     expect(missing).toContain('unknown');
   });
 
+  it('replaces missing tokens with a blank value when asked', () => {
+    const preserved = mergeMessageTemplate(
+      'I came across your work at {{current_company}}.',
+      { first_name: 'Agatha' }
+    );
+    expect(preserved).toContain('{{current_company}}');
+
+    const blanked = mergeMessageTemplate(
+      'I came across your work at {{current_company}}.',
+      { first_name: 'Agatha' },
+      { unresolved: 'blank' }
+    );
+    expect(blanked).toBe('I came across your work at.');
+    expect(blanked).not.toContain('{{');
+  });
+
+  it('fills current_company, current_role, and location from profile extras', () => {
+    const ctx = buildCandidateMergeContext(
+      {
+        name: 'Agatha',
+        currentCompany: 'Acme Corp',
+        currentTitle: 'SDR',
+        location: 'Bengaluru',
+      },
+      { jobTitle: 'SDR Intern', recruiterName: 'Prajwal', location: 'Pune' }
+    );
+    expect(ctx.current_company).toBe('Acme Corp');
+    expect(ctx.current_role).toBe('SDR');
+    expect(ctx.location).toBe('Pune');
+    const body = mergeMessageTemplate(
+      'at {{current_company}} as {{current_role}} in {{location}}',
+      ctx,
+      { unresolved: 'blank' }
+    );
+    expect(body).toBe('at Acme Corp as SDR in Pune');
+  });
+
   it('rejects calendly_link as an unknown variable', () => {
     const result = validateMessageVariables({
       body: 'Book via {{calendly_link}}',
@@ -681,7 +718,7 @@ describe('hcg zyvka overlay', () => {
     };
 
     expect(hcgZyvkaCallStatusValue(doc)).toBe('COMPLETED');
-    expect(hcgZyvkaDerivedAiStatus(doc)).toBe('in_screening');
+    expect(hcgZyvkaDerivedAiStatus(doc)).toBe('in_qualification');
     expect(hcgZyvkaOverallAiStatus(doc)).toBe('interested');
     expect(hcgZyvkaStatus(doc).pipelineStatus).toBe('Answered');
     const event = hcgZyvkaToEvents(doc)[0];

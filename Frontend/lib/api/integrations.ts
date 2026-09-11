@@ -374,12 +374,13 @@ const liveIntegrationsApi: IntegrationsApi = {
   async completeOAuthCallback(providerId, query) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
-      if (value == null || value === "") continue;
-      params.set(key, value);
+      if (value != null && String(value).trim()) {
+        params.set(key, String(value));
+      }
     }
     const qs = params.toString();
     const result = await apiClient.get<ConnectResult>(
-      `/integrations/${providerId}/callback${qs ? `?${qs}` : ""}`,
+      `/integrations/${encodeURIComponent(providerId)}/callback${qs ? `?${qs}` : ""}`,
       { sensitive: true }
     );
     return result.data;

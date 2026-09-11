@@ -27,6 +27,7 @@ import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
 import { enrollQualifiedCandidateInCampaignScreening } from '../outreach/outreach-auto-screening.service.js';
 import { JobModel } from '../jobs/job.model.js';
 import { campaignsService } from '../outreach/campaigns.service.js';
+import { hydrateCandidateMergeFields } from '../outreach/candidate-merge-hydrate.js';
 import {
   buildCandidateMergeContext,
   mergeMessageTemplate,
@@ -440,7 +441,7 @@ function resolveDisplayBody(
     const preview = renderWhatsAppTemplatePreview(templateId, ctx);
     if (preview && !/\{\{\s*[0-9a-zA-Z_]+\s*\}\}/.test(preview)) return preview;
   }
-  return mergeMessageTemplate(raw, ctx);
+  return mergeMessageTemplate(raw, ctx, { unresolved: 'blank' });
 }
 
 async function toDisplayConversation(thread: ConversationThreadDocument) {
@@ -502,7 +503,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
             )
             .lean()
         : null,
-      thread.jobId ? JobModel.findById(thread.jobId).select('title').lean() : null,
+      thread.jobId ? JobModel.findById(thread.jobId).select('title locations').lean() : null,
       thread.assignedUserId
         ? UserModel.findById(thread.assignedUserId).select('firstName lastName').lean()
         : null,
@@ -543,8 +544,16 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     ? `${assignee.firstName} ${assignee.lastName}`.trim()
     : 'Unassigned';
 
-  const mergeContext = buildCandidateMergeContext(candidate, {
+  const hydratedCandidate = await hydrateCandidateMergeFields(
+    String(thread.organizationId),
+    candidate
+  );
+  const jobLocation = (job?.locations || [])
+    .map((value) => String(value || '').trim())
+    .find(Boolean);
+  const mergeContext = buildCandidateMergeContext(hydratedCandidate, {
     jobTitle: job?.title || null,
+    location: jobLocation || hydratedCandidate?.location || null,
   });
   const openingTemplateId =
     campaign?.sequenceSteps?.find((s) => s.type === 'whatsapp' && s.templateId)?.templateId ||
@@ -587,8 +596,8 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   );
 
   const headlineParts = [
-    candidate?.currentTitle || candidate?.headline,
-    candidate?.currentCompany,
+    hydratedCandidate?.currentTitle || hydratedCandidate?.headline,
+    hydratedCandidate?.currentCompany,
   ].filter(Boolean);
 
   const autoScreening = Boolean(campaign?.qualificationConfig?.autoScreening);

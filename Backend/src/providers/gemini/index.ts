@@ -37,7 +37,12 @@ export type {
 } from './gemini.conversations.js';
 export { parseJobDescription, GEMINI_JOBS_MODEL } from './gemini.jobs.js';
 export type { ParsedJobDescription } from './gemini.jobs.js';
-export { rewriteJobAsSearchPrompt, extractSearchPromptFromGeminiText } from './gemini.search-prompt.js';
+export {
+  rewriteJobAsSearchPrompt,
+  extractSearchPromptFromGeminiText,
+  extractYearsExperienceRangeFromPrompt,
+  extractYearsRangeFromGeminiText,
+} from './gemini.search-prompt.js';
 export {
   evaluateVideoInterviewResponses,
   fingerprintVideoResponses,

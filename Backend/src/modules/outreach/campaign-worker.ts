@@ -598,6 +598,10 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           type: 'enrollment.completed',
           title: 'Sequence completed',
         });
+        const { queueAtsEnrollmentSync } = await import(
+          '../integrations/ats-sync-back.service.js'
+        );
+        queueAtsEnrollmentSync(String(enrollment._id));
       } else {
         // Message/follow-up timing uses step delay only — no send window.
         // Call windows apply only to screening calls.

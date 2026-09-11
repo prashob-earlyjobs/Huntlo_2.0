@@ -1,8 +1,13 @@
 import { getEnv } from '../../config/env.js';
+import {
+  parseYearsExperienceRangeFromText,
+  type WlSearchRangeFilter,
+} from '../future-jobs/futureJobs.filterMapping.js';
 import { GEMINI_JOBS_MODEL } from './gemini.jobs.js';
 
 const MAX_PROMPT_CHARS = 700;
 const MAX_JD_CHARS = 20_000;
+const MAX_YOE_PROMPT_CHARS = 4_000;
 
 type GeminiCallResult =
   | { ok: true; text: string }
@@ -94,4 +99,74 @@ export async function rewriteJobAsSearchPrompt(
   const prompt = extractSearchPromptFromGeminiText(result.text);
   if (!prompt) return { prompt: null, source: 'unavailable' };
   return { prompt, source: 'gemini' };
+}
+
+function coerceYearsRange(min: unknown, max: unknown): WlSearchRangeFilter | null {
+  const lo = typeof min === 'number' && Number.isFinite(min) ? min : null;
+  const hi = typeof max === 'number' && Number.isFinite(max) ? max : null;
+  if (lo == null && hi == null) return null;
+  const finalLo = lo != null ? lo : hi!;
+  const finalHi = hi != null ? hi : lo!;
+  return {
+    type: 'RANGE',
+    value: [Math.min(finalLo, finalHi), Math.max(finalLo, finalHi)],
+  };
+}
+
+export function extractYearsRangeFromGeminiText(text: string): WlSearchRangeFilter | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  if (unfenced !== trimmed) return extractYearsRangeFromGeminiText(unfenced);
+
+  try {
+    const parsed = JSON.parse(trimmed) as {
+      min?: unknown;
+      max?: unknown;
+      yearsExpMin?: unknown;
+      yearsExpMax?: unknown;
+    };
+    return coerceYearsRange(
+      parsed.min ?? parsed.yearsExpMin,
+      parsed.max ?? parsed.yearsExpMax
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract years-of-experience RANGE from a recruiter NL prompt for `/wl/search` filters.
+ * Uses Gemini when configured; falls back to a local heuristic.
+ */
+export async function extractYearsExperienceRangeFromPrompt(
+  prompt: string
+): Promise<{ range: WlSearchRangeFilter | null; source: 'gemini' | 'heuristic' | 'none' }> {
+  const text = String(prompt || '').trim();
+  if (!text) return { range: null, source: 'none' };
+
+  const result = await callGeminiJson(
+    [
+      'Extract years of experience from this recruiter people-search prompt.',
+      'Return ONLY JSON: {"min":number|null,"max":number|null}.',
+      'Rules:',
+      '- "4-7 years" / "4 to 7 years" → {"min":4,"max":7}',
+      '- "around 2 years" / "about 2 years" → {"min":1,"max":3}',
+      '- "at least 5 years" → {"min":5,"max":null}',
+      '- "up to 3 years" → {"min":null,"max":3}',
+      '- "2 years of experience" → {"min":2,"max":2}',
+      '- If no years mentioned → {"min":null,"max":null}',
+      'Do not invent years that are not implied by the prompt.',
+      `Prompt:\n${text.slice(0, MAX_YOE_PROMPT_CHARS)}`,
+    ].join('\n')
+  );
+
+  if (result.ok) {
+    const range = extractYearsRangeFromGeminiText(result.text);
+    if (range) return { range, source: 'gemini' };
+  }
+
+  const heuristic = parseYearsExperienceRangeFromText(text);
+  if (heuristic) return { range: heuristic, source: 'heuristic' };
+  return { range: null, source: 'none' };
 }

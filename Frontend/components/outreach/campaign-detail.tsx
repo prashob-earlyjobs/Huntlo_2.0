@@ -14,6 +14,7 @@ import {
   Copy,
   Download,
   Eye,
+  FileText,
   GitBranch,
   Mail,
   MessageCircle,
@@ -48,6 +49,14 @@ import { ApiFeedback } from "@/components/shared/api-feedback";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -58,6 +67,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,6 +100,7 @@ import {
   mapApiErrorToUiState,
   hiringFlowsApi,
   outreachApi,
+  apiClient,
   type ApiCampaignEnrollment,
   type ApiGmailQuestionColumn,
   type ApiHiringFlowStep,
@@ -203,6 +220,32 @@ function relativeTime(iso: string | null): string {
   return new Date(ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+type ReportAnswerMedia = {
+  kind: string;
+  name: string;
+  mimeType?: string | null;
+  url: string;
+};
+
+type ReportAnswerValue = {
+  text: string;
+  media: ReportAnswerMedia | null;
+};
+
+function attachmentApiPath(url: string): string {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("/api/v1/")) return trimmed.slice("/api/v1".length);
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      return new URL(trimmed).pathname.replace(/^\/api\/v1/, "") || trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
 function formatQualificationAnswer(entry: unknown): string {
   if (entry == null) return "";
   if (
@@ -216,6 +259,172 @@ function formatQualificationAnswer(entry: unknown): string {
     return String((entry as { value?: unknown }).value ?? "").trim();
   }
   return String(entry).trim();
+}
+
+function parseReportAnswer(entry: unknown): ReportAnswerValue {
+  const text = formatQualificationAnswer(entry);
+  if (!entry || typeof entry !== "object") {
+    return { text, media: null };
+  }
+  const media = (entry as { media?: Partial<ReportAnswerMedia> }).media;
+  if (!media?.url) return { text, media: null };
+  return {
+    text,
+    media: {
+      kind: String(media.kind || "file"),
+      name: String(media.name || text || "attachment"),
+      mimeType: media.mimeType ? String(media.mimeType) : null,
+      url: String(media.url),
+    },
+  };
+}
+
+function mediaKindLabel(media: ReportAnswerMedia): string {
+  const kind = media.kind.toLowerCase();
+  const mime = String(media.mimeType || "").toLowerCase();
+  if (kind === "image" || mime.startsWith("image/")) return "Image";
+  if (kind === "document" || mime.includes("pdf") || kind === "file") return "Document";
+  if (kind === "audio" || mime.startsWith("audio/")) return "Audio";
+  if (kind === "video" || mime.startsWith("video/")) return "Video";
+  return "File";
+}
+
+function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
+  const [open, setOpen] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const media = answer.media;
+
+  useEffect(() => {
+    if (!open || !media?.url) return;
+    let cancelled = false;
+    const path = attachmentApiPath(media.url);
+    setLoading(true);
+    setFailed(false);
+    setObjectUrl(null);
+    void apiClient
+      .download(path)
+      .then((downloaded) => {
+        if (cancelled) return;
+        const href = URL.createObjectURL(downloaded.blob);
+        setObjectUrl(href);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFailed(true);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      setObjectUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, [open, media?.url]);
+
+  async function downloadFile() {
+    if (!media?.url) return;
+    if (objectUrl) {
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = media.name || "attachment";
+      a.click();
+      return;
+    }
+    const path = attachmentApiPath(media.url);
+    try {
+      const downloaded = await apiClient.download(path);
+      const href = URL.createObjectURL(downloaded.blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = downloaded.filename || media.name || "attachment";
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!media?.url) {
+    return (
+      <span className={answer.text ? "text-foreground" : "text-muted-foreground"}>
+        {answer.text || "—"}
+      </span>
+    );
+  }
+
+  const label = mediaKindLabel(media);
+  const isImage =
+    media.kind.toLowerCase() === "image" ||
+    String(media.mimeType || "").toLowerCase().startsWith("image/");
+  const isPdf =
+    String(media.mimeType || "").toLowerCase() === "application/pdf" ||
+    media.name.toLowerCase().endsWith(".pdf");
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="h-7 w-fit gap-1 px-2 text-xs text-muted-foreground"
+        onClick={() => setOpen(true)}
+      >
+        <Eye aria-hidden className="size-3.5" />
+        View
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl gap-3">
+          <DialogHeader>
+            <DialogTitle className="truncate">{media.name || label}</DialogTitle>
+            <DialogDescription>
+              {label}
+              {answer.text && answer.text !== `[${label}]` ? ` · ${answer.text}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2">
+            {loading ? (
+              <span className="text-sm text-muted-foreground">Loading…</span>
+            ) : failed ? (
+              <span className="text-sm text-muted-foreground">Preview unavailable</span>
+            ) : objectUrl && isImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={objectUrl}
+                alt={media.name || "Image"}
+                className="max-h-[70vh] max-w-full object-contain"
+              />
+            ) : objectUrl && isPdf ? (
+              <iframe
+                title={media.name || "Document preview"}
+                src={objectUrl}
+                className="h-[70vh] w-full rounded-md bg-background"
+              />
+            ) : objectUrl ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <FileText aria-hidden className="size-10 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Preview not available for this file type. Download to open.
+                </p>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Close
+            </Button>
+            <Button type="button" onClick={() => void downloadFile()}>
+              <Download aria-hidden className="size-4" />
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function qualificationStatusLabel(status: string | undefined): string {
@@ -262,6 +471,7 @@ function buildQualificationCsv(
     "Company",
     "Title",
     "Qualification status",
+    "AI summary",
     ...columns.map((column) => column.title),
   ];
   const rows = enrollments.map((candidate) => {
@@ -275,7 +485,14 @@ function buildQualificationCsv(
       candidate.company ?? "",
       candidate.title ?? "",
       status,
-      ...columns.map((column) => reportAnswer(candidate, column)),
+      candidate.aiSummary ?? "",
+      ...columns.map((column) => {
+        const answer = reportAnswer(candidate, column);
+        if (answer.media?.url) {
+          return `${mediaKindLabel(answer.media)}: ${answer.media.url}`;
+        }
+        return answer.text;
+      }),
     ];
   });
   return [headers, ...rows]
@@ -284,19 +501,22 @@ function buildQualificationCsv(
 }
 
 async function fetchAllQualificationEnrollments(
-  campaignId: string
+  campaignId: string,
+  qualificationStatus?: string
 ): Promise<ApiCampaignEnrollment[]> {
   const limit = 100;
-  const first = await outreachApi.listEnrollmentsPage(campaignId, {
+  const params = {
     page: 1,
     limit,
-  });
+    ...(qualificationStatus ? { qualificationStatus } : {}),
+  };
+  const first = await outreachApi.listEnrollmentsPage(campaignId, params);
   const items = [...first.items];
   const totalPages = Math.max(1, Number(first.pagination.totalPages) || 1);
   for (let page = 2; page <= totalPages; page += 1) {
     const next = await outreachApi.listEnrollmentsPage(campaignId, {
+      ...params,
       page,
-      limit,
     });
     items.push(...next.items);
   }
@@ -865,20 +1085,31 @@ function qualificationColumnsFromQuestions(
 function reportAnswer(
   enrollment: ApiCampaignEnrollment,
   column: ReportColumn
-): string {
+): ReportAnswerValue {
   if (column.source === "gmail") {
-    return gmailQuestionAnswer(enrollment, column);
+    return { text: gmailQuestionAnswer(enrollment, column), media: null };
   }
   const fromGmail = gmailQuestionAnswer(enrollment, column);
-  if (fromGmail) return fromGmail;
+  if (fromGmail) return { text: fromGmail, media: null };
   const bag =
     column.source === "hiring_flow"
       ? enrollment.hiringFlowState?.answers || {}
       : enrollment.qualificationState?.answers || {};
-  return formatQualificationAnswer(bag[column.id]);
+  return parseReportAnswer(bag[column.id]);
 }
 
 const QUALIFICATION_PAGE_SIZE = 20;
+
+const QUALIFICATION_STATUS_FILTERS = [
+  { id: "all", label: "All statuses" },
+  { id: "pending", label: "Pending" },
+  { id: "in_progress", label: "In progress" },
+  { id: "qualified", label: "Qualified" },
+  { id: "rejected", label: "Not qualified" },
+  { id: "skipped", label: "Skipped" },
+] as const;
+
+type QualificationStatusFilter = (typeof QUALIFICATION_STATUS_FILTERS)[number]["id"];
 
 const EMPTY_QUAL_PAGINATION: PaginationMeta = {
   page: 1,
@@ -907,6 +1138,7 @@ function QualificationTab({
   reloadToken: number;
 }) {
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<QualificationStatusFilter>("all");
   const [rows, setRows] = useState<ApiCampaignEnrollment[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(EMPTY_QUAL_PAGINATION);
   const [state, setState] = useState<ApiUiState>("loading");
@@ -934,6 +1166,7 @@ function QualificationTab({
 
   useEffect(() => {
     setPage(1);
+    setStatusFilter("all");
   }, [campaignId]);
 
   useEffect(() => {
@@ -969,6 +1202,7 @@ function QualificationTab({
         const next = await outreachApi.listEnrollmentsPage(campaignId, {
           page,
           limit: QUALIFICATION_PAGE_SIZE,
+          ...(statusFilter !== "all" ? { qualificationStatus: statusFilter } : {}),
         });
         if (cancelled) return;
         setRows(next.items);
@@ -977,7 +1211,9 @@ function QualificationTab({
         const nextPage = Number(next.pagination.page) || 1;
         if (nextPage !== page) setPage(nextPage);
         setMessage(null);
-        setState(next.items.length === 0 ? "empty" : "success");
+        setState(
+          next.items.length === 0 && statusFilter === "all" ? "empty" : "success"
+        );
       } catch (err) {
         if (cancelled) return;
         setRows([]);
@@ -990,13 +1226,16 @@ function QualificationTab({
     return () => {
       cancelled = true;
     };
-  }, [campaignId, page, reloadToken, fetchKey]);
+  }, [campaignId, page, statusFilter, reloadToken, fetchKey]);
 
   async function handleExportCsv() {
     setExportError(null);
     setExporting(true);
     try {
-      const enrollments = await fetchAllQualificationEnrollments(campaignId);
+      const enrollments = await fetchAllQualificationEnrollments(
+        campaignId,
+        statusFilter === "all" ? undefined : statusFilter
+      );
       const csv = buildQualificationCsv(reportColumns, enrollments);
       const safeName =
         campaignName
@@ -1069,24 +1308,48 @@ function QualificationTab({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
+        <p className="min-w-0 text-xs text-muted-foreground">
           {pagination.total.toLocaleString("en-IN")} candidate
           {pagination.total === 1 ? "" : "s"} with Gmail screening answers
         </p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={exporting || rows.length === 0}
-          onClick={() => void handleExportCsv()}
-        >
-          {exporting ? (
-            <Loader2 aria-hidden className="animate-spin" />
-          ) : (
-            <Download aria-hidden />
-          )}
-          {exporting ? "Exporting…" : "Export CSV"}
-        </Button>
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              if (!value) return;
+              setStatusFilter(value as QualificationStatusFilter);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger size="sm" className="min-w-36" aria-label="Filter by status">
+              <SelectValue>
+                {QUALIFICATION_STATUS_FILTERS.find((option) => option.id === statusFilter)
+                  ?.label ?? "All statuses"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {QUALIFICATION_STATUS_FILTERS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={exporting || pagination.total === 0}
+            onClick={() => void handleExportCsv()}
+          >
+            {exporting ? (
+              <Loader2 aria-hidden className="animate-spin" />
+            ) : (
+              <Download aria-hidden />
+            )}
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+        </div>
       </div>
       {exportError ? (
         <p role="alert" className="text-xs text-destructive">
@@ -1096,25 +1359,36 @@ function QualificationTab({
       <section className="overflow-x-auto rounded-xl border border-border bg-card">
         <Table>
           <caption className="sr-only">
-            Gmail screening answers by candidate
+            Qualification answers, Gmail screening answers, WhatsApp hiring-flow answers, and post-call AI summaries by candidate
           </caption>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className={HEAD}>Candidate</TableHead>
               <TableHead className={HEAD}>Status</TableHead>
+              <TableHead className={cn(HEAD, "min-w-48")}>AI summary</TableHead>
               {reportColumns.map((column) => (
                 <TableHead
                   key={`${column.source}-${column.id}`}
-                  className={HEAD}
+                  className="h-auto min-w-44 max-w-56 py-2 text-xs font-medium whitespace-normal text-muted-foreground"
                   title={column.prompt || column.title}
                 >
-                  {column.title}
+                  <span className="line-clamp-2">{column.title}</span>
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((candidate) => {
+            {rows.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell
+                  colSpan={3 + reportColumns.length}
+                  className="py-8 text-center text-sm text-muted-foreground"
+                >
+                  No candidates with this status.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((candidate) => {
               const statusLabel =
                 candidate.overallAIStatus ||
                 qualificationStatusLabel(
@@ -1155,6 +1429,20 @@ function QualificationTab({
                       description={candidate.overallAIDescription}
                     />
                   </TableCell>
+                  <TableCell className="max-w-72 py-2.5">
+                    {candidate.aiSummary ? (
+                      <Tooltip>
+                        <TooltipTrigger className="line-clamp-2 text-left text-sm text-foreground">
+                          {candidate.aiSummary}
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="start" className="whitespace-pre-wrap">
+                          {candidate.aiSummary}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   {reportColumns.map((column) => {
                     const answer = reportAnswer(candidate, column);
                     const hint = gmailQuestionHint(candidate, column);
@@ -1162,18 +1450,27 @@ function QualificationTab({
                       <TableCell
                         key={`${column.source}-${column.id}`}
                         className={cn(
-                          "max-w-56 truncate py-2.5 text-sm",
-                          answer ? "text-foreground" : "text-muted-foreground"
+                          "max-w-56 py-2.5 text-sm",
+                          answer.media ? "whitespace-normal" : "truncate",
+                          answer.text || answer.media
+                            ? "text-foreground"
+                            : "text-muted-foreground"
                         )}
-                        title={hint || answer || undefined}
+                        title={
+                          hint ||
+                          (answer.media
+                            ? answer.media.name || mediaKindLabel(answer.media)
+                            : answer.text || undefined)
+                        }
                       >
-                        {answer || "—"}
+                        <ReportAnswerCell answer={answer} />
                       </TableCell>
                     );
                   })}
                 </TableRow>
               );
-            })}
+            })
+            )}
           </TableBody>
         </Table>
       </section>

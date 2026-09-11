@@ -7,6 +7,8 @@ import {
   applyGeoExpandStep,
   buildSessionPayloadFromPromptAndFilter,
   buildJdTextFromPromptAndFilters,
+  buildWlSearchFilters,
+  yearsRangeFromFilterForm,
   DEFAULT_FILTER_FORM,
   extractSearchProfileDocs,
   extractSearchTotalDocs,
@@ -24,7 +26,10 @@ import {
   type FutureJobsProfileDoc,
   type GeoExpandStep,
 } from '../../../providers/future-jobs/index.js';
-import { rewriteJobAsSearchPrompt } from '../../../providers/gemini/gemini.search-prompt.js';
+import {
+  extractYearsExperienceRangeFromPrompt,
+  rewriteJobAsSearchPrompt,
+} from '../../../providers/gemini/gemini.search-prompt.js';
 import { emitCandidateSearchPoll } from '../../../realtime/events.js';
 import { AppError } from '../../../shared/errors/app-error.js';
 import { getSkip } from '../../../shared/pagination/paginate.js';
@@ -593,7 +598,8 @@ export class CandidateSearchService {
   }
 
   /**
-   * Main candidate-search endpoint — POST /wl/search with natural-language jdText.
+   * Main candidate-search endpoint — POST /wl/search with natural-language jdText
+   * plus structured filters (YoE RANGE from drawer or Gemini/prompt extract).
    * Waits for Future Jobs to return profiles in the same response (no poll).
    */
   async apply(actor: SearchActor, input: ApplySearchInput) {
@@ -608,6 +614,15 @@ export class CandidateSearchService {
         'Describe the candidate or set search filters.'
       );
     }
+
+    const fromFormYears = yearsRangeFromFilterForm(originalFilterForm);
+    const yearsFromPrompt = fromFormYears
+      ? null
+      : (await extractYearsExperienceRangeFromPrompt(prompt)).range;
+    const filters = buildWlSearchFilters({
+      form: originalFilterForm,
+      yearsFromPrompt,
+    });
 
     const quotaKey = idempotencyKeyForApply(actor, input);
     await reserveSearchQuota(actor, quotaKey);
@@ -630,7 +645,7 @@ export class CandidateSearchService {
 
     try {
       const res = await provider.searchByJdText(
-        { jdText },
+        filters ? { jdText, filters } : { jdText },
         { traceId: actor.requestId, timeoutMs: 120_000, maxRetries: 0 }
       );
       const docs = extractSearchDocs(res);
@@ -642,7 +657,7 @@ export class CandidateSearchService {
           `wl-search-${Date.now()}`;
       }
 
-      const payload = { jdText };
+      const payload = { jdText, ...(filters ? { filters } : {}) };
       const session = await this.upsertHistorySession({
         actor,
         existing,
@@ -723,6 +738,8 @@ export class CandidateSearchService {
           durationMs: Date.now() - started,
           usageTransactionId: quotaKey,
           jdTextChars: jdText.length,
+          hasYearsFilter: Boolean(filters?.years_of_experience_raw),
+          yearsFilter: filters?.years_of_experience_raw ?? null,
           docCount: docs.length,
           polling: false,
         },

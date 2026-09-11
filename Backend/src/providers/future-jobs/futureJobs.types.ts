@@ -300,11 +300,16 @@ export interface FutureJobsProvider {
 
   /**
    * POST /wl/search
-   * Body: { jdText: string }
+   * Body: { jdText: string, filters?: { years_of_experience_raw?: { type: 'RANGE', value: [min, max] } } }
    * Synchronous natural-language search — wait for profiles, do not poll.
    */
   searchByJdText(
-    body: { jdText: string },
+    body: {
+      jdText: string;
+      filters?: {
+        years_of_experience_raw?: { type: 'RANGE'; value: [number, number] };
+      };
+    },
     opts?: FutureJobsRequestOpts
   ): Promise<FutureJobsApiResponse<FutureJobsSearchData>>;
 
