@@ -3,6 +3,7 @@ import { verifySmtpCredentials } from '../../../providers/smtp/smtp.js';
 import {
   buildZohoOAuthAuthorizeUrl,
   exchangeZohoAuthCode,
+  fetchZohoUserEmail,
   getZohoDcConfig,
   getZohoOAuthConfig,
   getZohoOAuthRedirectUri,
@@ -68,6 +69,7 @@ export const zohoMailProvider: EmailProvider = {
         extras: {
           dataCenter: body.dataCenter || body.zohoDataCenter,
           accountsServer: body.accountsServer,
+          location: body.location,
         },
       });
       return { mode: 'connected', message: 'Zoho Mail connected', tokens: exchanged };
@@ -102,17 +104,26 @@ export const zohoMailProvider: EmailProvider = {
         typeof input.extras?.accountsServer === 'string'
           ? input.extras.accountsServer
           : undefined,
+      location: input.extras?.location,
     });
     const accessToken = String(tokens.access_token || '');
     let email: string | null = null;
     let accountId: string | null = null;
+    let dataCenter = tokens.dataCenter;
+
     try {
       const resolved = await resolveZohoAccountId(accessToken, tokens.dataCenter);
       email = resolved.email;
       accountId = resolved.accountId || null;
+      dataCenter = resolved.dataCenter || dataCenter;
     } catch {
-      // Account lookup is best-effort at connect time; send/sync resolve later.
+      // Fall through to userinfo.
     }
+
+    if (!email || !email.includes('@')) {
+      email = await fetchZohoUserEmail(accessToken, dataCenter);
+    }
+
     return {
       accessToken,
       refreshToken: typeof tokens.refresh_token === 'string' ? tokens.refresh_token : null,
@@ -123,7 +134,7 @@ export const zohoMailProvider: EmailProvider = {
       scopes: [...ZOHO_MAIL_SCOPES],
       config: {
         zohoAuthMode: 'oauth',
-        zohoDataCenter: tokens.dataCenter,
+        zohoDataCenter: dataCenter,
         apiDomain: tokens.api_domain ?? null,
         zohoAccountId: accountId,
       },
@@ -158,7 +169,11 @@ export const zohoMailProvider: EmailProvider = {
           smtpPort: ctx.config?.smtpPort,
           security: ctx.config?.smtpSecurity,
         });
-        return { ok: true, message: 'Zoho SMTP OK' };
+        return {
+          ok: true,
+          message: 'Zoho SMTP OK',
+          details: ctx.email ? { email: ctx.email } : undefined,
+        };
       } catch (error) {
         return {
           ok: false,
@@ -166,9 +181,54 @@ export const zohoMailProvider: EmailProvider = {
         };
       }
     }
-    return {
-      ok: Boolean(ctx.accessToken),
-      message: ctx.accessToken ? 'Zoho OAuth tokens present' : 'Zoho OAuth token missing',
-    };
+
+    if (!ctx.accessToken) {
+      return { ok: false, message: 'Zoho OAuth token missing' };
+    }
+
+    const dataCenter =
+      typeof ctx.config?.zohoDataCenter === 'string'
+        ? ctx.config.zohoDataCenter
+        : undefined;
+
+    try {
+      const resolved = await resolveZohoAccountId(
+        ctx.accessToken,
+        dataCenter,
+        ctx.email
+      );
+      let email = resolved.email || ctx.email || null;
+      if (!email || !email.includes('@')) {
+        email = await fetchZohoUserEmail(ctx.accessToken, resolved.dataCenter);
+      }
+      return {
+        ok: true,
+        message: email ? `Zoho Mail OK (${email})` : 'Zoho Mail OK',
+        details: {
+          ...(email ? { email } : {}),
+          ...(resolved.accountId ? { accountId: resolved.accountId } : {}),
+          ...(resolved.dataCenter ? { dataCenter: resolved.dataCenter } : {}),
+        },
+      };
+    } catch (error) {
+      const email = await fetchZohoUserEmail(ctx.accessToken, dataCenter);
+      if (email) {
+        return {
+          ok: true,
+          message: `Zoho Mail OK (${email})`,
+          details: { email },
+        };
+      }
+      return {
+        ok: Boolean(ctx.accessToken),
+        message:
+          error instanceof Error
+            ? error.message
+            : ctx.accessToken
+              ? 'Zoho OAuth tokens present'
+              : 'Zoho OAuth token missing',
+        details: ctx.email ? { email: ctx.email } : undefined,
+      };
+    }
   },
 };

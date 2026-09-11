@@ -901,7 +901,19 @@ function ConnectionDrawer({
     setBusy(true);
     setDrawerAlert(null);
     try {
-      const result = await integrationsApi.connect(provider!.id, body);
+      const payload = { ...body };
+      if (
+        (provider!.id === "zoho-mail" || provider!.id === "outlook") &&
+        !payload.redirectUri &&
+        typeof window !== "undefined"
+      ) {
+        const path =
+          provider!.id === "zoho-mail"
+            ? "/integrations/zoho/callback"
+            : "/integrations/outlook/callback";
+        payload.redirectUri = `${window.location.origin}${path}`;
+      }
+      const result = await integrationsApi.connect(provider!.id, payload);
       if (result.mode === "oauth_redirect" && result.authorizeUrl) {
         window.location.assign(result.authorizeUrl);
         return;

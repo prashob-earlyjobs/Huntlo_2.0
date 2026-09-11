@@ -1152,7 +1152,7 @@ function VideoAgentStep({
                 key: "conversation" as const,
                 title: "Conversation",
                 description: "Adaptive AI dialogue",
-                disabled: true,
+                disabled: false,
               },
             ] as const
           ).map((mode) => {

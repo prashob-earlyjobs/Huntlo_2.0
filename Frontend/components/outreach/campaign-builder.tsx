@@ -162,7 +162,11 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       label: state.sourceDetail || state.source || null,
     },
     channelConfig: {
-      email: { enabled: state.enabledChannels.includes("Email") },
+      email: {
+        enabled: state.enabledChannels.includes("Email"),
+        integrationId: state.emailIntegrationId,
+        senderEmail: null,
+      },
       whatsapp: { enabled: state.enabledChannels.includes("WhatsApp") },
       ai_voice: { enabled: state.enabledChannels.includes("AI Voice") },
       timezone: state.timezone || "Asia/Kolkata",
@@ -193,6 +197,7 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
       autoScreening: state.autoScreening,
+      autoScreeningModality: state.autoScreeningModality,
       autoWhatsAppAfterQualification: campaignHasAiVoice(state)
         ? state.autoWhatsAppAfterQualification
         : false,
@@ -200,9 +205,8 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       autoWhatsAppTemplateId: state.autoWhatsAppTemplateId,
     },
     schedulingConfig: {
-      enabled: campaignHasAiVoice(state) ? false : state.autoCalendly,
-      provider:
-        campaignHasAiVoice(state) || !state.autoCalendly ? null : "calendly",
+      enabled: state.autoCalendly,
+      provider: state.autoCalendly ? "calendly" : null,
     },
   };
 }
@@ -454,6 +458,8 @@ export function CampaignBuilder({
       if (key === "autoScreening") {
         return withVoiceDependentQualification(previous, {
           autoScreening: Boolean(value),
+          // Video option is reserved — keep Audio as the only selectable default.
+          autoScreeningModality: "voice",
         });
       }
       return { ...previous, [key]: value };

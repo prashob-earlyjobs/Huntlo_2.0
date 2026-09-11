@@ -8,10 +8,10 @@ import { ArrowRight, Plug } from "lucide-react";
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 
 const INTEGRATION_LOGOS = [
-  { name: "Gmail", src: "/integrations/gmail.svg" },
-  { name: "WhatsApp", src: "/integrations/whatsapp.svg" },
-  { name: "Calendly", src: "/integrations/calendly.svg" },
-  { name: "LinkedIn", src: "/integrations/linkedin.svg" },
+  { name: "Gmail", src: "/logos/communicationVendor/gmail.svg" },
+  { name: "WhatsApp", src: "/logos/whatsapp.svg" },
+  { name: "Calendly", src: "/logos/calendly.svg" },
+  { name: "LinkedIn", src: "/logos/linkedin.svg" },
 ];
 
 export function HeroSection() {

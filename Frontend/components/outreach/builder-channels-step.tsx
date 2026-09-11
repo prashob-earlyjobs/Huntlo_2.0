@@ -14,8 +14,16 @@ import {
 } from "@/components/outreach/builder-types";
 import { UsageProgress } from "@/components/shared/usage-progress";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { integrationsApi, plansApi } from "@/lib/api";
+import type { SafeIntegration } from "@/lib/api/integrations";
 import type { UsageQuota } from "@/lib/api/contracts";
 import {
   CHANNEL_CONFIGS,
@@ -24,6 +32,8 @@ import {
   type OutreachChannel,
 } from "@/lib/mock-outreach";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/lib/routes";
+import Link from "next/link";
 
 const CONNECTION_CLASSES: Record<ChannelConnection, string> = {
   Connected: "bg-success/10 text-success",
@@ -57,6 +67,51 @@ const CHANNEL_QUOTA_UNIT: Record<OutreachChannel, string> = {
 };
 
 const UNLIMITED_LIMIT = 999_999_999;
+
+const EMAIL_PROVIDER_LOGOS: Record<string, { src: string; alt: string }> = {
+  gmail: { src: "/logos/communicationVendor/gmail.svg", alt: "Gmail" },
+  "zoho-mail": {
+    src: "/logos/communicationVendor/zohomail.svg",
+    alt: "Zoho Mail",
+  },
+  outlook: {
+    src: "/logos/communicationVendor/microsoft-outlook.svg",
+    alt: "Outlook",
+  },
+  smtp: { src: "/logos/smtp.svg", alt: "SMTP" },
+};
+
+type EmailAccountOption = {
+  id: string;
+  identity: string;
+  label: string;
+  provider: string;
+};
+
+function EmailProviderLogo({
+  provider,
+  className,
+}: {
+  provider: string;
+  className?: string;
+}) {
+  const logo = EMAIL_PROVIDER_LOGOS[provider] || EMAIL_PROVIDER_LOGOS.smtp;
+  const wide = provider === "gmail";
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- static public SVG/PNG icons
+    <img
+      src={logo.src}
+      alt=""
+      aria-hidden
+      title={logo.alt}
+      className={cn(
+        "shrink-0 object-contain",
+        wide ? "h-3.5 w-auto max-w-12" : "size-3.5",
+        className
+      )}
+    />
+  );
+}
 
 type ChannelQuota = {
   used: number;
@@ -218,14 +273,16 @@ export function ChannelsStep({
   >({});
   const [displays, setDisplays] = useState(defaultDisplays);
   const [usageLoading, setUsageLoading] = useState(true);
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccountOption[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const [providers, usage] = await Promise.all([
+        const [providers, usage, integrations] = await Promise.all([
           integrationsApi.listProviders(),
           plansApi.getUsage(),
+          integrationsApi.listRaw(),
         ]);
         if (cancelled) return;
 
@@ -307,6 +364,105 @@ export function ChannelsStep({
           }
         );
 
+        const emailProviders = new Set([
+          "gmail",
+          "outlook",
+          "zoho-mail",
+          "smtp",
+        ]);
+        const providerLabelFor = (provider: string) =>
+          provider === "zoho-mail"
+            ? "Zoho"
+            : provider === "gmail"
+              ? "Gmail"
+              : provider === "outlook"
+                ? "Outlook"
+                : "SMTP";
+        const mailboxIdentity = (row: SafeIntegration) => {
+          const config = row.config || {};
+          const fromConfig = [config.fromEmail, config.senderEmail, config.email]
+            .map((value) => (typeof value === "string" ? value.trim() : ""))
+            .find((value) => value.includes("@"));
+          const candidates = [
+            row.email,
+            row.connectedIdentity,
+            row.displayName,
+            fromConfig,
+          ]
+            .map((value) => (typeof value === "string" ? value.trim() : ""))
+            .filter(Boolean);
+          const emailLike = candidates.find((value) => value.includes("@"));
+          if (emailLike) return emailLike;
+          const nonProvider = candidates.find(
+            (value) => value !== row.provider && !emailProviders.has(value)
+          );
+          return nonProvider || providerLabelFor(row.provider);
+        };
+        let accounts = (integrations.integrations || [])
+          .filter(
+            (row: SafeIntegration) =>
+              emailProviders.has(row.provider) &&
+              row.status !== "disconnected" &&
+              row.status !== "disabled"
+          )
+          .map((row) => {
+            const identity = mailboxIdentity(row);
+            const providerLabel = providerLabelFor(row.provider);
+            return {
+              id: row.id,
+              identity,
+              label: `${providerLabel} · ${identity}`,
+              provider: row.provider,
+            };
+          });
+
+        const zohoMissingEmail = accounts.filter(
+          (account) =>
+            account.provider === "zoho-mail" && !account.identity.includes("@")
+        );
+        if (zohoMissingEmail.length > 0) {
+          await Promise.all(
+            zohoMissingEmail.map((account) =>
+              integrationsApi.test(account.id).catch(() => null)
+            )
+          );
+          if (!cancelled) {
+            const refreshed = await integrationsApi.listRaw();
+            accounts = (refreshed.integrations || [])
+              .filter(
+                (row: SafeIntegration) =>
+                  emailProviders.has(row.provider) &&
+                  row.status !== "disconnected" &&
+                  row.status !== "disabled"
+              )
+              .map((row) => {
+                const identity = mailboxIdentity(row);
+                const providerLabel = providerLabelFor(row.provider);
+                return {
+                  id: row.id,
+                  identity,
+                  label: `${providerLabel} · ${identity}`,
+                  provider: row.provider,
+                };
+              });
+          }
+        }
+
+        setEmailAccounts(
+          accounts.map(({ id, identity, label, provider }) => ({
+            id,
+            identity,
+            label,
+            provider,
+          }))
+        );
+        if (
+          state.emailIntegrationId &&
+          !accounts.some((account) => account.id === state.emailIntegrationId)
+        ) {
+          update("emailIntegrationId", null);
+        }
+
         update("connections", nextConnections);
         setDisplays(nextDisplays);
         setQuotaByChannel(nextQuota);
@@ -335,6 +491,14 @@ export function ChannelsStep({
     );
   }
 
+  const selectedEmailAccount = emailAccounts.find(
+    (account) => account.id === state.emailIntegrationId
+  );
+  const emailAccountItems = emailAccounts.map((account) => ({
+    value: account.id,
+    label: account.identity,
+  }));
+
   return (
     <StepCard
       title="Channels"
@@ -361,7 +525,13 @@ export function ChannelsStep({
                 key={config.channel}
                 onClick={(event) => {
                   const target = event.target as HTMLElement;
-                  if (target.closest("button, a, input, select, textarea")) return;
+                  if (
+                    target.closest(
+                      "button, a, input, select, textarea, [role='combobox']"
+                    )
+                  ) {
+                    return;
+                  }
                   toggleChannel(config.channel);
                 }}
                 className={cn(
@@ -413,11 +583,87 @@ export function ChannelsStep({
                 </div>
 
                 <dl className="mt-3 space-y-1.5 text-xs">
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-muted-foreground">Sender</dt>
-                    <dd className="truncate font-medium text-foreground">
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="shrink-0 text-muted-foreground">Sender</dt>
+                    <dd className="min-w-0 max-w-[70%] truncate text-right font-medium text-foreground">
                       {usageLoading ? (
                         <Skeleton className="ml-auto h-3 w-28" />
+                      ) : config.channel === "Email" ? (
+                        emailAccounts.length > 0 ? (
+                          <Select
+                            value={state.emailIntegrationId || null}
+                            onValueChange={(value) =>
+                              update(
+                                "emailIntegrationId",
+                                typeof value === "string" ? value : null
+                              )
+                            }
+                            items={emailAccountItems}
+                          >
+                            <SelectTrigger
+                              id="campaign-email-account"
+                              size="sm"
+                              className="ml-auto h-auto max-w-full border-0 bg-transparent px-0 py-0 text-xs font-medium shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0 data-[size=sm]:h-auto dark:bg-transparent dark:hover:bg-transparent"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <SelectValue
+                                placeholder="Select mailbox"
+                                className="flex-none justify-end text-right"
+                              >
+                                {(value: string | null) => {
+                                  const account =
+                                    emailAccounts.find(
+                                      (entry) => entry.id === value
+                                    ) ?? selectedEmailAccount;
+                                  if (!account) {
+                                    return display.sender || "Select mailbox";
+                                  }
+                                  return (
+                                    <span className="inline-flex max-w-full items-center justify-end gap-1.5">
+                                      <EmailProviderLogo
+                                        provider={account.provider}
+                                      />
+                                      <span className="truncate">
+                                        {account.identity}
+                                      </span>
+                                    </span>
+                                  );
+                                }}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent
+                              align="end"
+                              alignItemWithTrigger={false}
+                              className="min-w-56"
+                            >
+                              {emailAccounts.map((account) => (
+                                <SelectItem key={account.id} value={account.id}>
+                                  <span className="inline-flex min-w-0 items-center gap-2">
+                                    <EmailProviderLogo
+                                      provider={account.provider}
+                                      className={
+                                        account.provider === "gmail"
+                                          ? "h-4 w-auto max-w-14"
+                                          : "size-4"
+                                      }
+                                    />
+                                    <span className="truncate">
+                                      {account.identity}
+                                    </span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Link
+                            href={ROUTES.integrations}
+                            className="text-muted-foreground underline underline-offset-2"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            Connect mailbox
+                          </Link>
+                        )
                       ) : (
                         display.sender
                       )}

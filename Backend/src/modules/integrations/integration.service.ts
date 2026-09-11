@@ -9,10 +9,12 @@ import { getGoogleOAuthConfig } from '../../providers/gmail/gmail.oauth.js';
 import { getOutlookOAuthConfig, getOutlookOAuthRedirectUri } from '../../providers/outlook/outlook.oauth.js';
 import {
   buildZohoOAuthAuthorizeUrl,
+  fetchZohoUserEmail,
   getZohoOAuthConfig,
   getZohoOAuthRedirectUri,
   normalizeZohoDataCenter,
 } from '../../providers/zoho/zoho.oauth.js';
+import { resolveZohoAccountId } from '../../providers/zoho/zoho.fetch.js';
 import { isGupshupWhatsAppConfigured } from '../../providers/gupshup/gupshup.config.js';
 import { isHuntloWhatsAppConfigured } from '../../providers/meta-whatsapp/meta.config.js';
 import { isHunarConfigured } from '../../providers/hunar/hunar.config.js';
@@ -105,6 +107,14 @@ export function toSafeIntegration(doc: UserIntegrationDocument): SafeIntegration
   const displayName = doc.displayName || null;
   const email = doc.email || null;
   const phone = doc.phone || null;
+  const accountId = doc.providerAccountId || null;
+  const identity =
+    email ||
+    phone ||
+    (displayName && displayName.includes('@') ? displayName : null) ||
+    (accountId && accountId.includes('@') ? accountId : null) ||
+    displayName ||
+    null;
   return {
     id: String(doc._id),
     provider: doc.provider,
@@ -114,7 +124,7 @@ export function toSafeIntegration(doc: UserIntegrationDocument): SafeIntegration
     displayName,
     email,
     phone,
-    providerAccountId: doc.providerAccountId || null,
+    providerAccountId: accountId,
     config: publicConfig((doc.config || {}) as Record<string, unknown>),
     scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
     lastTestedAt: toIso(doc.lastTestedAt),
@@ -124,7 +134,7 @@ export function toSafeIntegration(doc: UserIntegrationDocument): SafeIntegration
     disconnectedAt: toIso(doc.disconnectedAt),
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
-    connectedIdentity: email || phone || displayName || doc.providerAccountId || null,
+    connectedIdentity: identity,
   };
 }
 
@@ -190,6 +200,61 @@ async function buildProviderContext(
     email: doc.email,
     displayName: doc.displayName,
   };
+}
+
+/** Best-effort: fill Zoho mailbox email when OAuth connect skipped account lookup. */
+async function backfillZohoMailboxEmail(
+  doc: UserIntegrationDocument
+): Promise<UserIntegrationDocument> {
+  if (doc.provider !== 'zoho-mail') return doc;
+  if (doc.email && doc.email.includes('@')) return doc;
+  if (String(doc.config?.zohoAuthMode || '') === 'smtp') return doc;
+
+  try {
+    const accessToken = await integrationsService.ensureFreshAccessToken(
+      String(doc.organizationId),
+      String(doc._id)
+    );
+    if (!accessToken) return doc;
+
+    const dataCenter =
+      typeof doc.config?.zohoDataCenter === 'string'
+        ? doc.config.zohoDataCenter
+        : undefined;
+
+    let email: string | null = null;
+    let accountId: string | null = null;
+    let resolvedDc = dataCenter;
+
+    try {
+      const resolved = await resolveZohoAccountId(accessToken, dataCenter, doc.email);
+      email = resolved.email;
+      accountId = resolved.accountId || null;
+      resolvedDc = resolved.dataCenter;
+    } catch {
+      // Fall through to userinfo.
+    }
+
+    if (!email || !email.includes('@')) {
+      email = await fetchZohoUserEmail(accessToken, resolvedDc || dataCenter);
+    }
+    if (!email || !email.includes('@')) return doc;
+
+    doc.email = email.toLowerCase();
+    if (!doc.displayName) doc.displayName = email;
+    if (accountId) {
+      doc.providerAccountId = accountId;
+    }
+    doc.config = {
+      ...(doc.config || {}),
+      ...(accountId ? { zohoAccountId: accountId } : {}),
+      ...(resolvedDc ? { zohoDataCenter: resolvedDc } : {}),
+    };
+    await doc.save();
+  } catch {
+    // Leave identity empty; UI falls back to provider label.
+  }
+  return doc;
 }
 
 async function clearDefaultForCategory(
@@ -476,6 +541,14 @@ export const integrationsService = {
     if (query?.category) filter.category = query.category;
 
     const docs = await UserIntegrationModel.find(filter).sort({ updatedAt: -1 });
+    for (const doc of docs) {
+      if (
+        doc.provider === 'zoho-mail' &&
+        !(doc.email && doc.email.includes('@'))
+      ) {
+        await backfillZohoMailboxEmail(doc);
+      }
+    }
     const items = docs.map(toSafeIntegration);
 
     const catalog = PROVIDER_CATALOG.map((item) => {
@@ -739,13 +812,44 @@ export const integrationsService = {
     if (!doc) throw new AppError(404, 'INTEGRATION_NOT_FOUND', 'Integration not found.');
 
     const adapter = getProviderAdapter(doc.provider);
+    const freshAccess = await this.ensureFreshAccessToken(organizationId, id);
     const ctx = await buildProviderContext(doc);
+    if (freshAccess) ctx.accessToken = freshAccess;
     doc.status = 'testing';
     await doc.save();
 
     try {
       const result = await adapter.test(ctx);
       doc.lastTestedAt = new Date();
+      const detailEmail =
+        typeof result.details?.email === 'string'
+          ? result.details.email.trim().toLowerCase()
+          : '';
+      if (detailEmail.includes('@')) {
+        doc.email = detailEmail;
+        if (!doc.displayName) doc.displayName = detailEmail;
+      }
+      const detailAccountId =
+        typeof result.details?.accountId === 'string'
+          ? result.details.accountId.trim()
+          : '';
+      if (detailAccountId) {
+        doc.providerAccountId = detailAccountId;
+        doc.config = {
+          ...(doc.config || {}),
+          zohoAccountId: detailAccountId,
+        };
+      }
+      const detailDataCenter =
+        typeof result.details?.dataCenter === 'string'
+          ? result.details.dataCenter.trim()
+          : '';
+      if (detailDataCenter) {
+        doc.config = {
+          ...(doc.config || {}),
+          zohoDataCenter: normalizeZohoDataCenter(detailDataCenter),
+        };
+      }
       if (result.ok) {
         doc.status = 'connected';
         doc.errorCode = null;

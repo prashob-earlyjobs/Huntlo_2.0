@@ -37,6 +37,7 @@ import {
 } from "@/lib/whatsapp-outreach";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
+import { cn } from "@/lib/utils";
 
 function mapAnswerType(raw: string): AnswerType {
   const value = raw.toLowerCase();
@@ -58,8 +59,7 @@ export function QualificationStep({
   showErrors: boolean;
 }) {
   const errors = showErrors ? stepErrors(4, state) : [];
-  const showAutoWhatsApp = campaignHasAiVoice(state);
-  const showAutoCalendly = !showAutoWhatsApp;
+  const hasAiVoice = campaignHasAiVoice(state);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [hiringFlows, setHiringFlows] = useState<ApiHiringFlow[]>([]);
@@ -346,7 +346,7 @@ export function QualificationStep({
             After qualification
           </h3>
           <div className="grid gap-2 lg:grid-cols-2">
-            {showAutoWhatsApp ? (
+            {hasAiVoice ? (
               <ToggleRow
                 id="qual-auto-whatsapp"
                 label="Auto-send WhatsApp"
@@ -357,24 +357,97 @@ export function QualificationStep({
                 }
               />
             ) : null}
-            <ToggleRow
-              id="qual-auto-screening"
-              label="Auto-start AI screening"
-              description="When a candidate qualifies, schedule them for AI voice screening."
-              checked={state.autoScreening}
-              onChange={(checked) => update("autoScreening", checked)}
-            />
-            {showAutoCalendly ? (
+            <div className="space-y-2">
               <ToggleRow
-                id="qual-auto-calendly"
-                label="Auto-send Calendly"
-                description="Send a scheduling link after qualification completes."
-                checked={state.autoCalendly}
-                onChange={(checked) => update("autoCalendly", checked)}
+                id="qual-auto-screening"
+                label="Auto-start AI screening"
+                description="When a candidate qualifies, schedule them for AI screening."
+                checked={state.autoScreening}
+                onChange={(checked) => update("autoScreening", checked)}
               />
-            ) : null}
+              {state.autoScreening ? (
+                <div
+                  className="grid gap-2 sm:grid-cols-2 rounded-lg border border-dashed border-border px-3 py-3"
+                  role="radiogroup"
+                  aria-label="Screening modality"
+                >
+                  {(
+                    [
+                      {
+                        key: "voice" as const,
+                        title: "Audio",
+                        description: "AI voice screening call",
+                        disabled: false,
+                      },
+                      {
+                        key: "video" as const,
+                        title: "Video",
+                        description: "Coming soon",
+                        disabled: true,
+                      },
+                    ] as const
+                  ).map((mode) => {
+                    const checked = state.autoScreeningModality === mode.key;
+                    return (
+                      <button
+                        key={mode.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        aria-disabled={mode.disabled || undefined}
+                        disabled={mode.disabled}
+                        onClick={() => {
+                          if (mode.disabled) return;
+                          update("autoScreeningModality", mode.key);
+                        }}
+                        className={cn(
+                          "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                          mode.disabled
+                            ? "cursor-not-allowed border-border opacity-50"
+                            : "cursor-pointer",
+                          !mode.disabled && checked
+                            ? "border-primary/50 bg-brand-subtle/20"
+                            : !mode.disabled
+                              ? "border-border hover:bg-muted/40"
+                              : null
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "flex size-4 shrink-0 items-center justify-center rounded-full border",
+                            checked && !mode.disabled
+                              ? "border-primary"
+                              : "border-border bg-card"
+                          )}
+                        >
+                          {checked && !mode.disabled ? (
+                            <span className="size-2 rounded-full bg-primary" />
+                          ) : null}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-foreground">
+                            {mode.title}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {mode.description}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+            <ToggleRow
+              id="qual-auto-calendly"
+              label="Auto-send Calendly"
+              description="Send a scheduling link after qualification completes."
+              checked={state.autoCalendly}
+              onChange={(checked) => update("autoCalendly", checked)}
+            />
           </div>
-          {showAutoWhatsApp && state.autoWhatsAppAfterQualification ? (
+          {hasAiVoice && state.autoWhatsAppAfterQualification ? (
             <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-3">
               <Field
                 label="Hiring flow"

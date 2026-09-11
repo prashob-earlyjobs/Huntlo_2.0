@@ -51,6 +51,8 @@ export interface BuilderState {
   /* Step 3 — channels */
   enabledChannels: OutreachChannel[];
   connections: Record<OutreachChannel, ChannelConnection>;
+  /** Connected email integration used for Send Email steps (gmail / zoho-mail / …). */
+  emailIntegrationId: string | null;
 
   /* Step 4 — sequence */
   steps: SequenceStep[];
@@ -61,6 +63,8 @@ export interface BuilderState {
   aiReplyEnabled: boolean;
   takeoverCondition: string;
   autoScreening: boolean;
+  /** Modality for auto-start screening after qualify. Video UI is reserved / disabled. */
+  autoScreeningModality: "voice" | "video";
   autoCalendly: boolean;
   autoWhatsAppAfterQualification: boolean;
   autoWhatsAppTemplateId: string | null;
@@ -78,11 +82,10 @@ export function isSingleChannelCampaign(state: Pick<BuilderState, "campaignType"
   return state.campaignType === "Single Channel";
 }
 
-/** Hiring-flow WhatsApp after qualify is only for campaigns that will place a Hunar/Zyvka call. */
+/** True when the outreach sequence itself places a Hunar/Zyvka dial (not screening-only). */
 export function campaignHasAiVoice(
-  state: Pick<BuilderState, "enabledChannels" | "steps" | "autoScreening">
+  state: Pick<BuilderState, "enabledChannels" | "steps">
 ) {
-  if (state.autoScreening) return true;
   if (state.enabledChannels.includes("AI Voice")) return true;
   return state.steps.some((step) => STEP_CHANNELS[step.type] === "AI Voice");
 }
@@ -95,11 +98,11 @@ export function withVoiceDependentQualification(
   const hasVoice = campaignHasAiVoice(next);
   return {
     ...next,
+    // Post-call WhatsApp only applies when a voice dial will run.
     autoWhatsAppAfterQualification: hasVoice
       ? next.autoWhatsAppAfterQualification
       : false,
     hiringFlowId: hasVoice ? next.hiringFlowId : null,
-    autoCalendly: hasVoice ? false : next.autoCalendly,
   };
 }
 
@@ -275,12 +278,14 @@ export function initialBuilderState(): BuilderState {
         "Disconnected" as ChannelConnection,
       ])
     ) as Record<OutreachChannel, ChannelConnection>,
+    emailIntegrationId: null,
     steps: DEFAULT_SEQUENCE.map((step) => ({ ...step })),
     classificationEnabled: true,
     questions: DEFAULT_QUESTIONS.map((question) => ({ ...question })),
     aiReplyEnabled: true,
     takeoverCondition: TAKEOVER_CONDITIONS[1],
     autoScreening: false,
+    autoScreeningModality: "voice",
     autoCalendly: false,
     autoWhatsAppAfterQualification: false,
     autoWhatsAppTemplateId:

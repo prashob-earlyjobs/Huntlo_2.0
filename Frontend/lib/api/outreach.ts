@@ -105,6 +105,7 @@ export type ApiOutreachCampaign = {
     aiReplyEnabled: boolean;
     takeoverCondition?: string | null;
     autoScreening?: boolean;
+    autoScreeningModality?: "voice" | "video";
     autoWhatsAppAfterQualification?: boolean;
     hiringFlowId?: string | null;
     autoWhatsAppTemplateId?: string | null;
@@ -189,6 +190,7 @@ export type CampaignCreateInput = {
     aiReplyEnabled?: boolean;
     takeoverCondition?: string | null;
     autoScreening?: boolean;
+    autoScreeningModality?: "voice" | "video";
     autoWhatsAppAfterQualification?: boolean;
     hiringFlowId?: string | null;
     autoWhatsAppTemplateId?: string | null;

@@ -6,7 +6,9 @@ export const ZOHO_MAIL_SCOPES = [
   'ZohoMail.messages.CREATE',
   'ZohoMail.messages.READ',
   'ZohoMail.accounts.READ',
+  'ZohoMail.accounts',
   'ZohoMail.folders.READ',
+  'aaaserver.profile.READ',
 ] as const;
 
 export type ZohoDataCenter = 'com' | 'eu' | 'in' | 'com.au' | 'jp' | 'ca' | 'sa';
@@ -76,8 +78,48 @@ export function dataCenterFromZohoLocation(location: unknown): ZohoDataCenter | 
   return '';
 }
 
+/** Resolve DC from OAuth callback location / accounts-server / api_domain. */
+export function resolveZohoDataCenterFromHints(input: {
+  dataCenter?: unknown;
+  location?: unknown;
+  accountsServer?: unknown;
+  apiDomain?: unknown;
+}): ZohoDataCenter {
+  const fromLocation = dataCenterFromZohoLocation(input.location);
+  if (fromLocation) return fromLocation;
+
+  const hostCandidates = [
+    String(input.accountsServer || ''),
+    String(input.apiDomain || ''),
+  ];
+  for (const raw of hostCandidates) {
+    const host = raw
+      .replace(/^https?:\/\//i, '')
+      .split('/')[0]
+      ?.toLowerCase();
+    if (!host) continue;
+    if (host.includes('zoho.eu') || host.includes('zohoapis.eu')) return 'eu';
+    if (host.includes('zoho.in') || host.includes('zohoapis.in')) return 'in';
+    if (host.includes('zoho.com.au') || host.includes('zohoapis.com.au')) return 'com.au';
+    if (host.includes('zoho.jp') || host.includes('zohoapis.jp')) return 'jp';
+    if (host.includes('zohocloud.ca')) return 'ca';
+    if (host.includes('zoho.sa') || host.includes('zohoapis.sa')) return 'sa';
+    if (host.includes('zoho.com') || host.includes('zohoapis.com')) return 'com';
+  }
+
+  return normalizeZohoDataCenter(input.dataCenter);
+}
+
 export function getZohoDcConfig(dataCenter?: unknown) {
   return ZOHO_DC_CONFIG[normalizeZohoDataCenter(dataCenter)];
+}
+
+export function zohoDataCenterOrder(preferred?: unknown): ZohoDataCenter[] {
+  const first = normalizeZohoDataCenter(preferred);
+  return [
+    first,
+    ...(Object.keys(ZOHO_DC_CONFIG) as ZohoDataCenter[]).filter((dc) => dc !== first),
+  ];
 }
 
 export function getZohoOAuthConfig(): { clientId: string; clientSecret: string } | null {
@@ -117,6 +159,7 @@ export async function exchangeZohoAuthCode(input: {
   code: string;
   dataCenter?: unknown;
   accountsServer?: string;
+  location?: unknown;
   redirectUri: string;
 }) {
   const config = getZohoOAuthConfig();
@@ -151,9 +194,15 @@ export async function exchangeZohoAuthCode(input: {
           : 'Zoho token exchange failed';
     throw Object.assign(new Error(msg), { statusCode: 400 });
   }
+  const dataCenter = resolveZohoDataCenterFromHints({
+    dataCenter: input.dataCenter,
+    location: input.location,
+    accountsServer: server || undefined,
+    apiDomain: data.api_domain,
+  });
   return {
     ...data,
-    dataCenter: normalizeZohoDataCenter(input.dataCenter),
+    dataCenter,
   } as Record<string, unknown> & { dataCenter: ZohoDataCenter };
 }
 
@@ -182,4 +231,31 @@ export async function refreshZohoAccessToken(
     throw Object.assign(new Error('Zoho refresh failed'), { statusCode: 400 });
   }
   return data;
+}
+
+/** Fetch Zoho account email via OAuth userinfo (accounts DC host). */
+export async function fetchZohoUserEmail(
+  accessToken: string,
+  dataCenter?: unknown
+): Promise<string | null> {
+  for (const dc of zohoDataCenterOrder(dataCenter)) {
+    const host = getZohoDcConfig(dc).accountsHost;
+    try {
+      const res = await fetch(`https://${host}/oauth/user/info`, {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) continue;
+      const data = (await res.json()) as { Email?: string; email?: string };
+      const email = String(data.Email || data.email || '')
+        .trim()
+        .toLowerCase();
+      if (email.includes('@')) return email;
+    } catch {
+      // try next DC
+    }
+  }
+  return null;
 }
