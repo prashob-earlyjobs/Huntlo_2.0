@@ -90,6 +90,8 @@ export type CampaignSequenceStep = {
   templateId: string | null;
   subject: string | null;
   body: string | null;
+  /** Spoken first line for AI voice (Hunar `introduction`). */
+  introduction: string | null;
   stopOnReply: boolean;
   note: string | null;
   sendWindow: {
@@ -233,6 +235,7 @@ const sequenceStepSchema = new Schema(
     templateId: { type: String, default: null },
     subject: { type: String, default: null, maxlength: 300 },
     body: { type: String, default: null, maxlength: 60000 },
+    introduction: { type: String, default: null, maxlength: 1000 },
     stopOnReply: { type: Boolean, default: true },
     note: { type: String, default: null, maxlength: 2000 },
     sendWindow: {

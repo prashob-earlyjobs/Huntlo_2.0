@@ -43,6 +43,7 @@ export {
   analysisVariablesFromResultSchema,
   applyVoiceResultToQualificationState,
   extendResultSchemaForQualificationQuestions,
+  inferAnswerFromCallNarrative,
   normalizeVoiceAnalysisVariables,
   qualificationAnswerKey,
   resolveVoiceReplyDisposition,

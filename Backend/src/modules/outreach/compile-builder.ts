@@ -79,6 +79,7 @@ function toStep(raw: unknown, index: number, warnings: string[]): CampaignSequen
   const { delayDays, delayUnit } = normalizeDelay(row);
   const body = pickString(row.body, row.message, row.text, row.content);
   const subject = pickString(row.subject, row.title);
+  const introduction = pickString(row.introduction);
 
   if (!body && !pickString(row.templateId, row.template_id) && type !== 'wait' && type !== 'conditional') {
     warnings.push(`Step ${index + 1} (${type}) has no body or template — it will be skipped when the sequence runs.`);
@@ -93,6 +94,7 @@ function toStep(raw: unknown, index: number, warnings: string[]): CampaignSequen
     templateId: pickString(row.templateId, row.template_id),
     subject,
     body,
+    introduction,
     stopOnReply: row.stopOnReply === undefined ? true : Boolean(row.stopOnReply),
     note: pickString(row.note),
     sendWindow: null,
@@ -125,6 +127,7 @@ function stepsFromEmailTouchpoints(
       templateId: pickString(row.templateId),
       subject: pickString(row.subject),
       body,
+      introduction: pickString(row.introduction),
       stopOnReply: row.stopOnReply === undefined ? true : Boolean(row.stopOnReply),
       note: pickString(row.note),
       sendWindow: null,
@@ -154,6 +157,7 @@ function stepFromChannelMessage(
       templateId: pickString(message.templateId),
       subject,
       body,
+      introduction: pickString(message.introduction),
       stopOnReply: true,
       note: null,
       sendWindow: null,

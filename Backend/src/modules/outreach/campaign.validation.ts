@@ -36,6 +36,7 @@ const sequenceStepSchema = z.object({
   templateId: z.string().nullable().optional(),
   subject: z.string().max(300).nullable().optional(),
   body: z.string().max(60000).nullable().optional(),
+  introduction: z.string().max(1000).nullable().optional(),
   stopOnReply: z.boolean().optional(),
   note: z.string().max(2000).nullable().optional(),
   sendWindow: z

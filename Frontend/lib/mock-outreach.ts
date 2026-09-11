@@ -15,7 +15,10 @@ import {
   CalendarClock,
 } from "lucide-react";
 
-import { defaultAiVoiceStepBody } from "@/lib/roshni-agent-prompt";
+import {
+  defaultAiVoiceStepBody,
+  ROSHNI_INTRODUCTION,
+} from "@/lib/roshni-agent-prompt";
 
 /* ------------------------------------------------------------------ */
 /* Channels                                                             */
@@ -510,6 +513,8 @@ export interface SequenceStep {
   templateId?: string | null;
   subject: string;
   body: string;
+  /** Spoken first line for AI Voice (Hunar `introduction`). */
+  introduction?: string;
   sendWindow: string;
   retry: string;
   stopOnReply: boolean;
@@ -529,6 +534,7 @@ export function makeStep(type: SequenceStepType): SequenceStep {
     template: "Blank message",
     subject: "",
     body: "",
+    introduction: "",
     sendWindow: SEND_WINDOWS[1],
     retry: RETRY_OPTIONS[0],
     stopOnReply: true,
@@ -560,6 +566,7 @@ export function makeStep(type: SequenceStepType): SequenceStep {
       return {
         ...defaults,
         template: MESSAGE_TEMPLATES[5],
+        introduction: ROSHNI_INTRODUCTION,
         body: defaultAiVoiceStepBody(),
         sendWindow: SEND_WINDOWS[1],
       };
