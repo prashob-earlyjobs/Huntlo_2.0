@@ -17,7 +17,7 @@ import {
   type SequenceStep,
   type SequenceStepType,
 } from "@/lib/mock-outreach";
-import { campaignHasAiVoice, initialBuilderState, type BuilderState } from "@/components/outreach/builder-types";
+import { initialBuilderState, type BuilderState } from "@/components/outreach/builder-types";
 
 const STEP_TYPE_FROM_API: Record<string, SequenceStepType> = {
   email: "Send Email",
@@ -149,11 +149,6 @@ export function builderStateFromCampaign(
   const hydratedChannels =
     enabledChannels.length > 0 ? enabledChannels : base.enabledChannels;
   const hydratedSteps = steps.length > 0 ? steps : base.steps;
-  const hasVoice = campaignHasAiVoice({
-    enabledChannels: hydratedChannels,
-    steps: hydratedSteps,
-    autoScreening,
-  });
 
   return {
     ...base,
@@ -182,6 +177,7 @@ export function builderStateFromCampaign(
           }
         : null,
     enabledChannels: hydratedChannels,
+    emailIntegrationId: campaign.channelConfig?.email?.integrationId || null,
     connections: Object.fromEntries(
       CHANNEL_CONFIGS.map((config) => [
         config.channel,
@@ -200,7 +196,11 @@ export function builderStateFromCampaign(
         ? campaign.qualificationConfig.takeoverCondition
         : TAKEOVER_CONDITIONS[2],
     autoScreening,
-    autoCalendly: hasVoice ? false : Boolean(campaign.schedulingConfig?.enabled),
+    autoScreeningModality:
+      campaign.qualificationConfig?.autoScreeningModality === "video"
+        ? ("video" as const)
+        : ("voice" as const),
+    autoCalendly: Boolean(campaign.schedulingConfig?.enabled),
     autoWhatsAppAfterQualification: Boolean(
       campaign.qualificationConfig?.autoWhatsAppAfterQualification
     ),

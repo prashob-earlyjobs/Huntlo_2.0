@@ -173,6 +173,8 @@ export type OutreachCampaignDocument = Document & {
     aiReplyEnabled: boolean;
     takeoverCondition?: string | null;
     autoScreening?: boolean;
+    /** Preferred modality when autoScreening is on (video reserved). */
+    autoScreeningModality?: 'voice' | 'video';
     /** When true, run a hiring flow / WhatsApp template after qualify. */
     autoWhatsAppAfterQualification?: boolean;
     /** Preferred Templates hiring flow id. */

@@ -302,7 +302,7 @@ const mockIntegrationsApi: IntegrationsApi = {
     };
   },
   async completeOAuthCallback(providerId) {
-    return this.connect(providerId);
+    return this.connect(providerId, { code: "mock" });
   },
   async test() {
     await simulateMockLatency();

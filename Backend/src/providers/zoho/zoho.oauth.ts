@@ -6,7 +6,9 @@ export const ZOHO_MAIL_SCOPES = [
   'ZohoMail.messages.CREATE',
   'ZohoMail.messages.READ',
   'ZohoMail.accounts.READ',
+  'ZohoMail.accounts',
   'ZohoMail.folders.READ',
+  'aaaserver.profile.READ',
 ] as const;
 
 /**
@@ -158,8 +160,26 @@ export function resolveZohoDataCenter(input: {
   );
 }
 
+/** @deprecated Prefer resolveZohoDataCenter — kept for mail-side callers. */
+export function resolveZohoDataCenterFromHints(input: {
+  dataCenter?: unknown;
+  location?: unknown;
+  accountsServer?: unknown;
+  apiDomain?: unknown;
+}): ZohoDataCenter {
+  return resolveZohoDataCenter(input);
+}
+
 export function getZohoDcConfig(dataCenter?: unknown) {
   return ZOHO_DC_CONFIG[normalizeZohoDataCenter(dataCenter)];
+}
+
+export function zohoDataCenterOrder(preferred?: unknown): ZohoDataCenter[] {
+  const first = normalizeZohoDataCenter(preferred);
+  return [
+    first,
+    ...(Object.keys(ZOHO_DC_CONFIG) as ZohoDataCenter[]).filter((dc) => dc !== first),
+  ];
 }
 
 export function getZohoOAuthConfig(): { clientId: string; clientSecret: string } | null {
@@ -207,6 +227,7 @@ export async function exchangeZohoAuthCode(input: {
   code: string;
   dataCenter?: unknown;
   accountsServer?: string;
+  location?: unknown;
   redirectUri: string;
 }) {
   const config = getZohoOAuthConfig();
@@ -243,7 +264,8 @@ export async function exchangeZohoAuthCode(input: {
   }
   const dataCenter = resolveZohoDataCenter({
     dataCenter: input.dataCenter,
-    accountsServer: input.accountsServer,
+    location: input.location,
+    accountsServer: server || input.accountsServer,
     apiDomain: data.api_domain,
   });
   return {
@@ -277,4 +299,31 @@ export async function refreshZohoAccessToken(
     throw Object.assign(new Error('Zoho refresh failed'), { statusCode: 400 });
   }
   return data;
+}
+
+/** Fetch Zoho account email via OAuth userinfo (accounts DC host). */
+export async function fetchZohoUserEmail(
+  accessToken: string,
+  dataCenter?: unknown
+): Promise<string | null> {
+  for (const dc of zohoDataCenterOrder(dataCenter)) {
+    const host = getZohoDcConfig(dc).accountsHost;
+    try {
+      const res = await fetch(`https://${host}/oauth/user/info`, {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) continue;
+      const data = (await res.json()) as { Email?: string; email?: string };
+      const email = String(data.Email || data.email || '')
+        .trim()
+        .toLowerCase();
+      if (email.includes('@')) return email;
+    } catch {
+      // try next DC
+    }
+  }
+  return null;
 }

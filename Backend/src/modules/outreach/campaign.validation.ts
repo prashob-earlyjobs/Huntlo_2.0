@@ -115,6 +115,7 @@ export const createCampaignSchema = z.object({
       aiReplyEnabled: z.boolean().optional(),
       takeoverCondition: z.string().max(200).nullable().optional(),
       autoScreening: z.boolean().optional(),
+      autoScreeningModality: z.enum(['voice', 'video']).optional(),
       autoWhatsAppAfterQualification: z.boolean().optional(),
       hiringFlowId: objectId.nullable().optional(),
       autoWhatsAppTemplateId: z.string().trim().max(120).nullable().optional(),
