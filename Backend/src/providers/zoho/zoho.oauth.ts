@@ -6,9 +6,7 @@ export const ZOHO_MAIL_SCOPES = [
   'ZohoMail.messages.CREATE',
   'ZohoMail.messages.READ',
   'ZohoMail.accounts.READ',
-  'ZohoMail.accounts',
   'ZohoMail.folders.READ',
-  'aaaserver.profile.READ',
 ] as const;
 
 /**
