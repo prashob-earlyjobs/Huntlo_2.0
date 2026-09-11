@@ -47,6 +47,7 @@ import {
   calendlyWebhookRouter,
 } from './modules/scheduling/index.js';
 import {
+  adminCouponsRouter,
   billingRouter,
   dodoWebhookRouter,
   razorpayWebhookRouter,
@@ -148,6 +149,7 @@ export function createApp(): Express {
   app.use('/api/v1/plans', plansRouter);
   app.use('/api/v1/usage', usageRouter);
   app.use('/api/v1/admin/plans', adminPlansRouter);
+  app.use('/api/v1/admin/coupons', adminCouponsRouter);
   app.use('/api/v1/admin/jobs', adminJobsRouter);
   app.use('/api/v1/admin/webhooks', adminWebhooksRouter);
   app.use('/api/v1/admin', adminConsoleRouter);
