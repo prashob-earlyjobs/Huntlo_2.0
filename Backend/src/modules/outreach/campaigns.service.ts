@@ -81,6 +81,7 @@ function normalizeSteps(steps?: CreateInput['sequenceSteps']): CampaignSequenceS
     templateId: step.templateId ?? null,
     subject: step.subject ?? null,
     body: step.body ?? null,
+    introduction: step.introduction?.trim() || null,
     stopOnReply: step.stopOnReply ?? true,
     note: step.note ?? null,
     sendWindow: step.sendWindow

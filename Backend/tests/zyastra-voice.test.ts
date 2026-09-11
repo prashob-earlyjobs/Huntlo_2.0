@@ -24,7 +24,7 @@ import {
   partitionVoiceContacts,
 } from '../src/modules/voice/voice-dialer.service.js';
 import { zyastraToHunarWebhookBodies, normalizeZyastraResultVariables } from '../src/modules/voice/zyastra-voice-webhook.service.js';
-import { applyVoiceResultToQualificationState } from '../src/modules/voice/voice-qualification-sync.js';
+import { applyVoiceResultToQualificationState, extendResultSchemaForQualificationQuestions } from '../src/modules/voice/voice-qualification-sync.js';
 import { AuditLogModel } from '../src/shared/audit/audit.service.js';
 import * as hunarClient from '../src/providers/hunar/hunar.client.js';
 import * as zyastraClient from '../src/providers/zyastra/zyastra.client.js';
@@ -307,6 +307,141 @@ describe('Zyastra routing + webhook', () => {
       >;
       expect(answers['q-1']?.value).toBe('1000');
       expect(answers['q-2']?.value).toBe('No');
+    });
+
+    it('fills Not Mentioned and in_progress when call-result omits qualification keys', () => {
+      const enrollment = {
+        qualificationState: { status: 'pending', answers: {} },
+      } as unknown as import('../src/modules/outreach/enrollment.model.js').OutreachEnrollmentDocument;
+
+      const updated = applyVoiceResultToQualificationState({
+        campaign: {
+          qualificationConfig: {
+            questions: [
+              {
+                id: 'q-1',
+                prompt: 'Driving Licence, Aadhaar और PAN भी available हैं?',
+                answerType: 'Number',
+                knockout: true,
+                knockoutCondition: 'Reject if more than 60',
+              },
+            ],
+          },
+        },
+        enrollment,
+        result: {
+          summary: 'Screening was incomplete.',
+          interest_level: 'Interested',
+          final_outcome: 'Incomplete Call',
+        },
+      });
+
+      expect(updated).toBe(true);
+      expect(enrollment.qualificationState.status).toBe('in_progress');
+      const answers = enrollment.qualificationState.answers as Record<
+        string,
+        { value?: string }
+      >;
+      expect(answers['q-1']?.value).toBe('Not Mentioned');
+    });
+
+    it('recovers Yes from eligibility_reason when q_*_answer keys are missing', () => {
+      const enrollment = {
+        qualificationState: {
+          status: 'in_progress',
+          answers: {
+            'q-1789124782692': { value: 'Not Mentioned', source: 'ai', at: new Date() },
+            'q-1789124795567': { value: 'Not Mentioned', source: 'ai', at: new Date() },
+          },
+        },
+      } as unknown as import('../src/modules/outreach/enrollment.model.js').OutreachEnrollmentDocument;
+
+      const updated = applyVoiceResultToQualificationState({
+        campaign: {
+          qualificationConfig: {
+            questions: [
+              {
+                id: 'q-1789124782692',
+                prompt: 'क्या आपके पास valid Driving Licence है?',
+                answerType: 'Short text',
+                knockout: true,
+              },
+              {
+                id: 'q-1789124795567',
+                prompt: 'क्या आपके पास Aadhaar Card और PAN Card दोनों available हैं?',
+                answerType: 'Short text',
+                knockout: false,
+              },
+            ],
+          },
+        },
+        enrollment,
+        result: {
+          summary: 'The candidate engaged and answered screening questions.',
+          interest_level: 'Interested',
+          final_outcome: 'Incomplete Call',
+          eligibility_reason:
+            'Candidate confirmed having a valid driving license and both Aadhaar and PAN cards, but further information is missing.',
+        },
+      });
+
+      expect(updated).toBe(true);
+      expect(enrollment.qualificationState.status).toBe('qualified');
+      const answers = enrollment.qualificationState.answers as Record<
+        string,
+        { value?: string }
+      >;
+      expect(answers['q-1789124782692']?.value).toBe('Yes');
+      expect(answers['q-1789124795567']?.value).toBe('Yes');
+    });
+
+    it('injects campaign qualification keys into result FIELD RULES', () => {
+      const { resultSchema, resultPrompt } = extendResultSchemaForQualificationQuestions(
+        null,
+        null,
+        [{ id: 'q-1', prompt: 'Do you have a valid driving licence?' }]
+      );
+      const props = (resultSchema.properties || {}) as Record<string, unknown>;
+      expect(props.q_1_answer).toBeTruthy();
+      expect(resultPrompt).toContain('CAMPAIGN QUALIFICATION ANSWERS');
+      expect(resultPrompt).toContain('q_1_answer');
+      expect(resultPrompt).toContain('Do you have a valid driving licence?');
+      expect(resultPrompt).not.toContain('Also include captured qualification answers');
+    });
+
+    it('keeps explicit Not Mentioned from Hunar q_*_answer keys', () => {
+      const enrollment = {
+        qualificationState: { status: 'pending', answers: {} },
+      } as unknown as import('../src/modules/outreach/enrollment.model.js').OutreachEnrollmentDocument;
+
+      const updated = applyVoiceResultToQualificationState({
+        campaign: {
+          qualificationConfig: {
+            questions: [
+              {
+                id: 'q-1',
+                prompt: 'Do you have a driving licence?',
+                answerType: 'Yes / No',
+                knockout: false,
+              },
+            ],
+          },
+        },
+        enrollment,
+        result: {
+          summary: 'Candidate engaged.',
+          interest_level: 'Interested',
+          q_1_answer: 'Not Mentioned',
+        },
+      });
+
+      expect(updated).toBe(true);
+      expect(enrollment.qualificationState.status).toBe('in_progress');
+      const answers = enrollment.qualificationState.answers as Record<
+        string,
+        { value?: string }
+      >;
+      expect(answers['q-1']?.value).toBe('Not Mentioned');
     });
 
     it('resolves auth-gated recording URL to Huntlo proxy', async () => {

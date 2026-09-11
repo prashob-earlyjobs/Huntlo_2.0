@@ -36,6 +36,36 @@ function isProvided(value: string): boolean {
   );
 }
 
+/** True when Hunar/Zyastra returned an explicit empty/unclear placeholder. */
+function isExplicitUnset(value: string): boolean {
+  const lower = value.trim().toLowerCase();
+  return (
+    lower === 'not mentioned' ||
+    lower === 'not provided' ||
+    lower === 'declined' ||
+    lower === 'n/a' ||
+    lower === 'na' ||
+    lower === 'none'
+  );
+}
+
+function isCapturedAnswer(value: string): boolean {
+  return Boolean(value.trim());
+}
+
+/** Call-result payloads that finished evaluation even when question keys are missing. */
+function hasVoiceEvaluationPayload(result: Record<string, unknown>): boolean {
+  return Boolean(
+    result.summary ||
+      result.interest_level ||
+      result.interestLevel ||
+      result.final_outcome ||
+      result.finalOutcome ||
+      result.candidate_status ||
+      result.candidateStatus
+  );
+}
+
 /**
  * Map Hunar/Zyastra interest + outcome into enrollment reply disposition.
  * Check explicit "not interested" before "interested" so "not interested" is not
@@ -188,6 +218,51 @@ export function inferAnswerFromRoshniFields(
 }
 
 /**
+ * When Hunar buries a screening answer in eligibility_reason/summary instead of
+ * q_*_answer, recover a short Yes/No (or null) from the narrative.
+ */
+export function inferAnswerFromCallNarrative(
+  prompt: string,
+  result: Record<string, unknown>
+): string | null {
+  const reason = String(result.eligibility_reason ?? result.eligibilityReason ?? '').trim();
+  const summary = String(result.summary ?? '').trim();
+  const blob = `${reason} ${summary}`.toLowerCase();
+  if (!blob.trim()) return null;
+
+  const p = prompt.toLowerCase();
+  const confirmed = /\b(confirmed|confirming|has a valid|having a valid|possesses?|does have|do have)\b/.test(
+    blob
+  );
+  const denied =
+    /\b(does not have|doesn't have|do not have|don't have|denied|no valid|lacks|without)\b/.test(
+      blob
+    );
+
+  const topicHit = (patterns: RegExp[]) => patterns.some((re) => re.test(p) && re.test(blob));
+
+  if (
+    topicHit([
+      /driving\s*licen[cs]e/,
+      /ड्राइविंग/,
+      /लाइसेंस/,
+      /\blicence\b/,
+      /\blicense\b/,
+    ])
+  ) {
+    if (confirmed && !denied) return 'Yes';
+    if (denied) return 'No';
+  }
+
+  if (topicHit([/aadhaar|aadhar|आधार/, /\bpan\b|पैन/])) {
+    if (confirmed && !denied) return 'Yes';
+    if (denied) return 'No';
+  }
+
+  return null;
+}
+
+/**
  * Normalize provider-specific analysis keys (esp. Zyastra) into Roshni-compatible
  * fields so qualification sync and callResult parsing stay consistent.
  */
@@ -265,11 +340,14 @@ export function extractQualificationAnswer(
   for (const key of answerKeysForQuestion(question)) {
     if (!(key in normalized)) continue;
     const value = formatAnswerForQualification(normalized[key]);
-    if (isProvided(value)) return value;
+    // Keep explicit Hunar placeholders so the qualification report is not blank.
+    if (isProvided(value) || isExplicitUnset(value)) return value.trim();
   }
   const prompt = String(question.prompt || '').trim();
   if (prompt) {
-    return inferAnswerFromRoshniFields(prompt, normalized);
+    const fromFields = inferAnswerFromRoshniFields(prompt, normalized);
+    if (fromFields) return fromFields;
+    return inferAnswerFromCallNarrative(prompt, normalized);
   }
   return null;
 }
@@ -305,7 +383,7 @@ export function extendResultSchemaForQualificationQuestions(
     ...((schema.properties as Record<string, unknown>) || {}),
   };
 
-  const answerFields: string[] = [];
+  const fieldRules: string[] = [];
   for (const question of questions || []) {
     const id = String(question.id || '').trim();
     const prompt = String(question.prompt || '').trim();
@@ -317,13 +395,34 @@ export function extendResultSchemaForQualificationQuestions(
         description: `Candidate's spoken answer for "${prompt}". Use "Not Mentioned" when unclear.`,
       };
     }
-    answerFields.push(`"${answerKey}": string — answer to "${prompt}"`);
+    fieldRules.push(
+      [
+        answerKey,
+        `- Capture the candidate's spoken answer in verbatim for: "${prompt}"`,
+        '- This key is required in the JSON output whenever this question was part of the call script.',
+        '- If the candidate declines to answer: Declined',
+        '- Otherwise if missing or unclear: Not Mentioned',
+      ].join('\n')
+    );
   }
 
   schema.properties = properties;
   let resultPrompt = String(basePrompt || '').trim() || ROSHNI_RESULT_PROMPT;
-  if (answerFields.length > 0) {
-    resultPrompt = `${resultPrompt}\n\nAlso include captured qualification answers (text only): ${answerFields.join(', ')}.`;
+  // Strip prior weak appendages so re-sync stays idempotent.
+  resultPrompt = resultPrompt
+    .replace(/\n\nAlso include captured qualification answers[\s\S]*$/i, '')
+    .replace(/\n\nCAMPAIGN QUALIFICATION ANSWERS[\s\S]*$/i, '')
+    .trim();
+
+  if (fieldRules.length > 0) {
+    // Hunar's base prompt says "Do not add any extra keys beyond the ones defined below"
+    // in FIELD RULES — so custom answers must be real FIELD RULES, not a trailing note.
+    resultPrompt = `${resultPrompt}
+
+CAMPAIGN QUALIFICATION ANSWERS
+The following keys are part of the required JSON output (same rules as FIELD RULES above):
+
+${fieldRules.join('\n\n')}`;
   }
   return { resultSchema: schema, resultPrompt };
 }
@@ -348,34 +447,43 @@ export function applyVoiceResultToQualificationState(input: {
   };
   let updated = false;
   let anyKnockoutFail = false;
+  const allowUnsetDefaults = hasVoiceEvaluationPayload(input.result);
 
   for (const question of questions) {
     const id = String(question.id || '').trim();
     if (!id) continue;
-    if (isProvided(answerValue(answers[id]))) continue;
+    const existing = answerValue(answers[id]);
+    // Keep real answers; allow upgrading "Not Mentioned" when narrative recovery finds Yes/No.
+    if (isProvided(existing)) continue;
 
-    const raw = extractQualificationAnswer(question, input.result);
+    let raw = extractQualificationAnswer(question, input.result);
+    // Completed call-result with no per-question key → still surface in the report.
+    if (!raw && allowUnsetDefaults) {
+      raw = 'Not Mentioned';
+    }
     if (!raw) continue;
+    if (existing && existing.trim().toLowerCase() === raw.trim().toLowerCase()) continue;
 
     answers[id] = normalizeAnswerRecord(raw, 'ai');
     updated = true;
 
-    if (evaluateKnockout(question, raw) === 'fail') {
+    if (isProvided(raw) && evaluateKnockout(question, raw) === 'fail') {
       anyKnockoutFail = true;
     }
   }
 
   if (!updated) return false;
 
-  const allAnswered = questions.every((q) => isProvided(answerValue(answers[q.id])));
+  const allMeaningful = questions.every((q) => isProvided(answerValue(answers[q.id])));
+  const allCaptured = questions.every((q) => isCapturedAnswer(answerValue(answers[q.id])));
   const previousStatus = input.enrollment.qualificationState?.status || 'pending';
   let status = previousStatus;
 
   if (anyKnockoutFail) {
     status = 'rejected';
-  } else if (allAnswered) {
+  } else if (allMeaningful) {
     status = 'qualified';
-  } else if (previousStatus === 'pending' || previousStatus === 'qualified') {
+  } else if (allCaptured || previousStatus === 'pending' || previousStatus === 'qualified') {
     status = 'in_progress';
   }
 

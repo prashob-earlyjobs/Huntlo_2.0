@@ -115,23 +115,38 @@ function StepEditor({
 
   useEffect(() => {
     if (!isAiVoice) return;
+    const next: Partial<SequenceStep> = {};
     if (
-      !shouldApplyRemoteVoiceDefault(step.body, voiceDefaults.agentPrompt, {
+      shouldApplyRemoteVoiceDefault(step.body, voiceDefaults.agentPrompt, {
         bundled: defaultAiVoiceStepBody(),
         legacy: LEGACY_AI_VOICE_SCRIPT,
-      })
+      }) &&
+      step.body.trim() !== voiceDefaults.agentPrompt.trim()
+    ) {
+      next.body = voiceDefaults.agentPrompt;
+      next.template = "Roshni agent prompt";
+    }
+    if (
+      shouldApplyRemoteVoiceDefault(step.introduction, voiceDefaults.introduction, {
+        bundled: ROSHNI_INTRODUCTION,
+      }) &&
+      String(step.introduction || "").trim() !== voiceDefaults.introduction.trim()
+    ) {
+      next.introduction = voiceDefaults.introduction;
+    }
+    if (Object.keys(next).length === 0) return;
+    const nextStep = { ...step, ...next };
+    if (
+      nextStep.body === step.body &&
+      nextStep.introduction === step.introduction &&
+      nextStep.template === step.template
     ) {
       return;
     }
-    if (step.body.trim() === voiceDefaults.agentPrompt.trim()) return;
-    onChange({
-      ...step,
-      body: voiceDefaults.agentPrompt,
-      template: "Roshni agent prompt",
-    });
+    onChange(nextStep);
     // Seed when opening an empty / legacy / bundled AI voice step.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when defaults or stub body changes
-  }, [isAiVoice, step.id, step.body, voiceDefaults.agentPrompt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when defaults or step identity changes
+  }, [isAiVoice, step.id, voiceDefaults.agentPrompt, voiceDefaults.introduction]);
 
   useEffect(() => {
     if (!showLockedTemplate || !effectiveWhatsAppSlot) return;
@@ -316,6 +331,25 @@ function StepEditor({
       ) : null}
 
       {isMessage || step.type === "Send Scheduling Link" ? (
+        <>
+        {isAiVoice ? (
+          <Field
+            label="Introduction script"
+            htmlFor={`${step.id}-introduction`}
+            hint={`Hunar speaks this first. Leave {callee_name} for the dialer.`}
+          >
+            <Textarea
+              id={`${step.id}-introduction`}
+              value={step.introduction ?? ""}
+              onChange={(event) =>
+                onChange({ ...step, introduction: event.target.value })
+              }
+              className="min-h-20 font-mono text-xs leading-relaxed"
+              placeholder={voiceDefaults.introduction}
+              maxLength={1000}
+            />
+          </Field>
+        ) : null}
         <Field
           label={
             isAiVoice
@@ -340,6 +374,7 @@ function StepEditor({
                 onClick={() =>
                   onChange({
                     ...step,
+                    introduction: voiceDefaults.introduction,
                     body: voiceDefaults.agentPrompt,
                     template: "Roshni agent prompt",
                   })
@@ -390,9 +425,7 @@ function StepEditor({
             </p>
           ) : isAiVoice ? (
             <p className="pt-1 text-xs text-muted-foreground">
-              Opening line stays{" "}
-              <span className="font-mono">{voiceDefaults.introduction}</span> unless
-              you change campaign voice settings. Leave{" "}
+              The introduction above is Hunar&apos;s first spoken line. Leave{" "}
               <span className="font-mono">{"{callee_name}"}</span> for the dialer.
             </p>
           ) : (
@@ -413,6 +446,7 @@ function StepEditor({
             </div>
           )}
         </Field>
+        </>
       ) : isWait ? (
         <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Wait step — only the delay above is used. No message is sent here.

@@ -175,6 +175,10 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       templateId: step.templateId ?? null,
       subject: step.subject || null,
       body: step.body || null,
+      introduction:
+        step.type === "Start AI Voice Call"
+          ? step.introduction?.trim() || null
+          : null,
       stopOnReply: step.stopOnReply,
       note: step.note || null,
     })),
