@@ -52,7 +52,8 @@ const paymentOrderSchema = new Schema<PaymentOrderDocument>(
     providerOrderId: { type: String, default: null, trim: true, index: true },
     providerPaymentId: { type: String, default: null, trim: true, index: true },
     currency: { type: String, required: true, uppercase: true, trim: true },
-    amount: { type: Number, required: true, min: 1 },
+    /** Smallest currency unit (paise / cents). 0 allowed for 100% coupon checkouts. */
+    amount: { type: Number, required: true, min: 0 },
     status: {
       type: String,
       enum: PAYMENT_ORDER_STATUSES,
