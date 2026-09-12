@@ -791,7 +791,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
       return left - right;
     }) as typeof events;
-    if (!hcg?.messages?.length && !hcgWa?.messages?.length) {
+    if (!hcgEmail && !hcgWa?.messages?.length) {
       const status = hcgHunar ? hcgHunarStatus(hcgHunar) : hcgZyvkaStatus(hcgZyvka!);
       replyStatus = status.replyStatus;
       pipelineStatus = status.pipelineStatus;
