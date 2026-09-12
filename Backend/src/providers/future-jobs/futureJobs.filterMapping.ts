@@ -3,6 +3,7 @@
  */
 
 import type { FutureJobsFilterForm, FutureJobsSkillsBuckets } from './futureJobs.types.js';
+import { countryRegionsFromFilterForm } from './futureJobs.mapper.js';
 
 export {
   DEFAULT_FILTER_FORM,
@@ -14,6 +15,7 @@ export {
   mergeFilterFormIntoSession,
   normalizeFilterFormForUi,
   normalizeRegionForFutureJobs,
+  countryRegionsFromFilterForm,
 } from './futureJobs.mapper.js';
 
 /** Geo expansion order for pending/empty matching when a region filter exists. */
@@ -345,9 +347,11 @@ export function buildJdTextFromPromptAndFilters(
 
 /** Future Jobs `/wl/search` structured filter clause. */
 export type WlSearchRangeFilter = { type: 'RANGE'; value: [number, number] };
+export type WlSearchEqualsFilter = { type: '='; value: string[] };
 
 export type WlSearchFilters = {
   years_of_experience_raw?: WlSearchRangeFilter;
+  country_region?: WlSearchEqualsFilter;
 };
 
 function parseYearsBound(value: unknown): number | null {
@@ -432,13 +436,261 @@ export function parseYearsExperienceRangeFromText(text: string): WlSearchRangeFi
   return null;
 }
 
-/** Prefer drawer YoE; otherwise use a prompt-derived range. */
+/** Prefer drawer YoE; otherwise use a prompt-derived range. Also attach country_region. */
 export function buildWlSearchFilters(input: {
   form?: Partial<FutureJobsFilterForm> | null;
   yearsFromPrompt?: WlSearchRangeFilter | null;
+  countriesFromPrompt?: string[] | null;
 }): WlSearchFilters | undefined {
   const fromForm = yearsRangeFromFilterForm(input.form);
   const yoe = fromForm ?? input.yearsFromPrompt ?? null;
-  if (!yoe) return undefined;
-  return { years_of_experience_raw: yoe };
+  const fromFormCountries = countryRegionsFromFilterForm(input.form);
+  const promptCountries = (input.countriesFromPrompt ?? [])
+    .map((c) => String(c ?? '').trim())
+    .filter(Boolean);
+  const countries = fromFormCountries.length > 0 ? fromFormCountries : promptCountries;
+
+  const filters: WlSearchFilters = {};
+  if (yoe) filters.years_of_experience_raw = yoe;
+  if (countries.length > 0) {
+    filters.country_region = { type: '=', value: countries };
+  }
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
+/**
+ * Heuristic country extract from NL (used when Gemini is unavailable).
+ * Matches known country names / abbreviations as whole words.
+ */
+const KNOWN_COUNTRY_NAMES = [
+  'United Arab Emirates',
+  'United Kingdom',
+  'United States',
+  'Saudi Arabia',
+  'South Africa',
+  'South Korea',
+  'New Zealand',
+  'Czech Republic',
+  'Hong Kong',
+  'Sri Lanka',
+  'Afghanistan',
+  'Argentina',
+  'Australia',
+  'Austria',
+  'Bahrain',
+  'Bangladesh',
+  'Belgium',
+  'Brazil',
+  'Canada',
+  'Chile',
+  'China',
+  'Colombia',
+  'Denmark',
+  'Egypt',
+  'Finland',
+  'France',
+  'Germany',
+  'Greece',
+  'Hungary',
+  'Iceland',
+  'India',
+  'Indonesia',
+  'Ireland',
+  'Israel',
+  'Italy',
+  'Japan',
+  'Jordan',
+  'Kenya',
+  'Kuwait',
+  'Luxembourg',
+  'Malaysia',
+  'Mexico',
+  'Morocco',
+  'Nepal',
+  'Netherlands',
+  'Nigeria',
+  'Norway',
+  'Oman',
+  'Pakistan',
+  'Philippines',
+  'Poland',
+  'Portugal',
+  'Qatar',
+  'Romania',
+  'Russia',
+  'Singapore',
+  'Spain',
+  'Sweden',
+  'Switzerland',
+  'Thailand',
+  'Turkey',
+  'Ukraine',
+  'Vietnam',
+].sort((a, b) => b.length - a.length);
+
+const COUNTRY_NAME_ALIASES: Record<string, string> = {
+  usa: 'United States',
+  us: 'United States',
+  'u.s.': 'United States',
+  'u.s.a.': 'United States',
+  america: 'United States',
+  uk: 'United Kingdom',
+  britain: 'United Kingdom',
+  england: 'United Kingdom',
+  uae: 'United Arab Emirates',
+  emirates: 'United Arab Emirates',
+  holland: 'Netherlands',
+  luxemberg: 'Luxembourg',
+  luxumbourg: 'Luxembourg',
+};
+
+/** State / province / emirate → country for prompt extract. Longer keys first. */
+const STATE_TO_COUNTRY: Record<string, string> = {
+  // United States
+  alabama: 'United States',
+  alaska: 'United States',
+  arizona: 'United States',
+  arkansas: 'United States',
+  california: 'United States',
+  colorado: 'United States',
+  connecticut: 'United States',
+  delaware: 'United States',
+  florida: 'United States',
+  hawaii: 'United States',
+  idaho: 'United States',
+  illinois: 'United States',
+  indiana: 'United States',
+  iowa: 'United States',
+  kansas: 'United States',
+  kentucky: 'United States',
+  louisiana: 'United States',
+  maine: 'United States',
+  maryland: 'United States',
+  massachusetts: 'United States',
+  michigan: 'United States',
+  minnesota: 'United States',
+  mississippi: 'United States',
+  missouri: 'United States',
+  montana: 'United States',
+  nebraska: 'United States',
+  nevada: 'United States',
+  'new hampshire': 'United States',
+  'new jersey': 'United States',
+  'new mexico': 'United States',
+  'new york': 'United States',
+  'north carolina': 'United States',
+  'north dakota': 'United States',
+  ohio: 'United States',
+  oklahoma: 'United States',
+  oregon: 'United States',
+  pennsylvania: 'United States',
+  'rhode island': 'United States',
+  'south carolina': 'United States',
+  'south dakota': 'United States',
+  tennessee: 'United States',
+  texas: 'United States',
+  utah: 'United States',
+  vermont: 'United States',
+  virginia: 'United States',
+  // "georgia" / "washington" omitted — ambiguous with country Georgia / DC naming
+  'west virginia': 'United States',
+  wisconsin: 'United States',
+  wyoming: 'United States',
+  'washington dc': 'United States',
+  'washington d.c.': 'United States',
+  'district of columbia': 'United States',
+  'washington state': 'United States',
+  // India
+  'andhra pradesh': 'India',
+  'arunachal pradesh': 'India',
+  assam: 'India',
+  bihar: 'India',
+  chhattisgarh: 'India',
+  goa: 'India',
+  gujarat: 'India',
+  haryana: 'India',
+  'himachal pradesh': 'India',
+  jharkhand: 'India',
+  karnataka: 'India',
+  kerala: 'India',
+  'madhya pradesh': 'India',
+  maharashtra: 'India',
+  manipur: 'India',
+  meghalaya: 'India',
+  mizoram: 'India',
+  nagaland: 'India',
+  odisha: 'India',
+  orissa: 'India',
+  punjab: 'India',
+  rajasthan: 'India',
+  sikkim: 'India',
+  'tamil nadu': 'India',
+  telangana: 'India',
+  tripura: 'India',
+  'uttar pradesh': 'India',
+  uttarakhand: 'India',
+  'west bengal': 'India',
+  delhi: 'India',
+  'new delhi': 'India',
+  'jammu and kashmir': 'India',
+  ladakh: 'India',
+  puducherry: 'India',
+  chandigarh: 'India',
+  // Canada
+  ontario: 'Canada',
+  quebec: 'Canada',
+  'british columbia': 'Canada',
+  alberta: 'Canada',
+  manitoba: 'Canada',
+  saskatchewan: 'Canada',
+  'nova scotia': 'Canada',
+  'new brunswick': 'Canada',
+  // UAE emirates
+  dubai: 'United Arab Emirates',
+  'abu dhabi': 'United Arab Emirates',
+  sharjah: 'United Arab Emirates',
+  ajman: 'United Arab Emirates',
+  // UK nations / regions already partly aliased; keep Scotland/Wales/NI
+  scotland: 'United Kingdom',
+  wales: 'United Kingdom',
+  'northern ireland': 'United Kingdom',
+};
+
+const STATE_NAMES_BY_LENGTH = Object.keys(STATE_TO_COUNTRY).sort(
+  (a, b) => b.length - a.length
+);
+
+export function parseCountriesFromText(text: string): string[] {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+
+  const lower = raw.toLowerCase();
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (label: string) => {
+    const s = String(label || '').trim();
+    if (!s) return;
+    const key = s.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(s);
+  };
+
+  for (const name of KNOWN_COUNTRY_NAMES) {
+    const re = new RegExp(`\\b${name.replace(/\s+/g, '\\s+')}\\b`, 'i');
+    if (re.test(raw)) push(name);
+  }
+
+  for (const [alias, canonical] of Object.entries(COUNTRY_NAME_ALIASES)) {
+    const re = new RegExp(`\\b${alias.replace(/\./g, '\\.')}\\b`, 'i');
+    if (re.test(lower)) push(canonical);
+  }
+
+  for (const state of STATE_NAMES_BY_LENGTH) {
+    const re = new RegExp(`\\b${state.replace(/\s+/g, '\\s+').replace(/\./g, '\\.')}\\b`, 'i');
+    if (re.test(lower)) push(STATE_TO_COUNTRY[state]!);
+  }
+
+  return out;
 }
