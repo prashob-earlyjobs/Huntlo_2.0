@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import {
@@ -47,6 +47,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { apiClient, conversationsApi } from "@/lib/api";
+import { conversationListRowEqual } from "@/lib/conversations-list-merge";
 import type {
   Conversation,
   ConversationAttachment,
@@ -1254,6 +1255,133 @@ function ConversationThread({
   );
 }
 
+const ConversationListItem = memo(
+  function ConversationListItem({
+    conversation,
+    isActive,
+    unreadCount,
+    embedded,
+    onOpen,
+  }: {
+    conversation: InboxRow;
+    isActive: boolean;
+    unreadCount: number;
+    embedded: boolean;
+    onOpen: (conversation: InboxRow) => void;
+  }) {
+    const isUnread = unreadCount > 0;
+    const pipeline = conversationPipelineStatus(conversation);
+    const primaryLabel = embedded
+      ? conversation.campaignName
+      : conversation.candidateName;
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={() => onOpen(conversation)}
+          aria-current={isActive ? "true" : undefined}
+          className={cn(
+            "flex w-full cursor-pointer items-start gap-2.5 px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+            isActive ? "bg-brand-subtle/50" : "hover:bg-muted/50"
+          )}
+        >
+          {!embedded ? (
+            <CandidateAvatar
+              name={conversation.candidateName}
+              src={conversation.avatarUrl}
+              className="size-8 shrink-0"
+            />
+          ) : null}
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "truncate text-sm",
+                  isUnread
+                    ? "font-semibold text-foreground"
+                    : "font-medium text-foreground"
+                )}
+              >
+                {primaryLabel}
+              </span>
+              {conversation.channels.map((channel) => {
+                const Icon = CHANNEL_ICONS[channel] ?? MessageCircle;
+                const tooltip =
+                  channel === "Email" && conversation.email
+                    ? conversation.email
+                    : channel;
+                return (
+                  <span key={channel} title={tooltip}>
+                    <Icon
+                      aria-label={tooltip}
+                      className="size-3 shrink-0 text-muted-foreground"
+                    />
+                  </span>
+                );
+              })}
+              <span className="ml-auto flex shrink-0 items-center gap-1">
+                {!embedded ? (
+                  conversation.campaignType === "multi_channel" ? (
+                    <span title="Multi-channel campaign">
+                      <MessagesSquare
+                        aria-label="Multi-channel campaign"
+                        className="size-3.5 text-muted-foreground"
+                      />
+                    </span>
+                  ) : (
+                    <span title="Single-channel campaign">
+                      <MessageSquare
+                        aria-label="Single-channel campaign"
+                        className="size-3.5 text-muted-foreground"
+                      />
+                    </span>
+                  )
+                ) : null}
+                <span className="text-[11px] text-muted-foreground">
+                  {conversation.lastTime}
+                </span>
+              </span>
+            </span>
+            <span
+              className={cn(
+                "mt-0.5 block truncate text-xs",
+                isUnread
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground"
+              )}
+            >
+              {conversation.lastMessage}
+            </span>
+            <span className="mt-1 flex items-center gap-1">
+              <MiniBadge
+                text={pipeline}
+                className={pipelineStatusBadgeClass(pipeline)}
+                description={qualificationBadgeTooltip(conversation)}
+              />
+              {isUnread ? (
+                <span
+                  aria-label={`${unreadCount} unread`}
+                  className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
+            </span>
+          </span>
+        </button>
+      </li>
+    );
+  },
+  (prev, next) =>
+    prev.isActive === next.isActive &&
+    prev.unreadCount === next.unreadCount &&
+    prev.embedded === next.embedded &&
+    prev.onOpen === next.onOpen &&
+    prev.conversation.threadIds.join("-") ===
+      next.conversation.threadIds.join("-") &&
+    conversationListRowEqual(prev.conversation, next.conversation)
+);
+
 export function ConversationInbox({
   conversations,
   className,
@@ -1312,19 +1440,36 @@ export function ConversationInbox({
   useEffect(() => {
     setItems((previous) => {
       const prevById = new Map(previous.map((row) => [row.id, row]));
-      return conversations.map((row) => {
+      let changed = previous.length !== conversations.length;
+      const next = conversations.map((row, index) => {
         const prior = prevById.get(row.id);
+        if (prior && conversationListRowEqual(prior, row)) {
+          if (
+            selectedId &&
+            prior.id === selectedId &&
+            (prior.unread || (prior.unreadCount ?? 0) > 0)
+          ) {
+            changed = true;
+            return { ...prior, unread: false, unreadCount: 0 };
+          }
+          if (previous[index] !== prior) changed = true;
+          return prior;
+        }
+        changed = true;
         const merged =
           prior?.events?.length &&
           (row.events?.length ?? 0) < prior.events.length
             ? { ...row, events: prior.events }
             : row;
-        // Keep the open thread clear of unread badges while viewing it.
         if (selectedId && merged.id === selectedId) {
           return { ...merged, unread: false, unreadCount: 0 };
         }
         return merged;
       });
+      if (!changed && next.every((row, index) => row === previous[index])) {
+        return previous;
+      }
+      return next;
     });
   }, [conversations, selectedId]);
 
@@ -1505,29 +1650,32 @@ export function ConversationInbox({
       );
   }
 
-  function open(conversation: InboxRow) {
-    const threadIds = conversation.threadIds;
-    setSelectedId(conversation.id);
-    setReadIds((previous) => {
-      const next = new Set(previous);
-      for (const id of threadIds) next.add(id);
-      return next;
-    });
-    setItems((previous) =>
-      previous.map((row) =>
-        threadIds.includes(row.id)
-          ? { ...row, unread: false, unreadCount: 0 }
-          : row
-      )
-    );
-    if (isLgUp) {
-      window.requestAnimationFrame(() => {
-        document
-          .getElementById("conversation-detail")
-          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  const open = useCallback(
+    (conversation: InboxRow) => {
+      const threadIds = conversation.threadIds;
+      setSelectedId(conversation.id);
+      setReadIds((previous) => {
+        const next = new Set(previous);
+        for (const id of threadIds) next.add(id);
+        return next;
       });
-    }
-  }
+      setItems((previous) =>
+        previous.map((row) =>
+          threadIds.includes(row.id)
+            ? { ...row, unread: false, unreadCount: 0 }
+            : row
+        )
+      );
+      if (isLgUp) {
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById("conversation-detail")
+            ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      }
+    },
+    [isLgUp]
+  );
 
   function persistNote(conversationId: string, text: string) {
     void conversationsApi
@@ -1637,108 +1785,15 @@ export function ConversationInbox({
                       conversation.unreadCount ??
                         (conversation.unread ? 1 : 0)
                     );
-                const isUnread = unreadCount > 0;
-                const pipeline = conversationPipelineStatus(conversation);
-                const primaryLabel = embedded
-                  ? conversation.campaignName
-                  : conversation.candidateName;
                 return (
-                  <li key={conversation.threadIds.join("-")}>
-                    <button
-                      type="button"
-                      onClick={() => open(conversation)}
-                      aria-current={isActive ? "true" : undefined}
-                      className={cn(
-                        "flex w-full cursor-pointer items-start gap-2.5 px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                        isActive ? "bg-brand-subtle/50" : "hover:bg-muted/50"
-                      )}
-                    >
-                      {!embedded ? (
-                        <CandidateAvatar
-                          name={conversation.candidateName}
-                          src={conversation.avatarUrl}
-                          className="size-8 shrink-0"
-                        />
-                      ) : null}
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            className={cn(
-                              "truncate text-sm",
-                              isUnread
-                                ? "font-semibold text-foreground"
-                                : "font-medium text-foreground"
-                            )}
-                          >
-                            {primaryLabel}
-                          </span>
-                          {conversation.channels.map((channel) => {
-                            const Icon =
-                              CHANNEL_ICONS[channel] ?? MessageCircle;
-                            const tooltip =
-                              channel === "Email" && conversation.email
-                                ? conversation.email
-                                : channel;
-                            return (
-                              <span key={channel} title={tooltip}>
-                                <Icon
-                                  aria-label={tooltip}
-                                  className="size-3 shrink-0 text-muted-foreground"
-                                />
-                              </span>
-                            );
-                          })}
-                          <span className="ml-auto flex shrink-0 items-center gap-1">
-                            {!embedded ? (
-                              conversation.campaignType === "multi_channel" ? (
-                                <span title="Multi-channel campaign">
-                                  <MessagesSquare
-                                    aria-label="Multi-channel campaign"
-                                    className="size-3.5 text-muted-foreground"
-                                  />
-                                </span>
-                              ) : (
-                                <span title="Single-channel campaign">
-                                  <MessageSquare
-                                    aria-label="Single-channel campaign"
-                                    className="size-3.5 text-muted-foreground"
-                                  />
-                                </span>
-                              )
-                            ) : null}
-                            <span className="text-[11px] text-muted-foreground">
-                              {conversation.lastTime}
-                            </span>
-                          </span>
-                        </span>
-                        <span
-                          className={cn(
-                            "mt-0.5 block truncate text-xs",
-                            isUnread
-                              ? "font-medium text-foreground"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {conversation.lastMessage}
-                        </span>
-                        <span className="mt-1 flex items-center gap-1">
-                          <MiniBadge
-                            text={pipeline}
-                            className={pipelineStatusBadgeClass(pipeline)}
-                            description={qualificationBadgeTooltip(conversation)}
-                          />
-                          {isUnread ? (
-                            <span
-                              aria-label={`${unreadCount} unread`}
-                              className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
-                            >
-                              {unreadCount > 99 ? "99+" : unreadCount}
-                            </span>
-                          ) : null}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
+                  <ConversationListItem
+                    key={conversation.threadIds.join("-")}
+                    conversation={conversation}
+                    isActive={isActive}
+                    unreadCount={unreadCount}
+                    embedded={embedded}
+                    onOpen={open}
+                  />
                 );
               })
             )}

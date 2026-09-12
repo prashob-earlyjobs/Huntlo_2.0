@@ -274,6 +274,7 @@ export type HcgGmailUpdatedPayload = {
   organizationId: string;
   campaignId: string;
   gmailThreadId: string | null;
+  email?: string | null;
   overallAIStatus: string | null;
   messageCount: number;
   questionCount: number;
@@ -301,6 +302,47 @@ export function emitHcgGmailUpdated(payload: HcgGmailUpdatedPayload): void {
       organizationId: payload.organizationId,
       threadId: payload.gmailThreadId || payload.campaignId,
       messageId: `hcg-${payload.gmailThreadId || payload.campaignId}-${payload.messageCount}`,
+      campaignId: payload.campaignId,
+      candidateId: '',
+      direction: 'inbound',
+      channel: 'email',
+      userId: payload.userId,
+    });
+  }
+}
+
+export type HcgZohoUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  zohoThreadId: string | null;
+  email?: string | null;
+  overallAIStatus: string | null;
+  messageCount: number;
+  questionCount: number;
+  reasons: Array<'message' | 'status' | 'questions' | 'upsert'>;
+  userId?: string;
+};
+
+export function emitHcgZohoUpdated(payload: HcgZohoUpdatedPayload): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime('hcg.zoho.updated', event, orgTarget(payload.organizationId, payload.userId));
+  emitCampaignThreadUpdated({
+    organizationId: payload.organizationId,
+    campaignId: payload.campaignId,
+    threadId: payload.zohoThreadId || payload.campaignId,
+    status: 'open',
+    unreadCount: 0,
+    qualificationStatus: 'pending',
+    userId: payload.userId,
+  });
+  if (payload.reasons.includes('message') || payload.reasons.includes('upsert')) {
+    emitConversationMessageCreated({
+      organizationId: payload.organizationId,
+      threadId: payload.zohoThreadId || payload.campaignId,
+      messageId: `hcg-zoho-${payload.zohoThreadId || payload.campaignId}-${payload.messageCount}`,
       campaignId: payload.campaignId,
       candidateId: '',
       direction: 'inbound',

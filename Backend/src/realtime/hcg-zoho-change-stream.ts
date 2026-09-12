@@ -5,14 +5,14 @@ import { getRealtimeConfig } from '../config/realtime.js';
 import { getEnv } from '../config/env.js';
 import { formatHcgOverallAiStatus } from '../modules/conversations/hcg-gmail-overlay.js';
 import { OutreachCampaignModel } from '../modules/outreach/campaign.model.js';
-import { emitHcgGmailUpdated } from './events.js';
+import { emitHcgZohoUpdated } from './events.js';
 
-const COLLECTION = 'hcg_gmail_conversations';
+const COLLECTION = 'hcg_zoho_conversations';
 const DEBOUNCE_MS = 400;
 const ORG_CACHE_TTL_MS = 5 * 60_000;
 const RESTART_DELAY_MS = 3_000;
 
-type GmailConversationChange = {
+type ZohoConversationChange = {
   operationType?: string;
   fullDocument?: Record<string, unknown> | null;
   documentKey?: { _id?: unknown };
@@ -35,7 +35,7 @@ const pendingById = new Map<string, PendingChange>();
 const orgCache = new Map<string, { organizationId: string; expiresAt: number }>();
 
 function logger() {
-  return getLogger().child({ component: 'hcg-gmail-change-stream' });
+  return getLogger().child({ component: 'hcg-zoho-change-stream' });
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -53,7 +53,7 @@ function campaignIdFromDoc(doc: Record<string, unknown>): string {
   return '';
 }
 
-function changeReasons(change: GmailConversationChange): Array<'message' | 'status' | 'questions' | 'upsert'> {
+function changeReasons(change: ZohoConversationChange): Array<'message' | 'status' | 'questions' | 'upsert'> {
   if (change.operationType === 'insert' || change.operationType === 'replace') {
     return ['upsert'];
   }
@@ -94,10 +94,14 @@ async function flushPending(docId: string): Promise<void> {
 
   const messages = Array.isArray(pending.doc.messages) ? pending.doc.messages : [];
   const questions = Array.isArray(pending.doc.questions) ? pending.doc.questions : [];
-  emitHcgGmailUpdated({
+  emitHcgZohoUpdated({
     organizationId,
     campaignId,
-    gmailThreadId: pending.doc.threadId ? String(pending.doc.threadId) : null,
+    zohoThreadId: pending.doc.threadId
+      ? String(pending.doc.threadId)
+      : pending.doc.providerThreadId
+        ? String(pending.doc.providerThreadId)
+        : null,
     email: pending.doc.emailAddress ? String(pending.doc.emailAddress) : null,
     overallAIStatus: formatHcgOverallAiStatus(
       pending.doc.overallAIStatus ? String(pending.doc.overallAIStatus) : null
@@ -119,17 +123,17 @@ async function flushPending(docId: string): Promise<void> {
       campaignId,
       overallAiStatus,
       email,
-      source: 'gmail',
+      source: 'zoho',
     }).catch((error) => {
       logger().warn(
         { err: error, campaignId, email },
-        'Huntlo 360 transition from Gmail HCG update failed'
+        'Huntlo 360 transition from Zoho HCG update failed'
       );
     });
   }
 }
 
-function queueChange(change: GmailConversationChange): void {
+function queueChange(change: ZohoConversationChange): void {
   const doc = asRecord(change.fullDocument);
   if (!doc) return;
   const docId = String(change.documentKey?._id || doc._id || doc.threadId || '');
@@ -150,7 +154,7 @@ function queueChange(change: GmailConversationChange): void {
     docId,
     setTimeout(() => {
       void flushPending(docId).catch((error) => {
-        logger().warn({ err: error, docId }, 'Failed to emit Gmail conversation change');
+        logger().warn({ err: error, docId }, 'Failed to emit Zoho conversation change');
       });
     }, DEBOUNCE_MS)
   );
@@ -199,22 +203,22 @@ async function openStream(): Promise<void> {
   } catch (error) {
     log.warn(
       { err: error },
-      'Gmail conversation change stream is unavailable (replica set required)'
+      'Zoho conversation change stream is unavailable (replica set required)'
     );
     return;
   }
 
   stream.on('change', (change) => {
-    queueChange(change as GmailConversationChange);
+    queueChange(change as ZohoConversationChange);
   });
   stream.on('error', (error) => {
-    log.warn({ err: error }, 'Gmail conversation change stream error; restarting');
+    log.warn({ err: error }, 'Zoho conversation change stream error; restarting');
     void closeStream().then(scheduleRestart);
   });
   stream.on('close', () => {
     if (!stopped) scheduleRestart();
   });
-  log.info({ collection: COLLECTION }, 'Watching hcg_gmail_conversations for live UI updates');
+  log.info({ collection: COLLECTION }, 'Watching hcg_zoho_conversations for live UI updates');
 }
 
 async function closeStream(): Promise<void> {
@@ -229,7 +233,7 @@ async function closeStream(): Promise<void> {
   }
 }
 
-export function startHcgGmailChangeStream(): () => Promise<void> {
+export function startHcgZohoChangeStream(): () => Promise<void> {
   const env = getEnv();
   const realtime = getRealtimeConfig();
   stopped = false;
