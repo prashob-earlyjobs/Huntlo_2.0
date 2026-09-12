@@ -12,8 +12,14 @@ import {
   getApiErrorMessage,
   isAbortError,
 } from "@/lib/api";
+import {
+  isHcgStatusOnlyEvent,
+  mergeConversationListPreserve,
+  patchConversationsFromHcgStatus,
+} from "@/lib/conversations-list-merge";
 import type { Conversation } from "@/lib/mock-conversations";
 import { cn } from "@/lib/utils";
+import type { RealtimeEvent } from "@/providers/realtime-provider";
 
 const PAGE_SIZE = 50;
 
@@ -22,6 +28,24 @@ function mergeById(existing: Conversation[], incoming: Conversation[]) {
   const seen = new Set(existing.map((row) => row.id));
   const appended = incoming.filter((row) => !seen.has(row.id));
   return appended.length === 0 ? existing : [...existing, ...appended];
+}
+
+function hcgPatchFromEvent(event: RealtimeEvent) {
+  const data =
+    event?.data && typeof event.data === "object"
+      ? (event.data as Record<string, unknown>)
+      : null;
+  if (!data) return null;
+  return {
+    campaignId: data.campaignId != null ? String(data.campaignId) : null,
+    email: data.email != null ? String(data.email) : null,
+    phone: data.phone != null ? String(data.phone) : null,
+    overallAIStatus:
+      data.overallAIStatus != null ? String(data.overallAIStatus) : null,
+    reasons: Array.isArray(data.reasons)
+      ? data.reasons.map((r) => String(r))
+      : null,
+  };
 }
 
 export function ConversationsPanel({
@@ -49,6 +73,8 @@ export function ConversationsPanel({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
 
   const candidateIdsKey = (candidateIds ?? []).filter(Boolean).join(",");
 
@@ -65,13 +91,17 @@ export function ConversationsPanel({
   );
 
   const refresh = useCallback(
-    async (opts?: { showLoading?: boolean }) => {
+    async (opts?: { showLoading?: boolean; soft?: boolean }) => {
       const requestId = ++requestIdRef.current;
       if (opts?.showLoading) setLoading(true);
       try {
         const result = await conversationsApi.list(listParams(1));
         if (requestId !== requestIdRef.current) return;
-        setConversations(result.items);
+        setConversations((previous) =>
+          opts?.soft
+            ? mergeConversationListPreserve(previous, result.items)
+            : result.items
+        );
         setPage(1);
         setTotalPages(result.pagination.totalPages);
         setTotal(result.pagination.total);
@@ -118,13 +148,45 @@ export function ConversationsPanel({
 
   useRealtimeRefresh(
     [
-      "conversation.message.created",
-      "campaign.thread.updated",
-      "conversation.qualification.updated",
       "hcg.gmail.updated",
+      "hcg.zoho.updated",
       "hcg.whatsapp.updated",
       "hcg.hunar.updated",
       "hcg.zyvkay.updated",
+    ],
+    (event) => {
+      const data =
+        event?.data && typeof event.data === "object"
+          ? (event.data as { campaignId?: string | null })
+          : null;
+      if (
+        campaignId &&
+        data?.campaignId &&
+        String(data.campaignId) !== String(campaignId)
+      ) {
+        return;
+      }
+      const patch = hcgPatchFromEvent(event);
+      if (patch && isHcgStatusOnlyEvent(patch)) {
+        const next = patchConversationsFromHcgStatus(
+          conversationsRef.current,
+          patch
+        );
+        if (next && next !== conversationsRef.current) {
+          setConversations(next);
+          return;
+        }
+      }
+      void refresh({ soft: true });
+    },
+    { debounceMs: 250 }
+  );
+
+  useRealtimeRefresh(
+    [
+      "conversation.message.created",
+      "campaign.thread.updated",
+      "conversation.qualification.updated",
     ],
     (event) => {
       const data =
@@ -138,7 +200,7 @@ export function ConversationsPanel({
       ) {
         return;
       }
-      void refresh();
+      void refresh({ soft: true });
     },
     { debounceMs: 800 }
   );

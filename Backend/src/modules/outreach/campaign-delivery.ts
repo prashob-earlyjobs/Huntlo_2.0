@@ -36,7 +36,7 @@ import {
   type SmtpConfig,
   type SmtpSecurity,
 } from '../../providers/smtp/smtp.js';
-import { sendZohoMail } from '../../providers/zoho/zoho.send.js';
+import { sendZohoMail, sendZohoViaGateway, withUniqueZohoSubject } from '../../providers/zoho/zoho.send.js';
 import { resolveZohoAccountId } from '../../providers/zoho/zoho.fetch.js';
 import { refreshZohoAccessToken } from '../../providers/zoho/zoho.oauth.js';
 import { quotaService } from '../../shared/usage/index.js';
@@ -71,6 +71,10 @@ import {
   hcgGmailThreadIdOf,
   waitForHcgGmailConversation,
 } from '../conversations/hcg-gmail-overlay.js';
+import {
+  findHcgZohoConversation,
+  hcgZohoShouldStopSequence,
+} from '../conversations/hcg-zoho-overlay.js';
 import { HcgWhatsappConversationModel } from '../communication-gateway/models/hcg-whatsapp-conversation.model.js';
 import {
   findHcgWhatsappConversation,
@@ -271,6 +275,8 @@ export async function enrollmentHasLiveGatewayReply(input: {
   if (email) {
     const gmail = await findHcgGmailConversation(input.campaignId, email);
     if (hcgGmailShouldStopSequence(gmail)) return true;
+    const zoho = await findHcgZohoConversation(input.campaignId, email);
+    if (hcgZohoShouldStopSequence(zoho)) return true;
   }
   if (phone) {
     const wa = await findHcgWhatsappConversation(input.campaignId, phone);
@@ -1403,6 +1409,153 @@ export async function executeCampaignMessageStep(input: {
           messageId: result.messageId,
           providerThreadId: result.threadId || threadId || undefined,
           provider: 'gmail',
+        };
+      } else if (
+        integration.secrets.provider === 'zoho-mail' &&
+        String(
+          (integration.secrets.config as { zohoAuthMode?: string } | null)
+            ?.zohoAuthMode || ''
+        ) !== 'smtp'
+      ) {
+        const accessToken = await withFreshEmailToken(integration.secrets);
+        if (!accessToken) {
+          throw Object.assign(new Error('No access token for Zoho email send.'), {
+            statusCode: 401,
+          });
+        }
+
+        const zohoConfig = (integration.secrets.config || {}) as {
+          zohoDataCenter?: string;
+          zohoAccountId?: string;
+        };
+        let accountId = String(
+          zohoConfig.zohoAccountId || integration.secrets.providerAccountId || ''
+        ).trim();
+        let fromAddress = String(
+          campaign.channelConfig.email?.senderEmail ||
+            integration.secrets.email ||
+            ''
+        ).trim();
+        if (!accountId || !fromAddress) {
+          const resolved = await resolveZohoAccountId(
+            accessToken,
+            zohoConfig.zohoDataCenter,
+            fromAddress
+          );
+          accountId = accountId || resolved.accountId;
+          fromAddress = fromAddress || resolved.email || '';
+        }
+        if (!accountId || !fromAddress) {
+          throw Object.assign(
+            new Error('Zoho account id / from address missing for send.'),
+            { statusCode: 400 }
+          );
+        }
+
+        const html = /<[a-z][\s\S]*>/i.test(renderedBody)
+          ? renderedBody
+          : `<p>${renderedBody
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\n/g, '<br>')}</p>`;
+
+        const followUp = isFollowUpEmailSequenceStep(campaign, step);
+        const autoCalendly = Boolean(campaign.schedulingConfig?.enabled);
+        const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
+        const autoWhatsApp = Boolean(
+          campaign.qualificationConfig?.autoWhatsAppAfterQualification
+        );
+        const noAfterQualificationAction =
+          !autoCalendly && !autoScreening && !autoWhatsApp;
+
+        let prompt: string | null = null;
+        if (!followUp && (autoCalendly || noAfterQualificationAction)) {
+          const jobCtx = await loadOutreachJobContext(
+            campaign.jobId ? String(campaign.jobId) : null
+          );
+          const promptBase = {
+            jobText: formatOutreachJobContextForPrompt(jobCtx, campaign.name),
+            candidateName: candidate?.name || 'Candidate',
+            currentRole: candidate?.currentTitle || '',
+            experience:
+              candidate?.experienceYears != null
+                ? `${candidate.experienceYears} years`
+                : '',
+            skills: Array.isArray(candidate?.skills)
+              ? candidate.skills.join(', ')
+              : '',
+            location: candidate?.location || '',
+            email,
+            screening: (campaign.qualificationConfig?.questions || []).map(
+              (q) => ({
+                id: q.id,
+                question: q.prompt,
+                required: true,
+                pass_condition:
+                  q.knockout && q.knockoutCondition
+                    ? formatKnockoutPassCondition(q.knockoutCondition)
+                    : 'Informational only; any reasonable answer is acceptable',
+              })
+            ),
+          };
+
+          if (autoCalendly) {
+            const calendly = await getOrgCalendlyCredentials(
+              organizationId,
+              userId
+            );
+            let calendlyUrl = String(
+              campaign.schedulingConfig?.eventTypeUri ||
+                calendly?.schedulingUrl ||
+                ''
+            ).trim();
+            if (calendlyUrl) {
+              calendlyUrl = buildSchedulingUrl(calendlyUrl, {
+                name: candidate?.name || undefined,
+                email,
+                utmSource: 'huntlo',
+              });
+            }
+            prompt = buildAutoCalendlyPrompt({ ...promptBase, calendlyUrl });
+          } else {
+            prompt = buildScreeningClosePrompt(promptBase);
+          }
+        }
+
+        if (followUp) {
+          const threading = await resolveSequenceEmailThreading({
+            organizationId,
+            enrollmentId: String(enrollment._id),
+            fallbackSubject: renderedSubject,
+          });
+          subjectOut =
+            threading.providerThreadId || threading.gmailMessageIdHint
+              ? threading.subject
+              : withUniqueZohoSubject(renderedSubject, String(enrollment._id));
+        } else {
+          subjectOut = withUniqueZohoSubject(
+            renderedSubject,
+            String(enrollment._id)
+          );
+        }
+
+        const result = await sendZohoViaGateway({
+          accessToken,
+          accountId,
+          fromAddress,
+          to: email,
+          subject: subjectOut,
+          html,
+          campaignId: String(campaign._id),
+          dataCenter: zohoConfig.zohoDataCenter,
+          prompt: followUp ? null : prompt,
+          autoReply: followUp ? false : Boolean(prompt),
+        });
+        sent = {
+          messageId: result.messageId,
+          providerThreadId: result.threadId || undefined,
+          provider: 'zoho-mail',
         };
       } else {
         const threading = await resolveSequenceEmailThreading({

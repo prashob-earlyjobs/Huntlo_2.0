@@ -23,6 +23,14 @@ export type {
 } from './hcg-gmail-conversation.model.js';
 
 export {
+  HcgZohoConversationModel,
+} from './hcg-zoho-conversation.model.js';
+export type {
+  HcgZohoConversationDocument,
+  HcgZohoConversationMessage,
+} from './hcg-zoho-conversation.model.js';
+
+export {
   HcgWhatsappConversationModel,
 } from './hcg-whatsapp-conversation.model.js';
 export type {

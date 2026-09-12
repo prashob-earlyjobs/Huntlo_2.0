@@ -207,7 +207,7 @@ export type ApplyHuntlo360FromHcgInput = {
   overallAiStatus: string;
   email?: string | null;
   phone?: string | null;
-  source: 'gmail' | 'whatsapp' | 'hunar' | 'zyvkay' | 'sync';
+  source: 'gmail' | 'zoho' | 'whatsapp' | 'hunar' | 'zyvkay' | 'sync';
 };
 
 /**

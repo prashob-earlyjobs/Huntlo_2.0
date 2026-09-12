@@ -53,6 +53,7 @@ export function WorkflowDetailPageClient({ id }: { id: string }) {
       "campaign.updated",
       "campaign.thread.updated",
       "hcg.gmail.updated",
+      "hcg.zoho.updated",
       "hcg.whatsapp.updated",
       "hcg.hunar.updated",
       "hcg.zyvkay.updated",

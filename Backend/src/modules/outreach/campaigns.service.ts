@@ -3,9 +3,11 @@ import { randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
 
 import { overlayHcgGmailOverallAiStatus, countHcgGmailOverviewStats } from '../conversations/hcg-gmail-overlay.js';
+import { overlayHcgZohoOverallAiStatus, countHcgZohoOverviewStats } from '../conversations/hcg-zoho-overlay.js';
 import { overlayHcgWhatsappOverallAiStatus, countHcgWhatsappOverviewStats } from '../conversations/hcg-whatsapp-overlay.js';
 import { overlayHcgHunarOverallAiStatus, countHcgHunarOverviewStats } from '../conversations/hcg-hunar-overlay.js';
 import { overlayHcgZyvkaOverallAiStatus, countHcgZyvkaOverviewStats } from '../conversations/hcg-zyvka-overlay.js';
+import { resolveCampaignEmailVendor } from '../conversations/campaign-email-vendor.js';
 import { emitOutreachCampaignUpdated } from '../../realtime/events.js';
 import { getLogger } from '../../config/logger.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -334,12 +336,14 @@ export async function refreshCampaignStats(campaignId: string) {
   stats.qualified = replyTruth?.qualified || counts.qualified || 0;
 
   const hcgStats = await countHcgGmailOverviewStats(campaignId);
+  const hcgZohoStats = await countHcgZohoOverviewStats(campaignId);
   const hcgWaStats = await countHcgWhatsappOverviewStats(campaignId);
   const hcgHunarStats = await countHcgHunarOverviewStats(campaignId);
   const hcgZyvkaStats = await countHcgZyvkaOverviewStats(campaignId);
   stats.replies = Math.max(
     stats.replies,
     hcgStats.replies,
+    hcgZohoStats.replies,
     hcgWaStats.replies,
     hcgHunarStats.replies,
     hcgZyvkaStats.replies
@@ -347,6 +351,7 @@ export async function refreshCampaignStats(campaignId: string) {
   stats.interested = Math.max(
     stats.interested,
     hcgStats.interested,
+    hcgZohoStats.interested,
     hcgWaStats.interested,
     hcgHunarStats.interested,
     hcgZyvkaStats.interested
@@ -354,6 +359,7 @@ export async function refreshCampaignStats(campaignId: string) {
   stats.qualified = Math.max(
     stats.qualified,
     hcgStats.qualified,
+    hcgZohoStats.qualified,
     hcgWaStats.qualified,
     hcgHunarStats.qualified,
     hcgZyvkaStats.qualified
@@ -1565,18 +1571,30 @@ export const campaignsService = {
         }>,
       };
     });
-    const gmailQuestionColumns = await overlayHcgGmailOverallAiStatus(id, items);
+    const emailVendor = await resolveCampaignEmailVendor(id);
+    const gmailQuestionColumns =
+      emailVendor === 'zoho-mail'
+        ? []
+        : await overlayHcgGmailOverallAiStatus(id, items);
+    const zohoQuestionColumns =
+      emailVendor === 'gmail'
+        ? []
+        : await overlayHcgZohoOverallAiStatus(id, items);
     const whatsappQuestionColumns = await overlayHcgWhatsappOverallAiStatus(id, items);
     const hunarQuestionColumns = await overlayHcgHunarOverallAiStatus(id, items);
     const zyvkaQuestionColumns = await overlayHcgZyvkaOverallAiStatus(id, items);
     const questionColumns =
-      gmailQuestionColumns.length > 0
-        ? gmailQuestionColumns
-        : whatsappQuestionColumns.length > 0
-          ? whatsappQuestionColumns
-          : hunarQuestionColumns.length > 0
-            ? hunarQuestionColumns
-            : zyvkaQuestionColumns;
+      emailVendor === 'zoho-mail' && zohoQuestionColumns.length > 0
+        ? zohoQuestionColumns
+        : gmailQuestionColumns.length > 0
+          ? gmailQuestionColumns
+          : zohoQuestionColumns.length > 0
+            ? zohoQuestionColumns
+            : whatsappQuestionColumns.length > 0
+              ? whatsappQuestionColumns
+              : hunarQuestionColumns.length > 0
+                ? hunarQuestionColumns
+                : zyvkaQuestionColumns;
 
     return {
       items,

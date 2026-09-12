@@ -6,6 +6,7 @@ import { getEnv } from './config/env.js';
 import { getLogger } from './config/logger.js';
 import { attachWebSocketServer } from './realtime/server.js';
 import { startHcgGmailChangeStream } from './realtime/hcg-gmail-change-stream.js';
+import { startHcgZohoChangeStream } from './realtime/hcg-zoho-change-stream.js';
 import { startHcgWhatsappChangeStream } from './realtime/hcg-whatsapp-change-stream.js';
 import { startHcgHunarChangeStream } from './realtime/hcg-hunar-change-stream.js';
 import { startHcgZyvkaChangeStream } from './realtime/hcg-zyvka-change-stream.js';
@@ -24,6 +25,7 @@ async function startServer(): Promise<void> {
   const httpServer = createServer(app);
   const realtime = attachWebSocketServer(httpServer);
   const stopHcgGmailChangeStream = startHcgGmailChangeStream();
+  const stopHcgZohoChangeStream = startHcgZohoChangeStream();
   const stopHcgWhatsappChangeStream = startHcgWhatsappChangeStream();
   const stopHcgHunarChangeStream = startHcgHunarChangeStream();
   const stopHcgZyvkaChangeStream = startHcgZyvkaChangeStream();
@@ -51,6 +53,7 @@ async function startServer(): Promise<void> {
         }
 
         await stopHcgGmailChangeStream();
+        await stopHcgZohoChangeStream();
         await stopHcgWhatsappChangeStream();
         await stopHcgHunarChangeStream();
         await stopHcgZyvkaChangeStream();

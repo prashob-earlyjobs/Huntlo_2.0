@@ -1862,7 +1862,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
   );
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
-  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated", "hcg.gmail.updated", "hcg.whatsapp.updated", "hcg.hunar.updated", "hcg.zyvkay.updated"], (event) => {
+  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated", "hcg.gmail.updated", "hcg.zoho.updated", "hcg.whatsapp.updated", "hcg.hunar.updated", "hcg.zyvkay.updated"], (event) => {
     const data =
       event?.data && typeof event.data === "object"
         ? (event.data as { campaignId?: string | null })
