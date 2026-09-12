@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildWlSearchFilters,
+  parseCountriesFromText,
   parseYearsExperienceRangeFromText,
   yearsRangeFromFilterForm,
 } from '../src/providers/future-jobs/futureJobs.filterMapping.js';
-import { extractYearsRangeFromGeminiText } from '../src/providers/gemini/gemini.search-prompt.js';
+import {
+  extractCountriesFromGeminiText,
+  extractYearsRangeFromGeminiText,
+} from '../src/providers/gemini/gemini.search-prompt.js';
 
 describe('wl/search years_of_experience_raw filters', () => {
   it('builds RANGE directly from drawer yearsExpMin/Max', () => {
@@ -40,6 +44,64 @@ describe('wl/search years_of_experience_raw filters', () => {
     });
   });
 
+  it('attaches country_region from selectRegion chips', () => {
+    expect(
+      buildWlSearchFilters({
+        form: {
+          yearsExpMin: '4',
+          yearsExpMax: '5',
+          selectRegion: ['Luxembourg'],
+        },
+      })
+    ).toEqual({
+      years_of_experience_raw: { type: 'RANGE', value: [4, 5] },
+      country_region: { type: '=', value: ['Luxembourg'] },
+    });
+  });
+
+  it('derives country_region from location when Country is empty', () => {
+    expect(
+      buildWlSearchFilters({
+        form: { location: ['Dubai, United Arab Emirates'] },
+      })
+    ).toEqual({
+      country_region: { type: '=', value: ['United Arab Emirates'] },
+    });
+  });
+
+  it('normalizes country abbreviations on country_region', () => {
+    expect(
+      buildWlSearchFilters({
+        form: { selectRegion: ['UAE'] },
+      })
+    ).toEqual({
+      country_region: { type: '=', value: ['United Arab Emirates'] },
+    });
+  });
+
+  it('uses countriesFromPrompt when drawer country is empty', () => {
+    expect(
+      buildWlSearchFilters({
+        form: { yearsExpMin: '4', yearsExpMax: '5' },
+        countriesFromPrompt: ['Luxembourg'],
+      })
+    ).toEqual({
+      years_of_experience_raw: { type: 'RANGE', value: [4, 5] },
+      country_region: { type: '=', value: ['Luxembourg'] },
+    });
+  });
+
+  it('prefers drawer country over countriesFromPrompt', () => {
+    expect(
+      buildWlSearchFilters({
+        form: { selectRegion: ['Germany'] },
+        countriesFromPrompt: ['Luxembourg'],
+      })
+    ).toEqual({
+      country_region: { type: '=', value: ['Germany'] },
+    });
+  });
+
   it('parses common NL year phrases heuristically', () => {
     expect(
       parseYearsExperienceRangeFromText(
@@ -56,6 +118,30 @@ describe('wl/search years_of_experience_raw filters', () => {
     ).toEqual({ type: 'RANGE', value: [5, 5] });
   });
 
+  it('parses country names from NL heuristically', () => {
+    expect(
+      parseCountriesFromText(
+        'Senior Operations Manager in Luxembourg with 4-5 years of experience'
+      )
+    ).toEqual(['Luxembourg']);
+    expect(parseCountriesFromText('Engineers based in UAE or UK')).toEqual([
+      'United Kingdom',
+      'United Arab Emirates',
+    ]);
+    expect(parseCountriesFromText('Ops manager in Luxemberg')).toEqual(['Luxembourg']);
+  });
+
+  it('infers country from state / province mentions in NL', () => {
+    expect(parseCountriesFromText('Product manager in California')).toEqual([
+      'United States',
+    ]);
+    expect(parseCountriesFromText('Backend engineers in Maharashtra')).toEqual(['India']);
+    expect(parseCountriesFromText('Sales lead based in Dubai')).toEqual([
+      'United Arab Emirates',
+    ]);
+    expect(parseCountriesFromText('Recruiter in Ontario')).toEqual(['Canada']);
+  });
+
   it('parses Gemini JSON year ranges', () => {
     expect(extractYearsRangeFromGeminiText('{"min":1,"max":3}')).toEqual({
       type: 'RANGE',
@@ -66,5 +152,12 @@ describe('wl/search years_of_experience_raw filters', () => {
       value: [5, 5],
     });
     expect(extractYearsRangeFromGeminiText('{"min":null,"max":null}')).toBeNull();
+  });
+
+  it('parses Gemini JSON countries', () => {
+    expect(extractCountriesFromGeminiText('{"countries":["Luxembourg"]}')).toEqual([
+      'Luxembourg',
+    ]);
+    expect(extractCountriesFromGeminiText('{"countries":[]}')).toBeNull();
   });
 });
