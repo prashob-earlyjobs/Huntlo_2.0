@@ -829,6 +829,24 @@ function selectRegionsFromForm(form) {
     .filter((s, i, arr) => arr.findIndex((x) => x.toLowerCase() === s.toLowerCase()) === i);
 }
 
+/**
+ * Country values for Future Jobs `country_region` (selectRegion chips, else
+ * last segment of location chips e.g. "Dubai, United Arab Emirates" → UAE).
+ * @param {object | null | undefined} form
+ * @returns {string[]}
+ */
+function countryRegionsFromFilterForm(form) {
+  if (!form || typeof form !== "object") return [];
+  const countriesFromForm = selectRegionsFromForm(form)
+    .map((c) => normalizeCountryLabel(c))
+    .filter(Boolean);
+  const locations = normalizeLocationsValue(form.location)
+    .map((r) => normalizeRegionForFutureJobs(r))
+    .filter(Boolean);
+  if (countriesFromForm.length > 0) return countriesFromForm;
+  return selectRegionsFromRegionFallback(locations);
+}
+
 function industryTokensFromForm(form) {
   return String(form?.industry || "")
     .split(/[,;|]/)
@@ -1020,15 +1038,10 @@ function mergeFilterFormIntoSession(baseSession, form) {
 
   const existingSkills = queries?.skills?.value;
 
-  const countriesFromForm = selectRegionsFromForm(form);
+  const countries = countryRegionsFromFilterForm(form);
   const locations = normalizeLocationsValue(form.location)
     .map((r) => normalizeRegionForFutureJobs(r))
     .filter(Boolean);
-  // Keep country_region linked to Location chips when Country is empty.
-  const countries =
-    countriesFromForm.length > 0
-      ? countriesFromForm
-      : selectRegionsFromRegionFallback(locations);
   setQueryIn(queries, "country_region", countries, "(.)");
   const regionsForFj =
     locations.length > 0
@@ -1501,6 +1514,7 @@ export {
   promptForSourcingApi,
   DEFAULT_FILTER_FORM,
   normalizeRegionForFutureJobs,
+  countryRegionsFromFilterForm,
   ensureSkillsForFutureJobs,
   enrichFilterFormSkillsFromPrompt,
   filterFormFromCreateResponse,

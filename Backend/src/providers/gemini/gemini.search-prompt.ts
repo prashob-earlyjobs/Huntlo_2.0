@@ -1,5 +1,6 @@
 import { getEnv } from '../../config/env.js';
 import {
+  parseCountriesFromText,
   parseYearsExperienceRangeFromText,
   type WlSearchRangeFilter,
 } from '../future-jobs/futureJobs.filterMapping.js';
@@ -8,6 +9,7 @@ import { GEMINI_JOBS_MODEL } from './gemini.jobs.js';
 const MAX_PROMPT_CHARS = 700;
 const MAX_JD_CHARS = 20_000;
 const MAX_YOE_PROMPT_CHARS = 4_000;
+const MAX_COUNTRY_PROMPT_CHARS = 4_000;
 
 type GeminiCallResult =
   | { ok: true; text: string }
@@ -169,4 +171,66 @@ export async function extractYearsExperienceRangeFromPrompt(
   const heuristic = parseYearsExperienceRangeFromText(text);
   if (heuristic) return { range: heuristic, source: 'heuristic' };
   return { range: null, source: 'none' };
+}
+
+export function extractCountriesFromGeminiText(text: string): string[] | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  if (unfenced !== trimmed) return extractCountriesFromGeminiText(unfenced);
+
+  try {
+    const parsed = JSON.parse(trimmed) as {
+      countries?: unknown;
+      country?: unknown;
+      country_region?: unknown;
+    };
+    const raw = parsed.countries ?? parsed.country_region ?? parsed.country;
+    const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+    const countries = list
+      .map((c) => String(c ?? '').trim())
+      .filter(Boolean)
+      .filter((c, i, arr) => arr.findIndex((x) => x.toLowerCase() === c.toLowerCase()) === i);
+    return countries.length > 0 ? countries : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract country names from a recruiter NL prompt for `/wl/search` `country_region`.
+ * Uses Gemini when configured; falls back to a local heuristic.
+ */
+export async function extractCountriesFromPrompt(
+  prompt: string
+): Promise<{ countries: string[] | null; source: 'gemini' | 'heuristic' | 'none' }> {
+  const text = String(prompt || '').trim();
+  if (!text) return { countries: null, source: 'none' };
+
+  const result = await callGeminiJson(
+    [
+      'Extract country / country-region filters from this recruiter people-search prompt.',
+      'Return ONLY JSON: {"countries":string[]}.',
+      'Rules:',
+      '- Use canonical English country names (e.g. "Luxembourg", "United Arab Emirates", "United States").',
+      '- Fix obvious typos (e.g. "Luxemberg" → "Luxembourg").',
+      '- Expand common abbreviations (UAE, UK, USA, US).',
+      '- If a state, province, emirate, or territory is mentioned without a country, map it to the country',
+      '  (e.g. California/Texas → United States; Maharashtra/Karnataka → India; Dubai → United Arab Emirates; Ontario → Canada).',
+      '- Include only countries clearly implied as candidate location (e.g. "in Luxembourg", "based in UAE", "in California").',
+      '- Do not put state/city names in the countries array — only the country.',
+      '- If no country (or mappable state) is mentioned → {"countries":[]}.',
+      'Do not invent countries that are not implied by the prompt.',
+      `Prompt:\n${text.slice(0, MAX_COUNTRY_PROMPT_CHARS)}`,
+    ].join('\n')
+  );
+
+  if (result.ok) {
+    const countries = extractCountriesFromGeminiText(result.text);
+    if (countries?.length) return { countries, source: 'gemini' };
+  }
+
+  const heuristic = parseCountriesFromText(text);
+  if (heuristic.length > 0) return { countries: heuristic, source: 'heuristic' };
+  return { countries: null, source: 'none' };
 }

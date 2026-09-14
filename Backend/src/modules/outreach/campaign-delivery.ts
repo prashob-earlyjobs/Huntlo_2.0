@@ -958,13 +958,23 @@ async function launchVoiceCall(input: {
       `Outreach for ${input.campaign.name}`,
     tokens
   );
+  const stepIntroRaw = String(
+    input.step.introduction ||
+      (typeof input.step.config?.introduction === 'string' ? input.step.config.introduction : '')
+  ).trim();
+  const campaignIntroRaw =
+    typeof input.campaign.voiceAgentConfig?.introduction === 'string'
+      ? String(input.campaign.voiceAgentConfig.introduction).trim()
+      : '';
   const introduction = resolveIntroduction(
     typeof input.campaign.voiceAgentConfig?.tone === 'string'
       ? String(input.campaign.voiceAgentConfig.tone)
       : 'professional',
-    typeof input.campaign.voiceAgentConfig?.introduction === 'string'
-      ? resolveVoiceTokens(String(input.campaign.voiceAgentConfig.introduction), tokens)
-      : roshni?.introduction || null
+    stepIntroRaw
+      ? resolveVoiceTokens(stepIntroRaw, tokens)
+      : campaignIntroRaw
+        ? resolveVoiceTokens(campaignIntroRaw, tokens)
+        : roshni?.introduction || null
   );
 
   const qualificationExtras = extendResultSchemaForQualificationQuestions(
@@ -1002,8 +1012,35 @@ async function launchVoiceCall(input: {
           : typeof input.campaign.voiceAgentConfig?.agentId === 'string'
             ? String(input.campaign.voiceAgentConfig.agentId).trim()
             : '';
+      const storedIntroduction =
+        typeof fresh?.voiceAgentConfig?.introduction === 'string'
+          ? String(fresh.voiceAgentConfig.introduction).trim()
+          : '';
+      const storedAgentPrompt =
+        typeof fresh?.voiceAgentConfig?.agentPrompt === 'string'
+          ? String(fresh.voiceAgentConfig.agentPrompt).trim()
+          : '';
+      const storedResultPrompt =
+        typeof fresh?.voiceAgentConfig?.resultPrompt === 'string'
+          ? String(fresh.voiceAgentConfig.resultPrompt).trim()
+          : '';
+      const storedResultSchema = fresh?.voiceAgentConfig?.resultSchema;
+      const storedSchemaKeys = Object.keys(
+        (storedResultSchema &&
+        typeof storedResultSchema === 'object' &&
+        (storedResultSchema as { properties?: Record<string, unknown> }).properties) ||
+          {}
+      ).sort();
+      const nextSchemaKeys = Object.keys(
+        (qualificationExtras.resultSchema.properties as Record<string, unknown>) || {}
+      ).sort();
+      const agentUnchanged =
+        storedIntroduction === introduction.trim() &&
+        storedAgentPrompt === agentPrompt.trim() &&
+        storedResultPrompt === String(qualificationExtras.resultPrompt || '').trim() &&
+        storedSchemaKeys.join('|') === nextSchemaKeys.join('|');
 
-      if (existingAgentId) {
+      if (existingAgentId && agentUnchanged) {
         if (!input.campaign.voiceAgentConfig) input.campaign.voiceAgentConfig = {};
         input.campaign.voiceAgentConfig.agentId = existingAgentId;
         return existingAgentId;
@@ -1018,7 +1055,7 @@ async function launchVoiceCall(input: {
         resultSchema: qualificationExtras.resultSchema,
         voicePersona: getHunarVoicePersona(),
         language: getHunarVoiceLanguage(),
-        existingAgentId: null,
+        existingAgentId: existingAgentId || null,
       });
 
       const nextConfig = {
@@ -1031,6 +1068,7 @@ async function launchVoiceCall(input: {
         introduction,
         agentPrompt,
         resultPrompt: qualificationExtras.resultPrompt,
+        resultSchema: qualificationExtras.resultSchema,
         updatedAt: new Date().toISOString(),
       };
 

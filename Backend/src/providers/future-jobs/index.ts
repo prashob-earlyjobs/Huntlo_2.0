@@ -57,7 +57,9 @@ import {
   buildJdTextFromPromptAndFilters,
   buildWlSearchFilters,
   yearsRangeFromFilterForm,
+  countryRegionsFromFilterForm,
   parseYearsExperienceRangeFromText,
+  parseCountriesFromText,
 } from './futureJobs.filterMapping.js';
 import {
   extractSearchProfileDocs,
@@ -175,8 +177,10 @@ export {
   normalizeRegionForFutureJobs,
   parseGeoDistanceKm,
   parseYearsExperienceRangeFromText,
+  parseCountriesFromText,
   promptForSourcingApi,
   yearsRangeFromFilterForm,
+  countryRegionsFromFilterForm,
   resetFutureJobsCircuit,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
@@ -187,6 +191,7 @@ export type {
   GeoExpandStep,
   WlSearchFilters,
   WlSearchRangeFilter,
+  WlSearchEqualsFilter,
 } from './futureJobs.filterMapping.js';
 
 export type {

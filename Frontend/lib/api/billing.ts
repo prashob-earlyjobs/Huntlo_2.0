@@ -10,6 +10,37 @@ export type BillingCheckoutInput = {
   currency?: "INR" | "USD";
   provider?: "razorpay" | "dodo";
   idempotencyKey?: string;
+  couponCode?: string;
+};
+
+export type CouponPreview = {
+  code: string;
+  discountAmount: number;
+  originalAmount: number;
+  finalAmount: number;
+};
+
+export type ValidateCouponResult = {
+  valid: boolean;
+  coupon: {
+    code: string;
+    discountType: "percent" | "fixed";
+    discountValue: number;
+    description: string | null;
+    originalAmount: number;
+    discountAmount: number;
+    finalAmount: number;
+    currency: "INR" | "USD";
+  };
+  pricing: {
+    originalAmount: number;
+    discountAmount: number;
+    finalAmount: number;
+    currency: "INR" | "USD";
+    originalMajor: number;
+    discountMajor: number;
+    finalMajor: number;
+  };
 };
 
 export type RazorpayCheckoutPayload = {
@@ -37,13 +68,21 @@ export type DodoCheckoutPayload = {
 
 export type CheckoutResult = {
   order: { id: string; status: string; provider: string };
-  checkout: RazorpayCheckoutPayload | DodoCheckoutPayload;
+  checkout: RazorpayCheckoutPayload | DodoCheckoutPayload | null;
   prefill?: { name: string; email: string; contact: string };
   alreadyExists?: boolean;
+  freeUpgrade?: boolean;
+  coupon?: CouponPreview | null;
 };
 
 export interface BillingApi {
   checkout(body: BillingCheckoutInput): Promise<CheckoutResult>;
+  validateCoupon(body: {
+    code: string;
+    planId: string;
+    billingCycle?: "monthly" | "yearly";
+    currency?: "INR" | "USD";
+  }): Promise<ValidateCouponResult>;
   getOrder(id: string): Promise<Record<string, unknown>>;
   listHistory(params?: ApiQueryParams): Promise<Record<string, unknown>[]>;
   listInvoices(params?: ApiQueryParams): Promise<Invoice[]>;
@@ -81,19 +120,71 @@ function mapInvoice(row: Record<string, unknown>): Invoice {
 const mockBillingApi: BillingApi = {
   async checkout(body) {
     await simulateMockLatency();
+    if (body.couponCode?.toUpperCase() === "FREE100") {
+      return {
+        order: { id: "mock-order-free", status: "paid", provider: "razorpay" },
+        checkout: null,
+        freeUpgrade: true,
+        coupon: {
+          code: "FREE100",
+          discountAmount: 2499900,
+          originalAmount: 2499900,
+          finalAmount: 0,
+        },
+      };
+    }
+    const original = 2499900;
+    const discount = body.couponCode ? Math.round(original * 0.1) : 0;
     return {
       order: { id: "mock-order", status: "created", provider: "razorpay" },
       checkout: {
         provider: "razorpay",
         keyId: "rzp_test_mock",
         razorpayOrderId: "order_mock",
-        amount: 2499900,
+        amount: original - discount,
         currency: "INR",
         planId: body.planId,
         planName: "Growth",
         orderId: "mock-order",
       },
       prefill: { name: "Demo User", email: "demo@huntlo.ai", contact: "" },
+      coupon: body.couponCode
+        ? {
+            code: body.couponCode.toUpperCase(),
+            discountAmount: discount,
+            originalAmount: original,
+            finalAmount: original - discount,
+          }
+        : null,
+    };
+  },
+  async validateCoupon(body) {
+    await simulateMockLatency();
+    const original = 2499900;
+    const code = body.code.toUpperCase();
+    const discount =
+      code === "FREE100" ? original : Math.round(original * 0.1);
+    return {
+      valid: true,
+      coupon: {
+        code,
+        discountType: code === "FREE100" ? "percent" : "percent",
+        discountValue: code === "FREE100" ? 100 : 10,
+        description: "Mock coupon",
+        originalAmount: original,
+        discountAmount: discount,
+        finalAmount: original - discount,
+        currency: "INR",
+      },
+      pricing: {
+        originalAmount: original,
+        discountAmount: discount,
+        finalAmount: original - discount,
+        currency: "INR",
+        originalMajor: original / 100,
+        discountMajor: discount / 100,
+        finalMajor: (original - discount) / 100,
+      },
     };
   },
   async getOrder(id) {
@@ -118,6 +209,14 @@ const liveBillingApi: BillingApi = {
     const result = await apiClient.post<CheckoutResult>("/billing/checkout", body, {
       sensitive: true,
     });
+    return result.data;
+  },
+  async validateCoupon(body) {
+    const result = await apiClient.post<ValidateCouponResult>(
+      "/billing/coupons/validate",
+      body,
+      { sensitive: true }
+    );
     return result.data;
   },
   async getOrder(id) {

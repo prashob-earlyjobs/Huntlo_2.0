@@ -35,7 +35,11 @@ import {
   emptyPlanDraft,
   type AdminPlan,
 } from "@/lib/mock-admin";
-import { adminApi, type AdminPlan as ApiAdminPlan } from "@/lib/api/admin";
+import {
+  adminApi,
+  type AdminCoupon,
+  type AdminPlan as ApiAdminPlan,
+} from "@/lib/api/admin";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 
@@ -224,15 +228,31 @@ function toPlanPayload(draft: AdminPlan, { includeCode }: { includeCode: boolean
 
 export function AdminPlansWorkspace() {
   const [plans, setPlans] = useState<AdminPlan[]>([]);
+  const [coupons, setCoupons] = useState<AdminCoupon[]>([]);
   const [open, setOpen] = useState(false);
+  const [couponOpen, setCouponOpen] = useState(false);
   const [draft, setDraft] = useState<AdminPlan>(emptyPlanDraft());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [couponDraft, setCouponDraft] = useState({
+    code: "",
+    description: "",
+    discountType: "percent" as "percent" | "fixed",
+    discountValue: "10",
+    currency: "INR" as "INR" | "USD",
+    planCodes: "",
+    maxRedemptions: "",
+    maxPerOrganization: "1",
+  });
 
   async function reload() {
-    const items = await adminApi.listPlans();
+    const [items, couponItems] = await Promise.all([
+      adminApi.listPlans(),
+      adminApi.listCoupons(),
+    ]);
     setPlans(items.map(mapApiPlan));
+    setCoupons(couponItems);
   }
 
   useEffect(() => {
@@ -323,6 +343,63 @@ export function AdminPlansWorkspace() {
         setToast(`${plan.name} is now the default signup plan.`);
       } catch (error) {
         setToast(getApiErrorMessage(error, "Unable to set default signup plan."));
+      }
+    })();
+  }
+
+  function openCreateCoupon() {
+    setCouponDraft({
+      code: "",
+      description: "",
+      discountType: "percent",
+      discountValue: "10",
+      currency: "INR",
+      planCodes: "",
+      maxRedemptions: "",
+      maxPerOrganization: "1",
+    });
+    setCouponOpen(true);
+  }
+
+  function saveCoupon() {
+    void (async () => {
+      setSaving(true);
+      try {
+        const created = await adminApi.createCoupon({
+          code: couponDraft.code.trim(),
+          description: couponDraft.description.trim() || null,
+          discountType: couponDraft.discountType,
+          discountValue: Number(couponDraft.discountValue),
+          currency:
+            couponDraft.discountType === "fixed" ? couponDraft.currency : null,
+          planCodes: couponDraft.planCodes
+            .split(",")
+            .map((part) => part.trim().toLowerCase())
+            .filter(Boolean),
+          maxRedemptions: couponDraft.maxRedemptions
+            ? Number(couponDraft.maxRedemptions)
+            : null,
+          maxPerOrganization: Number(couponDraft.maxPerOrganization) || 1,
+        });
+        await reload();
+        setCouponOpen(false);
+        setToast(`Created coupon ${created.code}.`);
+      } catch (error) {
+        setToast(getApiErrorMessage(error, "Unable to create coupon."));
+      } finally {
+        setSaving(false);
+      }
+    })();
+  }
+
+  function toggleCouponActive(coupon: AdminCoupon) {
+    void (async () => {
+      try {
+        await adminApi.updateCoupon(coupon.id, { active: !coupon.active });
+        await reload();
+        setToast(`${coupon.code} ${coupon.active ? "disabled" : "enabled"}.`);
+      } catch (error) {
+        setToast(getApiErrorMessage(error, "Unable to update coupon."));
       }
     })();
   }
@@ -837,6 +914,227 @@ export function AdminPlansWorkspace() {
             </Button>
             <Button onClick={savePlan} disabled={saving}>
               {saving ? "Saving…" : editingId ? "Save plan" : "Create plan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Coupon codes</h2>
+            <p className="text-xs text-muted-foreground">
+              Track applied (preview) and redeemed (paid) usage. Coupons apply to
+              INR (Razorpay) upgrades.
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={openCreateCoupon}>
+            <Plus aria-hidden />
+            Create coupon
+          </Button>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className={HEAD}>Code</TableHead>
+                <TableHead className={HEAD}>Discount</TableHead>
+                <TableHead className={HEAD}>Plans</TableHead>
+                <TableHead className={HEAD}>Usage</TableHead>
+                <TableHead className={HEAD}>Status</TableHead>
+                <TableHead className={HEAD}>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {coupons.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-6 text-sm text-muted-foreground">
+                    No coupons yet. Create one to offer discounted upgrades.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                coupons.map((coupon) => (
+                  <TableRow key={coupon.id}>
+                    <TableCell>
+                      <div className="font-medium">{coupon.code}</div>
+                      {coupon.description ? (
+                        <div className="text-xs text-muted-foreground">
+                          {coupon.description}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">
+                      {coupon.discountType === "percent"
+                        ? `${coupon.discountValue}%`
+                        : `${coupon.currency || "INR"} ${coupon.discountValue}`}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {coupon.planCodes.length
+                        ? coupon.planCodes.join(", ")
+                        : "All plans"}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-sm">
+                      <div>
+                        Applied {coupon.appliedCount ?? 0}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Redeemed {coupon.redemptionCount}
+                        {coupon.maxRedemptions != null
+                          ? ` / ${coupon.maxRedemptions}`
+                          : ""}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {coupon.active ? "Active" : "Disabled"}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => toggleCouponActive(coupon)}
+                      >
+                        {coupon.active ? "Disable" : "Enable"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <Dialog open={couponOpen} onOpenChange={setCouponOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create coupon</DialogTitle>
+            <DialogDescription>
+              Codes are case-insensitive. Fixed discounts require a currency.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Code">
+              <Input
+                value={couponDraft.code}
+                onChange={(e) =>
+                  setCouponDraft((prev) => ({
+                    ...prev,
+                    code: e.target.value.toUpperCase(),
+                  }))
+                }
+                placeholder="GROWTH10"
+                className="uppercase"
+              />
+            </Field>
+            <Field label="Type">
+              <Select
+                value={couponDraft.discountType}
+                onValueChange={(value) =>
+                  setCouponDraft((prev) => ({
+                    ...prev,
+                    discountType: value as "percent" | "fixed",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percent">Percent</SelectItem>
+                  <SelectItem value="fixed">Fixed amount</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Value">
+              <Input
+                value={couponDraft.discountValue}
+                onChange={(e) =>
+                  setCouponDraft((prev) => ({
+                    ...prev,
+                    discountValue: e.target.value,
+                  }))
+                }
+                placeholder={couponDraft.discountType === "percent" ? "10" : "5000"}
+              />
+            </Field>
+            {couponDraft.discountType === "fixed" ? (
+              <Field label="Currency">
+                <Select
+                  value={couponDraft.currency}
+                  onValueChange={(value) =>
+                    setCouponDraft((prev) => ({
+                      ...prev,
+                      currency: value as "INR" | "USD",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INR">INR</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : null}
+            <Field label="Max per workspace">
+              <Input
+                value={couponDraft.maxPerOrganization}
+                onChange={(e) =>
+                  setCouponDraft((prev) => ({
+                    ...prev,
+                    maxPerOrganization: e.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Plan codes (optional)">
+              <Input
+                value={couponDraft.planCodes}
+                onChange={(e) =>
+                  setCouponDraft((prev) => ({
+                    ...prev,
+                    planCodes: e.target.value,
+                  }))
+                }
+                placeholder="growth,scale"
+              />
+            </Field>
+            <Field label="Max total redemptions">
+              <Input
+                value={couponDraft.maxRedemptions}
+                onChange={(e) =>
+                  setCouponDraft((prev) => ({
+                    ...prev,
+                    maxRedemptions: e.target.value,
+                  }))
+                }
+                placeholder="Unlimited"
+              />
+            </Field>
+            <Field label="Description" className="sm:col-span-2">
+              <Input
+                value={couponDraft.description}
+                onChange={(e) =>
+                  setCouponDraft((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCouponOpen(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={saveCoupon} disabled={saving || !couponDraft.code.trim()}>
+              {saving ? "Saving…" : "Create coupon"}
             </Button>
           </DialogFooter>
         </DialogContent>

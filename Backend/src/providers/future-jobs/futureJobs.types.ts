@@ -300,7 +300,7 @@ export interface FutureJobsProvider {
 
   /**
    * POST /wl/search
-   * Body: { jdText: string, filters?: { years_of_experience_raw?: { type: 'RANGE', value: [min, max] } } }
+   * Body: { jdText, filters?: { years_of_experience_raw?: RANGE, country_region?: '=' } }
    * Synchronous natural-language search — wait for profiles, do not poll.
    */
   searchByJdText(
@@ -308,6 +308,7 @@ export interface FutureJobsProvider {
       jdText: string;
       filters?: {
         years_of_experience_raw?: { type: 'RANGE'; value: [number, number] };
+        country_region?: { type: '='; value: string[] };
       };
     },
     opts?: FutureJobsRequestOpts

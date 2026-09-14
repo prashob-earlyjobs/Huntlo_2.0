@@ -9,6 +9,7 @@ import {
   buildJdTextFromPromptAndFilters,
   buildWlSearchFilters,
   yearsRangeFromFilterForm,
+  countryRegionsFromFilterForm,
   DEFAULT_FILTER_FORM,
   extractSearchProfileDocs,
   extractSearchTotalDocs,
@@ -28,6 +29,7 @@ import {
 } from '../../../providers/future-jobs/index.js';
 import {
   extractYearsExperienceRangeFromPrompt,
+  extractCountriesFromPrompt,
   rewriteJobAsSearchPrompt,
 } from '../../../providers/gemini/gemini.search-prompt.js';
 import { emitCandidateSearchPoll } from '../../../realtime/events.js';
@@ -599,7 +601,7 @@ export class CandidateSearchService {
 
   /**
    * Main candidate-search endpoint — POST /wl/search with natural-language jdText
-   * plus structured filters (YoE RANGE from drawer or Gemini/prompt extract).
+   * plus structured filters (YoE RANGE + country_region from drawer / prompt YoE).
    * Waits for Future Jobs to return profiles in the same response (no poll).
    */
   async apply(actor: SearchActor, input: ApplySearchInput) {
@@ -616,12 +618,19 @@ export class CandidateSearchService {
     }
 
     const fromFormYears = yearsRangeFromFilterForm(originalFilterForm);
-    const yearsFromPrompt = fromFormYears
-      ? null
-      : (await extractYearsExperienceRangeFromPrompt(prompt)).range;
+    const fromFormCountries = countryRegionsFromFilterForm(originalFilterForm);
+    const [yearsExtract, countriesExtract] = await Promise.all([
+      fromFormYears
+        ? Promise.resolve({ range: null as null, source: 'none' as const })
+        : extractYearsExperienceRangeFromPrompt(prompt),
+      fromFormCountries.length > 0
+        ? Promise.resolve({ countries: null as string[] | null, source: 'none' as const })
+        : extractCountriesFromPrompt(prompt),
+    ]);
     const filters = buildWlSearchFilters({
       form: originalFilterForm,
-      yearsFromPrompt,
+      yearsFromPrompt: yearsExtract.range,
+      countriesFromPrompt: countriesExtract.countries,
     });
 
     const quotaKey = idempotencyKeyForApply(actor, input);
@@ -740,6 +749,8 @@ export class CandidateSearchService {
           jdTextChars: jdText.length,
           hasYearsFilter: Boolean(filters?.years_of_experience_raw),
           yearsFilter: filters?.years_of_experience_raw ?? null,
+          hasCountryFilter: Boolean(filters?.country_region),
+          countryFilter: filters?.country_region ?? null,
           docCount: docs.length,
           polling: false,
         },

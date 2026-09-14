@@ -48,6 +48,7 @@ export interface PlansApi {
     billingCycle?: "monthly" | "yearly";
     currency?: "INR" | "USD";
     provider?: "razorpay" | "dodo";
+    couponCode?: string;
   }): Promise<CheckoutResult>;
 }
 
@@ -248,6 +249,7 @@ const livePlansApi: PlansApi = {
       billingCycle: input.billingCycle ?? "monthly",
       currency: input.currency,
       provider: input.provider,
+      couponCode: input.couponCode,
     });
   },
 };

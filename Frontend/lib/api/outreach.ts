@@ -52,6 +52,7 @@ export type ApiCampaignSequenceStep = {
   templateId?: string | null;
   subject?: string | null;
   body?: string | null;
+  introduction?: string | null;
   stopOnReply?: boolean;
   note?: string | null;
   sendWindow?: {
@@ -174,6 +175,7 @@ export type CampaignCreateInput = {
     templateId?: string | null;
     subject?: string | null;
     body?: string | null;
+    introduction?: string | null;
     stopOnReply?: boolean;
     note?: string | null;
   }>;

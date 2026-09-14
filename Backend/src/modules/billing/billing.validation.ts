@@ -11,6 +11,54 @@ export const checkoutBodySchema = z.object({
   currency: z.enum(['INR', 'USD', 'inr', 'usd']).optional(),
   provider: z.enum(PAYMENT_PROVIDERS).optional(),
   idempotencyKey: z.string().trim().min(8).max(120).optional(),
+  couponCode: z
+    .string()
+    .trim()
+    .min(3)
+    .max(40)
+    .regex(/^[A-Za-z0-9_-]+$/, 'Invalid coupon code')
+    .optional(),
+});
+
+export const validateCouponBodySchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(3)
+    .max(40)
+    .regex(/^[A-Za-z0-9_-]+$/, 'Invalid coupon code'),
+  planId: z.union([objectId, z.string().trim().min(1).max(40)]),
+  billingCycle: z.enum(BILLING_CYCLES).default('monthly'),
+  currency: z.enum(['INR', 'USD', 'inr', 'usd']).optional(),
+});
+
+export const createCouponBodySchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(3)
+    .max(40)
+    .regex(/^[A-Za-z0-9_-]+$/i, 'Invalid coupon code'),
+  description: z.string().trim().max(240).nullable().optional(),
+  discountType: z.enum(['percent', 'fixed']),
+  discountValue: z.number().positive().max(1_000_000),
+  currency: z.enum(['INR', 'USD']).nullable().optional(),
+  planCodes: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  maxRedemptions: z.number().int().positive().nullable().optional(),
+  maxPerOrganization: z.number().int().min(1).max(100).optional(),
+  startsAt: z.string().trim().min(1).nullable().optional(),
+  expiresAt: z.string().trim().min(1).nullable().optional(),
+  active: z.boolean().optional(),
+});
+
+export const updateCouponBodySchema = z.object({
+  description: z.string().trim().max(240).nullable().optional(),
+  active: z.boolean().optional(),
+  maxRedemptions: z.number().int().positive().nullable().optional(),
+  maxPerOrganization: z.number().int().min(1).max(100).optional(),
+  planCodes: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  startsAt: z.string().trim().min(1).nullable().optional(),
+  expiresAt: z.string().trim().min(1).nullable().optional(),
 });
 
 export const orderIdParamSchema = z.object({ id: objectId });

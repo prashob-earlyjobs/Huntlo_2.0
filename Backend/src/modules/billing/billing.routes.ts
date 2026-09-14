@@ -20,6 +20,7 @@ import {
   listHistoryQuerySchema,
   orderIdParamSchema,
   razorpayVerifyBodySchema,
+  validateCouponBodySchema,
 } from './billing.validation.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
@@ -43,6 +44,17 @@ billingRouter.post(
       statusCode: 201,
       meta: { requestId: getRequestId(req) },
     });
+  })
+);
+
+billingRouter.post(
+  '/coupons/validate',
+  ...orgAuth,
+  managePerm,
+  asyncHandler(async (req, res) => {
+    const body = validateCouponBodySchema.parse(req.body ?? {});
+    const data = await billingService.validateCoupon(req.organizationId!, body);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );
 

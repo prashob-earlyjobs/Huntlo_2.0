@@ -61,6 +61,12 @@ function hydrateSteps(steps: ApiCampaignSequenceStep[]): SequenceStep[] {
       templateId: step.templateId ?? null,
       subject: step.subject ?? "",
       body: step.body ?? "",
+      introduction:
+        step.introduction ??
+        (typeof step.config?.introduction === "string"
+          ? step.config.introduction
+          : "") ??
+        "",
       sendWindow: SEND_WINDOWS[1],
       retry: RETRY_OPTIONS[0],
       stopOnReply: step.stopOnReply ?? true,

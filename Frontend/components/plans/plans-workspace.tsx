@@ -35,6 +35,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -540,6 +542,12 @@ function PlansDialogs({
   onConfirmUpgrade,
   onSales,
   upgrading,
+  couponCode,
+  onCouponCodeChange,
+  couponPreview,
+  couponError,
+  onApplyCoupon,
+  applyingCoupon,
 }: {
   kind: DialogKind;
   tiers: PlanTier[];
@@ -549,6 +557,18 @@ function PlansDialogs({
   onConfirmUpgrade: () => void;
   onSales: () => void;
   upgrading?: boolean;
+  couponCode: string;
+  onCouponCodeChange: (value: string) => void;
+  couponPreview: {
+    originalMajor: number;
+    discountMajor: number;
+    finalMajor: number;
+    currency: string;
+    code: string;
+  } | null;
+  couponError: string | null;
+  onApplyCoupon: () => void;
+  applyingCoupon?: boolean;
 }) {
   const choosable = tiers.filter(
     (tier) =>
@@ -618,6 +638,60 @@ function PlansDialogs({
             )}
           </div>
 
+          <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+            <Label htmlFor="upgrade-coupon" className="text-xs font-medium">
+              Have a coupon code?
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="upgrade-coupon"
+                value={couponCode}
+                onChange={(e) => onCouponCodeChange(e.target.value.toUpperCase())}
+                placeholder="Enter code"
+                className="h-9 uppercase"
+                disabled={upgrading || applyingCoupon || !selected}
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0"
+                disabled={
+                  upgrading ||
+                  applyingCoupon ||
+                  !selected ||
+                  !couponCode.trim()
+                }
+                onClick={onApplyCoupon}
+              >
+                {applyingCoupon ? "Checking…" : "Apply"}
+              </Button>
+            </div>
+            {couponError ? (
+              <p className="text-xs text-destructive">{couponError}</p>
+            ) : null}
+            {couponPreview ? (
+              <p className="text-xs text-muted-foreground">
+                Code <span className="font-medium text-foreground">{couponPreview.code}</span>{" "}
+                applied:{" "}
+                <span className="tabular-nums">
+                  {couponPreview.currency === "USD" ? "$" : "₹"}
+                  {couponPreview.originalMajor.toLocaleString("en-IN")} →{" "}
+                  {couponPreview.currency === "USD" ? "$" : "₹"}
+                  {couponPreview.finalMajor.toLocaleString("en-IN")}
+                </span>{" "}
+                (save{" "}
+                {couponPreview.currency === "USD" ? "$" : "₹"}
+                {couponPreview.discountMajor.toLocaleString("en-IN")})
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Coupons apply to INR (Razorpay) checkout.
+              </p>
+            )}
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={upgrading}>Cancel</AlertDialogCancel>
             {selected?.cta === "Contact Sales" ? (
@@ -640,7 +714,9 @@ function PlansDialogs({
                 {upgrading
                   ? "Starting checkout…"
                   : selected
-                    ? `Continue with ${selected.name}`
+                    ? couponPreview?.finalMajor === 0
+                      ? `Activate ${selected.name} free`
+                      : `Continue with ${selected.name}`
                     : "Select a plan"}
               </AlertDialogAction>
             )}
@@ -781,6 +857,16 @@ export function PlansWorkspace() {
   const [quotas, setQuotas] = useState<UsageQuota[]>([]);
   const [tiers, setTiers] = useState<PlanTier[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponPreview, setCouponPreview] = useState<{
+    originalMajor: number;
+    discountMajor: number;
+    finalMajor: number;
+    currency: string;
+    code: string;
+  } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -801,7 +887,122 @@ export function PlansWorkspace() {
         ? planId
         : paid[0]?.id ?? null
     );
+    setCouponCode("");
+    setCouponPreview(null);
+    setCouponError(null);
     setDialog("upgrade");
+  }
+
+  async function handleApplyCoupon() {
+    if (!selectedPlanId || !couponCode.trim()) return;
+    setApplyingCoupon(true);
+    setCouponError(null);
+    try {
+      const { billingApi } = await import("@/lib/api");
+      const result = await billingApi.validateCoupon({
+        code: couponCode.trim(),
+        planId: selectedPlanId,
+        billingCycle: "monthly",
+        currency: "INR",
+      });
+      setCouponPreview({
+        code: result.coupon.code,
+        originalMajor: result.pricing.originalMajor,
+        discountMajor: result.pricing.discountMajor,
+        finalMajor: result.pricing.finalMajor,
+        currency: result.pricing.currency,
+      });
+      setCouponCode(result.coupon.code);
+    } catch (err) {
+      setCouponPreview(null);
+      setCouponError(getApiErrorMessage(err));
+    } finally {
+      setApplyingCoupon(false);
+    }
+  }
+
+  async function handleUpgradeCheckout() {
+    setUpgrading(true);
+    try {
+      const available = tiers.length > 0 ? tiers : await plansApi.listTiers();
+      const target =
+        available.find((tier) => tier.id === selectedPlanId) ||
+        available.find(
+          (tier) =>
+            !tier.highlighted &&
+            tier.name.toLowerCase() !== "trial" &&
+            tier.cta !== "Contact Sales"
+        );
+      const planId = target?.id;
+      if (!planId) throw new Error("Select a plan to continue");
+      if (target.cta === "Contact Sales") {
+        setDialog("sales");
+        return;
+      }
+      const appliedCode = couponPreview?.code || couponCode.trim() || undefined;
+      const checkoutCurrency =
+        appliedCode ? "INR" : (target.currency ?? "INR");
+
+      const result = await plansApi.upgrade({
+        planId,
+        billingCycle: "monthly",
+        currency: checkoutCurrency,
+        provider: checkoutCurrency === "USD" ? "dodo" : "razorpay",
+        couponCode: appliedCode,
+      });
+
+      if ("_mockPaid" in result && result._mockPaid) {
+        await refreshPlan();
+        setDialog("upgrade-success");
+        flash("Mock upgrade complete.");
+        return;
+      }
+
+      if (result.freeUpgrade || !result.checkout) {
+        await refreshPlan();
+        setDialog("upgrade-success");
+        flash(
+          result.coupon?.code
+            ? `Plan activated with coupon ${result.coupon.code}.`
+            : "Plan upgraded."
+        );
+        return;
+      }
+
+      if (result.checkout.provider === "dodo") {
+        window.location.href = result.checkout.checkoutUrl;
+        return;
+      }
+
+      try {
+        const payment = await openRazorpayCheckout({
+          checkout: result.checkout,
+          prefill: result.prefill,
+        });
+        const { billingApi } = await import("@/lib/api");
+        await billingApi.verifyRazorpay({
+          razorpay_order_id: payment.razorpay_order_id,
+          razorpay_payment_id: payment.razorpay_payment_id,
+          razorpay_signature: payment.razorpay_signature,
+          orderId: result.order.id,
+        });
+        await refreshPlan();
+        setDialog("upgrade-success");
+        flash("Payment verified. Plan upgraded.");
+      } catch (err) {
+        if (err instanceof RazorpayCheckoutDismissedError) {
+          setDialog(null);
+          return;
+        }
+        setDialog("payment-failed");
+        setMessage(getApiErrorMessage(err));
+      }
+    } catch (err) {
+      setDialog("payment-failed");
+      setMessage(getApiErrorMessage(err));
+    } finally {
+      setUpgrading(false);
+    }
   }
   async function refreshPlan() {
     const [plan, usage, planTiers] = await Promise.all([
@@ -888,76 +1089,6 @@ export function PlansWorkspace() {
   const exhaustedQuota = quotas.find(
     (quota) => usageState(quota) === "Limit exhausted"
   );
-
-  async function handleUpgradeCheckout() {
-    setUpgrading(true);
-    try {
-      const available = tiers.length > 0 ? tiers : await plansApi.listTiers();
-      const target =
-        available.find((tier) => tier.id === selectedPlanId) ||
-        available.find(
-          (tier) =>
-            !tier.highlighted &&
-            tier.name.toLowerCase() !== "trial" &&
-            tier.cta !== "Contact Sales"
-        );
-      const planId = target?.id;
-      if (!planId) throw new Error("Select a plan to continue");
-      if (target.cta === "Contact Sales") {
-        setDialog("sales");
-        return;
-      }
-      const checkoutCurrency = target.currency ?? "INR";
-
-      const result = await plansApi.upgrade({
-        planId,
-        billingCycle: "monthly",
-        currency: checkoutCurrency,
-        provider: checkoutCurrency === "USD" ? "dodo" : "razorpay",
-      });
-
-      if ("_mockPaid" in result && result._mockPaid) {
-        await refreshPlan();
-        setDialog("upgrade-success");
-        flash("Mock upgrade complete.");
-        return;
-      }
-
-      if (result.checkout.provider === "dodo") {
-        window.location.href = result.checkout.checkoutUrl;
-        return;
-      }
-
-      try {
-        const payment = await openRazorpayCheckout({
-          checkout: result.checkout,
-          prefill: result.prefill,
-        });
-        const { billingApi } = await import("@/lib/api");
-        await billingApi.verifyRazorpay({
-          razorpay_order_id: payment.razorpay_order_id,
-          razorpay_payment_id: payment.razorpay_payment_id,
-          razorpay_signature: payment.razorpay_signature,
-          orderId: result.order.id,
-        });
-        await refreshPlan();
-        setDialog("upgrade-success");
-        flash("Payment verified. Plan upgraded.");
-      } catch (err) {
-        if (err instanceof RazorpayCheckoutDismissedError) {
-          setDialog(null);
-          return;
-        }
-        setDialog("payment-failed");
-        setMessage(getApiErrorMessage(err));
-      }
-    } catch (err) {
-      setDialog("payment-failed");
-      setMessage(getApiErrorMessage(err));
-    } finally {
-      setUpgrading(false);
-    }
-  }
 
   if (loading && !currentPlan) {
     return <PlansWorkspaceSkeleton />;
@@ -1175,7 +1306,23 @@ export function PlansWorkspace() {
         tiers={tiers}
         selectedPlanId={selectedPlanId}
         upgrading={upgrading}
-        onSelectPlan={setSelectedPlanId}
+        couponCode={couponCode}
+        onCouponCodeChange={(value) => {
+          setCouponCode(value);
+          setCouponPreview(null);
+          setCouponError(null);
+        }}
+        couponPreview={couponPreview}
+        couponError={couponError}
+        applyingCoupon={applyingCoupon}
+        onApplyCoupon={() => {
+          void handleApplyCoupon();
+        }}
+        onSelectPlan={(planId) => {
+          setSelectedPlanId(planId);
+          setCouponPreview(null);
+          setCouponError(null);
+        }}
         onClose={() => setDialog(null)}
         onSales={() => setDialog("sales")}
         onConfirmUpgrade={() => {

@@ -22,6 +22,10 @@ import {
   type PaymentOrderDocument,
   type PaymentProvider,
 } from './payment-order.model.js';
+import {
+  finalizeCouponRedemptionForOrder,
+  releaseCouponRedemptionForOrder,
+} from './coupon.service.js';
 
 const PLAN_RANK: Record<string, number> = {
   trial: 0,
@@ -316,6 +320,8 @@ export async function fulfillPaidOrder(
         );
       }
 
+      await finalizeCouponRedemptionForOrder(locked, session);
+
       resultOrder = locked;
     });
 
@@ -337,6 +343,7 @@ export async function markOrderFailed(
     failureReason: reason || 'payment_failed',
   };
   await order.save();
+  await releaseCouponRedemptionForOrder(order._id);
   return order;
 }
 

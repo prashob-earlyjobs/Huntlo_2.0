@@ -27,15 +27,23 @@ import {
   resolvePricingPlan,
   toPublicOrder,
 } from './fulfillment.service.js';
+import {
+  recordCouponApplied,
+  reserveCouponRedemption,
+  validateCouponForCheckout,
+  type AppliedCoupon,
+} from './coupon.service.js';
 import { PaymentOrderModel } from './payment-order.model.js';
 import type { z } from 'zod';
 import type {
   checkoutBodySchema,
   listHistoryQuerySchema,
   razorpayVerifyBodySchema,
+  validateCouponBodySchema,
 } from './billing.validation.js';
 
 type CheckoutInput = z.infer<typeof checkoutBodySchema>;
+type ValidateCouponInput = z.infer<typeof validateCouponBodySchema>;
 type VerifyInput = z.infer<typeof razorpayVerifyBodySchema>;
 type HistoryQuery = z.infer<typeof listHistoryQuerySchema>;
 
@@ -47,15 +55,52 @@ function isDodoSuccessStatus(status: unknown): boolean {
 }
 
 export class BillingService {
+  async validateCoupon(organizationId: string, input: ValidateCouponInput) {
+    const currency = resolveCheckoutCurrency({
+      currency: input.currency,
+      provider: undefined,
+    });
+    const plan = await resolvePricingPlan(input.planId);
+    await assertCanPurchase(organizationId, plan);
+    const pricing = resolvePlanAmount(plan, input.billingCycle, currency);
+    const applied = await validateCouponForCheckout({
+      code: input.code,
+      organizationId,
+      planCode: plan.code,
+      amountMinor: pricing.amount,
+      currency: pricing.currency,
+    });
+    await recordCouponApplied(applied.couponId);
+    return {
+      valid: true,
+      coupon: applied,
+      pricing: {
+        originalAmount: applied.originalAmount,
+        discountAmount: applied.discountAmount,
+        finalAmount: applied.finalAmount,
+        currency: applied.currency,
+        originalMajor: applied.originalAmount / 100,
+        discountMajor: applied.discountAmount / 100,
+        finalMajor: applied.finalAmount / 100,
+      },
+    };
+  }
+
   async checkout(organizationId: string, userId: string, input: CheckoutInput) {
     const currency = resolveCheckoutCurrency({
       currency: input.currency,
       provider: input.provider,
     });
-    const provider = resolveCheckoutProvider({
+    let provider = resolveCheckoutProvider({
       currency,
       provider: input.provider,
     });
+
+    if (input.couponCode && provider === 'dodo') {
+      throw AppError.badRequest(
+        'Coupon codes are only supported for INR (Razorpay) checkout.'
+      );
+    }
 
     if (provider === 'razorpay' && currency !== 'INR') {
       throw AppError.badRequest('Razorpay checkout supports INR only. Use Dodo for USD.');
@@ -68,7 +113,24 @@ export class BillingService {
 
     const plan = await resolvePricingPlan(input.planId);
     await assertCanPurchase(organizationId, plan);
-    const pricing = resolvePlanAmount(plan, input.billingCycle, currency);
+    let pricing = resolvePlanAmount(plan, input.billingCycle, currency);
+
+    let appliedCoupon: AppliedCoupon | null = null;
+    if (input.couponCode) {
+      appliedCoupon = await validateCouponForCheckout({
+        code: input.couponCode,
+        organizationId,
+        planCode: plan.code,
+        amountMinor: pricing.amount,
+        currency: pricing.currency,
+      });
+      pricing = {
+        amount: appliedCoupon.finalAmount,
+        currency: pricing.currency,
+        major: appliedCoupon.finalAmount / 100,
+      };
+      provider = 'razorpay';
+    }
 
     const idempotencyKey = input.idempotencyKey || buildIdempotencyKey();
     const existing = await PaymentOrderModel.findOne({
@@ -81,6 +143,8 @@ export class BillingService {
           order: toPublicOrder(existing),
           checkout: this.buildCheckoutPayload(existing, plan.name),
           alreadyExists: true,
+          freeUpgrade: existing.amount === 0,
+          coupon: this.couponFromOrder(existing),
         };
       }
       if (existing.status === 'created' || existing.status === 'pending') {
@@ -88,8 +152,22 @@ export class BillingService {
           order: toPublicOrder(existing),
           checkout: this.buildCheckoutPayload(existing, plan.name),
           alreadyExists: true,
+          freeUpgrade: existing.amount === 0,
+          coupon: this.couponFromOrder(existing),
         };
       }
+    }
+
+    if (pricing.amount <= 0) {
+      return this.createFreeCouponCheckout({
+        organizationId,
+        userId,
+        plan,
+        billingCycle: input.billingCycle,
+        pricing,
+        idempotencyKey,
+        appliedCoupon,
+      });
     }
 
     if (provider === 'razorpay') {
@@ -100,6 +178,7 @@ export class BillingService {
         billingCycle: input.billingCycle,
         pricing,
         idempotencyKey,
+        appliedCoupon,
       });
     }
 
@@ -113,11 +192,38 @@ export class BillingService {
     });
   }
 
+  private couponFromOrder(order: import('./payment-order.model.js').PaymentOrderDocument) {
+    const meta = (order.metadata || {}) as Record<string, unknown>;
+    if (typeof meta.couponCode !== 'string' || !meta.couponCode) return null;
+    return {
+      code: String(meta.couponCode),
+      discountAmount: Number(meta.couponDiscountAmount || 0),
+      originalAmount: Number(meta.couponOriginalAmount || order.amount),
+      finalAmount: order.amount,
+    };
+  }
+
+  private couponMetadata(applied: AppliedCoupon | null) {
+    if (!applied) return {};
+    return {
+      couponId: applied.couponId,
+      couponCode: applied.code,
+      couponDiscountType: applied.discountType,
+      couponDiscountValue: applied.discountValue,
+      couponOriginalAmount: applied.originalAmount,
+      couponDiscountAmount: applied.discountAmount,
+      couponFinalAmount: applied.finalAmount,
+    };
+  }
+
   private buildCheckoutPayload(
     order: import('./payment-order.model.js').PaymentOrderDocument,
     planName: string
   ) {
     const meta = (order.metadata || {}) as Record<string, unknown>;
+    if (order.amount <= 0) {
+      return null;
+    }
     if (order.provider === 'razorpay') {
       const { keyId } = getRazorpayConfig();
       return {
@@ -144,6 +250,67 @@ export class BillingService {
     };
   }
 
+  private async createFreeCouponCheckout(input: {
+    organizationId: string;
+    userId: string;
+    plan: Awaited<ReturnType<typeof resolvePricingPlan>>;
+    billingCycle: CheckoutInput['billingCycle'];
+    pricing: { amount: number; currency: 'INR' | 'USD'; major: number };
+    idempotencyKey: string;
+    appliedCoupon: AppliedCoupon | null;
+  }) {
+    if (!input.appliedCoupon) {
+      throw AppError.badRequest('A coupon is required for a zero-amount checkout');
+    }
+
+    const order = await PaymentOrderModel.create({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      planId: input.plan._id,
+      billingCycle: input.billingCycle,
+      provider: 'razorpay',
+      providerOrderId: null,
+      currency: input.pricing.currency,
+      amount: 0,
+      status: 'created',
+      idempotencyKey: input.idempotencyKey,
+      expiresAt: new Date(Date.now() + 30 * 60_000),
+      metadata: {
+        planCode: input.plan.code,
+        planName: input.plan.name,
+        amountMajor: 0,
+        freeCouponCheckout: true,
+        ...this.couponMetadata(input.appliedCoupon),
+      },
+    });
+
+    await reserveCouponRedemption({
+      applied: input.appliedCoupon,
+      organizationId: input.organizationId,
+      userId: input.userId,
+      orderId: order._id,
+    });
+
+    const fulfilled = await fulfillPaidOrder(order, {
+      providerPaymentId: `coupon:${input.appliedCoupon.code}`,
+      performedByUserId: input.userId,
+      reason: 'coupon_full_discount',
+    });
+
+    return {
+      order: toPublicOrder(fulfilled.order),
+      checkout: null,
+      freeUpgrade: true,
+      coupon: {
+        code: input.appliedCoupon.code,
+        discountAmount: input.appliedCoupon.discountAmount,
+        originalAmount: input.appliedCoupon.originalAmount,
+        finalAmount: 0,
+      },
+      alreadyExists: false,
+    };
+  }
+
   private async createRazorpayCheckout(input: {
     organizationId: string;
     userId: string;
@@ -151,6 +318,7 @@ export class BillingService {
     billingCycle: CheckoutInput['billingCycle'];
     pricing: { amount: number; currency: 'INR' | 'USD'; major: number };
     idempotencyKey: string;
+    appliedCoupon?: AppliedCoupon | null;
   }) {
     const { enabled, keyId } = getRazorpayConfig();
     if (!enabled) {
@@ -168,6 +336,12 @@ export class BillingService {
         organization_id: input.organizationId,
         user_id: input.userId,
         billing_cycle: input.billingCycle,
+        ...(input.appliedCoupon
+          ? {
+              coupon_code: input.appliedCoupon.code,
+              coupon_discount_paise: String(input.appliedCoupon.discountAmount),
+            }
+          : {}),
       },
     });
 
@@ -188,8 +362,18 @@ export class BillingService {
         planCode: input.plan.code,
         planName: input.plan.name,
         amountMajor: input.pricing.major,
+        ...this.couponMetadata(input.appliedCoupon || null),
       },
     });
+
+    if (input.appliedCoupon) {
+      await reserveCouponRedemption({
+        applied: input.appliedCoupon,
+        organizationId: input.organizationId,
+        userId: input.userId,
+        orderId: order._id,
+      });
+    }
 
     const user = await UserModel.findById(input.userId).select(
       'firstName lastName email'
@@ -212,6 +396,15 @@ export class BillingService {
         email: user?.email || '',
         contact: '',
       },
+      coupon: input.appliedCoupon
+        ? {
+            code: input.appliedCoupon.code,
+            discountAmount: input.appliedCoupon.discountAmount,
+            originalAmount: input.appliedCoupon.originalAmount,
+            finalAmount: input.appliedCoupon.finalAmount,
+          }
+        : null,
+      freeUpgrade: false,
       alreadyExists: false,
     };
   }

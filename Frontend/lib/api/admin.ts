@@ -106,6 +106,41 @@ export type AdminPlan = {
   usdPriceLabel?: { monthly: string; yearly: string };
 };
 
+export type AdminCoupon = {
+  id: string;
+  code: string;
+  description: string | null;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  currency: "INR" | "USD" | null;
+  planCodes: string[];
+  maxRedemptions: number | null;
+  maxPerOrganization: number;
+  appliedCount: number;
+  redemptionCount: number;
+  startsAt: string | null;
+  expiresAt: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminCouponRedemption = {
+  id: string;
+  couponId: string;
+  code: string;
+  organizationId: string;
+  userId: string;
+  orderId: string;
+  currency: string;
+  originalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  status: string;
+  redeemedAt: string | null;
+  createdAt: string | null;
+};
+
 export type ProviderHealth = {
   id: string;
   name: string;
@@ -435,6 +470,10 @@ export interface AdminApi {
   createPlan(input: Record<string, unknown>): Promise<AdminPlan>;
   updatePlan(id: string, input: Record<string, unknown>): Promise<AdminPlan>;
   setDefaultSignupPlan(id: string): Promise<AdminPlan>;
+  listCoupons(): Promise<AdminCoupon[]>;
+  createCoupon(input: Record<string, unknown>): Promise<AdminCoupon>;
+  updateCoupon(id: string, input: Record<string, unknown>): Promise<AdminCoupon>;
+  listCouponRedemptions(id: string): Promise<AdminCouponRedemption[]>;
   getUsage(): Promise<{ byAction: Array<Record<string, unknown>>; periodKey: string }>;
   getUsageAnalyticsSummary(params?: {
     userId?: string;
@@ -633,6 +672,24 @@ const liveAdminApi: AdminApi = {
   async setDefaultSignupPlan(id: string) {
     const result = await apiClient.post<AdminPlan>(
       `/admin/plans/${id}/set-default-signup`
+    );
+    return result.data;
+  },
+  async listCoupons() {
+    const result = await apiClient.get<AdminCoupon[]>("/admin/coupons");
+    return result.data;
+  },
+  async createCoupon(input) {
+    const result = await apiClient.post<AdminCoupon>("/admin/coupons", input);
+    return result.data;
+  },
+  async updateCoupon(id, input) {
+    const result = await apiClient.patch<AdminCoupon>(`/admin/coupons/${id}`, input);
+    return result.data;
+  },
+  async listCouponRedemptions(id) {
+    const result = await apiClient.get<AdminCouponRedemption[]>(
+      `/admin/coupons/${id}/redemptions`
     );
     return result.data;
   },
@@ -1118,6 +1175,59 @@ const mockAdminApi: AdminApi = {
       isTrialPlan: true,
       trialDays: 14,
     };
+  },
+  async listCoupons() {
+    await simulateMockLatency();
+    return [
+      {
+        id: "coupon_mock_1",
+        code: "GROWTH10",
+        description: "10% off Growth",
+        discountType: "percent" as const,
+        discountValue: 10,
+        currency: null,
+        planCodes: ["growth"],
+        maxRedemptions: 100,
+        maxPerOrganization: 1,
+        appliedCount: 12,
+        redemptionCount: 3,
+        startsAt: null,
+        expiresAt: null,
+        active: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+  },
+  async createCoupon(input) {
+    await simulateMockLatency();
+    return {
+      id: `coupon_${Date.now()}`,
+      code: String(input.code || "CODE").toUpperCase(),
+      description: (input.description as string) || null,
+      discountType: (input.discountType as "percent" | "fixed") || "percent",
+      discountValue: Number(input.discountValue) || 10,
+      currency: (input.currency as "INR" | "USD" | null) ?? null,
+      planCodes: (input.planCodes as string[]) || [],
+      maxRedemptions: (input.maxRedemptions as number | null) ?? null,
+      maxPerOrganization: Number(input.maxPerOrganization) || 1,
+      appliedCount: 0,
+      redemptionCount: 0,
+      startsAt: null,
+      expiresAt: null,
+      active: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  },
+  async updateCoupon(id, input) {
+    await simulateMockLatency();
+    const [row] = await this.listCoupons();
+    return { ...row, id, ...input, updatedAt: new Date().toISOString() } as AdminCoupon;
+  },
+  async listCouponRedemptions() {
+    await simulateMockLatency();
+    return [];
   },
   async getUsage() {
     return { byAction: [], periodKey: "current" };
