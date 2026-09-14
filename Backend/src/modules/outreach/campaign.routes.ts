@@ -445,7 +445,11 @@ campaignRoutes.get(
       query
     );
     successResponse(res, data.items, {
-      meta: { requestId: getRequestId(req), pagination: data.pagination },
+      meta: {
+        requestId: getRequestId(req),
+        pagination: data.pagination,
+        gmailQuestionColumns: data.gmailQuestionColumns,
+      },
     });
   })
 );

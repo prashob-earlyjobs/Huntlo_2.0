@@ -294,6 +294,10 @@ export function compileBuilderToCampaign(campaign: OutreachCampaignDocument): Co
             qualRaw.aiReplyEnabled === undefined ? true : Boolean(qualRaw.aiReplyEnabled),
           takeoverCondition: pickString(qualRaw.takeoverCondition),
           autoScreening: Boolean(qualRaw.autoScreening),
+          autoScreeningModality:
+            String(qualRaw.autoScreeningModality || '').trim() === 'video'
+              ? 'video'
+              : 'voice',
           autoWhatsAppAfterQualification: Boolean(
             qualRaw.autoWhatsAppAfterQualification
           ),
@@ -303,14 +307,32 @@ export function compileBuilderToCampaign(campaign: OutreachCampaignDocument): Co
         }
       : campaign.qualificationConfig;
 
-  const schedulingConfig = asRecord(builderState.scheduling).enabled !== undefined
+  const schedulingRaw = asRecord(builderState.scheduling);
+  const hasVoice =
+    Boolean(
+      qualificationConfig &&
+        (qualificationConfig as { autoScreening?: boolean }).autoScreening
+    ) ||
+    Boolean(channelConfig.ai_voice?.enabled) ||
+    sequenceSteps.some((step) => step.type === 'ai_voice');
+  const schedulingConfig = hasVoice
     ? {
-        enabled: Boolean(asRecord(builderState.scheduling).enabled),
-        provider: pickString(asRecord(builderState.scheduling).provider),
-        eventTypeUri: pickString(asRecord(builderState.scheduling).eventTypeUri),
-        messageTemplateId: pickString(asRecord(builderState.scheduling).messageTemplateId),
+        enabled: false,
+        provider: null,
+        eventTypeUri: pickString(schedulingRaw.eventTypeUri) || campaign.schedulingConfig?.eventTypeUri || null,
+        messageTemplateId:
+          pickString(schedulingRaw.messageTemplateId) ||
+          campaign.schedulingConfig?.messageTemplateId ||
+          null,
       }
-    : campaign.schedulingConfig;
+    : schedulingRaw.enabled !== undefined
+      ? {
+          enabled: Boolean(schedulingRaw.enabled),
+          provider: pickString(schedulingRaw.provider),
+          eventTypeUri: pickString(schedulingRaw.eventTypeUri),
+          messageTemplateId: pickString(schedulingRaw.messageTemplateId),
+        }
+      : campaign.schedulingConfig;
 
   return {
     executable: {

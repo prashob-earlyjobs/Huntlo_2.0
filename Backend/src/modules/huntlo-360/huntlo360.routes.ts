@@ -224,6 +224,17 @@ huntlo360Router.get(
 );
 
 huntlo360Router.get(
+  '/workflows/:id/screening',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = workflowIdParamSchema.parse(req.params);
+    const data = await huntlo360Service.listScreening(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+huntlo360Router.get(
   '/workflows/:id/exceptions',
   ...orgAuth,
   readPerm,

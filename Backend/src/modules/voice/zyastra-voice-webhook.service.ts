@@ -166,17 +166,62 @@ export function zyastraToHunarWebhookBodies(
   return bodies;
 }
 
-async function resolveIdsFromLedger(callId: string): Promise<{
+function digitsOnly(value: string): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+async function resolveIdsFromLedger(parsed: ParsedZyastraWebhook): Promise<{
   campaignId: string | null;
   screeningId: string | null;
 }> {
-  if (!callId) return { campaignId: null, screeningId: null };
-  const row = await VoiceCallModel.findOne({ callId }).sort({ updatedAt: -1 }).lean();
-  if (!row) return { campaignId: null, screeningId: null };
-  return {
-    campaignId: row.campaignId ? String(row.campaignId) : null,
-    screeningId: row.screeningId ? String(row.screeningId) : null,
-  };
+  if (parsed.callId) {
+    const byCall = await VoiceCallModel.findOne({ callId: parsed.callId }).sort({ updatedAt: -1 }).lean();
+    if (byCall) {
+      return {
+        campaignId: byCall.campaignId ? String(byCall.campaignId) : null,
+        screeningId: byCall.screeningId ? String(byCall.screeningId) : null,
+      };
+    }
+  }
+
+  const digits = digitsOnly(parsed.phoneNumber);
+  if (digits) {
+    const byPhone = await VoiceCallModel.findOne({
+      provider: 'zyastra',
+      toNumberDigits: digits,
+    }).sort({ updatedAt: -1 }).lean();
+    if (byPhone) {
+      return {
+        campaignId: byPhone.campaignId ? String(byPhone.campaignId) : null,
+        screeningId: byPhone.screeningId ? String(byPhone.screeningId) : null,
+      };
+    }
+  }
+
+  return { campaignId: null, screeningId: null };
+}
+
+/** Gateway dials seed `pending:` callIds; promote them when Zyastra posts the real id. */
+async function promotePendingZyastraLedger(parsed: ParsedZyastraWebhook) {
+  if (!parsed.callId) return;
+  const existing = await VoiceCallModel.findOne({ callId: parsed.callId });
+  if (existing) {
+    await VoiceCallModel.updateOne({ _id: existing._id }, { $set: { provider: 'zyastra' } });
+    return;
+  }
+
+  const digits = digitsOnly(parsed.phoneNumber);
+  if (!digits) return;
+  const pending = await VoiceCallModel.findOne({
+    provider: 'zyastra',
+    toNumberDigits: digits,
+    callId: { $regex: /^pending:/ },
+  }).sort({ updatedAt: -1 });
+  if (!pending) return;
+
+  pending.callId = parsed.callId;
+  if (parsed.callReferenceId) pending.requestId = parsed.callReferenceId;
+  await pending.save().catch(() => undefined);
 }
 
 export async function processZyastraVoiceWebhook(input: {
@@ -285,7 +330,7 @@ export async function processZyastraVoiceWebhook(input: {
   let campaignId = asString(parsed.metadata.campaignId) || null;
 
   if (!screeningId && !campaignId) {
-    const fromLedger = await resolveIdsFromLedger(parsed.callId);
+    const fromLedger = await resolveIdsFromLedger(parsed);
     screeningId = fromLedger.screeningId;
     campaignId = fromLedger.campaignId;
   }
@@ -331,11 +376,7 @@ export async function processZyastraVoiceWebhook(input: {
     }
   }
 
-  // Ensure VoiceCall provider is marked zyastra when we have a ledger row.
-  await VoiceCallModel.updateOne(
-    { callId: parsed.callId },
-    { $set: { provider: 'zyastra' } }
-  ).catch(() => undefined);
+  await promotePendingZyastraLedger(parsed);
 
   log().info(
     {

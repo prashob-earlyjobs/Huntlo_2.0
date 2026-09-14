@@ -64,7 +64,7 @@ export function deriveCandidatePipelineStatus(
   return "Awaiting reply";
 }
 
-export function pipelineStatusBadgeClass(status: CandidatePipelineStatus): string {
+export function pipelineStatusBadgeClass(status: string): string {
   switch (status) {
     case "Qualified":
     case "Shortlisted":
@@ -76,6 +76,8 @@ export function pipelineStatusBadgeClass(status: CandidatePipelineStatus): strin
     case "In qualification":
     case "In screening":
     case "Answered":
+    case "Interested":
+    case "Replied":
       return "bg-info/10 text-info";
     default:
       return "bg-muted text-muted-foreground";

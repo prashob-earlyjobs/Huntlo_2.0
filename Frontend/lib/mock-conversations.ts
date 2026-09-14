@@ -61,6 +61,8 @@ export interface ConversationEvent {
   authorName: string;
   subject?: string;
   text: string;
+  /** Sanitized-enough email HTML when the source message had an `html` body. */
+  html?: string;
   time: string;
   /** Absolute timestamp when provided by the API (used to merge multi-channel timelines). */
   sentAt?: string;
@@ -104,6 +106,8 @@ export interface Conversation {
   qualification: QualificationState;
   qualificationStatus?: string;
   qualificationReason?: string | null;
+  /** Gateway `overallAIDescription` for the pipeline status tooltip. */
+  overallAIDescription?: string | null;
   screeningStatus: string;
   screeningId?: string | null;
   /** Final screening outcome when screening is completed. */

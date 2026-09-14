@@ -340,6 +340,29 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     serverConfigured: true,
     inactive: true,
   },
+  {
+    id: "zoho-recruit",
+    name: "Zoho Recruit",
+    description:
+      "Connect Zoho Recruit to browse job openings and associated candidates.",
+    category: "ATS",
+    status: "Not Connected",
+    connectedIdentity: null,
+    lastSynced: null,
+    docsLabel: "Zoho Recruit docs",
+    initials: "ZR",
+    accent: "info",
+    permissions: [
+      "Read organization",
+      "Read job openings",
+      "Read candidates",
+      "Read applications",
+    ],
+    usage: [],
+    connectionDetails: [],
+    isDefault: false,
+    configKind: "generic",
+  },
   /* Payments */
   {
     id: "razorpay",

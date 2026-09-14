@@ -87,6 +87,15 @@ function slotForWhatsAppStep(whatsappStepIndex: number): WhatsAppTemplateSlot {
   return 'no_reply_2';
 }
 
+/** Catalogue / Meta bodies use {{1}}/{{2}}. Campaign launch validation only allows named tokens on email/voice. */
+export function rewriteWhatsAppPositionalTokens(body: string): string {
+  return String(body || '').replace(/\{\{\s*(\d+)\s*\}\}/g, (full, raw) => {
+    if (String(raw) === '1') return '{{first_name}}';
+    if (String(raw) === '2') return '{{job_title}}';
+    return full;
+  });
+}
+
 function resolveWhatsAppStep(input: {
   templateId?: string | null;
   body?: string | null;
@@ -153,6 +162,7 @@ export function compileCampaignSequence(workflow: Huntlo360WorkflowDocument) {
       whatsappStepIndex += 1;
     }
 
+    const namedBody = rewriteWhatsAppPositionalTokens(resolvedBody);
     steps.push({
       id: `step-${order + 1}`,
       order,
@@ -162,7 +172,7 @@ export function compileCampaignSequence(workflow: Huntlo360WorkflowDocument) {
       templateId: resolvedTemplateId,
       subject: type === 'email' ? 'Quick question, {{first_name}}' : null,
       // AI Voice: empty body → delivery uses Roshni (Hunar/Zyastra). Non-empty = call notes.
-      body: type === 'ai_voice' ? (resolvedBody.trim() ? resolvedBody : null) : resolvedBody,
+      body: type === 'ai_voice' ? (namedBody.trim() ? namedBody : null) : namedBody,
       stopOnReply: workflow.outreachConfig.stopOnReply !== false,
       note: type === 'ai_voice' ? 'Huntlo Voice AI (Hunar / Zyastra)' : null,
     });

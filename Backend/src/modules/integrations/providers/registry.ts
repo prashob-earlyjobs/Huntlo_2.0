@@ -11,6 +11,7 @@ import { hunarProvider } from './hunar.provider.js';
 import { calendlyProvider } from './calendly.provider.js';
 import { futureJobsProvider } from './future-jobs.provider.js';
 import { zwayamAmplifyProvider } from './zwayam-amplify.provider.js';
+import { zohoRecruitProvider } from './zoho-recruit.provider.js';
 
 const PROVIDERS: Record<IntegrationProviderId, AnyIntegrationProvider> = {
   gmail: gmailProvider,
@@ -24,6 +25,7 @@ const PROVIDERS: Record<IntegrationProviderId, AnyIntegrationProvider> = {
   calendly: calendlyProvider,
   'future-jobs': futureJobsProvider,
   'zwayam-amplify': zwayamAmplifyProvider,
+  'zoho-recruit': zohoRecruitProvider,
 };
 
 export function getProviderAdapter(provider: IntegrationProviderId): AnyIntegrationProvider {
@@ -131,5 +133,13 @@ export const PROVIDER_CATALOG: ProviderCatalogItem[] = [
     description: 'Import applicants from Naukri, IIMJobs, and Hirist via Amplify.',
     authModes: ['credentials'],
     configured: true,
+  },
+  {
+    id: 'zoho-recruit',
+    name: 'Zoho Recruit',
+    category: 'ats',
+    description: 'Browse Zoho Recruit job openings and associated candidates.',
+    authModes: ['oauth'],
+    configured: false,
   },
 ];

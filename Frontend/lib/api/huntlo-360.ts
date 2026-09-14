@@ -7,9 +7,10 @@ import type {
   Workflow360,
   WorkflowCandidate,
   WorkflowException,
+  WorkflowScreening,
   WorkflowStatus,
 } from "@/lib/mock-360";
-import { WORKFLOW_EXCEPTIONS } from "@/lib/mock-360";
+import { WORKFLOW_EXCEPTIONS, WORKFLOW_SCREENINGS } from "@/lib/mock-360";
 
 /* ------------------------------------------------------------------ */
 /* Backend DTOs                                                         */
@@ -374,6 +375,7 @@ export interface Huntlo360Api {
   resumeWorkflow(id: string): Promise<ApiHuntlo360Workflow>;
   cancelWorkflow(id: string): Promise<ApiHuntlo360Workflow>;
   listCandidates(id: string, params?: ApiQueryParams): Promise<WorkflowCandidate[]>;
+  listScreening(id: string): Promise<WorkflowScreening[]>;
   listExceptions(id: string): Promise<WorkflowException[]>;
   listExceptionsRaw(id: string): Promise<ApiHuntlo360Exception[]>;
   stats(id: string): Promise<{
@@ -493,6 +495,10 @@ const mockHuntlo360Api: Huntlo360Api = {
     const { WORKFLOW_CANDIDATES } = await import("@/lib/mock-360");
     return WORKFLOW_CANDIDATES;
   },
+  async listScreening() {
+    await simulateMockLatency();
+    return WORKFLOW_SCREENINGS;
+  },
   async listExceptions() {
     await simulateMockLatency();
     const { WORKFLOW_EXCEPTIONS } = await import("@/lib/mock-360");
@@ -600,6 +606,12 @@ const liveHuntlo360Api: Huntlo360Api = {
       `/huntlo-360/workflows/${id}/candidates${buildQueryString(params)}`
     );
     return result.data.map(toWorkflowCandidate);
+  },
+  async listScreening(id) {
+    const result = await apiClient.get<WorkflowScreening[]>(
+      `/huntlo-360/workflows/${id}/screening`
+    );
+    return result.data;
   },
   async listExceptions(id) {
     const rows = await this.listExceptionsRaw(id);

@@ -72,6 +72,101 @@ export const ScheduleCandidateModel = (mongoose.models.ScheduleCandidate ??
     scheduleCandidateSchema
   )) as Model<ScheduleCandidateDocument>;
 
+async function appendInviteToConversationThread(input: {
+  organizationId: string;
+  ownerUserId: string;
+  doc: ScheduleCandidateDocument;
+  channel: 'email' | 'whatsapp';
+  log: { warn: (...args: unknown[]) => void };
+}) {
+  const { doc, log } = input;
+  if (!doc.campaignId || !doc.candidateId || !doc.bookingUrl) return;
+
+  try {
+    let enrollmentId = doc.enrollmentId ? String(doc.enrollmentId) : null;
+    if (!enrollmentId) {
+      const { OutreachEnrollmentModel } = await import(
+        '../outreach/enrollment.model.js'
+      );
+      const enrollment = await OutreachEnrollmentModel.findOne({
+        organizationId: input.organizationId,
+        campaignId: doc.campaignId,
+        candidateId: doc.candidateId,
+      })
+        .select('_id')
+        .lean();
+      if (enrollment?._id) {
+        enrollmentId = String(enrollment._id);
+        doc.enrollmentId = enrollment._id as mongoose.Types.ObjectId;
+        await doc.save();
+      }
+    }
+    if (!enrollmentId) {
+      log.warn(
+        { scheduleCandidateId: String(doc._id), campaignId: String(doc.campaignId) },
+        'Interview invite delivered but no enrollment to attach conversation message'
+      );
+      return;
+    }
+
+    const bookingUrl = String(doc.bookingUrl);
+    const { conversationsService } = await import(
+      '../conversations/conversations.service.js'
+    );
+    const { ConversationMessageModel } = await import(
+      '../conversations/conversation-message.model.js'
+    );
+    const { emitConversationMessageCreated } = await import('../../realtime/events.js');
+    const thread = await conversationsService.ensureThreadForEnrollment({
+      organizationId: input.organizationId,
+      candidateId: String(doc.candidateId),
+      campaignId: String(doc.campaignId),
+      enrollmentId,
+      channel: input.channel,
+    });
+
+    const escaped = bookingUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existing = await ConversationMessageModel.findOne({
+      threadId: thread._id,
+      bodyText: { $regex: escaped },
+    })
+      .select('_id')
+      .lean();
+    if (existing) return;
+
+    const bodyText = `Please book a time using this scheduling link: ${bookingUrl}`;
+    const msg = await ConversationMessageModel.create({
+      organizationId: input.organizationId,
+      threadId: thread._id,
+      provider: 'system',
+      channel: input.channel,
+      direction: 'outbound',
+      bodyText,
+      messageType: 'message',
+      deliveryStatus: 'sent',
+      sentAt: new Date(),
+      createdByUserId: input.ownerUserId,
+    });
+    thread.lastMessageAt = msg.sentAt || new Date();
+    thread.lastMessagePreview = bodyText.slice(0, 240);
+    await thread.save();
+    emitConversationMessageCreated({
+      organizationId: input.organizationId,
+      threadId: String(thread._id),
+      messageId: String(msg._id),
+      campaignId: String(doc.campaignId),
+      candidateId: String(doc.candidateId),
+      direction: 'outbound',
+      channel: input.channel,
+    });
+  } catch (error) {
+    log.warn(
+      { err: error, scheduleCandidateId: String(doc._id) },
+      'Interview invite sent but conversation thread was not updated'
+    );
+  }
+}
+
 export const schedulingFacade = {
   async createLink(input: {
     organizationId: string;
@@ -172,19 +267,64 @@ export const schedulingFacade = {
     channel?: 'email' | 'whatsapp';
   }) {
     const log = getLogger().child({ component: 'scheduling-facade' });
-    const doc = await ScheduleCandidateModel.findById(input.scheduleCandidateId);
-    if (!doc?.interviewId) {
+    const existing = await ScheduleCandidateModel.findById(input.scheduleCandidateId);
+    if (!existing?.interviewId) {
       return { delivered: false, status: 'link_pending' as const, bookingUrl: null };
     }
-    if (doc.inviteDeliveredAt) {
+    if (existing.inviteDeliveredAt) {
+      await appendInviteToConversationThread({
+        organizationId: input.organizationId,
+        ownerUserId: input.ownerUserId,
+        doc: existing,
+        channel: input.channel || existing.channel || 'email',
+        log,
+      });
       return {
         delivered: true,
         status: 'link_sent' as const,
-        bookingUrl: doc.bookingUrl,
+        bookingUrl: existing.bookingUrl,
       };
     }
 
-    const primary = input.channel || doc.channel || 'email';
+    // Claim before send so concurrent HCG/whatsapp+sync transitions cannot double-text.
+    const claimed = await ScheduleCandidateModel.findOneAndUpdate(
+      {
+        _id: input.scheduleCandidateId,
+        inviteDeliveredAt: null,
+        status: { $in: ['link_pending'] },
+      },
+      {
+        $set: {
+          inviteDeliveredAt: new Date(),
+          status: 'link_sent',
+        },
+      },
+      { new: true }
+    );
+    if (!claimed?.interviewId) {
+      const doc = await ScheduleCandidateModel.findById(input.scheduleCandidateId);
+      if (doc?.inviteDeliveredAt) {
+        await appendInviteToConversationThread({
+          organizationId: input.organizationId,
+          ownerUserId: input.ownerUserId,
+          doc,
+          channel: input.channel || doc.channel || 'email',
+          log,
+        });
+        return {
+          delivered: true,
+          status: 'link_sent' as const,
+          bookingUrl: doc.bookingUrl,
+        };
+      }
+      return {
+        delivered: false,
+        status: 'link_pending' as const,
+        bookingUrl: doc?.bookingUrl ?? null,
+      };
+    }
+
+    const primary = input.channel || claimed.channel || 'email';
     const channels: Array<'email' | 'whatsapp'> =
       primary === 'whatsapp' ? ['whatsapp', 'email'] : ['email', 'whatsapp'];
 
@@ -197,7 +337,7 @@ export const schedulingFacade = {
         await interviewsService.sendLink(
           input.organizationId,
           input.ownerUserId,
-          String(doc.interviewId),
+          String(claimed.interviewId),
           { channel }
         );
         sentChannel = channel;
@@ -210,7 +350,7 @@ export const schedulingFacade = {
             err: error,
             organizationId: input.organizationId,
             scheduleCandidateId: input.scheduleCandidateId,
-            interviewId: String(doc.interviewId),
+            interviewId: String(claimed.interviewId),
             channel,
           },
           'Interview invite send failed'
@@ -219,8 +359,10 @@ export const schedulingFacade = {
     }
 
     if (!sentChannel) {
-      doc.status = 'link_pending';
-      await doc.save();
+      // Release claim so a later retry can send.
+      claimed.status = 'link_pending';
+      claimed.inviteDeliveredAt = null;
+      await claimed.save();
       log.error(
         {
           err: lastError,
@@ -229,68 +371,25 @@ export const schedulingFacade = {
         },
         'Interview invite was not delivered on any channel'
       );
-      return { delivered: false, status: 'link_pending' as const, bookingUrl: doc.bookingUrl };
+      return { delivered: false, status: 'link_pending' as const, bookingUrl: claimed.bookingUrl };
     }
 
-    doc.status = 'link_sent';
-    doc.channel = sentChannel;
-    doc.inviteDeliveredAt = new Date();
-    await doc.save();
+    claimed.status = 'link_sent';
+    claimed.channel = sentChannel;
+    await claimed.save();
 
-    if (doc.campaignId && doc.enrollmentId && doc.candidateId && doc.bookingUrl) {
-      try {
-        const { conversationsService } = await import(
-          '../conversations/conversations.service.js'
-        );
-        const { ConversationMessageModel } = await import(
-          '../conversations/conversation-message.model.js'
-        );
-        const { emitConversationMessageCreated } = await import(
-          '../../realtime/events.js'
-        );
-        const thread = await conversationsService.ensureThreadForEnrollment({
-          organizationId: input.organizationId,
-          candidateId: String(doc.candidateId),
-          campaignId: String(doc.campaignId),
-          enrollmentId: String(doc.enrollmentId),
-          channel: sentChannel,
-        });
-        const msg = await ConversationMessageModel.create({
-          organizationId: input.organizationId,
-          threadId: thread._id,
-          provider: 'system',
-          channel: sentChannel,
-          direction: 'outbound',
-          bodyText: `Please book a time using this scheduling link: ${doc.bookingUrl}`,
-          messageType: 'message',
-          deliveryStatus: 'sent',
-          sentAt: new Date(),
-          createdByUserId: input.ownerUserId,
-        });
-        thread.lastMessageAt = msg.sentAt || new Date();
-        thread.lastMessagePreview = String(msg.bodyText).slice(0, 240);
-        await thread.save();
-        emitConversationMessageCreated({
-          organizationId: input.organizationId,
-          threadId: String(thread._id),
-          messageId: String(msg._id),
-          campaignId: String(doc.campaignId),
-          candidateId: String(doc.candidateId),
-          direction: 'outbound',
-          channel: sentChannel,
-        });
-      } catch (error) {
-        log.warn(
-          { err: error, scheduleCandidateId: input.scheduleCandidateId },
-          'Interview invite sent but conversation thread was not updated'
-        );
-      }
-    }
+    await appendInviteToConversationThread({
+      organizationId: input.organizationId,
+      ownerUserId: input.ownerUserId,
+      doc: claimed,
+      channel: sentChannel,
+      log,
+    });
 
     return {
       delivered: true,
       status: 'link_sent' as const,
-      bookingUrl: doc.bookingUrl,
+      bookingUrl: claimed.bookingUrl,
     };
   },
 

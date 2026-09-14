@@ -157,6 +157,27 @@ export type AtsProvider = {
   readonly id: IntegrationProviderId;
   connect?(ctx: ProviderContext, body: Record<string, unknown>): Promise<ProviderConnectResult>;
   test(ctx: ProviderContext): Promise<ProviderTestResult>;
+  refresh?(ctx: ProviderContext): Promise<{ accessToken: string; expiresAt?: Date | null }>;
+  buildAuthorizeUrl?(input: {
+    state: string;
+    codeChallenge?: string;
+    redirectUri: string;
+  }): string | null;
+  exchangeCode?(input: {
+    code: string;
+    redirectUri: string;
+    codeVerifier?: string;
+    extras?: Record<string, unknown>;
+  }): Promise<{
+    accessToken: string;
+    refreshToken?: string | null;
+    expiresAt?: Date | null;
+    email?: string | null;
+    displayName?: string | null;
+    providerAccountId?: string | null;
+    scopes?: string[];
+    config?: Record<string, unknown>;
+  }>;
   listJobs?(
     ctx: ProviderContext,
     query?: { page?: number; pageSize?: number; search?: string }
@@ -175,6 +196,20 @@ export type AtsProvider = {
     pageSize: number;
     total: number | null;
   }>;
+  /**
+   * Push an outreach / qualification outcome back to the ATS candidate record.
+   * Best-effort — providers should not throw for non-fatal ATS mapping issues.
+   */
+  syncOutreachOutcome?(
+    ctx: ProviderContext,
+    input: {
+      externalCandidateId: string;
+      jobId?: string | null;
+      candidateStatus?: string | null;
+      noteTitle: string;
+      noteContent: string;
+    }
+  ): Promise<{ ok: boolean; message: string; statusUpdated?: boolean; noteCreated?: boolean }>;
   disconnect?(ctx: ProviderContext): Promise<void>;
 };
 

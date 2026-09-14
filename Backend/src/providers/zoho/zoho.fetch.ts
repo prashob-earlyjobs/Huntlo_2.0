@@ -1,16 +1,23 @@
-/**
- * Zoho Mail inbox read helpers for inbound reply sync (OAuth).
- */
-
 import type { InboxFetchOptions, InboxReplyItem } from '../email/inbox-reply.js';
 import { stripEmailQuotedReply } from '../email/strip-quoted-reply.js';
-import { getZohoDcConfig, type ZohoDataCenter } from './zoho.oauth.js';
+import {
+  getZohoDcConfig,
+  normalizeZohoDataCenter,
+  zohoDataCenterOrder,
+  type ZohoDataCenter,
+} from './zoho.oauth.js';
 
 type ZohoAccount = {
   accountId?: string | number;
   mailboxAddress?: string;
   primaryEmailAddress?: string;
   accountName?: string;
+  incomingUserName?: string;
+  displayName?: string;
+  emailAddress?:
+    | string
+    | Array<{ mailId?: string; isPrimary?: boolean; isAlias?: boolean }>;
+  sendMailDetails?: Array<{ fromAddress?: string; displayName?: string }>;
 };
 
 type ZohoFolder = {
@@ -61,6 +68,33 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+function collectEmailsFromZohoAccount(account: ZohoAccount): string[] {
+  const out: string[] = [];
+  const push = (value: unknown) => {
+    const raw = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (raw.includes('@') && !out.includes(raw)) out.push(raw);
+  };
+
+  push(account.mailboxAddress);
+  push(account.primaryEmailAddress);
+  push(account.incomingUserName);
+  if (typeof account.emailAddress === 'string') {
+    push(account.emailAddress);
+  } else if (Array.isArray(account.emailAddress)) {
+    const primary = account.emailAddress.find((row) => row.isPrimary);
+    push(primary?.mailId);
+    for (const row of account.emailAddress) push(row.mailId);
+  }
+  for (const row of account.sendMailDetails || []) push(row.fromAddress);
+  return out;
+}
+
+function emailFromZohoAccount(account: ZohoAccount): string | null {
+  return collectEmailsFromZohoAccount(account)[0] || null;
+}
+
 export async function fetchZohoAccounts(
   accessToken: string,
   dataCenter?: ZohoDataCenter | string
@@ -70,15 +104,35 @@ export async function fetchZohoAccounts(
     headers: authHeaders(accessToken),
   });
   if (!res.ok) await parseZohoError(res);
-  const data = (await res.json()) as { data?: ZohoAccount[] };
-  return Array.isArray(data.data) ? data.data : [];
+  const data = (await res.json()) as { data?: ZohoAccount[] | ZohoAccount };
+  if (Array.isArray(data.data)) return data.data;
+  if (data.data && typeof data.data === 'object') return [data.data];
+  return [];
 }
 
-export async function resolveZohoAccountId(
+async function fetchZohoAccountDetails(
   accessToken: string,
-  dataCenter?: ZohoDataCenter | string,
+  accountId: string,
+  dataCenter?: ZohoDataCenter | string
+): Promise<ZohoAccount | null> {
+  const dc = getZohoDcConfig(dataCenter);
+  const res = await fetch(
+    `https://${dc.mailApiHost}/api/accounts/${encodeURIComponent(accountId)}`,
+    { headers: authHeaders(accessToken) }
+  );
+  if (!res.ok) return null;
+  const data = (await res.json().catch(() => ({}))) as {
+    data?: ZohoAccount | ZohoAccount[];
+  };
+  if (Array.isArray(data.data)) return data.data[0] || null;
+  return data.data || null;
+}
+
+async function resolveZohoAccountOnDc(
+  accessToken: string,
+  dataCenter: ZohoDataCenter | string,
   preferredEmail?: string | null
-): Promise<{ accountId: string; email: string | null }> {
+): Promise<{ accountId: string; email: string | null; dataCenter: ZohoDataCenter }> {
   const accounts = await fetchZohoAccounts(accessToken, dataCenter);
   if (!accounts.length) {
     throw Object.assign(new Error('No Zoho Mail accounts found for this token.'), {
@@ -88,28 +142,57 @@ export async function resolveZohoAccountId(
   const preferred = String(preferredEmail || '')
     .trim()
     .toLowerCase();
-  const match =
+
+  let match =
     (preferred
-      ? accounts.find((a) => {
-          const emails = [
-            a.mailboxAddress,
-            a.primaryEmailAddress,
-            a.accountName,
-          ].map((v) => String(v || '').trim().toLowerCase());
-          return emails.includes(preferred);
-        })
+      ? accounts.find((a) => collectEmailsFromZohoAccount(a).includes(preferred))
       : null) || accounts[0];
+
   if (!match?.accountId) {
     throw Object.assign(new Error('No Zoho Mail accounts found for this token.'), {
       statusCode: 400,
     });
   }
+
+  let email = emailFromZohoAccount(match);
+  if (!email) {
+    const detailed = await fetchZohoAccountDetails(
+      accessToken,
+      String(match.accountId),
+      dataCenter
+    );
+    if (detailed) {
+      match = { ...match, ...detailed };
+      email = emailFromZohoAccount(match);
+    }
+  }
+
   return {
     accountId: String(match.accountId),
-    email:
-      String(match.mailboxAddress || match.primaryEmailAddress || match.accountName || '').trim() ||
-      null,
+    email,
+    dataCenter: normalizeZohoDataCenter(dataCenter),
   };
+}
+
+export async function resolveZohoAccountId(
+  accessToken: string,
+  dataCenter?: ZohoDataCenter | string,
+  preferredEmail?: string | null
+): Promise<{ accountId: string; email: string | null; dataCenter: ZohoDataCenter }> {
+  let lastError: unknown;
+  for (const dc of zohoDataCenterOrder(dataCenter)) {
+    try {
+      return await resolveZohoAccountOnDc(accessToken, dc, preferredEmail);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw (
+    lastError ||
+    Object.assign(new Error('No Zoho Mail accounts found for this token.'), {
+      statusCode: 400,
+    })
+  );
 }
 
 async function resolveInboxFolderId(

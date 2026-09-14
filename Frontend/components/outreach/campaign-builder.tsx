@@ -21,10 +21,12 @@ import { SetupStep } from "@/components/outreach/builder-setup-step";
 import {
   applyCampaignType,
   applyEnabledChannels,
+  campaignHasAiVoice,
   estimatedUnlockCredits,
   initialBuilderState,
   launchWarnings,
   stepErrors,
+  withVoiceDependentQualification,
   type BuilderState,
 } from "@/components/outreach/builder-types";
 import { builderStateFromCampaign } from "@/components/outreach/campaign-builder-hydrate";
@@ -160,7 +162,11 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       label: state.sourceDetail || state.source || null,
     },
     channelConfig: {
-      email: { enabled: state.enabledChannels.includes("Email") },
+      email: {
+        enabled: state.enabledChannels.includes("Email"),
+        integrationId: state.emailIntegrationId,
+        senderEmail: null,
+      },
       whatsapp: { enabled: state.enabledChannels.includes("WhatsApp") },
       ai_voice: { enabled: state.enabledChannels.includes("AI Voice") },
       timezone: state.timezone || "Asia/Kolkata",
@@ -195,7 +201,10 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
       autoScreening: state.autoScreening,
-      autoWhatsAppAfterQualification: state.autoWhatsAppAfterQualification,
+      autoScreeningModality: state.autoScreeningModality,
+      autoWhatsAppAfterQualification: campaignHasAiVoice(state)
+        ? state.autoWhatsAppAfterQualification
+        : false,
       hiringFlowId: state.hiringFlowId,
       autoWhatsAppTemplateId: state.autoWhatsAppTemplateId,
     },
@@ -450,6 +459,13 @@ export function CampaignBuilder({
           value as BuilderState["enabledChannels"]
         );
       }
+      if (key === "autoScreening") {
+        return withVoiceDependentQualification(previous, {
+          autoScreening: Boolean(value),
+          // Video option is reserved — keep Audio as the only selectable default.
+          autoScreeningModality: "voice",
+        });
+      }
       return { ...previous, [key]: value };
     });
   }
@@ -680,7 +696,7 @@ export function CampaignBuilder({
       </nav>
 
       {current === 0 ? (
-        <SetupStep state={state} update={update} showErrors={showErrors} jobs={jobs} />
+        <SetupStep state={state} update={update} showErrors={showErrors} />
       ) : current === 1 ? (
         <AudienceStep
           state={state}

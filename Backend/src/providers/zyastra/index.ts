@@ -12,6 +12,11 @@ export {
 } from './zyastra.config.js';
 
 export {
+  sendZyastraCallViaGateway,
+  type ZyastraGatewayCallee,
+} from './zyastra.gateway.js';
+
+export {
   fetchZyastraRecording,
   resolveZyastraRecordingUrl,
   triggerZyastraVoiceCall,
