@@ -9,10 +9,14 @@ import { getGoogleOAuthConfig } from '../../providers/gmail/gmail.oauth.js';
 import { getOutlookOAuthConfig, getOutlookOAuthRedirectUri } from '../../providers/outlook/outlook.oauth.js';
 import {
   buildZohoOAuthAuthorizeUrl,
+  fetchZohoUserEmail,
   getZohoOAuthConfig,
   getZohoOAuthRedirectUri,
+  getZohoRecruitOAuthRedirectUri,
   normalizeZohoDataCenter,
+  ZOHO_RECRUIT_SCOPES,
 } from '../../providers/zoho/zoho.oauth.js';
+import { resolveZohoAccountId } from '../../providers/zoho/zoho.fetch.js';
 import { isGupshupWhatsAppConfigured } from '../../providers/gupshup/gupshup.config.js';
 import { isHuntloWhatsAppConfigured } from '../../providers/meta-whatsapp/meta.config.js';
 import { isHunarConfigured } from '../../providers/hunar/hunar.config.js';
@@ -43,6 +47,7 @@ import {
 } from './user-integration.model.js';
 import { PROVIDER_CATALOG, getProviderAdapter } from './providers/registry.js';
 import type {
+  AtsProvider,
   EmailProvider,
   ProviderConnectResult,
   ProviderContext,
@@ -62,7 +67,11 @@ const WHATSAPP_PROVIDERS: IntegrationProviderId[] = [
   'gupshup',
 ];
 
-const OAUTH_REDIRECT_PROVIDERS: IntegrationProviderId[] = ['outlook', 'zoho-mail'];
+const OAUTH_REDIRECT_PROVIDERS: IntegrationProviderId[] = [
+  'outlook',
+  'zoho-mail',
+  'zoho-recruit',
+];
 
 export type SafeIntegrationDto = {
   id: string;
@@ -105,6 +114,14 @@ export function toSafeIntegration(doc: UserIntegrationDocument): SafeIntegration
   const displayName = doc.displayName || null;
   const email = doc.email || null;
   const phone = doc.phone || null;
+  const accountId = doc.providerAccountId || null;
+  const identity =
+    email ||
+    phone ||
+    (displayName && displayName.includes('@') ? displayName : null) ||
+    (accountId && accountId.includes('@') ? accountId : null) ||
+    displayName ||
+    null;
   return {
     id: String(doc._id),
     provider: doc.provider,
@@ -114,7 +131,7 @@ export function toSafeIntegration(doc: UserIntegrationDocument): SafeIntegration
     displayName,
     email,
     phone,
-    providerAccountId: doc.providerAccountId || null,
+    providerAccountId: accountId,
     config: publicConfig((doc.config || {}) as Record<string, unknown>),
     scopes: Array.isArray(doc.scopes) ? doc.scopes : [],
     lastTestedAt: toIso(doc.lastTestedAt),
@@ -124,7 +141,7 @@ export function toSafeIntegration(doc: UserIntegrationDocument): SafeIntegration
     disconnectedAt: toIso(doc.disconnectedAt),
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
-    connectedIdentity: email || phone || displayName || doc.providerAccountId || null,
+    connectedIdentity: identity,
   };
 }
 
@@ -135,6 +152,7 @@ function catalogConfigured(provider: IntegrationProviderId): boolean {
     case 'outlook':
       return Boolean(getOutlookOAuthConfig());
     case 'zoho-mail':
+    case 'zoho-recruit':
       return Boolean(getZohoOAuthConfig());
     case 'smtp':
     case 'calendly':
@@ -190,6 +208,61 @@ async function buildProviderContext(
     email: doc.email,
     displayName: doc.displayName,
   };
+}
+
+/** Best-effort: fill Zoho mailbox email when OAuth connect skipped account lookup. */
+async function backfillZohoMailboxEmail(
+  doc: UserIntegrationDocument
+): Promise<UserIntegrationDocument> {
+  if (doc.provider !== 'zoho-mail') return doc;
+  if (doc.email && doc.email.includes('@')) return doc;
+  if (String(doc.config?.zohoAuthMode || '') === 'smtp') return doc;
+
+  try {
+    const accessToken = await integrationsService.ensureFreshAccessToken(
+      String(doc.organizationId),
+      String(doc._id)
+    );
+    if (!accessToken) return doc;
+
+    const dataCenter =
+      typeof doc.config?.zohoDataCenter === 'string'
+        ? doc.config.zohoDataCenter
+        : undefined;
+
+    let email: string | null = null;
+    let accountId: string | null = null;
+    let resolvedDc = dataCenter;
+
+    try {
+      const resolved = await resolveZohoAccountId(accessToken, dataCenter, doc.email);
+      email = resolved.email;
+      accountId = resolved.accountId || null;
+      resolvedDc = resolved.dataCenter;
+    } catch {
+      // Fall through to userinfo.
+    }
+
+    if (!email || !email.includes('@')) {
+      email = await fetchZohoUserEmail(accessToken, resolvedDc || dataCenter);
+    }
+    if (!email || !email.includes('@')) return doc;
+
+    doc.email = email.toLowerCase();
+    if (!doc.displayName) doc.displayName = email;
+    if (accountId) {
+      doc.providerAccountId = accountId;
+    }
+    doc.config = {
+      ...(doc.config || {}),
+      ...(accountId ? { zohoAccountId: accountId } : {}),
+      ...(resolvedDc ? { zohoDataCenter: resolvedDc } : {}),
+    };
+    await doc.save();
+  } catch {
+    // Leave identity empty; UI falls back to provider label.
+  }
+  return doc;
 }
 
 async function clearDefaultForCategory(
@@ -476,6 +549,14 @@ export const integrationsService = {
     if (query?.category) filter.category = query.category;
 
     const docs = await UserIntegrationModel.find(filter).sort({ updatedAt: -1 });
+    for (const doc of docs) {
+      if (
+        doc.provider === 'zoho-mail' &&
+        !(doc.email && doc.email.includes('@'))
+      ) {
+        await backfillZohoMailboxEmail(doc);
+      }
+    }
     const items = docs.map(toSafeIntegration);
 
     const catalog = PROVIDER_CATALOG.map((item) => {
@@ -584,6 +665,8 @@ export const integrationsService = {
         redirectUri = getOutlookOAuthRedirectUri(env.FRONTEND_URL);
       } else if (provider === 'zoho-mail') {
         redirectUri = getZohoOAuthRedirectUri(env.FRONTEND_URL);
+      } else if (provider === 'zoho-recruit') {
+        redirectUri = getZohoRecruitOAuthRedirectUri(env.FRONTEND_URL);
       }
     }
     if (!redirectUri) {
@@ -594,7 +677,7 @@ export const integrationsService = {
     const state = createOAuthStateToken();
     const pkce = provider === 'outlook' ? createPkcePair() : null;
     const dataCenter =
-      provider === 'zoho-mail'
+      provider === 'zoho-mail' || provider === 'zoho-recruit'
         ? normalizeZohoDataCenter(body.dataCenter || body.zohoDataCenter)
         : undefined;
 
@@ -623,6 +706,13 @@ export const integrationsService = {
         state,
         redirectUri,
         dataCenter,
+      });
+    } else if (provider === 'zoho-recruit') {
+      authorizeUrl = buildZohoOAuthAuthorizeUrl({
+        state,
+        redirectUri,
+        dataCenter,
+        scopes: ZOHO_RECRUIT_SCOPES,
       });
     }
 
@@ -739,13 +829,44 @@ export const integrationsService = {
     if (!doc) throw new AppError(404, 'INTEGRATION_NOT_FOUND', 'Integration not found.');
 
     const adapter = getProviderAdapter(doc.provider);
+    const freshAccess = await this.ensureFreshAccessToken(organizationId, id);
     const ctx = await buildProviderContext(doc);
+    if (freshAccess) ctx.accessToken = freshAccess;
     doc.status = 'testing';
     await doc.save();
 
     try {
       const result = await adapter.test(ctx);
       doc.lastTestedAt = new Date();
+      const detailEmail =
+        typeof result.details?.email === 'string'
+          ? result.details.email.trim().toLowerCase()
+          : '';
+      if (detailEmail.includes('@')) {
+        doc.email = detailEmail;
+        if (!doc.displayName) doc.displayName = detailEmail;
+      }
+      const detailAccountId =
+        typeof result.details?.accountId === 'string'
+          ? result.details.accountId.trim()
+          : '';
+      if (detailAccountId) {
+        doc.providerAccountId = detailAccountId;
+        doc.config = {
+          ...(doc.config || {}),
+          zohoAccountId: detailAccountId,
+        };
+      }
+      const detailDataCenter =
+        typeof result.details?.dataCenter === 'string'
+          ? result.details.dataCenter.trim()
+          : '';
+      if (detailDataCenter) {
+        doc.config = {
+          ...(doc.config || {}),
+          zohoDataCenter: normalizeZohoDataCenter(detailDataCenter),
+        };
+      }
       if (result.ok) {
         doc.status = 'connected';
         doc.errorCode = null;
@@ -1024,18 +1145,24 @@ export const integrationsService = {
       if (!byProvider.has(doc.provider)) byProvider.set(doc.provider, doc);
     }
 
-    return [...byProvider.values()].map((doc) => ({
-      provider: doc.provider,
-      name:
-        (typeof doc.config?.providerLabel === 'string' && doc.config.providerLabel) ||
-        doc.displayName ||
-        PROVIDER_CATALOG.find((item) => item.id === doc.provider)?.name ||
-        doc.provider,
-      integrationId: String(doc._id),
-      status: doc.status,
-      displayName: doc.displayName,
-      isDefault: Boolean(doc.isDefault),
-    }));
+    // Only surface ATS adapters that can list jobs (step 1 Zoho Recruit = connect/test only).
+    return [...byProvider.values()]
+      .filter((doc) => {
+        const adapter = getProviderAdapter(doc.provider) as AtsProvider;
+        return typeof adapter.listJobs === 'function';
+      })
+      .map((doc) => ({
+        provider: doc.provider,
+        name:
+          (typeof doc.config?.providerLabel === 'string' && doc.config.providerLabel) ||
+          doc.displayName ||
+          PROVIDER_CATALOG.find((item) => item.id === doc.provider)?.name ||
+          doc.provider,
+        integrationId: String(doc._id),
+        status: doc.status,
+        displayName: doc.displayName,
+        isDefault: Boolean(doc.isDefault),
+      }));
   },
 
   async resolveAtsIntegration(
@@ -1084,7 +1211,17 @@ export const integrationsService = {
     if (!('listJobs' in adapter) || typeof adapter.listJobs !== 'function') {
       throw new AppError(400, 'ATS_JOBS_UNSUPPORTED', 'This ATS provider cannot list jobs.');
     }
-    const ctx = await buildProviderContext(doc);
+    await this.ensureFreshAccessToken(organizationId, String(doc._id));
+    const fresh = await UserIntegrationModel.findById(doc._id);
+    if (fresh?.errorCode === 'TOKEN_REFRESH_FAILED') {
+      throw new AppError(
+        400,
+        'ATS_TOKEN_EXPIRED',
+        fresh.errorMessage ||
+          'Zoho Recruit token expired and could not be refreshed. Disconnect and reconnect under Integrations → ATS.'
+      );
+    }
+    const ctx = await buildProviderContext(fresh || doc);
     try {
       return await adapter.listJobs(ctx, query);
     } catch (error) {
@@ -1108,7 +1245,17 @@ export const integrationsService = {
         'This ATS provider cannot list applications.'
       );
     }
-    const ctx = await buildProviderContext(doc);
+    await this.ensureFreshAccessToken(organizationId, String(doc._id));
+    const fresh = await UserIntegrationModel.findById(doc._id);
+    if (fresh?.errorCode === 'TOKEN_REFRESH_FAILED') {
+      throw new AppError(
+        400,
+        'ATS_TOKEN_EXPIRED',
+        fresh.errorMessage ||
+          'Zoho Recruit token expired and could not be refreshed. Disconnect and reconnect under Integrations → ATS.'
+      );
+    }
+    const ctx = await buildProviderContext(fresh || doc);
     try {
       return await adapter.listApplications(ctx, { jobId, ...query });
     } catch (error) {
@@ -1132,7 +1279,17 @@ export const integrationsService = {
         'This ATS provider cannot list applications.'
       );
     }
-    const ctx = await buildProviderContext(doc);
+    await this.ensureFreshAccessToken(organizationId, String(doc._id));
+    const fresh = await UserIntegrationModel.findById(doc._id);
+    if (fresh?.errorCode === 'TOKEN_REFRESH_FAILED') {
+      throw new AppError(
+        400,
+        'ATS_TOKEN_EXPIRED',
+        fresh.errorMessage ||
+          'ATS token expired and could not be refreshed. Disconnect and reconnect under Integrations → ATS.'
+      );
+    }
+    const ctx = await buildProviderContext(fresh || doc);
     const { atsImportService } = await import('./ats-import.service.js');
     return atsImportService.importApplications({
       organizationId,

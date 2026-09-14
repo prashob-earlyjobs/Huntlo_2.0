@@ -45,3 +45,10 @@ export {
   extractCountriesFromPrompt,
   extractCountriesFromGeminiText,
 } from './gemini.search-prompt.js';
+export {
+  evaluateVideoInterviewResponses,
+  fingerprintVideoResponses,
+  recommendationFromCommunicationScore,
+  GEMINI_SCREENING_VIDEO_MODEL,
+} from './gemini.screening-video.js';
+export type { VideoInterviewEvaluation } from './gemini.screening-video.js';

@@ -617,34 +617,25 @@ export function AudienceStep({
             const meta = SOURCE_META[source];
             const Icon = meta.icon;
             const selected = state.source === source;
-            const atsLocked = source === "Import from ATS";
             return (
               <button
                 key={source}
                 type="button"
-                disabled={atsLocked}
-                aria-disabled={atsLocked ? "true" : undefined}
                 onClick={() => {
-                  if (atsLocked) return;
                   selectSource(source);
                 }}
                 className={cn(
-                  "flex items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
-                  atsLocked
-                    ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
-                    : "cursor-pointer",
-                  !atsLocked && selected
+                  "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
+                  selected
                     ? "border-primary bg-brand-subtle"
-                    : !atsLocked
-                      ? "border-border bg-card hover:bg-muted/40"
-                      : null
+                    : "border-border bg-card hover:bg-muted/40"
                 )}
               >
                 <Icon
                   aria-hidden
                   className={cn(
                     "mt-0.5 size-4 shrink-0",
-                    selected && !atsLocked ? "text-primary" : "text-muted-foreground"
+                    selected ? "text-primary" : "text-muted-foreground"
                   )}
                 />
                 <span>
@@ -652,9 +643,7 @@ export function AudienceStep({
                     {source}
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {atsLocked
-                      ? "Temporarily unavailable"
-                      : meta.description}
+                    {meta.description}
                   </span>
                 </span>
               </button>

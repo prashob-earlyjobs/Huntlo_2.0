@@ -111,3 +111,65 @@ export async function sendGmailMessage(input: {
   }
   return { messageId: data.id, threadId: data.threadId };
 }
+
+/** Gmail outreach (single- and multi-channel) sends through the communication gateway. */
+export async function sendGmailViaGateway(input: {
+  accessToken: string;
+  to: string;
+  subject: string;
+  html: string;
+  campaignId: string;
+  prompt?: string | null;
+  autoReply?: boolean;
+  /** Gmail thread id from the first sequence send — keeps follow-ups in the same conversation. */
+  threadId?: string | null;
+  inReplyTo?: string | null;
+  references?: string | null;
+}): Promise<{ messageId?: string; threadId?: string }> {
+  const base = String(process.env.COMMUNICATION_GATEWAY_URL || 'http://localhost:5055/api/v1')
+    .trim()
+    .replace(/\/$/, '');
+  const url = `${base}/messages/send${input.autoReply === false ? '' : '?autoReply=true'}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'email',
+      vendor: 'gmail',
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      accessToken: input.accessToken,
+      campaignId: input.campaignId,
+      ...(input.prompt ? { prompt: input.prompt } : {}),
+      ...(input.threadId ? { threadId: input.threadId } : {}),
+      ...(input.inReplyTo ? { inReplyTo: input.inReplyTo } : {}),
+      ...(input.references ? { references: input.references } : {}),
+    }),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as {
+    id?: string;
+    messageId?: string;
+    threadId?: string;
+    message?: string;
+    error?: string | { message?: string };
+    data?: { id?: string; messageId?: string; threadId?: string };
+  };
+  if (!res.ok) {
+    const errorMessage =
+      (typeof data.error === 'string' && data.error) ||
+      (typeof data.error === 'object' && data.error?.message) ||
+      data.message ||
+      `Gmail gateway send failed (${res.status})`;
+    throw Object.assign(new Error(errorMessage), {
+      statusCode: res.status >= 400 && res.status < 600 ? res.status : 502,
+    });
+  }
+
+  return {
+    messageId: data.data?.id || data.data?.messageId || data.id || data.messageId,
+    threadId: data.data?.threadId || data.threadId,
+  };
+}

@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 
 import mongoose from 'mongoose';
 
+import { overlayHcgGmailOverallAiStatus, countHcgGmailOverviewStats } from '../conversations/hcg-gmail-overlay.js';
+import { overlayHcgZohoOverallAiStatus, countHcgZohoOverviewStats } from '../conversations/hcg-zoho-overlay.js';
+import { overlayHcgWhatsappOverallAiStatus, countHcgWhatsappOverviewStats } from '../conversations/hcg-whatsapp-overlay.js';
+import { overlayHcgHunarOverallAiStatus, countHcgHunarOverviewStats } from '../conversations/hcg-hunar-overlay.js';
+import { overlayHcgZyvkaOverallAiStatus, countHcgZyvkaOverviewStats } from '../conversations/hcg-zyvka-overlay.js';
+import { resolveCampaignEmailVendor } from '../conversations/campaign-email-vendor.js';
 import { emitOutreachCampaignUpdated } from '../../realtime/events.js';
+import { getLogger } from '../../config/logger.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { JobModel } from '../jobs/job.model.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
@@ -36,7 +43,6 @@ import {
   BullOutreachJobModel,
   cancelJobsForCampaign,
   cancelJobsForEnrollment,
-  scheduleFirstSends,
   scheduleJob,
 } from '../../bull-outreach/index.js';
 import type {
@@ -330,6 +336,36 @@ export async function refreshCampaignStats(campaignId: string) {
   stats.interested = replyTruth?.interested || 0;
   stats.qualified = replyTruth?.qualified || counts.qualified || 0;
 
+  const hcgStats = await countHcgGmailOverviewStats(campaignId);
+  const hcgZohoStats = await countHcgZohoOverviewStats(campaignId);
+  const hcgWaStats = await countHcgWhatsappOverviewStats(campaignId);
+  const hcgHunarStats = await countHcgHunarOverviewStats(campaignId);
+  const hcgZyvkaStats = await countHcgZyvkaOverviewStats(campaignId);
+  stats.replies = Math.max(
+    stats.replies,
+    hcgStats.replies,
+    hcgZohoStats.replies,
+    hcgWaStats.replies,
+    hcgHunarStats.replies,
+    hcgZyvkaStats.replies
+  );
+  stats.interested = Math.max(
+    stats.interested,
+    hcgStats.interested,
+    hcgZohoStats.interested,
+    hcgWaStats.interested,
+    hcgHunarStats.interested,
+    hcgZyvkaStats.interested
+  );
+  stats.qualified = Math.max(
+    stats.qualified,
+    hcgStats.qualified,
+    hcgZohoStats.qualified,
+    hcgWaStats.qualified,
+    hcgHunarStats.qualified,
+    hcgZyvkaStats.qualified
+  );
+
   // Succeeded send jobs are the source of truth for Contacted/Delivered.
   // (Nested Mixed `stats.sent++` was often not persisted by Mongoose.)
   // Count both legacy CampaignJob rows and BullMQ outreach jobs — get() refreshes
@@ -458,14 +494,44 @@ async function enqueueFirstJobs(campaign: OutreachCampaignDocument, enrollmentId
         : first.type === 'ai_voice'
           ? 'ai_voice'
           : null;
-  await scheduleFirstSends({
-    organizationId: String(campaign.organizationId),
-    campaignId: String(campaign._id),
-    enrollmentIds,
-    stepId: first.id,
-    channel,
-    runAt: new Date(),
-  });
+
+  const { processBullJob } = await import('../../bull-outreach/process-job.js');
+  const log = getLogger().child({ component: 'campaign-launch-send' });
+  const campaignId = String(campaign._id);
+
+  for (const enrollmentId of enrollmentIds) {
+    const job = await scheduleJob({
+      kind: 'send',
+      channel,
+      organizationId: String(campaign.organizationId),
+      campaignId,
+      enrollmentId,
+      stepId: first.id,
+      runAt: new Date(),
+    });
+    if (!job) continue;
+
+    // Claim so the worker cron cannot also pick this first send.
+    const claimed = await BullOutreachJobModel.findOneAndUpdate(
+      { _id: job._id, status: 'pending' },
+      { $set: { status: 'running' } },
+      { new: true }
+    );
+    if (!claimed) continue;
+
+    try {
+      log.info(
+        { campaignId, enrollmentId, jobId: String(job._id), stepType: first.type },
+        'Sending first sequence step on launch (no worker wait)'
+      );
+      await processBullJob(String(job._id));
+    } catch (error) {
+      log.warn(
+        { err: error, campaignId, enrollmentId, jobId: String(job._id) },
+        'Launch send failed'
+      );
+    }
+  }
 }
 
 function channelFromStepType(
@@ -696,6 +762,10 @@ export const campaignsService = {
         aiReplyEnabled: input.qualificationConfig.aiReplyEnabled ?? true,
         takeoverCondition: input.qualificationConfig.takeoverCondition ?? null,
         autoScreening: input.qualificationConfig.autoScreening ?? false,
+        autoScreeningModality:
+          input.qualificationConfig.autoScreeningModality === 'video'
+            ? 'video'
+            : 'voice',
         autoWhatsAppAfterQualification:
           input.qualificationConfig.autoWhatsAppAfterQualification ?? false,
         hiringFlowId: input.qualificationConfig.hiringFlowId ?? null,
@@ -1461,38 +1531,75 @@ export const campaignsService = {
       }),
     ]);
 
+    const items = enrichedRows.map((row) => {
+      const c = byId.get(String(row.candidateId));
+      return {
+        id: String(row._id),
+        candidateId: String(row.candidateId),
+        name: c?.name || 'Unknown',
+        company: c?.currentCompany || null,
+        title: c?.currentTitle || null,
+        email: c?.email || null,
+        phone: c?.phone || null,
+        profilePictureUrl: pictures.get(String(row.candidateId)) ?? c?.profilePictureUrl ?? null,
+        status: row.status,
+        currentStepIndex: row.currentStepIndex,
+        contactAvailability: row.contactAvailability,
+        replyState: row.replyState,
+        qualificationState: row.qualificationState,
+        hiringFlowState: row.hiringFlowState
+          ? {
+              flowId: row.hiringFlowState.flowId ?? null,
+              status: row.hiringFlowState.status ?? null,
+              answers: row.hiringFlowState.answers || {},
+            }
+          : null,
+        screeningState: row.screeningState,
+        schedulingState: row.schedulingState,
+        aiSummary: aiSummaries.get(String(row._id)) ?? null,
+        nextActionAt: row.nextActionAt?.toISOString() ?? null,
+        lastActionAt: row.lastActionAt?.toISOString() ?? null,
+        stopReason: row.stopReason,
+        overallAIStatus: null as string | null,
+        overallAIDescription: null as string | null,
+        gmailQuestions: [] as Array<{
+          id: string;
+          question: string;
+          asked: boolean;
+          answer: string;
+          status: string;
+          description: string;
+        }>,
+      };
+    });
+    const emailVendor = await resolveCampaignEmailVendor(id);
+    const gmailQuestionColumns =
+      emailVendor === 'zoho-mail'
+        ? []
+        : await overlayHcgGmailOverallAiStatus(id, items);
+    const zohoQuestionColumns =
+      emailVendor === 'gmail'
+        ? []
+        : await overlayHcgZohoOverallAiStatus(id, items);
+    const whatsappQuestionColumns = await overlayHcgWhatsappOverallAiStatus(id, items);
+    const hunarQuestionColumns = await overlayHcgHunarOverallAiStatus(id, items);
+    const zyvkaQuestionColumns = await overlayHcgZyvkaOverallAiStatus(id, items);
+    const questionColumns =
+      emailVendor === 'zoho-mail' && zohoQuestionColumns.length > 0
+        ? zohoQuestionColumns
+        : gmailQuestionColumns.length > 0
+          ? gmailQuestionColumns
+          : zohoQuestionColumns.length > 0
+            ? zohoQuestionColumns
+            : whatsappQuestionColumns.length > 0
+              ? whatsappQuestionColumns
+              : hunarQuestionColumns.length > 0
+                ? hunarQuestionColumns
+                : zyvkaQuestionColumns;
+
     return {
-      items: enrichedRows.map((row) => {
-        const c = byId.get(String(row.candidateId));
-        return {
-          id: String(row._id),
-          candidateId: String(row.candidateId),
-          name: c?.name || 'Unknown',
-          company: c?.currentCompany || null,
-          title: c?.currentTitle || null,
-          email: c?.email || null,
-          phone: c?.phone || null,
-          profilePictureUrl: pictures.get(String(row.candidateId)) ?? c?.profilePictureUrl ?? null,
-          status: row.status,
-          currentStepIndex: row.currentStepIndex,
-          contactAvailability: row.contactAvailability,
-          replyState: row.replyState,
-          qualificationState: row.qualificationState,
-          hiringFlowState: row.hiringFlowState
-            ? {
-                flowId: row.hiringFlowState.flowId ?? null,
-                status: row.hiringFlowState.status ?? null,
-                answers: row.hiringFlowState.answers || {},
-              }
-            : null,
-          screeningState: row.screeningState,
-          schedulingState: row.schedulingState,
-          aiSummary: aiSummaries.get(String(row._id)) ?? null,
-          nextActionAt: row.nextActionAt?.toISOString() ?? null,
-          lastActionAt: row.lastActionAt?.toISOString() ?? null,
-          stopReason: row.stopReason,
-        };
-      }),
+      items,
+      gmailQuestionColumns: questionColumns,
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -1689,6 +1796,8 @@ export const campaignsService = {
     );
     await cancelJobsForEnrollment(String(enrollment._id));
     await refreshCampaignStats(String(enrollment.campaignId));
+    const { queueAtsEnrollmentSync } = await import('../integrations/ats-sync-back.service.js');
+    queueAtsEnrollmentSync(String(enrollment._id));
     return enrollment;
   },
 };

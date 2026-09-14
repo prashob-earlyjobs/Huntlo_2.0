@@ -110,6 +110,14 @@ export type OutreachEnrollmentDocument = Document & {
     message: string | null;
     at: Date | null;
   } | null;
+  /** Last ATS write-back attempt (Zoho Recruit, etc.). */
+  atsSyncBack: {
+    lastKey: string | null;
+    lastAt: Date | null;
+    lastOk: boolean | null;
+    lastMessage: string | null;
+    provider: string | null;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -263,6 +271,19 @@ const outreachEnrollmentSchema = new Schema<OutreachEnrollmentDocument>(
           code: { type: String, default: null },
           message: { type: String, default: null },
           at: { type: Date, default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+    atsSyncBack: {
+      type: new Schema(
+        {
+          lastKey: { type: String, default: null },
+          lastAt: { type: Date, default: null },
+          lastOk: { type: Boolean, default: null },
+          lastMessage: { type: String, default: null },
+          provider: { type: String, default: null },
         },
         { _id: false }
       ),

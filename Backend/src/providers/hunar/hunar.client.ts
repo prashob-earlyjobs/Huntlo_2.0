@@ -6,8 +6,8 @@ import {
   getHunarVoicePersona,
   getPublicApiBaseUrl,
   HUNAR_AGENTS_URL,
-  HUNAR_BULK_CALLS_URL,
 } from './hunar.config.js';
+import { sendHunarCallViaGateway } from './hunar.gateway.js';
 
 export type HunarAgentWritePayload = {
   name: string;
@@ -248,6 +248,7 @@ export async function createHunarBulkCalls(input: {
   callees: HunarCalleeRow[];
   requestId?: string;
   retryConfig?: HunarRetryConfig | null;
+  questions?: unknown;
 }) {
   const agentId = String(input.agentId || '').trim();
   if (!agentId) {
@@ -283,57 +284,49 @@ export async function createHunarBulkCalls(input: {
     throw err;
   }
 
+  // Gateway/Hunar will dial each payload row — never send the same mobile twice.
+  const seenMobiles = new Set<string>();
+  const callees = input.callees.filter((row) => {
+    const digits = String(row.mobile_number || '').replace(/\D/g, '');
+    const key = digits.length > 10 ? digits.slice(-10) : digits;
+    if (!key || seenMobiles.has(key)) return false;
+    seenMobiles.add(key);
+    return true;
+  });
+  if (!callees.length) {
+    const err = new Error('No candidates have a valid phone number for AI voice calls.');
+    (err as Error & { code?: string; statusCode?: number }).code = 'VOICE_NO_VALID_PHONES';
+    (err as Error & { statusCode?: number }).statusCode = 400;
+    throw err;
+  }
+
   // Hunar request_id max length is 64 (alphanumeric + _ - .)
   const requestId = String(input.requestId || `${entityId}-${randomUUID()}`)
     .replace(/[^a-zA-Z0-9_.-]/g, '-')
     .slice(0, 64);
-  const callbackParam = input.campaignId && !input.screeningId ? 'campaignId' : 'screeningId';
-  const payload: HunarBulkCallsPayload = {
-    agent_id: agentId,
-    data: input.callees,
-    request_id: requestId,
-    retry_config: buildHunarRetryConfig(input.retryConfig),
-    // Omit timezone / from_phone_number so Hunar uses org defaults (docs: null not a valid timezone).
-    callback_config: buildHunarCallbackUrls(entityId, callbackParam),
-    remove_invalid_rows: true,
-    remove_duplicate_phone_numbers: true,
-  };
 
-  const body = await requestHunarJson('POST', HUNAR_BULK_CALLS_URL, payload);
+  const body = await sendHunarCallViaGateway({
+    agentId,
+    campaignId: entityId,
+    data: callees,
+    questions: input.questions,
+  });
 
-  // Docs: bulk success returns an array of created call objects. With
-  // remove_invalid_rows=true, invalid E.164 numbers are silently dropped.
-  const createdCalls = Array.isArray(body)
-    ? body
-    : Array.isArray((body as { data?: unknown })?.data)
-      ? ((body as { data: unknown[] }).data)
-      : Array.isArray((body as { results?: unknown })?.results)
-        ? ((body as { results: unknown[] }).results)
-        : null;
-
-  const dialedCount = createdCalls
-    ? createdCalls.length
-    : Number(
-        (body as { accepted_count?: unknown; dialed_count?: unknown })?.accepted_count ??
-          (body as { dialed_count?: unknown })?.dialed_count ??
-          NaN
-      );
-
-  if (createdCalls && createdCalls.length === 0) {
+  if (body.dialedCount === 0) {
     const err = new Error(
-      'Hunar accepted the bulk request but created 0 calls. Check mobile numbers are E.164 (e.g. +9198…) and that the agent is ACTIVE.'
+      'Hunar gateway accepted the request but created 0 calls. Check mobile numbers are E.164 (e.g. +9198…) and that the agent is ACTIVE.'
     );
     (err as Error & { code?: string; statusCode?: number; details?: unknown }).code =
       'HUNAR_BULK_EMPTY';
     (err as Error & { statusCode?: number }).statusCode = 502;
-    (err as Error & { details?: unknown }).details = body;
+    (err as Error & { details?: unknown }).details = body.response;
     throw err;
   }
 
   return {
-    requestId,
-    dialedCount: Number.isFinite(dialedCount) ? dialedCount : input.callees.length,
-    response: body,
+    requestId: body.requestId || requestId,
+    dialedCount: body.dialedCount || callees.length,
+    response: body.response,
   };
 }
 

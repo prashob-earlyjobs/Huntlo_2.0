@@ -51,6 +51,8 @@ export interface BuilderState {
   /* Step 3 — channels */
   enabledChannels: OutreachChannel[];
   connections: Record<OutreachChannel, ChannelConnection>;
+  /** Connected email integration used for Send Email steps (gmail / zoho-mail / …). */
+  emailIntegrationId: string | null;
 
   /* Step 4 — sequence */
   steps: SequenceStep[];
@@ -61,6 +63,8 @@ export interface BuilderState {
   aiReplyEnabled: boolean;
   takeoverCondition: string;
   autoScreening: boolean;
+  /** Modality for auto-start screening after qualify. Video UI is reserved / disabled. */
+  autoScreeningModality: "voice" | "video";
   autoCalendly: boolean;
   autoWhatsAppAfterQualification: boolean;
   autoWhatsAppTemplateId: string | null;
@@ -76,6 +80,30 @@ const CHANNEL_STEP_TYPE: Record<OutreachChannel, SequenceStepType> = {
 
 export function isSingleChannelCampaign(state: Pick<BuilderState, "campaignType">) {
   return state.campaignType === "Single Channel";
+}
+
+/** True when the outreach sequence itself places a Hunar/Zyvka dial (not screening-only). */
+export function campaignHasAiVoice(
+  state: Pick<BuilderState, "enabledChannels" | "steps">
+) {
+  if (state.enabledChannels.includes("AI Voice")) return true;
+  return state.steps.some((step) => STEP_CHANNELS[step.type] === "AI Voice");
+}
+
+export function withVoiceDependentQualification(
+  state: BuilderState,
+  patch: Partial<BuilderState>
+): BuilderState {
+  const next = { ...state, ...patch };
+  const hasVoice = campaignHasAiVoice(next);
+  return {
+    ...next,
+    // Post-call WhatsApp only applies when a voice dial will run.
+    autoWhatsAppAfterQualification: hasVoice
+      ? next.autoWhatsAppAfterQualification
+      : false,
+    hiringFlowId: hasVoice ? next.hiringFlowId : null,
+  };
 }
 
 function pruneStepsToChannels(
@@ -157,7 +185,7 @@ export function applyCampaignType(
   campaignType: string
 ): BuilderState {
   if (campaignType !== "Single Channel") {
-    return { ...state, campaignType };
+    return withVoiceDependentQualification(state, { campaignType });
   }
 
   const channel = state.enabledChannels[0] ?? "Email";
@@ -168,12 +196,11 @@ export function applyCampaignType(
   if (channel === "WhatsApp") {
     steps = ensureWhatsAppColdSequence(steps);
   }
-  return {
-    ...state,
+  return withVoiceDependentQualification(state, {
     campaignType,
     enabledChannels: [channel],
     steps,
-  };
+  });
 }
 
 /** Seed at least one send step for the primary enabled channel when the sequence is empty. */
@@ -223,11 +250,10 @@ export function applyEnabledChannels(
     steps = ensureDefaultSequenceSteps(steps, nextChannels);
   }
 
-  return {
-    ...state,
+  return withVoiceDependentQualification(state, {
     enabledChannels: nextChannels,
     steps,
-  };
+  });
 }
 
 export function initialBuilderState(): BuilderState {
@@ -252,12 +278,14 @@ export function initialBuilderState(): BuilderState {
         "Disconnected" as ChannelConnection,
       ])
     ) as Record<OutreachChannel, ChannelConnection>,
+    emailIntegrationId: null,
     steps: DEFAULT_SEQUENCE.map((step) => ({ ...step })),
     classificationEnabled: true,
     questions: DEFAULT_QUESTIONS.map((question) => ({ ...question })),
     aiReplyEnabled: true,
     takeoverCondition: TAKEOVER_CONDITIONS[1],
     autoScreening: false,
+    autoScreeningModality: "voice",
     autoCalendly: false,
     autoWhatsAppAfterQualification: false,
     autoWhatsAppTemplateId:

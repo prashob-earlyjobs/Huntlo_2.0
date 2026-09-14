@@ -15,7 +15,11 @@ async function upsertOne(options: {
 }): Promise<{ id: string; created: boolean }> {
   const orgOid = new mongoose.Types.ObjectId(options.organizationId);
   const userOid = new mongoose.Types.ObjectId(options.userId);
-  const externalId = `zwayam:${options.app.id}`;
+  // Amplify historically used `zwayam:` — keep that for existing pool rows.
+  const externalId =
+    options.provider === 'zwayam-amplify'
+      ? `zwayam:${options.app.id}`
+      : `${options.provider}:${options.app.id}`;
   const email = options.app.email?.trim().toLowerCase() || null;
 
   let existing = await SavedCandidateModel.findOne({
@@ -124,7 +128,7 @@ export const atsImportService = {
     const applicationIds = [
       ...new Set(input.applicationIds.map((id) => String(id).trim()).filter(Boolean)),
     ];
-    if (!jobId) throw new AppError(400, 'JOB_ID_REQUIRED', 'Amplify job id is required.');
+    if (!jobId) throw new AppError(400, 'JOB_ID_REQUIRED', 'ATS job id is required.');
     if (applicationIds.length === 0) {
       throw new AppError(400, 'APPLICATIONS_REQUIRED', 'Select at least one application.');
     }
@@ -132,15 +136,16 @@ export const atsImportService = {
     const listed = await input.listApplications({
       jobId,
       page: 1,
-      pageSize: 100,
+      pageSize: 200,
     });
     const byId = new Map(listed.applications.map((app) => [app.id, app]));
 
     let page = 2;
-    while (applicationIds.some((id) => !byId.has(id)) && page <= 5) {
-      const more = await input.listApplications({ jobId, page, pageSize: 100 });
+    while (applicationIds.some((id) => !byId.has(id)) && page <= 20) {
+      const more = await input.listApplications({ jobId, page, pageSize: 200 });
       if (more.applications.length === 0) break;
       for (const app of more.applications) byId.set(app.id, app);
+      if (more.applications.length < 200) break;
       page += 1;
     }
 
@@ -155,7 +160,7 @@ export const atsImportService = {
       throw new AppError(
         404,
         'APPLICATIONS_NOT_FOUND',
-        'None of the selected Amplify applications could be loaded.'
+        'None of the selected ATS applications could be loaded.'
       );
     }
 
