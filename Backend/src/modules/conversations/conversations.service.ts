@@ -146,6 +146,29 @@ const QUAL_DISPLAY: Record<ThreadQualificationStatus, string> = {
   skipped: 'Pending',
 };
 
+/**
+ * Chronological event order for thread bubbles.
+ * Primary: sentAt ascending. Tie-break: id so equal timestamps never reshuffle.
+ * Missing/invalid sentAt sorts last.
+ */
+function compareEventsBySentAt(
+  a: { id?: string; sentAt?: string | null },
+  b: { id?: string; sentAt?: string | null }
+): number {
+  const leftRaw = a.sentAt ? Date.parse(String(a.sentAt)) : Number.NaN;
+  const rightRaw = b.sentAt ? Date.parse(String(b.sentAt)) : Number.NaN;
+  const left = Number.isFinite(leftRaw) ? leftRaw : Number.POSITIVE_INFINITY;
+  const right = Number.isFinite(rightRaw) ? rightRaw : Number.POSITIVE_INFINITY;
+  if (left !== right) return left - right;
+  return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+}
+
+function sortEventsBySentAt<T extends { id?: string; sentAt?: string | null }>(
+  events: T[]
+): T[] {
+  return [...events].sort(compareEventsBySentAt);
+}
+
 function relativeTime(date: Date | null | undefined): string {
   if (!date) return '—';
   const mins = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
@@ -365,11 +388,7 @@ function mergeSchedulingInviteIntoEvents<
   } as unknown as T;
 
   return dedupeSchedulingInviteEvents(
-    [...events, inviteEvent].sort((a, b) => {
-      const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
-      const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
-      return left - right;
-    })
+    sortEventsBySentAt([...events, inviteEvent])
   );
 }
 
@@ -669,11 +688,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     const otherEvents = events.filter((event) =>
       shouldKeepLocalEventAlongsideHcg(event, 'Email')
     );
-    events = [...otherEvents, ...emailEvents].sort((a, b) => {
-      const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
-      const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
-      return left - right;
-    }) as typeof events;
+    events = sortEventsBySentAt([...otherEvents, ...emailEvents]) as typeof events;
     const status =
       hcgEmail.kind === 'zoho'
         ? hcgZohoStatus(hcgEmail.doc)
@@ -713,11 +728,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       const otherEvents = events.filter((event) =>
         shouldKeepLocalEventAlongsideHcg(event, 'WhatsApp')
       );
-      events = [...otherEvents, ...waEvents].sort((a, b) => {
-        const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
-        const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
-        return left - right;
-      }) as typeof events;
+      events = sortEventsBySentAt([...otherEvents, ...waEvents]) as typeof events;
       const status = hcgWhatsappStatus(hcgWa);
       replyStatus = status.replyStatus;
       pipelineStatus = status.pipelineStatus;
@@ -786,11 +797,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   if (hcgVoice) {
     const voiceEvents = hcgHunar ? hcgHunarToEvents(hcgHunar) : hcgZyvkaToEvents(hcgZyvka!);
     const otherEvents = events.filter((event) => event.channel !== 'AI Voice');
-    events = [...otherEvents, ...voiceEvents].sort((a, b) => {
-      const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
-      const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
-      return left - right;
-    }) as typeof events;
+    events = sortEventsBySentAt([...otherEvents, ...voiceEvents]) as typeof events;
     if (!hcgEmail && !hcgWa?.messages?.length) {
       const status = hcgHunar ? hcgHunarStatus(hcgHunar) : hcgZyvkaStatus(hcgZyvka!);
       replyStatus = status.replyStatus;
@@ -853,6 +860,9 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     status: enrollment?.schedulingState?.status,
     preferredChannel: preferredInviteChannel,
   }) as typeof events;
+
+  // Final chronological lock — overlays/invites cannot leave a shuffled timeline.
+  events = sortEventsBySentAt(events) as typeof events;
 
   return {
     id: String(thread._id),

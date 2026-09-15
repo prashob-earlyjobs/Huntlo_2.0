@@ -41,6 +41,11 @@ export function jobDetailPath(id: string): string {
   return `${ROUTES.jobs}/${id}`;
 }
 
+/** Build the edit form path for a job requirement. */
+export function jobEditPath(id: string): string {
+  return `${ROUTES.jobsNew}?jobId=${encodeURIComponent(id)}`;
+}
+
 /** Build the AI search path, optionally preselecting a job for prompt fill. */
 export function searchPath(options?: { jobId?: string }): string {
   if (!options?.jobId) return ROUTES.search;
