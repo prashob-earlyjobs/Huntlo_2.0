@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/tooltip";
 import { apiClient, conversationsApi } from "@/lib/api";
 import { conversationListRowEqual } from "@/lib/conversations-list-merge";
+import { sortConversationEventsByTime } from "@/lib/conversations-timeline";
 import type {
   Conversation,
   ConversationAttachment,
@@ -100,14 +101,7 @@ function mergeEvents(rows: Conversation[]): ConversationEvent[] {
       });
     }
   }
-  return [...byId.values()].sort((a, b) => {
-    const aAt = a.sentAt ? Date.parse(a.sentAt) : NaN;
-    const bAt = b.sentAt ? Date.parse(b.sentAt) : NaN;
-    if (!Number.isNaN(aAt) && !Number.isNaN(bAt)) return aAt - bAt;
-    if (!Number.isNaN(aAt)) return -1;
-    if (!Number.isNaN(bAt)) return 1;
-    return 0;
-  });
+  return sortConversationEventsByTime([...byId.values()]);
 }
 
 function groupConversations(conversations: Conversation[]): InboxRow[] {
@@ -1550,7 +1544,10 @@ export function ConversationInbox({
     );
   }, [items, selectedId]);
 
-  const events = selected ? selected.events : [];
+  const events = useMemo(
+    () => (selected ? sortConversationEventsByTime(selected.events ?? []) : []),
+    [selected]
+  );
   const notes = selected
     ? [
         ...selected.notes,

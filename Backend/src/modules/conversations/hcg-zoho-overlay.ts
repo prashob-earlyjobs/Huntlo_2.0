@@ -116,9 +116,10 @@ function messageDate(msg: HcgZohoConversationMessage): Date | null {
 
 function sortedMessages(doc: HcgZohoConversationLean): HcgZohoConversationMessage[] {
   return [...(doc.messages || [])].sort((a, b) => {
-    const left = messageDate(a)?.getTime() || 0;
-    const right = messageDate(b)?.getTime() || 0;
-    return left - right;
+    const left = messageDate(a)?.getTime() ?? Number.POSITIVE_INFINITY;
+    const right = messageDate(b)?.getTime() ?? Number.POSITIVE_INFINITY;
+    if (left !== right) return left - right;
+    return String(a.messageId || '').localeCompare(String(b.messageId || ''));
   });
 }
 
