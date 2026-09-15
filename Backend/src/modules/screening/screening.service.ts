@@ -1437,6 +1437,7 @@ export const screeningService = {
       language: doc.language
         ? String(doc.language).trim().toUpperCase()
         : getHunarVoiceLanguage(),
+      questions: doc.questions || [],
     };
 
     const candidateIds =
