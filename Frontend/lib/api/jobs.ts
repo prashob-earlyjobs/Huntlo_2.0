@@ -453,7 +453,7 @@ const mockJobsApi: JobsApi = {
       department: detail.department,
       employmentType: detail.employmentType,
       workplaceType: detail.workplaceType,
-      location: detail.location === "—" ? "" : detail.location,
+      location: String(detail.location) === "—" ? "" : detail.location,
       experienceMin: detail.experienceMin,
       experienceMax: detail.experienceMax,
       openings: detail.openings,
