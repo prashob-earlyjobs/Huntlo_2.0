@@ -158,6 +158,12 @@ describe('wl/search years_of_experience_raw filters', () => {
     expect(extractCountriesFromGeminiText('{"countries":["Luxembourg"]}')).toEqual([
       'Luxembourg',
     ]);
+    expect(extractCountriesFromGeminiText('{"countries":["Raipur"]}')).toEqual([
+      'Raipur',
+    ]);
+    expect(extractCountriesFromGeminiText('{"countries":["Bangalore"]}')).toEqual([
+      'Bangalore',
+    ]);
     expect(extractCountriesFromGeminiText('{"countries":[]}')).toBeNull();
   });
 });

@@ -198,8 +198,9 @@ export function extractCountriesFromGeminiText(text: string): string[] | null {
 }
 
 /**
- * Extract country names from a recruiter NL prompt for `/wl/search` `country_region`.
- * Uses Gemini when configured; falls back to a local heuristic.
+ * Extract the most specific location (city > state > country) from a recruiter NL
+ * prompt for `/wl/search` `country_region`. Uses Gemini when configured; falls
+ * back to a local heuristic.
  */
 export async function extractCountriesFromPrompt(
   prompt: string
@@ -209,18 +210,19 @@ export async function extractCountriesFromPrompt(
 
   const result = await callGeminiJson(
     [
-      'Extract country / country-region filters from this recruiter people-search prompt.',
+      'Extract location filters for a people-search `country_region` field from this recruiter prompt.',
       'Return ONLY JSON: {"countries":string[]}.',
       'Rules:',
-      '- Use canonical English country names (e.g. "Luxembourg", "United Arab Emirates", "United States").',
-      '- Fix obvious typos (e.g. "Luxemberg" → "Luxembourg").',
-      '- Expand common abbreviations (UAE, UK, USA, US).',
-      '- If a state, province, emirate, or territory is mentioned without a country, map it to the country',
-      '  (e.g. California/Texas → United States; Maharashtra/Karnataka → India; Dubai → United Arab Emirates; Ontario → Canada).',
-      '- Include only countries clearly implied as candidate location (e.g. "in Luxembourg", "based in UAE", "in California").',
-      '- Do not put state/city names in the countries array — only the country.',
-      '- If no country (or mappable state) is mentioned → {"countries":[]}.',
-      'Do not invent countries that are not implied by the prompt.',
+      '- Put the most specific candidate location named in the prompt into the array.',
+      '- Prefer city / metro over state / province over country. Never widen a named city to its country.',
+      '- If a city is named (even together with a country), return only that city.',
+      '  Examples: "from raipur" → ["Raipur"]; "bangalore, india" or typo "banaglre, india" → ["Bangalore"].',
+      '- If only a state/province is named (no city), return that state (e.g. "in California" → ["California"]).',
+      '- If only a country is named (no city/state), return the country (e.g. "based in India" → ["India"]).',
+      '- Use a common English place name. Fix obvious typos. Expand country abbreviations (UAE, UK, USA, US) only when no more specific place is named.',
+      '- Include only places clearly implied as where candidates live or work.',
+      '- If no location is mentioned → {"countries":[]}.',
+      'Do not invent locations that are not implied by the prompt.',
       `Prompt:\n${text.slice(0, MAX_COUNTRY_PROMPT_CHARS)}`,
     ].join('\n')
   );
