@@ -339,6 +339,78 @@ function valuesFromSharedCache(
     : decryptPayloads(cache.encryptedPhones);
 }
 
+/**
+ * Hydrate email/phone values for a LinkedIn-keyed People Scout reveal
+ * (ledger + shared contact cache). Used by GET lookup soft-poll UX.
+ */
+export async function resolveLinkedinRevealValues(options: {
+  organizationId: string;
+  userId: string;
+  linkedinUrl: string;
+  externalCandidateId?: string | null;
+}): Promise<{ email: string[]; mobile: string[] }> {
+  const linkedinKey = normalizeLinkedinProfileUrl(options.linkedinUrl);
+  if (!linkedinKey) {
+    return { email: [], mobile: [] };
+  }
+
+  const candidateObjectId = syntheticCandidateIdFromLinkedin(linkedinKey);
+  const externalCandidateId =
+    options.externalCandidateId?.trim() || `linkedin:${linkedinKey}`;
+
+  const empty = { email: [] as string[], mobile: [] as string[] };
+
+  async function valuesFor(contactType: RevealedContactType): Promise<string[]> {
+    const reveal = await RevealedContactModel.findOne({
+      organizationId: options.organizationId,
+      userId: options.userId,
+      candidateId: candidateObjectId,
+      contactType,
+    });
+    if (reveal) {
+      let values = await loadContactValuesFromCache(reveal.contactCacheId, contactType);
+      if (values.length === 0) {
+        const shared = await findSharedContactCache({
+          linkedinUrl: linkedinKey,
+          externalCandidateId,
+        });
+        if (shared) values = valuesFromSharedCache(shared, contactType);
+      }
+      return values;
+    }
+
+    const orgReveal = await RevealedContactModel.findOne({
+      organizationId: options.organizationId,
+      candidateId: candidateObjectId,
+      contactType,
+    });
+    if (orgReveal) {
+      let values = await loadContactValuesFromCache(orgReveal.contactCacheId, contactType);
+      if (values.length === 0) {
+        const shared = await findSharedContactCache({
+          linkedinUrl: linkedinKey,
+          externalCandidateId,
+        });
+        if (shared) values = valuesFromSharedCache(shared, contactType);
+      }
+      return values;
+    }
+
+    const sharedOnly = await findSharedContactCache({
+      linkedinUrl: linkedinKey,
+      externalCandidateId,
+    });
+    if (sharedOnly) return valuesFromSharedCache(sharedOnly, contactType);
+    return [];
+  }
+
+  const [email, mobile] = await Promise.all([valuesFor('email'), valuesFor('mobile')]);
+  if (email.length === 0 && mobile.length === 0) {
+    return empty;
+  }
+  return { email, mobile };
+}
+
 async function upsertContactCache(options: {
   linkedinUrlKey: string;
   externalCandidateId: string;

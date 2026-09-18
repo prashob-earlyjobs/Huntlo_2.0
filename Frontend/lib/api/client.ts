@@ -194,7 +194,7 @@ export class ApiClient {
     }
 
     const controller = new AbortController();
-    const timeoutMs = options.timeoutMs ?? 30_000;
+    const timeoutMs = options.timeoutMs ?? 60_000;
     let timedOut = false;
     const timeout = setTimeout(() => {
       timedOut = true;
