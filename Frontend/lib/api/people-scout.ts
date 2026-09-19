@@ -22,6 +22,12 @@ export type ScoutRevealInput = {
   type: "email" | "mobile";
 };
 
+export type ScoutRevealChannelStatus = {
+  revealed: boolean;
+  status: string | null;
+  values: string[];
+};
+
 export type ScoutLookupResponse = {
   id: string;
   resultStatus: string;
@@ -33,6 +39,10 @@ export type ScoutLookupResponse = {
   creditsUsed: number;
   saved: boolean;
   contactRevealed: string;
+  revealStatus: {
+    email: ScoutRevealChannelStatus;
+    phone: ScoutRevealChannelStatus;
+  };
   createdAt: string;
   performedBy: string | null;
   profile: ScoutProfile | null;
@@ -241,10 +251,49 @@ function normalizeProfile(raw: unknown): ScoutProfile | null {
   };
 }
 
+function normalizeRevealChannel(raw: unknown): ScoutRevealChannelStatus {
+  if (!raw || typeof raw !== "object") {
+    return { revealed: false, status: null, values: [] };
+  }
+  const channel = raw as Record<string, unknown>;
+  const values = Array.isArray(channel.values)
+    ? channel.values
+        .map((v) => String(v ?? "").trim())
+        .filter((v) => v.length > 0)
+    : [];
+  return {
+    revealed: Boolean(channel.revealed) || values.length > 0,
+    status:
+      channel.status == null || channel.status === ""
+        ? null
+        : String(channel.status),
+    values,
+  };
+}
+
+function emptyRevealStatus(): ScoutLookupResponse["revealStatus"] {
+  return {
+    email: { revealed: false, status: null, values: [] },
+    phone: { revealed: false, status: null, values: [] },
+  };
+}
+
+const EMPTY_REVEAL_STATUS = emptyRevealStatus();
+
 function normalizeLookupPayload(raw: Record<string, unknown>): ScoutLookupResponse {
   const matchesRaw = Array.isArray(raw.matches) ? raw.matches : [];
   const maskedInput = String(raw.maskedInput ?? "");
   const displayInput = String(raw.displayInput ?? "").trim() || maskedInput;
+  const rs =
+    raw.revealStatus && typeof raw.revealStatus === "object"
+      ? (raw.revealStatus as Record<string, unknown>)
+      : null;
+  const revealStatus = rs
+    ? {
+        email: normalizeRevealChannel(rs.email),
+        phone: normalizeRevealChannel(rs.phone),
+      }
+    : emptyRevealStatus();
   return {
     id: String(raw.id ?? ""),
     resultStatus: String(raw.resultStatus ?? "failed"),
@@ -256,6 +305,7 @@ function normalizeLookupPayload(raw: Record<string, unknown>): ScoutLookupRespon
     creditsUsed: Number(raw.creditsUsed ?? 0),
     saved: Boolean(raw.saved),
     contactRevealed: String(raw.contactRevealed ?? "none"),
+    revealStatus,
     createdAt: String(raw.createdAt ?? new Date().toISOString()),
     performedBy: (raw.performedBy as string | null) ?? null,
     profile: normalizeProfile(raw.profile),
@@ -291,6 +341,7 @@ const mockPeopleScoutApi: PeopleScoutApi = {
           creditsUsed: 2,
           saved: false,
           contactRevealed: "none",
+          revealStatus: EMPTY_REVEAL_STATUS,
           createdAt: new Date().toISOString(),
           performedBy: "You",
           profile: SCOUT_PROFILE,
@@ -312,6 +363,7 @@ const mockPeopleScoutApi: PeopleScoutApi = {
         creditsUsed: 0,
         saved: false,
         contactRevealed: "none",
+        revealStatus: EMPTY_REVEAL_STATUS,
         createdAt: new Date().toISOString(),
         performedBy: "You",
         profile: null,
@@ -329,6 +381,7 @@ const mockPeopleScoutApi: PeopleScoutApi = {
         creditsUsed: 0,
         saved: false,
         contactRevealed: "none",
+        revealStatus: EMPTY_REVEAL_STATUS,
         createdAt: new Date().toISOString(),
         performedBy: "You",
         profile: null,
@@ -346,6 +399,7 @@ const mockPeopleScoutApi: PeopleScoutApi = {
         creditsUsed: 0,
         saved: false,
         contactRevealed: "none",
+        revealStatus: EMPTY_REVEAL_STATUS,
         createdAt: new Date().toISOString(),
         performedBy: "You",
         profile: null,
@@ -363,6 +417,7 @@ const mockPeopleScoutApi: PeopleScoutApi = {
         creditsUsed: 0,
         saved: false,
         contactRevealed: "none",
+        revealStatus: EMPTY_REVEAL_STATUS,
         createdAt: new Date().toISOString(),
         performedBy: "You",
         profile: null,
@@ -379,6 +434,7 @@ const mockPeopleScoutApi: PeopleScoutApi = {
       creditsUsed: 2,
       saved: false,
       contactRevealed: "none",
+      revealStatus: EMPTY_REVEAL_STATUS,
       createdAt: new Date().toISOString(),
       performedBy: "You",
       profile: SCOUT_PROFILE,
@@ -441,18 +497,21 @@ const livePeopleScoutApi: PeopleScoutApi = {
     return normalizeLookupPayload(result.data);
   },
   async revealContact({ lookupId, profileId, linkedinUrl, type }) {
+    // Soft-timeout UX polls lookup for ~60s after 60s; keep the reveal HTTP
+    // request alive so a late FJ response can still settle the UI.
+    const revealTimeoutMs = 130_000;
     if (lookupId) {
       const result = await apiClient.post<RevealResult>(
         `/people-scout/lookups/${lookupId}/reveal/${type}`,
         {},
-        { sensitive: true }
+        { sensitive: true, timeoutMs: revealTimeoutMs }
       );
       return result.data;
     }
     const result = await apiClient.post<RevealResult>(
       `/people-scout/profiles/${profileId}/reveal`,
       { type, linkedinUrl },
-      { sensitive: true }
+      { sensitive: true, timeoutMs: revealTimeoutMs }
     );
     return result.data;
   },

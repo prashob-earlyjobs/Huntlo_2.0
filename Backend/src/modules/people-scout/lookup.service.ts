@@ -8,7 +8,10 @@ import {
 import { AppError } from '../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { poolService } from '../candidates/pool.service.js';
-import { revealService } from '../candidates/reveal.service.js';
+import {
+  resolveLinkedinRevealValues,
+  revealService,
+} from '../candidates/reveal.service.js';
 import type { RevealResult } from '../candidates/reveal.service.js';
 import { UserModel } from '../auth/user.model.js';
 import {
@@ -42,6 +45,12 @@ export type ActorContext = {
   userAgent?: string | null;
 };
 
+export type ScoutRevealChannelStatus = {
+  revealed: boolean;
+  status: string | null;
+  values: string[];
+};
+
 export type PublicPeopleScoutLookup = {
   id: string;
   lookupType: PeopleScoutLookupType;
@@ -57,6 +66,11 @@ export type PublicPeopleScoutLookup = {
   saved: boolean;
   savedCandidateId: string | null;
   contactRevealed: 'email' | 'mobile' | 'both' | 'none';
+  /** FJ-shaped reveal hydrate from encrypted contact cache (for soft-poll UX). */
+  revealStatus: {
+    email: ScoutRevealChannelStatus;
+    phone: ScoutRevealChannelStatus;
+  };
   performedBy: string | null;
   createdAt: string;
   profile: PublicScoutProfile | null;
@@ -110,8 +124,16 @@ function linkedinUsernameFromUrl(url: string): string {
   return match?.[1] ? decodeURIComponent(match[1]) : '';
 }
 
+function emptyRevealStatus(): PublicPeopleScoutLookup['revealStatus'] {
+  return {
+    email: { revealed: false, status: null, values: [] },
+    phone: { revealed: false, status: null, values: [] },
+  };
+}
+
 function toPublicProfile(
-  lookup: PeopleScoutLookupDocument
+  lookup: PeopleScoutLookupDocument,
+  contacts?: { email?: string; phone?: string }
 ): PublicScoutProfile | null {
   const snap = lookup.candidateSnapshot;
   if (!snapshotHasValidProfile(snap) || lookup.resultStatus !== 'found') {
@@ -158,6 +180,9 @@ function toPublicProfile(
       }))
     : [];
 
+  const email = contacts?.email?.trim() || '';
+  const phone = contacts?.phone?.trim() || '';
+
   return {
     id: lookup._id.toHexString(),
     name: snap!.name || 'Candidate',
@@ -169,10 +194,10 @@ function toPublicProfile(
     linkedinUrl,
     linkedinUsername: username,
     avatarUrl: asString(snap!.profilePictureUrl) || null,
-    email: '',
-    emailVerified: false,
-    phone: '',
-    phoneVerified: false,
+    email,
+    emailVerified: Boolean(email),
+    phone,
+    phoneVerified: Boolean(phone),
     skills: snap!.skills ?? [],
     languages: snap!.languages ?? [],
     experience,
@@ -221,14 +246,49 @@ export async function toPublicLookup(
   lookup: PeopleScoutLookupDocument,
   options?: { includeReveals?: boolean; performer?: string | null }
 ): Promise<PublicPeopleScoutLookup> {
-  const contactRevealed =
-    options?.includeReveals === false
-      ? 'none'
-      : await revealSummaryForLookup(
-          lookup.organizationId.toHexString(),
-          lookup.userId.toHexString(),
-          lookup._id
-        );
+  const includeReveals = options?.includeReveals !== false;
+  const contactRevealed = includeReveals
+    ? await revealSummaryForLookup(
+        lookup.organizationId.toHexString(),
+        lookup.userId.toHexString(),
+        lookup._id
+      )
+    : 'none';
+
+  let revealStatus = emptyRevealStatus();
+  if (includeReveals && lookup.resultStatus === 'found') {
+    const linkedinUrl = pickRevealLinkedinUrl({
+      flagshipUrl: lookup.candidateSnapshot?.linkedinFlagshipUrl,
+      profileUrl: lookup.candidateSnapshot?.linkedinProfileUrl,
+      username: lookup.candidateSnapshot?.linkedinUsername,
+    });
+    const normalized = normalizeLinkedinProfileUrl(linkedinUrl);
+    if (normalized) {
+      const values = await resolveLinkedinRevealValues({
+        organizationId: lookup.organizationId.toHexString(),
+        userId: lookup.userId.toHexString(),
+        linkedinUrl: normalized,
+        externalCandidateId: lookup.externalCandidateId,
+      });
+      revealStatus = {
+        email: {
+          revealed: values.email.length > 0,
+          status: null,
+          values: values.email,
+        },
+        phone: {
+          revealed: values.mobile.length > 0,
+          status: null,
+          values: values.mobile,
+        },
+      };
+    }
+  }
+
+  const profile = toPublicProfile(lookup, {
+    email: revealStatus.email.values[0],
+    phone: revealStatus.phone.values[0],
+  });
 
   return {
     id: lookup._id.toHexString(),
@@ -245,12 +305,13 @@ export async function toPublicLookup(
     saved: Boolean(lookup.savedCandidateId),
     savedCandidateId: lookup.savedCandidateId?.toHexString() ?? null,
     contactRevealed,
+    revealStatus,
     performedBy:
       options?.performer !== undefined
         ? options.performer
         : await performerName(lookup.userId.toHexString()),
     createdAt: lookup.createdAt.toISOString(),
-    profile: toPublicProfile(lookup),
+    profile,
     matches: lookup.candidateSnapshot?.matches ?? [],
   };
 }

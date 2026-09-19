@@ -3,6 +3,7 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Copy,
   Eye,
   Mail,
   MoreHorizontal,
@@ -118,6 +119,28 @@ function ResultRowActions({
   onAction: (message: string) => void;
 }) {
   const isVideo = modality === "video";
+  const [copyingLink, setCopyingLink] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const showCopyLink =
+    isVideo && Boolean(result.canCopyInterviewLink) && !copyFailed;
+
+  async function copyInterviewLink() {
+    if (copyingLink) return;
+    setCopyingLink(true);
+    try {
+      const { interviewLink } = await screeningApi.getInterviewLink(result.id);
+      await navigator.clipboard.writeText(interviewLink);
+      onAction(`Interview link copied for “${result.candidateName}”.`);
+    } catch (error: unknown) {
+      setCopyFailed(true);
+      onAction(
+        getApiErrorMessage(error, "Unable to copy interview link.")
+      );
+    } finally {
+      setCopyingLink(false);
+    }
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -126,7 +149,7 @@ function ResultRowActions({
             size="icon-sm"
             variant="ghost"
             aria-label={`Actions for ${result.candidateName}`}
-            disabled={busy}
+            disabled={busy || copyingLink}
           />
         }
       >
@@ -167,6 +190,15 @@ function ResultRowActions({
           <StickyNote aria-hidden />
           Add note
         </DropdownMenuItem>
+        {showCopyLink ? (
+          <DropdownMenuItem
+            disabled={copyingLink}
+            onClick={() => void copyInterviewLink()}
+          >
+            <Copy aria-hidden />
+            {copyingLink ? "Copying…" : "Copy interview link"}
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -395,7 +427,7 @@ export function ResultsWorkspace({
             <span className="font-medium tabular-nums text-foreground">
               {total}
             </span>{" "}
-            results
+            {total === 1 ? "result" : "results"}
           </p>
         </div>
 
