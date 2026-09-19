@@ -52,6 +52,7 @@ import {
   createHyrefastJob,
   disableHyrefastConversationMode,
   enableHyrefastConversationMode,
+  generateHyrefastJobTopics,
   getHyrefastInterviewLink,
   listHyrefastResponses,
   publishHyrefastJob,
@@ -2508,6 +2509,69 @@ export const screeningService = {
     return this.getResult(organizationId, id);
   },
 
+  /**
+   * Fetch (and cache) a Hyrefast private interview link for a video screening result.
+   * POST /external/api/v1/applications/{applicationId}/interview-link
+   */
+  async getInterviewLink(organizationId: string, id: string) {
+    if (!isHyrefastConfigured()) {
+      throw new AppError(
+        503,
+        'HYREFAST_NOT_CONFIGURED',
+        'Interview links require Hyrefast to be configured.'
+      );
+    }
+
+    const row = await ScreeningCandidateModel.findOne({ _id: id, organizationId });
+    if (!row) throw new AppError(404, 'RESULT_NOT_FOUND', 'Screening result not found.');
+
+    const screening = await ScreeningModel.findById(row.screeningId)
+      .select('modality')
+      .lean();
+    const modality =
+      String(screening?.modality || '').trim() === 'video' ? 'video' : 'voice';
+    if (modality !== 'video') {
+      throw new AppError(
+        400,
+        'NOT_VIDEO_RESULT',
+        'Interview links are only available for video screening results.'
+      );
+    }
+
+    const extracted =
+      row.extractedVariables &&
+      typeof row.extractedVariables === 'object' &&
+      !Array.isArray(row.extractedVariables)
+        ? (row.extractedVariables as Record<string, unknown>)
+        : {};
+    const applicationId = String(
+      extracted.hyrefastApplicationId || row.providerRequestId || ''
+    ).trim();
+    if (!applicationId) {
+      throw new AppError(
+        404,
+        'APPLICATION_NOT_FOUND',
+        'No Hyrefast application is linked to this result yet. Invite the candidate first.'
+      );
+    }
+
+    try {
+      const { interviewLink } = await getHyrefastInterviewLink(applicationId);
+      row.extractedVariables = {
+        ...extracted,
+        hyrefastApplicationId: applicationId,
+        interviewLink,
+      };
+      row.markModified('extractedVariables');
+      await row.save();
+      return { interviewLink, applicationId };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Unable to fetch interview link.';
+      throw new AppError(502, 'HYREFAST_INTERVIEW_LINK_FAILED', message);
+    }
+  },
+
   /** Used by Huntlo 360 orchestration — creates screening + candidate rows (dial via facade). */
   async ensureWorkflowCandidate(input: {
     organizationId: string;
@@ -2657,6 +2721,82 @@ export const screeningService = {
 
     await refreshScreeningStats(String(screening._id));
     return { screening, candidate: row };
+  },
+
+  /**
+   * Create a temporary Hyrefast job from a Huntlo job, generate topics from its
+   * skills, PUT them so Hyrefast keeps the result, and return UI-shaped topics.
+   */
+  async generateVideoTopicsFromJob(organizationId: string, jobId: string) {
+    if (!isHyrefastConfigured()) {
+      throw new AppError(
+        503,
+        'HYREFAST_NOT_CONFIGURED',
+        'Video topic generation requires Hyrefast to be configured.'
+      );
+    }
+    if (!mongoose.isValidObjectId(jobId)) {
+      throw AppError.badRequest('Invalid job id');
+    }
+
+    const job = await JobModel.findOne({
+      _id: jobId,
+      organizationId,
+      deletedAt: null,
+    }).lean();
+    if (!job) throw AppError.notFound('Job not found');
+
+    const title = String(job.title || '').trim() || 'Role';
+    const location = Array.isArray(job.locations)
+      ? String(job.locations[0] || '').trim()
+      : '';
+
+    const mustHave = (job.requiredSkills || [])
+      .map((skill) => String(skill || '').trim())
+      .filter(Boolean)
+      .map((skill_name) => ({ skill_name, proficiency: 'L3' }));
+    const goodToHave = (job.preferredSkills || [])
+      .map((skill) => String(skill || '').trim())
+      .filter(Boolean)
+      .map((skill_name) => ({ skill_name, proficiency: 'L3' }));
+
+    const created = await createHyrefastJob({
+      title,
+      ...(location ? { location } : {}),
+    });
+    await setHyrefastJobSkills(created.id, {
+      mustHave:
+        mustHave.length > 0
+          ? mustHave
+          : [{ skill_name: title.slice(0, 60), proficiency: 'L3' }],
+      goodToHave,
+      bonus: [],
+    });
+
+    const generated = await generateHyrefastJobTopics(created.id);
+    if (generated.topicsToFocus.length === 0) {
+      throw new AppError(
+        502,
+        'HYREFAST_TOPICS_EMPTY',
+        'Hyrefast did not return any focus topics for this job.'
+      );
+    }
+
+    await setHyrefastJobTopics(created.id, {
+      topicsToFocus: generated.topicsToFocus,
+      topicsToAvoid: generated.topicsToAvoid,
+    });
+
+    return {
+      hyrefastJobId: created.id,
+      topicsFocus: generated.topicsToFocus.map((topic) => ({
+        name: topic.name,
+        discussionMinutes: topic.discussionMinutes ?? 15,
+        reason: topic.reason || `Generated for ${title}`,
+        sampleQuestions: topic.sampleQuestions || [],
+      })),
+      topicsAvoid: generated.topicsToAvoid,
+    };
   },
 
   mapEvaluationScores,
