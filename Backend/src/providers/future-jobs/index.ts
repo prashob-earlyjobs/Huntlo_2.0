@@ -187,6 +187,27 @@ export {
   shouldUseFutureJobsMock,
 };
 
+export {
+  ensureFutureJobsOutboundDebugCollection,
+  recordFutureJobsOutboundDebug,
+  startScoutOutboundDebugSession,
+  completeScoutOutboundDebugSession,
+  startRevealOutboundDebugSession,
+  completeRevealOutboundDebugSession,
+  appendRevealOutboundDebugPoll,
+  findInProgressRevealOutboundDebugSession,
+} from './futureJobs.outbound-debug.js';
+export {
+  FUTURE_JOBS_OUTBOUND_DEBUG_COLLECTION,
+  FUTURE_JOBS_OUTBOUND_DEBUG_MAX,
+  FutureJobsOutboundDebugModel,
+} from './futureJobs.outbound-debug.model.js';
+export type {
+  FutureJobsOutboundDebugDocument,
+  FutureJobsOutboundKind,
+  FutureJobsOutboundRevealType,
+} from './futureJobs.outbound-debug.model.js';
+
 export type {
   GeoExpandStep,
   WlSearchFilters,

@@ -728,11 +728,27 @@ export interface ScreeningResultDetail {
     questionText: string;
     responseText: string;
     transcriptionStatus: string;
+    transcriptionMethod?: string | null;
     transcriptionText: string;
+    responseAnalysis?: {
+      overallAssessment: string | null;
+      strengths: string[];
+      gaps: string[];
+      score: number | null;
+      reasonForScoring: string | null;
+    } | null;
     responseDuration: number | null;
+    durations?: {
+      videoDuration: number | null;
+      audioDuration: number | null;
+      responseLatency: number | null;
+      responseOnsetLatency: number | null;
+    } | null;
     audioUrl: string | null;
     videoUrl: string | null;
     isSkipped: boolean;
+    createdAt?: string | null;
+    updatedAt?: string | null;
   }>;
   recording: {
     durationSeconds: number;

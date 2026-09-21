@@ -32,10 +32,11 @@ function asStringList(value: unknown, max = 6): string[] {
 
 export function fingerprintVideoResponses(responses: HyrefastResponseItem[]): string {
   const payload = responses
-    .map(
-      (item) =>
-        `${item.id}|${item.transcriptionStatus}|${item.transcriptionText || item.responseText || ''}`
-    )
+    .map((item) => {
+      const analysisScore = item.responseAnalysis?.score ?? '';
+      const analysisUpdated = item.updatedAt || '';
+      return `${item.id}|${item.transcriptionStatus}|${item.transcriptionText || item.responseText || ''}|${analysisScore}|${analysisUpdated}`;
+    })
     .join('\n');
   return createHash('sha256').update(payload).digest('hex').slice(0, 24);
 }

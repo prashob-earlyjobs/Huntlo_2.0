@@ -459,18 +459,161 @@ export async function sendHyrefastInterview(
   };
 }
 
+export type HyrefastResponseAnalysisSummary = {
+  overallAssessment: string | null;
+  strengths: string[];
+  gaps: string[];
+  score: number | null;
+  reasonForScoring: string | null;
+  raw: Record<string, unknown>;
+};
+
+export type HyrefastResponseDurations = {
+  videoDuration: number | null;
+  audioDuration: number | null;
+  responseLatency: number | null;
+  responseOnsetLatency: number | null;
+};
+
 export type HyrefastResponseItem = {
   id: string;
   questionNumber: number;
   questionText: string;
   responseText: string;
   transcriptionStatus: string;
+  transcriptionMethod: string | null;
   transcriptionText: string;
+  responseAnalysis: HyrefastResponseAnalysisSummary | null;
   responseDuration: number | null;
+  durations: HyrefastResponseDurations | null;
   audioUrl: string | null;
   videoUrl: string | null;
   isSkipped: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
 };
+
+function asStringList(value: unknown, max = 12): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+function asOptionalNumber(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseResponseAnalysis(
+  value: unknown
+): HyrefastResponseAnalysisSummary | null {
+  const root = asRecord(value);
+  if (!root) return null;
+  const summary =
+    asRecord(root.response_summary) ||
+    asRecord(root.responseSummary) ||
+    root;
+  const scoreRaw = summary.score ?? root.score;
+  const scoreNum = asOptionalNumber(scoreRaw);
+  return {
+    overallAssessment:
+      String(
+        summary.overall_assessment ||
+          summary.overallAssessment ||
+          summary.assessment ||
+          ''
+      ).trim() || null,
+    strengths: asStringList(summary.strengths ?? root.strengths),
+    gaps: asStringList(summary.gaps ?? summary.concerns ?? root.gaps),
+    score:
+      scoreNum == null ? null : Math.max(0, Math.min(100, Math.round(scoreNum))),
+    reasonForScoring:
+      String(
+        summary.reason_for_scoring ||
+          summary.reasonForScoring ||
+          summary.reason ||
+          ''
+      ).trim() || null,
+    raw: root,
+  };
+}
+
+function parseResponseDurations(
+  value: unknown
+): HyrefastResponseDurations | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const parsed: HyrefastResponseDurations = {
+    videoDuration: asOptionalNumber(row.video_duration ?? row.videoDuration),
+    audioDuration: asOptionalNumber(row.audio_duration ?? row.audioDuration),
+    responseLatency: asOptionalNumber(
+      row.response_latency ?? row.responseLatency
+    ),
+    responseOnsetLatency: asOptionalNumber(
+      row.response_onset_latency ?? row.responseOnsetLatency
+    ),
+  };
+  if (
+    parsed.videoDuration == null &&
+    parsed.audioDuration == null &&
+    parsed.responseLatency == null &&
+    parsed.responseOnsetLatency == null
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
+/**
+ * Prefer provider analysis when present (Conversation mode scores live here).
+ */
+export function evaluationFromHyrefastResponseAnalysis(
+  responses: HyrefastResponseItem[]
+): {
+  overallScore: number;
+  summary: string;
+  strengths: string[];
+  concerns: string[];
+  model: string;
+} | null {
+  const analyzed = responses
+    .map((item) => item.responseAnalysis)
+    .filter((item): item is HyrefastResponseAnalysisSummary => Boolean(item));
+  if (analyzed.length === 0) return null;
+
+  const withScore = analyzed.filter((item) => item.score != null);
+  const overallScore =
+    withScore.length > 0
+      ? Math.round(
+          withScore.reduce((sum, item) => sum + (item.score || 0), 0) /
+            withScore.length
+        )
+      : null;
+  if (overallScore == null) return null;
+
+  const strengths = [
+    ...new Set(analyzed.flatMap((item) => item.strengths)),
+  ].slice(0, 8);
+  const concerns = [...new Set(analyzed.flatMap((item) => item.gaps))].slice(
+    0,
+    8
+  );
+  const summary =
+    analyzed
+      .map((item) => item.overallAssessment || item.reasonForScoring || '')
+      .map((text) => text.trim())
+      .find(Boolean) || `Hyrefast scored this interview ${overallScore}/100.`;
+
+  return {
+    overallScore,
+    summary,
+    strengths,
+    concerns,
+    model: 'hyrefast-response-analysis',
+  };
+}
 
 /**
  * List interview responses for an application.
@@ -525,6 +668,9 @@ export async function listHyrefastResponses(
       const item = row as Record<string, unknown>;
       const id = String(item.id || item._id || '').trim();
       if (!id) return null;
+      const transcriptionMethod = String(
+        item.transcriptionMethod || item.transcription_method || ''
+      ).trim();
       return {
         id,
         questionNumber: Number(item.questionNumber ?? item.question_number ?? 0) || 0,
@@ -533,18 +679,23 @@ export async function listHyrefastResponses(
         transcriptionStatus: String(
           item.transcriptionStatus || item.transcription_status || ''
         ).trim(),
+        transcriptionMethod: transcriptionMethod || null,
         transcriptionText: String(
           item.transcriptionText || item.transcription_text || ''
         ).trim(),
+        responseAnalysis: parseResponseAnalysis(item.responseAnalysis ?? item.response_analysis),
         responseDuration:
           typeof item.responseDuration === 'number'
             ? item.responseDuration
             : typeof item.response_duration === 'number'
               ? item.response_duration
               : null,
+        durations: parseResponseDurations(item.durations),
         audioUrl: String(item.audioUrl || item.audio_url || '').trim() || null,
         videoUrl: String(item.videoUrl || item.video_url || '').trim() || null,
         isSkipped: Boolean(item.isSkipped ?? item.is_skipped),
+        createdAt: String(item.createdAt || item.created_at || '').trim() || null,
+        updatedAt: String(item.updatedAt || item.updated_at || '').trim() || null,
       };
     })
     .filter((item): item is HyrefastResponseItem => Boolean(item))

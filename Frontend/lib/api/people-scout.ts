@@ -497,8 +497,8 @@ const livePeopleScoutApi: PeopleScoutApi = {
     return normalizeLookupPayload(result.data);
   },
   async revealContact({ lookupId, profileId, linkedinUrl, type }) {
-    // Soft-timeout UX polls lookup for ~60s after 60s; keep the reveal HTTP
-    // request alive so a late FJ response can still settle the UI.
+    // Phone UX polls lookup after empty/error reveal; keep HTTP timeout long
+    // enough for a slow FJ response before that poll window.
     const revealTimeoutMs = 130_000;
     if (lookupId) {
       const result = await apiClient.post<RevealResult>(
