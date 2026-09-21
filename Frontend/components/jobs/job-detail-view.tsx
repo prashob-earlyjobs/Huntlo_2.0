@@ -34,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { JobDetail } from "@/lib/mock-jobs";
-import { ROUTES, searchPath } from "@/lib/routes";
+import { ROUTES, jobEditPath, searchPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 function formatSalary(job: JobDetail) {
@@ -488,7 +488,7 @@ export function JobDetailView({ job }: { job: JobDetail }) {
               size="sm"
               variant="outline"
               nativeButton={false}
-              render={<Link href={ROUTES.jobsNew} />}
+              render={<Link href={jobEditPath(job.id)} />}
             >
               <PenLine aria-hidden />
               Edit

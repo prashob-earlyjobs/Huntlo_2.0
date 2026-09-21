@@ -15,6 +15,7 @@ import {
   getHunarVoiceLanguage,
   getHunarVoicePersona,
 } from '../../providers/hunar/hunar.config.js';
+import { normalizeHunarQuestionsPayload } from '../../providers/hunar/hunar.gateway.js';
 import {
   getHuntloWhatsAppCredentials,
 } from '../../providers/meta-whatsapp/meta.config.js';
@@ -1105,11 +1106,19 @@ async function launchVoiceCall(input: {
       const nextSchemaKeys = Object.keys(
         (qualificationExtras.resultSchema.properties as Record<string, unknown>) || {}
       ).sort();
+      const campaignQuestions = input.campaign.qualificationConfig?.questions || [];
+      const storedQuestions = JSON.stringify(
+        normalizeHunarQuestionsPayload(fresh?.voiceAgentConfig?.questions)
+      );
+      const nextQuestions = JSON.stringify(
+        normalizeHunarQuestionsPayload(campaignQuestions)
+      );
       const agentUnchanged =
         storedIntroduction === introduction.trim() &&
         storedAgentPrompt === agentPrompt.trim() &&
         storedResultPrompt === String(qualificationExtras.resultPrompt || '').trim() &&
-        storedSchemaKeys.join('|') === nextSchemaKeys.join('|');
+        storedSchemaKeys.join('|') === nextSchemaKeys.join('|') &&
+        storedQuestions === nextQuestions;
 
       if (existingAgentId && agentUnchanged) {
         if (!input.campaign.voiceAgentConfig) input.campaign.voiceAgentConfig = {};
@@ -1127,6 +1136,7 @@ async function launchVoiceCall(input: {
         voicePersona: getHunarVoicePersona(),
         language: getHunarVoiceLanguage(),
         existingAgentId: existingAgentId || null,
+        questions: campaignQuestions,
       });
 
       const nextConfig = {
@@ -1140,6 +1150,7 @@ async function launchVoiceCall(input: {
         agentPrompt,
         resultPrompt: qualificationExtras.resultPrompt,
         resultSchema: qualificationExtras.resultSchema,
+        questions: normalizeHunarQuestionsPayload(campaignQuestions),
         updatedAt: new Date().toISOString(),
       };
 

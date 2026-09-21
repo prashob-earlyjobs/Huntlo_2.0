@@ -177,6 +177,187 @@ export async function setHyrefastJobTopics(
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function clipTopicName(value: string): string {
+  return value.trim().slice(0, 120);
+}
+
+function asTopicItem(value: unknown): HyrefastTopicItem | null {
+  if (typeof value === 'string') {
+    const name = clipTopicName(value);
+    return name ? { name } : null;
+  }
+  const row = asRecord(value);
+  if (!row) return null;
+  const name = clipTopicName(String(row.name || row.title || row.topic || ''));
+  if (!name) return null;
+  const minutes = Number(row.discussionMinutes ?? row.discussion_minutes);
+  const sampleQuestions = Array.isArray(row.sampleQuestions)
+    ? row.sampleQuestions.map((item) => String(item).trim()).filter(Boolean)
+    : Array.isArray(row.sample_questions)
+      ? row.sample_questions.map((item) => String(item).trim()).filter(Boolean)
+      : undefined;
+  const reason = String(row.reason || '').trim();
+  return {
+    name,
+    ...(Number.isFinite(minutes) && minutes > 0
+      ? { discussionMinutes: Math.min(60, Math.max(1, Math.round(minutes))) }
+      : {}),
+    ...(reason ? { reason } : {}),
+    ...(sampleQuestions?.length ? { sampleQuestions } : {}),
+  };
+}
+
+/** Pull topicsToFocus / topicsToAvoid from generate-status payloads. */
+export function extractGeneratedTopics(data: unknown): {
+  topicsToFocus: HyrefastTopicItem[];
+  topicsToAvoid: string[];
+} {
+  const root = asRecord(data);
+  const nested = asRecord(root?.topics);
+  // Hyrefast succeeded payload nests topics under `result`.
+  const result = asRecord(root?.result);
+  const resultTopics = asRecord(result?.topics);
+
+  const focusRaw =
+    (Array.isArray(result?.topicsToFocus) && result.topicsToFocus) ||
+    (Array.isArray(result?.topics_to_focus) && result.topics_to_focus) ||
+    (Array.isArray(resultTopics?.topicsToFocus) && resultTopics.topicsToFocus) ||
+    (Array.isArray(root?.topicsToFocus) && root.topicsToFocus) ||
+    (Array.isArray(root?.topics_to_focus) && root.topics_to_focus) ||
+    (Array.isArray(nested?.topicsToFocus) && nested.topicsToFocus) ||
+    (Array.isArray(nested?.topics_to_focus) && nested.topics_to_focus) ||
+    (Array.isArray(root?.topics) && root.topics) ||
+    [];
+  const avoidRaw =
+    (Array.isArray(result?.topicsToAvoid) && result.topicsToAvoid) ||
+    (Array.isArray(result?.topics_to_avoid) && result.topics_to_avoid) ||
+    (Array.isArray(resultTopics?.topicsToAvoid) && resultTopics.topicsToAvoid) ||
+    (Array.isArray(root?.topicsToAvoid) && root.topicsToAvoid) ||
+    (Array.isArray(root?.topics_to_avoid) && root.topics_to_avoid) ||
+    (Array.isArray(nested?.topicsToAvoid) && nested.topicsToAvoid) ||
+    (Array.isArray(nested?.topics_to_avoid) && nested.topics_to_avoid) ||
+    [];
+
+  return {
+    topicsToFocus: focusRaw
+      .map(asTopicItem)
+      .filter((topic): topic is HyrefastTopicItem => Boolean(topic)),
+    topicsToAvoid: avoidRaw
+      .map((item) => String(item || '').trim())
+      .filter(Boolean),
+  };
+}
+
+/**
+ * POST /jobs/{jobId}/topics/generate then poll status until topics are ready.
+ * Does not persist — caller should PUT /jobs/{jobId}/topics to keep them.
+ */
+export async function generateHyrefastJobTopics(
+  jobId: string,
+  options?: { maxWaitMs?: number }
+): Promise<{
+  topicsToFocus: HyrefastTopicItem[];
+  topicsToAvoid: string[];
+  raw: unknown;
+}> {
+  const started = await hyrefastRequest<Record<string, unknown>>(
+    'POST',
+    `/external/api/v1/jobs/${encodeURIComponent(jobId)}/topics/generate`
+  );
+  const startedRow = asRecord(started) || {};
+  // Generate response `jobId` is often the async run id used for status polling.
+  const statusId =
+    String(startedRow.jobId || startedRow.id || jobId).trim() || jobId;
+
+  let waitMs = Number(startedRow.pollAfterMs ?? startedRow.poll_after_ms);
+  if (!Number.isFinite(waitMs) || waitMs <= 0) waitMs = 2000;
+  waitMs = Math.min(waitMs, 5000);
+
+  const maxWaitMs = options?.maxWaitMs ?? 90_000;
+  const deadline = Date.now() + maxWaitMs;
+  let lastRaw: unknown = started;
+  let lastExtracted = extractGeneratedTopics(started);
+
+  while (Date.now() < deadline) {
+    await sleep(waitMs);
+    const statusData = await hyrefastRequest<Record<string, unknown>>(
+      'GET',
+      `/external/api/v1/jobs/topics/generate/status/${encodeURIComponent(statusId)}`
+    );
+    lastRaw = statusData;
+    const row = asRecord(statusData) || {};
+    const status = String(row.status || '').toLowerCase();
+    lastExtracted = extractGeneratedTopics(statusData);
+
+    if (
+      status === 'failed' ||
+      status === 'error' ||
+      status === 'cancelled' ||
+      status === 'canceled'
+    ) {
+      throw new Error(
+        String(row.message || row.error || 'Hyrefast topic generation failed.')
+      );
+    }
+
+    // Only settle on a terminal success status. Returning as soon as the first
+    // topic appears (while still queued/processing) truncates the full set.
+    const inProgress =
+      !status ||
+      status === 'queued' ||
+      status === 'pending' ||
+      status === 'processing' ||
+      status === 'running' ||
+      status === 'in_progress' ||
+      status === 'started';
+    const terminalSuccess =
+      status === 'succeeded' ||
+      status === 'success' ||
+      status === 'completed' ||
+      status === 'done' ||
+      status === 'ready';
+
+    if (
+      terminalSuccess ||
+      (!inProgress && lastExtracted.topicsToFocus.length > 0)
+    ) {
+      if (lastExtracted.topicsToFocus.length === 0) {
+        throw new Error('Hyrefast topic generation finished with no topics.');
+      }
+      return {
+        topicsToFocus: lastExtracted.topicsToFocus,
+        topicsToAvoid: lastExtracted.topicsToAvoid,
+        raw: lastRaw,
+      };
+    }
+
+    const nextWait = Number(row.pollAfterMs ?? row.poll_after_ms);
+    if (Number.isFinite(nextWait) && nextWait > 0) {
+      waitMs = Math.min(nextWait, 5000);
+    }
+  }
+
+  if (lastExtracted.topicsToFocus.length > 0) {
+    // Timed out but we already have some topics — return what we have.
+    return {
+      topicsToFocus: lastExtracted.topicsToFocus,
+      topicsToAvoid: lastExtracted.topicsToAvoid,
+      raw: lastRaw,
+    };
+  }
+
+  throw new Error('Hyrefast topic generation timed out.');
+}
+
 export async function publishHyrefastJob(jobId: string): Promise<void> {
   await hyrefastRequest('POST', `/external/api/v1/jobs/${jobId}/publish`);
 }

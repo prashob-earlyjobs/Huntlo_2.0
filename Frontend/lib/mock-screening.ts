@@ -530,6 +530,8 @@ export interface ScreeningResult {
   decision: RecruiterDecision;
   /** Per-candidate invite/call failure reason when present. */
   error?: string | null;
+  /** True when a Hyrefast application (or cached link) exists for video copy. */
+  canCopyInterviewLink?: boolean;
 }
 
 export const SCREENING_RESULTS: ScreeningResult[] = [

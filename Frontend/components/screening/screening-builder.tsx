@@ -28,6 +28,7 @@ import {
   StepCard,
 } from "@/components/outreach/builder-ui";
 import { Stepper } from "@/components/shared/stepper";
+import { JobAsyncSelect } from "@/components/shared/job-async-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -245,53 +246,15 @@ function mapNamesToVideoSkills(
   }));
 }
 
-function stripHtml(value: string): string {
-  return value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function videoDefaultsFromJob(job: JobDetail): Pick<
   BuilderState,
   | "videoMustHaveSkills"
   | "videoGoodToHaveSkills"
   | "videoBonusSkills"
-  | "videoTopicsFocus"
-  | "videoTopicsAvoid"
   | "videoInterviewStandard"
   | "videoInterviewConversation"
 > {
   const proficiency = proficiencyFromSeniority(job.seniority);
-  const topicLines = (
-    job.requirements?.length
-      ? job.requirements
-      : job.responsibilities?.length
-        ? job.responsibilities
-        : []
-  )
-    .map((line) => stripHtml(String(line || "")))
-    .filter(Boolean)
-    .slice(0, 5);
-
-  const videoTopicsFocus: VideoTopicFocus[] = topicLines.length
-    ? topicLines.map((line, index) => ({
-        id: `topic-job-${index}`,
-        name: line.slice(0, 120),
-        discussionMinutes: "10",
-        reason: `From ${job.title} job requirements`,
-        sampleQuestions: "",
-      }))
-    : [
-        {
-          id: `topic-job-title`,
-          name: job.title,
-          discussionMinutes: "15",
-          reason: stripHtml(job.description || "").slice(0, 160) ||
-            `Interview focus for ${job.title}`,
-          sampleQuestions: "",
-        },
-      ];
 
   return {
     videoMustHaveSkills: mapNamesToVideoSkills(job.requiredSkills, proficiency, {
@@ -301,8 +264,6 @@ function videoDefaultsFromJob(job: JobDetail): Pick<
       keepEmptyRow: false,
     }),
     videoBonusSkills: [],
-    videoTopicsFocus,
-    videoTopicsAvoid: [],
     videoInterviewStandard: true,
     videoInterviewConversation: false,
   };
@@ -482,35 +443,20 @@ function DetailsStep({
   state,
   update,
   showErrors,
-  jobs,
-  jobsLoading,
-  jobsError,
   owners,
   ownersLoading,
   ownersError,
-  retryLoading,
 }: {
   state: BuilderState;
   update: Update;
   showErrors: boolean;
-  jobs: JobListItem[];
-  jobsLoading: boolean;
-  jobsError: string | null;
   owners: Array<Pick<ApiTeamMember, "userId" | "name">>;
   ownersLoading: boolean;
   ownersError: string | null;
-  retryLoading: () => void;
 }) {
-  const activeJobs = jobs.filter(
-    (job) => job.status === "Active" || job.status === "Paused"
-  );
   const ownerLabel =
     owners.find((owner) => owner.userId === state.ownerUserId)?.name ||
     state.owner.trim() ||
-    null;
-  const jobLabel =
-    activeJobs.find((job) => job.id === state.jobId)?.title ||
-    jobs.find((job) => job.id === state.jobId)?.title ||
     null;
 
   return (
@@ -659,44 +605,16 @@ function DetailsStep({
         </Field>
 
         <Field label="Related job" htmlFor="scr-job" required>
-          <Select
+          <JobAsyncSelect
+            inputId="scr-job"
             value={state.jobId || null}
-            onValueChange={(value) => update("jobId", value ?? "")}
-          >
-            <SelectTrigger
-              id="scr-job"
-              className="w-full"
-              disabled={jobsLoading || activeJobs.length === 0}
-              aria-invalid={showErrors && !state.jobId}
-            >
-              <SelectValue
-                placeholder={jobsLoading ? "Loading jobs…" : "Select a job"}
-              >
-                {jobLabel}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {activeJobs.map((job) => (
-                <SelectItem key={job.id} value={job.id}>
-                  {job.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {jobsError ? (
+            invalid={showErrors && !state.jobId}
+            placeholder="Search jobs…"
+            onChange={(jobId) => update("jobId", jobId ?? "")}
+          />
+          {showErrors && !state.jobId ? (
             <p role="alert" className="text-xs text-destructive">
-              {jobsError}{" "}
-              <button
-                type="button"
-                className="font-medium underline underline-offset-2"
-                onClick={retryLoading}
-              >
-                Retry
-              </button>
-            </p>
-          ) : !jobsLoading && activeJobs.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No active or paused jobs are available.
+              Select the related job.
             </p>
           ) : null}
         </Field>
@@ -1113,13 +1031,14 @@ function VideoAgentStep({
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
             <p className="text-xs text-muted-foreground">
               {defaultsLoading ? (
-                "Loading job defaults…"
+                "Loading job skills and generating topics…"
               ) : defaultsError ? (
                 <span className="text-destructive">{defaultsError}</span>
               ) : jobTitle ? (
                 <>
-                  Synced from{" "}
+                  Skills from{" "}
                   <span className="font-medium text-foreground">{jobTitle}</span>
+                  ; topics from Hyrefast
                   <span className="text-muted-foreground"> · editable</span>
                 </>
               ) : (
@@ -1331,9 +1250,6 @@ function VideoAgentStep({
                           <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                             {topic.name.trim() || `Topic ${index + 1}`}
                           </span>
-                          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                            {topic.discussionMinutes || "—"}m
-                          </span>
                         </button>
                         <Button
                           type="button"
@@ -1370,31 +1286,6 @@ function VideoAgentStep({
                             placeholder="Topic name"
                             className="text-xs"
                           />
-                          <div className="flex items-center gap-2">
-                            <label className="shrink-0 text-[11px] text-muted-foreground">
-                              Minutes
-                            </label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={60}
-                              value={topic.discussionMinutes}
-                              onChange={(event) =>
-                                update(
-                                  "videoTopicsFocus",
-                                  state.videoTopicsFocus.map((row) =>
-                                    row.id === topic.id
-                                      ? {
-                                          ...row,
-                                          discussionMinutes: event.target.value,
-                                        }
-                                      : row
-                                  )
-                                )
-                              }
-                              className="w-20 text-xs"
-                            />
-                          </div>
                           <Input
                             value={topic.reason}
                             onChange={(event) =>
@@ -1434,24 +1325,6 @@ function VideoAgentStep({
                   );
                 })
               )}
-
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  const topic = newVideoTopicFocus();
-                  update("videoTopicsFocus", [
-                    ...state.videoTopicsFocus,
-                    topic,
-                  ]);
-                  setExpandedTopicId(topic.id);
-                }}
-              >
-                <Plus aria-hidden />
-                Add focus topic
-              </Button>
             </div>
 
             <div className="mt-4 space-y-2 border-t border-border pt-3">
@@ -2409,14 +2282,11 @@ export function ScreeningBuilder() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
-  const [jobsLoading, setJobsLoading] = useState(true);
-  const [jobsError, setJobsError] = useState<string | null>(null);
   const [owners, setOwners] = useState<
     Array<Pick<ApiTeamMember, "userId" | "name">>
   >([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [ownersError, setOwnersError] = useState<string | null>(null);
-  const [loadVersion, setLoadVersion] = useState(0);
   const [voiceDefaults, setVoiceDefaults] = useState({
     introduction: ROSHNI_INTRODUCTION,
     agentPrompt: defaultAiVoiceStepBody(),
@@ -2444,7 +2314,7 @@ export function ScreeningBuilder() {
 
     void jobsApi
       .getById(jobId)
-      .then((detail) => {
+      .then(async (detail) => {
         if (cancelled) return;
         if (!detail) {
           setVideoDefaultsError("Could not load the selected job.");
@@ -2460,8 +2330,72 @@ export function ScreeningBuilder() {
           ) {
             return previous;
           }
-          return { ...previous, ...defaults };
+          return {
+            ...previous,
+            ...defaults,
+            // Clear stale topics while Hyrefast generate runs.
+            videoTopicsFocus: [],
+            videoTopicsAvoid: [],
+          };
         });
+
+        try {
+          const generated = await screeningApi.generateTopicsFromJob(jobId);
+          if (cancelled) return;
+          setState((previous) => {
+            if (
+              previous.jobId !== jobId ||
+              previous.screeningMode !== "video"
+            ) {
+              return previous;
+            }
+            return {
+              ...previous,
+              videoTopicsFocus: generated.topicsFocus.map((topic, index) => ({
+                id: `topic-hf-${index}`,
+                name: topic.name,
+                discussionMinutes: String(topic.discussionMinutes || 15),
+                reason: topic.reason || `Generated for ${detail.title}`,
+                sampleQuestions: (topic.sampleQuestions || []).join("\n"),
+              })),
+              videoTopicsAvoid: generated.topicsAvoid.map((text, index) => ({
+                id: `avoid-hf-${index}`,
+                text,
+              })),
+            };
+          });
+        } catch (error: unknown) {
+          if (cancelled) return;
+          setVideoDefaultsError(
+            getApiErrorMessage(
+              error,
+              "Unable to generate interview topics from Hyrefast."
+            )
+          );
+          setState((previous) => {
+            if (
+              previous.jobId !== jobId ||
+              previous.screeningMode !== "video"
+            ) {
+              return previous;
+            }
+            if (previous.videoTopicsFocus.some((topic) => topic.name.trim())) {
+              return previous;
+            }
+            return {
+              ...previous,
+              videoTopicsFocus: [
+                {
+                  id: `topic-job-title`,
+                  name: detail.title,
+                  discussionMinutes: "15",
+                  reason: `Fallback topic for ${detail.title}`,
+                  sampleQuestions: "",
+                },
+              ],
+            };
+          });
+        }
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -2516,8 +2450,6 @@ export function ScreeningBuilder() {
 
   useEffect(() => {
     let cancelled = false;
-    setJobsLoading(true);
-    setJobsError(null);
     setOwnersLoading(true);
     setOwnersError(null);
 
@@ -2525,14 +2457,10 @@ export function ScreeningBuilder() {
       (rows) => {
         if (!cancelled) setJobs(rows);
       },
-      (error: unknown) => {
-        if (!cancelled) {
-          setJobsError(getApiErrorMessage(error, "Unable to load jobs."));
-        }
+      () => {
+        // JobAsyncSelect loads jobs on demand; keep review list best-effort.
       }
-    ).finally(() => {
-      if (!cancelled) setJobsLoading(false);
-    });
+    );
 
     void teamApi.listMembers().then(
       (members) => {
@@ -2587,7 +2515,7 @@ export function ScreeningBuilder() {
     return () => {
       cancelled = true;
     };
-  }, [loadVersion, user?.id, user?.name]);
+  }, [user?.id, user?.name]);
 
   const update: Update = (key, value) =>
     setState((previous) => ({ ...previous, [key]: value }));
@@ -2748,13 +2676,9 @@ export function ScreeningBuilder() {
           state={state}
           update={update}
           showErrors={showErrors}
-          jobs={jobs}
-          jobsLoading={jobsLoading}
-          jobsError={jobsError}
           owners={owners}
           ownersLoading={ownersLoading}
           ownersError={ownersError}
-          retryLoading={() => setLoadVersion((version) => version + 1)}
         />
       ) : currentStepId === "candidates" ? (
         <AudienceStep

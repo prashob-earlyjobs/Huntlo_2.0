@@ -585,6 +585,39 @@ describe('sendWhatsAppViaGateway payload', () => {
   });
 });
 
+describe('buildHunarAgentWritePayload questions', () => {
+  it('includes screening questions on the Hunar agent create body', async () => {
+    const { buildHunarAgentWritePayload } = await import(
+      '../src/providers/hunar/hunar.client.js'
+    );
+    const payload = buildHunarAgentWritePayload({
+      name: 'Backend voice screen',
+      agentPrompt: 'You are Roshni',
+      objective: 'Screen the candidate',
+      introduction: 'Hello, am I speaking with {callee_name}?',
+      resultPrompt: 'Extract screening results',
+      resultSchema: { type: 'object', properties: {} },
+      questions: [
+        {
+          id: 'q1',
+          prompt: 'What is your notice period (in days)?',
+          required: true,
+          knockout: true,
+          knockoutCondition: 'more than 60',
+        },
+      ],
+    });
+    expect(payload.questions).toEqual([
+      {
+        id: 'q1',
+        question: 'What is your notice period (in days)?',
+        required: true,
+        pass_condition: 'Reject if more than 60',
+      },
+    ]);
+  });
+});
+
 describe('sendHunarCallViaGateway payload', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

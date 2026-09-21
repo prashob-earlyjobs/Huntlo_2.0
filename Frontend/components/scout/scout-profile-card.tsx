@@ -117,6 +117,7 @@ export function ScoutProfileCard({
   const [listNames, setListNames] = useState<string[]>([]);
   const revealGenerationRef = useRef(0);
   const revealQuota = useRevealQuota();
+  const revealGenerationRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;

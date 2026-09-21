@@ -976,10 +976,24 @@ function isAnswerTypeStub(text?: string | null): boolean {
   );
 }
 
+function titleDescribesPrompt(title?: string | null, prompt?: string | null): boolean {
+  const titled = normalizeQuestionText(title);
+  const asked = normalizeQuestionText(prompt);
+  if (!titled) return false;
+  if (!asked) return true;
+  if (asked.includes(titled) || titled.includes(asked)) return true;
+  const derived = normalizeQuestionText(suggestQuestionTitle(prompt || ""));
+  if (derived && derived === titled) return true;
+  const words = titled.split(/[^a-z0-9]+/).filter((word) => word.length > 2);
+  if (words.length === 0) return true;
+  const hits = words.filter((word) => asked.includes(word)).length;
+  return hits >= Math.ceil(words.length / 2);
+}
+
 function questionColumnTitle(question: CampaignQuestion): string {
   const titled = question.title?.trim();
-  if (titled) return titled;
-  return suggestQuestionTitle(question.prompt) || question.prompt;
+  if (titled && titleDescribesPrompt(titled, question.prompt)) return titled;
+  return suggestQuestionTitle(question.prompt) || question.prompt || titled || "Question";
 }
 
 function hiringFlowColumnTitle(step: ApiHiringFlowStep): string {
@@ -1003,15 +1017,22 @@ function gmailColumnsFromApi(columns: ApiGmailQuestionColumn[]): ReportColumn[] 
   }));
 }
 
+function reportQuestionTextMatches(
+  question: CampaignQuestion,
+  column: ReportColumn
+): boolean {
+  const qPrompt = normalizeQuestionText(question.prompt);
+  const cPrompt = normalizeQuestionText(column.prompt);
+  const cTitle = normalizeQuestionText(column.title);
+  return Boolean(qPrompt && (qPrompt === cPrompt || qPrompt === cTitle));
+}
+
 function shortReportColumnTitle(column: ReportColumn, questions: CampaignQuestion[]): string {
   const match =
-    questions.find((question) => question.id === column.id) ||
     questions.find(
       (question) =>
-        normalizeQuestionText(question.prompt) === normalizeQuestionText(column.prompt) ||
-        normalizeQuestionText(question.prompt) === normalizeQuestionText(column.title) ||
-        normalizeQuestionText(question.title) === normalizeQuestionText(column.title)
-    );
+        question.id === column.id && reportQuestionTextMatches(question, column)
+    ) || questions.find((question) => reportQuestionTextMatches(question, column));
   const raw = match
     ? questionColumnTitle(match)
     : suggestQuestionTitle(column.prompt || column.title) || column.title;

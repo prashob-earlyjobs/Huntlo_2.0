@@ -41,6 +41,20 @@ const approvePerm = requirePermission(
 
 export const screeningRouter = Router();
 
+screeningRouter.post(
+  '/jobs/:jobId/generate-topics',
+  ...orgAuth,
+  writePerm,
+  asyncHandler(async (req, res) => {
+    const jobId = String(req.params.jobId ?? '');
+    const data = await screeningService.generateVideoTopicsFromJob(
+      req.organizationId!,
+      jobId
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
 screeningRouter.get(
   '/',
   ...orgAuth,
@@ -157,6 +171,17 @@ screeningRouter.post(
       id,
       body.text
     );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+screeningRouter.post(
+  '/results/:id/interview-link',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = resultIdParamSchema.parse(req.params);
+    const data = await screeningService.getInterviewLink(req.organizationId!, id);
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );

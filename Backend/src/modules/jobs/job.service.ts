@@ -94,15 +94,29 @@ function mapSalaryVisibility(value: string | undefined): string {
 
 function mapSeniority(value: string | null | undefined): string | null {
   if (!value) return null;
-  const lower = value.trim().toLowerCase();
-  const allowed = ['intern', 'junior', 'mid', 'senior', 'lead', 'principal', 'director', 'executive'];
-  return allowed.includes(lower) ? lower : 'senior';
+  const lower = value.trim().toLowerCase().replace(/[-\s]+/g, '_');
+  const map: Record<string, string> = {
+    intern: 'intern',
+    junior: 'junior',
+    mid: 'mid',
+    middle: 'mid',
+    'mid_level': 'mid',
+    senior: 'senior',
+    staff: 'lead',
+    lead: 'lead',
+    principal: 'principal',
+    manager: 'director',
+    director: 'director',
+    executive: 'executive',
+  };
+  return map[lower] ?? 'senior';
 }
 
 function mapPriority(value: string | undefined): string {
   if (!value) return 'medium';
-  const lower = value.trim().toLowerCase();
-  if (['low', 'medium', 'high', 'urgent'].includes(lower)) return lower;
+  const lower = value.trim().toLowerCase().replace(/[-\s]+/g, '_');
+  if (lower === 'critical' || lower === 'urgent') return 'urgent';
+  if (['low', 'medium', 'high'].includes(lower)) return lower;
   return 'medium';
 }
 
@@ -171,8 +185,12 @@ function normalizeUpdateInput(input: UpdateJobInput) {
 
   if (input.title !== undefined) patch.title = input.title;
   if (input.department !== undefined) patch.department = input.department;
-  if (input.employmentType !== undefined) patch.employmentType = input.employmentType;
-  if (input.workplaceType !== undefined) patch.workplaceType = input.workplaceType;
+  if (input.employmentType !== undefined) {
+    patch.employmentType = mapEmploymentType(input.employmentType);
+  }
+  if (input.workplaceType !== undefined) {
+    patch.workplaceType = mapWorkplaceType(input.workplaceType);
+  }
   if (input.locations !== undefined) patch.locations = input.locations;
   else if (input.location !== undefined) patch.locations = input.location ? [input.location] : [];
   if (input.minimumExperience !== undefined || input.experienceMin !== undefined) {
@@ -183,7 +201,7 @@ function normalizeUpdateInput(input: UpdateJobInput) {
   }
   if (input.requiredSkills !== undefined) patch.requiredSkills = input.requiredSkills;
   if (input.preferredSkills !== undefined) patch.preferredSkills = input.preferredSkills;
-  if (input.seniority !== undefined) patch.seniority = input.seniority;
+  if (input.seniority !== undefined) patch.seniority = mapSeniority(input.seniority);
   if (input.preferredIndustries !== undefined) patch.preferredIndustries = input.preferredIndustries;
   else if (input.industryPreference !== undefined) {
     patch.preferredIndustries = input.industryPreference
@@ -208,7 +226,9 @@ function normalizeUpdateInput(input: UpdateJobInput) {
   if (input.salaryCurrency !== undefined || input.currency !== undefined) {
     patch.salaryCurrency = input.salaryCurrency ?? input.currency ?? 'INR';
   }
-  if (input.salaryVisibility !== undefined) patch.salaryVisibility = input.salaryVisibility;
+  if (input.salaryVisibility !== undefined) {
+    patch.salaryVisibility = mapSalaryVisibility(input.salaryVisibility);
+  }
   if (input.openings !== undefined) patch.openings = input.openings;
   if (input.recruiterIds !== undefined) patch.recruiterIds = toObjectIds(input.recruiterIds);
   if (input.hiringManagerId !== undefined) {
@@ -221,7 +241,7 @@ function normalizeUpdateInput(input: UpdateJobInput) {
     patch.screeningEnabled = input.screeningEnabled ?? input.aiScreeningEnabled ?? false;
   }
   if (input.assessmentEnabled !== undefined) patch.assessmentEnabled = input.assessmentEnabled;
-  if (input.priority !== undefined) patch.priority = input.priority;
+  if (input.priority !== undefined) patch.priority = mapPriority(input.priority);
   if (input.targetClosingDate !== undefined) {
     patch.targetClosingDate = input.targetClosingDate ? new Date(input.targetClosingDate) : null;
   }

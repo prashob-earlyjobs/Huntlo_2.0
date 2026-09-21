@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -13,6 +13,7 @@ import {
   type JobFormFieldKey,
 } from "@/components/jobs/job-form-validation";
 import { AutocompleteCombobox } from "@/components/search/filter-controls";
+import { CreatableStringSelect } from "@/components/shared/creatable-string-select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { FormSection } from "@/components/shared/form-section";
 import { PageHeader } from "@/components/shared/page-header";
@@ -42,6 +43,7 @@ import {
 import {
   getApiErrorMessage,
   jobsApi,
+  type JobEditableFields,
   type ParsedJobDescription,
 } from "@/lib/api";
 import { autocompleteCandidateFilter } from "@/lib/api/candidate-search";
@@ -233,6 +235,73 @@ function applyParsedJd(
         previous.priority as (typeof JOB_PRIORITIES)[number]
       ) || previous.priority,
     tags: parsed.tags.length > 0 ? parsed.tags.join(", ") : previous.tags,
+  };
+}
+
+function jobToFormState(job: JobEditableFields): JobFormState {
+  return {
+    ...INITIAL_STATE,
+    title: job.title,
+    department:
+      pickOption(job.department, JOB_DEPARTMENTS, "") || job.department || "",
+    employmentType:
+      pickOption(
+        job.employmentType,
+        EMPLOYMENT_TYPES,
+        INITIAL_STATE.employmentType as (typeof EMPLOYMENT_TYPES)[number]
+      ) || INITIAL_STATE.employmentType,
+    workplaceType:
+      pickOption(
+        job.workplaceType,
+        WORKPLACE_TYPES,
+        INITIAL_STATE.workplaceType as (typeof WORKPLACE_TYPES)[number]
+      ) || INITIAL_STATE.workplaceType,
+    openings: String(Math.max(1, job.openings || 1)),
+    location: job.location,
+    experienceMin: String(job.experienceMin ?? ""),
+    experienceMax: String(job.experienceMax ?? ""),
+    requiredSkills: normalizeSkillList(job.requiredSkills),
+    preferredSkills: normalizeSkillList(job.preferredSkills),
+    seniority:
+      pickOption(
+        job.seniority,
+        SENIORITY_LEVELS,
+        INITIAL_STATE.seniority as (typeof SENIORITY_LEVELS)[number]
+      ) || INITIAL_STATE.seniority,
+    industryPreference: job.industryPreference,
+    education: job.education,
+    description: job.description,
+    responsibilities: job.responsibilities,
+    requirements: job.requirements,
+    benefits: job.benefits,
+    minSalary: job.minSalary != null ? String(job.minSalary) : "",
+    maxSalary: job.maxSalary != null ? String(job.maxSalary) : "",
+    currency:
+      pickOption(
+        job.currency,
+        SALARY_CURRENCIES,
+        INITIAL_STATE.currency as (typeof SALARY_CURRENCIES)[number]
+      ) || INITIAL_STATE.currency,
+    salaryVisibility:
+      pickOption(
+        job.salaryVisibility,
+        SALARY_VISIBILITY,
+        INITIAL_STATE.salaryVisibility as (typeof SALARY_VISIBILITY)[number]
+      ) || INITIAL_STATE.salaryVisibility,
+    recruiter: job.recruiter || INITIAL_STATE.recruiter,
+    hiringManager: job.hiringManager,
+    interviewPanel: job.interviewPanel,
+    aiScreeningEnabled: job.aiScreeningEnabled,
+    assessmentEnabled: job.assessmentEnabled,
+    priority:
+      pickOption(
+        job.priority,
+        JOB_PRIORITIES,
+        INITIAL_STATE.priority as (typeof JOB_PRIORITIES)[number]
+      ) || INITIAL_STATE.priority,
+    targetClosingDate: job.targetClosingDate,
+    tags: job.tags.join(", "),
+    internalNotes: job.internalNotes,
   };
 }
 
@@ -439,8 +508,12 @@ function SkillChips({
   );
 }
 
-export function JobForm() {
+export function JobForm({ jobId: jobIdProp }: { jobId?: string } = {}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editJobId = (jobIdProp || searchParams.get("jobId") || "").trim();
+  const isEdit = Boolean(editJobId);
+
   const [form, setForm] = useState<JobFormState>(INITIAL_STATE);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touchedPublish, setTouchedPublish] = useState(false);
@@ -450,6 +523,41 @@ export function JobForm() {
   const [parsingJd, setParsingJd] = useState(false);
   const [jdError, setJdError] = useState<string | null>(null);
   const [jdSummary, setJdSummary] = useState<string | null>(null);
+  const [loadingJob, setLoadingJob] = useState(isEdit);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editJobId) {
+      setLoadingJob(false);
+      setLoadError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingJob(true);
+    setLoadError(null);
+    void jobsApi
+      .getForEdit(editJobId)
+      .then((job) => {
+        if (cancelled) return;
+        if (!job) {
+          setLoadError("This job could not be found.");
+          return;
+        }
+        setForm(jobToFormState(job));
+        setErrors({});
+        setTouchedPublish(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoadError(getApiErrorMessage(error, "Unable to load job for editing."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingJob(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editJobId]);
 
   function clearFieldError(key: FieldKey) {
     setErrors((previous) => {
@@ -544,7 +652,7 @@ export function JobForm() {
     setTouchedPublish(false);
     setSaving(mode);
     try {
-      const created = await jobsApi.create({
+      const payload = {
         title: form.title.trim(),
         department: form.department || null,
         employmentType: form.employmentType,
@@ -575,17 +683,21 @@ export function JobForm() {
           : [],
         internalNotes: form.internalNotes || null,
         publish: mode === "publish" || mode === "source",
-      });
+      };
+
+      const saved = isEdit
+        ? await jobsApi.update(editJobId, payload)
+        : await jobsApi.create(payload);
 
       if (mode === "source") {
-        router.push(searchPath({ jobId: created.id }));
+        router.push(searchPath({ jobId: saved.id }));
         return;
       }
-      router.push(mode === "draft" ? ROUTES.jobs : jobDetailPath(created.id));
+      router.push(mode === "draft" ? ROUTES.jobs : jobDetailPath(saved.id));
     } catch (error) {
       setTouchedPublish(true);
       setErrors({
-        title: getApiErrorMessage(error, "Unable to save job."),
+        title: getApiErrorMessage(error, isEdit ? "Unable to update job." : "Unable to save job."),
       });
       document
         .getElementById("job-basic-details")
@@ -595,11 +707,37 @@ export function JobForm() {
     }
   }
 
+  if (loadingJob) {
+    return <p className="text-sm text-muted-foreground">Loading job…</p>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-3">
+        <p role="alert" className="text-sm text-destructive">
+          {loadError}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => router.push(ROUTES.jobs)}
+        >
+          Back to jobs
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <>
       <PageHeader
-        title="Create Job"
-        description="Define the hiring requirement once — then reuse it across search, outreach, screening and interviews."
+        title={isEdit ? "Edit Job" : "Create Job"}
+        description={
+          isEdit
+            ? "Update this hiring requirement — changes apply across search, outreach, screening and interviews."
+            : "Define the hiring requirement once — then reuse it across search, outreach, screening and interviews."
+        }
         actions={
           <div className="flex items-center gap-2">
             <ConfirmDialog
@@ -608,11 +746,17 @@ export function JobForm() {
                   Cancel
                 </Button>
               }
-              title="Discard this job?"
-              description="Unsaved changes will be lost. You can always create the requirement again later."
+              title={isEdit ? "Discard changes?" : "Discard this job?"}
+              description={
+                isEdit
+                  ? "Unsaved edits will be lost. The existing job will stay unchanged."
+                  : "Unsaved changes will be lost. You can always create the requirement again later."
+              }
               confirmLabel="Discard"
               destructive
-              onConfirm={() => router.push(ROUTES.jobs)}
+              onConfirm={() =>
+                router.push(isEdit ? jobDetailPath(editJobId) : ROUTES.jobs)
+              }
             />
             <Button
               size="sm"
@@ -620,14 +764,24 @@ export function JobForm() {
               disabled={saving !== null}
               onClick={requestPublish}
             >
-              {saving === "publish" ? "Publishing…" : "Publish Job"}
+              {saving === "publish"
+                ? isEdit
+                  ? "Saving…"
+                  : "Publishing…"
+                : isEdit
+                  ? "Save changes"
+                  : "Publish Job"}
             </Button>
             <ConfirmDialog
               open={publishConfirmOpen}
               onOpenChange={setPublishConfirmOpen}
-              title="Publish this job?"
-              description="Publishing makes the requirement available for sourcing, outreach and scheduling across your workspace."
-              confirmLabel="Publish Job"
+              title={isEdit ? "Save and publish this job?" : "Publish this job?"}
+              description={
+                isEdit
+                  ? "Your updates will be saved and the job will stay available for sourcing, outreach and scheduling."
+                  : "Publishing makes the requirement available for sourcing, outreach and scheduling across your workspace."
+              }
+              confirmLabel={isEdit ? "Save changes" : "Publish Job"}
               onConfirm={() => void persist("publish")}
             />
           </div>
@@ -639,7 +793,7 @@ export function JobForm() {
           role="alert"
           className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          Fix the highlighted fields before publishing.
+          Fix the highlighted fields before {isEdit ? "saving" : "publishing"}.
         </div>
       ) : null}
 
@@ -729,25 +883,14 @@ export function JobForm() {
               required
               error={errors.department}
             >
-              <Select
-                value={form.department || null}
-                onValueChange={(value) => update("department", value ?? "")}
-              >
-                <SelectTrigger
-                  id="department"
-                  className="w-full"
-                  aria-invalid={Boolean(errors.department)}
-                >
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {JOB_DEPARTMENTS.map((department) => (
-                    <SelectItem key={department} value={department}>
-                      {department}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CreatableStringSelect
+                id="department"
+                value={form.department}
+                onChange={(value) => update("department", value)}
+                options={JOB_DEPARTMENTS}
+                placeholder="Select or type department…"
+                invalid={Boolean(errors.department)}
+              />
             </Field>
             <Field id="employmentType" label="Employment type">
               <Select
@@ -1258,21 +1401,23 @@ export function JobForm() {
               Back to Jobs
             </Button>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                type="button"
-                disabled={saving !== null}
-                onClick={() => persist("draft")}
-              >
-                Save Draft
-              </Button>
+              {!isEdit ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  disabled={saving !== null}
+                  onClick={() => persist("draft")}
+                >
+                  Save Draft
+                </Button>
+              ) : null}
               <Button
                 size="sm"
                 type="submit"
                 disabled={saving !== null}
               >
-                Publish Job
+                {isEdit ? "Save changes" : "Publish Job"}
               </Button>
               <Button
                 size="sm"
@@ -1281,7 +1426,7 @@ export function JobForm() {
                 disabled={saving !== null}
                 onClick={() => persist("source")}
               >
-                Save and Source Candidates
+                {isEdit ? "Save and Source Candidates" : "Save and Source Candidates"}
               </Button>
             </div>
           </div>

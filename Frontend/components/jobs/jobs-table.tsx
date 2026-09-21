@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { JobListItem } from "@/lib/mock-jobs";
-import { ROUTES, jobDetailPath } from "@/lib/routes";
+import { ROUTES, jobDetailPath, jobEditPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const HEAD =
@@ -181,7 +181,7 @@ function JobRowActions({ job }: { job: JobListItem }) {
           <Briefcase aria-hidden />
           View job
         </DropdownMenuItem>
-        <DropdownMenuItem render={<Link href={`${jobDetailPath(job.id)}?edit=1`} />}>
+        <DropdownMenuItem render={<Link href={jobEditPath(job.id)} />}>
           <PenLine aria-hidden />
           Edit
         </DropdownMenuItem>

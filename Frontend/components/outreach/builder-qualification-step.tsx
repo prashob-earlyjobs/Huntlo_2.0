@@ -264,11 +264,15 @@ export function QualificationStep({
                         value={question.text}
                         onChange={(event) => {
                           const text = event.target.value;
+                          const previousAuto = suggestQuestionTitle(question.text);
+                          const nextAuto = suggestQuestionTitle(text);
+                          const titleIsCustom =
+                            Boolean(question.title.trim()) &&
+                            question.title.trim().toLowerCase() !==
+                              previousAuto.trim().toLowerCase();
                           updateQuestion(question.id, {
                             text,
-                            ...(!question.title.trim()
-                              ? { title: suggestQuestionTitle(text) }
-                              : {}),
+                            ...(titleIsCustom ? {} : { title: nextAuto }),
                           });
                         }}
                         placeholder="Ask a screening question…"

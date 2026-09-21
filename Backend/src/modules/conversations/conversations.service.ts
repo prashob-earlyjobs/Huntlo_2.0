@@ -144,6 +144,11 @@ const QUAL_DISPLAY: Record<ThreadQualificationStatus, string> = {
   skipped: 'Pending',
 };
 
+/**
+ * Chronological event order for thread bubbles.
+ * Primary: sentAt ascending. Tie-break: id so equal timestamps never reshuffle.
+ * Missing/invalid sentAt sorts last.
+ */
 function compareEventsBySentAt(
   a: { id?: string; sentAt?: string | null },
   b: { id?: string; sentAt?: string | null }
@@ -381,11 +386,7 @@ function mergeSchedulingInviteIntoEvents<
   } as unknown as T;
 
   return dedupeSchedulingInviteEvents(
-    [...events, inviteEvent].sort((a, b) => {
-      const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
-      const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
-      return left - right;
-    })
+    sortEventsBySentAt([...events, inviteEvent])
   );
 }
 
@@ -744,11 +745,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     const otherEvents = events.filter((event) =>
       shouldKeepLocalEventAlongsideHcg(event, 'Email')
     );
-    events = [...otherEvents, ...emailEvents].sort((a, b) => {
-      const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
-      const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
-      return left - right;
-    }) as typeof events;
+    events = sortEventsBySentAt([...otherEvents, ...emailEvents]) as typeof events;
     const status =
       hcgEmail.kind === 'zoho'
         ? hcgZohoStatus(hcgEmail.doc)
@@ -790,11 +787,7 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       const otherEvents = events.filter((event) =>
         shouldKeepLocalEventAlongsideHcg(event, 'WhatsApp')
       );
-      events = [...otherEvents, ...waEvents].sort((a, b) => {
-        const left = a.sentAt ? Date.parse(String(a.sentAt)) : 0;
-        const right = b.sentAt ? Date.parse(String(b.sentAt)) : 0;
-        return left - right;
-      }) as typeof events;
+      events = sortEventsBySentAt([...otherEvents, ...waEvents]) as typeof events;
       const status = hcgWhatsappStatus(hcgWa);
       replyStatus = status.replyStatus;
       pipelineStatus = status.pipelineStatus;
