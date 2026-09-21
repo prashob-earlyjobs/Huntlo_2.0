@@ -84,6 +84,7 @@ import {
   overlayHcgWhatsappOnListItems,
 } from './hcg-whatsapp-overlay.js';
 import {
+  findHcgHunarCommunication,
   findHcgHunarCommunicationByCampaignIds,
   hcgHunarLastPreview,
   hcgHunarOverallAiStatus,
@@ -92,6 +93,7 @@ import {
   overlayHcgHunarOnListItems,
 } from './hcg-hunar-overlay.js';
 import {
+  findHcgZyvkaCommunication,
   findHcgZyvkaCommunicationByCampaignIds,
   hcgZyvkaLastPreview,
   hcgZyvkaOverallAiStatus,
@@ -453,65 +455,6 @@ function parseVoiceSummaryMeta(
   };
 }
 
-/** Gateway stores screening dials under Screening._id, not the outreach campaign id. */
-async function collectHcgVoiceCampaignIds(input: {
-  campaignId?: string | null;
-  screeningId?: string | null;
-}): Promise<string[]> {
-  const ids = new Set<string>();
-  const campaignId = String(input.campaignId || '').trim();
-  const screeningId = String(input.screeningId || '').trim();
-  if (campaignId) ids.add(campaignId);
-  if (screeningId) ids.add(screeningId);
-  if (!campaignId) return [...ids];
-  try {
-    const { ScreeningModel } = await import('../screening/screening.model.js');
-    const linked = await ScreeningModel.find({
-      campaignId,
-      deletedAt: null,
-    })
-      .select('_id')
-      .lean();
-    for (const row of linked) ids.add(String(row._id));
-  } catch {
-    // Fall back to campaign + enrollment screening ids only.
-  }
-  return [...ids];
-}
-
-function mergeHcgVoiceOverlay<
-  T extends {
-    channel?: string;
-    voiceSummary?: {
-      recordingUrl?: string | null;
-      resultId?: string | null;
-      screeningId?: string | null;
-    };
-  },
->(events: T[], voiceEvents: T[]): T[] {
-  const otherEvents = events.filter((event) => event.channel !== 'AI Voice');
-  const localSummary = events.find(
-    (event) => event.channel === 'AI Voice' && event.voiceSummary
-  )?.voiceSummary;
-  const enriched = voiceEvents.map((event) => {
-    if (!event.voiceSummary) return event;
-    const recordingUrl =
-      String(event.voiceSummary.recordingUrl || '').trim() ||
-      String(localSummary?.recordingUrl || '').trim() ||
-      null;
-    return {
-      ...event,
-      voiceSummary: {
-        ...event.voiceSummary,
-        recordingUrl,
-        resultId: event.voiceSummary.resultId || localSummary?.resultId || null,
-        screeningId: event.voiceSummary.screeningId || localSummary?.screeningId || null,
-      },
-    };
-  });
-  return [...otherEvents, ...enriched];
-}
-
 /** Fill leftover WhatsApp {{1}}/{{2}} tokens for inbox display. */
 function resolveDisplayBody(
   bodyText: string,
@@ -760,16 +703,14 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
     if (preview.lastTime !== '—') lastTime = preview.lastTime;
     overallAIDescription =
       String(hcgEmail.doc.overallAIDescription || '').trim() || null;
-    if (thread.campaignId && hcgEmail.doc.overallAIStatus) {
+    if (thread.campaignId && candidate?.email && hcgEmail.doc.overallAIStatus) {
       const source = hcgEmail.kind === 'zoho' ? 'zoho' : 'gmail';
-      const hcgEmailAddress = String(hcgEmail.doc.emailAddress || '').trim();
       void import('../huntlo-360/hcg-qualification-transition.js')
         .then(({ applyHuntlo360FromHcgOverallAiStatus }) =>
           applyHuntlo360FromHcgOverallAiStatus({
             campaignId: String(thread.campaignId),
             overallAiStatus: String(hcgEmail.doc.overallAIStatus),
-            email: hcgEmailAddress || String(candidate?.email || ''),
-            enrollmentId: thread.enrollmentId ? String(thread.enrollmentId) : null,
+            email: String(candidate.email),
             source,
           })
         )
@@ -816,10 +757,31 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
       }
   }
 
-  const hcgVoiceCampaignIds = await collectHcgVoiceCampaignIds({
-    campaignId: thread.campaignId ? String(thread.campaignId) : null,
-    screeningId: enrollmentEarly?.screeningState?.screeningId || null,
-  });
+  const hcgVoiceCampaignIds: string[] = [];
+  if (thread.campaignId) {
+    hcgVoiceCampaignIds.push(String(thread.campaignId));
+    // Only for Huntlo 360: screening dials store Screening._id as gateway campaign_id.
+    // Normal outreach campaigns keep the prior lookup (outreach campaignId only).
+    const isHuntlo360 = campaign?.sourceModule === 'huntlo360';
+    if (isHuntlo360) {
+      try {
+        const { ScreeningModel } = await import('../screening/screening.model.js');
+        const linked = await ScreeningModel.find({
+          campaignId: thread.campaignId,
+          deletedAt: null,
+          $or: [{ sourceModule: 'huntlo360' }, { workflowId: { $ne: null } }],
+        })
+          .select('_id')
+          .lean();
+        for (const row of linked) hcgVoiceCampaignIds.push(String(row._id));
+      } catch {
+        // ignore — fall back to outreach campaign id only
+      }
+      if (enrollmentEarly?.screeningState?.screeningId) {
+        hcgVoiceCampaignIds.push(String(enrollmentEarly.screeningState.screeningId));
+      }
+    }
+  }
 
   const hcgHunar = await findHcgHunarCommunicationByCampaignIds(
     hcgVoiceCampaignIds,
@@ -834,9 +796,8 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   const hcgVoice = hcgHunar || hcgZyvka;
   if (hcgVoice) {
     const voiceEvents = hcgHunar ? hcgHunarToEvents(hcgHunar) : hcgZyvkaToEvents(hcgZyvka!);
-    events = sortEventsBySentAt(
-      mergeHcgVoiceOverlay(events, voiceEvents as typeof events)
-    ) as typeof events;
+    const otherEvents = events.filter((event) => event.channel !== 'AI Voice');
+    events = sortEventsBySentAt([...otherEvents, ...voiceEvents]) as typeof events;
     if (!hcgEmail && !hcgWa?.messages?.length) {
       const status = hcgHunar ? hcgHunarStatus(hcgHunar) : hcgZyvkaStatus(hcgZyvka!);
       replyStatus = status.replyStatus;
@@ -1210,15 +1171,29 @@ export const conversationsService = {
       };
     }
 
-    const enrollment = thread.enrollmentId
-      ? await OutreachEnrollmentModel.findById(thread.enrollmentId)
-          .select('screeningState')
-          .lean()
-      : null;
-    const voiceCampaignIds = await collectHcgVoiceCampaignIds({
-      campaignId: thread.campaignId ? String(thread.campaignId) : null,
-      screeningId: enrollment?.screeningState?.screeningId || null,
-    });
+    const voiceCampaignIds: string[] = [];
+    if (thread.campaignId) {
+      voiceCampaignIds.push(String(thread.campaignId));
+      const campaignMeta = await OutreachCampaignModel.findById(thread.campaignId)
+        .select('sourceModule')
+        .lean();
+      // Huntlo 360 only — normal campaigns keep outreach campaignId lookup unchanged.
+      if (campaignMeta?.sourceModule === 'huntlo360') {
+        try {
+          const { ScreeningModel } = await import('../screening/screening.model.js');
+          const linked = await ScreeningModel.find({
+            campaignId: thread.campaignId,
+            deletedAt: null,
+            $or: [{ sourceModule: 'huntlo360' }, { workflowId: { $ne: null } }],
+          })
+            .select('_id')
+            .lean();
+          for (const row of linked) voiceCampaignIds.push(String(row._id));
+        } catch {
+          // ignore
+        }
+      }
+    }
 
     const hcgHunar = await findHcgHunarCommunicationByCampaignIds(
       voiceCampaignIds,
@@ -1931,11 +1906,7 @@ export const conversationsService = {
                 ? 'All qualification questions were answered. Recruiter takeover is enabled.'
                 : 'All qualification questions were answered successfully.',
             };
-            if (
-              campaign.qualificationConfig.autoScreening &&
-              !handoff &&
-              !campaign.schedulingConfig?.enabled
-            ) {
+            if (campaign.qualificationConfig.autoScreening && !handoff) {
               try {
                 const { screeningId } = await enrollQualifiedCandidateInCampaignScreening({
                   campaign,

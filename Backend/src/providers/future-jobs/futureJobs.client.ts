@@ -5,7 +5,6 @@ import {
   shouldUseFutureJobsMock,
 } from './futureJobs.auth.js';
 import { appendFutureJobsCurl, logFutureJobsCurlResponse } from './futureJobs.curl-log.js';
-import { recordFutureJobsOutboundDebug } from './futureJobs.outbound-debug.js';
 import {
   createFutureJobsCircuitOpenError,
   createFutureJobsUpstreamError,
@@ -376,19 +375,6 @@ async function futureJobsHttpRequest(options: {
         response: data,
       });
 
-      recordFutureJobsOutboundDebug({
-        operation: fjOperation,
-        method,
-        url,
-        body: hasBody ? body : null,
-        response: data,
-        status: res.status,
-        statusText: res.statusText,
-        ok: res.ok,
-        elapsedMs,
-        attempt: attempt + 1,
-      });
-
       if (!res.ok) {
         const noMoreProfiles =
           res.status === 400 &&
@@ -537,18 +523,6 @@ async function futureJobsHttpRequest(options: {
         },
         `FJ ← ${fjOperation} network error`
       );
-      recordFutureJobsOutboundDebug({
-        operation: fjOperation,
-        method,
-        url,
-        body: hasBody ? body : null,
-        response: null,
-        status: null,
-        ok: false,
-        elapsedMs: Date.now() - started,
-        attempt: attempt + 1,
-        error: err instanceof Error ? err.message : String(err),
-      });
       throw createFutureJobsUpstreamError({
         details: {
           networkError: err instanceof Error ? err.message : String(err),

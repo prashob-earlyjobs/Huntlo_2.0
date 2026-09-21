@@ -22,9 +22,6 @@ import { ScreeningModel } from '../screening/screening.model.js';
 import { ScreeningCandidateModel } from '../screening/screening-candidate.model.js';
 import { Huntlo360WorkflowModel } from './workflow.model.js';
 import { applyWorkflowTransition } from './transitions.js';
-import { enrollQualifiedCandidateInCampaignScreening } from '../outreach/outreach-auto-screening.service.js';
-import { shouldAutoStartOutreachScreeningFromHcg } from '../outreach/gateway-auto-reply.js';
-import { emitOutreachEnrollmentUpdated } from '../../realtime/events.js';
 
 const PASS_STATUSES = new Set(['qualified', 'shortlisted']);
 const FAIL_STATUSES = new Set(['not_qualified', 'rejected']);
@@ -109,51 +106,26 @@ function workflowAutoInvitesAfterScreening(workflow: {
 
 async function findEnrollmentForCampaignEmail(campaignId: string, email: string) {
   const normalized = normalizeEmail(email);
-  if (!normalized || !normalized.includes('@')) return null;
+  if (!normalized) return null;
 
   const campaign = await OutreachCampaignModel.findById(campaignId)
     .select('organizationId')
     .lean();
   if (!campaign?.organizationId) return null;
 
-  // Case-insensitive match — HCG mailbox casing often differs from SavedCandidate.
-  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const candidate = await SavedCandidateModel.findOne({
     organizationId: campaign.organizationId,
     deletedAt: null,
-    email: { $regex: `^${escaped}$`, $options: 'i' },
+    email: normalized,
   })
     .select('_id')
     .lean();
-  if (candidate) {
-    const byCandidate = await OutreachEnrollmentModel.findOne({
-      campaignId,
-      candidateId: candidate._id,
-    });
-    if (byCandidate) return byCandidate;
-  }
+  if (!candidate) return null;
 
-  // Fallback: scan campaign enrollments when candidate email formatting differs.
-  const enrollments = await OutreachEnrollmentModel.find({ campaignId })
-    .select('_id candidateId')
-    .limit(500)
-    .lean();
-  if (!enrollments.length) return null;
-
-  const enrolledCandidates = await SavedCandidateModel.find({
-    _id: { $in: enrollments.map((row) => row.candidateId) },
-    deletedAt: null,
-  })
-    .select('_id email')
-    .lean();
-  const byId = new Map(enrolledCandidates.map((row) => [String(row._id), row]));
-  for (const enrollment of enrollments) {
-    const row = byId.get(String(enrollment.candidateId));
-    if (!row || normalizeEmail(row.email) !== normalized) continue;
-    return OutreachEnrollmentModel.findById(enrollment._id);
-  }
-
-  return null;
+  return OutreachEnrollmentModel.findOne({
+    campaignId,
+    candidateId: candidate._id,
+  });
 }
 
 async function findEnrollmentForCampaignPhone(campaignId: string, phone: string) {
@@ -235,37 +207,8 @@ export type ApplyHuntlo360FromHcgInput = {
   overallAiStatus: string;
   email?: string | null;
   phone?: string | null;
-  /** Prefer when known (conversation thread catch-up) — skips email/phone lookup. */
-  enrollmentId?: string | null;
   source: 'gmail' | 'zoho' | 'whatsapp' | 'hunar' | 'zyvkay' | 'sync';
 };
-
-/** Email gateway sometimes leaves overallAIStatus as interested after all Q&A pass. */
-async function hcgEmailQuestionsAllPassed(
-  campaignId: string,
-  email: string
-): Promise<boolean> {
-  const normalized = normalizeEmail(email);
-  if (!normalized) return false;
-
-  const { findHcgGmailConversation } = await import(
-    '../conversations/hcg-gmail-overlay.js'
-  );
-  const { findHcgZohoConversation } = await import(
-    '../conversations/hcg-zoho-overlay.js'
-  );
-  const gmail = await findHcgGmailConversation(campaignId, normalized);
-  const zoho = gmail ? null : await findHcgZohoConversation(campaignId, normalized);
-  const questions = Array.isArray(gmail?.questions)
-    ? gmail.questions
-    : Array.isArray(zoho?.questions)
-      ? zoho.questions
-      : [];
-  if (!questions.length) return false;
-  return questions.every(
-    (q) => String((q as { status?: string }).status || '').toLowerCase() === 'passed'
-  );
-}
 
 /**
  * Screening dials store Screening._id as HCG campaignId. When gateway writes
@@ -396,21 +339,7 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
   const fromScreening = await tryApplyHuntlo360FromHcgScreeningCampaign(input);
   if (fromScreening) return fromScreening;
 
-  let event = hcgStatusToQualificationEvent(input.overallAiStatus);
-  const emailEarly = normalizeEmail(input.email);
-  // Email Q&A can finish while overallAIStatus stays in_qualification / interested.
-  if (
-    !event &&
-    (input.source === 'gmail' || input.source === 'zoho') &&
-    emailEarly &&
-    String(input.campaignId || '').trim()
-  ) {
-    const questionsPassed = await hcgEmailQuestionsAllPassed(
-      String(input.campaignId).trim(),
-      emailEarly
-    );
-    if (questionsPassed) event = 'qualification_pass';
-  }
+  const event = hcgStatusToQualificationEvent(input.overallAiStatus);
   if (!event) {
     return {
       applied: false,
@@ -426,16 +355,7 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
 
   const email = normalizeEmail(input.email);
   const phone = String(input.phone || '').trim();
-  let enrollment = null;
-  if (input.enrollmentId && mongoose.Types.ObjectId.isValid(input.enrollmentId)) {
-    enrollment = await OutreachEnrollmentModel.findOne({
-      _id: input.enrollmentId,
-      campaignId,
-    });
-  }
-  if (!enrollment && email) {
-    enrollment = await findEnrollmentForCampaignEmail(campaignId, email);
-  }
+  let enrollment = email ? await findEnrollmentForCampaignEmail(campaignId, email) : null;
   if (!enrollment && phone) {
     enrollment = await findEnrollmentForCampaignPhone(campaignId, phone);
   }
@@ -448,7 +368,6 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
         overallAiStatus: input.overallAiStatus,
         hasEmail: Boolean(email),
         hasPhone: Boolean(phone),
-        hasEnrollmentId: Boolean(input.enrollmentId),
       },
       'HCG qualification skipped — enrollment not found'
     );
@@ -477,76 +396,6 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
   queueAtsEnrollmentSync(String(enrollment._id));
 
   if (campaign.sourceModule !== 'huntlo360') {
-    const alreadyScreening = Boolean(enrollment.screeningState?.screeningId);
-    const statusAllowsScreening = shouldAutoStartOutreachScreeningFromHcg({
-      sourceModule: campaign.sourceModule,
-      autoScreening: campaign.qualificationConfig?.autoScreening,
-      autoCalendly: campaign.schedulingConfig?.enabled,
-      overallAiStatus: input.overallAiStatus,
-    });
-    // Gmail/Zoho may keep overallAIStatus=interested after every question passed.
-    let emailQuestionsPassed = false;
-    if (
-      !statusAllowsScreening &&
-      !alreadyScreening &&
-      Boolean(campaign.qualificationConfig?.autoScreening) &&
-      !campaign.schedulingConfig?.enabled &&
-      (input.source === 'gmail' || input.source === 'zoho') &&
-      email &&
-      event === 'qualification_pass'
-    ) {
-      emailQuestionsPassed = await hcgEmailQuestionsAllPassed(campaignId, email);
-    }
-    if (!alreadyScreening && (statusAllowsScreening || emailQuestionsPassed)) {
-      try {
-        const { screeningId } = await enrollQualifiedCandidateInCampaignScreening({
-          campaign,
-          enrollment,
-        });
-        enrollment.screeningState = {
-          status: 'scheduled',
-          screeningId,
-          decision: null,
-        };
-        await enrollment.save();
-        emitOutreachEnrollmentUpdated({
-          organizationId: String(campaign.organizationId),
-          campaignId,
-          candidateId: String(enrollment.candidateId),
-          enrollmentId: String(enrollment._id),
-          status: enrollment.status,
-          currentStepIndex: enrollment.currentStepIndex,
-          nextSendAt: enrollment.nextActionAt?.toISOString() ?? null,
-        });
-        log().info(
-          {
-            campaignId,
-            enrollmentId: String(enrollment._id),
-            screeningId,
-            source: input.source,
-            viaEmailQuestions: emailQuestionsPassed && !statusAllowsScreening,
-          },
-          'Auto-started outreach AI screening after gateway qualification'
-        );
-      } catch (error) {
-        log().warn(
-          {
-            err: error,
-            campaignId,
-            enrollmentId: String(enrollment._id),
-            source: input.source,
-          },
-          'Auto enroll in campaign screening from HCG qualification failed'
-        );
-        enrollment.screeningState = {
-          ...enrollment.screeningState,
-          status: 'scheduled',
-          screeningId: enrollment.screeningState?.screeningId ?? null,
-          decision: enrollment.screeningState?.decision ?? null,
-        };
-        await enrollment.save().catch(() => undefined);
-      }
-    }
     return { applied: true, reason: 'ats_sync' };
   }
 

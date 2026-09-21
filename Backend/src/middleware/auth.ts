@@ -16,7 +16,6 @@ import {
   type OrganizationRole,
 } from '../modules/organizations/permissions.js';
 import { assertTrialNotExpired } from '../modules/plans/trial-access.js';
-import { bindFutureJobsActor } from '../providers/future-jobs/futureJobs.actor-context.js';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -83,7 +82,6 @@ export const requireAuth = asyncHandler(async (req: Request, _res: Response, nex
   req.auth = payload;
   req.userId = payload.sub;
   req.organizationId = payload.orgId;
-  bindFutureJobsActor(req);
   next();
 });
 
@@ -101,7 +99,6 @@ export const optionalAuth = asyncHandler(async (req: Request, _res: Response, ne
     req.auth = payload;
     req.userId = payload.sub;
     req.organizationId = payload.orgId;
-    bindFutureJobsActor(req);
   } catch {
     // ignore invalid optional auth
   }

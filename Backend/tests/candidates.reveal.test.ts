@@ -22,7 +22,6 @@ import {
   extractRevealValues,
   FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE,
   FUTURE_JOBS_PROFILE_NOT_FOUND_CODE,
-  getFutureJobsProvider,
   linkedinUrlsForContactReveal,
   linkedinUrlsFromScoutLookup,
   normalizeFjProfileDoc,
@@ -487,10 +486,7 @@ describe('Candidates reveal API', () => {
   it('reveals /wl/search candidates via scout-people instead of sourcing-session', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent);
     const memberId = 'ACoAAClWlSearchRevealId';
-    const memberUrl = `https://www.linkedin.com/in/${memberId}`;
     const vanity = 'https://www.linkedin.com/in/aisha-rahman-search';
-    // Profile already scouted (People Scout / prior lookup).
-    await getFutureJobsProvider().scoutPeopleLookup({ linkedin_url: memberUrl });
     const { candidate } = await seedCandidate(organizationId, userId, {
       externalSessionId: `wl-search-${Date.now()}`,
       linkedinUrl: vanity,
@@ -505,6 +501,16 @@ describe('Candidates reveal API', () => {
       },
     });
 
+    const email = await agent
+      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', 'reveal-wl-search-email-01')
+      .expect(200);
+
+    expect(email.body.data.found).toBe(true);
+    expect(email.body.data.values.length).toBeGreaterThan(0);
+    expect(email.body.data.values[0]).toMatch(/@/);
+
     const phone = await agent
       .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/mobile`)
       .set('Authorization', `Bearer ${token}`)
@@ -515,46 +521,17 @@ describe('Candidates reveal API', () => {
     expect(phone.body.data.values.length).toBeGreaterThan(0);
   });
 
-  it('phone reveal uses reveal-contacts with existing linkedin url (no re-lookup)', async () => {
+  it('scouts US vanity URLs via lookup before reveal-contacts', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent, '-us');
-    const memberUrl =
-      'https://www.linkedin.com/in/ACoAAMockJaneDoeSeattle01';
-    await getFutureJobsProvider().scoutPeopleLookup({ linkedin_url: memberUrl });
+    const vanity = 'https://www.linkedin.com/in/jane-doe-seattle';
     const { candidate } = await seedCandidate(organizationId, userId, {
       externalSessionId: `wl-search-${Date.now()}`,
-      linkedinUrl: memberUrl,
-      externalCandidateId: 'ACoAAMockJaneDoeSeattle01',
+      linkedinUrl: vanity,
+      externalCandidateId: 'jane-doe-seattle',
       rawDoc: {
         profile: {
-          linkedin_profile_url: memberUrl,
-        },
-      },
-    });
-
-    const phone = await agent
-      .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/mobile`)
-      .set('Authorization', `Bearer ${token}`)
-      .set('Idempotency-Key', 'reveal-phone-direct-01')
-      .expect(200);
-
-    expect(phone.body.data.found).toBe(true);
-    expect(phone.body.data.values.length).toBeGreaterThan(0);
-  });
-
-  it('email reveal uses reveal-contacts with existing linkedin url (no re-lookup)', async () => {
-    const { token, organizationId, userId } = await registerAndAuth(agent, '-email-direct');
-    const memberUrl =
-      'https://www.linkedin.com/in/ACoAADXNqp4BZZzDXhJmaTSQGzhLGgxx3NKtFG8';
-    // Simulate People Scout already having looked up the profile.
-    await getFutureJobsProvider().scoutPeopleLookup({ linkedin_url: memberUrl });
-
-    const { candidate } = await seedCandidate(organizationId, userId, {
-      externalSessionId: `wl-search-${Date.now()}`,
-      linkedinUrl: memberUrl,
-      externalCandidateId: 'ACoAADXNqp4BZZzDXhJmaTSQGzhLGgxx3NKtFG8',
-      rawDoc: {
-        profile: {
-          linkedin_profile_url: memberUrl,
+          linkedin_flagship_url: vanity,
+          linkedin_profile_url: vanity,
         },
       },
     });
@@ -562,7 +539,7 @@ describe('Candidates reveal API', () => {
     const email = await agent
       .post(`/api/v1/candidates/${candidate._id.toHexString()}/reveal/email`)
       .set('Authorization', `Bearer ${token}`)
-      .set('Idempotency-Key', 'reveal-email-direct-01')
+      .set('Idempotency-Key', 'reveal-us-vanity-email-01')
       .expect(200);
 
     expect(email.body.data.found).toBe(true);

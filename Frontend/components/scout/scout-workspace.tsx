@@ -450,7 +450,7 @@ export function ScoutWorkspace() {
         <StatePanel
           icon={SearchX}
           title="No profile found"
-          description="We couldn't match this input to a person. Double-check the spelling, or try a different identifier — no credits were charged."
+          description="We searched all connected providers but couldn't match this input to a person. Double-check the spelling, or try a different identifier — no credits were charged."
         >
           <Button size="sm" variant="outline" className="mt-4" onClick={clear}>
             Try Another Lookup

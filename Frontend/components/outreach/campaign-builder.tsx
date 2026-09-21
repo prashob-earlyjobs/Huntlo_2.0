@@ -200,7 +200,7 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       })),
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
-      autoScreening: state.autoScreening && !state.autoCalendly,
+      autoScreening: state.autoScreening,
       autoScreeningModality: state.autoScreeningModality,
       autoWhatsAppAfterQualification: campaignHasAiVoice(state)
         ? state.autoWhatsAppAfterQualification
@@ -460,18 +460,10 @@ export function CampaignBuilder({
         );
       }
       if (key === "autoScreening") {
-        const enabled = Boolean(value);
         return withVoiceDependentQualification(previous, {
-          autoScreening: enabled,
+          autoScreening: Boolean(value),
+          // Video option is reserved — keep Audio as the only selectable default.
           autoScreeningModality: "voice",
-          autoCalendly: enabled ? false : previous.autoCalendly,
-        });
-      }
-      if (key === "autoCalendly") {
-        const enabled = Boolean(value);
-        return withVoiceDependentQualification(previous, {
-          autoCalendly: enabled,
-          autoScreening: enabled ? false : previous.autoScreening,
         });
       }
       return { ...previous, [key]: value };

@@ -33,6 +33,7 @@ import { REVEAL_COSTS, useRevealQuota } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
+const REVEAL_SOFT_TIMEOUT_MS = 60_000;
 const LOOKUP_POLL_INTERVAL_MS = 10_000;
 const LOOKUP_POLL_WINDOW_MS = 60_000;
 
@@ -115,7 +116,6 @@ export function ScoutProfileCard({
   const [revealing, setRevealing] = useState<"email" | "mobile" | null>(null);
   const [takingLonger, setTakingLonger] = useState(false);
   const [listNames, setListNames] = useState<string[]>([]);
-  const revealGenerationRef = useRef(0);
   const revealQuota = useRevealQuota();
   const revealGenerationRef = useRef(0);
 
@@ -172,7 +172,9 @@ export function ScoutProfileCard({
     }
     flash(
       message ??
-        (type === "email" ? "Email not found" : "Phone not found")
+        (type === "email"
+          ? "Email unavailable for this profile"
+          : "Phone unavailable for this profile")
     );
   }
 
@@ -212,14 +214,14 @@ export function ScoutProfileCard({
       if (revealGenerationRef.current !== generation) return;
       const value = result.value || result.values[0] || "";
       if (!result.found || !value) {
-        applyRevealUnavailable("email", "Email not found");
+        applyRevealUnavailable("email", "Contact not found");
         return;
       }
       applyRevealSuccess("email", value, result.charged, result.creditsCharged);
     } catch (err) {
       if (revealGenerationRef.current !== generation) return;
       if (isRevealTimeoutError(err)) {
-        applyRevealUnavailable("email", "Email not found");
+        applyRevealUnavailable("email", "Contact not found");
         return;
       }
       setRevealError(getApiErrorMessage(err));
@@ -232,9 +234,8 @@ export function ScoutProfileCard({
   }
 
   /**
-   * Mobile: desire a phone number. Only skip polling when reveal returns a
-   * phone. Any other outcome (2xx empty, 4xx/5xx, timeout) → poll getLookup
-   * every 10s for 60s. Email reveal is unchanged (no poll).
+   * Mobile: soft-timeout at 60s → taking longer → poll getLookup every 10s
+   * for 60s; reveal request stays in flight (not aborted).
    */
   async function handleMobileReveal() {
     setRevealError(null);
@@ -252,19 +253,26 @@ export function ScoutProfileCard({
       action();
     };
 
-    let gotPhone = false;
-    try {
-      const result = await peopleScoutApi.revealContact({
+    const softTimer = window.setTimeout(() => {
+      if (!isActive()) return;
+      setTakingLonger(true);
+      flash("Taking longer than usual — still checking…");
+    }, REVEAL_SOFT_TIMEOUT_MS);
+
+    const revealPromise = peopleScoutApi
+      .revealContact({
         lookupId: lookupId ?? "",
         profileId: profile.id,
         linkedinUrl: profile.linkedinUrl,
         type: "mobile",
-      });
-      if (revealGenerationRef.current !== generation) return;
-      const value = result.value || result.values[0] || "";
-      if (result.found && value) {
-        gotPhone = true;
+      })
+      .then((result) => {
         finish(() => {
+          const value = result.value || result.values[0] || "";
+          if (!result.found || !value) {
+            applyRevealUnavailable("mobile");
+            return;
+          }
           applyRevealSuccess(
             "mobile",
             value,
@@ -272,28 +280,26 @@ export function ScoutProfileCard({
             result.creditsCharged
           );
         });
-      }
-    } catch (err) {
-      if (revealGenerationRef.current !== generation) return;
-      // 4xx/5xx, timeout, network — fall through to poll when possible.
-      if (!isRevealTimeoutError(err) && !lookupId) {
+      })
+      .catch((err) => {
+        // Client timeout/abort: keep polling lookup — server may still store contacts.
+        if (isRevealTimeoutError(err)) {
+          return;
+        }
         finish(() => {
           setRevealError(getApiErrorMessage(err));
         });
-      }
-    }
+      });
 
-    if (gotPhone || !isActive()) {
-      if (revealGenerationRef.current === generation) {
-        setRevealing(null);
-        setTakingLonger(false);
-      }
-      return;
-    }
+    await Promise.race([
+      revealPromise,
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, REVEAL_SOFT_TIMEOUT_MS);
+      }),
+    ]);
 
-    if (lookupId) {
+    if (isActive() && lookupId) {
       setTakingLonger(true);
-      flash("Still checking for phone…");
       const pollDeadline = Date.now() + LOOKUP_POLL_WINDOW_MS;
       while (isActive() && Date.now() < pollDeadline) {
         try {
@@ -312,16 +318,25 @@ export function ScoutProfileCard({
           // Keep polling through transient lookup errors.
         }
         if (!isActive()) break;
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, LOOKUP_POLL_INTERVAL_MS);
-        });
+        await Promise.race([
+          revealPromise,
+          new Promise<void>((resolve) => {
+            window.setTimeout(resolve, LOOKUP_POLL_INTERVAL_MS);
+          }),
+        ]);
       }
+    } else if (isActive()) {
+      await revealPromise;
     }
 
     if (isActive()) {
-      finish(() => applyRevealUnavailable("mobile"));
+      await revealPromise;
+      if (isActive()) {
+        finish(() => applyRevealUnavailable("mobile"));
+      }
     }
 
+    window.clearTimeout(softTimer);
     if (revealGenerationRef.current === generation) {
       setRevealing(null);
       setTakingLonger(false);
@@ -388,7 +403,7 @@ export function ScoutProfileCard({
             disabled
           >
             <Mail aria-hidden />
-            Email not found
+            Contact not found
           </Button>
         ) : (
           <ConfirmDialog
@@ -440,7 +455,7 @@ export function ScoutProfileCard({
             disabled
           >
             <Phone aria-hidden />
-            Phone not found
+            Phone unavailable
           </Button>
         ) : (
           <Button
