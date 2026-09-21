@@ -15,7 +15,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
@@ -32,6 +32,9 @@ import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api"
 import { REVEAL_COSTS, useRevealQuota } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+
+const LOOKUP_POLL_INTERVAL_MS = 10_000;
+const LOOKUP_POLL_WINDOW_MS = 60_000;
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -95,7 +98,10 @@ export function ScoutProfileCard({
   embedded?: boolean;
 }) {
   const router = useRouter();
-  const [revealed, setRevealed] = useState({ email: false, phone: false });
+  const [revealed, setRevealed] = useState({
+    email: Boolean(profile.email?.trim()),
+    phone: Boolean(profile.phone?.trim()),
+  });
   const [unavailable, setUnavailable] = useState({
     email: false,
     phone: false,
@@ -107,7 +113,9 @@ export function ScoutProfileCard({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<"email" | "mobile" | null>(null);
+  const [takingLonger, setTakingLonger] = useState(false);
   const [listNames, setListNames] = useState<string[]>([]);
+  const revealGenerationRef = useRef(0);
   const revealQuota = useRevealQuota();
 
   useEffect(() => {
@@ -130,51 +138,201 @@ export function ScoutProfileCard({
     window.setTimeout(() => setFeedback(null), 2400);
   }
 
-  async function handleReveal(type: "email" | "mobile") {
+  function applyRevealSuccess(
+    type: "email" | "mobile",
+    value: string,
+    charged: boolean,
+    creditsCharged?: number
+  ) {
+    if (type === "email") {
+      setEmailValue(value);
+      setUnavailable((previous) => ({ ...previous, email: false }));
+      setRevealed((previous) => ({ ...previous, email: true }));
+    } else {
+      setPhoneValue(value);
+      setUnavailable((previous) => ({ ...previous, phone: false }));
+      setRevealed((previous) => ({ ...previous, phone: true }));
+    }
+    flash(
+      charged
+        ? `Revealed (${creditsCharged ?? (type === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile)} credits)`
+        : "Already unlocked — no credits charged"
+    );
+  }
+
+  function applyRevealUnavailable(
+    type: "email" | "mobile",
+    message?: string
+  ) {
+    if (type === "email") {
+      setUnavailable((previous) => ({ ...previous, email: true }));
+    } else {
+      setUnavailable((previous) => ({ ...previous, phone: true }));
+    }
+    flash(
+      message ??
+        (type === "email" ? "Email not found" : "Phone not found")
+    );
+  }
+
+  function isRevealTimeoutError(err: unknown): boolean {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code: unknown }).code)
+        : "";
+    return code === "TIMEOUT" || code === "ABORTED";
+  }
+
+  function phoneValueFromLookup(
+    lookup: Awaited<ReturnType<typeof peopleScoutApi.getLookup>>
+  ): string {
+    if (!lookup) return "";
+    return (
+      lookup.revealStatus.phone.values[0] ||
+      lookup.profile?.phone ||
+      ""
+    ).trim();
+  }
+
+  /** Email: synchronous reveal; timeout → contact not found (no lookup poll). */
+  async function handleEmailReveal() {
     setRevealError(null);
-    setRevealing(type);
+    setTakingLonger(false);
+    setRevealing("email");
+    const generation = ++revealGenerationRef.current;
+
     try {
       const result = await peopleScoutApi.revealContact({
         lookupId: lookupId ?? "",
         profileId: profile.id,
         linkedinUrl: profile.linkedinUrl,
-        type,
+        type: "email",
       });
+      if (revealGenerationRef.current !== generation) return;
       const value = result.value || result.values[0] || "";
-      // Provider can return 200 with found:false / empty values (no contact on file).
-      // Do not flip to RevealedRow with a blank string — mark unavailable instead.
       if (!result.found || !value) {
-        if (type === "email") {
-          setUnavailable((previous) => ({ ...previous, email: true }));
-        } else {
-          setUnavailable((previous) => ({ ...previous, phone: true }));
-        }
-        flash(
-          type === "email"
-            ? "Email unavailable for this profile"
-            : "Phone unavailable for this profile"
-        );
+        applyRevealUnavailable("email", "Email not found");
         return;
       }
-      if (type === "email") {
-        setEmailValue(value);
-        setUnavailable((previous) => ({ ...previous, email: false }));
-        setRevealed((previous) => ({ ...previous, email: true }));
-      } else {
-        setPhoneValue(value);
-        setUnavailable((previous) => ({ ...previous, phone: false }));
-        setRevealed((previous) => ({ ...previous, phone: true }));
-      }
-      flash(
-        result.charged
-          ? `Revealed (${result.creditsCharged} credits)`
-          : "Already unlocked — no credits charged"
-      );
+      applyRevealSuccess("email", value, result.charged, result.creditsCharged);
     } catch (err) {
+      if (revealGenerationRef.current !== generation) return;
+      if (isRevealTimeoutError(err)) {
+        applyRevealUnavailable("email", "Email not found");
+        return;
+      }
       setRevealError(getApiErrorMessage(err));
     } finally {
-      setRevealing(null);
+      if (revealGenerationRef.current === generation) {
+        setRevealing(null);
+        setTakingLonger(false);
+      }
     }
+  }
+
+  /**
+   * Mobile: desire a phone number. Only skip polling when reveal returns a
+   * phone. Any other outcome (2xx empty, 4xx/5xx, timeout) → poll getLookup
+   * every 10s for 60s. Email reveal is unchanged (no poll).
+   */
+  async function handleMobileReveal() {
+    setRevealError(null);
+    setTakingLonger(false);
+    setRevealing("mobile");
+    const generation = ++revealGenerationRef.current;
+
+    let settled = false;
+    const isActive = () =>
+      revealGenerationRef.current === generation && !settled;
+
+    const finish = (action: () => void) => {
+      if (!isActive()) return;
+      settled = true;
+      action();
+    };
+
+    let gotPhone = false;
+    try {
+      const result = await peopleScoutApi.revealContact({
+        lookupId: lookupId ?? "",
+        profileId: profile.id,
+        linkedinUrl: profile.linkedinUrl,
+        type: "mobile",
+      });
+      if (revealGenerationRef.current !== generation) return;
+      const value = result.value || result.values[0] || "";
+      if (result.found && value) {
+        gotPhone = true;
+        finish(() => {
+          applyRevealSuccess(
+            "mobile",
+            value,
+            result.charged,
+            result.creditsCharged
+          );
+        });
+      }
+    } catch (err) {
+      if (revealGenerationRef.current !== generation) return;
+      // 4xx/5xx, timeout, network — fall through to poll when possible.
+      if (!isRevealTimeoutError(err) && !lookupId) {
+        finish(() => {
+          setRevealError(getApiErrorMessage(err));
+        });
+      }
+    }
+
+    if (gotPhone || !isActive()) {
+      if (revealGenerationRef.current === generation) {
+        setRevealing(null);
+        setTakingLonger(false);
+      }
+      return;
+    }
+
+    if (lookupId) {
+      setTakingLonger(true);
+      flash("Still checking for phone…");
+      const pollDeadline = Date.now() + LOOKUP_POLL_WINDOW_MS;
+      while (isActive() && Date.now() < pollDeadline) {
+        try {
+          const lookup = await peopleScoutApi.getLookup(lookupId);
+          const value = phoneValueFromLookup(lookup);
+          if (value) {
+            finish(() => {
+              setPhoneValue(value);
+              setUnavailable((previous) => ({ ...previous, phone: false }));
+              setRevealed((previous) => ({ ...previous, phone: true }));
+              flash("Revealed");
+            });
+            break;
+          }
+        } catch {
+          // Keep polling through transient lookup errors.
+        }
+        if (!isActive()) break;
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, LOOKUP_POLL_INTERVAL_MS);
+        });
+      }
+    }
+
+    if (isActive()) {
+      finish(() => applyRevealUnavailable("mobile"));
+    }
+
+    if (revealGenerationRef.current === generation) {
+      setRevealing(null);
+      setTakingLonger(false);
+    }
+  }
+
+  async function handleReveal(type: "email" | "mobile") {
+    if (type === "email") {
+      await handleEmailReveal();
+      return;
+    }
+    await handleMobileReveal();
   }
 
   async function handleSave() {
@@ -229,7 +387,7 @@ export function ScoutProfileCard({
             disabled
           >
             <Mail aria-hidden />
-            Email unavailable
+            Email not found
           </Button>
         ) : (
           <ConfirmDialog
@@ -264,7 +422,7 @@ export function ScoutProfileCard({
             aria-busy
           >
             <Loader2 aria-hidden className="animate-spin" />
-            Unlocking phone…
+            {takingLonger ? "Taking longer…" : "Unlocking phone…"}
           </Button>
         ) : revealed.phone ? (
           <RevealedRow
@@ -281,7 +439,7 @@ export function ScoutProfileCard({
             disabled
           >
             <Phone aria-hidden />
-            Phone unavailable
+            Phone not found
           </Button>
         ) : (
           <Button

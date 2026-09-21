@@ -37,7 +37,6 @@ import {
 } from "@/lib/whatsapp-outreach";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
-import { cn } from "@/lib/utils";
 
 function mapAnswerType(raw: string): AnswerType {
   const value = raw.toLowerCase();
@@ -345,6 +344,9 @@ export function QualificationStep({
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             After qualification
           </h3>
+          <p className="text-xs text-muted-foreground">
+            Choose one, or leave both off. Checking one clears the other.
+          </p>
           <div className="grid gap-2 lg:grid-cols-2">
             {hasAiVoice ? (
               <ToggleRow
@@ -357,95 +359,22 @@ export function QualificationStep({
                 }
               />
             ) : null}
-            <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2 lg:col-span-2">
               <ToggleRow
                 id="qual-auto-screening"
                 label="Auto-start AI screening"
-                description="When a candidate qualifies, schedule them for AI screening."
-                checked={state.autoScreening}
+                description="Qualify in chat, then start an AI voice screening call."
+                checked={state.autoScreening && !state.autoCalendly}
                 onChange={(checked) => update("autoScreening", checked)}
               />
-              {state.autoScreening ? (
-                <div
-                  className="grid gap-2 sm:grid-cols-2 rounded-lg border border-dashed border-border px-3 py-3"
-                  role="radiogroup"
-                  aria-label="Screening modality"
-                >
-                  {(
-                    [
-                      {
-                        key: "voice" as const,
-                        title: "Audio",
-                        description: "AI voice screening call",
-                        disabled: false,
-                      },
-                      {
-                        key: "video" as const,
-                        title: "Video",
-                        description: "Coming soon",
-                        disabled: true,
-                      },
-                    ] as const
-                  ).map((mode) => {
-                    const checked = state.autoScreeningModality === mode.key;
-                    return (
-                      <button
-                        key={mode.key}
-                        type="button"
-                        role="radio"
-                        aria-checked={checked}
-                        aria-disabled={mode.disabled || undefined}
-                        disabled={mode.disabled}
-                        onClick={() => {
-                          if (mode.disabled) return;
-                          update("autoScreeningModality", mode.key);
-                        }}
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                          mode.disabled
-                            ? "cursor-not-allowed border-border opacity-50"
-                            : "cursor-pointer",
-                          !mode.disabled && checked
-                            ? "border-primary/50 bg-brand-subtle/20"
-                            : !mode.disabled
-                              ? "border-border hover:bg-muted/40"
-                              : null
-                        )}
-                      >
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "flex size-4 shrink-0 items-center justify-center rounded-full border",
-                            checked && !mode.disabled
-                              ? "border-primary"
-                              : "border-border bg-card"
-                          )}
-                        >
-                          {checked && !mode.disabled ? (
-                            <span className="size-2 rounded-full bg-primary" />
-                          ) : null}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold text-foreground">
-                            {mode.title}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {mode.description}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <ToggleRow
+                id="qual-auto-calendly"
+                label="Auto-send Calendly"
+                description="Qualify in chat, then send a scheduling link. No screening call."
+                checked={state.autoCalendly}
+                onChange={(checked) => update("autoCalendly", checked)}
+              />
             </div>
-            <ToggleRow
-              id="qual-auto-calendly"
-              label="Auto-send Calendly"
-              description="Send a scheduling link after qualification completes."
-              checked={state.autoCalendly}
-              onChange={(checked) => update("autoCalendly", checked)}
-            />
           </div>
           {hasAiVoice && state.autoWhatsAppAfterQualification ? (
             <div className="space-y-3 rounded-lg border border-dashed border-border px-3 py-3">
