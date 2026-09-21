@@ -84,6 +84,18 @@ function callRecordingOf(doc: HcgHunarLean): HcgHunarCallRecording {
   return asRecord(doc.call_recording) || {};
 }
 
+function recordingUrlOf(doc: HcgHunarLean): string {
+  const recording = callRecordingOf(doc) as Record<string, unknown>;
+  return String(
+    recording.recording_url ||
+      recording.recordingUrl ||
+      recording.url ||
+      recording.file_url ||
+      recording.audio_url ||
+      ''
+  ).trim();
+}
+
 function callResultPayload(doc: HcgHunarLean): Record<string, unknown> {
   const wrapper = asRecord(doc.call_result);
   const nested = asRecord(wrapper?.result);
@@ -529,7 +541,7 @@ export function buildHcgHunarScreeningResultOverlay(doc: HcgHunarLean): {
 } {
   const result = callResultPayload(doc);
   const status = callStatusOf(doc);
-  const recordingUrl = String(callRecordingOf(doc).recording_url || '').trim();
+  const recordingUrl = recordingUrlOf(doc);
   const callSummaryText = resultText(result, 'summary');
   const overallAIDescription = String(doc.overallAIDescription || '').trim();
   const eligibilityReason = resultText(result, 'eligibility_reason');
@@ -605,7 +617,6 @@ function collectHcgHunarQuestionColumns(docs: HcgHunarLean[]): HcgHunarQuestionC
 
 export function hcgHunarToEvents(doc: HcgHunarLean) {
   const status = callStatusOf(doc);
-  const recording = callRecordingOf(doc);
   const result = callResultPayload(doc);
   const preview = hcgHunarLastPreview(doc);
   const derived = hcgHunarOverallAiStatus(doc);
@@ -633,7 +644,7 @@ export function hcgHunarToEvents(doc: HcgHunarLean) {
         duration: formatDuration(status),
         outcome,
         highlights,
-        recordingUrl: String(recording.recording_url || '').trim() || null,
+        recordingUrl: recordingUrlOf(doc) || null,
         screeningId: null,
         resultId: null,
       },

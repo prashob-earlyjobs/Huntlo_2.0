@@ -87,9 +87,16 @@ import { getOrgCalendlyCredentials } from '../scheduling/calendly-credentials.js
 import { applyMergeFallbacks, buildCandidateMergeContext, mergeOutboundMessage } from './variables.js';
 import { formatOutreachJobContextForPrompt, loadOutreachJobContext } from './job-context.js';
 import {
+  campaignUsesGatewayConversationalReply,
+  isGatewayWhatsAppProvider,
+  resolveGatewayOutreachPromptKind,
+} from './gateway-auto-reply.js';
+import {
   buildAutoCalendlyPrompt,
+  buildAutoScreeningPrompt,
   buildScreeningClosePrompt,
   buildWhatsAppAutoCalendlyPrompt,
+  buildWhatsAppAutoScreeningPrompt,
   buildWhatsAppScreeningClosePrompt,
   formatKnockoutPassCondition,
 } from './prompt/index.js';
@@ -206,6 +213,70 @@ function isFollowUpWhatsAppSequenceStep(
     .filter((item) => item.type === 'whatsapp')
     .sort((a, b) => a.order - b.order);
   return waSteps.length > 0 && waSteps[0]?.id !== step.id;
+}
+
+async function buildSequenceGatewayPrompt(input: {
+  campaign: OutreachCampaignDocument;
+  candidate: {
+    name?: string | null;
+    currentTitle?: string | null;
+    experienceYears?: number | null;
+    skills?: string[] | null;
+    location?: string | null;
+  } | null;
+  email: string;
+  organizationId: string;
+  userId: string;
+  channel: 'email' | 'whatsapp';
+}): Promise<string | null> {
+  if (!campaignUsesGatewayConversationalReply(input.campaign)) return null;
+
+  const { campaign, candidate, email, organizationId, userId, channel } = input;
+  const jobCtx = await loadOutreachJobContext(campaign.jobId ? String(campaign.jobId) : null);
+  const promptBase = {
+    jobText: formatOutreachJobContextForPrompt(jobCtx, campaign.name),
+    candidateName: candidate?.name || 'Candidate',
+    currentRole: candidate?.currentTitle || '',
+    experience: candidate?.experienceYears != null ? `${candidate.experienceYears} years` : '',
+    skills: Array.isArray(candidate?.skills) ? candidate.skills.join(', ') : '',
+    location: candidate?.location || '',
+    email,
+    screening: (campaign.qualificationConfig?.questions || []).map((q) => ({
+      id: q.id,
+      question: q.prompt,
+      required: true,
+      pass_condition:
+        q.knockout && q.knockoutCondition
+          ? formatKnockoutPassCondition(q.knockoutCondition)
+          : 'Informational only; any reasonable answer is acceptable',
+    })),
+  };
+
+  const kind = resolveGatewayOutreachPromptKind(campaign);
+  if (kind === 'calendly') {
+    const calendly = await getOrgCalendlyCredentials(organizationId, userId);
+    let calendlyUrl = String(
+      campaign.schedulingConfig?.eventTypeUri || calendly?.schedulingUrl || ''
+    ).trim();
+    if (calendlyUrl) {
+      calendlyUrl = buildSchedulingUrl(calendlyUrl, {
+        name: candidate?.name || undefined,
+        email: email || undefined,
+        utmSource: 'huntlo',
+      });
+    }
+    return channel === 'whatsapp'
+      ? buildWhatsAppAutoCalendlyPrompt({ ...promptBase, calendlyUrl })
+      : buildAutoCalendlyPrompt({ ...promptBase, calendlyUrl });
+  }
+  if (kind === 'auto_screening') {
+    return channel === 'whatsapp'
+      ? buildWhatsAppAutoScreeningPrompt(promptBase)
+      : buildAutoScreeningPrompt(promptBase);
+  }
+  return channel === 'whatsapp'
+    ? buildWhatsAppScreeningClosePrompt(promptBase)
+    : buildScreeningClosePrompt(promptBase);
 }
 
 function asReplySubject(original: string | null | undefined, fallback: string): string {
@@ -1363,53 +1434,16 @@ export async function executeCampaignMessageStep(input: {
               .replace(/\n/g, '<br>')}</p>`;
 
         const followUp = isFollowUpEmailSequenceStep(campaign, step);
-        const autoCalendly = Boolean(campaign.schedulingConfig?.enabled);
-        const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
-        const autoWhatsApp = Boolean(campaign.qualificationConfig?.autoWhatsAppAfterQualification);
-        const noAfterQualificationAction = !autoCalendly && !autoScreening && !autoWhatsApp;
-
-        let prompt: string | null = null;
-        if (!followUp && (autoCalendly || noAfterQualificationAction)) {
-          const jobCtx = await loadOutreachJobContext(
-            campaign.jobId ? String(campaign.jobId) : null
-          );
-          const promptBase = {
-            jobText: formatOutreachJobContextForPrompt(jobCtx, campaign.name),
-            candidateName: candidate?.name || 'Candidate',
-            currentRole: candidate?.currentTitle || '',
-            experience:
-              candidate?.experienceYears != null ? `${candidate.experienceYears} years` : '',
-            skills: Array.isArray(candidate?.skills) ? candidate.skills.join(', ') : '',
-            location: candidate?.location || '',
-            email,
-            screening: (campaign.qualificationConfig?.questions || []).map((q) => ({
-              id: q.id,
-              question: q.prompt,
-              required: true,
-              pass_condition:
-                q.knockout && q.knockoutCondition
-                  ? formatKnockoutPassCondition(q.knockoutCondition)
-                  : 'Informational only; any reasonable answer is acceptable',
-            })),
-          };
-
-          if (autoCalendly) {
-            const calendly = await getOrgCalendlyCredentials(organizationId, userId);
-            let calendlyUrl = String(
-              campaign.schedulingConfig?.eventTypeUri || calendly?.schedulingUrl || ''
-            ).trim();
-            if (calendlyUrl) {
-              calendlyUrl = buildSchedulingUrl(calendlyUrl, {
-                name: candidate?.name || undefined,
-                email,
-                utmSource: 'huntlo',
-              });
-            }
-            prompt = buildAutoCalendlyPrompt({ ...promptBase, calendlyUrl });
-          } else {
-            prompt = buildScreeningClosePrompt(promptBase);
-          }
-        }
+        const prompt = followUp
+          ? null
+          : await buildSequenceGatewayPrompt({
+              campaign,
+              candidate,
+              email,
+              organizationId,
+              userId,
+              channel: 'email',
+            });
 
         let threadId: string | null = null;
         let inReplyTo: string | null = null;
@@ -1510,67 +1544,16 @@ export async function executeCampaignMessageStep(input: {
               .replace(/\n/g, '<br>')}</p>`;
 
         const followUp = isFollowUpEmailSequenceStep(campaign, step);
-        const autoCalendly = Boolean(campaign.schedulingConfig?.enabled);
-        const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
-        const autoWhatsApp = Boolean(
-          campaign.qualificationConfig?.autoWhatsAppAfterQualification
-        );
-        const noAfterQualificationAction =
-          !autoCalendly && !autoScreening && !autoWhatsApp;
-
-        let prompt: string | null = null;
-        if (!followUp && (autoCalendly || noAfterQualificationAction)) {
-          const jobCtx = await loadOutreachJobContext(
-            campaign.jobId ? String(campaign.jobId) : null
-          );
-          const promptBase = {
-            jobText: formatOutreachJobContextForPrompt(jobCtx, campaign.name),
-            candidateName: candidate?.name || 'Candidate',
-            currentRole: candidate?.currentTitle || '',
-            experience:
-              candidate?.experienceYears != null
-                ? `${candidate.experienceYears} years`
-                : '',
-            skills: Array.isArray(candidate?.skills)
-              ? candidate.skills.join(', ')
-              : '',
-            location: candidate?.location || '',
-            email,
-            screening: (campaign.qualificationConfig?.questions || []).map(
-              (q) => ({
-                id: q.id,
-                question: q.prompt,
-                required: true,
-                pass_condition:
-                  q.knockout && q.knockoutCondition
-                    ? formatKnockoutPassCondition(q.knockoutCondition)
-                    : 'Informational only; any reasonable answer is acceptable',
-              })
-            ),
-          };
-
-          if (autoCalendly) {
-            const calendly = await getOrgCalendlyCredentials(
+        const prompt = followUp
+          ? null
+          : await buildSequenceGatewayPrompt({
+              campaign,
+              candidate,
+              email,
               organizationId,
-              userId
-            );
-            let calendlyUrl = String(
-              campaign.schedulingConfig?.eventTypeUri ||
-                calendly?.schedulingUrl ||
-                ''
-            ).trim();
-            if (calendlyUrl) {
-              calendlyUrl = buildSchedulingUrl(calendlyUrl, {
-                name: candidate?.name || undefined,
-                email,
-                utmSource: 'huntlo',
-              });
-            }
-            prompt = buildAutoCalendlyPrompt({ ...promptBase, calendlyUrl });
-          } else {
-            prompt = buildScreeningClosePrompt(promptBase);
-          }
-        }
+              userId,
+              channel: 'email',
+            });
 
         if (followUp) {
           const threading = await resolveSequenceEmailThreading({
@@ -1716,52 +1699,16 @@ export async function executeCampaignMessageStep(input: {
 
       if (useGateway) {
         const followUp = isFollowUpWhatsAppSequenceStep(campaign, step);
-        const autoCalendly = Boolean(campaign.schedulingConfig?.enabled);
-        const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
-        const autoWhatsApp = Boolean(campaign.qualificationConfig?.autoWhatsAppAfterQualification);
-        const noAfterQualificationAction = !autoCalendly && !autoScreening && !autoWhatsApp;
-
-        let prompt: string | null = null;
-        if (!followUp && (autoCalendly || noAfterQualificationAction)) {
-          const jobCtx = await loadOutreachJobContext(
-            campaign.jobId ? String(campaign.jobId) : null
-          );
-          const promptBase = {
-            jobText: formatOutreachJobContextForPrompt(jobCtx, campaign.name),
-            candidateName: candidate?.name || 'Candidate',
-            currentRole: candidate?.currentTitle || '',
-            experience:
-              candidate?.experienceYears != null ? `${candidate.experienceYears} years` : '',
-            skills: Array.isArray(candidate?.skills) ? candidate.skills.join(', ') : '',
-            location: candidate?.location || '',
-            email: email || '',
-            screening: (campaign.qualificationConfig?.questions || []).map((q) => ({
-              id: q.id,
-              question: q.prompt,
-              required: true,
-              pass_condition:
-                q.knockout && q.knockoutCondition
-                  ? formatKnockoutPassCondition(q.knockoutCondition)
-                  : 'Informational only; any reasonable answer is acceptable',
-            })),
-          };
-          if (autoCalendly) {
-            const calendly = await getOrgCalendlyCredentials(organizationId, userId);
-            let calendlyUrl = String(
-              campaign.schedulingConfig?.eventTypeUri || calendly?.schedulingUrl || ''
-            ).trim();
-            if (calendlyUrl) {
-              calendlyUrl = buildSchedulingUrl(calendlyUrl, {
-                name: candidate?.name || undefined,
-                email: email || undefined,
-                utmSource: 'huntlo',
-              });
-            }
-            prompt = buildWhatsAppAutoCalendlyPrompt({ ...promptBase, calendlyUrl });
-          } else {
-            prompt = buildWhatsAppScreeningClosePrompt(promptBase);
-          }
-        }
+        const prompt = followUp
+          ? null
+          : await buildSequenceGatewayPrompt({
+              campaign,
+              candidate,
+              email: email || '',
+              organizationId,
+              userId,
+              channel: 'whatsapp',
+            });
 
         let threadId: string | null = null;
         if (followUp) {
@@ -1864,9 +1811,6 @@ export async function executeCampaignMessageStep(input: {
   }
 }
 
-function isGatewayWhatsAppProvider(provider: string | undefined): boolean {
-  return provider === 'huntlo-whatsapp' || provider === 'meta-whatsapp';
-}
 
 /** Reuse the campaign's WhatsApp thread so inbound still matches campaignId. */
 async function armHcgWhatsappPostQualification(input: {

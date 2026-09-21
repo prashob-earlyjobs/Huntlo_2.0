@@ -78,6 +78,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { requestTimingMiddleware } from './middleware/request-timing.js';
+import { futureJobsActorMiddleware } from './providers/future-jobs/futureJobs.actor-context.js';
 import {
   healthRouter,
   openApiRouter,
@@ -94,6 +95,7 @@ export function createApp(): Express {
   app.disable('x-powered-by');
 
   app.use(requestIdMiddleware);
+  app.use(futureJobsActorMiddleware);
   app.use(
     helmet({
       contentSecurityPolicy: env.APP_ENV === 'production' ? undefined : false,

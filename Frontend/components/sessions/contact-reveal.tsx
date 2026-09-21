@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -17,7 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SessionCandidate } from "@/lib/mock-sessions";
-import { REVEAL_COSTS, useRevealQuota, type RevealQuota } from "@/hooks/use-reveal-quota";
+import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import { cn } from "@/lib/utils";
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -96,19 +95,8 @@ export type RevealRequestStatus = "idle" | "loading" | "unavailable";
  * `candidate.emailRevealed`/`phoneRevealed` mark historical reveals that
  * must not be charged again.
  */
-/**
- * Only ask for confirmation when an email reveal’s quota is running low.
- * Mobile reveals go through immediately — the button already shows the credit cost.
- */
-function needsConfirmation(kind: "email" | "phone", quota: RevealQuota): boolean {
-  if (kind === "phone") return false;
-  if (quota.emailTotal <= 0) return false;
-  return quota.emailRemaining / quota.emailTotal < 0.1;
-}
-
 function RevealButton({
   kind,
-  candidate,
   status,
   onReveal,
   className,
@@ -119,22 +107,19 @@ function RevealButton({
   onReveal: (kind: "email" | "phone") => void;
   className?: string;
 }) {
-  const quota = useRevealQuota();
   const Icon = kind === "email" ? Mail : Phone;
   const label = kind === "email" ? "Reveal email" : "Reveal mobile";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
-  const remaining =
-    kind === "email" ? quota.emailRemaining : quota.mobileRemaining;
-  const total = kind === "email" ? quota.emailTotal : quota.mobileTotal;
   const isLoading = status === "loading";
   const isUnavailable = status === "unavailable";
 
-  const trigger = (
+  return (
     <Button
       type="button"
       size="xs"
       variant="outline"
       disabled={isLoading || isUnavailable}
+      onClick={() => onReveal(kind)}
       className={className}
     >
       {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
@@ -143,35 +128,6 @@ function RevealButton({
         <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
       ) : null}
     </Button>
-  );
-
-  if (!needsConfirmation(kind, quota)) {
-    return (
-      <Button
-        type="button"
-        size="xs"
-        variant="outline"
-        disabled={isLoading || isUnavailable}
-        onClick={() => onReveal(kind)}
-        className={className}
-      >
-        {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
-        {isLoading ? "Fetching…" : isUnavailable ? "Unavailable" : label}
-        {!isLoading && !isUnavailable ? (
-          <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
-        ) : null}
-      </Button>
-    );
-  }
-
-  return (
-    <ConfirmDialog
-      trigger={trigger}
-      title={`Reveal ${candidate.name.split(" ")[0]}’s ${kind === "email" ? "email" : "mobile number"}?`}
-      description={`This uses ${cost} ${kind} credits. You have ${remaining.toLocaleString("en-IN")} of ${total.toLocaleString("en-IN")} ${kind} reveals remaining this cycle.`}
-      confirmLabel={`Reveal for ${cost} credits`}
-      onConfirm={() => onReveal(kind)}
-    />
   );
 }
 

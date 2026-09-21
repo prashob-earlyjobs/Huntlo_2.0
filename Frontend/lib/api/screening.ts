@@ -528,19 +528,78 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
         ? String(extracted.interviewLink)
         : null,
     videoResponses: Array.isArray(row.videoResponses)
-      ? (row.videoResponses as Array<Record<string, unknown>>).map((item, index) => ({
-          id: String(item.id || `vr-${index + 1}`),
-          questionNumber: Number(item.questionNumber ?? index + 1) || index + 1,
-          questionText: String(item.questionText || ""),
-          responseText: String(item.responseText || ""),
-          transcriptionStatus: String(item.transcriptionStatus || ""),
-          transcriptionText: String(item.transcriptionText || ""),
-          responseDuration:
-            typeof item.responseDuration === "number" ? item.responseDuration : null,
-          audioUrl: item.audioUrl ? String(item.audioUrl) : null,
-          videoUrl: item.videoUrl ? String(item.videoUrl) : null,
-          isSkipped: Boolean(item.isSkipped),
-        }))
+      ? (row.videoResponses as Array<Record<string, unknown>>).map((item, index) => {
+          const analysis =
+            item.responseAnalysis &&
+            typeof item.responseAnalysis === "object" &&
+            !Array.isArray(item.responseAnalysis)
+              ? (item.responseAnalysis as Record<string, unknown>)
+              : null;
+          const durations =
+            item.durations &&
+            typeof item.durations === "object" &&
+            !Array.isArray(item.durations)
+              ? (item.durations as Record<string, unknown>)
+              : null;
+          return {
+            id: String(item.id || `vr-${index + 1}`),
+            questionNumber: Number(item.questionNumber ?? index + 1) || index + 1,
+            questionText: String(item.questionText || ""),
+            responseText: String(item.responseText || ""),
+            transcriptionStatus: String(item.transcriptionStatus || ""),
+            transcriptionMethod: item.transcriptionMethod
+              ? String(item.transcriptionMethod)
+              : null,
+            transcriptionText: String(item.transcriptionText || ""),
+            responseAnalysis: analysis
+              ? {
+                  overallAssessment: analysis.overallAssessment
+                    ? String(analysis.overallAssessment)
+                    : null,
+                  strengths: Array.isArray(analysis.strengths)
+                    ? analysis.strengths.map((s) => String(s)).filter(Boolean)
+                    : [],
+                  gaps: Array.isArray(analysis.gaps)
+                    ? analysis.gaps.map((s) => String(s)).filter(Boolean)
+                    : [],
+                  score:
+                    typeof analysis.score === "number" ? analysis.score : null,
+                  reasonForScoring: analysis.reasonForScoring
+                    ? String(analysis.reasonForScoring)
+                    : null,
+                }
+              : null,
+            responseDuration:
+              typeof item.responseDuration === "number"
+                ? item.responseDuration
+                : null,
+            durations: durations
+              ? {
+                  videoDuration:
+                    typeof durations.videoDuration === "number"
+                      ? durations.videoDuration
+                      : null,
+                  audioDuration:
+                    typeof durations.audioDuration === "number"
+                      ? durations.audioDuration
+                      : null,
+                  responseLatency:
+                    typeof durations.responseLatency === "number"
+                      ? durations.responseLatency
+                      : null,
+                  responseOnsetLatency:
+                    typeof durations.responseOnsetLatency === "number"
+                      ? durations.responseOnsetLatency
+                      : null,
+                }
+              : null,
+            audioUrl: item.audioUrl ? String(item.audioUrl) : null,
+            videoUrl: item.videoUrl ? String(item.videoUrl) : null,
+            isSkipped: Boolean(item.isSkipped),
+            createdAt: item.createdAt ? String(item.createdAt) : null,
+            updatedAt: item.updatedAt ? String(item.updatedAt) : null,
+          };
+        })
       : [],
     recording: {
       durationSeconds: Number(row.durationSeconds ?? 0),

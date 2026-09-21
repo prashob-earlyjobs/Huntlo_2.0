@@ -2,13 +2,24 @@ import mongoose from 'mongoose';
 
 import {
   FutureJobsUpstreamError,
+  extractRevealValues,
+  findInProgressRevealOutboundDebugSession,
+  getFutureJobsConfig,
   getFutureJobsProvider,
+  isFjProfileNotFoundError,
   normalizeLinkedinProfileUrl,
+  appendRevealOutboundDebugPoll,
+  completeRevealOutboundDebugSession,
+  completeScoutOutboundDebugSession,
+  startRevealOutboundDebugSession,
+  startScoutOutboundDebugSession,
 } from '../../providers/future-jobs/index.js';
+import { setFutureJobsOutboundDebugId } from '../../providers/future-jobs/futureJobs.actor-context.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { poolService } from '../candidates/pool.service.js';
 import {
+  persistSoftPolledMobileReveal,
   resolveLinkedinRevealValues,
   revealService,
 } from '../candidates/reveal.service.js';
@@ -264,12 +275,17 @@ export async function toPublicLookup(
     });
     const normalized = normalizeLinkedinProfileUrl(linkedinUrl);
     if (normalized) {
-      const values = await resolveLinkedinRevealValues({
-        organizationId: lookup.organizationId.toHexString(),
-        userId: lookup.userId.toHexString(),
-        linkedinUrl: normalized,
-        externalCandidateId: lookup.externalCandidateId,
-      });
+      let values = { email: [] as string[], mobile: [] as string[] };
+      try {
+        values = await resolveLinkedinRevealValues({
+          organizationId: lookup.organizationId.toHexString(),
+          userId: lookup.userId.toHexString(),
+          linkedinUrl: normalized,
+          externalCandidateId: lookup.externalCandidateId,
+        });
+      } catch {
+        // Soft-fail hydrate — reveal buttons still work from cache miss.
+      }
       revealStatus = {
         email: {
           revealed: values.email.length > 0,
@@ -498,7 +514,21 @@ export class PeopleScoutLookupService {
 
     try {
       const provider = getFutureJobsProvider();
-      const fj = await provider.scoutPeopleLookup(parsed.providerPayload);
+      const debugId = await startScoutOutboundDebugSession({
+        body: parsed.providerPayload,
+        userId: actor.userId,
+        organizationId: actor.organizationId,
+      });
+      let fj: Awaited<ReturnType<typeof provider.scoutPeopleLookup>>;
+      try {
+        fj = await provider.scoutPeopleLookup(parsed.providerPayload);
+      } catch (err) {
+        completeScoutOutboundDebugSession({
+          debugId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
       const data =
         fj?.data && typeof fj.data === 'object' ? (fj.data as Record<string, unknown>) : null;
       const scoutId = data?.scoutId != null ? String(data.scoutId) : '';
@@ -542,10 +572,10 @@ export class PeopleScoutLookupService {
       );
 
       if (error instanceof FutureJobsUpstreamError) {
-        doc.resultStatus =
-          error.code === 'FUTURE_JOBS_CIRCUIT_OPEN'
-            ? 'provider_unavailable'
-            : 'provider_unavailable';
+        // FJ 404 "No profile found for the given email/linkedin…" is a miss, not an outage.
+        doc.resultStatus = isFjProfileNotFoundError(error)
+          ? 'not_found'
+          : 'provider_unavailable';
         doc.charged = false;
         await doc.save();
         return toPublicLookup(doc);
@@ -622,7 +652,120 @@ export class PeopleScoutLookupService {
       deletedAt: null,
     });
     if (!lookup) throw AppError.notFound('People Scout lookup not found');
+
+    // Soft-poll FJ scout-people/lookup while a phone reveal session is in progress.
+    await this.softPollFjPhoneReveal(actor, lookup);
+
     return toPublicLookup(lookup);
+  }
+
+  /**
+   * While phone reveal soft-poll UX is active, re-hit FJ /wl/scout-people/lookup
+   * (up to 6 times via frontend getLookup). When revealStatus.phone.values appear,
+   * persist them as a mobile reveal.
+   */
+  private async softPollFjPhoneReveal(
+    actor: ActorContext,
+    lookup: PeopleScoutLookupDocument
+  ): Promise<void> {
+    if (lookup.resultStatus !== 'found') return;
+
+    const session = await findInProgressRevealOutboundDebugSession({
+      lookupId: lookup._id.toHexString(),
+      userId: actor.userId,
+      type: 'phone',
+    });
+    if (!session) return;
+
+    const preferred = pickPreferredLinkedinUrl({
+      flagshipUrl: lookup.candidateSnapshot?.linkedinFlagshipUrl,
+      profileUrl: lookup.candidateSnapshot?.linkedinProfileUrl,
+      username: lookup.candidateSnapshot?.linkedinUsername,
+    });
+    const revealKey = pickRevealLinkedinUrl({
+      flagshipUrl: lookup.candidateSnapshot?.linkedinFlagshipUrl,
+      profileUrl: lookup.candidateSnapshot?.linkedinProfileUrl,
+      username: lookup.candidateSnapshot?.linkedinUsername,
+    });
+    const linkedinUrl =
+      normalizeLinkedinProfileUrl(preferred) ||
+      normalizeLinkedinProfileUrl(revealKey);
+    if (!linkedinUrl) return;
+
+    // Already have a stored phone — no need to keep hitting FJ.
+    const cached = await resolveLinkedinRevealValues({
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      linkedinUrl: normalizeLinkedinProfileUrl(revealKey) || linkedinUrl,
+      externalCandidateId: lookup.externalCandidateId,
+    });
+    if (cached.mobile.length > 0) {
+      completeRevealOutboundDebugSession({
+        debugId: session.id,
+        lookupId: lookup._id.toHexString(),
+        type: 'phone',
+        found: true,
+        charged: false,
+        source: 'cache',
+        values: cached.mobile,
+      });
+      return;
+    }
+
+    const baseUrl = getFutureJobsConfig().baseUrl.replace(/\/$/, '');
+    const fjUrl = `${baseUrl}/wl/scout-people/lookup`;
+    setFutureJobsOutboundDebugId(session.id);
+
+    const provider = getFutureJobsProvider();
+    try {
+      const fj = await provider.scoutPeopleLookup({ linkedin_url: linkedinUrl });
+      appendRevealOutboundDebugPoll({
+        lookupId: lookup._id.toHexString(),
+        type: 'phone',
+        url: fjUrl,
+        response: fj,
+        userId: actor.userId,
+      });
+
+      const phones = extractRevealValues(fj, 'PHONE');
+      if (phones.length === 0) return;
+
+      await persistSoftPolledMobileReveal({
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        linkedinUrl: normalizeLinkedinProfileUrl(revealKey) || linkedinUrl,
+        externalCandidateId: lookup.externalCandidateId,
+        values: phones,
+      });
+
+      const existingContactReveal = await PeopleScoutContactRevealModel.findOne({
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        lookupId: lookup._id,
+        contactType: 'mobile',
+      });
+      if (!existingContactReveal) {
+        await PeopleScoutContactRevealModel.create({
+          organizationId: actor.organizationId,
+          userId: actor.userId,
+          lookupId: lookup._id,
+          contactType: 'mobile',
+          contactCacheId: null,
+          quotaTransactionId: `reveal:${lookup._id.toHexString()}:mobile:soft-poll`,
+          revealedAt: new Date(),
+        });
+      }
+    } catch (err) {
+      appendRevealOutboundDebugPoll({
+        lookupId: lookup._id.toHexString(),
+        type: 'phone',
+        url: fjUrl,
+        response: {
+          error: err instanceof Error ? err.message : String(err),
+        },
+        userId: actor.userId,
+      });
+    }
   }
 
   async revealContact(
@@ -661,12 +804,42 @@ export class PeopleScoutLookupService {
       contactType,
     });
 
-    const result = await revealService.revealByLinkedin(actor, {
+    const revealType = contactType === 'email' ? 'email' : 'phone';
+    const debugId = await startRevealOutboundDebugSession({
+      type: revealType,
+      lookupId: lookup._id.toHexString(),
       linkedinUrl: normalized,
-      contactType,
-      profileId: lookup.externalCandidateId ?? lookup._id.toHexString(),
-      idempotencyKey,
+      userId: actor.userId,
+      organizationId: actor.organizationId,
     });
+
+    let result: RevealResult;
+    try {
+      result = await revealService.revealByLinkedin(actor, {
+        linkedinUrl: normalized,
+        contactType,
+        profileId: lookup.externalCandidateId ?? lookup._id.toHexString(),
+        idempotencyKey,
+      });
+      completeRevealOutboundDebugSession({
+        debugId,
+        lookupId: lookup._id.toHexString(),
+        type: revealType,
+        found: result.found,
+        charged: result.charged,
+        source: result.source,
+        values: result.values,
+      });
+    } catch (err) {
+      completeRevealOutboundDebugSession({
+        debugId,
+        lookupId: lookup._id.toHexString(),
+        type: revealType,
+        found: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
 
     if (!existing && result.found) {
       await PeopleScoutContactRevealModel.create({
