@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ListChecks,
-  Loader2,
   Pencil,
   Plus,
   Rocket,
@@ -1207,21 +1206,8 @@ function VideoAgentStep({
 
             <div className="space-y-2">
               {state.videoTopicsFocus.length === 0 ? (
-                <p
-                  className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground"
-                  aria-live="polite"
-                >
-                  {defaultsLoading ? (
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <Loader2
-                        aria-hidden
-                        className="size-3.5 animate-spin"
-                      />
-                      Generating focus topics…
-                    </span>
-                  ) : (
-                    "No focus topics yet."
-                  )}
+                <p className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">
+                  No focus topics yet.
                 </p>
               ) : (
                 state.videoTopicsFocus.map((topic, index) => {
@@ -2749,18 +2735,7 @@ export function ScreeningBuilder() {
           </Button>
 
           {current < steps.length - 1 ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={next}
-              disabled={
-                submitting ||
-                (currentStepId === "agent" &&
-                  state.screeningMode === "video" &&
-                  state.videoInterviewConversation &&
-                  videoDefaultsLoading)
-              }
-            >
+            <Button type="button" size="sm" onClick={next} disabled={submitting}>
               Continue
               <ArrowRight aria-hidden />
             </Button>

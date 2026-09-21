@@ -96,10 +96,6 @@ export async function connectDatabase(): Promise<typeof mongoose> {
         serverSelectionTimeoutMS: 10_000,
         family: 4,
       });
-      // Best-effort: capped ring buffer for outbound Future Jobs HTTP debug rows.
-      void import('../providers/future-jobs/futureJobs.outbound-debug.js')
-        .then((mod) => mod.ensureFutureJobsOutboundDebugCollection())
-        .catch(() => undefined);
       return mongoose;
     } catch (error) {
       lastError = error;

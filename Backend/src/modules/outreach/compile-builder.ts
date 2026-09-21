@@ -294,7 +294,10 @@ export function compileBuilderToCampaign(campaign: OutreachCampaignDocument): Co
             qualRaw.aiReplyEnabled === undefined ? true : Boolean(qualRaw.aiReplyEnabled),
           takeoverCondition: pickString(qualRaw.takeoverCondition),
           autoScreening: Boolean(qualRaw.autoScreening),
-          autoScreeningModality: 'voice',
+          autoScreeningModality:
+            String(qualRaw.autoScreeningModality || '').trim() === 'video'
+              ? 'video'
+              : 'voice',
           autoWhatsAppAfterQualification: Boolean(
             qualRaw.autoWhatsAppAfterQualification
           ),

@@ -105,89 +105,6 @@ function EmptyDetail({
   );
 }
 
-function parseQaTranscript(
-  raw: string
-): Array<{ role: "question" | "answer" | "text"; content: string }> {
-  const text = raw.trim();
-  if (!text) return [];
-
-  const marker = /\b(Question|Answer)\s*:\s*/gi;
-  const parts: Array<{ role: "question" | "answer" | "text"; content: string }> =
-    [];
-  let lastIndex = 0;
-  let lastRole: "question" | "answer" | null = null;
-  let match: RegExpExecArray | null;
-
-  while ((match = marker.exec(text)) !== null) {
-    const chunk = text.slice(lastIndex, match.index).trim();
-    if (chunk) {
-      parts.push({
-        role: lastRole ?? "text",
-        content: chunk,
-      });
-    }
-    lastRole =
-      match[1].toLowerCase() === "question" ? "question" : "answer";
-    lastIndex = match.index + match[0].length;
-  }
-
-  const trailing = text.slice(lastIndex).trim();
-  if (trailing) {
-    parts.push({ role: lastRole ?? "text", content: trailing });
-  }
-
-  return parts;
-}
-
-function QaTranscript({ text }: { text: string }) {
-  const parts = parseQaTranscript(text);
-
-  if (parts.length === 0) return null;
-
-  if (parts.length === 1 && parts[0].role === "text") {
-    return (
-      <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-        {parts[0].content}
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {parts.map((part, index) => {
-        const isQuestion = part.role === "question";
-        const isAnswer = part.role === "answer";
-        return (
-          <div key={`${part.role}-${index}`} className="space-y-1">
-            {isQuestion || isAnswer ? (
-              <p
-                className={cn(
-                  "text-[11px] font-medium tracking-wide uppercase",
-                  isQuestion ? "text-info" : "text-success"
-                )}
-              >
-                {isQuestion ? "Question" : "Answer"}
-              </p>
-            ) : null}
-            <p
-              className={cn(
-                "text-sm leading-relaxed whitespace-pre-wrap",
-                isQuestion
-                  ? "text-foreground"
-                  : isAnswer
-                    ? "text-muted-foreground"
-                    : "text-muted-foreground"
-              )}
-            >
-              {part.content}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function VideoResponsesPanel({
   responses,
   interviewLink,
@@ -241,9 +158,6 @@ function VideoResponsesPanel({
                 {item.responseDuration != null
                   ? ` · ${Math.round(item.responseDuration)}s`
                   : ""}
-                {item.transcriptionMethod
-                  ? ` · ${item.transcriptionMethod}`
-                  : ""}
                 {item.isSkipped ? " · Skipped" : ""}
               </p>
               <h3 className="mt-1 text-sm font-semibold text-foreground">
@@ -261,58 +175,9 @@ function VideoResponsesPanel({
               ) : item.audioUrl ? (
                 <audio controls preload="metadata" src={item.audioUrl} className="w-full" />
               ) : null}
-              {item.responseAnalysis ? (
-                <div className="space-y-2 rounded-lg border border-border bg-muted/30 px-3 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                      Hyrefast analysis
-                    </p>
-                    {item.responseAnalysis.score != null ? (
-                      <p className="text-sm font-semibold tabular-nums text-foreground">
-                        {item.responseAnalysis.score}
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          /100
-                        </span>
-                      </p>
-                    ) : null}
-                  </div>
-                  {item.responseAnalysis.overallAssessment ? (
-                    <p className="text-sm leading-relaxed text-foreground">
-                      {item.responseAnalysis.overallAssessment}
-                    </p>
-                  ) : null}
-                  {item.responseAnalysis.reasonForScoring ? (
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      {item.responseAnalysis.reasonForScoring}
-                    </p>
-                  ) : null}
-                  {item.responseAnalysis.strengths.length > 0 ? (
-                    <div>
-                      <p className="text-[11px] font-medium text-success uppercase">
-                        Strengths
-                      </p>
-                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-                        {item.responseAnalysis.strengths.map((strength) => (
-                          <li key={strength}>{strength}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {item.responseAnalysis.gaps.length > 0 ? (
-                    <div>
-                      <p className="text-[11px] font-medium text-warning uppercase">
-                        Gaps
-                      </p>
-                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-                        {item.responseAnalysis.gaps.map((gap) => (
-                          <li key={gap}>{gap}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              <QaTranscript text={transcript} />
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                {transcript}
+              </p>
             </div>
           </section>
         );

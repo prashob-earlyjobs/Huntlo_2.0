@@ -19,6 +19,7 @@ import {
   isFjProfileNotFoundError,
   linkedinCacheLookupKeys,
   linkedinUrlsForContactReveal,
+  linkedinUrlsFromScoutLookup,
   normalizeLinkedinProfileUrl,
   type FutureJobsRevealType,
 } from '../../providers/future-jobs/index.js';
@@ -67,6 +68,10 @@ function isSyntheticWlSearchSessionId(sessionId: string): boolean {
   return sessionId.startsWith('wl-search-');
 }
 
+function isMemberUrnLinkedinUrl(url: string): boolean {
+  return /\/in\/ACoAA/i.test(url);
+}
+
 async function scoutThenRevealContact(options: {
   provider: ReturnType<typeof getFutureJobsProvider>;
   linkedinKey: string;
@@ -75,22 +80,74 @@ async function scoutThenRevealContact(options: {
 }): Promise<{ fjResponse: unknown; linkedinKey: string }> {
   const { provider, linkedinKey, fjType, candidateIdHex } = options;
 
-  // People Scout (and similar) already ran /lookup and stored linkedin_profile_url.
-  // Re-calling /lookup before reveal-contacts is redundant and often 500s
-  // (`enrichLinkedinProfile`), blocking reveal. Call reveal-contacts directly
-  // with the URL we already have (same as Postman).
+  log().info(
+    { candidateId: candidateIdHex, linkedinProfileUrlLen: linkedinKey.length },
+    'scouting profile via lookup before reveal-contacts'
+  );
+
+  let lookupFj: unknown = null;
+  try {
+    lookupFj = await provider.scoutPeopleLookup({ linkedin_url: linkedinKey });
+  } catch (error) {
+    if (!isRevealUrlMiss(error)) throw error;
+    log().info(
+      {
+        candidateId: candidateIdHex,
+        linkedinProfileUrlLen: linkedinKey.length,
+        fjHttpStatus: error.fjHttpStatus,
+      },
+      'scout-people lookup miss; still attempting reveal-contacts'
+    );
+  }
+
+  const fromLookup = linkedinUrlsFromScoutLookup(lookupFj);
+  const memberUrls = fromLookup.filter((url) => isMemberUrnLinkedinUrl(url));
+  // Vanity/flagship still 404s on reveal-contacts after lookup. Prefer ACoAA URNs.
+  const preferred = memberUrls.length > 0 ? memberUrls : fromLookup;
+  const revealKeys: string[] = [];
+  const seen = new Set<string>();
+  for (const url of [...preferred, ...(memberUrls.length > 0 ? [] : [linkedinKey])]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    revealKeys.push(url);
+  }
+
   log().info(
     {
       candidateId: candidateIdHex,
-      linkedinProfileUrlLen: linkedinKey.length,
-      fjType,
+      lookupUrlCount: fromLookup.length,
+      memberUrlCount: memberUrls.length,
+      revealUrlCount: revealKeys.length,
     },
-    'reveal via reveal-contacts (skipping scout-people lookup)'
+    'scout-people lookup resolved reveal urls'
   );
-  return {
-    fjResponse: await provider.scoutPeopleRevealContact(linkedinKey, fjType),
-    linkedinKey,
-  };
+
+  const scoutedMemberUrl = memberUrls[0];
+  if (scoutedMemberUrl) {
+    void SourcedCandidateModel.updateOne(
+      { _id: candidateIdHex },
+      { $set: { 'rawDoc.profile.linkedin_profile_url': scoutedMemberUrl } }
+    ).catch(() => undefined);
+  }
+
+  let lastMiss: FutureJobsUpstreamError | null = null;
+  for (const url of revealKeys) {
+    try {
+      return {
+        fjResponse: await provider.scoutPeopleRevealContact(url, fjType),
+        linkedinKey: url,
+      };
+    } catch (error) {
+      if (isRevealUrlMiss(error)) {
+        lastMiss = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastMiss) throw lastMiss;
+  throw new Error('linkedin_profile_url is required for contact reveal');
 }
 
 async function revealContactFromProvider(options: {
@@ -354,110 +411,6 @@ export async function resolveLinkedinRevealValues(options: {
   return { email, mobile };
 }
 
-/**
- * Persist phone values discovered via FJ scout-people/lookup soft-poll
- * after an empty reveal-contacts response.
- */
-export async function persistSoftPolledMobileReveal(options: {
-  organizationId: string;
-  userId: string;
-  linkedinUrl: string;
-  externalCandidateId?: string | null;
-  values: string[];
-}): Promise<{ stored: boolean; values: string[] }> {
-  const linkedinKey = normalizeLinkedinProfileUrl(options.linkedinUrl);
-  const values = options.values.map((v) => String(v).trim()).filter(Boolean);
-  if (!linkedinKey || values.length === 0) {
-    return { stored: false, values: [] };
-  }
-
-  const candidateObjectId = syntheticCandidateIdFromLinkedin(linkedinKey);
-  const candidateIdHex = candidateObjectId.toHexString();
-  const externalCandidateId =
-    options.externalCandidateId?.trim() || `linkedin:${linkedinKey}`;
-
-  const already = await RevealedContactModel.findOne({
-    organizationId: options.organizationId,
-    userId: options.userId,
-    candidateId: candidateObjectId,
-    contactType: 'mobile',
-  });
-  if (already) {
-    const cache = await upsertContactCache({
-      linkedinUrlKey: linkedinKey,
-      externalCandidateId,
-      contactType: 'mobile',
-      values,
-    });
-    if (cache && !already.contactCacheId) {
-      already.contactCacheId = cache._id;
-      await already.save();
-    }
-    return { stored: true, values };
-  }
-
-  const reservationId = [
-    options.organizationId,
-    options.userId,
-    candidateIdHex,
-    'mobile',
-    'soft-poll',
-  ].join(':');
-
-  await revealQuotaService.reserve(options.organizationId, reservationId, 'mobile');
-  try {
-    const cache = await upsertContactCache({
-      linkedinUrlKey: linkedinKey,
-      externalCandidateId,
-      contactType: 'mobile',
-      values,
-    });
-    await createLedgerEntry({
-      organizationId: options.organizationId,
-      userId: options.userId,
-      candidateId: candidateObjectId,
-      externalCandidateId,
-      contactType: 'mobile',
-      contactCacheId: cache?._id ?? null,
-      quotaTransactionId: reservationId,
-    });
-    await revealQuotaService.commit(options.organizationId, reservationId);
-    await CandidateActivityModel.create({
-      organizationId: options.organizationId,
-      candidateId: candidateObjectId,
-      userId: options.userId,
-      action: 'mobile_revealed',
-      metadata: {
-        source: 'provider_soft_poll',
-        channel: 'people_scout',
-        charged: true,
-        valueCount: values.length,
-        creditsCharged: costFor('mobile'),
-      },
-    });
-    log().info(
-      {
-        organizationId: options.organizationId,
-        candidateId: candidateIdHex,
-        valueCount: values.length,
-      },
-      'people scout mobile reveal from FJ lookup soft-poll'
-    );
-    return { stored: true, values };
-  } catch (error) {
-    await revealQuotaService.refund(options.organizationId, reservationId).catch(() => undefined);
-    throw error;
-  }
-}
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return Boolean(
-    error &&
-      typeof error === 'object' &&
-      (error as { code?: number }).code === 11000
-  );
-}
-
 async function upsertContactCache(options: {
   linkedinUrlKey: string;
   externalCandidateId: string;
@@ -467,76 +420,25 @@ async function upsertContactCache(options: {
   const encrypted = encryptValues(options.values);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + CANDIDATE_CONTACT_CACHE_TTL_MS);
-  const externalId = String(options.externalCandidateId || '').trim();
 
   const setFields: Record<string, unknown> = {
     fetchedAt: now,
     expiresAt,
+    externalCandidateId: options.externalCandidateId,
     provider: 'future_jobs',
     linkedinUrlKey: options.linkedinUrlKey,
   };
-  if (externalId) {
-    setFields.externalCandidateId = externalId;
-  }
   if (options.contactType === 'email') {
     setFields.encryptedEmails = encrypted;
   } else {
     setFields.encryptedPhones = encrypted;
   }
 
-  // Prefer an existing row by LinkedIn key OR external id. Upserting only by
-  // linkedinUrlKey collides with the unique (provider, externalCandidateId)
-  // index when email/phone reveals use different LinkedIn URL variants.
-  const existing =
-    (await CandidateContactCacheModel.findOne({
-      provider: 'future_jobs',
-      linkedinUrlKey: options.linkedinUrlKey,
-    })) ||
-    (externalId
-      ? await CandidateContactCacheModel.findOne({
-          provider: 'future_jobs',
-          externalCandidateId: externalId,
-        })
-      : null);
-
-  if (existing) {
-    return CandidateContactCacheModel.findByIdAndUpdate(
-      existing._id,
-      { $set: setFields },
-      { new: true }
-    );
-  }
-
-  try {
-    return await CandidateContactCacheModel.create({
-      provider: 'future_jobs',
-      linkedinUrlKey: options.linkedinUrlKey,
-      externalCandidateId: externalId || null,
-      encryptedEmails: options.contactType === 'email' ? encrypted : [],
-      encryptedPhones: options.contactType === 'email' ? [] : encrypted,
-      fetchedAt: now,
-      expiresAt,
-    });
-  } catch (error) {
-    if (!isDuplicateKeyError(error)) throw error;
-    const raced =
-      (await CandidateContactCacheModel.findOne({
-        provider: 'future_jobs',
-        linkedinUrlKey: options.linkedinUrlKey,
-      })) ||
-      (externalId
-        ? await CandidateContactCacheModel.findOne({
-            provider: 'future_jobs',
-            externalCandidateId: externalId,
-          })
-        : null);
-    if (!raced) throw error;
-    return CandidateContactCacheModel.findByIdAndUpdate(
-      raced._id,
-      { $set: setFields },
-      { new: true }
-    );
-  }
+  return CandidateContactCacheModel.findOneAndUpdate(
+    { provider: 'future_jobs', linkedinUrlKey: options.linkedinUrlKey },
+    { $set: setFields },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 }
 
 async function createLedgerEntry(options: {
