@@ -54,6 +54,7 @@ import {
   enableHyrefastConversationMode,
   getHyrefastInterviewLink,
   listHyrefastResponses,
+  evaluationFromHyrefastResponseAnalysis,
   publishHyrefastJob,
   sendHyrefastInterview,
   setHyrefastJobQuestions,
@@ -2287,13 +2288,28 @@ export const screeningService = {
 
       if (needsEval) {
         try {
-          const evaluation = await evaluateVideoInterviewResponses({
-            candidateName: candidate?.name || 'Unknown',
-            jobTitle: linkedJobTitle,
-            screeningName: screening?.name || '',
-            minShortlistScore: screening?.minShortlistScore ?? 70,
-            responses: videoResponses,
-          });
+          const providerEval = evaluationFromHyrefastResponseAnalysis(videoResponses);
+          const evaluation = providerEval
+            ? {
+                overallScore: providerEval.overallScore,
+                communication: providerEval.overallScore,
+                recommendation: recommendationFromCommunicationScore(
+                  providerEval.overallScore,
+                  screening?.minShortlistScore ?? 70
+                ),
+                summary: providerEval.summary,
+                strengths: providerEval.strengths,
+                concerns: providerEval.concerns,
+                model: providerEval.model,
+                fingerprint,
+              }
+            : await evaluateVideoInterviewResponses({
+                candidateName: candidate?.name || 'Unknown',
+                jobTitle: linkedJobTitle,
+                screeningName: screening?.name || '',
+                minShortlistScore: screening?.minShortlistScore ?? 70,
+                responses: videoResponses,
+              });
           if (evaluation) {
             row.overallScore = evaluation.overallScore;
             row.scoreBreakdown = {

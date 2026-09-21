@@ -77,6 +77,18 @@ function callRecordingOf(doc: HcgZyvkaLean): HcgZyvkaCallRecording {
   return asRecord(doc.call_recording) || {};
 }
 
+function recordingUrlOf(doc: HcgZyvkaLean): string {
+  const recording = callRecordingOf(doc) as Record<string, unknown>;
+  return String(
+    recording.recording_url ||
+      recording.recordingUrl ||
+      recording.url ||
+      recording.file_url ||
+      recording.audio_url ||
+      ''
+  ).trim();
+}
+
 function callResultPayload(doc: HcgZyvkaLean): Record<string, unknown> {
   const wrapper = asRecord(doc.call_result);
   const nested = asRecord(wrapper?.result);
@@ -332,7 +344,6 @@ function collectHcgZyvkaQuestionColumns(docs: HcgZyvkaLean[]): HcgZyvkaQuestionC
 
 export function hcgZyvkaToEvents(doc: HcgZyvkaLean) {
   const status = callStatusOf(doc);
-  const recording = callRecordingOf(doc);
   const result = callResultPayload(doc);
   const preview = hcgZyvkaLastPreview(doc);
   const derived = hcgZyvkaOverallAiStatus(doc);
@@ -360,7 +371,7 @@ export function hcgZyvkaToEvents(doc: HcgZyvkaLean) {
         duration: formatDuration(status),
         outcome,
         highlights,
-        recordingUrl: String(recording.recording_url || '').trim() || null,
+        recordingUrl: recordingUrlOf(doc) || null,
         screeningId: null,
         resultId: null,
       },

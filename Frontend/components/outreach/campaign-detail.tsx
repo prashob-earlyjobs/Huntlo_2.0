@@ -16,6 +16,7 @@ import {
   Eye,
   FileText,
   GitBranch,
+  ListChecks,
   Mail,
   MessageCircle,
   MessagesSquare,
@@ -531,6 +532,7 @@ const STEP_ICONS: Record<string, LucideIcon> = {
   conditional: GitBranch,
   recruiter_task: UserPlus,
   scheduling_link: CalendarClock,
+  qualification: ListChecks,
 };
 
 function Badge({ text, className }: { text: string; className: string }) {
@@ -1542,16 +1544,94 @@ function QualificationTab({
 
 function SequenceTab({
   steps,
+  qualificationConfig,
+  schedulingConfig,
   state,
   message,
   onRetry,
 }: {
   steps: ApiCampaignSequenceStep[];
+  qualificationConfig?: ApiOutreachCampaign["qualificationConfig"] | null;
+  schedulingConfig?: ApiOutreachCampaign["schedulingConfig"] | null;
   state: ApiUiState;
   message: string | null;
   onRetry: () => void;
 }) {
-  if (state !== "success" || steps.length === 0) {
+  const ordered = [...steps].sort((a, b) => a.order - b.order);
+  const questions = qualificationConfig?.questions ?? [];
+  const autoCalendly = Boolean(schedulingConfig?.enabled);
+  const autoScreening =
+    Boolean(qualificationConfig?.autoScreening) && !autoCalendly;
+  const autoWhatsAppAfterVoice = Boolean(
+    qualificationConfig?.autoWhatsAppAfterQualification
+  );
+
+  type SequenceViewRow = {
+    id: string;
+    type: string;
+    label: string;
+    delay: string;
+    summary: string;
+    badge?: string | null;
+  };
+
+  const rows: SequenceViewRow[] = ordered.map((step, index) => {
+    const delay =
+      step.delayDays === 0
+        ? "Immediately"
+        : `${formatStepDelay(step.delayDays, step.delayUnit ?? "days").replace(/^After /, "")} later`;
+    return {
+      id: step.id || `step-${index}`,
+      type: step.type,
+      label: titleCase(step.type),
+      delay,
+      summary: step.subject || step.note || step.body || titleCase(step.type),
+      badge: step.stopOnReply ? "Stops on reply" : null,
+    };
+  });
+
+  if (questions.length > 0) {
+    rows.push({
+      id: "after-qual-questions",
+      type: "qualification",
+      label: "Qualification",
+      delay: "After reply",
+      summary: `${questions.length} screening question${questions.length === 1 ? "" : "s"} in chat`,
+      badge: qualificationConfig?.aiReplyEnabled ? "AI reply" : null,
+    });
+  }
+
+  if (autoScreening) {
+    rows.push({
+      id: "after-qual-screening",
+      type: "ai_voice",
+      label: "AI screening",
+      delay: "After qualification",
+      summary: "Start an AI voice screening call",
+    });
+  } else if (autoCalendly) {
+    rows.push({
+      id: "after-qual-calendly",
+      type: "scheduling_link",
+      label: "Calendly",
+      delay: "After qualification",
+      summary: "Send a scheduling link. No screening call.",
+    });
+  }
+
+  if (autoWhatsAppAfterVoice) {
+    rows.push({
+      id: "after-qual-whatsapp",
+      type: "whatsapp",
+      label: "WhatsApp",
+      delay: "After voice call",
+      summary: qualificationConfig?.hiringFlowId
+        ? "Run hiring flow (or fallback WhatsApp template)"
+        : "Send WhatsApp after the Hunar/Zyvka call",
+    });
+  }
+
+  if (state !== "success" || rows.length === 0) {
     return (
       <ApiFeedback
         state={state === "success" ? "empty" : state}
@@ -1563,8 +1643,6 @@ function SequenceTab({
     );
   }
 
-  const ordered = [...steps].sort((a, b) => a.order - b.order);
-
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Live sequence</h3>
@@ -1572,17 +1650,11 @@ function SequenceTab({
         Read-only view — pause the campaign to edit steps.
       </p>
       <ol className="mt-4 space-y-0">
-        {ordered.map((step, index) => {
-          const Icon = STEP_ICONS[step.type] ?? Activity;
-          const delay =
-            step.delayDays === 0
-              ? "Immediately"
-              : `${formatStepDelay(step.delayDays, step.delayUnit ?? "days").replace(/^After /, "")} later`;
-          const summary =
-            step.subject || step.note || step.body || titleCase(step.type);
+        {rows.map((row, index) => {
+          const Icon = STEP_ICONS[row.type] ?? Activity;
           return (
-            <li key={step.id} className="relative flex gap-3 pb-4 last:pb-0">
-              {index < ordered.length - 1 ? (
+            <li key={row.id} className="relative flex gap-3 pb-4 last:pb-0">
+              {index < rows.length - 1 ? (
                 <span
                   aria-hidden
                   className="absolute top-10 left-[15px] h-full w-px bg-border"
@@ -1594,17 +1666,17 @@ function SequenceTab({
               <div className="min-w-0 flex-1 rounded-xl border border-border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium text-foreground">
-                    {index + 1}. {titleCase(step.type)}
+                    {index + 1}. {row.label}
                   </p>
-                  <span className="text-xs text-muted-foreground">{delay}</span>
-                  {step.stopOnReply ? (
+                  <span className="text-xs text-muted-foreground">{row.delay}</span>
+                  {row.badge ? (
                     <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      Stops on reply
+                      {row.badge}
                     </span>
                   ) : null}
                 </div>
                 <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {summary}
+                  {row.summary}
                 </p>
               </div>
             </li>
@@ -2280,6 +2352,8 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         <TabsContent value="sequence" className="pt-3">
           <SequenceTab
             steps={raw?.sequenceSteps ?? []}
+            qualificationConfig={raw?.qualificationConfig ?? null}
+            schedulingConfig={raw?.schedulingConfig ?? null}
             state={rawState}
             message={rawMessage}
             onRetry={() => setReloadKey((k) => k + 1)}
