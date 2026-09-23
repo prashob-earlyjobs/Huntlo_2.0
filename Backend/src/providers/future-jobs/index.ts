@@ -56,10 +56,13 @@ import {
   filterFormToNaturalLanguage,
   buildJdTextFromPromptAndFilters,
   buildWlSearchFilters,
+  canonicalizeWlLocationFilters,
   yearsRangeFromFilterForm,
   countryRegionsFromFilterForm,
+  regionsFromFilterForm,
   parseYearsExperienceRangeFromText,
   parseCountriesFromText,
+  parseRegionsFromText,
 } from './futureJobs.filterMapping.js';
 import {
   extractSearchProfileDocs,
@@ -139,6 +142,7 @@ export {
   buildFjAuthHeaders,
   buildJdTextFromPromptAndFilters,
   buildWlSearchFilters,
+  canonicalizeWlLocationFilters,
   buildSessionPayloadForApply,
   buildSessionPayloadFromPromptAndFilter,
   buildSourcingSessionPayloadFromPrompt,
@@ -178,9 +182,11 @@ export {
   parseGeoDistanceKm,
   parseYearsExperienceRangeFromText,
   parseCountriesFromText,
+  parseRegionsFromText,
   promptForSourcingApi,
   yearsRangeFromFilterForm,
   countryRegionsFromFilterForm,
+  regionsFromFilterForm,
   resetFutureJobsCircuit,
   resetMockFutureJobsState,
   setMockFutureJobsMode,
@@ -192,6 +198,7 @@ export type {
   WlSearchFilters,
   WlSearchRangeFilter,
   WlSearchEqualsFilter,
+  WlSearchContainsFilter,
 } from './futureJobs.filterMapping.js';
 
 export type {

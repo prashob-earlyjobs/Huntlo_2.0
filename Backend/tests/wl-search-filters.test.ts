@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildWlSearchFilters,
+  canonicalizeWlLocationFilters,
   parseCountriesFromText,
+  parseRegionsFromText,
   parseYearsExperienceRangeFromText,
   yearsRangeFromFilterForm,
 } from '../src/providers/future-jobs/futureJobs.filterMapping.js';
 import {
+  extractLocationFiltersFromGeminiText,
   extractCountriesFromGeminiText,
   extractYearsRangeFromGeminiText,
 } from '../src/providers/gemini/gemini.search-prompt.js';
@@ -59,13 +62,14 @@ describe('wl/search years_of_experience_raw filters', () => {
     });
   });
 
-  it('derives country_region from location when Country is empty', () => {
+  it('derives country_region + region from location chips', () => {
     expect(
       buildWlSearchFilters({
         form: { location: ['Dubai, United Arab Emirates'] },
       })
     ).toEqual({
       country_region: { type: '=', value: ['United Arab Emirates'] },
+      region: { type: '(.)', value: ['Dubai'] },
     });
   });
 
@@ -79,15 +83,17 @@ describe('wl/search years_of_experience_raw filters', () => {
     });
   });
 
-  it('uses countriesFromPrompt when drawer country is empty', () => {
+  it('uses countriesFromPrompt + regionsFromPrompt when drawer is empty', () => {
     expect(
       buildWlSearchFilters({
         form: { yearsExpMin: '4', yearsExpMax: '5' },
-        countriesFromPrompt: ['Luxembourg'],
+        countriesFromPrompt: ['India'],
+        regionsFromPrompt: ['Pune'],
       })
     ).toEqual({
       years_of_experience_raw: { type: 'RANGE', value: [4, 5] },
-      country_region: { type: '=', value: ['Luxembourg'] },
+      country_region: { type: '=', value: ['India'] },
+      region: { type: '(.)', value: ['Pune'] },
     });
   });
 
@@ -99,6 +105,25 @@ describe('wl/search years_of_experience_raw filters', () => {
       })
     ).toEqual({
       country_region: { type: '=', value: ['Germany'] },
+    });
+  });
+
+  it('moves state labels out of country_region into region', () => {
+    expect(
+      buildWlSearchFilters({
+        countriesFromPrompt: ['Kerala'],
+      })
+    ).toEqual({
+      region: { type: '(.)', value: ['Kerala'] },
+    });
+    expect(
+      canonicalizeWlLocationFilters({
+        countries: ['Kerala', 'India'],
+        regions: ['Bengaluru'],
+      })
+    ).toEqual({
+      countries: ['India'],
+      regions: ['Kerala', 'Bengaluru'],
     });
   });
 
@@ -118,7 +143,7 @@ describe('wl/search years_of_experience_raw filters', () => {
     ).toEqual({ type: 'RANGE', value: [5, 5] });
   });
 
-  it('parses country names from NL heuristically', () => {
+  it('parses country names from NL heuristically (no state→country invent)', () => {
     expect(
       parseCountriesFromText(
         'Senior Operations Manager in Luxembourg with 4-5 years of experience'
@@ -129,17 +154,18 @@ describe('wl/search years_of_experience_raw filters', () => {
       'United Arab Emirates',
     ]);
     expect(parseCountriesFromText('Ops manager in Luxemberg')).toEqual(['Luxembourg']);
+    expect(parseCountriesFromText('node js developer from kerala')).toEqual([]);
+    expect(parseCountriesFromText('Digital Marketing Manager in Bengaluru, India')).toEqual([
+      'India',
+    ]);
   });
 
-  it('infers country from state / province mentions in NL', () => {
-    expect(parseCountriesFromText('Product manager in California')).toEqual([
-      'United States',
-    ]);
-    expect(parseCountriesFromText('Backend engineers in Maharashtra')).toEqual(['India']);
-    expect(parseCountriesFromText('Sales lead based in Dubai')).toEqual([
-      'United Arab Emirates',
-    ]);
-    expect(parseCountriesFromText('Recruiter in Ontario')).toEqual(['Canada']);
+  it('parses states/emirates as regions, not countries', () => {
+    expect(parseRegionsFromText('Product manager in California')).toEqual(['California']);
+    expect(parseRegionsFromText('Backend engineers in Maharashtra')).toEqual(['Maharashtra']);
+    expect(parseRegionsFromText('Sales lead based in Dubai')).toEqual(['Dubai']);
+    expect(parseRegionsFromText('node js develoepr from kerala')).toEqual(['Kerala']);
+    expect(parseCountriesFromText('Product manager in California')).toEqual([]);
   });
 
   it('parses Gemini JSON year ranges', () => {
@@ -154,10 +180,24 @@ describe('wl/search years_of_experience_raw filters', () => {
     expect(extractYearsRangeFromGeminiText('{"min":null,"max":null}')).toBeNull();
   });
 
-  it('parses Gemini JSON countries', () => {
+  it('parses Gemini JSON countries + regions', () => {
     expect(extractCountriesFromGeminiText('{"countries":["Luxembourg"]}')).toEqual([
       'Luxembourg',
     ]);
     expect(extractCountriesFromGeminiText('{"countries":[]}')).toBeNull();
+    expect(
+      extractLocationFiltersFromGeminiText(
+        '{"countries":["India"],"regions":["Bengaluru"]}'
+      )
+    ).toEqual({
+      countries: ['India'],
+      regions: ['Bengaluru'],
+    });
+    expect(
+      extractLocationFiltersFromGeminiText('{"countries":[],"regions":["Kerala"]}')
+    ).toEqual({
+      countries: null,
+      regions: ['Kerala'],
+    });
   });
 });
