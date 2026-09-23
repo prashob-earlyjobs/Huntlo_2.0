@@ -86,6 +86,9 @@ export interface RevealState {
   phone: boolean;
   emailStatus?: RevealRequestStatus;
   phoneStatus?: RevealRequestStatus;
+  /** Last successfully revealed values (survive list remaps that clear candidate.email/phone). */
+  emailValue?: string;
+  phoneValue?: string;
 }
 
 export type RevealRequestStatus = "idle" | "loading" | "unavailable";
@@ -100,31 +103,41 @@ function RevealButton({
   status,
   onReveal,
   className,
+  disabled: disabledProp = false,
 }: {
   kind: "email" | "phone";
   candidate: SessionCandidate;
   status: RevealRequestStatus;
   onReveal: (kind: "email" | "phone") => void;
   className?: string;
+  disabled?: boolean;
 }) {
   const Icon = kind === "email" ? Mail : Phone;
   const label = kind === "email" ? "Reveal email" : "Reveal mobile";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const isLoading = status === "loading";
   const isUnavailable = status === "unavailable";
+  const blocked = Boolean(disabledProp) && !isLoading && !isUnavailable;
 
   return (
     <Button
       type="button"
       size="xs"
       variant="outline"
-      disabled={isLoading || isUnavailable}
+      // Keep "unavailable" clickable so the user can retry after a soft miss.
+      disabled={isLoading || blocked}
       onClick={() => onReveal(kind)}
       className={className}
     >
       {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
-      {isLoading ? "Fetching…" : isUnavailable ? "Unavailable" : label}
-      {!isLoading && !isUnavailable ? (
+      {isLoading
+        ? "Fetching…"
+        : isUnavailable
+          ? "Retry"
+          : blocked
+            ? "Busy…"
+            : label}
+      {!isLoading && !isUnavailable && !blocked ? (
         <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
       ) : null}
     </Button>
@@ -137,12 +150,16 @@ function ContactIconButton({
   visible,
   status,
   onReveal,
+  disabled: disabledProp = false,
+  disabledReason,
 }: {
   kind: "email" | "phone";
   value: string;
   visible: boolean;
   status: RevealRequestStatus;
   onReveal: (kind: "email" | "phone") => void;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const Icon = kind === "email" ? Mail : Phone;
@@ -150,14 +167,19 @@ function ContactIconButton({
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const isLoading = status === "loading";
   const isUnavailable = status === "unavailable";
+  // Revealed-but-empty: keep enabled so user can copy once value hydrates / retry isn't blocked.
+  const blocked =
+    Boolean(disabledProp) && !isLoading && !visible && !isUnavailable;
   const tooltip = copied
     ? `${kind === "email" ? "Email" : "Mobile"} copied`
     : visible
-      ? value
+      ? value || `${kind === "email" ? "Email" : "Mobile"} revealed`
       : isLoading
         ? `Fetching ${label}…`
         : isUnavailable
-          ? `${kind === "email" ? "Email" : "Mobile"} unavailable`
+          ? `Retry ${label} reveal`
+          : blocked
+            ? disabledReason || "Wait for the current mobile reveal to finish"
       : `Reveal ${label} · ${cost} credits`;
 
   const button = (
@@ -167,14 +189,19 @@ function ContactIconButton({
       variant="outline"
       aria-label={
         visible
-          ? `Copy ${label}`
+          ? value
+            ? `Copy ${label}`
+            : `${label} revealed`
           : isLoading
             ? `Fetching ${label}`
             : isUnavailable
-              ? `${label} unavailable`
+              ? `Retry ${label}`
+              : blocked
+                ? disabledReason || "Mobile reveal in progress"
               : `Reveal ${label} for ${cost} credits`
       }
-      disabled={isLoading || isUnavailable}
+      // Unavailable stays clickable for retry; only loading / phone-busy block.
+      disabled={isLoading || blocked}
       onClick={() => {
         if (!visible) {
           onReveal(kind);
@@ -211,6 +238,7 @@ export function ContactReveal({
   layout = "row",
   compact = false,
   fill = false,
+  disablePhoneReveal = false,
 }: {
   candidate: SessionCandidate;
   revealed: RevealState;
@@ -219,17 +247,25 @@ export function ContactReveal({
   compact?: boolean;
   /** Stretch controls to fill the parent width (equal columns when side by side). */
   fill?: boolean;
+  /** Block starting another mobile reveal while one is in progress. */
+  disablePhoneReveal?: boolean;
 }) {
   const emailVisible = revealed.email || candidate.emailRevealed;
   const phoneVisible = revealed.phone || candidate.phoneRevealed;
-  const emailStatus = revealed.emailStatus ?? "idle";
-  const phoneStatus = revealed.phoneStatus ?? "idle";
+  const emailValue = (candidate.email || revealed.emailValue || "").trim();
+  const phoneValue = (candidate.phone || revealed.phoneValue || "").trim();
+  const emailStatus =
+    emailVisible && emailValue ? "idle" : (revealed.emailStatus ?? "idle");
+  const phoneStatus =
+    phoneVisible && phoneValue ? "idle" : (revealed.phoneStatus ?? "idle");
   const itemClass = fill ? "min-w-0 flex-1" : undefined;
   const buttonClass = fill ? "w-full" : undefined;
+  const phoneBusy =
+    disablePhoneReveal && phoneStatus !== "loading" && !phoneVisible;
 
   if (compact) {
-    const showEmailValue = emailVisible && Boolean(candidate.email);
-    const showPhoneValue = phoneVisible && Boolean(candidate.phone);
+    const showEmailValue = emailVisible && Boolean(emailValue);
+    const showPhoneValue = phoneVisible && Boolean(phoneValue);
     return (
       <div
         className={cn(
@@ -242,7 +278,7 @@ export function ContactReveal({
         {showEmailValue ? (
           <RevealedValue
             icon={Mail}
-            value={candidate.email}
+            value={emailValue}
             verified={candidate.emailVerified}
             label="email"
             previouslyRevealed={candidate.emailRevealed && !revealed.email}
@@ -250,8 +286,8 @@ export function ContactReveal({
         ) : (
           <ContactIconButton
             kind="email"
-            value={candidate.email}
-            visible={false}
+            value={emailValue}
+            visible={emailVisible}
             status={emailStatus}
             onReveal={onReveal}
           />
@@ -259,7 +295,7 @@ export function ContactReveal({
         {showPhoneValue ? (
           <RevealedValue
             icon={Phone}
-            value={candidate.phone}
+            value={phoneValue}
             verified={candidate.phoneVerified}
             label="phone number"
             previouslyRevealed={candidate.phoneRevealed && !revealed.phone}
@@ -267,10 +303,12 @@ export function ContactReveal({
         ) : (
           <ContactIconButton
             kind="phone"
-            value={candidate.phone}
-            visible={false}
+            value={phoneValue}
+            visible={phoneVisible}
             status={phoneStatus}
             onReveal={onReveal}
+            disabled={phoneBusy}
+            disabledReason="Wait for the current mobile reveal to finish"
           />
         )}
       </div>
@@ -285,11 +323,11 @@ export function ContactReveal({
         layout === "stack" ? "flex-col" : fill ? "items-stretch" : "flex-wrap items-center"
       )}
     >
-      {emailVisible ? (
+      {emailVisible && emailValue ? (
         <div className={itemClass}>
           <RevealedValue
             icon={Mail}
-            value={candidate.email}
+            value={emailValue}
             verified={candidate.emailVerified}
             label="email"
             previouslyRevealed={candidate.emailRevealed && !revealed.email}
@@ -307,11 +345,11 @@ export function ContactReveal({
         </div>
       )}
 
-      {phoneVisible ? (
+      {phoneVisible && phoneValue ? (
         <div className={itemClass}>
           <RevealedValue
             icon={Phone}
-            value={candidate.phone}
+            value={phoneValue}
             verified={candidate.phoneVerified}
             label="phone number"
             previouslyRevealed={candidate.phoneRevealed && !revealed.phone}
@@ -325,6 +363,7 @@ export function ContactReveal({
             status={phoneStatus}
             onReveal={onReveal}
             className={buttonClass}
+            disabled={phoneBusy}
           />
         </div>
       )}

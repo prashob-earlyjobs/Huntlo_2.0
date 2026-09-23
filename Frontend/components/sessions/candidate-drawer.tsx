@@ -173,6 +173,7 @@ export function CandidateDrawer({
   onAddToOutreach,
   detailsLoading = false,
   detailsError = null,
+  disablePhoneReveal = false,
 }: {
   candidate: SessionCandidate | null;
   open: boolean;
@@ -185,6 +186,7 @@ export function CandidateDrawer({
   onAddToOutreach: () => void;
   detailsLoading?: boolean;
   detailsError?: string | null;
+  disablePhoneReveal?: boolean;
 }) {
   const revealQuota = useRevealQuota();
 
@@ -294,6 +296,7 @@ export function CandidateDrawer({
                       onReveal={onReveal}
                       layout="row"
                       fill
+                      disablePhoneReveal={disablePhoneReveal}
                     />
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">

@@ -260,10 +260,10 @@ export async function startScoutOutboundDebugSession(input: {
   }
 }
 
-export function completeScoutOutboundDebugSession(input: {
+export async function completeScoutOutboundDebugSession(input: {
   debugId?: string | null;
   error?: string | null;
-}): void {
+}): Promise<void> {
   if (isTest()) return;
   if (mongoose.connection.readyState !== 1) return;
 
@@ -271,7 +271,7 @@ export function completeScoutOutboundDebugSession(input: {
   const debugId = asObjectId(input.debugId ?? actor.outboundDebugId);
   if (!debugId) return;
 
-  void (async () => {
+  try {
     await ensureFutureJobsOutboundDebugCollection();
     const existing = await FutureJobsOutboundDebugModel.findById(debugId);
     if (!existing || existing.kind !== 'scout') return;
@@ -279,12 +279,12 @@ export function completeScoutOutboundDebugSession(input: {
     existing.sessionStatus = input.error ? 'failed' : 'completed';
     if (input.error) existing.error = input.error;
     await existing.save();
-  })().catch((err) => {
+  } catch (err) {
     log().warn(
       { err: err instanceof Error ? err.message : String(err) },
       'failed to complete scout outbound debug session'
     );
-  });
+  }
 }
 
 /**
@@ -556,6 +556,41 @@ export async function findInProgressRevealOutboundDebugSession(input: {
   return {
     id: String(session._id),
     pollCount: Array.isArray(session.polls) ? session.polls.length : 0,
+  };
+}
+
+/** Reveal + soft-poll window (~130s HTTP + 60s poll). Stale locks auto-clear. */
+export const PHONE_REVEAL_LOCK_MAX_AGE_MS = 4 * 60 * 1000;
+
+/**
+ * Any in-progress phone reveal for this user (any candidate), used to serialize
+ * lookup + reveal-contacts + soft-poll and avoid FJ rate limits.
+ */
+export async function findAnyInProgressPhoneRevealForUser(
+  userId?: string | null
+): Promise<{ id: string; createdAt: Date; lookupId?: string } | null> {
+  if (isTest()) return null;
+  if (mongoose.connection.readyState !== 1) return null;
+  const uid = asObjectId(userId ?? getFutureJobsActor().userId);
+  if (!uid) return null;
+
+  await ensureFutureJobsOutboundDebugCollection();
+  const session = await FutureJobsOutboundDebugModel.findOne({
+    kind: 'reveal',
+    type: 'phone',
+    sessionStatus: 'in_progress',
+    userId: uid,
+  })
+    .sort({ createdAt: -1 })
+    .select({ _id: 1, createdAt: 1, lookupId: 1 })
+    .lean()
+    .exec();
+
+  if (!session?._id) return null;
+  return {
+    id: String(session._id),
+    createdAt: session.createdAt instanceof Date ? session.createdAt : new Date(session.createdAt),
+    ...(session.lookupId ? { lookupId: String(session.lookupId) } : {}),
   };
 }
 

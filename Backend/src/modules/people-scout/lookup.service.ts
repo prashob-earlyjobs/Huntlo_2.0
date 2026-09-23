@@ -8,10 +8,10 @@ import {
   getFutureJobsProvider,
   isFjProfileNotFoundError,
   normalizeLinkedinProfileUrl,
+  resolveFjRevealProfileId,
   appendRevealOutboundDebugPoll,
   completeRevealOutboundDebugSession,
   completeScoutOutboundDebugSession,
-  startRevealOutboundDebugSession,
   startScoutOutboundDebugSession,
 } from '../../providers/future-jobs/index.js';
 import { setFutureJobsOutboundDebugId } from '../../providers/future-jobs/futureJobs.actor-context.js';
@@ -22,6 +22,7 @@ import {
   persistSoftPolledMobileReveal,
   resolveLinkedinRevealValues,
   revealService,
+  assertNoConcurrentPhoneRevealForActor,
 } from '../candidates/reveal.service.js';
 import type { RevealResult } from '../candidates/reveal.service.js';
 import { UserModel } from '../auth/user.model.js';
@@ -523,7 +524,7 @@ export class PeopleScoutLookupService {
       try {
         fj = await provider.scoutPeopleLookup(parsed.providerPayload);
       } catch (err) {
-        completeScoutOutboundDebugSession({
+        await completeScoutOutboundDebugSession({
           debugId,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -797,6 +798,14 @@ export class PeopleScoutLookupService {
       throw AppError.badRequest('LinkedIn profile URL is missing for this lookup');
     }
 
+    const fjProfileId = resolveFjRevealProfileId({
+      fjProfileId: lookup.candidateSnapshot?.fjProfileId,
+      externalCandidateId: lookup.externalCandidateId,
+    });
+    if (!fjProfileId) {
+      throw AppError.badRequest('Future Jobs profileId is missing for this lookup');
+    }
+
     const existing = await PeopleScoutContactRevealModel.findOne({
       organizationId: actor.organizationId,
       userId: actor.userId,
@@ -805,24 +814,27 @@ export class PeopleScoutLookupService {
     });
 
     const revealType = contactType === 'email' ? 'email' : 'phone';
-    const debugId = await startRevealOutboundDebugSession({
-      type: revealType,
-      lookupId: lookup._id.toHexString(),
-      linkedinUrl: normalized,
-      userId: actor.userId,
-      organizationId: actor.organizationId,
-    });
+    if (contactType === 'mobile') {
+      await assertNoConcurrentPhoneRevealForActor(actor);
+    }
 
     let result: RevealResult;
     try {
+      // Scout (lookup) completes first inside revealByLinkedin; kind:reveal starts after.
       result = await revealService.revealByLinkedin(actor, {
         linkedinUrl: normalized,
         contactType,
-        profileId: lookup.externalCandidateId ?? lookup._id.toHexString(),
+        profileId: fjProfileId,
         idempotencyKey,
+        revealDebug: {
+          type: revealType,
+          lookupId: lookup._id.toHexString(),
+          linkedinUrl: normalized,
+          userId: actor.userId,
+          organizationId: actor.organizationId,
+        },
       });
       completeRevealOutboundDebugSession({
-        debugId,
         lookupId: lookup._id.toHexString(),
         type: revealType,
         found: result.found,
@@ -832,7 +844,6 @@ export class PeopleScoutLookupService {
       });
     } catch (err) {
       completeRevealOutboundDebugSession({
-        debugId,
         lookupId: lookup._id.toHexString(),
         type: revealType,
         found: false,

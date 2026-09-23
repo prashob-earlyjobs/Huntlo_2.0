@@ -2,7 +2,6 @@ import {
   createFutureJobsUpstreamError,
   FUTURE_JOBS_PROFILE_NOT_FOUND_CODE,
 } from './futureJobs.errors.js';
-import { normalizeLinkedinProfileUrl } from './futureJobs.reveal.js';
 import type {
   FilterAutocompleteParams,
   FutureJobsAnnotationData,
@@ -36,17 +35,17 @@ const mockMode: MockModeState = {
 /** Per-session poll counters for deterministic empty → ready behavior. */
 const sessionPollCounts = new Map<string, number>();
 
-/** LinkedIn URLs scouted via `/lookup`. Reveal-contacts 404s until lookup, matching live FJ. */
-const scoutedLinkedinUrls = new Set<string>();
+/** Profile ids scouted via `/lookup`. Reveal-contacts 404s until lookup, matching live FJ. */
+const scoutedProfileIds = new Set<string>();
 
-function markLinkedinScouted(url: string | null | undefined): void {
-  const canonical = normalizeLinkedinProfileUrl(url);
-  if (canonical) scoutedLinkedinUrls.add(canonical);
+function markProfileScouted(profileId: string | null | undefined): void {
+  const id = String(profileId || '').trim();
+  if (id) scoutedProfileIds.add(id);
 }
 
-function wasLinkedinScouted(url: string | null | undefined): boolean {
-  const canonical = normalizeLinkedinProfileUrl(url);
-  return Boolean(canonical && scoutedLinkedinUrls.has(canonical));
+function wasProfileScouted(profileId: string | null | undefined): boolean {
+  const id = String(profileId || '').trim();
+  return Boolean(id && scoutedProfileIds.has(id));
 }
 
 let sessionSeq = 0;
@@ -90,7 +89,7 @@ export function resetMockFutureJobsState(): void {
   mockMode.pending207 = false;
   mockMode.emptyProfiles = false;
   sessionPollCounts.clear();
-  scoutedLinkedinUrls.clear();
+  scoutedProfileIds.clear();
   sessionSeq = 0;
   candidateSeq = 0;
 }
@@ -715,18 +714,18 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
   }
 
   async function scoutPeopleRevealContact(
-    linkedinProfileUrl: string,
+    profileId: string,
     revealType: 'EMAIL' | 'PHONE'
   ): Promise<FutureJobsApiResponse> {
     maybeFail('POST /wl/scout-people/reveal-contacts');
-    const profileUrl = String(linkedinProfileUrl || '').trim();
+    const id = String(profileId || '').trim();
     const type = String(revealType || '').toUpperCase();
-    if (!profileUrl || (type !== 'PHONE' && type !== 'EMAIL')) {
-      const err = new Error('linkedin_profile_url and revealType (PHONE|EMAIL) are required');
+    if (!id || (type !== 'PHONE' && type !== 'EMAIL')) {
+      const err = new Error('profileId and revealType (PHONE|EMAIL) are required');
       (err as Error & { statusCode: number }).statusCode = 400;
       throw err;
     }
-    if (!wasLinkedinScouted(profileUrl)) {
+    if (!wasProfileScouted(id)) {
       throw createFutureJobsUpstreamError({
         details: { message: 'Profile not scouted. Call /lookup before /reveal-contacts.' },
         fjHttpStatus: 404,
@@ -736,7 +735,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
         logFailure: false,
       });
     }
-    return buildRevealResponse(type as 'EMAIL' | 'PHONE', profileUrl);
+    return buildRevealResponse(type as 'EMAIL' | 'PHONE', id);
   }
 
   async function scoutPeopleLookup(body: {
@@ -811,12 +810,16 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
     const decodedSlug = decodeURIComponent(slug!).replace(/\/+$/, '');
     const profileUrl =
       linkedinUrl || `https://www.linkedin.com/in/${encodeURIComponent(decodedSlug)}`;
-    const memberSlug = `ACoAAMock${decodedSlug.replace(/[^A-Za-z0-9]/g, '').slice(0, 18)}`;
+    const memberSlug = /^ACoAA[A-Za-z0-9_-]+$/i.test(decodedSlug)
+      ? decodedSlug
+      : `ACoAAMock${decodedSlug.replace(/[^A-Za-z0-9]/g, '').slice(0, 18)}`;
     const memberUrl = `https://www.linkedin.com/in/${memberSlug}`;
+    // Stable FJ profile id for reveal-contacts (live FJ uses profile._id).
+    const profileId = /^[a-f0-9]{24}$/i.test(decodedSlug)
+      ? decodedSlug
+      : memberSlug;
 
-    markLinkedinScouted(linkedinUrl);
-    markLinkedinScouted(profileUrl);
-    markLinkedinScouted(memberUrl);
+    markProfileScouted(profileId);
 
     return {
       status: 'SUCCESS',
@@ -825,8 +828,8 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
       data: {
         scoutId: `mock-scout-${decodedSlug}`,
         profile: {
-          _id: memberSlug,
-          id: memberSlug,
+          _id: profileId,
+          id: profileId,
           name: 'Aisha Rahman',
           title: 'Senior Software Engineer',
           headline: 'Senior Software Engineer · Platform · TypeScript',

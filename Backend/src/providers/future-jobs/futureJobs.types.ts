@@ -262,10 +262,11 @@ export interface FutureJobsProvider {
 
   /**
    * POST /wl/scout-people/reveal-contacts
-   * Body: { linkedin_profile_url, revealContactType: ["email"] | ["phone"] }
+   * Body: { profileId, revealContactType: ["email"] | ["phone"] }
+   * `profileId` comes from scout-people/lookup (`profile._id`).
    */
   scoutPeopleRevealContact(
-    linkedinProfileUrl: string,
+    profileId: string,
     revealType: 'EMAIL' | 'PHONE'
   ): Promise<FutureJobsApiResponse>;
 
