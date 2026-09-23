@@ -362,6 +362,7 @@ export function hcgZyvkaToEvents(doc: HcgZyvkaLean) {
       channel: 'AI Voice',
       author: 'ai' as const,
       authorName: 'Huntlo Voice AI',
+      subject: undefined,
       text: preview.lastMessage,
       time: preview.lastTime,
       delivery: hcgZyvkaCallStatusValue(doc) === 'FAILED' ? 'Failed' : 'Delivered',

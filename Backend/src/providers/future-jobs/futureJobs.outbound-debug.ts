@@ -487,14 +487,14 @@ export function appendRevealOutboundDebugPoll(input: {
         : [];
     })();
 
-    session.polls = [
+    session.set('polls', [
       ...(session.polls ?? []),
       {
         url,
         response: truncateJson(input.response),
         createdAt: new Date(),
       },
-    ];
+    ]);
 
     if (found && phoneValues.length > 0) {
       if (!session.dataFoundFrom) session.dataFoundFrom = 'poll';
@@ -657,7 +657,7 @@ export function recordFutureJobsOutboundDebug(input: {
           if (!isMainRevealOperation(snapshot.operation)) {
             return;
           }
-          session.calls = [...(session.calls ?? []), snapshot];
+          session.set('calls', [...(session.calls ?? []), snapshot]);
           session.mainApi = snapshot;
           session.operation = snapshot.operation;
           session.method = snapshot.method;
