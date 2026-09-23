@@ -997,25 +997,25 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
   }
 
   async function scoutPeopleRevealContact(
-    linkedinProfileUrl: string,
+    profileId: string,
     revealType: 'EMAIL' | 'PHONE'
   ): Promise<FutureJobsApiResponse> {
     const delegate = resolveDelegate();
-    if (delegate) return delegate.scoutPeopleRevealContact(linkedinProfileUrl, revealType);
+    if (delegate) return delegate.scoutPeopleRevealContact(profileId, revealType);
 
     const { baseUrl, apiKey } = getFutureJobsConfig();
     assertFutureJobsApiKey(apiKey);
 
-    const profileUrl = String(linkedinProfileUrl || '').trim();
+    const id = String(profileId || '').trim();
     const type = String(revealType || '').toUpperCase();
-    if (!profileUrl || (type !== 'PHONE' && type !== 'EMAIL')) {
-      const err = new Error('linkedin_profile_url and revealType (PHONE|EMAIL) are required');
+    if (!id || (type !== 'PHONE' && type !== 'EMAIL')) {
+      const err = new Error('profileId and revealType (PHONE|EMAIL) are required');
       (err as Error & { statusCode: number }).statusCode = 400;
       throw err;
     }
 
     const revealBody = {
-      linkedin_profile_url: profileUrl,
+      profileId: id,
       revealContactType: type === 'EMAIL' ? ['email'] : ['phone'],
     };
     const url = `${baseUrl}/wl/scout-people/reveal-contacts`;

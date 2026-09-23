@@ -59,6 +59,7 @@ export function CandidateTable({
   onReveal,
   onOpenProfile,
   onAddToOutreach,
+  disablePhoneReveal = false,
 }: {
   candidates: SessionCandidate[];
   density: "comfortable" | "compact";
@@ -72,6 +73,7 @@ export function CandidateTable({
   onReveal: (id: string, kind: "email" | "phone") => void;
   onOpenProfile: (id: string) => void;
   onAddToOutreach: (id: string) => void;
+  disablePhoneReveal?: boolean;
 }) {
   const allSelected =
     candidates.length > 0 && candidates.every((c) => selected.has(c.id));
@@ -223,6 +225,7 @@ export function CandidateTable({
                     revealed={revealed}
                     onReveal={(kind) => onReveal(candidate.id, kind)}
                     compact
+                    disablePhoneReveal={disablePhoneReveal}
                   />
                 </TableCell>
                 {/* <TableCell className={cellPad}>

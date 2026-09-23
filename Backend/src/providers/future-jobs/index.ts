@@ -85,6 +85,7 @@ import {
   looksValidContact,
   lowercaseLinkedinProfileUrl,
   normalizeLinkedinProfileUrl,
+  resolveFjRevealProfileId,
 } from './futureJobs.reveal.js';
 import type { FutureJobsProvider } from './futureJobs.types.js';
 
@@ -179,6 +180,7 @@ export {
   parseYearsExperienceRangeFromText,
   parseCountriesFromText,
   promptForSourcingApi,
+  resolveFjRevealProfileId,
   yearsRangeFromFilterForm,
   countryRegionsFromFilterForm,
   resetFutureJobsCircuit,
@@ -196,6 +198,8 @@ export {
   completeRevealOutboundDebugSession,
   appendRevealOutboundDebugPoll,
   findInProgressRevealOutboundDebugSession,
+  findAnyInProgressPhoneRevealForUser,
+  PHONE_REVEAL_LOCK_MAX_AGE_MS,
 } from './futureJobs.outbound-debug.js';
 export {
   FUTURE_JOBS_OUTBOUND_DEBUG_COLLECTION,

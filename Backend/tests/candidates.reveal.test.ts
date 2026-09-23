@@ -515,7 +515,7 @@ describe('Candidates reveal API', () => {
     expect(phone.body.data.values.length).toBeGreaterThan(0);
   });
 
-  it('phone reveal uses reveal-contacts with existing linkedin url (no re-lookup)', async () => {
+  it('phone reveal runs scout-people lookup then reveal-contacts', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent, '-us');
     const memberUrl =
       'https://www.linkedin.com/in/ACoAAMockJaneDoeSeattle01';
@@ -526,6 +526,7 @@ describe('Candidates reveal API', () => {
       externalCandidateId: 'ACoAAMockJaneDoeSeattle01',
       rawDoc: {
         profile: {
+          _id: 'ACoAAMockJaneDoeSeattle01',
           linkedin_profile_url: memberUrl,
         },
       },
@@ -541,7 +542,7 @@ describe('Candidates reveal API', () => {
     expect(phone.body.data.values.length).toBeGreaterThan(0);
   });
 
-  it('email reveal uses reveal-contacts with existing linkedin url (no re-lookup)', async () => {
+  it('email reveal runs scout-people lookup then reveal-contacts', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent, '-email-direct');
     const memberUrl =
       'https://www.linkedin.com/in/ACoAADXNqp4BZZzDXhJmaTSQGzhLGgxx3NKtFG8';
@@ -554,6 +555,7 @@ describe('Candidates reveal API', () => {
       externalCandidateId: 'ACoAADXNqp4BZZzDXhJmaTSQGzhLGgxx3NKtFG8',
       rawDoc: {
         profile: {
+          _id: 'ACoAADXNqp4BZZzDXhJmaTSQGzhLGgxx3NKtFG8',
           linkedin_profile_url: memberUrl,
         },
       },

@@ -17,7 +17,6 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ScoutProfile } from "@/lib/mock-scout";
 import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api";
-import { REVEAL_COSTS, useRevealQuota } from "@/hooks/use-reveal-quota";
+import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -116,7 +115,6 @@ export function ScoutProfileCard({
   const [takingLonger, setTakingLonger] = useState(false);
   const [listNames, setListNames] = useState<string[]>([]);
   const revealGenerationRef = useRef(0);
-  const revealQuota = useRevealQuota();
 
   useEffect(() => {
     let cancelled = false;
@@ -274,12 +272,19 @@ export function ScoutProfileCard({
       }
     } catch (err) {
       if (revealGenerationRef.current !== generation) return;
-      // 4xx/5xx, timeout, network — fall through to poll when possible.
-      if (!isRevealTimeoutError(err) && !lookupId) {
+      const message = getApiErrorMessage(err, "");
+      // Do not soft-poll when another mobile reveal holds the per-user lock.
+      if (/already in progress|REVEAL_IN_PROGRESS/i.test(message)) {
         finish(() => {
-          setRevealError(getApiErrorMessage(err));
+          setRevealError(message);
+        });
+      } else if (!isRevealTimeoutError(err) && !lookupId) {
+        // 4xx/5xx without a lookup to poll — surface the error.
+        finish(() => {
+          setRevealError(message);
         });
       }
+      // Timeout / empty / other errors with lookupId → fall through to soft-poll.
     }
 
     if (gotPhone || !isActive()) {
@@ -390,27 +395,20 @@ export function ScoutProfileCard({
             Email not found
           </Button>
         ) : (
-          <ConfirmDialog
-            trigger={
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="w-full justify-start"
-                disabled={revealing !== null}
-              >
-                <Mail aria-hidden />
-                Reveal Email
-                <span className="ml-auto tabular-nums text-muted-foreground">
-                  {REVEAL_COSTS.email} cr
-                </span>
-              </Button>
-            }
-            title={`Reveal ${profile.name.split(" ")[0]}’s email?`}
-            description={`This uses ${REVEAL_COSTS.email} email credits. You have ${revealQuota.emailRemaining.toLocaleString("en-IN")} of ${revealQuota.emailTotal.toLocaleString("en-IN")} email reveals remaining this cycle.`}
-            confirmLabel={`Reveal for ${REVEAL_COSTS.email} credits`}
-            onConfirm={() => void handleReveal("email")}
-          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            disabled={revealing !== null}
+            onClick={() => void handleReveal("email")}
+          >
+            <Mail aria-hidden />
+            Reveal Email
+            <span className="ml-auto tabular-nums text-muted-foreground">
+              {REVEAL_COSTS.email} cr
+            </span>
+          </Button>
         )}
         {revealing === "mobile" ? (
           <Button
