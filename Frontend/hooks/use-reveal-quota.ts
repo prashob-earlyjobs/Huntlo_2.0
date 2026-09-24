@@ -20,6 +20,18 @@ export const REVEAL_COSTS = {
   mobile: 5,
 } as const;
 
+/** Enterprise overage has no numeric cap. The usage API sends that as a null limit. */
+export const UNLIMITED_REVEAL_CREDITS = 999_999_999;
+
+export function revealCreditsRemaining(row?: {
+  used: number;
+  limit: number | null;
+}): number {
+  if (!row) return 0;
+  if (row.limit == null) return UNLIMITED_REVEAL_CREDITS;
+  return Math.max(0, row.limit - row.used);
+}
+
 const EMPTY_QUOTA: RevealQuota = {
   emailRemaining: 0,
   emailTotal: 0,
@@ -34,13 +46,11 @@ async function fetchRevealQuota(): Promise<RevealQuota> {
   const usage = await plansApi.getUsage();
   const email = usage.find((quota) => quota.id === "email-reveals");
   const mobile = usage.find((quota) => quota.id === "mobile-reveals");
-  const remaining = (row?: { used: number; limit: number | null }) =>
-    row && row.limit != null ? Math.max(0, row.limit - row.used) : 0;
   return {
-    emailTotal: email?.limit ?? 0,
-    emailRemaining: remaining(email),
-    mobileTotal: mobile?.limit ?? 0,
-    mobileRemaining: remaining(mobile),
+    emailTotal: email ? (email.limit ?? UNLIMITED_REVEAL_CREDITS) : 0,
+    emailRemaining: revealCreditsRemaining(email),
+    mobileTotal: mobile ? (mobile.limit ?? UNLIMITED_REVEAL_CREDITS) : 0,
+    mobileRemaining: revealCreditsRemaining(mobile),
   };
 }
 
