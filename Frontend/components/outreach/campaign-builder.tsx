@@ -53,7 +53,7 @@ import {
   type CampaignCreateInput,
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
-import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
+import { REVEAL_COSTS, revealCreditsRemaining } from "@/hooks/use-reveal-quota";
 import type { SequenceStepType } from "@/lib/mock-outreach";
 import { campaignDetailPath, ROUTES } from "@/lib/routes";
 
@@ -291,11 +291,9 @@ export function CampaignBuilder({
         }
         const email = usage.find((row) => row.id === "email-reveals");
         const mobile = usage.find((row) => row.id === "mobile-reveals");
-        const remaining = (row?: { used: number; limit: number | null }) =>
-          row && row.limit != null ? Math.max(0, row.limit - row.used) : 0;
         setRevealCredits({
-          emailRemaining: remaining(email),
-          mobileRemaining: remaining(mobile),
+          emailRemaining: revealCreditsRemaining(email),
+          mobileRemaining: revealCreditsRemaining(mobile),
           emailCost: REVEAL_COSTS.email,
           mobileCost: REVEAL_COSTS.mobile,
         });
