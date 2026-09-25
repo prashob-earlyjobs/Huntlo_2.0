@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-import { getLogger } from '../../config/logger.js';
+import { isMailDeliveryFailure } from './mail-delivery-failure.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
 import { OutreachEnrollmentModel } from '../outreach/enrollment.model.js';
@@ -1032,6 +1032,23 @@ export async function ingestInboundMessage(input: NormalizedInboundMessage): Pro
   messageId: string | null;
 }> {
   if (!input.providerMessageId?.trim()) {
+    return { duplicate: false, threadId: null, messageId: null };
+  }
+
+  if (
+    input.channel === 'email' &&
+    isMailDeliveryFailure({
+      from: input.from,
+      subject: input.subject,
+      bodyText: input.bodyText,
+    })
+  ) {
+    getLogger()
+      .child({ component: 'inbound-sync' })
+      .info(
+        { from: input.from, subject: input.subject, providerMessageId: input.providerMessageId },
+        'Ignored mail delivery failure — not a candidate reply'
+      );
     return { duplicate: false, threadId: null, messageId: null };
   }
 

@@ -219,6 +219,7 @@ export type LaunchContactUnlock = {
   phoneCreditsCharged: number;
   skipped: number;
   failed: number;
+  queued?: number;
 };
 
 export type CampaignAudiencePreview = {

@@ -320,6 +320,7 @@ export function AudienceStep({
   importListDescription = "Candidates imported for an outreach campaign",
   importListTags = ["outreach-import"],
   relatedJobId = null,
+  hideLockedStats = false,
 }: {
   state: AudienceStepState;
   update: AudienceStepUpdate;
@@ -331,6 +332,8 @@ export function AudienceStep({
   importListDescription?: string;
   importListTags?: string[];
   relatedJobId?: string | null;
+  /** Outreach launch reveals missing contacts, so these counts are misleading. */
+  hideLockedStats?: boolean;
 }) {
   const stats = state.audiencePreview;
   const [lists, setLists] = useState<SavedList[]>([]);
@@ -957,15 +960,28 @@ export function AudienceStep({
         ) : null}
 
         {stats ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div
+            className={
+              hideLockedStats
+                ? "grid grid-cols-2 gap-2"
+                : "grid grid-cols-2 gap-2 sm:grid-cols-4"
+            }
+          >
             {(
               [
-                ["Selected", stats.selected, Users],
-                ["Duplicates", stats.duplicates, CopyX],
-                ["Invalid", stats.invalid, XCircle],
-                ["Estimated reachable", reachableCount(stats), CheckCircle2],
+                ["Selected", stats.selected, Users, false],
+                ["Duplicates", stats.duplicates, CopyX, false],
+                ["Invalid", stats.invalid, XCircle, true],
+                [
+                  "Estimated reachable",
+                  reachableCount(stats),
+                  CheckCircle2,
+                  true,
+                ],
               ] as const
-            ).map(([label, value, Icon]) => (
+            )
+              .filter(([, , , locked]) => !hideLockedStats || !locked)
+              .map(([label, value, Icon]) => (
               <div
                 key={label}
                 className="rounded-lg border border-border bg-muted/30 px-3 py-2.5"

@@ -36,7 +36,11 @@ import {
 } from './enrollment.model.js';
 import { recordCampaignActivity, CampaignActivityModel } from './campaign-activity.model.js';
 import { isOptedOut, validateCampaignLaunch, assertCampaignTypeConsistency } from './campaign-validate.js';
-import { enrichCampaignContactsForLaunch } from './campaign-launch-reveal.js';
+import {
+  enrichCampaignContactsForLaunch,
+  enqueueSourcingSessionLaunch,
+  sourcingSessionIdFromLabel,
+} from './campaign-launch-reveal.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
 import { enrichEnrollmentRowsWithAnswerMedia } from './enrollment-answer-media.js';
 import {
@@ -1042,6 +1046,35 @@ export const campaignsService = {
     return result;
   },
 
+  async activateEnrollmentAfterContactUnlock(campaignId: string, enrollmentId: string) {
+    const campaign = await OutreachCampaignModel.findOne({
+      _id: campaignId,
+      status: 'running',
+      deletedAt: null,
+    });
+    if (!campaign) return;
+    const enrollment = await OutreachEnrollmentModel.findOne({
+      _id: enrollmentId,
+      campaignId: campaign._id,
+      status: 'pending',
+    });
+    if (!enrollment) return;
+    const needsEmail = Boolean(campaign.channelConfig.email?.enabled);
+    const needsPhone = Boolean(
+      campaign.channelConfig.whatsapp?.enabled || campaign.channelConfig.ai_voice?.enabled
+    );
+    if (needsEmail && !enrollment.contactAvailability.email) return;
+    if (needsPhone && !enrollment.contactAvailability.phone) return;
+    const now = new Date();
+    enrollment.status = 'active';
+    enrollment.candidateKey = enrollment.candidateKey || String(enrollment.candidateId);
+    enrollment.nextActionAt = now;
+    enrollment.nextSendAt = now;
+    enrollment.lastActionAt = now;
+    await enrollment.save();
+    await enqueueFirstJobs(campaign, [String(enrollment._id)]);
+  },
+
   async launch(organizationId: string, userId: string, id: string) {
     const existing = await loadCampaign(organizationId, id);
     if (existing.status === 'running') {
@@ -1074,8 +1107,69 @@ export const campaignsService = {
       await existing.save();
     }
 
+    const sourcingSessionId = sourcingSessionIdFromLabel(existing.candidateSource?.label);
+    const enrollmentCount = await OutreachEnrollmentModel.countDocuments({
+      campaignId: existing._id,
+    });
+    if (enrollmentCount === 0 && sourcingSessionId) {
+      const contactUnlock = await enqueueSourcingSessionLaunch({
+        organizationId,
+        userId,
+        campaign: existing,
+      });
+      const locked = await OutreachCampaignModel.findOneAndUpdate(
+        {
+          _id: existing._id,
+          organizationId,
+          status: { $in: ['draft', 'scheduled', 'paused'] },
+          deletedAt: null,
+        },
+        {
+          $set: {
+            status: 'running',
+            launchedAt: new Date(),
+            pausedAt: null,
+            scheduledAt: existing.scheduledAt || new Date(),
+          },
+          $inc: { version: 1 },
+        },
+        { new: true }
+      );
+      if (!locked) {
+        throw new AppError(
+          409,
+          'OUTREACH_CAMPAIGN_ALREADY_LAUNCHED',
+          'Campaign launch is already in progress or completed.'
+        );
+      }
+      const now = new Date();
+      emitOutreachCampaignUpdated({
+        organizationId,
+        campaignId: id,
+        status: 'running',
+        userId,
+      });
+      return {
+        ...toSafeCampaign(locked, {
+          ownerName: await ownerName(String(locked.ownerUserId)),
+          relatedJobTitle: await jobTitle(locked.jobId),
+        }),
+        contactUnlock,
+        totalCandidates: contactUnlock.queued,
+        enrolled: 0,
+        excluded: 0,
+        missingContact: 0,
+        duplicate: 0,
+        optedOut: 0,
+        quotaReserved: null,
+        scheduledStart: now.toISOString(),
+        warnings: [],
+        blockers: [],
+      };
+    }
+
     // Ensure enrollments exist from candidateSource
-    if ((await OutreachEnrollmentModel.countDocuments({ campaignId: existing._id })) === 0) {
+    if (enrollmentCount === 0) {
       const ids = existing.candidateSource.candidateIds || [];
       if (ids.length) {
         await this.addAudience(organizationId, userId, id, { candidateIds: ids });
@@ -1083,11 +1177,14 @@ export const campaignsService = {
     }
 
     // Unlock email/mobile for enabled channels (charges reveal credits) before validation.
-    const contactUnlock = await enrichCampaignContactsForLaunch({
-      organizationId,
-      userId,
-      campaign: await loadCampaign(organizationId, id),
-    });
+    const contactUnlock = await enrichCampaignContactsForLaunch(
+      {
+        organizationId,
+        userId,
+        campaign: await loadCampaign(organizationId, id),
+      },
+      { enqueue: true }
+    );
 
     const doc = await loadCampaign(organizationId, id);
     const validation = await validateCampaignLaunch(doc, userId);
@@ -1096,11 +1193,22 @@ export const campaignsService = {
       checkedAt: new Date(),
       issues: validation.issues,
     };
-    if (!validation.ok) {
+    const revealQueued = contactUnlock.queued > 0;
+    const blockingIssues = validation.issues.filter((issue) => {
+      if (issue.severity !== 'error') return false;
+      if (!revealQueued) return true;
+      if (issue.code === 'NO_EMAIL_CONTACTS' && contactUnlock.emailNeeded > 0) return false;
+      if (
+        (issue.code === 'NO_PHONE_CONTACTS' || issue.code === 'NO_VOICE_CONTACTS') &&
+        contactUnlock.phoneNeeded > 0
+      ) {
+        return false;
+      }
+      return true;
+    });
+    if (blockingIssues.length) {
       await doc.save();
-      const blockers = validation.issues
-        .filter((issue) => issue.severity === 'error')
-        .map((issue) => issue.message);
+      const blockers = blockingIssues.map((issue) => issue.message);
       throw new AppError(
         422,
         'LAUNCH_VALIDATION_FAILED',
@@ -1160,6 +1268,11 @@ export const campaignsService = {
       const needsEmail = locked.channelConfig.email?.enabled;
       const needsPhone =
         locked.channelConfig.whatsapp?.enabled || locked.channelConfig.ai_voice?.enabled;
+      const waitingForReveal =
+        revealQueued &&
+        ((needsEmail && !enrollment.contactAvailability.email) ||
+          (needsPhone && !enrollment.contactAvailability.phone));
+      if (waitingForReveal) continue;
       if (needsEmail && !enrollment.contactAvailability.email && !needsPhone) {
         excluded.missingContact += 1;
         enrollment.status = 'skipped';

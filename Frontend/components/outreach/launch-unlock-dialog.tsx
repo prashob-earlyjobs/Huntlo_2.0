@@ -31,6 +31,7 @@ export type LaunchUnlockResult = {
   phoneCreditsCharged?: number;
   skipped?: number;
   failed?: number;
+  queued?: number;
 };
 
 export type LaunchUnlockPhase =
@@ -62,6 +63,22 @@ export function LaunchUnlockDialog({
 }) {
   const busy = phase === "running";
   const canClose = phase === "confirm" || phase === "success" || phase === "error";
+  const unlocksQueued =
+    phase === "success" &&
+    ((result?.queued ?? 0) > 0 ||
+      ((result?.emailUnlocked ?? 0) === 0 &&
+        (result?.phoneUnlocked ?? 0) === 0 &&
+        estimate.emailUnlocks + estimate.phoneUnlocks > 0));
+  const queuedSummary = [
+    estimate.emailUnlocks > 0
+      ? `${estimate.emailUnlocks} email${estimate.emailUnlocks === 1 ? "" : "s"}`
+      : null,
+    estimate.phoneUnlocks > 0
+      ? `${estimate.phoneUnlocks} mobile number${estimate.phoneUnlocks === 1 ? "" : "s"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" and ");
 
   return (
     <Dialog
@@ -80,7 +97,9 @@ export function LaunchUnlockDialog({
               : phase === "running"
                 ? "Unlocking contacts…"
                 : phase === "success"
-                  ? "Contacts unlocked"
+                  ? unlocksQueued
+                    ? "Campaign launched"
+                    : "Contacts unlocked"
                   : "Launch failed"}
           </DialogTitle>
           <DialogDescription>
@@ -89,7 +108,9 @@ export function LaunchUnlockDialog({
               : phase === "running"
                 ? "Please wait while we unlock missing emails/phones and start the campaign."
                 : phase === "success"
-                  ? "Unlock finished and the campaign is launching."
+                  ? unlocksQueued
+                    ? "Numbers are unlocking in the background. You can leave this screen."
+                    : "Unlock finished and the campaign is launching."
                   : "Something went wrong while unlocking or launching."}
           </DialogDescription>
         </DialogHeader>
@@ -102,14 +123,18 @@ export function LaunchUnlockDialog({
                 Email unlocks
               </p>
               <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                {phase === "success" && result
-                  ? `${result.emailUnlocked ?? 0}`
-                  : estimate.emailUnlocks}
+                {unlocksQueued
+                  ? estimate.emailUnlocks
+                  : phase === "success" && result
+                    ? `${result.emailUnlocked ?? 0}`
+                    : estimate.emailUnlocks}
               </p>
               <p className="text-xs text-muted-foreground">
-                {estimate.emailUnlocks > 0
-                  ? `~${estimate.emailCredits} credits (${REVEAL_COSTS.email} each)`
-                  : "Not needed for selected channels"}
+                {unlocksQueued && estimate.emailUnlocks > 0
+                  ? "Queued to unlock"
+                  : estimate.emailUnlocks > 0
+                    ? `~${estimate.emailCredits} credits (${REVEAL_COSTS.email} each)`
+                    : "Not needed for selected channels"}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
@@ -118,14 +143,18 @@ export function LaunchUnlockDialog({
                 Mobile unlocks
               </p>
               <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                {phase === "success" && result
-                  ? `${result.phoneUnlocked ?? 0}`
-                  : estimate.phoneUnlocks}
+                {unlocksQueued
+                  ? estimate.phoneUnlocks
+                  : phase === "success" && result
+                    ? `${result.phoneUnlocked ?? 0}`
+                    : estimate.phoneUnlocks}
               </p>
               <p className="text-xs text-muted-foreground">
-                {estimate.phoneUnlocks > 0
-                  ? `~${estimate.phoneCredits} credits (${REVEAL_COSTS.mobile} each)`
-                  : "Not needed for selected channels"}
+                {unlocksQueued && estimate.phoneUnlocks > 0
+                  ? "Queued to unlock"
+                  : estimate.phoneUnlocks > 0
+                    ? `~${estimate.phoneCredits} credits (${REVEAL_COSTS.mobile} each)`
+                    : "Not needed for selected channels"}
               </p>
             </div>
           </div>
@@ -156,19 +185,9 @@ export function LaunchUnlockDialog({
             >
               <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0" />
               <span>
-                Unlocked {result.emailUnlocked ?? 0} email
-                {(result.emailUnlocked ?? 0) === 1 ? "" : "s"} and{" "}
-                {result.phoneUnlocked ?? 0} mobile
-                {(result.phoneUnlocked ?? 0) === 1 ? "" : "s"}
-                {(result.emailCreditsCharged ?? 0) +
-                  (result.phoneCreditsCharged ?? 0) >
-                0
-                  ? ` · charged ${(result.emailCreditsCharged ?? 0) + (result.phoneCreditsCharged ?? 0)} reveal credits`
-                  : ""}
-                {(result.failed ?? 0) > 0
-                  ? ` · ${result.failed} unlock${result.failed === 1 ? "" : "s"} failed`
-                  : ""}
-                .
+                {unlocksQueued
+                  ? `${queuedSummary} ${estimate.emailUnlocks + estimate.phoneUnlocks === 1 ? "is" : "are"} unlocking in the background. Each candidate is contacted after their contact comes back.`
+                  : `Unlocked ${result.emailUnlocked ?? 0} email${(result.emailUnlocked ?? 0) === 1 ? "" : "s"} and ${result.phoneUnlocked ?? 0} mobile${(result.phoneUnlocked ?? 0) === 1 ? "" : "s"}${(result.emailCreditsCharged ?? 0) + (result.phoneCreditsCharged ?? 0) > 0 ? ` · charged ${(result.emailCreditsCharged ?? 0) + (result.phoneCreditsCharged ?? 0)} reveal credits` : ""}${(result.failed ?? 0) > 0 ? ` · ${result.failed} unlock${result.failed === 1 ? "" : "s"} failed` : ""}.`}
               </span>
             </p>
           ) : null}

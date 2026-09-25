@@ -537,21 +537,28 @@ export function CampaignBuilder({
         campaignIdRef.current = id;
       }
 
-      const audienceIds = await resolveAudienceCandidateIds({
-        source: state.source,
-        sourceDetail: state.sourceDetail,
-        selectedCandidateIds: state.selectedCandidateIds,
-        poolSearch: state.poolSearch,
-      });
-      if (audienceIds.length > 0) {
-        await outreachApi.addAudience(id, {
-          candidateIds: audienceIds,
-          listId:
-            state.source === "Saved List" || state.source === "CSV/Excel Import"
-              ? state.sourceDetail || undefined
-              : undefined,
-          replace: true,
+      // Sourcing launches copy the session into the pool on the reveal queue.
+      const queueSourcingAudience =
+        mode === "launched" &&
+        state.source === "Sourcing Session" &&
+        Boolean(state.sourceDetail);
+      if (!queueSourcingAudience) {
+        const audienceIds = await resolveAudienceCandidateIds({
+          source: state.source,
+          sourceDetail: state.sourceDetail,
+          selectedCandidateIds: state.selectedCandidateIds,
+          poolSearch: state.poolSearch,
         });
+        if (audienceIds.length > 0) {
+          await outreachApi.addAudience(id, {
+            candidateIds: audienceIds,
+            listId:
+              state.source === "Saved List" || state.source === "CSV/Excel Import"
+                ? state.sourceDetail || undefined
+                : undefined,
+            replace: true,
+          });
+        }
       }
 
       if (mode === "launched") {
@@ -711,6 +718,7 @@ export function CampaignBuilder({
           update={update}
           showErrors={showErrors}
           relatedJobId={state.jobId || null}
+          hideLockedStats={state.source !== "CSV/Excel Import"}
         />
       ) : current === 2 ? (
         <ChannelsStep state={state} update={update} showErrors={showErrors} />

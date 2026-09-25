@@ -154,6 +154,7 @@ export function SetupStep({
           <Input
             id="campaign-name"
             value={state.name}
+            maxLength={500}
             onChange={(event) => update("name", event.target.value)}
             placeholder="e.g. Backend Engineer — Sequence B"
             aria-invalid={showErrors && !state.name.trim()}

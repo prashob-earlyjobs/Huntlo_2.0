@@ -9,21 +9,24 @@ import {
 } from '../candidates/index.js';
 import type { RevealedContactType } from '../candidates/revealed-contact.model.js';
 import { SourcedCandidateModel } from '../sourcing/sourced-candidate.model.js';
-import type { OutreachCampaignDocument } from './campaign.model.js';
+import { runWithFutureJobsActor } from '../../providers/future-jobs/futureJobs.actor-context.js';
+import { BullOutreachJobModel } from '../../bull-outreach/job.model.js';
+import { pushToQueue } from '../../bull-outreach/queue.js';
+import { scheduleJob } from '../../bull-outreach/schedule.js';
+import { OutreachCampaignModel, type OutreachCampaignDocument } from './campaign.model.js';
 import { OutreachEnrollmentModel } from './enrollment.model.js';
 
 const log = () => createChildLogger({ module: 'outreach-launch-reveal' });
 
 /**
- * FJ ≈ 40/min; leave ~half for other traffic. Worst mobile ≈ 8 calls → ≤2 starts/min.
- * Soft-poll window matches session / People Scout (10s × 60s).
+ * FJ ≈ 40/min; leave ~half for other traffic. Worst mobile = lookup + reveal + 1 poll.
+ * Outreach only: one poll, 1 minute after reveal. Email is lookup + reveal (no poll).
  */
 const LAUNCH_MOBILE_MAX_STARTS_PER_MIN = 2;
 const LAUNCH_MOBILE_MIN_START_GAP_MS = Math.ceil(
   60_000 / LAUNCH_MOBILE_MAX_STARTS_PER_MIN
 );
-const LAUNCH_MOBILE_SOFT_POLL_INTERVAL_MS = 10_000;
-const LAUNCH_MOBILE_SOFT_POLL_WINDOW_MS = 60_000;
+const LAUNCH_MOBILE_POLL_DELAY_MS = 60_000;
 
 export type LaunchRevealSummary = {
   emailNeeded: number;
@@ -34,6 +37,7 @@ export type LaunchRevealSummary = {
   phoneCreditsCharged: number;
   skipped: number;
   failed: number;
+  queued: number;
 };
 
 function emptySummary(): LaunchRevealSummary {
@@ -46,6 +50,7 @@ function emptySummary(): LaunchRevealSummary {
     phoneCreditsCharged: 0,
     skipped: 0,
     failed: 0,
+    queued: 0,
   };
 }
 
@@ -118,44 +123,49 @@ type RevealOutcome = {
 };
 
 /**
- * Soft-poll after empty mobile reveal (sourced path). Each getRevealStatus
- * re-hits FJ lookup and appends kind:reveal poll DB entries while the session
- * is in_progress.
+ * One lookup poll, one minute after an empty mobile reveal.
+ * Phone is 3 FutureJobs calls: lookup, reveal, this poll. Email does not poll.
  */
 async function softPollSourcedMobile(
   actor: Actor,
   candidateId: string
 ): Promise<RevealOutcome | null> {
-  const deadline = Date.now() + LAUNCH_MOBILE_SOFT_POLL_WINDOW_MS;
-  while (Date.now() < deadline) {
-    try {
-      const status = await revealService.getRevealStatus(actor, candidateId);
-      const value = (status.mobile.values?.[0] || '').trim();
-      if (status.mobile.revealed && value) {
-        return {
-          found: true,
-          value,
-          charged: true,
-          creditsCharged: 0, // filled by caller from quota cost when unknown
-        };
-      }
-    } catch (err) {
-      log().warn(
-        {
-          candidateId,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        'launch mobile soft-poll attempt failed'
-      );
+  await sleep(LAUNCH_MOBILE_POLL_DELAY_MS);
+  try {
+    const status = await revealService.getRevealStatus(actor, candidateId);
+    const value = (status.mobile.values?.[0] || '').trim();
+    if (status.mobile.revealed && value) {
+      return {
+        found: true,
+        value,
+        charged: true,
+        creditsCharged: 0,
+      };
     }
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    await sleep(Math.min(LAUNCH_MOBILE_SOFT_POLL_INTERVAL_MS, remaining));
+  } catch (err) {
+    log().warn(
+      {
+        candidateId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'launch mobile poll failed'
+    );
   }
   return null;
 }
 
 async function runContactReveal(
+  actor: Actor,
+  target: NonNullable<Awaited<ReturnType<typeof resolveRevealCandidateId>>>,
+  contactType: RevealedContactType
+): Promise<RevealOutcome> {
+  return runWithFutureJobsActor(
+    { userId: actor.userId, organizationId: actor.organizationId },
+    () => runContactRevealInner(actor, target, contactType)
+  );
+}
+
+async function runContactRevealInner(
   actor: Actor,
   target: NonNullable<Awaited<ReturnType<typeof resolveRevealCandidateId>>>,
   contactType: RevealedContactType
@@ -208,11 +218,14 @@ async function runContactReveal(
  * Mobile: queued 1-at-a-time with soft-poll + ≥30s between starts (FJ 40/min).
  * Email: unchanged (no soft-poll / no start-gap queue).
  */
-export async function enrichCampaignContactsForLaunch(input: {
-  organizationId: string;
-  userId: string;
-  campaign: OutreachCampaignDocument;
-}): Promise<LaunchRevealSummary> {
+export async function enrichCampaignContactsForLaunch(
+  input: {
+    organizationId: string;
+    userId: string;
+    campaign: OutreachCampaignDocument;
+  },
+  options?: { enqueue?: boolean }
+): Promise<LaunchRevealSummary> {
   const { organizationId, userId, campaign } = input;
   const needed = channelsNeeded(campaign);
   if (!needed.email && !needed.phone) return emptySummary();
@@ -283,6 +296,20 @@ export async function enrichCampaignContactsForLaunch(input: {
         },
       }
     );
+  }
+
+  if (options?.enqueue) {
+    summary.queued = work.length;
+    await scheduleLaunchRevealJob({
+      organizationId,
+      userId,
+      campaignId: String(campaign._id),
+    });
+    log().info(
+      { campaignId: String(campaign._id), organizationId, queued: summary.queued },
+      'launch contact unlock queued'
+    );
+    return summary;
   }
 
   const actor: Actor = { userId, organizationId };
@@ -441,7 +468,7 @@ export async function enrichCampaignContactsForLaunch(input: {
       mobileQueue: {
         maxStartsPerMin: LAUNCH_MOBILE_MAX_STARTS_PER_MIN,
         minStartGapMs: LAUNCH_MOBILE_MIN_START_GAP_MS,
-        softPollWindowMs: LAUNCH_MOBILE_SOFT_POLL_WINDOW_MS,
+        pollDelayMs: LAUNCH_MOBILE_POLL_DELAY_MS,
       },
       ...summary,
     },
@@ -449,4 +476,399 @@ export async function enrichCampaignContactsForLaunch(input: {
   );
 
   return summary;
+}
+
+function clipText(value: string | null | undefined, max: number): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+  return text.length > max ? text.slice(0, max) : text;
+}
+
+/** Sourcing-session launches store the session id on candidateSource.label. */
+export function sourcingSessionIdFromLabel(label: string | null | undefined): string | null {
+  const value = label?.trim() || '';
+  return /^[a-fA-F0-9]{24}$/.test(value) ? value : null;
+}
+
+/**
+ * Copy a sourcing session into the pool and enroll it.
+ * Runs on the reveal queue so launch does not wait on one request per person.
+ */
+export async function prepareSourcingAudienceForLaunch(input: {
+  organizationId: string;
+  userId: string;
+  campaignId: string;
+}): Promise<number> {
+  const campaign = await OutreachCampaignModel.findOne({
+    _id: input.campaignId,
+    organizationId: input.organizationId,
+    deletedAt: null,
+  });
+  const sessionId = sourcingSessionIdFromLabel(campaign?.candidateSource?.label);
+  if (!campaign || !sessionId) return 0;
+
+  const orgOid = new mongoose.Types.ObjectId(input.organizationId);
+  const sessionOid = new mongoose.Types.ObjectId(sessionId);
+  const requestedIds = (campaign.candidateSource.candidateIds || []).filter((id) =>
+    /^[a-fA-F0-9]{24}$/.test(id)
+  );
+  const sourced = await SourcedCandidateModel.find({
+    organizationId: orgOid,
+    sourcingSessionId: sessionOid,
+    ...(requestedIds.length
+      ? { _id: { $in: requestedIds.map((id) => new mongoose.Types.ObjectId(id)) } }
+      : {}),
+  });
+  if (!sourced.length) return 0;
+
+  const now = new Date();
+  const ownerOid = new mongoose.Types.ObjectId(input.userId);
+  await SavedCandidateModel.bulkWrite(
+    sourced.map((candidate) => {
+      const externalCandidateId =
+        candidate.candidateId ||
+        candidate.externalCandidateId ||
+        candidate._id.toHexString();
+      return {
+        updateOne: {
+          filter: {
+            organizationId: orgOid,
+            externalCandidateId,
+            deletedAt: null,
+          },
+          update: {
+            $setOnInsert: {
+              organizationId: orgOid,
+              externalCandidateId,
+              sourceType: 'sourcing' as const,
+              sourceId: sessionId,
+              ownerUserId: ownerOid,
+              assignedUserId: null,
+              status: 'saved' as const,
+              jobIds: [],
+              listIds: [],
+              tags: [],
+              customFields: {},
+              name: clipText(candidate.name || candidate.basicProfile?.name, 200) || 'Unknown',
+              email: null,
+              phone: null,
+              linkedinUrl:
+                candidate.linkedinProfileUrl || candidate.basicProfile?.linkedinUrl || null,
+              headline: clipText(candidate.basicProfile?.headline, 500),
+              currentTitle: clipText(
+                candidate.currentRole ?? candidate.currentEmployment?.title,
+                500
+              ),
+              currentCompany: clipText(
+                candidate.currentCompany ?? candidate.currentEmployment?.company,
+                200
+              ),
+              location: clipText(candidate.location, 200),
+              experienceYears: candidate.experienceYears ?? null,
+              skills: (candidate.skills || []).map((skill) => skill.slice(0, 120)).slice(0, 50),
+              archivedAt: null,
+              deletedAt: null,
+              createdAt: now,
+            },
+          },
+          upsert: true,
+        },
+      };
+    }),
+    { ordered: false }
+  );
+
+  const externalIds = sourced.map(
+    (candidate) =>
+      candidate.candidateId || candidate.externalCandidateId || candidate._id.toHexString()
+  );
+  const pool = await SavedCandidateModel.find({
+    organizationId: orgOid,
+    externalCandidateId: { $in: externalIds },
+    deletedAt: null,
+  }).select('_id');
+
+  const existing = await OutreachEnrollmentModel.find({
+    campaignId: campaign._id,
+    candidateId: { $in: pool.map((row) => row._id) },
+  })
+    .select('candidateId')
+    .lean();
+  const existingSet = new Set(existing.map((row) => String(row.candidateId)));
+  const toInsert = pool
+    .filter((row) => !existingSet.has(row._id.toHexString()))
+    .map((row) => ({
+      organizationId: orgOid,
+      campaignId: campaign._id,
+      candidateId: row._id,
+      currentStepIndex: 0,
+      status: 'pending' as const,
+      contactAvailability: {
+        email: false,
+        phone: false,
+        optedOut: false,
+      },
+      stopReason: null,
+      nextActionAt: null,
+    }));
+  if (toInsert.length) {
+    await OutreachEnrollmentModel.insertMany(toInsert, { ordered: false });
+  }
+
+  campaign.candidateSource.candidateIds = pool.map((row) => row._id.toHexString());
+  await campaign.save();
+  return pool.length;
+}
+
+/** Pending people who already have the channel contact should send before reveals. */
+export async function pendingEnrollmentIdsReadyToSend(input: {
+  organizationId: string;
+  campaignId: string;
+}): Promise<string[]> {
+  const campaign = await OutreachCampaignModel.findOne({
+    _id: input.campaignId,
+    organizationId: input.organizationId,
+    status: 'running',
+    deletedAt: null,
+  });
+  if (!campaign) return [];
+
+  const needed = channelsNeeded(campaign);
+  if (!needed.email && !needed.phone) return [];
+
+  const orgOid = new mongoose.Types.ObjectId(input.organizationId);
+  const enrollments = await OutreachEnrollmentModel.find({
+    campaignId: campaign._id,
+    organizationId: orgOid,
+    status: 'pending',
+  });
+  if (!enrollments.length) return [];
+
+  const candidates = await SavedCandidateModel.find({
+    _id: { $in: enrollments.map((row) => row.candidateId) },
+    organizationId: orgOid,
+    deletedAt: null,
+  }).select('_id email phone');
+  const byId = new Map(candidates.map((row) => [row._id.toHexString(), row]));
+  const ready: string[] = [];
+
+  for (const enrollment of enrollments) {
+    if (enrollment.contactAvailability?.optedOut) continue;
+    const candidate = byId.get(String(enrollment.candidateId));
+    if (!candidate) continue;
+    const emailOk = !needed.email || Boolean(candidate.email?.trim());
+    const phoneOk = !needed.phone || Boolean(candidate.phone?.trim());
+    if (!emailOk || !phoneOk) continue;
+    enrollment.contactAvailability.email = Boolean(candidate.email?.trim());
+    enrollment.contactAvailability.phone = Boolean(candidate.phone?.trim());
+    await enrollment.save();
+    ready.push(String(enrollment._id));
+  }
+
+  return ready;
+}
+
+async function scheduleLaunchRevealJob(input: {
+  organizationId: string;
+  userId: string;
+  campaignId: string;
+  runAt?: Date;
+  prepareAudience?: boolean;
+}): Promise<void> {
+  const campaignId = new mongoose.Types.ObjectId(input.campaignId);
+  const busy = await BullOutreachJobModel.exists({
+    kind: 'launch_reveal',
+    campaignId,
+    status: { $in: ['pending', 'queued', 'running'] },
+  });
+  if (busy) return;
+
+  const job = await scheduleJob({
+    kind: 'launch_reveal',
+    organizationId: input.organizationId,
+    campaignId: input.campaignId,
+    stepId: 'launch-reveal',
+    runAt: input.runAt ?? new Date(),
+    details: {
+      userId: input.userId,
+      ...(input.prepareAudience ? { prepareAudience: true } : {}),
+    },
+  });
+  if (!job) return;
+  if ((input.runAt?.getTime() ?? 0) > Date.now()) return;
+
+  try {
+    job.status = 'queued';
+    await job.save();
+    await pushToQueue(String(job._id));
+  } catch (error) {
+    job.status = 'pending';
+    job.lastError = error instanceof Error ? error.message : 'queue push failed';
+    await job.save();
+  }
+}
+
+/** Queue pool sync, enrollment, and reveal. Returns before any of that work runs. */
+export async function enqueueSourcingSessionLaunch(input: {
+  organizationId: string;
+  userId: string;
+  campaign: OutreachCampaignDocument;
+}): Promise<LaunchRevealSummary> {
+  const summary = emptySummary();
+  const sessionId = sourcingSessionIdFromLabel(input.campaign.candidateSource?.label);
+  if (!sessionId) return summary;
+
+  const needed = channelsNeeded(input.campaign);
+  const count = await SourcedCandidateModel.countDocuments({
+    organizationId: new mongoose.Types.ObjectId(input.organizationId),
+    sourcingSessionId: new mongoose.Types.ObjectId(sessionId),
+  });
+  if (!count) {
+    throw new AppError(400, 'AUDIENCE_EMPTY', 'This sourcing session has no candidates.');
+  }
+  if (needed.email) summary.emailNeeded = count;
+  if (needed.phone) summary.phoneNeeded = count;
+
+  const quota = await revealQuotaService.getStatus(input.organizationId);
+  const emailCreditsRequired = summary.emailNeeded * quota.email.costPerReveal;
+  const phoneCreditsRequired = summary.phoneNeeded * quota.mobile.costPerReveal;
+  if (emailCreditsRequired > quota.email.remaining) {
+    throw new AppError(
+      409,
+      'EMAIL_REVEAL_QUOTA_EXCEEDED',
+      `Launch needs ${summary.emailNeeded} email unlock(s) (${emailCreditsRequired} credits) but only ${quota.email.remaining} email reveal credits remain.`
+    );
+  }
+  if (phoneCreditsRequired > quota.mobile.remaining) {
+    throw new AppError(
+      409,
+      'MOBILE_REVEAL_QUOTA_EXCEEDED',
+      `Launch needs ${summary.phoneNeeded} mobile unlock(s) (${phoneCreditsRequired} credits) but only ${quota.mobile.remaining} mobile reveal credits remain.`
+    );
+  }
+
+  summary.queued = count;
+  await scheduleLaunchRevealJob({
+    organizationId: input.organizationId,
+    userId: input.userId,
+    campaignId: String(input.campaign._id),
+    prepareAudience: true,
+  });
+  return summary;
+}
+
+export type LaunchRevealStepResult = {
+  continueInMs: number | null;
+  enrollmentId: string | null;
+  ready: boolean;
+};
+
+/** One call+poll for this campaign. The caller schedules the next job. */
+export async function processNextCampaignLaunchReveal(input: {
+  organizationId: string;
+  userId: string;
+  campaignId: string;
+}): Promise<LaunchRevealStepResult> {
+  const none = { continueInMs: null, enrollmentId: null, ready: false };
+  const campaign = await OutreachCampaignModel.findOne({
+    _id: input.campaignId,
+    organizationId: input.organizationId,
+    deletedAt: null,
+  });
+  if (!campaign || !['draft', 'scheduled', 'paused', 'running'].includes(campaign.status)) {
+    return none;
+  }
+
+  const needed = channelsNeeded(campaign);
+  if (!needed.email && !needed.phone) return none;
+
+  const orgOid = new mongoose.Types.ObjectId(input.organizationId);
+  const enrollments = await OutreachEnrollmentModel.find({
+    campaignId: campaign._id,
+    organizationId: orgOid,
+    status: { $nin: ['skipped', 'opted_out', 'stopped', 'failed', 'completed'] },
+  });
+  const candidates = await SavedCandidateModel.find({
+    _id: { $in: enrollments.map((row) => row.candidateId) },
+    organizationId: orgOid,
+    deletedAt: null,
+  });
+  const byId = new Map(candidates.map((row) => [row._id.toHexString(), row]));
+
+  const next = enrollments.find((enrollment) => {
+    const candidate = byId.get(String(enrollment.candidateId));
+    if (!candidate) return false;
+    return (needed.email && !candidate.email) || (needed.phone && !candidate.phone);
+  });
+  if (!next) return none;
+
+  const candidate = byId.get(String(next.candidateId))!;
+  const contactType: RevealedContactType =
+    needed.email && !candidate.email ? 'email' : 'mobile';
+  const target = await resolveRevealCandidateId(input.organizationId, candidate);
+  if (!target) {
+    next.status = 'skipped';
+    next.stopReason = 'missing_contact';
+    await next.save();
+    return { continueInMs: 0, enrollmentId: String(next._id), ready: false };
+  }
+
+  let value: string | null = null;
+  try {
+    const outcome = await runContactReveal(
+      { userId: input.userId, organizationId: input.organizationId },
+      target,
+      contactType
+    );
+    value = outcome.found ? outcome.value : null;
+  } catch (error) {
+    log().warn(
+      {
+        campaignId: input.campaignId,
+        candidateId: candidate._id.toHexString(),
+        contactType,
+        err: error instanceof Error ? error.message : String(error),
+      },
+      'queued launch reveal failed'
+    );
+    if (error instanceof AppError && error.statusCode === 409 && /quota/i.test(error.message)) {
+      throw error;
+    }
+  }
+
+  if (contactType === 'email') candidate.email = value;
+  else candidate.phone = value;
+  if (value) {
+    candidate.lastActivityAt = new Date();
+    await candidate.save();
+  }
+
+  next.contactAvailability.email = Boolean(candidate.email);
+  next.contactAvailability.phone = Boolean(candidate.phone);
+  const emailOk = !needed.email || Boolean(candidate.email);
+  const phoneOk = !needed.phone || Boolean(candidate.phone);
+  const laterChannelStillOpen =
+    (contactType === 'email' && needed.phone && !candidate.phone) ||
+    (contactType === 'mobile' && needed.email && !candidate.email);
+  if (!value && !laterChannelStillOpen && (!emailOk || !phoneOk)) {
+    next.status = 'skipped';
+    next.stopReason = 'missing_contact';
+  }
+  await next.save();
+
+  const remaining = enrollments.some((enrollment) => {
+    if (enrollment.status === 'skipped') return false;
+    if (String(enrollment._id) === String(next._id)) {
+      return !emailOk || !phoneOk;
+    }
+    const row = byId.get(String(enrollment.candidateId));
+    if (!row) return false;
+    return (needed.email && !row.email) || (needed.phone && !row.phone);
+  });
+
+  return {
+    continueInMs: remaining ? (contactType === 'mobile' ? LAUNCH_MOBILE_MIN_START_GAP_MS : 0) : null,
+    enrollmentId: String(next._id),
+    ready: next.status !== 'skipped' && emailOk && phoneOk,
+  };
 }
