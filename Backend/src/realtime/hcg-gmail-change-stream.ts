@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { getLogger } from '../config/logger.js';
 import { getRealtimeConfig } from '../config/realtime.js';
 import { getEnv } from '../config/env.js';
+import { formatHcgOverallAiStatus } from '../modules/conversations/hcg-gmail-overlay.js';
 import { isMailDeliveryFailure } from '../modules/conversations/mail-delivery-failure.js';
 import { OutreachCampaignModel } from '../modules/outreach/campaign.model.js';
 import { emitHcgGmailUpdated } from './events.js';

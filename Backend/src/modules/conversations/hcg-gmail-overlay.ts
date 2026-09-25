@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { type CandidatePipelineStatus } from '../outreach/enrollment-pipeline-status.js';
 import { isMailDeliveryFailure } from './mail-delivery-failure.js';
 import {
   HcgGmailConversationModel,
