@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { getLogger } from '../../config/logger.js';
 import { isMailDeliveryFailure } from './mail-delivery-failure.js';
 import { SavedCandidateModel } from '../candidates/saved-candidate.model.js';
 import { OutreachCampaignModel } from '../outreach/campaign.model.js';
