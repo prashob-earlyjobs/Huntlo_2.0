@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-import { type CandidatePipelineStatus } from '../outreach/enrollment-pipeline-status.js';
+import { isMailDeliveryFailure } from './mail-delivery-failure.js';
 import {
   HcgGmailConversationModel,
   type HcgGmailConversationDocument,
@@ -209,14 +209,21 @@ export function hcgGmailMessagesToEvents(
     const html = messageHtml(msg);
     const strippedHtml = inbound ? stripGmailQuoteHtml(html) : html;
     const text = strippedHtml ? htmlToFormattedText(strippedHtml) : messageText(msg);
+    const bounce =
+      inbound &&
+      isMailDeliveryFailure({
+        from: msg.from,
+        subject: msg.subject,
+        bodyText: text,
+      });
     return {
       id: msg.messageId || `hcg-gmail-${index}`,
       channel: 'Email',
-      author: inbound ? 'candidate' : 'recruiter',
-      authorName: inbound ? candidateName : String(msg.from || 'Recruiter'),
+      author: bounce ? 'system' : inbound ? 'candidate' : 'recruiter',
+      authorName: bounce ? 'Mail delivery' : inbound ? candidateName : String(msg.from || 'Recruiter'),
       subject: msg.subject || undefined,
-      text,
-      html: strippedHtml || undefined,
+      text: bounce ? 'This email could not be delivered.' : text,
+      html: bounce ? undefined : strippedHtml || undefined,
       time: relativeTime(at),
       delivery: inbound ? undefined : 'Sent',
       error: undefined,

@@ -841,7 +841,7 @@ function EventBubble({ event }: { event: ConversationEvent }) {
     );
   }
 
-  const inbound = event.author === "candidate";
+  const inbound = event.author === "candidate" || event.author === "system";
   const ChannelIcon =
     CHANNEL_ICONS[event.channel as OutreachChannel] ?? MessageCircle;
   const AuthorIcon =

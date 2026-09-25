@@ -100,8 +100,13 @@ function asErrorEnvelope(data: unknown): ErrorEnvelope | null {
 function messageFromErrorPayload(error: ErrorEnvelope["error"]): string {
   const details = error.details ?? [];
   const detailText = details
-    .map((detail) => detail.message)
-    .filter((message): message is string => Boolean(message?.trim()))
+    .map((detail) => {
+      const message = detail.message?.trim();
+      if (!message) return "";
+      const path = detail.path?.trim();
+      return path ? `${path}: ${message}` : message;
+    })
+    .filter(Boolean)
     .join("; ");
   if (error.code === "VALIDATION_ERROR" && detailText) return detailText;
   return error.message?.trim() || detailText;

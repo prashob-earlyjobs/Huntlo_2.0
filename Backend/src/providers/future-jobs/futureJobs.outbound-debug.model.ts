@@ -2,10 +2,10 @@ import mongoose, { type InferSchemaType, type Model } from 'mongoose';
 
 /**
  * Ring buffer of outbound Future Jobs HTTP / reveal-session debug rows.
- * Kept at max 100 docs via insert-time trim (uncapped so poll arrays can grow).
+ * Kept at max 400 docs via insert-time trim (uncapped so poll arrays can grow).
  */
 export const FUTURE_JOBS_OUTBOUND_DEBUG_COLLECTION = 'future_jobs_outbound_debug';
-export const FUTURE_JOBS_OUTBOUND_DEBUG_MAX = 100;
+export const FUTURE_JOBS_OUTBOUND_DEBUG_MAX = 400;
 
 export type FutureJobsOutboundKind = 'scout' | 'reveal' | 'search' | 'other';
 export type FutureJobsOutboundRevealType = 'email' | 'phone';

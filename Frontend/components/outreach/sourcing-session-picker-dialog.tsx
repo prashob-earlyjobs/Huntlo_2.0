@@ -197,7 +197,10 @@ export function SourcingSessionPickerDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="sm:max-w-lg" showCloseButton={!creating}>
+      <DialogContent
+        className="min-w-0 overflow-hidden sm:max-w-lg [&>*]:min-w-0"
+        showCloseButton={!creating}
+      >
         <DialogHeader>
           <DialogTitle>Sourcing session</DialogTitle>
           <DialogDescription>
@@ -241,14 +244,14 @@ export function SourcingSessionPickerDialog({
         ) : null}
 
         {mode === "existing" ? (
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Filter sessions…"
               aria-label="Filter sourcing sessions"
             />
-            <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-border p-1">
+            <div className="max-h-72 min-w-0 space-y-1 overflow-y-auto rounded-lg border border-border p-1">
               {loading ? (
                 <div className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground">
                   <LoaderCircle className="size-4 animate-spin" aria-hidden />
@@ -285,7 +288,7 @@ export function SourcingSessionPickerDialog({
                         onOpenChange(false);
                       }}
                       className={cn(
-                        "flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
+                        "flex w-full min-w-0 items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
                         selected
                           ? "bg-brand-subtle text-foreground"
                           : "hover:bg-muted/60"

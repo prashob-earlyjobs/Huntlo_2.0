@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { getLogger } from '../config/logger.js';
 import { getRealtimeConfig } from '../config/realtime.js';
 import { getEnv } from '../config/env.js';
-import { formatHcgOverallAiStatus } from '../modules/conversations/hcg-gmail-overlay.js';
+import { isMailDeliveryFailure } from '../modules/conversations/mail-delivery-failure.js';
 import { OutreachCampaignModel } from '../modules/outreach/campaign.model.js';
 import { emitHcgGmailUpdated } from './events.js';
 
@@ -93,6 +93,24 @@ async function flushPending(docId: string): Promise<void> {
   if (!organizationId) return;
 
   const messages = Array.isArray(pending.doc.messages) ? pending.doc.messages : [];
+  const bounce = messages.some((raw) => {
+    const msg = asRecord(raw);
+    if (!msg || msg.direction !== 'inbound') return false;
+    return isMailDeliveryFailure({
+      from: msg.from ? String(msg.from) : null,
+      subject: msg.subject ? String(msg.subject) : null,
+      bodyText: String(msg.body || msg.snippet || ''),
+    });
+  });
+  if (bounce && pending.doc.autoReply !== false && pending.doc._id) {
+    const { HcgGmailConversationModel } = await import(
+      '../modules/communication-gateway/models/hcg-gmail-conversation.model.js'
+    );
+    await HcgGmailConversationModel.updateOne(
+      { _id: pending.doc._id },
+      { $set: { autoReply: false } }
+    );
+  }
   const questions = Array.isArray(pending.doc.questions) ? pending.doc.questions : [];
   emitHcgGmailUpdated({
     organizationId,

@@ -11,7 +11,13 @@ import { conversationsService } from '../modules/conversations/conversations.ser
 import { ConversationMessageModel } from '../modules/conversations/conversation-message.model.js';
 import type { ConversationChannel } from '../modules/conversations/conversation-thread.model.js';
 import { BullOutreachJobModel } from './job.model.js';
+import { pushToQueue } from './queue.js';
 import { scheduleJob } from './schedule.js';
+import {
+  pendingEnrollmentIdsReadyToSend,
+  prepareSourcingAudienceForLaunch,
+  processNextCampaignLaunchReveal,
+} from '../modules/outreach/campaign-launch-reveal.js';
 
 function channelFromStep(type: string): 'email' | 'whatsapp' | 'ai_voice' | null {
   if (type === 'email' || type === 'scheduling_link') return 'email';
@@ -372,6 +378,79 @@ async function runLaunchScreening(mongoJobId: string) {
   await job.save();
 }
 
+async function runLaunchReveal(mongoJobId: string): Promise<void> {
+  const job = await BullOutreachJobModel.findById(mongoJobId);
+  if (!job || job.status === 'cancelled' || job.status === 'done') return;
+  if (!job.organizationId || !job.campaignId) {
+    job.status = 'failed';
+    job.lastError = 'missing campaign';
+    await job.save();
+    return;
+  }
+
+  job.status = 'running';
+  job.attempts += 1;
+  await job.save();
+
+  const userId = String(job.details?.userId || '');
+  if (job.details?.prepareAudience) {
+    await prepareSourcingAudienceForLaunch({
+      organizationId: String(job.organizationId),
+      userId,
+      campaignId: String(job.campaignId),
+    });
+    job.details = { ...job.details, prepareAudience: false };
+    job.markModified('details');
+    await job.save();
+  }
+  const readyIds = await pendingEnrollmentIdsReadyToSend({
+    organizationId: String(job.organizationId),
+    campaignId: String(job.campaignId),
+  });
+  for (const enrollmentId of readyIds) {
+    await campaignsService.activateEnrollmentAfterContactUnlock(
+      String(job.campaignId),
+      enrollmentId
+    );
+  }
+  const result = await processNextCampaignLaunchReveal({
+    organizationId: String(job.organizationId),
+    userId,
+    campaignId: String(job.campaignId),
+  });
+
+  job.status = 'done';
+  job.lastError = null;
+  await job.save();
+
+  if (result.ready && result.enrollmentId) {
+    await campaignsService.activateEnrollmentAfterContactUnlock(
+      String(job.campaignId),
+      result.enrollmentId
+    );
+  }
+  if (result.continueInMs == null) return;
+
+  const next = await scheduleJob({
+    kind: 'launch_reveal',
+    organizationId: String(job.organizationId),
+    campaignId: String(job.campaignId),
+    stepId: 'launch-reveal',
+    runAt: new Date(Date.now() + result.continueInMs),
+    details: { userId },
+  });
+  if (!next || result.continueInMs > 0) return;
+  try {
+    next.status = 'queued';
+    await next.save();
+    await pushToQueue(String(next._id));
+  } catch (error) {
+    next.status = 'pending';
+    next.lastError = error instanceof Error ? error.message : 'queue push failed';
+    await next.save();
+  }
+}
+
 export async function processBullJob(mongoJobId: string): Promise<void> {
   const logger = getLogger().child({ component: 'bull-outreach' });
   const job = await BullOutreachJobModel.findById(mongoJobId);
@@ -396,6 +475,11 @@ export async function processBullJob(mongoJobId: string): Promise<void> {
 
     if (job.kind === 'launch_screening') {
       await runLaunchScreening(mongoJobId);
+      return;
+    }
+
+    if (job.kind === 'launch_reveal') {
+      await runLaunchReveal(mongoJobId);
       return;
     }
 
