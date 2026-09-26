@@ -122423,3 +122423,7909 @@ curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-c
   -H 'Content-Type: application/json' \
   -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
   --data-raw '{"profileId":"6ab62219e0ba78e1cf502bc6","revealContactType":["email"]}'
+# 2026-09-26T05:29:27.748Z POST /wl/search
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/search' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"jdText":"node js developer from kannur","filters":{"country_region":{"type":"=","value":["India"]},"region":{"type":"(.)","value":["Kannur"]}}}'
+# 2026-09-26T05:29:57.053Z POST /wl/search response HTTP 200 29287ms
+{
+  "statusCode": 200,
+  "data": [
+    {
+      "name": "Anil Kumar",
+      "headline": "Node JS Developer at StarCare Technologies Pvt Ltd.",
+      "region": "Kanpur Nagar, Uttar Pradesh, India",
+      "skills": [],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/4873323e2cbab5946e0a57e6266b22c05d4931b1496a543b533cf56dd6904a1f.jpg",
+      "linkedin_profile_url": "https://www.linkedin.com/in/anil-kumar-32a36725",
+      "emails": [],
+      "open_to_cards": [],
+      "current_employers": [
+        {
+          "name": null,
+          "seniority_level": "Entry Level",
+          "title": "Node JS Developer",
+          "company_headcount_range": "",
+          "years_at_company_raw": 2,
+          "company_type": "",
+          "company_industries": [],
+          "company_hq_location": "",
+          "function_category": "Engineering",
+          "start_date": "2024-09-01T00:00:00",
+          "end_date": null,
+          "company_linkedin_profile_url": "",
+          "company_website_domain": "",
+          "company_profile_picture_permalink": "",
+          "company_headcount_latest": 0,
+          "employment_type": "",
+          "business_email_verified": false
+        }
+      ],
+      "past_employers": [
+        {
+          "name": "Belair - The Global Travel Company",
+          "seniority_level": "Entry Level",
+          "title": "Back End Developer",
+          "company_headcount_range": "201-500",
+          "years_at_company_raw": 2,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Travel Arrangements"
+          ],
+          "company_hq_location": "",
+          "function_category": "Engineering",
+          "start_date": "2021-11-01T00:00:00",
+          "end_date": "2024-04-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/belairtravel",
+          "company_website_domain": "http://www.belair.in",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/16f2b3a426206213489f26f04c1a0db749137b64b7ca74ea6effafe5ba832ae2.jpg",
+          "company_headcount_latest": 38,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "WRMS Global",
+          "seniority_level": "Entry Level",
+          "title": "Back End Developer",
+          "company_headcount_range": "201-500",
+          "years_at_company_raw": 2,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Insurance"
+          ],
+          "company_hq_location": "Industrial Complex Dundahera, Haryāna, India",
+          "function_category": "Engineering",
+          "start_date": "2019-07-01T00:00:00",
+          "end_date": "2021-11-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/wrms",
+          "company_website_domain": "http://wrmsglobal.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/1557ac1c060b45dd0608efc401c6dc3205021bbb5db908fc8974772a5a38c2c9.jpg",
+          "company_headcount_latest": 220,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "TechIndia Software",
+          "seniority_level": "Senior",
+          "title": " Sr.Software Engineer",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 0,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Software Development"
+          ],
+          "company_hq_location": "Kidwai Nagar (Kanpur Nagar), Yashoda Nagar, RBI Colony, Anand Nagar (Kanpur Nagar), Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2018-10-01T00:00:00",
+          "end_date": "2019-06-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/techindia-software",
+          "company_website_domain": "http://www.techindiasoftware.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f11c281051b34b3a5b2543138f6be6852ef417f5d4cfcf5e3c7882d744df7c7f.jpg",
+          "company_headcount_latest": 57,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "TechIndia Software",
+          "seniority_level": "Senior",
+          "title": "Sr.Software Engineer",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 0,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Software Development"
+          ],
+          "company_hq_location": "Kidwai Nagar (Kanpur Nagar), Yashoda Nagar, RBI Colony, Anand Nagar (Kanpur Nagar), Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2018-10-01T00:00:00",
+          "end_date": "2019-06-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/techindia-software",
+          "company_website_domain": "http://www.techindiasoftware.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f11c281051b34b3a5b2543138f6be6852ef417f5d4cfcf5e3c7882d744df7c7f.jpg",
+          "company_headcount_latest": 57,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": null,
+          "seniority_level": "Entry Level",
+          "title": "Software Developer",
+          "company_headcount_range": "",
+          "years_at_company_raw": 0,
+          "company_type": "",
+          "company_industries": [],
+          "company_hq_location": "",
+          "function_category": "Engineering",
+          "start_date": "2017-11-01T00:00:00",
+          "end_date": "2018-07-01T00:00:00",
+          "company_linkedin_profile_url": "",
+          "company_website_domain": "",
+          "company_profile_picture_permalink": "",
+          "company_headcount_latest": 0,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "Second World Solutions",
+          "seniority_level": "Entry Level",
+          "title": "Software Developer",
+          "company_headcount_range": "",
+          "years_at_company_raw": 0,
+          "company_type": "",
+          "company_industries": [],
+          "company_hq_location": "",
+          "function_category": "Engineering",
+          "start_date": "2017-11-01T00:00:00",
+          "end_date": "2018-07-01T00:00:00",
+          "company_linkedin_profile_url": "",
+          "company_website_domain": "",
+          "company_profile_picture_permalink": "",
+          "company_headcount_latest": 0,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "Hotelogix",
+          "seniority_level": "Entry Level",
+          "title": "Software Engineer",
+          "company_headcount_range": "201-500",
+          "years_at_company_raw": 4,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Hospitality"
+          ],
+          "company_hq_location": "Singapore, Singapore",
+          "function_category": "Engineering",
+          "start_date": "2013-08-01T00:00:00",
+          "end_date": "2017-10-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/hotelogix",
+          "company_website_domain": "https://www.hotelogix.com/register.php?utm_medium=social&utm_source=linkedin&utm_campaign=freetrial-homepage",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/98940a1d7eefa9350b3b66a8c041d83dfc23cc380b3cc7baa2ff163dfb9beeab.jpg",
+          "company_headcount_latest": 256,
+          "employment_type": "",
+          "business_email_verified": false
+        }
+      ],
+      "current_employers_object": [
+        {
+          "company_name": null,
+          "company_website_domain": "",
+          "job_title": "Node JS Developer",
+          "company_linkedin_profile_url": ""
+        }
+      ],
+      "basic_profile": {
+        "current_title": "Node JS Developer",
+        "headline": "Node JS Developer at StarCare Technologies Pvt Ltd.",
+        "location": {
+          "city": "Kanpur Nagar",
+          "continent": "Asia",
+          "country": "India",
+          "full_location": "Kanpur Nagar, Uttar Pradesh, India",
+          "raw": "Kanpur Nagar, Uttar Pradesh, India",
+          "state": "Uttar Pradesh"
+        },
+        "name": "Anil Kumar",
+        "professional_network_name": "Anil Kumar",
+        "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/4873323e2cbab5946e0a57e6266b22c05d4931b1496a543b533cf56dd6904a1f.jpg"
+      },
+      "experience": {
+        "employment_details": {
+          "current": [
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 0,
+              "company_headcount_range": "",
+              "company_headquarters_country": "",
+              "company_hq_location": "",
+              "company_hq_location_address_components": [],
+              "company_industries": [],
+              "company_professional_network_industry": "",
+              "company_professional_network_profile_url": "",
+              "company_profile_picture_permalink": "",
+              "company_status": null,
+              "company_type": "",
+              "company_website": "",
+              "employment_type": "",
+              "end_date": null,
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Hyderabad, Telangana, India"
+              },
+              "name": null,
+              "position_id": 0,
+              "professional_network_id": null,
+              "seniority_level": "Entry Level",
+              "start_date": "2024-09-01T00:00:00",
+              "title": "Node JS Developer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 2
+            }
+          ],
+          "past": [
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 38,
+              "company_headcount_range": "201-500",
+              "company_headquarters_country": "",
+              "company_hq_location": "",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "Travel Arrangements"
+              ],
+              "company_professional_network_industry": "Travel Arrangements",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/belairtravel",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/16f2b3a426206213489f26f04c1a0db749137b64b7ca74ea6effafe5ba832ae2.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "http://www.belair.in",
+              "employment_type": "",
+              "end_date": "2024-04-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "New Delhi, Delhi, India"
+              },
+              "name": "Belair - The Global Travel Company",
+              "position_id": 2378489133,
+              "professional_network_id": "71970306",
+              "seniority_level": "Entry Level",
+              "start_date": "2021-11-01T00:00:00",
+              "title": "Back End Developer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 2
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 220,
+              "company_headcount_range": "201-500",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Industrial Complex Dundahera, Haryāna, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "Insurance"
+              ],
+              "company_professional_network_industry": "Insurance",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/wrms",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/1557ac1c060b45dd0608efc401c6dc3205021bbb5db908fc8974772a5a38c2c9.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "http://wrmsglobal.com/",
+              "employment_type": "",
+              "end_date": "2021-11-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur Nagar, Uttar Pradesh, India"
+              },
+              "name": "WRMS Global",
+              "position_id": 1714159457,
+              "professional_network_id": "2101713",
+              "seniority_level": "Entry Level",
+              "start_date": "2019-07-01T00:00:00",
+              "title": "Back End Developer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 2
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 57,
+              "company_headcount_range": "11-50",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Kidwai Nagar (Kanpur Nagar), Yashoda Nagar, RBI Colony, Anand Nagar (Kanpur Nagar), Uttar Pradesh, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "Software Development"
+              ],
+              "company_professional_network_industry": "Software Development",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/techindia-software",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f11c281051b34b3a5b2543138f6be6852ef417f5d4cfcf5e3c7882d744df7c7f.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "http://www.techindiasoftware.com",
+              "employment_type": "",
+              "end_date": "2019-06-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur Area, India"
+              },
+              "name": "TechIndia Software",
+              "position_id": 0,
+              "professional_network_id": "3298401",
+              "seniority_level": "Senior",
+              "start_date": "2018-10-01T00:00:00",
+              "title": " Sr.Software Engineer",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 57,
+              "company_headcount_range": "11-50",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Kidwai Nagar (Kanpur Nagar), Yashoda Nagar, RBI Colony, Anand Nagar (Kanpur Nagar), Uttar Pradesh, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "Software Development"
+              ],
+              "company_professional_network_industry": "Software Development",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/techindia-software",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f11c281051b34b3a5b2543138f6be6852ef417f5d4cfcf5e3c7882d744df7c7f.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "http://www.techindiasoftware.com",
+              "employment_type": "",
+              "end_date": "2019-06-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur Area, India"
+              },
+              "name": "TechIndia Software",
+              "position_id": 1458331328,
+              "professional_network_id": "3298401",
+              "seniority_level": "Senior",
+              "start_date": "2018-10-01T00:00:00",
+              "title": "Sr.Software Engineer",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 0,
+              "company_headcount_range": "",
+              "company_headquarters_country": "",
+              "company_hq_location": "",
+              "company_hq_location_address_components": [],
+              "company_industries": [],
+              "company_professional_network_industry": "",
+              "company_professional_network_profile_url": "",
+              "company_profile_picture_permalink": "",
+              "company_status": null,
+              "company_type": "",
+              "company_website": "",
+              "employment_type": "",
+              "end_date": "2018-07-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur Area, India"
+              },
+              "name": null,
+              "position_id": 0,
+              "professional_network_id": null,
+              "seniority_level": "Entry Level",
+              "start_date": "2017-11-01T00:00:00",
+              "title": "Software Developer",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 0,
+              "company_headcount_range": "",
+              "company_headquarters_country": "",
+              "company_hq_location": "",
+              "company_hq_location_address_components": [],
+              "company_industries": [],
+              "company_professional_network_industry": "",
+              "company_professional_network_profile_url": "",
+              "company_profile_picture_permalink": "",
+              "company_status": null,
+              "company_type": "",
+              "company_website": "",
+              "employment_type": "",
+              "end_date": "2018-07-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur Area, India"
+              },
+              "name": "Second World Solutions",
+              "position_id": 1388044186,
+              "professional_network_id": "13272090",
+              "seniority_level": "Entry Level",
+              "start_date": "2017-11-01T00:00:00",
+              "title": "Software Developer",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 256,
+              "company_headcount_range": "201-500",
+              "company_headquarters_country": "Singapore",
+              "company_hq_location": "Singapore, Singapore",
+              "company_hq_location_address_components": [
+                "Singapore"
+              ],
+              "company_industries": [
+                "Hospitality"
+              ],
+              "company_professional_network_industry": "Hospitality",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/hotelogix",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/98940a1d7eefa9350b3b66a8c041d83dfc23cc380b3cc7baa2ff163dfb9beeab.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.hotelogix.com/register.php?utm_medium=social&utm_source=linkedin&utm_campaign=freetrial-homepage",
+              "employment_type": "",
+              "end_date": "2017-10-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Noida Area, India"
+              },
+              "name": "Hotelogix",
+              "position_id": 469362655,
+              "professional_network_id": "654334",
+              "seniority_level": "Entry Level",
+              "start_date": "2013-08-01T00:00:00",
+              "title": "Software Engineer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 4
+            }
+          ]
+        }
+      },
+      "education": {
+        "schools": [
+          {
+            "degree": "Bachelor of Science (BS)",
+            "description": "",
+            "end_year": 2007,
+            "institute_logo_permalink": "https://prod.api.futurejobs.ai/api/v1/static/db0935319929caaa0dbcb07810d57c5400815163afd7fdedb586b7650b1d8bdf.jpg",
+            "location": {
+              "city": "Kanpur",
+              "continent": "Asia",
+              "country": "India",
+              "raw": "CSJM University, Khyora, Kanpur",
+              "state": "Uttar Pradesh"
+            },
+            "professional_network_id": "6357939",
+            "school": "Chhatrapati Shahu Ji Maharaj University",
+            "start_year": 2004
+          },
+          {
+            "degree": "Master of Computer Applications (MCA)",
+            "description": "",
+            "end_year": 2011,
+            "institute_logo_permalink": null,
+            "location": {
+              "city": null,
+              "continent": null,
+              "country": null,
+              "raw": null,
+              "state": null
+            },
+            "professional_network_id": "78782332",
+            "school": "IMS Ghaziabad",
+            "start_year": 2008
+          },
+          {
+            "degree": "Master of Computer Applications (MCA)",
+            "description": "",
+            "end_year": 2011,
+            "institute_logo_permalink": null,
+            "location": {
+              "city": null,
+              "continent": null,
+              "country": null,
+              "raw": null,
+              "state": null
+            },
+            "professional_network_id": "",
+            "school": "IMS Ghaziabad",
+            "start_year": 2008
+          }
+        ]
+      },
+      "social_handles": {
+        "dev_platform_identifier": {
+          "profile_url": null
+        },
+        "professional_network_identifier": {
+          "profile_url": "https://www.linkedin.com/in/anil-kumar-32a36725"
+        },
+        "twitter_identifier": {
+          "slug": ""
+        }
+      },
+      "fit": "strong"
+    },
+    {
+      "name": "Shantanu Yadav",
+      "headline": "JavaScript and Node.js Developer | Passionate about Scalable Solutions.",
+      "region": "Kanpur Nagar, Uttar Pradesh, India",
+      "skills": [],
+      "linkedin_profile_url": "https://www.linkedin.com/in/shantanu-yadav-0b4606219",
+      "emails": [],
+      "open_to_cards": [],
+      "current_employers": [
+        {
+          "name": "Indian Institute of Technology Kanpur",
+          "seniority_level": "Entry Level",
+          "title": "Software Developer",
+          "company_headcount_range": "1001-5000",
+          "years_at_company_raw": 2,
+          "company_type": "Educational Institution",
+          "company_industries": [
+            "Higher Education"
+          ],
+          "company_hq_location": "Iit, Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2024-05-01T00:00:00",
+          "end_date": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/indian-institute-of-technology-kanpur",
+          "company_website_domain": "http://www.iitk.ac.in/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/8fd1c0a0b859232d6cf3733177f2e9b0575c75cfa5407c87906af8af768e1a4e.jpg",
+          "company_headcount_latest": 6690,
+          "employment_type": "",
+          "business_email_verified": true
+        }
+      ],
+      "past_employers": [
+        {
+          "name": "W3villa Technologies",
+          "seniority_level": "Entry Level",
+          "title": "Software Developer",
+          "company_headcount_range": "51-200",
+          "years_at_company_raw": 2,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Software Development"
+          ],
+          "company_hq_location": "Dover, Delaware, United States",
+          "function_category": "Engineering",
+          "start_date": "2022-04-01T00:00:00",
+          "end_date": "2024-04-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/w3villa-technologies",
+          "company_website_domain": "https://www.w3villa.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7f4900e590d410112bc5976cae1111106c28dbedf3d0c7105d57bff7f57a4841.jpg",
+          "company_headcount_latest": 142,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "W3villa Technologies",
+          "seniority_level": "In Training",
+          "title": "Software Developer Trainee",
+          "company_headcount_range": "51-200",
+          "years_at_company_raw": 0,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Software Development"
+          ],
+          "company_hq_location": "Dover, Delaware, United States",
+          "function_category": "Engineering",
+          "start_date": "2021-10-01T00:00:00",
+          "end_date": "2022-03-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/w3villa-technologies",
+          "company_website_domain": "https://www.w3villa.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7f4900e590d410112bc5976cae1111106c28dbedf3d0c7105d57bff7f57a4841.jpg",
+          "company_headcount_latest": 142,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "Capgemini",
+          "seniority_level": "In Training",
+          "title": "Intern",
+          "company_headcount_range": "10001+",
+          "years_at_company_raw": 0,
+          "company_type": "Public Company",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Paris 17, Paris, Île-de-France, France",
+          "function_category": "",
+          "start_date": "2021-01-01T00:00:00",
+          "end_date": "2021-04-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/capgemini",
+          "company_website_domain": "https://www.capgemini.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0de80f50c6be1727bfb7880661a68409623970b8dcd9a30ae6f56fa6c8701090.jpg",
+          "company_headcount_latest": 347962,
+          "employment_type": "",
+          "business_email_verified": false
+        }
+      ],
+      "current_employers_object": [
+        {
+          "company_name": "Indian Institute of Technology Kanpur",
+          "company_website_domain": "http://www.iitk.ac.in/",
+          "job_title": "Software Developer",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/indian-institute-of-technology-kanpur"
+        }
+      ],
+      "basic_profile": {
+        "current_title": "Software Developer",
+        "headline": "JavaScript and Node.js Developer | Passionate about Scalable Solutions.",
+        "location": {
+          "city": "Kanpur Nagar",
+          "continent": "Asia",
+          "country": "India",
+          "full_location": "Kanpur Nagar, Uttar Pradesh, India",
+          "raw": "Kanpur Nagar, Uttar Pradesh, India",
+          "state": "Uttar Pradesh"
+        },
+        "name": "Shantanu Yadav",
+        "professional_network_name": "Shantanu Yadav",
+        "profile_picture_permalink": ""
+      },
+      "experience": {
+        "employment_details": {
+          "current": [
+            {
+              "business_email_verified": true,
+              "company_headcount_latest": 6690,
+              "company_headcount_range": "1001-5000",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Iit, Uttar Pradesh, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "Higher Education"
+              ],
+              "company_professional_network_industry": "Higher Education",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/indian-institute-of-technology-kanpur",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/8fd1c0a0b859232d6cf3733177f2e9b0575c75cfa5407c87906af8af768e1a4e.jpg",
+              "company_status": "active",
+              "company_type": "Educational Institution",
+              "company_website": "http://www.iitk.ac.in/",
+              "employment_type": "",
+              "end_date": null,
+              "function_category": "Engineering",
+              "is_default": true,
+              "location": {
+                "raw": "Kanpur Nagar, Uttar Pradesh, India"
+              },
+              "name": "Indian Institute of Technology Kanpur",
+              "position_id": 2393513338,
+              "professional_network_id": "157268",
+              "seniority_level": "Entry Level",
+              "start_date": "2024-05-01T00:00:00",
+              "title": "Software Developer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 2
+            }
+          ],
+          "past": [
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 142,
+              "company_headcount_range": "51-200",
+              "company_headquarters_country": "United States",
+              "company_hq_location": "Dover, Delaware, United States",
+              "company_hq_location_address_components": [
+                "Dover",
+                "Kent County",
+                "Delaware",
+                "United States"
+              ],
+              "company_industries": [
+                "Software Development"
+              ],
+              "company_professional_network_industry": "Software Development",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/w3villa-technologies",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7f4900e590d410112bc5976cae1111106c28dbedf3d0c7105d57bff7f57a4841.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.w3villa.com/",
+              "employment_type": "",
+              "end_date": "2024-04-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur Nagar, Uttar Pradesh, India"
+              },
+              "name": "W3villa Technologies",
+              "position_id": 2051881911,
+              "professional_network_id": "9205294",
+              "seniority_level": "Entry Level",
+              "start_date": "2022-04-01T00:00:00",
+              "title": "Software Developer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 2
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 142,
+              "company_headcount_range": "51-200",
+              "company_headquarters_country": "United States",
+              "company_hq_location": "Dover, Delaware, United States",
+              "company_hq_location_address_components": [
+                "Dover",
+                "Kent County",
+                "Delaware",
+                "United States"
+              ],
+              "company_industries": [
+                "Software Development"
+              ],
+              "company_professional_network_industry": "Software Development",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/w3villa-technologies",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7f4900e590d410112bc5976cae1111106c28dbedf3d0c7105d57bff7f57a4841.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.w3villa.com/",
+              "employment_type": "",
+              "end_date": "2022-03-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur Nagar, Uttar Pradesh, India"
+              },
+              "name": "W3villa Technologies",
+              "position_id": 1860179966,
+              "professional_network_id": "9205294",
+              "seniority_level": "In Training",
+              "start_date": "2021-10-01T00:00:00",
+              "title": "Software Developer Trainee",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 347962,
+              "company_headcount_range": "10001+",
+              "company_headquarters_country": "France",
+              "company_hq_location": "Paris 17, Paris, Île-de-France, France",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/capgemini",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0de80f50c6be1727bfb7880661a68409623970b8dcd9a30ae6f56fa6c8701090.jpg",
+              "company_status": "active",
+              "company_type": "Public Company",
+              "company_website": "https://www.capgemini.com",
+              "employment_type": "",
+              "end_date": "2021-04-01T00:00:00",
+              "function_category": "",
+              "is_default": false,
+              "location": {
+                "raw": "Bengaluru, Karnataka, India"
+              },
+              "name": "Capgemini",
+              "position_id": 1821782185,
+              "professional_network_id": "157240",
+              "seniority_level": "In Training",
+              "start_date": "2021-01-01T00:00:00",
+              "title": "Intern",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            }
+          ]
+        }
+      },
+      "education": {
+        "schools": [
+          {
+            "degree": "B.Sc",
+            "description": "",
+            "end_year": 2019,
+            "institute_logo_permalink": null,
+            "location": {
+              "city": null,
+              "continent": null,
+              "country": null,
+              "raw": null,
+              "state": null
+            },
+            "professional_network_id": "5072161",
+            "school": "Graphic Era Deemed to be University",
+            "start_year": 2016
+          },
+          {
+            "degree": "Master of Computer Applications - MCA",
+            "description": "",
+            "end_year": 2021,
+            "institute_logo_permalink": null,
+            "location": {
+              "city": null,
+              "continent": "North America",
+              "country": "United States",
+              "raw": "",
+              "state": null
+            },
+            "professional_network_id": "213533",
+            "school": "Jain (Deemed-to-be University)",
+            "start_year": 2019
+          },
+          {
+            "degree": "Master of Computer Applications - MCA",
+            "description": "",
+            "end_year": 2021,
+            "institute_logo_permalink": "https://prod.api.futurejobs.ai/api/v1/static/607b9fef7874f6300b4ae98a1a6d1892537f44441e49f6b0aa92ba8d1c6c5814.jpg",
+            "location": {
+              "city": "Bengaluru",
+              "continent": "Asia",
+              "country": "India",
+              "raw": "#44/4,District Fund Road Jayanagar 9th Block",
+              "state": "Karnataka"
+            },
+            "professional_network_id": "611690",
+            "school": "Jain (Deemed-to-be University)",
+            "start_year": 2019
+          },
+          {
+            "degree": "B.Sc",
+            "description": "",
+            "end_year": 2019,
+            "institute_logo_permalink": "https://prod.api.futurejobs.ai/api/v1/static/9ef78331fe01ce0c7c86423594046cea9c65f9f5b129198c45187aaa89f4d2bb.jpg",
+            "location": {
+              "city": null,
+              "continent": "Asia",
+              "country": "India",
+              "raw": "566/6 Bell Road Clement Town",
+              "state": "Uttarakhand"
+            },
+            "professional_network_id": "3715404",
+            "school": "Graphic Era Deemed to be University",
+            "start_year": 2016
+          }
+        ]
+      },
+      "social_handles": {
+        "dev_platform_identifier": {
+          "profile_url": null
+        },
+        "professional_network_identifier": {
+          "profile_url": "https://www.linkedin.com/in/shantanu-yadav-0b4606219"
+        },
+        "twitter_identifier": {
+          "slug": ""
+        }
+      },
+      "fit": "strong"
+    },
+    {
+      "name": "Sooraj Vijayan T K",
+      "headline": "JavaScript | React js | Next js | Frontend Developer | Node js",
+      "region": "Kannur, Kerala, India",
+      "skills": [],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/c53f80434db4bb4d441e4a95c9e3261f0c46b676836d87509a42fee029784713.jpg",
+      "linkedin_profile_url": "https://www.linkedin.com/in/soorajvijayantk",
+      "emails": [],
+      "open_to_cards": [],
+      "current_employers": [],
+      "past_employers": [
+        {
+          "name": "Revyrie Global",
+          "seniority_level": "Entry Level",
+          "title": "Software Engineer",
+          "company_headcount_range": "51-200",
+          "years_at_company_raw": 1,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Valley Village, California, United States",
+          "function_category": "Engineering",
+          "start_date": "2024-03-01T00:00:00",
+          "end_date": "2026-01-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/revyrieglobal",
+          "company_website_domain": "https://www.revyrieglobal.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/369df69f3855b7b05b5e19dc8cd755da0abc3b0173c231c9c897837e7be08b24.jpg",
+          "company_headcount_latest": 72,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "Hamon Technologies",
+          "seniority_level": "Entry Level",
+          "title": "Software Engineer",
+          "company_headcount_range": "51-200",
+          "years_at_company_raw": 2,
+          "company_type": "Partnership",
+          "company_industries": [
+            "Software Development"
+          ],
+          "company_hq_location": "Govinda Puram, Nellicode, Kuthiravattom, Kottuli, Kerala, India",
+          "function_category": "Engineering",
+          "start_date": "2022-01-01T00:00:00",
+          "end_date": "2024-02-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/hamon-techonologies-llp",
+          "company_website_domain": "http://hamon.in",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0d9f7546148a211affc2bbcafe5626dae82f840a1d3606ee384d3c424ae40db6.jpg",
+          "company_headcount_latest": 37,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "Quest Innovative Solutions Pvt Ltd",
+          "seniority_level": "In Training",
+          "title": "Software Engineer Intern",
+          "company_headcount_range": "51-200",
+          "years_at_company_raw": 1,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Software Development"
+          ],
+          "company_hq_location": "Kadavanthara, Kerala, India",
+          "function_category": "Engineering",
+          "start_date": "2019-12-01T00:00:00",
+          "end_date": "2021-04-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/quest-innovative-solutions",
+          "company_website_domain": "https://www.qisacademy.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/17e099bc2c837f6ce3cc9286809ebe1d20168121eb169acbfd7c340f0614d813.jpg",
+          "company_headcount_latest": 884,
+          "employment_type": "",
+          "business_email_verified": false
+        }
+      ],
+      "current_employers_object": [],
+      "basic_profile": {
+        "headline": "JavaScript | React js | Next js | Frontend Developer | Node js",
+        "location": {
+          "city": "Kannur",
+          "continent": "Asia",
+          "country": "India",
+          "full_location": "Kannur, Kerala, India",
+          "raw": "Kannur, Kerala, India",
+          "state": "Kerala"
+        },
+        "name": "Sooraj Vijayan T K",
+        "professional_network_name": "Sooraj Vijayan T K",
+        "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/c53f80434db4bb4d441e4a95c9e3261f0c46b676836d87509a42fee029784713.jpg"
+      },
+      "experience": {
+        "employment_details": {
+          "current": [],
+          "past": [
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 72,
+              "company_headcount_range": "51-200",
+              "company_headquarters_country": "United States of America",
+              "company_hq_location": "Valley Village, California, United States",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/revyrieglobal",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/369df69f3855b7b05b5e19dc8cd755da0abc3b0173c231c9c897837e7be08b24.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.revyrieglobal.com",
+              "employment_type": "",
+              "end_date": "2026-01-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Trivandrum"
+              },
+              "name": "Revyrie Global",
+              "position_id": 2370451912,
+              "professional_network_id": "14046387",
+              "seniority_level": "Entry Level",
+              "start_date": "2024-03-01T00:00:00",
+              "title": "Software Engineer",
+              "years_at_company": "1 to 2 years",
+              "years_at_company_raw": 1
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 37,
+              "company_headcount_range": "51-200",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Govinda Puram, Nellicode, Kuthiravattom, Kottuli, Kerala, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "Software Development"
+              ],
+              "company_professional_network_industry": "Software Development",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/hamon-techonologies-llp",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/0d9f7546148a211affc2bbcafe5626dae82f840a1d3606ee384d3c424ae40db6.jpg",
+              "company_status": "active",
+              "company_type": "Partnership",
+              "company_website": "http://hamon.in",
+              "employment_type": "",
+              "end_date": "2024-02-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kozhikode, Kerala, India"
+              },
+              "name": "Hamon Technologies",
+              "position_id": 1927443496,
+              "professional_network_id": "10458044",
+              "seniority_level": "Entry Level",
+              "start_date": "2022-01-01T00:00:00",
+              "title": "Software Engineer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 2
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 884,
+              "company_headcount_range": "51-200",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Kadavanthara, Kerala, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "Software Development"
+              ],
+              "company_professional_network_industry": "Software Development",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/quest-innovative-solutions",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/17e099bc2c837f6ce3cc9286809ebe1d20168121eb169acbfd7c340f0614d813.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.qisacademy.com/",
+              "employment_type": "",
+              "end_date": "2021-04-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "name": "Quest Innovative Solutions Pvt Ltd",
+              "position_id": 2971499581,
+              "professional_network_id": "13199301",
+              "seniority_level": "In Training",
+              "start_date": "2019-12-01T00:00:00",
+              "title": "Software Engineer Intern",
+              "years_at_company": "1 to 2 years",
+              "years_at_company_raw": 1
+            }
+          ]
+        }
+      },
+      "education": {
+        "schools": [
+          {
+            "degree": "Bachelor of Technology",
+            "description": null,
+            "end_year": null,
+            "institute_logo_permalink": null,
+            "location": {
+              "city": "Kannur",
+              "continent": "Asia",
+              "country": "India",
+              "raw": "P.O. Chalakode, Payyanur, Kannur -670307",
+              "state": "Kerala"
+            },
+            "professional_network_id": "15120340",
+            "school": "Sree Narayana Guru College of Engineering & Technology, P.O. Chalakode, Payyanur Kannur",
+            "start_year": null
+          },
+          {
+            "degree": "Bachelor of Technology - BTech",
+            "description": "",
+            "end_year": 2017,
+            "institute_logo_permalink": null,
+            "location": {
+              "city": "Kannur",
+              "continent": "Asia",
+              "country": "India",
+              "raw": "P.O. Chalakode, Payyanur, Kannur -670307",
+              "state": "Kerala"
+            },
+            "professional_network_id": "15120340",
+            "school": "Sree Narayana Guru College of Engineering & Technology, P.O. Chalakode, Payyanur Kannur",
+            "start_year": 2013
+          },
+          {
+            "degree": "Bachelor of Technology - BTech",
+            "description": "",
+            "end_year": 2017,
+            "institute_logo_permalink": "https://prod.api.futurejobs.ai/api/v1/static/8a5ece2c840646d39ec2a8a67700880830a2638452d40af8abbbe92d703e1eec.jpg",
+            "location": {
+              "city": "Glasgow",
+              "continent": "Europe",
+              "country": "United Kingdom",
+              "raw": "Film City Glasgow 1 Merryland Street",
+              "state": "Scotland"
+            },
+            "professional_network_id": "216736",
+            "school": "Sree Narayana Guru College of Engineering & Technology, P.O. Chalakode, Payyanur Kannur",
+            "start_year": 2013
+          }
+        ]
+      },
+      "social_handles": {
+        "dev_platform_identifier": {
+          "profile_url": null
+        },
+        "professional_network_identifier": {
+          "profile_url": "https://www.linkedin.com/in/soorajvijayantk"
+        },
+        "twitter_identifier": {
+          "slug": ""
+        }
+      },
+      "fit": "strong"
+    },
+    {
+      "name": "Anuvrindha K",
+      "headline": "Software Engineer at QBurst",
+      "region": "Kannur, Kerala, India",
+      "skills": [],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/865d16c3c2931a99d2ed09077c4c0bc7ce37bf830601661adbce1d80fedc48bb.jpg",
+      "linkedin_profile_url": "https://www.linkedin.com/in/anuvrindha-k-b188b1248",
+      "emails": [],
+      "open_to_cards": [],
+      "current_employers": [
+        {
+          "name": "QBurst",
+          "seniority_level": "Entry Level",
+          "title": "NodeJs Developer",
+          "company_headcount_range": "1001-5000",
+          "years_at_company_raw": 3,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Chantilly, Virginia, United States",
+          "function_category": "Engineering",
+          "start_date": "2023-01-01T00:00:00",
+          "end_date": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/qburst",
+          "company_website_domain": "https://www.qburst.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/a0849d45f3817fc57d38c5bbe304baaae1e0c7d7d4699bbaa205f345435f378d.jpg",
+          "company_headcount_latest": 3293,
+          "employment_type": "",
+          "business_email_verified": true
+        },
+        {
+          "name": "QBurst",
+          "seniority_level": "Entry Level",
+          "title": "iOS Developer",
+          "company_headcount_range": "1001-5000",
+          "years_at_company_raw": 3,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Chantilly, Virginia, United States",
+          "function_category": "Engineering",
+          "start_date": "2022-11-01T00:00:00",
+          "end_date": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/qburst",
+          "company_website_domain": "https://www.qburst.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/a0849d45f3817fc57d38c5bbe304baaae1e0c7d7d4699bbaa205f345435f378d.jpg",
+          "company_headcount_latest": 3293,
+          "employment_type": "",
+          "business_email_verified": true
+        }
+      ],
+      "past_employers": [
+        {
+          "name": "QBurst",
+          "seniority_level": "In Training",
+          "title": "Trainee",
+          "company_headcount_range": "1001-5000",
+          "years_at_company_raw": 0,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Chantilly, Virginia, United States",
+          "function_category": "",
+          "start_date": "2022-07-01T00:00:00",
+          "end_date": "2022-12-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/qburst",
+          "company_website_domain": "https://www.qburst.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/a0849d45f3817fc57d38c5bbe304baaae1e0c7d7d4699bbaa205f345435f378d.jpg",
+          "company_headcount_latest": 3293,
+          "employment_type": "",
+          "business_email_verified": true
+        }
+      ],
+      "current_employers_object": [
+        {
+          "company_name": "QBurst",
+          "company_website_domain": "https://www.qburst.com",
+          "job_title": "NodeJs Developer",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/qburst"
+        },
+        {
+          "company_name": "QBurst",
+          "company_website_domain": "https://www.qburst.com",
+          "job_title": "iOS Developer",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/qburst"
+        }
+      ],
+      "basic_profile": {
+        "current_title": "NodeJs Developer",
+        "headline": "Software Engineer at QBurst",
+        "location": {
+          "city": "Kannur",
+          "continent": "Asia",
+          "country": "India",
+          "full_location": "Kannur, Kerala, India",
+          "raw": "Kannur, Kerala, India",
+          "state": "Kerala"
+        },
+        "name": "Anuvrindha K",
+        "professional_network_name": "Anuvrindha K",
+        "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/865d16c3c2931a99d2ed09077c4c0bc7ce37bf830601661adbce1d80fedc48bb.jpg"
+      },
+      "experience": {
+        "employment_details": {
+          "current": [
+            {
+              "business_email_verified": true,
+              "company_headcount_latest": 3293,
+              "company_headcount_range": "1001-5000",
+              "company_headquarters_country": "United States",
+              "company_hq_location": "Chantilly, Virginia, United States",
+              "company_hq_location_address_components": [
+                "Chantilly",
+                "Fairfax County",
+                "Virginia",
+                "United States"
+              ],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/qburst",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/a0849d45f3817fc57d38c5bbe304baaae1e0c7d7d4699bbaa205f345435f378d.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.qburst.com",
+              "employment_type": "",
+              "end_date": null,
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kozhikode, Kerala, India"
+              },
+              "name": "QBurst",
+              "position_id": 2162032284,
+              "professional_network_id": "120871",
+              "seniority_level": "Entry Level",
+              "start_date": "2023-01-01T00:00:00",
+              "title": "NodeJs Developer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 3
+            },
+            {
+              "business_email_verified": true,
+              "company_headcount_latest": 3293,
+              "company_headcount_range": "1001-5000",
+              "company_headquarters_country": "United States",
+              "company_hq_location": "Chantilly, Virginia, United States",
+              "company_hq_location_address_components": [
+                "Chantilly",
+                "Fairfax County",
+                "Virginia",
+                "United States"
+              ],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/qburst",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/a0849d45f3817fc57d38c5bbe304baaae1e0c7d7d4699bbaa205f345435f378d.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.qburst.com",
+              "employment_type": "",
+              "end_date": null,
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kozhikode, Kerala, India"
+              },
+              "name": "QBurst",
+              "position_id": 2080652299,
+              "professional_network_id": "120871",
+              "seniority_level": "Entry Level",
+              "start_date": "2022-11-01T00:00:00",
+              "title": "iOS Developer",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 3
+            }
+          ],
+          "past": [
+            {
+              "business_email_verified": true,
+              "company_headcount_latest": 3293,
+              "company_headcount_range": "1001-5000",
+              "company_headquarters_country": "United States",
+              "company_hq_location": "Chantilly, Virginia, United States",
+              "company_hq_location_address_components": [
+                "Chantilly",
+                "Fairfax County",
+                "Virginia",
+                "United States"
+              ],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/qburst",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/a0849d45f3817fc57d38c5bbe304baaae1e0c7d7d4699bbaa205f345435f378d.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.qburst.com",
+              "employment_type": "",
+              "end_date": "2022-12-01T00:00:00",
+              "function_category": "",
+              "is_default": false,
+              "name": "QBurst",
+              "position_id": 2019949695,
+              "professional_network_id": "120871",
+              "seniority_level": "In Training",
+              "start_date": "2022-07-01T00:00:00",
+              "title": "Trainee",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            }
+          ]
+        }
+      },
+      "education": {
+        "schools": [
+          {
+            "degree": "Bachelor of Technology - BTech",
+            "description": "",
+            "end_year": 2022,
+            "institute_logo_permalink": "https://prod.api.futurejobs.ai/api/v1/static/5af326800acf7221c8e73e173396b37726f0fee7c1b464a9ae699201f0ae9a5e.jpg",
+            "location": {
+              "city": "Kannur",
+              "continent": "Asia",
+              "country": "India",
+              "raw": "Parassinikkadavu-Mayyil Road",
+              "state": "Kerala"
+            },
+            "professional_network_id": "28728845",
+            "school": "Government College Of Engineering Kannur",
+            "start_year": 2018
+          }
+        ]
+      },
+      "social_handles": {
+        "dev_platform_identifier": {
+          "profile_url": null
+        },
+        "professional_network_identifier": {
+          "profile_url": "https://www.linkedin.com/in/anuvrindha-k-b188b1248"
+        },
+        "twitter_identifier": {
+          "slug": ""
+        }
+      },
+      "fit": "strong"
+    },
+    {
+      "name": "Fayis Mohammed",
+      "headline": "Full Stack Developer | React JS | Node JS | Next JS",
+      "region": "Kannur, Kerala, India",
+      "skills": [],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/bca618ca0f98f1002cc95ddc5ac0afbb6b707b80077798860fd05688ac3fadb6.jpg",
+      "linkedin_profile_url": "https://www.linkedin.com/in/fayis-regency",
+      "emails": [],
+      "open_to_cards": [],
+      "current_employers": [
+        {
+          "name": "Spericorn Technology Inc",
+          "seniority_level": "Entry Level",
+          "title": "Full Stack Developer",
+          "company_headcount_range": "501-1000",
+          "years_at_company_raw": 5,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "New York, New York, United States",
+          "function_category": "Engineering",
+          "start_date": "2021-02-01T00:00:00",
+          "end_date": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/spericorn-technology-pvt-ltd",
+          "company_website_domain": "https://www.spericorn.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/384e97252ce9da4e2a8ed40c995cdc7e204e74b429b6bcadafcddb5ea69b7a2a.jpg",
+          "company_headcount_latest": 118,
+          "employment_type": "",
+          "business_email_verified": true
+        }
+      ],
+      "past_employers": [],
+      "current_employers_object": [
+        {
+          "company_name": "Spericorn Technology Inc",
+          "company_website_domain": "https://www.spericorn.com/",
+          "job_title": "Full Stack Developer",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/spericorn-technology-pvt-ltd"
+        }
+      ],
+      "basic_profile": {
+        "current_title": "Full Stack Developer",
+        "headline": "Full Stack Developer | React JS | Node JS | Next JS",
+        "location": {
+          "city": "Kannur",
+          "continent": "Asia",
+          "country": "India",
+          "full_location": "Kannur, Kerala, India",
+          "raw": "Kannur, Kerala, India",
+          "state": "Kerala"
+        },
+        "name": "Fayis Mohammed",
+        "professional_network_name": "Fayis Mohammed",
+        "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/bca618ca0f98f1002cc95ddc5ac0afbb6b707b80077798860fd05688ac3fadb6.jpg"
+      },
+      "experience": {
+        "employment_details": {
+          "current": [
+            {
+              "business_email_verified": true,
+              "company_headcount_latest": 118,
+              "company_headcount_range": "501-1000",
+              "company_headquarters_country": "United States",
+              "company_hq_location": "New York, New York, United States",
+              "company_hq_location_address_components": [
+                "New York",
+                "New York",
+                "United States"
+              ],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/spericorn-technology-pvt-ltd",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/384e97252ce9da4e2a8ed40c995cdc7e204e74b429b6bcadafcddb5ea69b7a2a.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.spericorn.com/",
+              "employment_type": "",
+              "end_date": null,
+              "function_category": "Engineering",
+              "is_default": true,
+              "location": {
+                "raw": "Trivandrum, Kerala, India"
+              },
+              "name": "Spericorn Technology Inc",
+              "position_id": 1735015499,
+              "professional_network_id": "3661922",
+              "seniority_level": "Entry Level",
+              "start_date": "2021-02-01T00:00:00",
+              "title": "Full Stack Developer",
+              "years_at_company": "6 to 10 years",
+              "years_at_company_raw": 5
+            }
+          ],
+          "past": []
+        }
+      },
+      "education": {
+        "schools": [
+          {
+            "degree": "Bachelor of computer applications",
+            "description": "",
+            "end_year": 2020,
+            "institute_logo_permalink": "https://prod.api.futurejobs.ai/api/v1/static/74b3c6824a22f9f29fe906f3bed7b7df623ba267f5eae88337738f0d831b8082.jpg",
+            "location": {
+              "city": null,
+              "continent": "Europe",
+              "country": "Bulgaria",
+              "raw": "",
+              "state": null
+            },
+            "professional_network_id": "216353",
+            "school": "SAFI Institute of Advanced Study",
+            "start_year": 2017
+          },
+          {
+            "degree": "Bachelor of computer applications",
+            "description": "",
+            "end_year": 2020,
+            "institute_logo_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7d8d061acd82c861f1c308aa9d52b77df503c676e7e985727d28515bcbb1b134.jpg",
+            "location": {
+              "city": null,
+              "continent": "Asia",
+              "country": "India",
+              "raw": "SAFI INSTITUTE OF ADVANCED STUDY (SIAS) RASIYA NAGAR, VAZHAYOOR EAST P.O., VIA RAMANATTUKARA",
+              "state": "Kerala"
+            },
+            "professional_network_id": "15118726",
+            "school": "SAFI Institute of Advanced Study",
+            "start_year": 2017
+          }
+        ]
+      },
+      "social_handles": {
+        "dev_platform_identifier": {
+          "profile_url": null
+        },
+        "professional_network_identifier": {
+          "profile_url": "https://www.linkedin.com/in/fayis-regency"
+        },
+        "twitter_identifier": {
+          "slug": ""
+        }
+      },
+      "fit": "strong"
+    },
+    {
+      "name": "Pushpendra Singh",
+      "headline": "Sr. Node.js Developer (Sr. Software/web developer) at Kratitech",
+      "region": "Kanpur Nagar, Uttar Pradesh, India",
+      "skills": [],
+      "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/31798d60162071bc1494c955b603a433f0580d18fc907e774b3a64b2dbd46540.jpg",
+      "linkedin_profile_url": "https://www.linkedin.com/in/pushpendra-singh-8994b9145",
+      "emails": [],
+      "open_to_cards": [],
+      "current_employers": [
+        {
+          "name": "KratiTech",
+          "seniority_level": "Entry Level Manager",
+          "title": "Sr. Node.js Developer (Project manager)",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 4,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Bima Vihar, K P University, Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2022-01-01T00:00:00",
+          "end_date": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/kratitech",
+          "company_website_domain": "https://kratitech.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/345876ff33389f568459f825120d9dcc90fa0568719510944ee07b720e808cfd.jpg",
+          "company_headcount_latest": 11,
+          "employment_type": "",
+          "business_email_verified": false
+        }
+      ],
+      "past_employers": [
+        {
+          "name": "GPSLab Private Limited",
+          "seniority_level": "Entry Level Manager",
+          "title": "Sr. Node.js Developer (Project Manager)",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 0,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "R K Nagar (Kanpur Nagar), Sisamau, D O Oil Mill, Rambagh (Kanpur Nagar), Kaushalpuri, Jawahar Nagar (Kanpur Nagar), Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2021-04-01T00:00:00",
+          "end_date": "2022-01-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/gpslabindia",
+          "company_website_domain": "https://www.gpslab.in/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7ba8cb7b092c271d362cbf1761d7d7d0b14fa4a0887791e0ce556fa3f9d86d7b.jpg",
+          "company_headcount_latest": 20,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "KratiTech",
+          "seniority_level": "Entry Level",
+          "title": "Software/web developer",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 1,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Bima Vihar, K P University, Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2020-01-01T00:00:00",
+          "end_date": "2021-08-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/kratitech",
+          "company_website_domain": "https://kratitech.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/345876ff33389f568459f825120d9dcc90fa0568719510944ee07b720e808cfd.jpg",
+          "company_headcount_latest": 11,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "KratiTech",
+          "seniority_level": "Entry Level Manager",
+          "title": "Technical Manager (Software/web deve at KratiTech)",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 1,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Bima Vihar, K P University, Uttar Pradesh, India",
+          "function_category": "",
+          "start_date": "2020-01-01T00:00:00",
+          "end_date": "2021-08-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/kratitech",
+          "company_website_domain": "https://kratitech.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/345876ff33389f568459f825120d9dcc90fa0568719510944ee07b720e808cfd.jpg",
+          "company_headcount_latest": 11,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "OrangeSkill Technologies Pvt Ltd",
+          "seniority_level": "Entry Level",
+          "title": "Software Developer",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 0,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "Barra Vishwa Bank Sector-A, Barra, Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2019-05-01T00:00:00",
+          "end_date": "2020-01-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/orangeskill-technologies",
+          "company_website_domain": "http://www.orangeskill.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/19f390a75ab1944d757fc337fb596f87342fda6d98b643722482369f5dc99218.jpg",
+          "company_headcount_latest": 23,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "W3villa Technologies",
+          "seniority_level": "Senior",
+          "title": "Senior Software Developer",
+          "company_headcount_range": "51-200",
+          "years_at_company_raw": 0,
+          "company_type": "Privately Held",
+          "company_industries": [
+            "Software Development"
+          ],
+          "company_hq_location": "Dover, Delaware, United States",
+          "function_category": "Engineering",
+          "start_date": "2019-01-01T00:00:00",
+          "end_date": "2019-05-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/w3villa-technologies",
+          "company_website_domain": "https://www.w3villa.com/",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7f4900e590d410112bc5976cae1111106c28dbedf3d0c7105d57bff7f57a4841.jpg",
+          "company_headcount_latest": 142,
+          "employment_type": "",
+          "business_email_verified": false
+        },
+        {
+          "name": "MULTIFACET SOFTWARES SYSTEMS PRIVATE LIMITED",
+          "seniority_level": "Entry Level",
+          "title": "Software Developer",
+          "company_headcount_range": "11-50",
+          "years_at_company_raw": 2,
+          "company_type": "Sole Proprietorship",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "company_hq_location": "KANPUR, Uttar Pradesh, India",
+          "function_category": "Engineering",
+          "start_date": "2017-01-01T00:00:00",
+          "end_date": "2019-01-01T00:00:00",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/multifacet-softwares-systems-private-limited",
+          "company_website_domain": "http://multifacet-software.com",
+          "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/f00134b1d62549444af119034c9d2f44774a42821bfa0603884f19db66c5d376.jpg",
+          "company_headcount_latest": 48,
+          "employment_type": "",
+          "business_email_verified": false
+        }
+      ],
+      "current_employers_object": [
+        {
+          "company_name": "KratiTech",
+          "company_website_domain": "https://kratitech.com/",
+          "job_title": "Sr. Node.js Developer (Project manager)",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/kratitech"
+        }
+      ],
+      "basic_profile": {
+        "current_title": "Sr. Node.js Developer (Project manager)",
+        "headline": "Sr. Node.js Developer (Sr. Software/web developer) at Kratitech",
+        "location": {
+          "city": "Kanpur Nagar",
+          "continent": "Asia",
+          "country": "India",
+          "full_location": "Kanpur Nagar, Uttar Pradesh, India",
+          "raw": "Kanpur Nagar, Uttar Pradesh, India",
+          "state": "Uttar Pradesh"
+        },
+        "name": "Pushpendra Singh",
+        "professional_network_name": "Pushpendra Singh",
+        "profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/31798d60162071bc1494c955b603a433f0580d18fc907e774b3a64b2dbd46540.jpg"
+      },
+      "experience": {
+        "employment_details": {
+          "current": [
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 11,
+              "company_headcount_range": "11-50",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Bima Vihar, K P University, Uttar Pradesh, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/kratitech",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/345876ff33389f568459f825120d9dcc90fa0568719510944ee07b720e808cfd.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://kratitech.com/",
+              "employment_type": "",
+              "end_date": null,
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "India"
+              },
+              "name": "KratiTech",
+              "position_id": 2522109260,
+              "professional_network_id": "13394216",
+              "seniority_level": "Entry Level Manager",
+              "start_date": "2022-01-01T00:00:00",
+              "title": "Sr. Node.js Developer (Project manager)",
+              "years_at_company": "3 to 5 years",
+              "years_at_company_raw": 4
+            }
+          ],
+          "past": [
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 20,
+              "company_headcount_range": "11-50",
+              "company_headquarters_country": "India",
+              "company_hq_location": "R K Nagar (Kanpur Nagar), Sisamau, D O Oil Mill, Rambagh (Kanpur Nagar), Kaushalpuri, Jawahar Nagar (Kanpur Nagar), Uttar Pradesh, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/gpslabindia",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/7ba8cb7b092c271d362cbf1761d7d7d0b14fa4a0887791e0ce556fa3f9d86d7b.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://www.gpslab.in/",
+              "employment_type": "",
+              "end_date": "2022-01-01T00:00:00",
+              "function_category": "Engineering",
+              "is_default": false,
+              "location": {
+                "raw": "Kanpur, Uttar Pradesh, India"
+              },
+              "name": "GPSLab Private Limited",
+              "position_id": 1823691439,
+              "professional_network_id": "68002054",
+              "seniority_level": "Entry Level Manager",
+              "start_date": "2021-04-01T00:00:00",
+              "title": "Sr. Node.js Developer (Project Manager)",
+              "years_at_company": "Less than 1 year",
+              "years_at_company_raw": 0
+            },
+            {
+              "business_email_verified": false,
+              "company_headcount_latest": 11,
+              "company_headcount_range": "11-50",
+              "company_headquarters_country": "India",
+              "company_hq_location": "Bima Vihar, K P University, Uttar Pradesh, India",
+              "company_hq_location_address_components": [],
+              "company_industries": [
+                "IT Services and IT Consulting"
+              ],
+              "company_professional_network_industry": "IT Services and IT Consulting",
+              "company_professional_network_profile_url": "https://www.linkedin.com/company/kratitech",
+              "company_profile_picture_permalink": "https://prod.api.futurejobs.ai/api/v1/static/345876ff33389f568459f825120d9dcc90fa0568719510944ee07b720e808cfd.jpg",
+              "company_status": "active",
+              "company_type": "Privately Held",
+              "company_website": "https://kratitech.com/",
+              "employment_type": "",
+              "end_date": "
+…[truncated 2272992 more chars]
+# 2026-09-26T05:51:24.319Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/ACoAAAKLtWwB0yXQ0z3S_n53ak7xiYZxoxq1Ddc"}'
+# 2026-09-26T05:51:34.093Z POST /wl/scout-people/lookup response HTTP 200 9773ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75d66e0ba78e1cf503912",
+    "profile": {
+      "_id": "6ab75d66e0ba78e1cf503911",
+      "__v": 0,
+      "all_degrees": [
+        "BS"
+      ],
+      "all_employers": [
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Senior Server Engineer, IAM",
+          "description": "Cyber Security - Identity Access Management ",
+          "location": null,
+          "start_date": "2024-09-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2.1,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "IT Manager",
+          "description": "Academic Technology and Informatics Operations",
+          "location": null,
+          "start_date": "2021-09-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Applications Team Lead",
+          "description": "Develop team work processes and manage service levels.\nPursue new service areas and opportunities for innovation and technical expertise\nDesign and implement AWS architecture for medical research",
+          "location": null,
+          "start_date": "2020-11-01T00:00:00.000Z",
+          "end_date": "2021-09-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.9,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Senior Application Analyst",
+          "description": "Manage IT hardware and software purchases and deployments\nSteward IT aspects of on-boarding VIP researchers and research teams\nPrimary application support for mission critical applications\nSubject matter expert for IT hardware and software",
+          "location": "Houston, TX",
+          "start_date": "2019-03-01T00:00:00.000Z",
+          "end_date": "2020-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.8,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Application Analyst III",
+          "description": "Manage custom hardware and specialized applications and servers for the hospital's research department, plus high touch management of research team IT needs.",
+          "location": "Research Dept - Texas Medical Center",
+          "start_date": "2016-04-01T00:00:00.000Z",
+          "end_date": "2019-03-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 3,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "X-ISS",
+          "linkedin_id": "125837",
+          "company_linkedin_id": "125837",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/x-iss",
+          "company_website_domain": "x-iss.com",
+          "company_website": "https://x-iss.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_v7vekuzp13nmypvqkhd3.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Senior Sys Admin / HPC Analyst",
+          "description": "Solution architect for high performance cluster (HPC) systems to expedite simulations of engineering data sets for software such as Ansys Fluent & Mechanical, Abaqus, AutoCAD and others.  Also managed on site support services for high profile \"high touch\" legacy customers.",
+          "location": "Greater Houston",
+          "start_date": "2011-02-01T00:00:00.000Z",
+          "end_date": "2016-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 5.2,
+          "years_at_company": "5 years"
+        },
+        {
+          "name": "JR IT Pro",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jr-it-pro",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Owner",
+          "description": "Provide IT consulting and management services to a broad spectrum of small / medium business clients in the Philadelphia / South Jersey area.",
+          "location": "Greater Philadelphia",
+          "start_date": "2009-03-01T00:00:00.000Z",
+          "end_date": "2011-05-31T00:00:00.000Z",
+          "seniority_level": "Executive",
+          "employment_type": "",
+          "function_category": "Entrepreneurship",
+          "company_industries": [],
+          "years_at_company_raw": 2.2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Graphical Interface",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/interface-graphical",
+          "company_website_domain": "webdes.com.br",
+          "company_website": "https://webdes.com.br",
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "Retail",
+          "title": "IT Consultant",
+          "description": "On call IT consultant managing IT for local clients - doctors, lawyers, etc.",
+          "location": "Marlton, NJ",
+          "start_date": "2008-03-01T00:00:00.000Z",
+          "end_date": "2011-01-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Retail"
+          ],
+          "years_at_company_raw": 2.9,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Compass Properties Abroad",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "IT Director",
+          "description": "Designed, implemented and maintained a custom web-based CRM and property management application \nServed as primary consultant to company start-ups for business analysis, initial IT applications, website design, workflow optimizations and HR decisions.\nPersonally supervised 7 direct report staff as well as supported recruiting and HR staff of 50 as a Arabic / French linguist and culture expert.",
+          "location": null,
+          "start_date": "2006-01-01T00:00:00.000Z",
+          "end_date": "2009-03-31T00:00:00.000Z",
+          "seniority_level": "Director",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "IEEE Morocco Section",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ieee-morocco-section",
+          "company_website_domain": "ieee-morocco.org",
+          "company_website": "https://ieee-morocco.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/et_146a1bed7ada59725ed7fe19882051bc.jpeg",
+          "company_linkedin_industry": "Non-profit Organizations",
+          "title": "IEEE Morocco Section Secretary",
+          "description": "Founding committee member for the IEEE chapter in Morocco and served as the first section secretary for three years.\nTraveled extensively throughout Morocco giving guest lectures at universities and encouraging professors and students to join the IEEE organization.\nOrganized several technical conferences including guest speakers, technical presenters, conference events and technical committee reviews.",
+          "location": null,
+          "start_date": "2006-01-01T00:00:00.000Z",
+          "end_date": "2009-02-28T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Administrative",
+          "company_industries": [
+            "Non-profit Organizations"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Computronix",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/computronix",
+          "company_website_domain": "computronix.com",
+          "company_website": "https://computronix.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qkdothtssuifwmaferxa.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "IT Manager - Project Manager",
+          "description": "Recruited, trained and managed teams of Oracle PL/SQL and web application developers while reducing employee turnover which turned around the small outsourcing company to profitability.  Project scope entailed system design including modeling of database structures and complex interfaces between existing systems such as GIS data (ESRI) or data conversions from legacy systems.",
+          "location": null,
+          "start_date": "2001-01-01T00:00:00.000Z",
+          "end_date": "2007-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 6.3,
+          "years_at_company": "6 years"
+        },
+        {
+          "name": "Datavision-Prologix",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/datavision-prologix",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "WIFI Network Engineer",
+          "description": "Successfully rolled out multi-million dollar pre-WIFI and IEEE compliant wireless barcode system as part of a real-time paperless warehouse management system for a Fortune 100 client. Supported over 300 locations for healthcare, government, warehousing and industrial clients.",
+          "location": "Greater Philadelphia",
+          "start_date": "1998-03-01T00:00:00.000Z",
+          "end_date": "2000-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Engineering",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.8,
+          "years_at_company": "3 years"
+        }
+      ],
+      "all_employers_company_id": [
+        "4529",
+        "125837"
+      ],
+      "all_schools": [
+        "Evangel University"
+      ],
+      "all_titles": [
+        "Senior Server Engineer, IAM",
+        "IT Manager",
+        "Applications Team Lead",
+        "Senior Application Analyst",
+        "Application Analyst III",
+        "Senior Sys Admin / HPC Analyst",
+        "Owner",
+        "IT Consultant",
+        "IT Director",
+        "IEEE Morocco Section Secretary",
+        "IT Manager - Project Manager",
+        "WIFI Network Engineer"
+      ],
+      "career_began_at": "1998-03-01T00:00:00.000Z",
+      "certifications": [
+        {
+          "name": "(ISC)2 Security CISSP (ISC2-CISSP)",
+          "authority": "ISC2",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Certified Associate in Project Management (CAPM)",
+          "authority": "Project Management Institute",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "CCENT",
+          "authority": "Cisco",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "70-640: TS: Windows Server 2008 Active Directory, Configuring",
+          "authority": "Microsoft",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "70-642: TS: Windows Server 2008 Network Infrastructure, Configuring",
+          "authority": "Microsoft",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "70-410 Installing and Configuring Windows 2012",
+          "authority": "Microsoft",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        }
+      ],
+      "createdAt": "2026-09-26T05:51:33.989Z",
+      "current_employers": [
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Senior Server Engineer, IAM",
+          "description": "Cyber Security - Identity Access Management ",
+          "location": null,
+          "start_date": "2024-09-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2.1,
+          "years_at_company": "2 years"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "BS",
+          "institute_name": "Evangel University",
+          "institute_linkedin_id": "62949",
+          "institute_linkedin_url": "https://www.linkedin.com/school/62949",
+          "field_of_study": "Mathematics",
+          "start_date": "1988-01-01T00:00:00.000Z",
+          "end_date": "1992-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Jonathan",
+      "flagship_profile_url": "https://www.linkedin.com/in/jonraines",
+      "github_profiles": [],
+      "headline": "Digital Security IAM for Healthcare",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [
+        "Arabic",
+        "French"
+      ],
+      "lastFetchedAt": "2026-09-26T05:51:33.988Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "Raines",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/jonraines",
+      "linkedin_profile_url": "https://www.linkedin.com/in/jonraines",
+      "linkedin_slug": "jonraines",
+      "location": "Houston, Texas, United States",
+      "location_city": "Houston",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Jonathan Raines",
+      "num_of_connections": 708,
+      "num_of_followers": 740,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "IT Manager",
+          "description": "Academic Technology and Informatics Operations",
+          "location": null,
+          "start_date": "2021-09-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Applications Team Lead",
+          "description": "Develop team work processes and manage service levels.\nPursue new service areas and opportunities for innovation and technical expertise\nDesign and implement AWS architecture for medical research",
+          "location": null,
+          "start_date": "2020-11-01T00:00:00.000Z",
+          "end_date": "2021-09-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.9,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Senior Application Analyst",
+          "description": "Manage IT hardware and software purchases and deployments\nSteward IT aspects of on-boarding VIP researchers and research teams\nPrimary application support for mission critical applications\nSubject matter expert for IT hardware and software",
+          "location": "Houston, TX",
+          "start_date": "2019-03-01T00:00:00.000Z",
+          "end_date": "2020-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.8,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Application Analyst III",
+          "description": "Manage custom hardware and specialized applications and servers for the hospital's research department, plus high touch management of research team IT needs.",
+          "location": "Research Dept - Texas Medical Center",
+          "start_date": "2016-04-01T00:00:00.000Z",
+          "end_date": "2019-03-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 3,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "X-ISS",
+          "linkedin_id": "125837",
+          "company_linkedin_id": "125837",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/x-iss",
+          "company_website_domain": "x-iss.com",
+          "company_website": "https://x-iss.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_v7vekuzp13nmypvqkhd3.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Senior Sys Admin / HPC Analyst",
+          "description": "Solution architect for high performance cluster (HPC) systems to expedite simulations of engineering data sets for software such as Ansys Fluent & Mechanical, Abaqus, AutoCAD and others.  Also managed on site support services for high profile \"high touch\" legacy customers.",
+          "location": "Greater Houston",
+          "start_date": "2011-02-01T00:00:00.000Z",
+          "end_date": "2016-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 5.2,
+          "years_at_company": "5 years"
+        },
+        {
+          "name": "JR IT Pro",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jr-it-pro",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Owner",
+          "description": "Provide IT consulting and management services to a broad spectrum of small / medium business clients in the Philadelphia / South Jersey area.",
+          "location": "Greater Philadelphia",
+          "start_date": "2009-03-01T00:00:00.000Z",
+          "end_date": "2011-05-31T00:00:00.000Z",
+          "seniority_level": "Executive",
+          "employment_type": "",
+          "function_category": "Entrepreneurship",
+          "company_industries": [],
+          "years_at_company_raw": 2.2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Graphical Interface",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/interface-graphical",
+          "company_website_domain": "webdes.com.br",
+          "company_website": "https://webdes.com.br",
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "Retail",
+          "title": "IT Consultant",
+          "description": "On call IT consultant managing IT for local clients - doctors, lawyers, etc.",
+          "location": "Marlton, NJ",
+          "start_date": "2008-03-01T00:00:00.000Z",
+          "end_date": "2011-01-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Retail"
+          ],
+          "years_at_company_raw": 2.9,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Compass Properties Abroad",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "IT Director",
+          "description": "Designed, implemented and maintained a custom web-based CRM and property management application \nServed as primary consultant to company start-ups for business analysis, initial IT applications, website design, workflow optimizations and HR decisions.\nPersonally supervised 7 direct report staff as well as supported recruiting and HR staff of 50 as a Arabic / French linguist and culture expert.",
+          "location": null,
+          "start_date": "2006-01-01T00:00:00.000Z",
+          "end_date": "2009-03-31T00:00:00.000Z",
+          "seniority_level": "Director",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "IEEE Morocco Section",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ieee-morocco-section",
+          "company_website_domain": "ieee-morocco.org",
+          "company_website": "https://ieee-morocco.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/et_146a1bed7ada59725ed7fe19882051bc.jpeg",
+          "company_linkedin_industry": "Non-profit Organizations",
+          "title": "IEEE Morocco Section Secretary",
+          "description": "Founding committee member for the IEEE chapter in Morocco and served as the first section secretary for three years.\nTraveled extensively throughout Morocco giving guest lectures at universities and encouraging professors and students to join the IEEE organization.\nOrganized several technical conferences including guest speakers, technical presenters, conference events and technical committee reviews.",
+          "location": null,
+          "start_date": "2006-01-01T00:00:00.000Z",
+          "end_date": "2009-02-28T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Administrative",
+          "company_industries": [
+            "Non-profit Organizations"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Computronix",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/computronix",
+          "company_website_domain": "computronix.com",
+          "company_website": "https://computronix.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qkdothtssuifwmaferxa.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "IT Manager - Project Manager",
+          "description": "Recruited, trained and managed teams of Oracle PL/SQL and web application developers while reducing employee turnover which turned around the small outsourcing company to profitability.  Project scope entailed system design including modeling of database structures and complex interfaces between existing systems such as GIS data (ESRI) or data conversions from legacy systems.",
+          "location": null,
+          "start_date": "2001-01-01T00:00:00.000Z",
+          "end_date": "2007-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 6.3,
+          "years_at_company": "6 years"
+        },
+        {
+          "name": "Datavision-Prologix",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/datavision-prologix",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "WIFI Network Engineer",
+          "description": "Successfully rolled out multi-million dollar pre-WIFI and IEEE compliant wireless barcode system as part of a real-time paperless warehouse management system for a Fortune 100 client. Supported over 300 locations for healthcare, government, warehousing and industrial clients.",
+          "location": "Greater Philadelphia",
+          "start_date": "1998-03-01T00:00:00.000Z",
+          "end_date": "2000-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Engineering",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.8,
+          "years_at_company": "3 years"
+        }
+      ],
+      "profile_picture_permalink": null,
+      "profile_picture_url": null,
+      "region": "Houston, Texas, United States",
+      "resumeUrl": null,
+      "skills": [
+        "Cybersecurity",
+        "Identity and Access Management (IAM)",
+        "Amazon Web Services (AWS)",
+        "Scripting",
+        "Python (Programming Language)",
+        "Infrastructure Management",
+        "Reliability",
+        "Production Systems",
+        "Print Servers",
+        "Troubleshooting",
+        "IT Infrastructure Design",
+        "Communication",
+        "Hardware Installation",
+        "Infrastructure Projects",
+        "Computer Science",
+        "Distributed File System (DFS)",
+        "High Performance Computing (HPC)",
+        "Data Centers",
+        "WIndows High Performance Computing (HPC)",
+        "Hyper-V",
+        "Active Directory",
+        "Server Administration"
+      ],
+      "summary": "I thrive in dynamic environments where I can tackle complex problems with innovative solutions. I am particularly passionate about the intersection of IT and healthcare and am eager to connect with other professionals and organizations in the biotech and biomedical sectors.\n\nMy tenure has included advancing service areas and seizing opportunities for innovation, notably in designing and implementing HPC architecture. This endeavor has not only showcased my technical acumen but also my commitment to driving excellence in medical research operations through strategic IT solutions.",
+      "tags": [
+        "experienced-executive",
+        "deep-technical-background"
+      ],
+      "title": "Senior Server Engineer, IAM",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:51:33.989Z",
+      "websites": [],
+      "years_of_experience": "More than 10 years",
+      "years_of_experience_raw": 28.6
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:51:34.200Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75d66e0ba78e1cf503911","revealContactType":["email"]}'
+# 2026-09-26T05:52:26.227Z POST /wl/scout-people/reveal-contacts response HTTP 200 52027ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6ab75d66e0ba78e1cf503911",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "PERSONAL_PENDING",
+        "values": [
+          "jraines@houstonmethodist.org"
+        ]
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:52:32.623Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/ACoAAAMicFsBUEiAIXzSIM6h7ZnjA7pj3QT94NQ"}'
+# 2026-09-26T05:52:39.105Z POST /wl/scout-people/lookup response HTTP 200 6481ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75da7e0ba78e1cf503977",
+    "profile": {
+      "_id": "6ab75da7e0ba78e1cf503976",
+      "__v": 0,
+      "all_degrees": [
+        "PGP-DSBA",
+        "MCA"
+      ],
+      "all_employers": [
+        {
+          "name": "6e Technologies",
+          "linkedin_id": "3799269",
+          "company_linkedin_id": "3799269",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/6e-technologies",
+          "company_website_domain": "6etech.com",
+          "company_website": "https://6etech.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gew3kxzbdx8vm8pjgcl4.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Solutions Architect",
+          "description": null,
+          "location": "Houston, TX",
+          "start_date": "2023-04-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 3.5,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Archrock",
+          "linkedin_id": "10345035",
+          "company_linkedin_id": "10345035",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/archrock",
+          "company_website_domain": "archrock.com",
+          "company_website": "https://archrock.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ssy9hq9ooozwlctdityv.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Senior Application Analyst",
+          "description": "•\tDesigned and implemented integration architecture between Oracle Fusion, Dynamics 365 Field Service, Salesforce and other third parties, in total 45 integrations.\n•\tLead the implementation of Fusion Subscription Management, Maintenance Cloud and contributed with Order Management and Pricing.\n•\tReviewed and approved 40-50 solution design document.\n•\tDesigned out of the box solution to restrict/minimize customization saving $150 K in implementation cost and reduced migration time by 26 hours. Further reducing 5% in support cost.\n•\tAuthored and reviewed 100s of test scripts for functional as well as integration testing.\n•\tDeveloped around 4-5 conversion and data validation scripts along with execution of FBDI data load process to create and update data during migration process.\n•\tDeveloped 4-5 EBS extracts and imported them into Dynamics 365.\n•\tReengineered Oracle Install Base implementation and simplified design to reduce the integration error by 40%.\n•\tDecoupled Order Management from contract creation process originated from Salesforce to improve the business efficiency which reduced integration time from 30 mins to 2 mins.\n•\tImplemented customer portal solution via Salesforce Community and EDI master data integration with Salesforce improving efficiency by 10%. \n•\tAnalyst on a project to decommission custom reporting tool with Tableau by helping designing reporting schemas.",
+          "location": "Houston, Texas Area",
+          "start_date": "2015-11-01T00:00:00.000Z",
+          "end_date": "2023-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 7.5,
+          "years_at_company": "8 years"
+        },
+        {
+          "name": "Exterran",
+          "linkedin_id": "163749",
+          "company_linkedin_id": "163749",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/exterran",
+          "company_website_domain": "enerflex.com",
+          "company_website": "https://enerflex.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qt95ehrorhy71ubf5dkz.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr Application Analyst",
+          "description": "•\tSupporting existing implementation of EBS R12 (Field Service, EAM, Order Management, Inventory etc), Salesforce, PerformX Mobile and other thirds party applications.\n•\tDesigned standardized solution and used Service Contract Import Program.\n•\tConfigured Receivables (Invoicing Rule, Grouping Rule etc) to meet the finance requirement.\n•\tBuild functional design document, test cases for RICE elements and performed Assembly Testing.",
+          "location": "Houston, Texas, United States",
+          "start_date": "2015-05-01T00:00:00.000Z",
+          "end_date": "2015-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Tata Consultancy Services",
+          "linkedin_id": "1353",
+          "company_linkedin_id": "1353",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-consultancy-services",
+          "company_website_domain": "tcs.com",
+          "company_website": "https://tcs.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ubl5jockqm9bmlmsrbdu.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Assistant Consultant",
+          "description": "•\tDesigned Email integration between EBS R12 and RNT, standardized solution and used Service Contract Import Program.\n•\tBuild configurable solution to call external web services from R12.\n•\tStandardized RMA solution to support Buyer’s Remorse rollout.\n•\tBuilt Order Details web service and introduced Retro Billing to support price match discounts.\n•\tRolled out Repair and RMA solution to GB / DE / FR and MX.\n•\tConfigured Receivables (Invoicing Rule, Grouping Rule etc) to meet the finance requirement.\n•\tModified Call Center email notifications and made it configurable based on country and report.\n•\tCustomized solution to create Install Base and Warranty from Sales Order shipment details.",
+          "location": "Chicago, Illinois, United States",
+          "start_date": "2011-01-01T00:00:00.000Z",
+          "end_date": "2015-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 4.4,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Computer Sciences Corporation",
+          "linkedin_id": "1120",
+          "company_linkedin_id": "1120",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csc",
+          "company_website_domain": "csc.com",
+          "company_website": "https://csc.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gzaysreopicv27iwpzbg.jpeg",
+          "company_linkedin_industry": "Information Technology & Services",
+          "title": "Sr. Software Engineer",
+          "description": "•\tModule Lead for Service Contracts, Install Base, Field Services, Depot Repair, Advanced Pricing & TCA.\n•\tProvide Functional and Technical support to client for modules – Service Contract, Install Base, Field Services, Depot Repair, Advanced Pricing, TCA, BOM and Inventory.\n•\tEnsure delivery of resolutions for issues as per SLA.\n•\tAssisting development team by analyzing bug and providing resolutions.\n•\tDeveloped data extract script for migration from 11i to R12 related to parties and item instances.\n•\tPerformed setup activities related to Service Contract, Install Base, Field Services, Territory Manager.\n•\tDeveloped re-usable artifacts/scripts repository for quick and effective problem resolution. \n•\tChecking and validating the QA package for Service Contract activation.\n•\tValidating and fixing issues related to Qualifiers, Modifiers and formula setups.\n•\tInvolved in training /mentoring of team members, design training material for team members.",
+          "location": "Noida, Uttar Pradesh, India",
+          "start_date": "2008-07-01T00:00:00.000Z",
+          "end_date": "2011-02-28T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Computer Sciences Corporation Pvt. Ltd",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Senior Software Engineer",
+          "description": null,
+          "location": null,
+          "start_date": "2008-07-01T00:00:00.000Z",
+          "end_date": "2010-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [],
+          "years_at_company_raw": 2.5,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "ASM Technologies Ltd",
+          "linkedin_id": "61833",
+          "company_linkedin_id": "61833",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/asm-technologies",
+          "company_website_domain": "asmltd.com",
+          "company_website": "https://asmltd.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_omrcrbwkohsylxwxkmm8.jpeg",
+          "company_linkedin_industry": "Engineering Services",
+          "title": "Functional Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "2007-11-01T00:00:00.000Z",
+          "end_date": "2008-06-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Engineering Services"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "AWC Software",
+          "linkedin_id": "9103635",
+          "company_linkedin_id": "9103635",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/awc-software",
+          "company_website_domain": "awcsoftware.com",
+          "company_website": "https://awcsoftware.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_xtkl6xt2byoolfjxp3ym.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Oracle Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "2005-03-01T00:00:00.000Z",
+          "end_date": "2007-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        }
+      ],
+      "all_employers_company_id": [
+        "3799269",
+        "10345035",
+        "163749",
+        "1353",
+        "1120",
+        "61833",
+        "9103635"
+      ],
+      "all_schools": [
+        "Texas McCombs School of Business",
+        "Indira Gandhi National Open University"
+      ],
+      "all_titles": [
+        "Solutions Architect",
+        "Senior Application Analyst",
+        "Sr Application Analyst",
+        "Assistant Consultant",
+        "Sr. Software Engineer",
+        "Senior Software Engineer",
+        "Functional Consultant",
+        "Oracle Consultant"
+      ],
+      "career_began_at": "2005-03-01T00:00:00.000Z",
+      "certifications": [],
+      "createdAt": "2026-09-26T05:52:39.019Z",
+      "current_employers": [
+        {
+          "name": "6e Technologies",
+          "linkedin_id": "3799269",
+          "company_linkedin_id": "3799269",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/6e-technologies",
+          "company_website_domain": "6etech.com",
+          "company_website": "https://6etech.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gew3kxzbdx8vm8pjgcl4.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Solutions Architect",
+          "description": null,
+          "location": "Houston, TX",
+          "start_date": "2023-04-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 3.5,
+          "years_at_company": "4 years"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "PGP-DSBA",
+          "institute_name": "Texas McCombs School of Business",
+          "institute_linkedin_id": "15101634",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15101634",
+          "field_of_study": "Data Processing and Data Processing Technology/Technician",
+          "start_date": "2022-05-01T00:00:00.000Z",
+          "end_date": "2022-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        },
+        {
+          "degree_name": "MCA",
+          "institute_name": "Indira Gandhi National Open University",
+          "institute_linkedin_id": "15105582",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15105582",
+          "field_of_study": "Information Technology",
+          "start_date": "2003-01-01T00:00:00.000Z",
+          "end_date": "2006-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Tauseef E.",
+      "flagship_profile_url": "https://www.linkedin.com/in/oracleappsnfusion",
+      "github_profiles": [],
+      "headline": "Solutions Architect @ 6e Technologies | Maintenance, Manufacturing, Inventory, Field Service, Service Logistics, Subscription and Integrations",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [
+        "English",
+        "Hindi",
+        "Urdu"
+      ],
+      "lastFetchedAt": "2026-09-26T05:52:39.018Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "Ahmad",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/oracleappsnfusion",
+      "linkedin_profile_url": "https://www.linkedin.com/in/oracleappsnfusion",
+      "linkedin_slug": "oracleappsnfusion",
+      "location": "Houston, Texas, United States",
+      "location_city": "Houston",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Tauseef E. Ahmad",
+      "num_of_connections": 781,
+      "num_of_followers": 791,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [
+        {
+          "name": "Archrock",
+          "linkedin_id": "10345035",
+          "company_linkedin_id": "10345035",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/archrock",
+          "company_website_domain": "archrock.com",
+          "company_website": "https://archrock.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ssy9hq9ooozwlctdityv.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Senior Application Analyst",
+          "description": "•\tDesigned and implemented integration architecture between Oracle Fusion, Dynamics 365 Field Service, Salesforce and other third parties, in total 45 integrations.\n•\tLead the implementation of Fusion Subscription Management, Maintenance Cloud and contributed with Order Management and Pricing.\n•\tReviewed and approved 40-50 solution design document.\n•\tDesigned out of the box solution to restrict/minimize customization saving $150 K in implementation cost and reduced migration time by 26 hours. Further reducing 5% in support cost.\n•\tAuthored and reviewed 100s of test scripts for functional as well as integration testing.\n•\tDeveloped around 4-5 conversion and data validation scripts along with execution of FBDI data load process to create and update data during migration process.\n•\tDeveloped 4-5 EBS extracts and imported them into Dynamics 365.\n•\tReengineered Oracle Install Base implementation and simplified design to reduce the integration error by 40%.\n•\tDecoupled Order Management from contract creation process originated from Salesforce to improve the business efficiency which reduced integration time from 30 mins to 2 mins.\n•\tImplemented customer portal solution via Salesforce Community and EDI master data integration with Salesforce improving efficiency by 10%. \n•\tAnalyst on a project to decommission custom reporting tool with Tableau by helping designing reporting schemas.",
+          "location": "Houston, Texas Area",
+          "start_date": "2015-11-01T00:00:00.000Z",
+          "end_date": "2023-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 7.5,
+          "years_at_company": "8 years"
+        },
+        {
+          "name": "Exterran",
+          "linkedin_id": "163749",
+          "company_linkedin_id": "163749",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/exterran",
+          "company_website_domain": "enerflex.com",
+          "company_website": "https://enerflex.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qt95ehrorhy71ubf5dkz.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr Application Analyst",
+          "description": "•\tSupporting existing implementation of EBS R12 (Field Service, EAM, Order Management, Inventory etc), Salesforce, PerformX Mobile and other thirds party applications.\n•\tDesigned standardized solution and used Service Contract Import Program.\n•\tConfigured Receivables (Invoicing Rule, Grouping Rule etc) to meet the finance requirement.\n•\tBuild functional design document, test cases for RICE elements and performed Assembly Testing.",
+          "location": "Houston, Texas, United States",
+          "start_date": "2015-05-01T00:00:00.000Z",
+          "end_date": "2015-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Tata Consultancy Services",
+          "linkedin_id": "1353",
+          "company_linkedin_id": "1353",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/tata-consultancy-services",
+          "company_website_domain": "tcs.com",
+          "company_website": "https://tcs.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ubl5jockqm9bmlmsrbdu.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Assistant Consultant",
+          "description": "•\tDesigned Email integration between EBS R12 and RNT, standardized solution and used Service Contract Import Program.\n•\tBuild configurable solution to call external web services from R12.\n•\tStandardized RMA solution to support Buyer’s Remorse rollout.\n•\tBuilt Order Details web service and introduced Retro Billing to support price match discounts.\n•\tRolled out Repair and RMA solution to GB / DE / FR and MX.\n•\tConfigured Receivables (Invoicing Rule, Grouping Rule etc) to meet the finance requirement.\n•\tModified Call Center email notifications and made it configurable based on country and report.\n•\tCustomized solution to create Install Base and Warranty from Sales Order shipment details.",
+          "location": "Chicago, Illinois, United States",
+          "start_date": "2011-01-01T00:00:00.000Z",
+          "end_date": "2015-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 4.4,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Computer Sciences Corporation",
+          "linkedin_id": "1120",
+          "company_linkedin_id": "1120",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csc",
+          "company_website_domain": "csc.com",
+          "company_website": "https://csc.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gzaysreopicv27iwpzbg.jpeg",
+          "company_linkedin_industry": "Information Technology & Services",
+          "title": "Sr. Software Engineer",
+          "description": "•\tModule Lead for Service Contracts, Install Base, Field Services, Depot Repair, Advanced Pricing & TCA.\n•\tProvide Functional and Technical support to client for modules – Service Contract, Install Base, Field Services, Depot Repair, Advanced Pricing, TCA, BOM and Inventory.\n•\tEnsure delivery of resolutions for issues as per SLA.\n•\tAssisting development team by analyzing bug and providing resolutions.\n•\tDeveloped data extract script for migration from 11i to R12 related to parties and item instances.\n•\tPerformed setup activities related to Service Contract, Install Base, Field Services, Territory Manager.\n•\tDeveloped re-usable artifacts/scripts repository for quick and effective problem resolution. \n•\tChecking and validating the QA package for Service Contract activation.\n•\tValidating and fixing issues related to Qualifiers, Modifiers and formula setups.\n•\tInvolved in training /mentoring of team members, design training material for team members.",
+          "location": "Noida, Uttar Pradesh, India",
+          "start_date": "2008-07-01T00:00:00.000Z",
+          "end_date": "2011-02-28T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Computer Sciences Corporation Pvt. Ltd",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Senior Software Engineer",
+          "description": null,
+          "location": null,
+          "start_date": "2008-07-01T00:00:00.000Z",
+          "end_date": "2010-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [],
+          "years_at_company_raw": 2.5,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "ASM Technologies Ltd",
+          "linkedin_id": "61833",
+          "company_linkedin_id": "61833",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/asm-technologies",
+          "company_website_domain": "asmltd.com",
+          "company_website": "https://asmltd.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_omrcrbwkohsylxwxkmm8.jpeg",
+          "company_linkedin_industry": "Engineering Services",
+          "title": "Functional Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "2007-11-01T00:00:00.000Z",
+          "end_date": "2008-06-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Engineering Services"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "AWC Software",
+          "linkedin_id": "9103635",
+          "company_linkedin_id": "9103635",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/awc-software",
+          "company_website_domain": "awcsoftware.com",
+          "company_website": "https://awcsoftware.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_xtkl6xt2byoolfjxp3ym.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Oracle Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "2005-03-01T00:00:00.000Z",
+          "end_date": "2007-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        }
+      ],
+      "profile_picture_permalink": "https://img.imagecdn.dev/profile/tNyLKSRojaAQ.jpeg",
+      "profile_picture_url": "https://img.imagecdn.dev/profile/tNyLKSRojaAQ.jpeg",
+      "region": "Houston, Texas, United States",
+      "resumeUrl": null,
+      "skills": [
+        "Autonomous Maintenance",
+        "REST APIs",
+        "Legacy System Conversion",
+        "Inventory Management",
+        "Supply Chain Management",
+        "RMA",
+        "System Configuration",
+        "AWS Cloud Migration",
+        "Test Scripts",
+        "Master Data Management",
+        "Service Improvement Plans",
+        "Salesforce Integration",
+        "Global Networking",
+        "Reducing Operating Costs",
+        "Software Integration",
+        "Cloud Automation",
+        "Data Analytics",
+        "End-to-end Testing",
+        "Reporting Tool",
+        "Install Base",
+        "Oracle Fusion Applications (OFA)",
+        "Oracle E-Business Suite",
+        "Maintenance and Repair",
+        "Field Service"
+      ],
+      "summary": "·   Oracle Fusion Cloud SCM & CX Functional Consultant with 20+ years as a Solution Architect, Functional Consultant, and Techno-Functional lead — hands-on configuration and design across Maintenance, Manufacturing, Order Management, Inventory (SCM), Field Service, Service Logistics, Subscription Management, Service Contracts (CX/Service Cloud) — with domain expertise in High Tech, Oil and Gas, Waste Management, and Public Sector.\n·   Proven track record delivering end-to-end Oracle Fusion Cloud implementations — leading fit-gap analysis, CRP sessions, functional configuration, and SIT/UAT testing through go-live — with measurable business impact including cost savings and process efficiency gains.\n·   A skilled professional experienced in EBS modules Service Contracts, Install Base, EAM, Depot Repair, Field Service, Order Management, Pricing, Inventory.\n·   Implementation of Oracle Fusion Cloud (Maintenance & Field Service – Fleet Management) for Republic Services.\n·   End to End Implementation of Oracle Fusion Cloud (Maintenance, Manufacturing) for a public sector client.\n·   End to End Implementation of Oracle Fusion Cloud (Maintenance and Subscription) in Archrock Services LP.\n·   End to End Implementation of Oracle 12.1.3 CRM Application in Motorola Mobility Inc., USA.\n·   Experienced in integrating Oracle Cloud with other systems like Dynamics 365 and Salesforce using Oracle Integration Cloud (OIC)\n·   Expertise gained through implementation for public sector clients, Archrock Services LP and Motorola Mobility.\n·   Proven skills on data extraction, transformation and conversion between legacy system to fusion cloud.\n·   Designed and executed data migration from Oracle EBS 12.1.3 to Oracle Fusion Cloud.\n·   Sound knowledge of Oracle Cloud inbuilt reporting tools like OTBI and Oracle BI Publisher.\n·   Sound knowledge of Salesforce (Sales Cloud and Communities) in implementing, customizing and maintaining.\n·   Expert on implementing development and migration standards, preparing and establishing Fusion SDLC method.",
+      "tags": [
+        "deep-technical-background"
+      ],
+      "title": "Solutions Architect",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:52:39.019Z",
+      "websites": [],
+      "years_of_experience": "More than 10 years",
+      "years_of_experience_raw": 21.6
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:52:39.507Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75da7e0ba78e1cf503976","revealContactType":["email"]}'
+# 2026-09-26T05:52:56.166Z POST /wl/scout-people/reveal-contacts response HTTP 200 16659ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6ab75da7e0ba78e1cf503976",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "tauseefcafe@gmail.com",
+          "tauseef.ahmad@6etech.com"
+        ]
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:52:59.888Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/ACoAAAMQYvUBzLUeJCd5Ke4M_fWYqXbBKjtHKws"}'
+# 2026-09-26T05:53:11.728Z POST /wl/scout-people/lookup response HTTP 200 11839ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75dc7e0ba78e1cf50397b",
+    "profile": {
+      "_id": "6ab75dc7e0ba78e1cf50397a",
+      "__v": 0,
+      "all_degrees": [
+        "Bachelor of Business Administration (B.B.A.)"
+      ],
+      "all_employers": [
+        {
+          "name": "Kinder Morgan, Inc.",
+          "linkedin_id": "11169",
+          "company_linkedin_id": "11169",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/kinder-morgan",
+          "company_website_domain": "kindermorgan.com",
+          "company_website": "https://kindermorgan.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_kepvi5dzmudjccws8mma.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Senior Application Analyst",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2023-05-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 3.4,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Cornerstone Building Brands",
+          "linkedin_id": "19158808",
+          "company_linkedin_id": "19158808",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cornerstone-building-brands",
+          "company_website_domain": "cornerstonebuildingbrands.com",
+          "company_website": "https://cornerstonebuildingbrands.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_e8mfliaiiothymzxfyez.jpeg",
+          "company_linkedin_industry": "Wholesale Building Materials",
+          "title": "Sr. Data Analyst",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2022-11-01T00:00:00.000Z",
+          "end_date": "2023-05-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Wholesale Building Materials"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Huntsman Corporation",
+          "linkedin_id": "5649",
+          "company_linkedin_id": "5649",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/huntsman",
+          "company_website_domain": "huntsman.com",
+          "company_website": "https://huntsman.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ym4pnj37n9haj1zurgvi.jpeg",
+          "company_linkedin_industry": "Chemical Manufacturing",
+          "title": "IT Specialist Associate Ariba/MDG/MM",
+          "description": null,
+          "location": "The Woodlands, Texas, United States",
+          "start_date": "2021-08-01T00:00:00.000Z",
+          "end_date": "2022-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Chemical Manufacturing"
+          ],
+          "years_at_company_raw": 0.9,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Serrala",
+          "linkedin_id": "28989543",
+          "company_linkedin_id": "28989543",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/serrala",
+          "company_website_domain": "serrala.com",
+          "company_website": "https://serrala.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_n1ea4pc7oiwo01iyh50w.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "Business Process Consultant",
+          "description": null,
+          "location": "Chicago, Illinois, United States",
+          "start_date": "2021-06-01T00:00:00.000Z",
+          "end_date": "2021-09-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Taulia Inc.",
+          "linkedin_id": "436629",
+          "company_linkedin_id": "436629",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/taulia",
+          "company_website_domain": "taulia.com",
+          "company_website": "https://taulia.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yusnzgthxkktgtowqkzu.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "SAP Consultant",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2020-11-01T00:00:00.000Z",
+          "end_date": "2021-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "The Home Depot",
+          "linkedin_id": "1534",
+          "company_linkedin_id": "1534",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/the-home-depot",
+          "company_website_domain": "careers.homedepot.com",
+          "company_website": "https://careers.homedepot.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_y27rvnlaah0k2bvldaw7.jpeg",
+          "company_linkedin_industry": "Retail",
+          "title": "Ariba Implementation Specialist",
+          "description": null,
+          "location": "Austin, Texas, United States",
+          "start_date": "2020-06-01T00:00:00.000Z",
+          "end_date": "2020-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Retail"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "NRG",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/nrgenergy",
+          "company_website_domain": "nrg.com",
+          "company_website": "https://nrg.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_zfgneblk3rifnsq8s85x.jpeg",
+          "company_linkedin_industry": "Utilities",
+          "title": "Ariba Specialist",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2019-12-01T00:00:00.000Z",
+          "end_date": "2020-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Purchasing",
+          "company_industries": [
+            "Utilities"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "BP",
+          "linkedin_id": "1389",
+          "company_linkedin_id": "1389",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/bp",
+          "company_website_domain": "bp.com",
+          "company_website": "https://bp.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yesmtc8tpggbkfvfakjj.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Ariba Deployment Lead",
+          "description": null,
+          "location": "Houston, Texas Area",
+          "start_date": "2019-09-01T00:00:00.000Z",
+          "end_date": "2019-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Hewlett Packard Enterprise",
+          "linkedin_id": "1025",
+          "company_linkedin_id": "1025",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/hewlett-packard-enterprise",
+          "company_website_domain": "hpe.com",
+          "company_website": "https://hpe.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gqzuzspwzqsnvztpjuxb.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Product Engineer Software Supply Chain",
+          "description": "●\tWorking on Data validation, Testing in SAP MM for S4 Hana \n●\tWorking on implementation team for Software Supply Chain and consolidating four instances of SAP to Single ERP (S4) converting processes for procurement and materials management. \n●\tImplementing Procure to Pay processes for licenses physical\\electronic utilizing Ariba.   \n●\tCoordinate execution of project goals, schedule and tasks\n●\tPrepare documentation for accessibility to internal teams, key stakeholders, and Executive leadership\n●\tMeasure and report on project performance and status\n●\tMaintain communication with relevant team members to ensure prompt and seamless action",
+          "location": "Greater Houston",
+          "start_date": "2018-11-01T00:00:00.000Z",
+          "end_date": "2019-10-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Operations",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 1,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Targa Resources",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/targa-resources",
+          "company_website_domain": "targaresources.com",
+          "company_website": "https://targaresources.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_cf9iqlkqgl0xzqpzdsmh.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr. Procurement Systems Analyst",
+          "description": "●\tProvide business guidance and oversight to procurement technical support Analysts for resolution of eProcurement and Supply Chaim Management issues in Oracle Cloud \n●\tProvide configuration and front line application support to SCM systems and processes (PS procurement) for end users to include general administration support \n●\tResponsible for procure to pay process to include: requisition issuance; approval assistance; purchase order dispatch to vendor; system receipt; invoice receipt; payment match confirmation and ultimately payment submission completion. \n●\tMonitor daily batch jobs and work through any system failures with PS support and/or IT to resolution. \n●\tProvide training to end users as required to include proper systems setup, security access and support. \n●\tAssisted in data Migration (POs\\Invoices) from PeopleSoft to Oracle Cloud.  \n●\tWork closely with IT when customizations are found to be necessary and participate in the analysis, design, testing, and implementation of system modifications to resolve the business functional needs \n●\tPcards assist with reconciliations and credit increases  \n●\tProvide business analytics vendor spend metrics for management reporting.  ",
+          "location": "Greater Houston",
+          "start_date": "2018-06-01T00:00:00.000Z",
+          "end_date": "2018-11-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Operations",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "StevenDouglas",
+          "linkedin_id": "29308",
+          "company_linkedin_id": "29308",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/stevendouglashq",
+          "company_website_domain": "stevendouglas.com",
+          "company_website": "https://stevendouglas.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_zm49afsumj1j6fzxit3d.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "Sr. Business Analyst",
+          "description": "●\tProvide support for complex technical issues using experience and judgment as well as pre-established procedures and instructions to identify, research and resolve issues in a timely manner. \n●\tWork alongside internal integration team to troubleshoot integration issues between scheduling tool (BuildPro) and ERP Systems.  \n●\tDevelop business process and procedures and work with integral SME to implement.  \n●\tTrack software issues and work with third party software company to resolve.  \n●\tAssist with Training SME and off-shore QA teams to understand and test new enhancements.  \n●\tTest and deploy enhancements, documenting rollout plans, create test scripts, perform tests \n●\tWork closely with Project Manager, sometimes stepped in as the Project Manager on smaller projects \n●\tGather Business requirements and document them on SharePoint\\DropBox.  \n●\tWork Purchase to Pay process from JDE to Cloud Scheduling solution  \n●\tData migration from JDE (ERP) to cloud based Purchase to Pay and construction scheduling system.  \n●\tConduct Agile Project coordination for JDE ERP data migration and Cloud enhancement solution. ",
+          "location": "Greater Houston",
+          "start_date": "2017-07-01T00:00:00.000Z",
+          "end_date": "2018-05-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 0.9,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Halliburton",
+          "linkedin_id": "2217",
+          "company_linkedin_id": "2217",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/halliburton",
+          "company_website_domain": "halliburton.com",
+          "company_website": "https://halliburton.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_y4z1ib5ge58vvmmuj39n.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr. Business Process Specialist",
+          "description": "ERP Business Process Improvement P2P\n•\tSupport SUS\\SRM and process end user security\n•\tSupplier Enablement for SUS and Taulia\n•\tSupplier Portals (SUS, Taulia) support order processing (MM, Web Dynpro) and invoice reconciliation (Dolphin\\PTS) for material and contract orders.  \n•\tSupport Pcard (Amex-CAR, Scotia-CentreSuite) Systems data mapping configurations\n•\teCatalog support Perfect Commerce.  \n•\tBRF configuration for workflow methodology ",
+          "location": null,
+          "start_date": "2014-01-01T00:00:00.000Z",
+          "end_date": "2017-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Operations",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 3.6,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Spectra Energy",
+          "linkedin_id": "4064",
+          "company_linkedin_id": "4064",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/spectra-energy",
+          "company_website_domain": "spectraenergy.com",
+          "company_website": "https://spectraenergy.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gxbefstddny8hkurmiur.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr. Process Systems Analyst",
+          "description": "•\tLead for Ariba development and support; Supplier Enablement; Supplier Portal, P2P; Catalog Management\n•\tAssist with Ariba and SAP implementation for Supply Chain\n•\tTrain suppliers and internal end-users on Ariba order processing\\invoicing\n•\tSupport\\Create\\Change (SRM-MM) and Ariba order processing and invoice reconciliation for material and contract orders\n•\tConfigure Ariba software to meet business requirements\n•\tManage and assist onboarding and mapping integrated Ariba suppliers using CXML or EDI\n•\tDefined and reported procurement performance to manage business objectives.\n•\tAccountable for updating the enterprise P2P process community on changes to the process or technology.\n•\tGather data requirements, coordinate approvals and implement process and system changes.\n•\tManaged process activities to track benefits.\n•\tAccountable for system analytics related to procurement.\n•\tOversaw stable and predictable operating environment for the end user community; included proper problem identification, timely escalation and resolution.\n•\tIdentified, monitored and reported on supply chain related system issues, based on interaction with active network and end user stakeholders or based on other identified business needs.\n•\tAccountable for supply chain- systems issues and drives problem identification and timely escalation and resolution.\n•\tProvided technical and business assistance with SAP, input, recommendations and training as required.",
+          "location": null,
+          "start_date": "2011-02-01T00:00:00.000Z",
+          "end_date": "2014-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "CSC",
+          "linkedin_id": "1120",
+          "company_linkedin_id": "1120",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csc",
+          "company_website_domain": "csc.com",
+          "company_website": "https://csc.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gzaysreopicv27iwpzbg.jpeg",
+          "company_linkedin_industry": "Information Technology & Services",
+          "title": "Sr. Business Analyst",
+          "description": "•\tDeveloped database data configuration requirements, screen designs, and report definitions to meet users' functional needs and MAXIMO's technical specifications.\n•\tDetermined troubleshooting plan of correction for Maximo Issues. \n•\tCompiled and analyzed data and prepared and generated reports in Crystal in both ad-hoc and recurring report types. \n•\tWorked with existing business procedures within Maximo. \n•\tAnalyzed customer business objectives and application objectives with emphasis on constant improvement. \n•\tCreated and tested SQL scripts and DTS packages between enterprise systems.\n•\tAccountable for developing procurement KPIs with Management.",
+          "location": null,
+          "start_date": "2009-08-01T00:00:00.000Z",
+          "end_date": "2012-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Hollander, A Solera Company",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Field Service Engineer",
+          "description": "Implement Hollander software applications for the automotive industry on client's hardware onsite or virtually.   \nWith the extensive knowledge in the application I train the end users and administrators on the workflow process, maintenance, and support of the application. \nTroubleshoot software and hardware issues that arise while onsite. \nMake sure that the client's network is configured t to specifications required if not I configure to the correct specifications. \nWhile onsite install and  maintain the integrity of the SQL server. \nSupport Windows 2003, Servers, and Active Directory in a networked and virtual environment.  \nInstall E-Commerce configure ports on firewall and routers.\nCreate webinars and online documentation.\nI manage all client contacts, travel and reporting.",
+          "location": null,
+          "start_date": "2005-03-01T00:00:00.000Z",
+          "end_date": "2009-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Engineering",
+          "company_industries": [],
+          "years_at_company_raw": 4.3,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Verizon Wireless",
+          "linkedin_id": "1103",
+          "company_linkedin_id": "1103",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/verizon",
+          "company_website_domain": "verizon.com",
+          "company_website": "https://verizon.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_158b63a0c11b4024aa77f83e87fba165.jpeg",
+          "company_linkedin_industry": "Telecommunications Carriers",
+          "title": "ERP Technical Analyst",
+          "description": "Technical specialist for Verizon Wireless’ Property Tax department related to PTS (Property Tax Software) and PTMS (Property Tax Management Systems). \nAdminister SQL,Citrix and File server for PTS and PTMS software. \nCoordinate and complete monthly updates to PTS and PTMS software as well as conduct software maintenance on a as need basis. \nSupport fifteen Property Tax Software Users. \nCreate extracts from PeopleSoft Asset Management system for each state’s lien date and import into PTS and PTMS software. \nTest all updates and version upgrades delivered by Burr Wolff and Tax Compliance Inc. before implementing them into production. \nMaintain a receptive relationship with vendor and attend user group meetings to identify issues and request enhancements to PTS and PTMS products. \nOn a twenty four Hour on-call or standby support.",
+          "location": null,
+          "start_date": "2003-06-01T00:00:00.000Z",
+          "end_date": "2005-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Telecommunications Carriers",
+            "Networking & Communications Equipment",
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 1.8,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Burr Wolff",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/burr-wolff",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Support Specialist",
+          "description": "Respond to and resolve problems as assigned and handle callbacks and scheduled follow-up contacts. \nTechnical specialist for the department in the resolution of problems related to PTS (Property Tax Software) Corporate® desktop applications and/or computer hardware. \nDocument work order solutions in the Problem Management System, and maintain documentation per departmental standards. \nCoordinate problem resolution tasks with Customer Support Services Manager, support specialist, and/or other departments to ensure timely resolution. \nResearch appropriate resources and knowledgebase, to obtain the requested information and/or solution. \nPerform user-level testing of updates, forms, utilities and bug fixes before client delivery. \nPerform user administration tasks for internal and hosted PTS Corporate® users. \nPerform product licensing installation assistance for external PTS Corporate® users. \nCreate, review and approve support knowledgebase entries. \nInvestigate and propose technical procedural changes to improve service delivery. \nParticipate in weekly after-hours support on-call rotation. \nAdminister, coordinate and distribute inbound tickets to appropriate individuals. \nPrepare Installshield for PTS Corporate®, for delivery of updates, patches and new releases.",
+          "location": null,
+          "start_date": "2002-03-01T00:00:00.000Z",
+          "end_date": "2003-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Customer Service",
+          "company_industries": [],
+          "years_at_company_raw": 1.3,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Eagle Trust",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/eagle-bank-and-trust-company",
+          "company_website_domain": "eaglebank.com",
+          "company_website": "https://eaglebank.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_q38nvmlwpkeoganbz1ff.jpeg",
+          "company_linkedin_industry": "Banking",
+          "title": "Technical Support Specialist",
+          "description": "Access Query updates and modifications on site or remotely for EagleTrust Software. \nApplication updates in Access Tables. Made sure tables populated with correct data to create Crystal Reports and Work Templates. \nManipulate data in tables so that standard reports can run for regional users. \nProvide Technical support on hardware and software issues related to each region. \nInstall application on site and train end users on software integration and management.",
+          "location": null,
+          "start_date": "2001-07-01T00:00:00.000Z",
+          "end_date": "2001-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Customer Service",
+          "company_industries": [
+            "Banking"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "FundsXpress",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/fundsxpress-financial-network-inc.",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Technical Analyst",
+          "description": "Integrated FundsXpress Software into various Windows operating systems. \nInterface FundsXpress software with the clients' relational database. \nAnalyzed, tested and debugged Software on a web interface usually before having to request development to help. \nDownloaded and prepared all appropriate software - Windows, SQL, and PC Anywhere on the client's server to prepare a successful Exporter to function at the client site. \nEvaluated client's (Financial Institutions) business information needs. \nDeveloped technical specifications, and assisted in integration of technology and applications at client's site.)",
+          "location": null,
+          "start_date": "2000-05-01T00:00:00.000Z",
+          "end_date": "2001-02-28T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Eagle Global Logistics",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/eagle-global-logistics-group",
+          "company_website_domain": "myeaglelogistics.com",
+          "company_website": "https://myeaglelogistics.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_tgf1direxub2bs2atwm2.jpeg",
+          "company_linkedin_industry": "Truck Transportation",
+          "title": "Systems Analyst",
+          "description": "Provided technical support to field service representatives, technicians and/or customers. \nDiagnosed, troubleshoot, repaired and debugged routine hardware, software and networking equipment problems. \nCreated specialized Access Databases for warehousing functions. \nInstalled EagleShip Shipping Systems domestically and Mexico occasionally on a last minute schedule. \nBrought the client's system up within two weeks after work orders were put in. \nCustomized Shipping Software to customer's need. \nTested all functionality of the software and system before implementation. \nTrained end-user on how to operate Shipping Software/System.",
+          "location": null,
+          "start_date": "1999-08-01T00:00:00.000Z",
+          "end_date": "2000-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Truck Transportation"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        }
+      ],
+      "all_employers_company_id": [
+        "11169",
+        "19158808",
+        "5649",
+        "28989543",
+        "436629",
+        "1534",
+        "1389",
+        "1025",
+        "29308",
+        "2217",
+        "4064",
+        "1120",
+        "1103"
+      ],
+      "all_schools": [
+        "University of Houston, C.T. Bauer College of Business"
+      ],
+      "all_titles": [
+        "Senior Application Analyst",
+        "Sr. Data Analyst",
+        "IT Specialist Associate Ariba/MDG/MM",
+        "Business Process Consultant",
+        "SAP Consultant",
+        "Ariba Implementation Specialist",
+        "Ariba Specialist",
+        "Ariba Deployment Lead",
+        "Product Engineer Software Supply Chain",
+        "Sr. Procurement Systems Analyst",
+        "Sr. Business Analyst",
+        "Sr. Business Process Specialist",
+        "Sr. Process Systems Analyst",
+        "Field Service Engineer",
+        "ERP Technical Analyst",
+        "Support Specialist",
+        "Technical Support Specialist",
+        "Technical Analyst",
+        "Systems Analyst"
+      ],
+      "career_began_at": "1999-08-01T00:00:00.000Z",
+      "certifications": [],
+      "createdAt": "2026-09-26T05:53:11.619Z",
+      "current_employers": [
+        {
+          "name": "Kinder Morgan, Inc.",
+          "linkedin_id": "11169",
+          "company_linkedin_id": "11169",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/kinder-morgan",
+          "company_website_domain": "kindermorgan.com",
+          "company_website": "https://kindermorgan.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_kepvi5dzmudjccws8mma.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Senior Application Analyst",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2023-05-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 3.4,
+          "years_at_company": "3 years"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor of Business Administration (B.B.A.)",
+          "institute_name": "University of Houston, C.T. Bauer College of Business",
+          "institute_linkedin_id": "15099846",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15099846",
+          "field_of_study": "Management Information Systems, General",
+          "start_date": null,
+          "end_date": null,
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Chris",
+      "flagship_profile_url": "https://www.linkedin.com/in/chris-otalvaro-70527015",
+      "github_profiles": [],
+      "headline": "SAP-Ariba Consultant",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [
+        "English",
+        "Spanish"
+      ],
+      "lastFetchedAt": "2026-09-26T05:53:11.618Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "Otalvaro",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/chris-otalvaro-70527015",
+      "linkedin_profile_url": "https://www.linkedin.com/in/chris-otalvaro-70527015",
+      "linkedin_slug": "chris-otalvaro-70527015",
+      "location": "Houston, Texas, United States",
+      "location_city": "Houston",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Chris Otalvaro",
+      "num_of_connections": 261,
+      "num_of_followers": 273,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [
+        {
+          "name": "Cornerstone Building Brands",
+          "linkedin_id": "19158808",
+          "company_linkedin_id": "19158808",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/cornerstone-building-brands",
+          "company_website_domain": "cornerstonebuildingbrands.com",
+          "company_website": "https://cornerstonebuildingbrands.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_e8mfliaiiothymzxfyez.jpeg",
+          "company_linkedin_industry": "Wholesale Building Materials",
+          "title": "Sr. Data Analyst",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2022-11-01T00:00:00.000Z",
+          "end_date": "2023-05-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Wholesale Building Materials"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Huntsman Corporation",
+          "linkedin_id": "5649",
+          "company_linkedin_id": "5649",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/huntsman",
+          "company_website_domain": "huntsman.com",
+          "company_website": "https://huntsman.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ym4pnj37n9haj1zurgvi.jpeg",
+          "company_linkedin_industry": "Chemical Manufacturing",
+          "title": "IT Specialist Associate Ariba/MDG/MM",
+          "description": null,
+          "location": "The Woodlands, Texas, United States",
+          "start_date": "2021-08-01T00:00:00.000Z",
+          "end_date": "2022-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Chemical Manufacturing"
+          ],
+          "years_at_company_raw": 0.9,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Serrala",
+          "linkedin_id": "28989543",
+          "company_linkedin_id": "28989543",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/serrala",
+          "company_website_domain": "serrala.com",
+          "company_website": "https://serrala.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_n1ea4pc7oiwo01iyh50w.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "Business Process Consultant",
+          "description": null,
+          "location": "Chicago, Illinois, United States",
+          "start_date": "2021-06-01T00:00:00.000Z",
+          "end_date": "2021-09-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Taulia Inc.",
+          "linkedin_id": "436629",
+          "company_linkedin_id": "436629",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/taulia",
+          "company_website_domain": "taulia.com",
+          "company_website": "https://taulia.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yusnzgthxkktgtowqkzu.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "SAP Consultant",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2020-11-01T00:00:00.000Z",
+          "end_date": "2021-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "The Home Depot",
+          "linkedin_id": "1534",
+          "company_linkedin_id": "1534",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/the-home-depot",
+          "company_website_domain": "careers.homedepot.com",
+          "company_website": "https://careers.homedepot.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_y27rvnlaah0k2bvldaw7.jpeg",
+          "company_linkedin_industry": "Retail",
+          "title": "Ariba Implementation Specialist",
+          "description": null,
+          "location": "Austin, Texas, United States",
+          "start_date": "2020-06-01T00:00:00.000Z",
+          "end_date": "2020-11-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Retail"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "NRG",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/nrgenergy",
+          "company_website_domain": "nrg.com",
+          "company_website": "https://nrg.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_zfgneblk3rifnsq8s85x.jpeg",
+          "company_linkedin_industry": "Utilities",
+          "title": "Ariba Specialist",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2019-12-01T00:00:00.000Z",
+          "end_date": "2020-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Purchasing",
+          "company_industries": [
+            "Utilities"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "BP",
+          "linkedin_id": "1389",
+          "company_linkedin_id": "1389",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/bp",
+          "company_website_domain": "bp.com",
+          "company_website": "https://bp.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yesmtc8tpggbkfvfakjj.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Ariba Deployment Lead",
+          "description": null,
+          "location": "Houston, Texas Area",
+          "start_date": "2019-09-01T00:00:00.000Z",
+          "end_date": "2019-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Hewlett Packard Enterprise",
+          "linkedin_id": "1025",
+          "company_linkedin_id": "1025",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/hewlett-packard-enterprise",
+          "company_website_domain": "hpe.com",
+          "company_website": "https://hpe.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gqzuzspwzqsnvztpjuxb.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Product Engineer Software Supply Chain",
+          "description": "●\tWorking on Data validation, Testing in SAP MM for S4 Hana \n●\tWorking on implementation team for Software Supply Chain and consolidating four instances of SAP to Single ERP (S4) converting processes for procurement and materials management. \n●\tImplementing Procure to Pay processes for licenses physical\\electronic utilizing Ariba.   \n●\tCoordinate execution of project goals, schedule and tasks\n●\tPrepare documentation for accessibility to internal teams, key stakeholders, and Executive leadership\n●\tMeasure and report on project performance and status\n●\tMaintain communication with relevant team members to ensure prompt and seamless action",
+          "location": "Greater Houston",
+          "start_date": "2018-11-01T00:00:00.000Z",
+          "end_date": "2019-10-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Operations",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 1,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Targa Resources",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/targa-resources",
+          "company_website_domain": "targaresources.com",
+          "company_website": "https://targaresources.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_cf9iqlkqgl0xzqpzdsmh.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr. Procurement Systems Analyst",
+          "description": "●\tProvide business guidance and oversight to procurement technical support Analysts for resolution of eProcurement and Supply Chaim Management issues in Oracle Cloud \n●\tProvide configuration and front line application support to SCM systems and processes (PS procurement) for end users to include general administration support \n●\tResponsible for procure to pay process to include: requisition issuance; approval assistance; purchase order dispatch to vendor; system receipt; invoice receipt; payment match confirmation and ultimately payment submission completion. \n●\tMonitor daily batch jobs and work through any system failures with PS support and/or IT to resolution. \n●\tProvide training to end users as required to include proper systems setup, security access and support. \n●\tAssisted in data Migration (POs\\Invoices) from PeopleSoft to Oracle Cloud.  \n●\tWork closely with IT when customizations are found to be necessary and participate in the analysis, design, testing, and implementation of system modifications to resolve the business functional needs \n●\tPcards assist with reconciliations and credit increases  \n●\tProvide business analytics vendor spend metrics for management reporting.  ",
+          "location": "Greater Houston",
+          "start_date": "2018-06-01T00:00:00.000Z",
+          "end_date": "2018-11-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Operations",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "StevenDouglas",
+          "linkedin_id": "29308",
+          "company_linkedin_id": "29308",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/stevendouglashq",
+          "company_website_domain": "stevendouglas.com",
+          "company_website": "https://stevendouglas.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_zm49afsumj1j6fzxit3d.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "Sr. Business Analyst",
+          "description": "●\tProvide support for complex technical issues using experience and judgment as well as pre-established procedures and instructions to identify, research and resolve issues in a timely manner. \n●\tWork alongside internal integration team to troubleshoot integration issues between scheduling tool (BuildPro) and ERP Systems.  \n●\tDevelop business process and procedures and work with integral SME to implement.  \n●\tTrack software issues and work with third party software company to resolve.  \n●\tAssist with Training SME and off-shore QA teams to understand and test new enhancements.  \n●\tTest and deploy enhancements, documenting rollout plans, create test scripts, perform tests \n●\tWork closely with Project Manager, sometimes stepped in as the Project Manager on smaller projects \n●\tGather Business requirements and document them on SharePoint\\DropBox.  \n●\tWork Purchase to Pay process from JDE to Cloud Scheduling solution  \n●\tData migration from JDE (ERP) to cloud based Purchase to Pay and construction scheduling system.  \n●\tConduct Agile Project coordination for JDE ERP data migration and Cloud enhancement solution. ",
+          "location": "Greater Houston",
+          "start_date": "2017-07-01T00:00:00.000Z",
+          "end_date": "2018-05-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 0.9,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Halliburton",
+          "linkedin_id": "2217",
+          "company_linkedin_id": "2217",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/halliburton",
+          "company_website_domain": "halliburton.com",
+          "company_website": "https://halliburton.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_y4z1ib5ge58vvmmuj39n.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr. Business Process Specialist",
+          "description": "ERP Business Process Improvement P2P\n•\tSupport SUS\\SRM and process end user security\n•\tSupplier Enablement for SUS and Taulia\n•\tSupplier Portals (SUS, Taulia) support order processing (MM, Web Dynpro) and invoice reconciliation (Dolphin\\PTS) for material and contract orders.  \n•\tSupport Pcard (Amex-CAR, Scotia-CentreSuite) Systems data mapping configurations\n•\teCatalog support Perfect Commerce.  \n•\tBRF configuration for workflow methodology ",
+          "location": null,
+          "start_date": "2014-01-01T00:00:00.000Z",
+          "end_date": "2017-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Operations",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 3.6,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Spectra Energy",
+          "linkedin_id": "4064",
+          "company_linkedin_id": "4064",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/spectra-energy",
+          "company_website_domain": "spectraenergy.com",
+          "company_website": "https://spectraenergy.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gxbefstddny8hkurmiur.jpeg",
+          "company_linkedin_industry": "Oil and Gas",
+          "title": "Sr. Process Systems Analyst",
+          "description": "•\tLead for Ariba development and support; Supplier Enablement; Supplier Portal, P2P; Catalog Management\n•\tAssist with Ariba and SAP implementation for Supply Chain\n•\tTrain suppliers and internal end-users on Ariba order processing\\invoicing\n•\tSupport\\Create\\Change (SRM-MM) and Ariba order processing and invoice reconciliation for material and contract orders\n•\tConfigure Ariba software to meet business requirements\n•\tManage and assist onboarding and mapping integrated Ariba suppliers using CXML or EDI\n•\tDefined and reported procurement performance to manage business objectives.\n•\tAccountable for updating the enterprise P2P process community on changes to the process or technology.\n•\tGather data requirements, coordinate approvals and implement process and system changes.\n•\tManaged process activities to track benefits.\n•\tAccountable for system analytics related to procurement.\n•\tOversaw stable and predictable operating environment for the end user community; included proper problem identification, timely escalation and resolution.\n•\tIdentified, monitored and reported on supply chain related system issues, based on interaction with active network and end user stakeholders or based on other identified business needs.\n•\tAccountable for supply chain- systems issues and drives problem identification and timely escalation and resolution.\n•\tProvided technical and business assistance with SAP, input, recommendations and training as required.",
+          "location": null,
+          "start_date": "2011-02-01T00:00:00.000Z",
+          "end_date": "2014-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Oil and Gas"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "CSC",
+          "linkedin_id": "1120",
+          "company_linkedin_id": "1120",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csc",
+          "company_website_domain": "csc.com",
+          "company_website": "https://csc.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_gzaysreopicv27iwpzbg.jpeg",
+          "company_linkedin_industry": "Information Technology & Services",
+          "title": "Sr. Business Analyst",
+          "description": "•\tDeveloped database data configuration requirements, screen designs, and report definitions to meet users' functional needs and MAXIMO's technical specifications.\n•\tDetermined troubleshooting plan of correction for Maximo Issues. \n•\tCompiled and analyzed data and prepared and generated reports in Crystal in both ad-hoc and recurring report types. \n•\tWorked with existing business procedures within Maximo. \n•\tAnalyzed customer business objectives and application objectives with emphasis on constant improvement. \n•\tCreated and tested SQL scripts and DTS packages between enterprise systems.\n•\tAccountable for developing procurement KPIs with Management.",
+          "location": null,
+          "start_date": "2009-08-01T00:00:00.000Z",
+          "end_date": "2012-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Information Technology & Services"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Hollander, A Solera Company",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Field Service Engineer",
+          "description": "Implement Hollander software applications for the automotive industry on client's hardware onsite or virtually.   \nWith the extensive knowledge in the application I train the end users and administrators on the workflow process, maintenance, and support of the application. \nTroubleshoot software and hardware issues that arise while onsite. \nMake sure that the client's network is configured t to specifications required if not I configure to the correct specifications. \nWhile onsite install and  maintain the integrity of the SQL server. \nSupport Windows 2003, Servers, and Active Directory in a networked and virtual environment.  \nInstall E-Commerce configure ports on firewall and routers.\nCreate webinars and online documentation.\nI manage all client contacts, travel and reporting.",
+          "location": null,
+          "start_date": "2005-03-01T00:00:00.000Z",
+          "end_date": "2009-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Engineering",
+          "company_industries": [],
+          "years_at_company_raw": 4.3,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Verizon Wireless",
+          "linkedin_id": "1103",
+          "company_linkedin_id": "1103",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/verizon",
+          "company_website_domain": "verizon.com",
+          "company_website": "https://verizon.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_158b63a0c11b4024aa77f83e87fba165.jpeg",
+          "company_linkedin_industry": "Telecommunications Carriers",
+          "title": "ERP Technical Analyst",
+          "description": "Technical specialist for Verizon Wireless’ Property Tax department related to PTS (Property Tax Software) and PTMS (Property Tax Management Systems). \nAdminister SQL,Citrix and File server for PTS and PTMS software. \nCoordinate and complete monthly updates to PTS and PTMS software as well as conduct software maintenance on a as need basis. \nSupport fifteen Property Tax Software Users. \nCreate extracts from PeopleSoft Asset Management system for each state’s lien date and import into PTS and PTMS software. \nTest all updates and version upgrades delivered by Burr Wolff and Tax Compliance Inc. before implementing them into production. \nMaintain a receptive relationship with vendor and attend user group meetings to identify issues and request enhancements to PTS and PTMS products. \nOn a twenty four Hour on-call or standby support.",
+          "location": null,
+          "start_date": "2003-06-01T00:00:00.000Z",
+          "end_date": "2005-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Telecommunications Carriers",
+            "Networking & Communications Equipment",
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 1.8,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Burr Wolff",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/burr-wolff",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Support Specialist",
+          "description": "Respond to and resolve problems as assigned and handle callbacks and scheduled follow-up contacts. \nTechnical specialist for the department in the resolution of problems related to PTS (Property Tax Software) Corporate® desktop applications and/or computer hardware. \nDocument work order solutions in the Problem Management System, and maintain documentation per departmental standards. \nCoordinate problem resolution tasks with Customer Support Services Manager, support specialist, and/or other departments to ensure timely resolution. \nResearch appropriate resources and knowledgebase, to obtain the requested information and/or solution. \nPerform user-level testing of updates, forms, utilities and bug fixes before client delivery. \nPerform user administration tasks for internal and hosted PTS Corporate® users. \nPerform product licensing installation assistance for external PTS Corporate® users. \nCreate, review and approve support knowledgebase entries. \nInvestigate and propose technical procedural changes to improve service delivery. \nParticipate in weekly after-hours support on-call rotation. \nAdminister, coordinate and distribute inbound tickets to appropriate individuals. \nPrepare Installshield for PTS Corporate®, for delivery of updates, patches and new releases.",
+          "location": null,
+          "start_date": "2002-03-01T00:00:00.000Z",
+          "end_date": "2003-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Customer Service",
+          "company_industries": [],
+          "years_at_company_raw": 1.3,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Eagle Trust",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/eagle-bank-and-trust-company",
+          "company_website_domain": "eaglebank.com",
+          "company_website": "https://eaglebank.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_q38nvmlwpkeoganbz1ff.jpeg",
+          "company_linkedin_industry": "Banking",
+          "title": "Technical Support Specialist",
+          "description": "Access Query updates and modifications on site or remotely for EagleTrust Software. \nApplication updates in Access Tables. Made sure tables populated with correct data to create Crystal Reports and Work Templates. \nManipulate data in tables so that standard reports can run for regional users. \nProvide Technical support on hardware and software issues related to each region. \nInstall application on site and train end users on software integration and management.",
+          "location": null,
+          "start_date": "2001-07-01T00:00:00.000Z",
+          "end_date": "2001-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Customer Service",
+          "company_industries": [
+            "Banking"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "FundsXpress",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/fundsxpress-financial-network-inc.",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Technical Analyst",
+          "description": "Integrated FundsXpress Software into various Windows operating systems. \nInterface FundsXpress software with the clients' relational database. \nAnalyzed, tested and debugged Software on a web interface usually before having to request development to help. \nDownloaded and prepared all appropriate software - Windows, SQL, and PC Anywhere on the client's server to prepare a successful Exporter to function at the client site. \nEvaluated client's (Financial Institutions) business information needs. \nDeveloped technical specifications, and assisted in integration of technology and applications at client's site.)",
+          "location": null,
+          "start_date": "2000-05-01T00:00:00.000Z",
+          "end_date": "2001-02-28T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Eagle Global Logistics",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/eagle-global-logistics-group",
+          "company_website_domain": "myeaglelogistics.com",
+          "company_website": "https://myeaglelogistics.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_tgf1direxub2bs2atwm2.jpeg",
+          "company_linkedin_industry": "Truck Transportation",
+          "title": "Systems Analyst",
+          "description": "Provided technical support to field service representatives, technicians and/or customers. \nDiagnosed, troubleshoot, repaired and debugged routine hardware, software and networking equipment problems. \nCreated specialized Access Databases for warehousing functions. \nInstalled EagleShip Shipping Systems domestically and Mexico occasionally on a last minute schedule. \nBrought the client's system up within two weeks after work orders were put in. \nCustomized Shipping Software to customer's need. \nTested all functionality of the software and system before implementation. \nTrained end-user on how to operate Shipping Software/System.",
+          "location": null,
+          "start_date": "1999-08-01T00:00:00.000Z",
+          "end_date": "2000-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Truck Transportation"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        }
+      ],
+      "profile_picture_permalink": null,
+      "profile_picture_url": null,
+      "region": "Houston, Texas, United States",
+      "resumeUrl": null,
+      "skills": [
+        "Active Directory",
+        "Troubleshooting",
+        "Testing",
+        "Integration",
+        "Software Documentation",
+        "SDLC",
+        "Microsoft SQL Server",
+        "Management",
+        "Technical Support",
+        "Program Management",
+        "Windows Server",
+        "Access",
+        "Project Management",
+        "Ariba",
+        "SAP ERP",
+        "Business Analysis",
+        "SAP SRM",
+        "Supplier Enablement",
+        "Spend Analysis",
+        "Vendor Management"
+      ],
+      "summary": "My career has concentrated mostly in the area of a technical\\functional Business Analyst with responsibilities in the following:  implementation, configuration, testing, training and maintaining software, and hardware and networking equipment.  I have worked and supported SAP - ECC, SRM\\SUS and many other modules. I have worked with Maximo and Peoplesoft.  I have also traveled extensively training and consulting clients on Product Implementation and support. I enjoy helping others with streamlining processes with P2P systems eProcurement\\eInvoicing - EDI,cXML, XML.   I have worked with Ariba, Taulia, Dolphin-PTS.  \n\nSUMMARY OF QUALIFICATIONS:\n\nConsumer/Client oriented through skillful customer service. \nPossess a thorough knowledge of computer software and hardware. \nUsed Project Management Responsibilities from start to finish. \nExceptional implementation, technical support, troubleshooting and testing skills for 3rd party applications. \nProficiency with Microsoft SQL server. \nAbility to test, debug, modify and document complex systems. \nProficiency in all phases of the system development life cycle. \nAbility to train users on Software and Systems.",
+      "tags": [
+        "deep-technical-background"
+      ],
+      "title": "Senior Application Analyst",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:53:11.619Z",
+      "websites": [],
+      "years_of_experience": "More than 10 years",
+      "years_of_experience_raw": 27.2
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:53:11.805Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75dc7e0ba78e1cf50397a","revealContactType":["email"]}'
+# 2026-09-26T05:53:29.161Z POST /wl/scout-people/reveal-contacts response HTTP 200 17357ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6ab75dc7e0ba78e1cf50397a",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "otalvaro75@yahoo.com",
+          "chris_otalvaro@kindermorgan.com"
+        ]
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:53:33.693Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/ACoAAAnEy8wBa6ATlW20Np76EFur5kugXh0k-xU"}'
+# 2026-09-26T05:53:54.032Z POST /wl/scout-people/lookup response HTTP 200 20339ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75df1e0ba78e1cf50397e",
+    "profile": {
+      "_id": "6ab75df1e0ba78e1cf50397d",
+      "__v": 0,
+      "all_degrees": [
+        "Bachelor's degree"
+      ],
+      "all_employers": [
+        {
+          "name": "UHS",
+          "linkedin_id": "11595",
+          "company_linkedin_id": "11595",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/uhs",
+          "company_website_domain": "uhs.com",
+          "company_website": "https://uhs.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_b380f9bb372372a4ab17ac6350ef8234.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Clinical Application Analyst",
+          "description": "As a Clinical Application Analyst specializing in the Cerner EMR, I support the design, build, testing, implementation, and optimization of clinical workflows across UHS facilities, including Orders, FirstNet, Capacity Management, and Dynamic Documentation. I collaborate closely with clinicians, end users, and IT teams to improve patient safety, streamline workflows, and ensure optimal system performance.\n\nConfigure, maintain, and optimize clinical order sets, orderables, and Dynamic Documentation workflows\n\nTroubleshoot application issues, and perform system analysis\n\nSupport system upgrades, enhancements, and integration initiatives across Cerner applications\n\nSupport the testing, validation, and quality assurance for new builds and workflow changes\n\nProvide end-user training, support\n\nParticipate in on-call support and provide timely resolution for critical system issues",
+          "location": "Remote",
+          "start_date": "2025-12-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "MedSys Group",
+          "linkedin_id": "1365753",
+          "company_linkedin_id": "1365753",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medsys-a-csi-company",
+          "company_website_domain": "medsysgroup.com",
+          "company_website": "https://medsysgroup.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ixd9uyhzl8m6i6npnwmb.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "🧑‍💻 Cerner Conerversion Lead",
+          "description": "As a Cerner Conversion Lead, I support the successful transition from legacy EHR systems into Cerner Millennium by leading data migration strategy, coordination, and validation efforts. I work closely with technical teams, Cerner consultants, and clinical stakeholders to ensure accurate and meaningful data is transferred and supports real-world clinical workflows.\n\nKey responsibilities include:\n\nCollaborating with IT, clinical, and vendor teams to ensure smooth data integration and minimal disruption at go-live\n\nManaging mock conversions and data reconciliation to ensure quality, accuracy, and compliance with organizational and regulatory standards\n\nLeading cross-functional communication and issue resolution to maintain project momentum\n\nEnsuring converted data aligns with end-user needs and supports safe, efficient care delivery",
+          "location": null,
+          "start_date": "2025-07-01T00:00:00.000Z",
+          "end_date": "2025-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Other",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthcare IT Leaders",
+          "linkedin_id": "1842435",
+          "company_linkedin_id": "1842435",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthcare-it-leaders",
+          "company_website_domain": "healthcareitleaders.com",
+          "company_website": "https://healthcareitleaders.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_40871e850f5c4a93862e3300b15ce969.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "🧑‍💼 Clinical Application Support – Epic & Cerner systems",
+          "description": "Provided on-site, at-the-elbow (ATE) support and training during multiple Epic and Cerner go-lives across both inpatient and ambulatory care settings. Supported end users through hands-on guidance, workflow troubleshooting, and real-time issue resolution to ensure smooth transitions and high system adoption.\n\n• Delivered at-the-elbow (ATE) support during Epic and Cerner go-lives, assisting clinical and administrative end users in real-time across inpatient and ambulatory settings\n• Trained physicians, nurses, and staff on core workflows including documentation, orders, patient movement (Grand Central), and scheduling (Cadence/Scheduling Management)\n• Provided issue resolution and troubleshooting for Epic and Cerner modules, escalating technical concerns and workflow inconsistencies to application teams\n• Assisted in validating data accuracy and workflow functionality during system upgrades, optimizations, and post-go-live support phases\n• Collaborated with project teams to gather user feedback and contribute to workflow refinements and training improvements\n• Supported user adoption by simplifying complex concepts and tailoring guidance to various clinical roles and learning styles\n• Maintained clear documentation of support issues and training interactions to assist with long-term optimization and ticket resolution",
+          "location": null,
+          "start_date": "2025-01-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "MedSys Group",
+          "linkedin_id": "1365753",
+          "company_linkedin_id": "1365753",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medsys-a-csi-company",
+          "company_website_domain": "medsysgroup.com",
+          "company_website": "https://medsysgroup.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ixd9uyhzl8m6i6npnwmb.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "🧑‍💻 Clinical Application Support – Cerner Systems",
+          "description": "In this role, I support enterprise-level Cerner EMR systems across diverse behavioral and acute care environments. I provide hands-on training, system configuration, and workflow optimization for clinical and front desk staff. My work has involved customizing PowerPlans, Mpages, and documentation tools to streamline usability and reduce charting time. I also resolve application issues related to Dragon, printers, and scheduling tools while escalating complex tickets as needed. By working closely with clinical users and IT teams, I help drive smoother EMR adoption, improve patient throughput processes, and ensure front-end revenue workflows function efficiently",
+          "location": null,
+          "start_date": "2022-10-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.8,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "CSI Companies",
+          "linkedin_id": "166364",
+          "company_linkedin_id": "166364",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csi-companies",
+          "company_website_domain": "csicompanies.com",
+          "company_website": "https://csicompanies.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_klmlchj1yncppm7k7zpx.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "🧑‍🏫 Epic Credentialed Trainer & Consultant – Grand Central, Cadence, Prelude",
+          "description": "As a credentialed trainer in multiple Epic modules, I design and deliver structured, user-focused training programs for administrative and clinical staff. My sessions range from virtual classrooms to one-on-one go-live coaching, all aligned with operational workflows to ensure high relevance and retention. I focus heavily on system personalization, real-time eligibility usage, and patient registration workflows to equip end users with practical, scenario-based knowledge. I also work closely with leadership to mentor super users, track learner progress, and reduce support needs after rollout.",
+          "location": "On-site",
+          "start_date": "2022-06-01T00:00:00.000Z",
+          "end_date": "2024-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 2.6,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Insight Global",
+          "linkedin_id": "11056",
+          "company_linkedin_id": "11056",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/insight-global",
+          "company_website_domain": "insightglobal.com",
+          "company_website": "https://insightglobal.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qemsufzdcvpiwbk4ermj.jpeg",
+          "company_linkedin_industry": "Business Consulting and Services",
+          "title": " 🧑‍💼 Cerner Trainer",
+          "description": "As a Cerner Trainer I delivered hands-on training and frontline support for Cerner Clinical Applications, helping healthcare teams maximize system performance and improve patient care outcomes. My role bridges training, technical troubleshooting, and collaboration across clinical and IT teams.\n\nKey responsibilities:\n\nLead training sessions for nurses and techs on Cerner platform PowerChart workflows\n\nDeveloped user-friendly training materials, reference guides, and workflow documentation\n\nCollaborate with clinical and IT teams to identify training gaps and optimize workflow efficiency\n\nProvide real-time guidance to end users, promoting best practices in clinical documentation and system usage\n\nTroubleshoot and resolve user issues, escalating complex tickets when necessary to ensure resolution\n\nStay informed on Cerner updates and enhancements, recommending improvements aligned with clinical goals\n\nAct as a subject matter expert (SME) for Cerner applications, offering knowledge support to colleagues and end users",
+          "location": null,
+          "start_date": "2024-05-01T00:00:00.000Z",
+          "end_date": "2024-09-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Business Consulting and Services"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "ATG Innovations (ATGI)",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "🧑‍💼 Certified Cerner Trainer – Ambulatory, HIM, Revenue Cycle",
+          "description": "While supporting major Cerner implementations at VA and DoD healthcare facilities, I delivered both end-user and Train-the-Trainer sessions designed to reflect each site’s specific needs. My work spanned ambulatory, revenue cycle, and HIM departments, where I developed scenario-driven content that aligned with real workflows. During go-lives, I provided at-the-elbow support, addressed system adoption issues in real time, and coached trainers on refining their instructional approach. My efforts helped standardize training delivery across multiple locations and contributed to improved documentation accuracy and billing efficiency",
+          "location": "On-site",
+          "start_date": "2022-03-01T00:00:00.000Z",
+          "end_date": "2023-12-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Training",
+          "company_industries": [],
+          "years_at_company_raw": 1.8,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Go Cloud Careers",
+          "linkedin_id": "70462548",
+          "company_linkedin_id": "70462548",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/go-could-architects",
+          "company_website_domain": "gocloudcareers.com",
+          "company_website": "https://gocloudcareers.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_jwxe99h0xsupchgsoamy.jpeg",
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Associate Cloud Architect",
+          "description": "Focus on problem-solving and business-driven solutions\n\nDevelop proposals and enhance overall team’s architectural strategy\n\nIntegrate networking, security, and application vendors\n\nDesign hybrid cloud, multi-cloud and hybrid multi-cloud architectures\n\nDesign technology architectures for the execution of business strategies\n\nPlan disaster recovery inclusive of data backup strategies\n\nDesign security architectures inclusive of Next-Generation Firewall, Intrusion detection and Intrusion prevention system, Access Control List, Security Group\n\nDesign architectures on Azure, AWS, Google and OpenStack clouds\n\nDesign high availability 99.999% systems for critical customers\n\nDesign cloud networking inclusive of BGP, VPC Peering, Route Summarization, Link Aggregation Group",
+          "location": "Remote",
+          "start_date": "2022-01-01T00:00:00.000Z",
+          "end_date": "2023-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 1.6,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "CSI Companies",
+          "linkedin_id": "166364",
+          "company_linkedin_id": "166364",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csi-companies",
+          "company_website_domain": "csicompanies.com",
+          "company_website": "https://csicompanies.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_klmlchj1yncppm7k7zpx.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "Epic Credentialed Trainer",
+          "description": "• Offered advanced training to a wide array of staff for updated Epic software at Northwestern Hospital locations\n• Decreased post-student training support requests by providing excellent guidance to end-users on Epic Cadence, Grand Central modules, improving effectiveness of materials & assisting the principal trainer. \n• Enhanced operations by training front desk staff on how to better streamline operations, mentoring them on registration, scheduling, verifying insurances, accepting co-pay, and how to reconcile and close crash drawers.\n• Maintained highly accurate reports and logged attendance in L&D, used to review individual progress.\n• Created individualized training plans to each student, offering extremely high-quality support, curating learning materials, assessments, & exercises to match needs. \n• Utilized the Grand Central Module/ED Manager to streamline processes and optimize front desk operations. \n• Mentored end-users on how to navigate and utilize Real-Time Eligibility functionality in Epic.",
+          "location": "Remote",
+          "start_date": "2022-06-01T00:00:00.000Z",
+          "end_date": "2022-10-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Training",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "United States Army Reserve",
+          "linkedin_id": "1230",
+          "company_linkedin_id": "1230",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/united-states-army-reserve",
+          "company_website_domain": "usar.army.mil",
+          "company_website": "https://usar.army.mil",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_rovpblytz06snjwgz1of.jpeg",
+          "company_linkedin_industry": "Armed Forces",
+          "title": "U.S. Army Armorer | 337th Military Intelligence Battalion ---> 801st Combat Support Hospital",
+          "description": "Served as the unit Armorer, overseeing the accountability, maintenance, and readiness of all weapons and sensitive equipment. Ensured full compliance with Army standards, supported mission requirements, and trained personnel on proper handling and safety. Strengthened skills in logistics, equipment management, and operational reliability in a high-security environments.",
+          "location": "Fort Sheridan, Illinois, United States",
+          "start_date": "2014-03-01T00:00:00.000Z",
+          "end_date": "2022-04-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Part-time",
+          "function_category": "Military & Protective Services",
+          "company_industries": [
+            "Armed Forces"
+          ],
+          "years_at_company_raw": 8.2,
+          "years_at_company": "8 years"
+        },
+        {
+          "name": "Providence",
+          "linkedin_id": "18102043",
+          "company_linkedin_id": "18102043",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/providencehealthsystem",
+          "company_website_domain": "providence.org",
+          "company_website": "https://providence.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_mp7se6ny5z8pmaujd1cv.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic Informatics Virtual Tech",
+          "description": "• Spearheaded improved training and implementation initiatives, excelling specifically in “At the Elbow” support to properly diagnose, report, and correct common issues, system inconsistencies, and hospital support trends. \n• Conducted proctor training sessions for Clinical Pathology laboratory staff, focusing on specimen collection, requisition entries, outstanding lists, result entry, and documentation within Epic modules. \n• Provided excellent support to end users in reviewing patient charts, & assisted with TDR, mock cutover, and Conversion Events, ensuring seamless process execution and transitions during critical moments. \n• Guaranteed timely problem-solving endeavors by documenting all issues and submitting workflow tickets.\n• Contributed to the training of physicians, assisting in teaching medication reconciliation & transfer processes.\n• Maintained a high issue resolution rate through leveraging advanced proficiency in troubleshooting endeavors, assisting hospital staff in resolving all issues related to connection with the command center",
+          "location": "Lubbock, Texas, United States",
+          "start_date": "2021-12-01T00:00:00.000Z",
+          "end_date": "2022-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Nuance Communications",
+          "linkedin_id": "3719",
+          "company_linkedin_id": "3719",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/nuance-communications",
+          "company_website_domain": "nuance.com",
+          "company_website": "https://nuance.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_nggam2lgoxhinf3hwqsr.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "Epic Trainer",
+          "description": "• Providing 1:1 training to providers\n• Customized functionality\nProvide daily reports\n• Rounding client sites/ offices, workspace\n• Follow up on tickets\n• Demonstration of workflow functionality\n• Implement Prelude registration\n• Trained front desk staff with registration, scheduling, verifying insurances, accepting co-pay, reconciling cash drawer, closing cash drawer.\n• Trained end users on telephone encounter workflow, scanning documents, IFS layout, RTE workflow, sending inbasket messages, scanning documents, and attaching them to the right orders and encounters",
+          "location": null,
+          "start_date": "2019-05-01T00:00:00.000Z",
+          "end_date": "2019-08-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Training",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        }
+      ],
+      "all_employers_company_id": [
+        "11595",
+        "1365753",
+        "1842435",
+        "166364",
+        "11056",
+        "70462548",
+        "1230",
+        "18102043",
+        "3719"
+      ],
+      "all_schools": [
+        "Southern Illinois University, Carbondale",
+        "College of DuPage"
+      ],
+      "all_titles": [
+        "Clinical Application Analyst",
+        "🧑‍💻 Cerner Conerversion Lead",
+        "🧑‍💼 Clinical Application Support – Epic & Cerner systems",
+        "🧑‍💻 Clinical Application Support – Cerner Systems",
+        "🧑‍🏫 Epic Credentialed Trainer & Consultant – Grand Central, Cadence, Prelude",
+        " 🧑‍💼 Cerner Trainer",
+        "🧑‍💼 Certified Cerner Trainer – Ambulatory, HIM, Revenue Cycle",
+        "Associate Cloud Architect",
+        "Epic Credentialed Trainer",
+        "U.S. Army Armorer | 337th Military Intelligence Battalion ---> 801st Combat Support Hospital",
+        "Epic Informatics Virtual Tech",
+        "Epic Trainer"
+      ],
+      "career_began_at": "2014-03-01T00:00:00.000Z",
+      "certifications": [
+        {
+          "name": "Amazon Web Services Cloud Practitioner",
+          "authority": "Amazon Web Services (AWS)",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Scrum Master",
+          "authority": "Scrum Alliance",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        }
+      ],
+      "createdAt": "2026-09-26T05:53:53.914Z",
+      "current_employers": [
+        {
+          "name": "UHS",
+          "linkedin_id": "11595",
+          "company_linkedin_id": "11595",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/uhs",
+          "company_website_domain": "uhs.com",
+          "company_website": "https://uhs.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_b380f9bb372372a4ab17ac6350ef8234.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Clinical Application Analyst",
+          "description": "As a Clinical Application Analyst specializing in the Cerner EMR, I support the design, build, testing, implementation, and optimization of clinical workflows across UHS facilities, including Orders, FirstNet, Capacity Management, and Dynamic Documentation. I collaborate closely with clinicians, end users, and IT teams to improve patient safety, streamline workflows, and ensure optimal system performance.\n\nConfigure, maintain, and optimize clinical order sets, orderables, and Dynamic Documentation workflows\n\nTroubleshoot application issues, and perform system analysis\n\nSupport system upgrades, enhancements, and integration initiatives across Cerner applications\n\nSupport the testing, validation, and quality assurance for new builds and workflow changes\n\nProvide end-user training, support\n\nParticipate in on-call support and provide timely resolution for critical system issues",
+          "location": "Remote",
+          "start_date": "2025-12-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor's degree",
+          "institute_name": "Southern Illinois University, Carbondale",
+          "institute_linkedin_id": "7703",
+          "institute_linkedin_url": "https://www.linkedin.com/school/7703",
+          "field_of_study": "Criminal Justice",
+          "start_date": "2009-01-01T00:00:00.000Z",
+          "end_date": "2012-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        },
+        {
+          "degree_name": null,
+          "institute_name": "College of DuPage",
+          "institute_linkedin_id": "15489",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15489",
+          "field_of_study": null,
+          "start_date": "2007-01-01T00:00:00.000Z",
+          "end_date": "2009-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Edward",
+      "flagship_profile_url": "https://www.linkedin.com/in/edward-olagbegi",
+      "github_profiles": [],
+      "headline": "Clinical Application Analyst | Health IT Optimization | EMR Implementation Specialist",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [
+        "English",
+        "Yoruba"
+      ],
+      "lastFetchedAt": "2026-09-26T05:53:53.913Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "O.",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/edward-olagbegi",
+      "linkedin_profile_url": "https://www.linkedin.com/in/edward-olagbegi",
+      "linkedin_slug": "edward-olagbegi",
+      "location": "Houston, Texas, United States",
+      "location_city": "Houston",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Edward O.",
+      "num_of_connections": 356,
+      "num_of_followers": 353,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [
+        {
+          "name": "MedSys Group",
+          "linkedin_id": "1365753",
+          "company_linkedin_id": "1365753",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medsys-a-csi-company",
+          "company_website_domain": "medsysgroup.com",
+          "company_website": "https://medsysgroup.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ixd9uyhzl8m6i6npnwmb.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "🧑‍💻 Cerner Conerversion Lead",
+          "description": "As a Cerner Conversion Lead, I support the successful transition from legacy EHR systems into Cerner Millennium by leading data migration strategy, coordination, and validation efforts. I work closely with technical teams, Cerner consultants, and clinical stakeholders to ensure accurate and meaningful data is transferred and supports real-world clinical workflows.\n\nKey responsibilities include:\n\nCollaborating with IT, clinical, and vendor teams to ensure smooth data integration and minimal disruption at go-live\n\nManaging mock conversions and data reconciliation to ensure quality, accuracy, and compliance with organizational and regulatory standards\n\nLeading cross-functional communication and issue resolution to maintain project momentum\n\nEnsuring converted data aligns with end-user needs and supports safe, efficient care delivery",
+          "location": null,
+          "start_date": "2025-07-01T00:00:00.000Z",
+          "end_date": "2025-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Other",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.5,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthcare IT Leaders",
+          "linkedin_id": "1842435",
+          "company_linkedin_id": "1842435",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthcare-it-leaders",
+          "company_website_domain": "healthcareitleaders.com",
+          "company_website": "https://healthcareitleaders.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_40871e850f5c4a93862e3300b15ce969.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "🧑‍💼 Clinical Application Support – Epic & Cerner systems",
+          "description": "Provided on-site, at-the-elbow (ATE) support and training during multiple Epic and Cerner go-lives across both inpatient and ambulatory care settings. Supported end users through hands-on guidance, workflow troubleshooting, and real-time issue resolution to ensure smooth transitions and high system adoption.\n\n• Delivered at-the-elbow (ATE) support during Epic and Cerner go-lives, assisting clinical and administrative end users in real-time across inpatient and ambulatory settings\n• Trained physicians, nurses, and staff on core workflows including documentation, orders, patient movement (Grand Central), and scheduling (Cadence/Scheduling Management)\n• Provided issue resolution and troubleshooting for Epic and Cerner modules, escalating technical concerns and workflow inconsistencies to application teams\n• Assisted in validating data accuracy and workflow functionality during system upgrades, optimizations, and post-go-live support phases\n• Collaborated with project teams to gather user feedback and contribute to workflow refinements and training improvements\n• Supported user adoption by simplifying complex concepts and tailoring guidance to various clinical roles and learning styles\n• Maintained clear documentation of support issues and training interactions to assist with long-term optimization and ticket resolution",
+          "location": null,
+          "start_date": "2025-01-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "MedSys Group",
+          "linkedin_id": "1365753",
+          "company_linkedin_id": "1365753",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medsys-a-csi-company",
+          "company_website_domain": "medsysgroup.com",
+          "company_website": "https://medsysgroup.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ixd9uyhzl8m6i6npnwmb.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "🧑‍💻 Clinical Application Support – Cerner Systems",
+          "description": "In this role, I support enterprise-level Cerner EMR systems across diverse behavioral and acute care environments. I provide hands-on training, system configuration, and workflow optimization for clinical and front desk staff. My work has involved customizing PowerPlans, Mpages, and documentation tools to streamline usability and reduce charting time. I also resolve application issues related to Dragon, printers, and scheduling tools while escalating complex tickets as needed. By working closely with clinical users and IT teams, I help drive smoother EMR adoption, improve patient throughput processes, and ensure front-end revenue workflows function efficiently",
+          "location": null,
+          "start_date": "2022-10-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.8,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "CSI Companies",
+          "linkedin_id": "166364",
+          "company_linkedin_id": "166364",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csi-companies",
+          "company_website_domain": "csicompanies.com",
+          "company_website": "https://csicompanies.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_klmlchj1yncppm7k7zpx.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "🧑‍🏫 Epic Credentialed Trainer & Consultant – Grand Central, Cadence, Prelude",
+          "description": "As a credentialed trainer in multiple Epic modules, I design and deliver structured, user-focused training programs for administrative and clinical staff. My sessions range from virtual classrooms to one-on-one go-live coaching, all aligned with operational workflows to ensure high relevance and retention. I focus heavily on system personalization, real-time eligibility usage, and patient registration workflows to equip end users with practical, scenario-based knowledge. I also work closely with leadership to mentor super users, track learner progress, and reduce support needs after rollout.",
+          "location": "On-site",
+          "start_date": "2022-06-01T00:00:00.000Z",
+          "end_date": "2024-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 2.6,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Insight Global",
+          "linkedin_id": "11056",
+          "company_linkedin_id": "11056",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/insight-global",
+          "company_website_domain": "insightglobal.com",
+          "company_website": "https://insightglobal.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qemsufzdcvpiwbk4ermj.jpeg",
+          "company_linkedin_industry": "Business Consulting and Services",
+          "title": " 🧑‍💼 Cerner Trainer",
+          "description": "As a Cerner Trainer I delivered hands-on training and frontline support for Cerner Clinical Applications, helping healthcare teams maximize system performance and improve patient care outcomes. My role bridges training, technical troubleshooting, and collaboration across clinical and IT teams.\n\nKey responsibilities:\n\nLead training sessions for nurses and techs on Cerner platform PowerChart workflows\n\nDeveloped user-friendly training materials, reference guides, and workflow documentation\n\nCollaborate with clinical and IT teams to identify training gaps and optimize workflow efficiency\n\nProvide real-time guidance to end users, promoting best practices in clinical documentation and system usage\n\nTroubleshoot and resolve user issues, escalating complex tickets when necessary to ensure resolution\n\nStay informed on Cerner updates and enhancements, recommending improvements aligned with clinical goals\n\nAct as a subject matter expert (SME) for Cerner applications, offering knowledge support to colleagues and end users",
+          "location": null,
+          "start_date": "2024-05-01T00:00:00.000Z",
+          "end_date": "2024-09-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Business Consulting and Services"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "ATG Innovations (ATGI)",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": null,
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "🧑‍💼 Certified Cerner Trainer – Ambulatory, HIM, Revenue Cycle",
+          "description": "While supporting major Cerner implementations at VA and DoD healthcare facilities, I delivered both end-user and Train-the-Trainer sessions designed to reflect each site’s specific needs. My work spanned ambulatory, revenue cycle, and HIM departments, where I developed scenario-driven content that aligned with real workflows. During go-lives, I provided at-the-elbow support, addressed system adoption issues in real time, and coached trainers on refining their instructional approach. My efforts helped standardize training delivery across multiple locations and contributed to improved documentation accuracy and billing efficiency",
+          "location": "On-site",
+          "start_date": "2022-03-01T00:00:00.000Z",
+          "end_date": "2023-12-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Training",
+          "company_industries": [],
+          "years_at_company_raw": 1.8,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Go Cloud Careers",
+          "linkedin_id": "70462548",
+          "company_linkedin_id": "70462548",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/go-could-architects",
+          "company_website_domain": "gocloudcareers.com",
+          "company_website": "https://gocloudcareers.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_jwxe99h0xsupchgsoamy.jpeg",
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Associate Cloud Architect",
+          "description": "Focus on problem-solving and business-driven solutions\n\nDevelop proposals and enhance overall team’s architectural strategy\n\nIntegrate networking, security, and application vendors\n\nDesign hybrid cloud, multi-cloud and hybrid multi-cloud architectures\n\nDesign technology architectures for the execution of business strategies\n\nPlan disaster recovery inclusive of data backup strategies\n\nDesign security architectures inclusive of Next-Generation Firewall, Intrusion detection and Intrusion prevention system, Access Control List, Security Group\n\nDesign architectures on Azure, AWS, Google and OpenStack clouds\n\nDesign high availability 99.999% systems for critical customers\n\nDesign cloud networking inclusive of BGP, VPC Peering, Route Summarization, Link Aggregation Group",
+          "location": "Remote",
+          "start_date": "2022-01-01T00:00:00.000Z",
+          "end_date": "2023-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 1.6,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "CSI Companies",
+          "linkedin_id": "166364",
+          "company_linkedin_id": "166364",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/csi-companies",
+          "company_website_domain": "csicompanies.com",
+          "company_website": "https://csicompanies.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_klmlchj1yncppm7k7zpx.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "Epic Credentialed Trainer",
+          "description": "• Offered advanced training to a wide array of staff for updated Epic software at Northwestern Hospital locations\n• Decreased post-student training support requests by providing excellent guidance to end-users on Epic Cadence, Grand Central modules, improving effectiveness of materials & assisting the principal trainer. \n• Enhanced operations by training front desk staff on how to better streamline operations, mentoring them on registration, scheduling, verifying insurances, accepting co-pay, and how to reconcile and close crash drawers.\n• Maintained highly accurate reports and logged attendance in L&D, used to review individual progress.\n• Created individualized training plans to each student, offering extremely high-quality support, curating learning materials, assessments, & exercises to match needs. \n• Utilized the Grand Central Module/ED Manager to streamline processes and optimize front desk operations. \n• Mentored end-users on how to navigate and utilize Real-Time Eligibility functionality in Epic.",
+          "location": "Remote",
+          "start_date": "2022-06-01T00:00:00.000Z",
+          "end_date": "2022-10-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Training",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "United States Army Reserve",
+          "linkedin_id": "1230",
+          "company_linkedin_id": "1230",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/united-states-army-reserve",
+          "company_website_domain": "usar.army.mil",
+          "company_website": "https://usar.army.mil",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_rovpblytz06snjwgz1of.jpeg",
+          "company_linkedin_industry": "Armed Forces",
+          "title": "U.S. Army Armorer | 337th Military Intelligence Battalion ---> 801st Combat Support Hospital",
+          "description": "Served as the unit Armorer, overseeing the accountability, maintenance, and readiness of all weapons and sensitive equipment. Ensured full compliance with Army standards, supported mission requirements, and trained personnel on proper handling and safety. Strengthened skills in logistics, equipment management, and operational reliability in a high-security environments.",
+          "location": "Fort Sheridan, Illinois, United States",
+          "start_date": "2014-03-01T00:00:00.000Z",
+          "end_date": "2022-04-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Part-time",
+          "function_category": "Military & Protective Services",
+          "company_industries": [
+            "Armed Forces"
+          ],
+          "years_at_company_raw": 8.2,
+          "years_at_company": "8 years"
+        },
+        {
+          "name": "Providence",
+          "linkedin_id": "18102043",
+          "company_linkedin_id": "18102043",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/providencehealthsystem",
+          "company_website_domain": "providence.org",
+          "company_website": "https://providence.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_mp7se6ny5z8pmaujd1cv.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic Informatics Virtual Tech",
+          "description": "• Spearheaded improved training and implementation initiatives, excelling specifically in “At the Elbow” support to properly diagnose, report, and correct common issues, system inconsistencies, and hospital support trends. \n• Conducted proctor training sessions for Clinical Pathology laboratory staff, focusing on specimen collection, requisition entries, outstanding lists, result entry, and documentation within Epic modules. \n• Provided excellent support to end users in reviewing patient charts, & assisted with TDR, mock cutover, and Conversion Events, ensuring seamless process execution and transitions during critical moments. \n• Guaranteed timely problem-solving endeavors by documenting all issues and submitting workflow tickets.\n• Contributed to the training of physicians, assisting in teaching medication reconciliation & transfer processes.\n• Maintained a high issue resolution rate through leveraging advanced proficiency in troubleshooting endeavors, assisting hospital staff in resolving all issues related to connection with the command center",
+          "location": "Lubbock, Texas, United States",
+          "start_date": "2021-12-01T00:00:00.000Z",
+          "end_date": "2022-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Nuance Communications",
+          "linkedin_id": "3719",
+          "company_linkedin_id": "3719",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/nuance-communications",
+          "company_website_domain": "nuance.com",
+          "company_website": "https://nuance.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_nggam2lgoxhinf3hwqsr.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "Epic Trainer",
+          "description": "• Providing 1:1 training to providers\n• Customized functionality\nProvide daily reports\n• Rounding client sites/ offices, workspace\n• Follow up on tickets\n• Demonstration of workflow functionality\n• Implement Prelude registration\n• Trained front desk staff with registration, scheduling, verifying insurances, accepting co-pay, reconciling cash drawer, closing cash drawer.\n• Trained end users on telephone encounter workflow, scanning documents, IFS layout, RTE workflow, sending inbasket messages, scanning documents, and attaching them to the right orders and encounters",
+          "location": null,
+          "start_date": "2019-05-01T00:00:00.000Z",
+          "end_date": "2019-08-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Training",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 0.3,
+          "years_at_company": "Less than 1 year"
+        }
+      ],
+      "profile_picture_permalink": null,
+      "profile_picture_url": null,
+      "region": "Houston, Texas, United States",
+      "resumeUrl": null,
+      "skills": [
+        "Team Leadership",
+        "Facilitation",
+        "Overseeing Projects",
+        "Project Management",
+        "Agile & Scrum Collaboration",
+        "Dragon Medical One Support",
+        "TMS / LMS Platforms",
+        "Patient Registration & Scheduling",
+        "Real-Time Eligibility (RTE)",
+        "Clinical Informatics",
+        "ADT Workflows",
+        "System Configuration",
+        "Training Program Development",
+        "Data Validation",
+        "Application Personalization",
+        "Help Desk Escalation & Troubleshooting",
+        "Remote Health It Support",
+        "Revenue Cycle Integration ",
+        "Workflow Optimization",
+        "Clinical Application Support"
+      ],
+      "summary": "🔍 Clinical systems shouldn’t slow end users down , they should empower them. That’s the belief I bring to every Epic and Cerner implementation, workflow redesigns, and go-live support sessions I’m part of.\n\nWith over 7 years of experience in the Electronic Medical Records (EMR) space, I specialize in helping hospitals and healthcare systems transition smoothly into optimized digital operations. I’ve supported large scale Epic and Cerner rollouts across inpatient, and ambulatory settings, including work with Memorial Hermann, Universal Health Services, and multiple VA/DoD sites.\n\nI’m a Clinical Application Analyst, Credentialed Epic Trainer (Grand Central, Cadence, Prelude), and Cerner-Certified Trainer, skilled at building confidence in end users, reducing friction in clinical documentation, and translating real-world healthcare needs into EMR solutions that actually work. From configuring auto-texts and PowerPlans to mentoring super users and resolving frontline workflow issues, I thrive at the intersection of technology, care delivery, and user satisfaction.\n\n💡 I’m passionate about using systems to simplify documentation, improve accuracy, and create smoother clinical workflows , not just for efficiency, but for better patient outcomes.\n\nLet’s connect if you're passionate about smarter, more effective digital healthcare!",
+      "tags": [],
+      "title": "Clinical Application Analyst",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:53:53.914Z",
+      "websites": [],
+      "years_of_experience": "More than 10 years",
+      "years_of_experience_raw": 12.6
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:53:54.116Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75df1e0ba78e1cf50397d","revealContactType":["email"]}'
+# 2026-09-26T05:54:55.144Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75df1e0ba78e1cf50397d","revealContactType":["email"]}'
+# 2026-09-26T05:55:57.168Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75df1e0ba78e1cf50397d","revealContactType":["email"]}'
+# 2026-09-26T05:56:03.106Z POST /wl/scout-people/reveal-contacts response HTTP 200 5938ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6ab75df1e0ba78e1cf50397d",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "edwardg1415@yahoo.com"
+        ]
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:56:07.470Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/ACoAAAUhQQIBC8mZoSz_Jk5pMIsmVzg1npt6a3w"}'
+# 2026-09-26T05:56:13.643Z POST /wl/scout-people/lookup response HTTP 200 6173ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75e7de0ba78e1cf503981",
+    "profile": {
+      "_id": "6ab75e7de0ba78e1cf503980",
+      "__v": 0,
+      "all_degrees": [
+        "Bachelor's degree"
+      ],
+      "all_employers": [
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Creative Services Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "2025-04-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.5,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Digital Transformation Lead",
+          "description": "- Project Planning & Management: Develop comprehensive project plans and timelines, ensuring timely delivery across the entire project scope.\n- Content Migration: Efficiently migrate and optimize content into redesigned web pages within Sitecore CMS, adhering to high-quality standards.\n- Web Page Development: Construct new web pages using predefined components, designs, and templates to align with brand and functionality requirements.\n- Quality Assurance: Maintaining exceptional attention to detail, ensuring all migrated content met high-quality and accessibility standards.\n- Collaboration & Integration: Working closely with cross-functional project teams to ensure seamless integration of content into redesigned web platforms.\n- Issue Resolution: Troubleshoot and resolve migration-related issues promptly to minimize delays and maintain project efficiency.\n- Change Management: Facilitate change management strategies to support team adaptation during the transition to the redesigned platform, ensuring smooth adoption of new processes and tools.",
+          "location": "Houston, Texas, United States",
+          "start_date": "2024-10-01T00:00:00.000Z",
+          "end_date": "2025-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Sr Process Specialist",
+          "description": "- Spearheaded automation practices, ensuring efficiency and scalability.\n- Designed and implemented cutting-edge automation frameworks tailored to project needs.\n- Oversaw test case management and enforced best practices in testing.\n- Delivered quality results in mobile application testing, including iOS testing using Xcode.\n- Built automation scripts with Katalon Studio and leveraged BrowserStack for multi-device compatibility.\n- Utilized Percy for advanced visual and UI testing.\n- Facilitated UAT sessions, reviewed requirements, and led effective scrum ceremonies.\n- Adopted TDD and BDD frameworks for streamlined and robust development cycles. \n- Balanced quality assurance with product strategy to ensure top-tier deliverables.",
+          "location": "Houston, Texas, United States",
+          "start_date": "2022-07-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Operations",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2.3,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Senior Application Analyst",
+          "description": "•\tCreate Automation Scripts and framework using Appium and Selenium WebDriver for Surgical Calculator Mobile App with TestNG annotations\n•\tTo involve in preparing test plan, strategies, and manual execution of the same for the public-facing app - MyMethodist\n•\tExecution of the automation test scripts for the Web & Mobile environment\n•\tImplementing mobile automation frameworks using Appium, Android Studio, and Java\n•\tExtensive experience with UI Automator viewer in Appium to inspect elements in mobile applications.\n•\tPerform Testing on the various mobile devices with a different platform (iOS, Android)\n•\tUse of Apache POI for the data-driven test cases for Online Scheduling - Web Application\n•\tUsing Github and Maven as automation scripts integration tools and Jenkins as CI tool",
+          "location": "Houston, Texas, United States",
+          "start_date": "2020-12-01T00:00:00.000Z",
+          "end_date": "2022-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.7,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Business Analyst",
+          "description": "•\tLead requirement analysis and verification, ensuring that requirement statements are complete, consistent, and concise\n•\tDevelopment and maintenance of project documentation\n•\tLead “virtual” project teams & acting as SCRUM Master\n•\tDecompose high-level business and user requirements into functional requirements \n•\tParticipate in peer reviews and inspections of requirements documents, and reviews of work product derived from requirements specifications to ensure that they were interpreted correctly\n•\tTo ensure effective two-way communication within the project teams and with customers\n•\tProviding Quality Assurance for multilingual applications\n•\tProvide expertise in the planning, constructing, and execution of test cases for multiple platforms\n•\tMentoring other team members with one on one training \n•\tParticipate in story grooming, sprint planning, daily standup, QA demos, sprint retrospective, sprint demo, test case reviews, and Defect Triage meetings\n•\tProvided guidance and training in User Acceptance Testing\n",
+          "location": "Houston, Texas, United States",
+          "start_date": "2019-01-01T00:00:00.000Z",
+          "end_date": "2020-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Experis IT",
+          "linkedin_id": "68584884",
+          "company_linkedin_id": "68584884",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/experisfrance",
+          "company_website_domain": "experisfrance.fr",
+          "company_website": "https://experisfrance.fr",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_pqnkctr78ic8laniykdt.jpeg",
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Senior Quality Assurance Automation Engineer",
+          "description": "- Led test automation using Selenium with Java for web Applications.\n- Developed framework using TestNG and JUnit\n- Configured functional test cases in CI/CD pipeline for automated regression testing and build verification.\n- Owned and maintained the automation library for reusable methods\n- Used TFS for Project Governance\n- Created and executed SQL queries to verify backend system data validations with MySQL database.\n- Used Github and Maven as automation scripts integration tools and Jenkins as CI tool\n- Successfully lead development and implementation of Page Object Model as the framework for Test Automation from scratch for the application in healthcare domain, which utilizes TestNG reporting in Selenium Webdriver using Java programming",
+          "location": "Houston",
+          "start_date": "2017-10-01T00:00:00.000Z",
+          "end_date": "2018-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Engineering",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 1.2,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Woodland Consultancy Services",
+          "linkedin_id": "600638",
+          "company_linkedin_id": "600638",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/woodland-consultancy-services",
+          "company_website_domain": "woodland.co.uk",
+          "company_website": "https://woodland.co.uk",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/et_277a3285f721b9de587a59c2a6e2adea.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "Quality Assurance Analyst",
+          "description": "- Designed and implemented Quality Assurance test plans\n- Assigned IT support requests to the appropriate parties\n- Maintained all necessary data in the databases\n- Developed end-user documentation for technical training on the systems\n- Tested software releases, verify technical documents and maintained release checklist\n- Created and executed test scripts to verify complex system requirements\n",
+          "location": "London Area, United Kingdom",
+          "start_date": "2015-10-01T00:00:00.000Z",
+          "end_date": "2017-08-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Quality Assurance",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 1.9,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "SteepGraph Systems Pvt. Ltd.",
+          "linkedin_id": "660530",
+          "company_linkedin_id": "660530",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/steepgraph-systems",
+          "company_website_domain": "steepgraph.com",
+          "company_website": "https://steepgraph.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_b486ba61ee5d4af5b2d4670b74ede974.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Software Engineer",
+          "description": "- Automation test scripts using C# and Selenium along with Nunit.\n- Performed Parallel execution using Selenium Grid.\n- Performed system, integration, regression, functional testing to certify the stability and usability of software systems\n- Planned, developed and administered software test plans to detect and diagnose errors and bugs for the company’s\n- Excelled in finding, documenting and reporting bugs, errors, interoperability flaws and other issues within proprietary software applications developed for company’s global user base\n- Experienced in using Ready API to test Web Service. \n- Demonstrated methodical, detail-oriented and thorough approach to all assignments while adhering to compressed timelines.\n- Created and executed test scripts to verify complex system requirements\n\n",
+          "location": "Pune/Pimpri-Chinchwad Area",
+          "start_date": "2012-05-01T00:00:00.000Z",
+          "end_date": "2014-11-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.6,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Karan Infosys",
+          "linkedin_id": "93379455",
+          "company_linkedin_id": "93379455",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/karan-infosys",
+          "company_website_domain": "karaninfosys.com",
+          "company_website": "https://karaninfosys.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_44f55da04e4e43ca8881ce7887040f35.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Sr. IT-Executive",
+          "description": "•\tFacilitated business process reviews and developer walkthroughs based on business requirements\n•\tAnalyzed testing impact of requirement changes and modified test scenarios accordingly\n•\tExecuted SQL queries for backend data validation based on business requirements\n•\tUtilized both automated and manual testing methods including Selenium suite tools\n•\tDocumented and reported bugs, errors, and interoperability issues in proprietary software\n•\tLeveraged object-oriented programming knowledge to validate and resolve software issues",
+          "location": "Ahmedabad, Gujarat, India",
+          "start_date": "2008-04-01T00:00:00.000Z",
+          "end_date": "2012-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 4.1,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Reliance Infosolutions Pvt. Ltd.",
+          "linkedin_id": "65318",
+          "company_linkedin_id": "65318",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/reliance-infosolutions-pvt.-ltd.",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "IT Executive",
+          "description": "- Analyzing end user requirements to comprehend the problem domain and to suggest the alternatives available to them. Also picking the best solution\n- Working with the ABAP R/3 workbench and Retalix system\n- Providing support to Reliance Retail Stores\n- Setup the IT infrastructure Rollout as per Retail business requirement for Reliance Hyper Marts, & Reliance fresh stores. Design and implements the network connectivity (LAN/WAN)\n- IT Rollout and Operations consists of Networking (LAN/WAN), POS (Point Of Sell) Installation, Application Installation and Configuration. Applications like Retalix Software for Retail Industry, SAP, Lotus Notes clients and other Application\n- Testing the Retalix software using the Manual Testing methods. Performed Functional testing to concur the usability and stability of the application.\n",
+          "location": null,
+          "start_date": "2007-02-01T00:00:00.000Z",
+          "end_date": "2008-02-29T00:00:00.000Z",
+          "seniority_level": "Executive",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 1.1,
+          "years_at_company": "1 year"
+        }
+      ],
+      "all_employers_company_id": [
+        "4529",
+        "2152",
+        "68584884",
+        "600638",
+        "660530",
+        "93379455",
+        "65318"
+      ],
+      "all_schools": [
+        "Hemchandracharya North Gujarat University"
+      ],
+      "all_titles": [
+        "Creative Services Consultant",
+        "Digital Transformation Lead",
+        "Sr Process Specialist",
+        "Senior Application Analyst",
+        "Business Analyst",
+        "Senior Quality Assurance Automation Engineer",
+        "Quality Assurance Analyst",
+        "Software Engineer",
+        "Sr. IT-Executive",
+        "IT Executive"
+      ],
+      "career_began_at": "2007-02-01T00:00:00.000Z",
+      "certifications": [
+        {
+          "name": "Technical Program Management",
+          "authority": "Skillsoft",
+          "issued_date": "2024-10-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Fundamentals of AI & ML: Introduction to Artificial Intelligence",
+          "authority": "Skillsoft",
+          "issued_date": "2024-10-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "EPIC - GC100 Grand Central Fundamentals",
+          "authority": "Houston Methodist",
+          "issued_date": "2024-02-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "EPIC - CAD100 Patient Access Fundamentals",
+          "authority": "Houston Methodist",
+          "issued_date": "2024-01-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "ITIL 4 Foundation: Key Concepts of Service Management",
+          "authority": "Skillsoft",
+          "issued_date": "2023-08-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "ITIL 4 Foundation: Introduction",
+          "authority": "Skillsoft",
+          "issued_date": "2023-06-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "ITIL 4 Foundation: Key Concepts of Service Management",
+          "authority": "Skillsoft",
+          "issued_date": "2023-09-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Crucial Conversations",
+          "authority": "Houston Methodist",
+          "issued_date": "2024-07-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Learning Cloud Computing: Core Concepts",
+          "authority": "LinkedIn",
+          "issued_date": "2020-10-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Certified Linux Administrator (LPIC-1)",
+          "authority": "Red Hat",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Certified ScrumMaster (CSM)",
+          "authority": "Scrum Alliance",
+          "issued_date": "2020-09-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        }
+      ],
+      "createdAt": "2026-09-26T05:56:13.557Z",
+      "current_employers": [
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Creative Services Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "2025-04-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.5,
+          "years_at_company": "2 years"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Bachelor's degree",
+          "institute_name": "Hemchandracharya North Gujarat University",
+          "institute_linkedin_id": "15249282",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15249282",
+          "field_of_study": "Electronics and Communications Engineering",
+          "start_date": "2002-01-01T00:00:00.000Z",
+          "end_date": "2006-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Sachi",
+      "flagship_profile_url": "https://www.linkedin.com/in/sachi-bhatt",
+      "github_profiles": [],
+      "headline": "Creative Services Coordinator",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [],
+      "lastFetchedAt": "2026-09-26T05:56:13.556Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "Bhatt, CSM",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/sachi-bhatt",
+      "linkedin_profile_url": "https://www.linkedin.com/in/sachi-bhatt",
+      "linkedin_slug": "sachi-bhatt",
+      "location": "Katy, Texas, United States",
+      "location_city": "Katy",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Sachi Bhatt, CSM",
+      "num_of_connections": 252,
+      "num_of_followers": 256,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Digital Transformation Lead",
+          "description": "- Project Planning & Management: Develop comprehensive project plans and timelines, ensuring timely delivery across the entire project scope.\n- Content Migration: Efficiently migrate and optimize content into redesigned web pages within Sitecore CMS, adhering to high-quality standards.\n- Web Page Development: Construct new web pages using predefined components, designs, and templates to align with brand and functionality requirements.\n- Quality Assurance: Maintaining exceptional attention to detail, ensuring all migrated content met high-quality and accessibility standards.\n- Collaboration & Integration: Working closely with cross-functional project teams to ensure seamless integration of content into redesigned web platforms.\n- Issue Resolution: Troubleshoot and resolve migration-related issues promptly to minimize delays and maintain project efficiency.\n- Change Management: Facilitate change management strategies to support team adaptation during the transition to the redesigned platform, ensuring smooth adoption of new processes and tools.",
+          "location": "Houston, Texas, United States",
+          "start_date": "2024-10-01T00:00:00.000Z",
+          "end_date": "2025-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.6,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Sr Process Specialist",
+          "description": "- Spearheaded automation practices, ensuring efficiency and scalability.\n- Designed and implemented cutting-edge automation frameworks tailored to project needs.\n- Oversaw test case management and enforced best practices in testing.\n- Delivered quality results in mobile application testing, including iOS testing using Xcode.\n- Built automation scripts with Katalon Studio and leveraged BrowserStack for multi-device compatibility.\n- Utilized Percy for advanced visual and UI testing.\n- Facilitated UAT sessions, reviewed requirements, and led effective scrum ceremonies.\n- Adopted TDD and BDD frameworks for streamlined and robust development cycles. \n- Balanced quality assurance with product strategy to ensure top-tier deliverables.",
+          "location": "Houston, Texas, United States",
+          "start_date": "2022-07-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Operations",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2.3,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Senior Application Analyst",
+          "description": "•\tCreate Automation Scripts and framework using Appium and Selenium WebDriver for Surgical Calculator Mobile App with TestNG annotations\n•\tTo involve in preparing test plan, strategies, and manual execution of the same for the public-facing app - MyMethodist\n•\tExecution of the automation test scripts for the Web & Mobile environment\n•\tImplementing mobile automation frameworks using Appium, Android Studio, and Java\n•\tExtensive experience with UI Automator viewer in Appium to inspect elements in mobile applications.\n•\tPerform Testing on the various mobile devices with a different platform (iOS, Android)\n•\tUse of Apache POI for the data-driven test cases for Online Scheduling - Web Application\n•\tUsing Github and Maven as automation scripts integration tools and Jenkins as CI tool",
+          "location": "Houston, Texas, United States",
+          "start_date": "2020-12-01T00:00:00.000Z",
+          "end_date": "2022-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.7,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Houston Methodist",
+          "linkedin_id": "4529",
+          "company_linkedin_id": "4529",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/houston-methodist",
+          "company_website_domain": "houstonmethodist.org",
+          "company_website": "https://houstonmethodist.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yveasichslelp8zvgqxs.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Business Analyst",
+          "description": "•\tLead requirement analysis and verification, ensuring that requirement statements are complete, consistent, and concise\n•\tDevelopment and maintenance of project documentation\n•\tLead “virtual” project teams & acting as SCRUM Master\n•\tDecompose high-level business and user requirements into functional requirements \n•\tParticipate in peer reviews and inspections of requirements documents, and reviews of work product derived from requirements specifications to ensure that they were interpreted correctly\n•\tTo ensure effective two-way communication within the project teams and with customers\n•\tProviding Quality Assurance for multilingual applications\n•\tProvide expertise in the planning, constructing, and execution of test cases for multiple platforms\n•\tMentoring other team members with one on one training \n•\tParticipate in story grooming, sprint planning, daily standup, QA demos, sprint retrospective, sprint demo, test case reviews, and Defect Triage meetings\n•\tProvided guidance and training in User Acceptance Testing\n",
+          "location": "Houston, Texas, United States",
+          "start_date": "2019-01-01T00:00:00.000Z",
+          "end_date": "2020-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Analyst",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Experis IT",
+          "linkedin_id": "68584884",
+          "company_linkedin_id": "68584884",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/experisfrance",
+          "company_website_domain": "experisfrance.fr",
+          "company_website": "https://experisfrance.fr",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_pqnkctr78ic8laniykdt.jpeg",
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Senior Quality Assurance Automation Engineer",
+          "description": "- Led test automation using Selenium with Java for web Applications.\n- Developed framework using TestNG and JUnit\n- Configured functional test cases in CI/CD pipeline for automated regression testing and build verification.\n- Owned and maintained the automation library for reusable methods\n- Used TFS for Project Governance\n- Created and executed SQL queries to verify backend system data validations with MySQL database.\n- Used Github and Maven as automation scripts integration tools and Jenkins as CI tool\n- Successfully lead development and implementation of Page Object Model as the framework for Test Automation from scratch for the application in healthcare domain, which utilizes TestNG reporting in Selenium Webdriver using Java programming",
+          "location": "Houston",
+          "start_date": "2017-10-01T00:00:00.000Z",
+          "end_date": "2018-12-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "",
+          "function_category": "Engineering",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 1.2,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Woodland Consultancy Services",
+          "linkedin_id": "600638",
+          "company_linkedin_id": "600638",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/woodland-consultancy-services",
+          "company_website_domain": "woodland.co.uk",
+          "company_website": "https://woodland.co.uk",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/et_277a3285f721b9de587a59c2a6e2adea.jpeg",
+          "company_linkedin_industry": "Staffing and Recruiting",
+          "title": "Quality Assurance Analyst",
+          "description": "- Designed and implemented Quality Assurance test plans\n- Assigned IT support requests to the appropriate parties\n- Maintained all necessary data in the databases\n- Developed end-user documentation for technical training on the systems\n- Tested software releases, verify technical documents and maintained release checklist\n- Created and executed test scripts to verify complex system requirements\n",
+          "location": "London Area, United Kingdom",
+          "start_date": "2015-10-01T00:00:00.000Z",
+          "end_date": "2017-08-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Quality Assurance",
+          "company_industries": [
+            "Staffing and Recruiting"
+          ],
+          "years_at_company_raw": 1.9,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "SteepGraph Systems Pvt. Ltd.",
+          "linkedin_id": "660530",
+          "company_linkedin_id": "660530",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/steepgraph-systems",
+          "company_website_domain": "steepgraph.com",
+          "company_website": "https://steepgraph.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_b486ba61ee5d4af5b2d4670b74ede974.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Software Engineer",
+          "description": "- Automation test scripts using C# and Selenium along with Nunit.\n- Performed Parallel execution using Selenium Grid.\n- Performed system, integration, regression, functional testing to certify the stability and usability of software systems\n- Planned, developed and administered software test plans to detect and diagnose errors and bugs for the company’s\n- Excelled in finding, documenting and reporting bugs, errors, interoperability flaws and other issues within proprietary software applications developed for company’s global user base\n- Experienced in using Ready API to test Web Service. \n- Demonstrated methodical, detail-oriented and thorough approach to all assignments while adhering to compressed timelines.\n- Created and executed test scripts to verify complex system requirements\n\n",
+          "location": "Pune/Pimpri-Chinchwad Area",
+          "start_date": "2012-05-01T00:00:00.000Z",
+          "end_date": "2014-11-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2.6,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Karan Infosys",
+          "linkedin_id": "93379455",
+          "company_linkedin_id": "93379455",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/karan-infosys",
+          "company_website_domain": "karaninfosys.com",
+          "company_website": "https://karaninfosys.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_44f55da04e4e43ca8881ce7887040f35.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Sr. IT-Executive",
+          "description": "•\tFacilitated business process reviews and developer walkthroughs based on business requirements\n•\tAnalyzed testing impact of requirement changes and modified test scenarios accordingly\n•\tExecuted SQL queries for backend data validation based on business requirements\n•\tUtilized both automated and manual testing methods including Selenium suite tools\n•\tDocumented and reported bugs, errors, and interoperability issues in proprietary software\n•\tLeveraged object-oriented programming knowledge to validate and resolve software issues",
+          "location": "Ahmedabad, Gujarat, India",
+          "start_date": "2008-04-01T00:00:00.000Z",
+          "end_date": "2012-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 4.1,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "Reliance Infosolutions Pvt. Ltd.",
+          "linkedin_id": "65318",
+          "company_linkedin_id": "65318",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/reliance-infosolutions-pvt.-ltd.",
+          "company_website_domain": null,
+          "company_website": null,
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "IT Executive",
+          "description": "- Analyzing end user requirements to comprehend the problem domain and to suggest the alternatives available to them. Also picking the best solution\n- Working with the ABAP R/3 workbench and Retalix system\n- Providing support to Reliance Retail Stores\n- Setup the IT infrastructure Rollout as per Retail business requirement for Reliance Hyper Marts, & Reliance fresh stores. Design and implements the network connectivity (LAN/WAN)\n- IT Rollout and Operations consists of Networking (LAN/WAN), POS (Point Of Sell) Installation, Application Installation and Configuration. Applications like Retalix Software for Retail Industry, SAP, Lotus Notes clients and other Application\n- Testing the Retalix software using the Manual Testing methods. Performed Functional testing to concur the usability and stability of the application.\n",
+          "location": null,
+          "start_date": "2007-02-01T00:00:00.000Z",
+          "end_date": "2008-02-29T00:00:00.000Z",
+          "seniority_level": "Executive",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 1.1,
+          "years_at_company": "1 year"
+        }
+      ],
+      "profile_picture_permalink": "https://img.imagecdn.dev/profile-pic/at_8965dc1a6814e2dc72bc10d19a54067e.jpeg",
+      "profile_picture_url": "https://img.imagecdn.dev/profile-pic/at_8965dc1a6814e2dc72bc10d19a54067e.jpeg",
+      "region": "Katy, Texas, United States",
+      "resumeUrl": null,
+      "skills": [
+        "Marketing Strategy",
+        " Cybersecurity Awareness",
+        "Data Analytics",
+        "Automation",
+        "IT Integration",
+        "Content Management Systems (CMS)",
+        "Customer Relationship Management (CRM)",
+        "Program Management",
+        "Project Management",
+        "Project Planning",
+        "Risk Assessment",
+        "Enterprise Resource Planning (ERP)",
+        "Team Management",
+        "Team Leadership",
+        "Requirements Analysis",
+        "Vendor Management",
+        "Business Analysis",
+        "ITIL",
+        "TDD",
+        "SAP R/3"
+      ],
+      "summary": "Quality Assurance Lead with extensive experience in SQA including Manual and Automated testing with tools such as Selenium WebDriver, Junit/TestNG, JIRA, and SOAPUI targeting Web and Mobile applications. Exclusive experience with IT Healthcare, Oil & Gas, and Automotive industries. Strong research professional with a Bachelor's degree focused in Electronics and Communications Engineering from LCIT.",
+      "tags": [
+        "deep-technical-background"
+      ],
+      "title": "Creative Services Consultant",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:56:13.557Z",
+      "websites": [],
+      "years_of_experience": "More than 10 years",
+      "years_of_experience_raw": 19.7
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:56:13.756Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75e7de0ba78e1cf503980","revealContactType":["email"]}'
+# 2026-09-26T05:56:32.500Z POST /wl/scout-people/reveal-contacts response HTTP 200 18743ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6ab75e7de0ba78e1cf503980",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "REVEALED",
+        "values": [
+          "sachi.bhatt@gmail.com",
+          "sbhatt@houstonmethodist.org"
+        ]
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:56:37.505Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/ACoAAABMVt8BeWUrVwpQfvmYE9cgr1MjDw4draw"}'
+# 2026-09-26T05:56:46.141Z POST /wl/scout-people/lookup response HTTP 200 8636ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75e9ee0ba78e1cf503984",
+    "profile": {
+      "_id": "6ab75e9ee0ba78e1cf503983",
+      "__v": 0,
+      "all_degrees": [
+        "MSA",
+        "Bachelor's degree"
+      ],
+      "all_employers": [
+        {
+          "name": "JPMorgan Chase & Co.",
+          "linkedin_id": "1068",
+          "company_linkedin_id": "1068",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jpmorganchase",
+          "company_website_domain": "jpmorganchase.com",
+          "company_website": "https://jpmorganchase.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_2c11f6a3561e47079d39df0c6fb7b103.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Information Technology Operations",
+          "description": null,
+          "location": "United States",
+          "start_date": "2023-04-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 3.5,
+          "years_at_company": "4 years"
+        },
+        {
+          "name": "JPMorgan Chase & Co.",
+          "linkedin_id": "1068",
+          "company_linkedin_id": "1068",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jpmorganchase",
+          "company_website_domain": "jpmorganchase.com",
+          "company_website": "https://jpmorganchase.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_2c11f6a3561e47079d39df0c6fb7b103.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Senior Application Analyst",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2020-02-01T00:00:00.000Z",
+          "end_date": "2023-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "JPMorgan Chase & Co.",
+          "linkedin_id": "1068",
+          "company_linkedin_id": "1068",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jpmorganchase",
+          "company_website_domain": "jpmorganchase.com",
+          "company_website": "https://jpmorganchase.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_2c11f6a3561e47079d39df0c6fb7b103.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Application Infrastructure Monitoring Engineer",
+          "description": "Managing programs and initiatives for Application Infrastructure monitoring solutions architecture and implementation using Agile:\n\nAPM - Dynatrace, AppDynamics, Wily\nLog Analytics - Splunk, ELK\nSynthetics - Dynatrace Synthetic, SiteWalks\nVisualization - Edge\nHost/OS - Tivoli, SCOM\nNetwork/Datacenter - Solar Wind, SevOne\nScripting - Python, PERL",
+          "location": "Columbus, Ohio Area",
+          "start_date": "2013-01-01T00:00:00.000Z",
+          "end_date": "2019-07-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Other",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 6.6,
+          "years_at_company": "7 years"
+        },
+        {
+          "name": "JP Morgan Chase",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jp-morgan-chase-bank-n.a.",
+          "company_website_domain": "me.jpmorganchase.com",
+          "company_website": "https://me.jpmorganchase.com",
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Application Developer",
+          "description": "Involved/led projects including but not limited to application tech refresh, Data Quality and Loan Acquisition Transfer Systems web applications, Migration of vendor software/web services\nDevelopment Technology/Framework - .Net, Java, Mainframe systems\nOS - Z/os, Window, *nix\nDatabase - IMS, DB2, SQL, Oracle\n\n",
+          "location": "Columbus, Ohio Area",
+          "start_date": "2005-04-01T00:00:00.000Z",
+          "end_date": "2012-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Engineering",
+          "company_industries": [],
+          "years_at_company_raw": 7.8,
+          "years_at_company": "8 years"
+        },
+        {
+          "name": "Covansys",
+          "linkedin_id": "3336",
+          "company_linkedin_id": "3336",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/covansys",
+          "company_website_domain": "covansys.com",
+          "company_website": "https://covansys.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_fhhlzjlmoeawimsjk82y.jpeg",
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Senior Software Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "1999-06-01T00:00:00.000Z",
+          "end_date": "2005-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 5.8,
+          "years_at_company": "6 years"
+        }
+      ],
+      "all_employers_company_id": [
+        "1068",
+        "3336"
+      ],
+      "all_schools": [
+        "Central Michigan University",
+        "Andhra University, Visakhapatnam, India"
+      ],
+      "all_titles": [
+        "Information Technology Operations",
+        "Senior Application Analyst",
+        "Application Infrastructure Monitoring Engineer",
+        "Application Developer",
+        "Senior Software Consultant"
+      ],
+      "career_began_at": "1999-06-01T00:00:00.000Z",
+      "certifications": [],
+      "createdAt": "2026-09-26T05:56:46.065Z",
+      "current_employers": [
+        {
+          "name": "JPMorgan Chase & Co.",
+          "linkedin_id": "1068",
+          "company_linkedin_id": "1068",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jpmorganchase",
+          "company_website_domain": "jpmorganchase.com",
+          "company_website": "https://jpmorganchase.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_2c11f6a3561e47079d39df0c6fb7b103.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Information Technology Operations",
+          "description": null,
+          "location": "United States",
+          "start_date": "2023-04-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 3.5,
+          "years_at_company": "4 years"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "MSA",
+          "institute_name": "Central Michigan University",
+          "institute_linkedin_id": "162966",
+          "institute_linkedin_url": "https://www.linkedin.com/school/162966",
+          "field_of_study": "Software Engineering and Administration",
+          "start_date": "2001-01-01T00:00:00.000Z",
+          "end_date": "2004-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        },
+        {
+          "degree_name": "Bachelor's degree",
+          "institute_name": "Andhra University, Visakhapatnam, India",
+          "institute_linkedin_id": null,
+          "institute_linkedin_url": null,
+          "field_of_study": "Mechanical Engineering",
+          "start_date": "1991-01-01T00:00:00.000Z",
+          "end_date": "1995-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Santosh",
+      "flagship_profile_url": "https://www.linkedin.com/in/santosh-chauhan-2a78131",
+      "github_profiles": [],
+      "headline": "IT Ops at JPMorgan Chase & Co.",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [],
+      "lastFetchedAt": "2026-09-26T05:56:46.065Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "Chauhan",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/santosh-chauhan-2a78131",
+      "linkedin_profile_url": "https://www.linkedin.com/in/santosh-chauhan-2a78131",
+      "linkedin_slug": "santosh-chauhan-2a78131",
+      "location": "Cypress, Texas, United States",
+      "location_city": "Cypress",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Santosh Chauhan",
+      "num_of_connections": 349,
+      "num_of_followers": 346,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [
+        {
+          "name": "JPMorgan Chase & Co.",
+          "linkedin_id": "1068",
+          "company_linkedin_id": "1068",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jpmorganchase",
+          "company_website_domain": "jpmorganchase.com",
+          "company_website": "https://jpmorganchase.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_2c11f6a3561e47079d39df0c6fb7b103.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Senior Application Analyst",
+          "description": null,
+          "location": "Houston, Texas, United States",
+          "start_date": "2020-02-01T00:00:00.000Z",
+          "end_date": "2023-04-30T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 3.2,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "JPMorgan Chase & Co.",
+          "linkedin_id": "1068",
+          "company_linkedin_id": "1068",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jpmorganchase",
+          "company_website_domain": "jpmorganchase.com",
+          "company_website": "https://jpmorganchase.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_2c11f6a3561e47079d39df0c6fb7b103.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Application Infrastructure Monitoring Engineer",
+          "description": "Managing programs and initiatives for Application Infrastructure monitoring solutions architecture and implementation using Agile:\n\nAPM - Dynatrace, AppDynamics, Wily\nLog Analytics - Splunk, ELK\nSynthetics - Dynatrace Synthetic, SiteWalks\nVisualization - Edge\nHost/OS - Tivoli, SCOM\nNetwork/Datacenter - Solar Wind, SevOne\nScripting - Python, PERL",
+          "location": "Columbus, Ohio Area",
+          "start_date": "2013-01-01T00:00:00.000Z",
+          "end_date": "2019-07-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Other",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 6.6,
+          "years_at_company": "7 years"
+        },
+        {
+          "name": "JP Morgan Chase",
+          "linkedin_id": null,
+          "company_linkedin_id": null,
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/jp-morgan-chase-bank-n.a.",
+          "company_website_domain": "me.jpmorganchase.com",
+          "company_website": "https://me.jpmorganchase.com",
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": null,
+          "title": "Application Developer",
+          "description": "Involved/led projects including but not limited to application tech refresh, Data Quality and Loan Acquisition Transfer Systems web applications, Migration of vendor software/web services\nDevelopment Technology/Framework - .Net, Java, Mainframe systems\nOS - Z/os, Window, *nix\nDatabase - IMS, DB2, SQL, Oracle\n\n",
+          "location": "Columbus, Ohio Area",
+          "start_date": "2005-04-01T00:00:00.000Z",
+          "end_date": "2012-12-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Full-time",
+          "function_category": "Engineering",
+          "company_industries": [],
+          "years_at_company_raw": 7.8,
+          "years_at_company": "8 years"
+        },
+        {
+          "name": "Covansys",
+          "linkedin_id": "3336",
+          "company_linkedin_id": "3336",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/covansys",
+          "company_website_domain": "covansys.com",
+          "company_website": "https://covansys.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_fhhlzjlmoeawimsjk82y.jpeg",
+          "company_linkedin_industry": "Information Technology and Services",
+          "title": "Senior Software Consultant",
+          "description": null,
+          "location": null,
+          "start_date": "1999-06-01T00:00:00.000Z",
+          "end_date": "2005-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Information Technology and Services"
+          ],
+          "years_at_company_raw": 5.8,
+          "years_at_company": "6 years"
+        }
+      ],
+      "profile_picture_permalink": null,
+      "profile_picture_url": null,
+      "region": "Cypress, Texas, United States",
+      "resumeUrl": null,
+      "skills": [
+        "Site Reliability Engineering",
+        "SQL",
+        "Grafana",
+        "Incident Management",
+        "Microservices",
+        "Prometheus.io",
+        "New Concepts",
+        "Root Cause",
+        "Thinking Skills",
+        "Technical Discussions",
+        "Log Interpretation",
+        "Interpersonal Skills",
+        "Critical Thinking",
+        "Design Analysis",
+        "Support Documentation",
+        "Data Governance",
+        "Business Requirements",
+        "Data Analysis",
+        "Traceability",
+        "Requirement Specifications"
+      ],
+      "summary": "Experienced IT professional with over 15 years of experience in information technology. . A highly motivated professional contributing to team success through hard work, attention to detail and excellent organizational and communication skills. An excellent reputation for resolving problems, improving customer satisfaction, and driving overall operational improvements with knowledge in application, infrastructure and network performance and monitoring. Strong understanding of software development life-cycle, leading critical initiatives in deriving meaningful business outcomes.\n \nSkills/areas of interest:\n\n•\tMethodologies - Waterfall, agile or agile-fall development environments\n•\tTechnologies:\no\tMonitoring – Dynatrace, AppDynamics, Geneos, Splunk, ELK, SiteWalks, Tivoli, SCOM, SevOne, Opnet, SolarWind\no\tApplication - Microsoft technologies and framework, Java /J2EE and frameworks, MF COBOL, COBOL II, CICS, DB2, TSO/ISPF, XPEDITER, JCL, IMS, VSAM\no\tDatabase - Oracle 11.x, SQL Server 2010, DB2, VSAM\no\tInfrastructure – IIS /Tomcat/WebSphere/Weblogic/IBM S390\no\tOperating systems: IBM AIX, Windows, Unix/Linux/MVS\no\tSource Code Control Tools - PVCS, Subversion, GitHub\no\tJob Scheduling- CONTROL-M\no\tScript – Python,Perl,JS, VB, Vugen\n•\tProject Management\no\tMicrosoft Project Plan, MS Office suite\n•\tOthers\no\t HP Quality Center 10, Active Directory, LDAP, Peregrine, Remedy, FAST DEI, SharePoint, Confluence\n•\tITIL\no\tChange management, Configuration management, Incident & Problem management\no\tAgile, JIRA, CI/CD\n•\tSystem architecture, System performance and functionality analysis, Optimizing performance\n•\tDecision making\n•\tPerformance monitoring\n•\tCollaborative Leadership, Leadership communications, Team leadership, Motivational leadership style\n•\tAreas of Interest pursued:\no\tDevOps, Big Data, Apache Spark/Scala, Data Science, ITOps and BizAnalytics, IoT, Security, Azure, Docker, Kubernetes",
+      "tags": [
+        "deep-technical-background"
+      ],
+      "title": "Information Technology Operations",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:56:46.065Z",
+      "websites": [],
+      "years_of_experience": "More than 10 years",
+      "years_of_experience_raw": 27.3
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:56:46.519Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75e9ee0ba78e1cf503983","revealContactType":["email"]}'
+# 2026-09-26T05:57:05.758Z POST /wl/scout-people/reveal-contacts response HTTP 200 19239ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6ab75e9ee0ba78e1cf503983",
+    "revealStatus": {
+      "email": {
+        "revealed": true,
+        "status": "PERSONAL_PENDING",
+        "values": [
+          "santosh.chauhan@jpmorgan.com"
+        ]
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "Contacts revealed successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:57:09.409Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/ACoAABK2aZcBlMraZbUOXxjCVPebnzZdlVFAf9U"}'
+# 2026-09-26T05:57:18.291Z POST /wl/scout-people/lookup response HTTP 200 8882ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75ebee0ba78e1cf50398e",
+    "profile": {
+      "_id": "6ab75ebee0ba78e1cf50398d",
+      "__v": 0,
+      "all_degrees": [
+        "Medical Assistant",
+        "Licensed Practical/Vocational Nurse Training",
+        "Interior Design"
+      ],
+      "all_employers": [
+        {
+          "name": "Henry Ford Health",
+          "linkedin_id": "8936",
+          "company_linkedin_id": "8936",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/henry-ford-health",
+          "company_website_domain": "henryford.com",
+          "company_website": "https://henryford.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_v0pb0ictnzcw4dyw9563.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Sr Epic Ambulatory Analyst",
+          "description": null,
+          "location": "Remote",
+          "start_date": "2025-09-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.1,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "EPIC CLINDOC",
+          "description": null,
+          "location": "Waveland, Mississippi, United States",
+          "start_date": "2025-03-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 1.6,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "EPIC ASAP SUPPORT",
+          "description": null,
+          "location": "Tampa, FL",
+          "start_date": "2026-07-01T00:00:00.000Z",
+          "end_date": "2026-07-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Medasource",
+          "linkedin_id": "2756204",
+          "company_linkedin_id": "2756204",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medasource",
+          "company_website_domain": "medasource.com",
+          "company_website": "https://medasource.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_lh02kcergnwcc4w6vexv.jpeg",
+          "company_linkedin_industry": "Healthcare Providers & Hospitals",
+          "title": "EPIC ASAP SUPPORT",
+          "description": null,
+          "location": "Northwell Hospital Long island NY",
+          "start_date": "2026-05-01T00:00:00.000Z",
+          "end_date": "2026-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Healthcare Providers & Hospitals"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EHR Help desk Consultant",
+          "description": null,
+          "location": "Remote",
+          "start_date": "2025-11-01T00:00:00.000Z",
+          "end_date": "2025-11-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Customer Service",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Medasource",
+          "linkedin_id": "2756204",
+          "company_linkedin_id": "2756204",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medasource",
+          "company_website_domain": "medasource.com",
+          "company_website": "https://medasource.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_lh02kcergnwcc4w6vexv.jpeg",
+          "company_linkedin_industry": "Healthcare Providers & Hospitals",
+          "title": "Epic Stork Consultant",
+          "description": null,
+          "location": "Riverhead, New York, United States",
+          "start_date": "2024-10-01T00:00:00.000Z",
+          "end_date": "2025-11-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Healthcare Providers & Hospitals"
+          ],
+          "years_at_company_raw": 1.2,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Epic Beaker ATE",
+          "description": null,
+          "location": "Fort Wayne, Indiana, United States",
+          "start_date": "2025-08-01T00:00:00.000Z",
+          "end_date": "2025-08-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "ORLANDO REGIONAL MEDICAL CENTER",
+          "linkedin_id": "57745906",
+          "company_linkedin_id": "57745906",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/orlando-regional-medical-center",
+          "company_website_domain": "orhs.org",
+          "company_website": "https://orhs.org",
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic ASAP Support",
+          "description": null,
+          "location": "Melbourne, Florida, United States",
+          "start_date": "2025-07-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Epic Optime Support ",
+          "description": null,
+          "location": "Murphy, North Carolina, United States",
+          "start_date": "2025-06-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Support",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "HSI",
+          "linkedin_id": "787699",
+          "company_linkedin_id": "787699",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/hsigroup",
+          "company_website_domain": "hsi.es",
+          "company_website": "https://hsi.es",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_zygitk8otrwwir1d82b8.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Epic Stork Support",
+          "description": null,
+          "location": "Melbourne, Florida, United States",
+          "start_date": "2025-06-01T00:00:00.000Z",
+          "end_date": "2025-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "MercyOne",
+          "linkedin_id": "35504315",
+          "company_linkedin_id": "35504315",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/mercyone",
+          "company_website_domain": "mercyone.org",
+          "company_website": "https://mercyone.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_x6uvtzrhigtumlxp2ial.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC AMBULATORY CT",
+          "description": null,
+          "location": "West Des Moines, Iowa, United States",
+          "start_date": "2025-04-01T00:00:00.000Z",
+          "end_date": "2025-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Medasource",
+          "linkedin_id": "2756204",
+          "company_linkedin_id": "2756204",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medasource",
+          "company_website_domain": "medasource.com",
+          "company_website": "https://medasource.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_lh02kcergnwcc4w6vexv.jpeg",
+          "company_linkedin_industry": "Healthcare Providers & Hospitals",
+          "title": "Epic Clindoc Support ",
+          "description": null,
+          "location": "Ventura, California, United States",
+          "start_date": "2025-04-01T00:00:00.000Z",
+          "end_date": "2025-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Healthcare Providers & Hospitals"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Epic Help desk",
+          "description": null,
+          "location": "New York, United States",
+          "start_date": "2025-03-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Customer Service",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC CONSULTANT",
+          "description": null,
+          "location": "San Francisco, California, United States",
+          "start_date": "2024-11-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC PROVIDER SUPPORT",
+          "description": null,
+          "location": "New Mexico, United States",
+          "start_date": "2024-11-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Support",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Agility Occupational Therapy ATE Support",
+          "description": null,
+          "location": "South Boston, Virginia, United States",
+          "start_date": "2024-07-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Community & Social Services",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Edera",
+          "linkedin_id": "82760923",
+          "company_linkedin_id": "82760923",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/edera-l3c",
+          "company_website_domain": "edera.com",
+          "company_website": "https://edera.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_e03de28945c3480c8432d319749d876c.jpeg",
+          "company_linkedin_industry": "Business Consulting and Services",
+          "title": "Cerner Med Surg/ ICU/ Rehab Support",
+          "description": null,
+          "location": "Marquette, Michigan, United States",
+          "start_date": "2024-06-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "Business Consulting and Services"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "EPIC STORK IP CONSULTANT",
+          "description": null,
+          "location": "New Orleans, Louisiana, United States",
+          "start_date": "2024-04-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 1,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Apex Systems",
+          "linkedin_id": "4787",
+          "company_linkedin_id": "4787",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/apex-systems",
+          "company_website_domain": "apexsystems.com",
+          "company_website": "https://apexsystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_upd2qxdpl0vby2702hxq.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "CLINICAL DATA ABSTRACTOR",
+          "description": null,
+          "location": "Colorado, United States",
+          "start_date": "2023-04-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "INTEGRIS Health",
+          "linkedin_id": "17069",
+          "company_linkedin_id": "17069",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/integris-health",
+          "company_website_domain": "integrishealth.org",
+          "company_website": "https://integrishealth.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qypvkj08hxgzsqpambcr.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC ASAP & EPIC HIM CREDENTIALED TRAINER",
+          "description": null,
+          "location": "Oklahoma City, Oklahoma, United States",
+          "start_date": "2023-01-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2.2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "IT Revenue Team Lead",
+          "description": null,
+          "location": "Jacksonville, Florida, United States",
+          "start_date": "2022-07-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Wellstar Health System",
+          "linkedin_id": "15855",
+          "company_linkedin_id": "15855",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/wellstar-health-system",
+          "company_website_domain": "wellstar.org",
+          "company_website": "https://wellstar.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ygwqr3xebq8c6bpnwl3v.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC AMBULATORY SUPPORT",
+          "description": null,
+          "location": "Douglasville, Georgia, United States",
+          "start_date": "2024-10-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC PB SUPPORT",
+          "description": null,
+          "location": "Seattle, Washington, United States",
+          "start_date": "2024-09-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Baylor Scott & White Health",
+          "linkedin_id": "6250",
+          "company_linkedin_id": "6250",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/bswhealth",
+          "company_website_domain": "bswhealth.com",
+          "company_website": "https://bswhealth.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_tnkdbtekkzt3d6jj1ixh.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic Cadence/Ambulatory CT",
+          "description": null,
+          "location": "Temple, Texas, United States",
+          "start_date": "2024-01-01T00:00:00.000Z",
+          "end_date": "2024-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Epic Patient Access Lead",
+          "description": null,
+          "location": "Philadelphia, Pennsylvania, United States",
+          "start_date": "2022-10-01T00:00:00.000Z",
+          "end_date": "2024-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Operations",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 1.6,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "The HCI Group",
+          "linkedin_id": "954937",
+          "company_linkedin_id": "954937",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/the-hci-group",
+          "company_website_domain": "thehcigroup.com",
+          "company_website": "https://thehcigroup.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_n100aockld9matqzh0oc.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC ROVER TRAINER",
+          "description": null,
+          "location": "Charleston, South Carolina, United States",
+          "start_date": "2023-11-01T00:00:00.000Z",
+          "end_date": "2023-11-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Engineering",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Health Data Movers",
+          "linkedin_id": "7932052",
+          "company_linkedin_id": "7932052",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthdatamovers",
+          "company_website_domain": "healthdatamovers.com",
+          "company_website": "https://healthdatamovers.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_abxhpxr2lk1kyw9jcqfy.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic Wisdom Consultant",
+          "description": null,
+          "location": "Miami, Florida, United States",
+          "start_date": "2023-09-01T00:00:00.000Z",
+          "end_date": "2023-10-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC AMBULATORY CONSULTANT",
+          "description": null,
+          "location": "Jersey City, New Jersey, United States",
+          "start_date": "2023-09-01T00:00:00.000Z",
+          "end_date": "2023-10-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "e4",
+          "linkedin_id": "841841",
+          "company_linkedin_id": "841841",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/e4health",
+          "company_website_domain": "e4.health",
+          "company_website": "https://e4.health",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_cxnfdvxpbvcennui6qfu.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "CERNER POWERCHART CONSULTANT",
+          "description": null,
+          "location": "Warwick, New York, United States",
+          "start_date": "2023-06-01T00:00:00.000Z",
+          "end_date": "2023-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "EPIC REVENUE INTEGRITY LEAD",
+          "description": null,
+          "location": "Columbus, Ohio, United States",
+          "start_date": "2021-10-01T00:00:00.000Z",
+          "end_date": "2022-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Health Care Provider",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "EPIC REVENUE INTEGRITY LEAD",
+          "description": null,
+          "location": "Boise, Idaho, United States",
+          "start_date": "2022-02-01T00:00:00.000Z",
+          "end_date": "2022-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Health Care Provider",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        }
+      ],
+      "all_employers_company_id": [
+        "8936",
+        "2152",
+        "5228866",
+        "2756204",
+        "35693578",
+        "57745906",
+        "787699",
+        "35504315",
+        "82760923",
+        "4787",
+        "17069",
+        "15855",
+        "6250",
+        "954937",
+        "7932052",
+        "841841"
+      ],
+      "all_schools": [
+        "Remington College-Cleveland Campus",
+        "Hondros College of Nursing",
+        "Cuyahoga Community College"
+      ],
+      "all_titles": [
+        "Sr Epic Ambulatory Analyst",
+        "EPIC CLINDOC",
+        "EPIC ASAP SUPPORT",
+        "EHR Help desk Consultant",
+        "Epic Stork Consultant",
+        "Epic Beaker ATE",
+        "Epic ASAP Support",
+        "Epic Optime Support ",
+        "Epic Stork Support",
+        "EPIC AMBULATORY CT",
+        "Epic Clindoc Support ",
+        "Epic Help desk",
+        "EPIC CONSULTANT",
+        "EPIC PROVIDER SUPPORT",
+        "Agility Occupational Therapy ATE Support",
+        "Cerner Med Surg/ ICU/ Rehab Support",
+        "EPIC STORK IP CONSULTANT",
+        "CLINICAL DATA ABSTRACTOR",
+        "EPIC ASAP & EPIC HIM CREDENTIALED TRAINER",
+        "IT Revenue Team Lead",
+        "EPIC AMBULATORY SUPPORT",
+        "EPIC PB SUPPORT",
+        "Epic Cadence/Ambulatory CT",
+        "Epic Patient Access Lead",
+        "EPIC ROVER TRAINER",
+        "Epic Wisdom Consultant",
+        "EPIC AMBULATORY CONSULTANT",
+        "CERNER POWERCHART CONSULTANT",
+        "EPIC REVENUE INTEGRITY LEAD"
+      ],
+      "career_began_at": "2021-10-01T00:00:00.000Z",
+      "certifications": [
+        {
+          "name": "HIPPA CERTIFIED",
+          "authority": "HIPAA Exams",
+          "issued_date": "2022-11-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "EPICCARE AMBULATORY CERTIFIED",
+          "authority": "Epic",
+          "issued_date": "2026-07-01T00:00:00.000Z",
+          "credential_id": null,
+          "url": null
+        },
+        {
+          "name": "Medical Assistant",
+          "authority": "Remington College",
+          "issued_date": null,
+          "credential_id": null,
+          "url": null
+        }
+      ],
+      "createdAt": "2026-09-26T05:57:18.161Z",
+      "current_employers": [
+        {
+          "name": "Henry Ford Health",
+          "linkedin_id": "8936",
+          "company_linkedin_id": "8936",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/henry-ford-health",
+          "company_website_domain": "henryford.com",
+          "company_website": "https://henryford.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_v0pb0ictnzcw4dyw9563.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Sr Epic Ambulatory Analyst",
+          "description": null,
+          "location": "Remote",
+          "start_date": "2025-09-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Full-time",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 1.1,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "EPIC CLINDOC",
+          "description": null,
+          "location": "Waveland, Mississippi, United States",
+          "start_date": "2025-03-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 1.6,
+          "years_at_company": "2 years"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Medical Assistant",
+          "institute_name": "Remington College-Cleveland Campus",
+          "institute_linkedin_id": "15133997",
+          "institute_linkedin_url": "https://www.linkedin.com/school/15133997",
+          "field_of_study": "Medical/Clinical Assistant",
+          "start_date": "2007-04-01T00:00:00.000Z",
+          "end_date": "2009-06-30T00:00:00.000Z",
+          "activities_and_societies": null
+        },
+        {
+          "degree_name": "Licensed Practical/Vocational Nurse Training",
+          "institute_name": "Hondros College of Nursing",
+          "institute_linkedin_id": "10831935",
+          "institute_linkedin_url": "https://www.linkedin.com/school/10831935",
+          "field_of_study": null,
+          "start_date": null,
+          "end_date": "2011-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        },
+        {
+          "degree_name": "Interior Design",
+          "institute_name": "Cuyahoga Community College",
+          "institute_linkedin_id": "12272",
+          "institute_linkedin_url": "https://www.linkedin.com/school/12272",
+          "field_of_study": null,
+          "start_date": null,
+          "end_date": "2012-01-31T00:00:00.000Z",
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Victoria",
+      "flagship_profile_url": "https://www.linkedin.com/in/victoria-m-9b318089",
+      "github_profiles": [],
+      "headline": "Certified Epic Ambulatory Analyst / Credentialed Classroom Trainer/Clinical  Data Abstractor/ EHR Help desk Analyst ",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [],
+      "lastFetchedAt": "2026-09-26T05:57:18.160Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "M.",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/victoria-m-9b318089",
+      "linkedin_profile_url": "https://www.linkedin.com/in/victoria-m-9b318089",
+      "linkedin_slug": "victoria-m-9b318089",
+      "location": "Houston, Texas, United States",
+      "location_city": "Houston",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Victoria  M.",
+      "num_of_connections": 1435,
+      "num_of_followers": 1499,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "EPIC ASAP SUPPORT",
+          "description": null,
+          "location": "Tampa, FL",
+          "start_date": "2026-07-01T00:00:00.000Z",
+          "end_date": "2026-07-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Medasource",
+          "linkedin_id": "2756204",
+          "company_linkedin_id": "2756204",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medasource",
+          "company_website_domain": "medasource.com",
+          "company_website": "https://medasource.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_lh02kcergnwcc4w6vexv.jpeg",
+          "company_linkedin_industry": "Healthcare Providers & Hospitals",
+          "title": "EPIC ASAP SUPPORT",
+          "description": null,
+          "location": "Northwell Hospital Long island NY",
+          "start_date": "2026-05-01T00:00:00.000Z",
+          "end_date": "2026-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Healthcare Providers & Hospitals"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EHR Help desk Consultant",
+          "description": null,
+          "location": "Remote",
+          "start_date": "2025-11-01T00:00:00.000Z",
+          "end_date": "2025-11-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Customer Service",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Medasource",
+          "linkedin_id": "2756204",
+          "company_linkedin_id": "2756204",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medasource",
+          "company_website_domain": "medasource.com",
+          "company_website": "https://medasource.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_lh02kcergnwcc4w6vexv.jpeg",
+          "company_linkedin_industry": "Healthcare Providers & Hospitals",
+          "title": "Epic Stork Consultant",
+          "description": null,
+          "location": "Riverhead, New York, United States",
+          "start_date": "2024-10-01T00:00:00.000Z",
+          "end_date": "2025-11-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Healthcare Providers & Hospitals"
+          ],
+          "years_at_company_raw": 1.2,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Epic Beaker ATE",
+          "description": null,
+          "location": "Fort Wayne, Indiana, United States",
+          "start_date": "2025-08-01T00:00:00.000Z",
+          "end_date": "2025-08-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "ORLANDO REGIONAL MEDICAL CENTER",
+          "linkedin_id": "57745906",
+          "company_linkedin_id": "57745906",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/orlando-regional-medical-center",
+          "company_website_domain": "orhs.org",
+          "company_website": "https://orhs.org",
+          "company_profile_picture_permalink": null,
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic ASAP Support",
+          "description": null,
+          "location": "Melbourne, Florida, United States",
+          "start_date": "2025-07-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Epic Optime Support ",
+          "description": null,
+          "location": "Murphy, North Carolina, United States",
+          "start_date": "2025-06-01T00:00:00.000Z",
+          "end_date": "2025-07-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Support",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "HSI",
+          "linkedin_id": "787699",
+          "company_linkedin_id": "787699",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/hsigroup",
+          "company_website_domain": "hsi.es",
+          "company_website": "https://hsi.es",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_zygitk8otrwwir1d82b8.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Epic Stork Support",
+          "description": null,
+          "location": "Melbourne, Florida, United States",
+          "start_date": "2025-06-01T00:00:00.000Z",
+          "end_date": "2025-06-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "MercyOne",
+          "linkedin_id": "35504315",
+          "company_linkedin_id": "35504315",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/mercyone",
+          "company_website_domain": "mercyone.org",
+          "company_website": "https://mercyone.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_x6uvtzrhigtumlxp2ial.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC AMBULATORY CT",
+          "description": null,
+          "location": "West Des Moines, Iowa, United States",
+          "start_date": "2025-04-01T00:00:00.000Z",
+          "end_date": "2025-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Medasource",
+          "linkedin_id": "2756204",
+          "company_linkedin_id": "2756204",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/medasource",
+          "company_website_domain": "medasource.com",
+          "company_website": "https://medasource.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_lh02kcergnwcc4w6vexv.jpeg",
+          "company_linkedin_industry": "Healthcare Providers & Hospitals",
+          "title": "Epic Clindoc Support ",
+          "description": null,
+          "location": "Ventura, California, United States",
+          "start_date": "2025-04-01T00:00:00.000Z",
+          "end_date": "2025-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Healthcare Providers & Hospitals"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "Epic Help desk",
+          "description": null,
+          "location": "New York, United States",
+          "start_date": "2025-03-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Customer Service",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC CONSULTANT",
+          "description": null,
+          "location": "San Francisco, California, United States",
+          "start_date": "2024-11-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC PROVIDER SUPPORT",
+          "description": null,
+          "location": "New Mexico, United States",
+          "start_date": "2024-11-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Support",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "Agility Occupational Therapy ATE Support",
+          "description": null,
+          "location": "South Boston, Virginia, United States",
+          "start_date": "2024-07-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Community & Social Services",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Edera",
+          "linkedin_id": "82760923",
+          "company_linkedin_id": "82760923",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/edera-l3c",
+          "company_website_domain": "edera.com",
+          "company_website": "https://edera.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_e03de28945c3480c8432d319749d876c.jpeg",
+          "company_linkedin_industry": "Business Consulting and Services",
+          "title": "Cerner Med Surg/ ICU/ Rehab Support",
+          "description": null,
+          "location": "Marquette, Michigan, United States",
+          "start_date": "2024-06-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "Business Consulting and Services"
+          ],
+          "years_at_company_raw": 0.8,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "TEKsystems",
+          "linkedin_id": "2152",
+          "company_linkedin_id": "2152",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/teksystems",
+          "company_website_domain": "teksystems.com",
+          "company_website": "https://teksystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_yn0fchgqpwt2nnb17yhy.jpeg",
+          "company_linkedin_industry": "IT Services & Consulting",
+          "title": "EPIC STORK IP CONSULTANT",
+          "description": null,
+          "location": "New Orleans, Louisiana, United States",
+          "start_date": "2024-04-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services & Consulting"
+          ],
+          "years_at_company_raw": 1,
+          "years_at_company": "1 year"
+        },
+        {
+          "name": "Apex Systems",
+          "linkedin_id": "4787",
+          "company_linkedin_id": "4787",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/apex-systems",
+          "company_website_domain": "apexsystems.com",
+          "company_website": "https://apexsystems.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_upd2qxdpl0vby2702hxq.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "CLINICAL DATA ABSTRACTOR",
+          "description": null,
+          "location": "Colorado, United States",
+          "start_date": "2023-04-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "INTEGRIS Health",
+          "linkedin_id": "17069",
+          "company_linkedin_id": "17069",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/integris-health",
+          "company_website_domain": "integrishealth.org",
+          "company_website": "https://integrishealth.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_qypvkj08hxgzsqpambcr.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC ASAP & EPIC HIM CREDENTIALED TRAINER",
+          "description": null,
+          "location": "Oklahoma City, Oklahoma, United States",
+          "start_date": "2023-01-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 2.2,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "IT Revenue Team Lead",
+          "description": null,
+          "location": "Jacksonville, Florida, United States",
+          "start_date": "2022-07-01T00:00:00.000Z",
+          "end_date": "2025-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 2.7,
+          "years_at_company": "3 years"
+        },
+        {
+          "name": "Wellstar Health System",
+          "linkedin_id": "15855",
+          "company_linkedin_id": "15855",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/wellstar-health-system",
+          "company_website_domain": "wellstar.org",
+          "company_website": "https://wellstar.org",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_ygwqr3xebq8c6bpnwl3v.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC AMBULATORY SUPPORT",
+          "description": null,
+          "location": "Douglasville, Georgia, United States",
+          "start_date": "2024-10-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC PB SUPPORT",
+          "description": null,
+          "location": "Seattle, Washington, United States",
+          "start_date": "2024-09-01T00:00:00.000Z",
+          "end_date": "2024-10-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Healthcare Services",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Baylor Scott & White Health",
+          "linkedin_id": "6250",
+          "company_linkedin_id": "6250",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/bswhealth",
+          "company_website_domain": "bswhealth.com",
+          "company_website": "https://bswhealth.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_tnkdbtekkzt3d6jj1ixh.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic Cadence/Ambulatory CT",
+          "description": null,
+          "location": "Temple, Texas, United States",
+          "start_date": "2024-01-01T00:00:00.000Z",
+          "end_date": "2024-05-31T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Information Technology",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.4,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "Epic Patient Access Lead",
+          "description": null,
+          "location": "Philadelphia, Pennsylvania, United States",
+          "start_date": "2022-10-01T00:00:00.000Z",
+          "end_date": "2024-04-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Operations",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 1.6,
+          "years_at_company": "2 years"
+        },
+        {
+          "name": "The HCI Group",
+          "linkedin_id": "954937",
+          "company_linkedin_id": "954937",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/the-hci-group",
+          "company_website_domain": "thehcigroup.com",
+          "company_website": "https://thehcigroup.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_n100aockld9matqzh0oc.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "EPIC ROVER TRAINER",
+          "description": null,
+          "location": "Charleston, South Carolina, United States",
+          "start_date": "2023-11-01T00:00:00.000Z",
+          "end_date": "2023-11-30T00:00:00.000Z",
+          "seniority_level": "Entry level",
+          "employment_type": "Contract",
+          "function_category": "Engineering",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Health Data Movers",
+          "linkedin_id": "7932052",
+          "company_linkedin_id": "7932052",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthdatamovers",
+          "company_website_domain": "healthdatamovers.com",
+          "company_website": "https://healthdatamovers.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_abxhpxr2lk1kyw9jcqfy.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "Epic Wisdom Consultant",
+          "description": null,
+          "location": "Miami, Florida, United States",
+          "start_date": "2023-09-01T00:00:00.000Z",
+          "end_date": "2023-10-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Ellit Groups",
+          "linkedin_id": "35693578",
+          "company_linkedin_id": "35693578",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/ellit-groups",
+          "company_website_domain": "ellitgroups.com",
+          "company_website": "https://ellitgroups.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_wg07tz3uphis11dpdavr.jpeg",
+          "company_linkedin_industry": "IT Services and IT Consulting",
+          "title": "EPIC AMBULATORY CONSULTANT",
+          "description": null,
+          "location": "Jersey City, New Jersey, United States",
+          "start_date": "2023-09-01T00:00:00.000Z",
+          "end_date": "2023-10-31T00:00:00.000Z",
+          "seniority_level": "Associate",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "IT Services and IT Consulting"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "e4",
+          "linkedin_id": "841841",
+          "company_linkedin_id": "841841",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/e4health",
+          "company_website_domain": "e4.health",
+          "company_website": "https://e4.health",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_cxnfdvxpbvcennui6qfu.jpeg",
+          "company_linkedin_industry": "Hospitals and Health Care",
+          "title": "CERNER POWERCHART CONSULTANT",
+          "description": null,
+          "location": "Warwick, New York, United States",
+          "start_date": "2023-06-01T00:00:00.000Z",
+          "end_date": "2023-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Consulting",
+          "company_industries": [
+            "Hospitals and Health Care"
+          ],
+          "years_at_company_raw": 0.1,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "EPIC REVENUE INTEGRITY LEAD",
+          "description": null,
+          "location": "Columbus, Ohio, United States",
+          "start_date": "2021-10-01T00:00:00.000Z",
+          "end_date": "2022-06-30T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Health Care Provider",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.7,
+          "years_at_company": "Less than 1 year"
+        },
+        {
+          "name": "Healthrise",
+          "linkedin_id": "5228866",
+          "company_linkedin_id": "5228866",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/healthrisesolutions",
+          "company_website_domain": "healthrise.com",
+          "company_website": "https://healthrise.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_1c8c231d8aa24422bd96980bd95724fc.jpeg",
+          "company_linkedin_industry": "Financial Services",
+          "title": "EPIC REVENUE INTEGRITY LEAD",
+          "description": null,
+          "location": "Boise, Idaho, United States",
+          "start_date": "2022-02-01T00:00:00.000Z",
+          "end_date": "2022-03-31T00:00:00.000Z",
+          "seniority_level": "Mid-Senior level",
+          "employment_type": "Contract",
+          "function_category": "Health Care Provider",
+          "company_industries": [
+            "Financial Services"
+          ],
+          "years_at_company_raw": 0.2,
+          "years_at_company": "Less than 1 year"
+        }
+      ],
+      "profile_picture_permalink": null,
+      "profile_picture_url": null,
+      "region": "Houston, Texas, United States",
+      "resumeUrl": null,
+      "skills": [
+        "Customer Service",
+        "Team Leadership",
+        "Cadence",
+        "Epic Prelude",
+        "Ambulatory",
+        "Inpatient Care",
+        "Healthcare Information Technology (HIT)",
+        "Medicine",
+        "GoLive",
+        "OpTime",
+        "trainer",
+        "Epic Systems",
+        "Electronic Medical Record (EMR)",
+        "Healthcare",
+        "Software Documentation",
+        "Hospitals",
+        "Computerized Physician Order Entry (CPOE)",
+        "Consulting",
+        "Microsoft Office",
+        "Leadership"
+      ],
+      "summary": "I Absolutely love what i do! I have supported over 200 + EMR activations. I am a credentialed classroom trainer, data abstractor, team Lead, help desk support, and a certified Epic Ambulatory Analyst. Provides at the elbow support to  M.A's, Nurse's, &amp; Physicians, with 10 years experience in medical assisting. Genuine team player, proactive, professional with a high driven performance. Who is also proficient in all Cerner applications/ McKesson/ Allscripts sunrise/Meditech Expanse/ NexGen/ Athena/ Epic Cadence/ Prelude/ ADT/Clindoc/ Stork/ Grand central/ Ambulatory/ HIM/ Beacon/ Beaker AP/CP/ Asap/Help desk/ Onbase scanning/ TDR/ Optime, and willing to travel at 100%.",
+      "tags": [],
+      "title": "Sr Epic Ambulatory Analyst",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:57:18.161Z",
+      "websites": [],
+      "years_of_experience": "5 years",
+      "years_of_experience_raw": 5
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:57:18.387Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75ebee0ba78e1cf50398d","revealContactType":["email"]}'
+# 2026-09-26T05:58:19.405Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75ebee0ba78e1cf50398d","revealContactType":["email"]}'
+# 2026-09-26T05:58:24.668Z POST /wl/scout-people/reveal-contacts response HTTP 200 5263ms
+{
+  "statusCode": 200,
+  "data": {
+    "profileId": "6ab75ebee0ba78e1cf50398d",
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": "PENDING",
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    }
+  },
+  "message": "No contacts found",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:58:26.799Z POST /wl/scout-people/lookup
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/lookup' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"linkedin_url":"https://www.linkedin.com/in/seetha-ram-amujula-b2aa39132"}'
+# 2026-09-26T05:58:27.673Z POST /wl/scout-people/lookup response HTTP 200 875ms
+{
+  "statusCode": 200,
+  "data": {
+    "scoutId": "6ab75f03e0ba78e1cf503993",
+    "profile": {
+      "_id": "6ab75f03e0ba78e1cf503992",
+      "__v": 0,
+      "all_degrees": [
+        "Master of Science - MS",
+        "Master's degree"
+      ],
+      "all_employers": [
+        {
+          "name": "AssureCare LLC",
+          "linkedin_id": "10469124",
+          "company_linkedin_id": "10469124",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/assurecare-software",
+          "company_website_domain": "assurecare.com",
+          "company_website": "https://assurecare.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_4febe14e4b474416ac497bce19b85b14.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "Product Owner",
+          "description": null,
+          "location": "United States",
+          "start_date": "2024-08-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": null,
+          "employment_type": "Full-time",
+          "function_category": "Product Management",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 2.2,
+          "years_at_company": "2 years"
+        }
+      ],
+      "all_employers_company_id": [
+        "10469124"
+      ],
+      "all_schools": [
+        "University of the Cumberlands Graduate and Online",
+        "Texas A&M University"
+      ],
+      "all_titles": [
+        "Product Owner"
+      ],
+      "career_began_at": "2024-08-01T00:00:00.000Z",
+      "certifications": [],
+      "createdAt": "2026-09-26T05:58:27.631Z",
+      "current_employers": [
+        {
+          "name": "AssureCare LLC",
+          "linkedin_id": "10469124",
+          "company_linkedin_id": "10469124",
+          "company_linkedin_profile_url": "https://www.linkedin.com/company/assurecare-software",
+          "company_website_domain": "assurecare.com",
+          "company_website": "https://assurecare.com",
+          "company_profile_picture_permalink": "https://img.imagecdn.dev/company-logo/at_4febe14e4b474416ac497bce19b85b14.jpeg",
+          "company_linkedin_industry": "Software Development",
+          "title": "Product Owner",
+          "description": null,
+          "location": "United States",
+          "start_date": "2024-08-01T00:00:00.000Z",
+          "end_date": null,
+          "seniority_level": null,
+          "employment_type": "Full-time",
+          "function_category": "Product Management",
+          "company_industries": [
+            "Software Development"
+          ],
+          "years_at_company_raw": 2.2,
+          "years_at_company": "2 years"
+        }
+      ],
+      "education_background": [
+        {
+          "degree_name": "Master of Science - MS",
+          "institute_name": "University of the Cumberlands Graduate and Online",
+          "institute_linkedin_id": "-1609692",
+          "institute_linkedin_url": "https://www.linkedin.com/school/-1609692",
+          "field_of_study": null,
+          "start_date": "2025-01-01T00:00:00.000Z",
+          "end_date": "2026-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        },
+        {
+          "degree_name": "Master's degree",
+          "institute_name": "Texas A&M University",
+          "institute_linkedin_id": "-2156592",
+          "institute_linkedin_url": "https://www.linkedin.com/school/-2156592",
+          "field_of_study": null,
+          "start_date": "2008-01-01T00:00:00.000Z",
+          "end_date": "2009-12-31T00:00:00.000Z",
+          "activities_and_societies": null
+        }
+      ],
+      "email": [],
+      "first_name": "Seetha Ram",
+      "flagship_profile_url": "https://www.linkedin.com/in/seetha-ram-amujula-b2aa39132",
+      "github_profiles": [],
+      "headline": "Sr. Healthcare IT Analyst/Product Owner",
+      "honors": [],
+      "industry_name": null,
+      "is_hiring": false,
+      "languages": [],
+      "lastFetchedAt": "2026-09-26T05:58:27.631Z",
+      "lastFetchedWithScoutSocials": true,
+      "last_name": "Amujula",
+      "linkedin_flagship_url": "https://www.linkedin.com/in/seetha-ram-amujula-b2aa39132",
+      "linkedin_profile_url": "https://www.linkedin.com/in/seetha-ram-amujula-b2aa39132",
+      "linkedin_slug": "seetha-ram-amujula-b2aa39132",
+      "location": "Houston, Texas, United States",
+      "location_city": "Houston",
+      "location_country": "United States",
+      "location_state": "Texas",
+      "name": "Seetha Ram Amujula",
+      "num_of_connections": 224,
+      "num_of_followers": 235,
+      "open_to_cards": [],
+      "open_to_work": false,
+      "past_employers": [],
+      "profile_picture_permalink": null,
+      "profile_picture_url": null,
+      "region": "Houston, Texas, United States",
+      "resumeUrl": null,
+      "skills": [],
+      "summary": "Working as Healthcare IT Business Analyst with Healthcare Accountable Care Organization, passionate about data analytics and improving processes.",
+      "tags": [
+        "decision-maker",
+        "student"
+      ],
+      "title": "Product Owner",
+      "twitter_handle": null,
+      "updatedAt": "2026-09-26T05:58:27.631Z",
+      "websites": [],
+      "years_of_experience": "2 years",
+      "years_of_experience_raw": 2.2
+    },
+    "revealStatus": {
+      "email": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      },
+      "phone": {
+        "revealed": false,
+        "status": null,
+        "values": []
+      }
+    },
+    "isExisting": false
+  },
+  "message": "Profile fetched successfully",
+  "status": "SUCCESS"
+}
+# 2026-09-26T05:58:28.259Z POST /wl/scout-people/reveal-contacts
+curl -sS -X POST 'https://prod.api.futurejobs.ai/api/v1/wl/scout-people/reveal-contacts' \
+  -H 'Content-Type: application/json' \
+  -H 'x-fj-api-key: fjk_sJCP5FZwo_iR_Zd8_Kc7_VWKh6Zgy9vMxG8aS354hiQ' \
+  --data-raw '{"profileId":"6ab75f03e0ba78e1cf503992","revealContactType":["email"]}'

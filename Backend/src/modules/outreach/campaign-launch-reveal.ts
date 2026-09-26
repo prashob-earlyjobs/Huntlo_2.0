@@ -806,6 +806,25 @@ export async function processNextCampaignLaunchReveal(input: {
   const contactType: RevealedContactType =
     needed.email && !candidate.email ? 'email' : 'mobile';
   const target = await resolveRevealCandidateId(input.organizationId, candidate);
+  await BullOutreachJobModel.updateOne(
+    {
+      campaignId: campaign._id,
+      organizationId: orgOid,
+      kind: 'launch_reveal',
+      status: 'running',
+    },
+    {
+      $set: {
+        'details.currentEnrollmentId': String(next._id),
+        'details.currentContactType': contactType,
+      },
+    }
+  ).catch((err: unknown) => {
+    log().warn(
+      { err: err instanceof Error ? err.message : String(err), campaignId: input.campaignId },
+      'launch reveal progress stamp failed'
+    );
+  });
   if (!target) {
     next.status = 'skipped';
     next.stopReason = 'missing_contact';
