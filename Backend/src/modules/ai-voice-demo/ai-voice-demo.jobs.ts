@@ -1,4 +1,8 @@
-import type { HunarAgentWriteInput } from '../../providers/hunar/hunar.client.js';
+import type { createHunarVoiceAgent } from '../../providers/hunar/hunar.client.js';
+
+type HunarAgentWriteInput = Parameters<typeof createHunarVoiceAgent>[0] & {
+  questions: DemoQuestion[];
+};
 
 export const AI_VOICE_DEMO_LIMIT = 2;
 
