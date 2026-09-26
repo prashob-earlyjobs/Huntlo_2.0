@@ -85,6 +85,7 @@ import {
   webhookRouter,
 } from './modules/public/index.js';
 import { publicUtmRouter } from './modules/utm/index.js';
+import { aiVoiceDemoRouter } from './modules/ai-voice-demo/index.js';
 
 export function createApp(): Express {
   const app = express();
@@ -134,6 +135,7 @@ export function createApp(): Express {
   app.use('/api', healthRouter);
   app.use('/api/blog', publicBlogRouter);
   app.use('/api/v1/public/utm', publicUtmRouter);
+  app.use('/api/v1/public/ai-voice-demo', aiVoiceDemoRouter);
   app.use('/api/pricing-plans', publicPricingRouter);
   app.use('/api/v1', openApiRouter);
   app.use('/api/v1/auth', authRouter);
