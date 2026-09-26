@@ -37,6 +37,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { CampaignRevealStatusTab } from "@/components/outreach/campaign-reveal-status-tab";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
@@ -1891,6 +1892,7 @@ function SettingsTab({
 const CAMPAIGN_DETAIL_TABS = [
   "overview",
   "candidates",
+  "reveals",
   "qualification",
   "conversations",
   "sequence",
@@ -2096,6 +2098,10 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
       setBusy(false);
     }
   }
+
+  const showRevealTab = campaign.channels.some(
+    (channel) => channel === "Email" || channel === "WhatsApp" || channel === "AI Voice"
+  );
 
   const unlockEstimate = (() => {
     const needsEmail = campaign.channels.includes("Email");
@@ -2307,6 +2313,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
+            {showRevealTab ? <TabsTrigger value="reveals">Reveals</TabsTrigger> : null}
             <TabsTrigger value="qualification">Report</TabsTrigger>
             <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="sequence">Sequence</TabsTrigger>
@@ -2328,6 +2335,12 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             onRetry={() => setReloadKey((k) => k + 1)}
             onChanged={() => setReloadKey((k) => k + 1)}
             autoScreening={Boolean(raw?.qualificationConfig?.autoScreening)}
+          />
+        </TabsContent>
+        <TabsContent value="reveals" className="pt-3">
+          <CampaignRevealStatusTab
+            campaignId={campaign.id}
+            active={activeTab === "reveals"}
           />
         </TabsContent>
         <TabsContent value="qualification" className="pt-3">

@@ -210,6 +210,46 @@ export type CampaignValidationResult = {
   issues: Array<{ id: string; severity: string; code: string; message: string }>;
 };
 
+export type RevealContactStatus =
+  | "already_revealed"
+  | "succeeded"
+  | "in_process"
+  | "queued"
+  | "not_found"
+  | "waiting";
+
+export type CampaignRevealStatus = {
+  included: boolean;
+  channels: Array<"email" | "mobile">;
+  queue: {
+    phase: "running" | "queued" | "idle" | "failed" | "finished";
+    runAt: string | null;
+    currentEnrollmentId: string | null;
+    currentContactType: "email" | "mobile" | null;
+    currentCandidateName: string | null;
+    lastError: string | null;
+  };
+  summary: {
+    total: number;
+    alreadyRevealed: number;
+    succeeded: number;
+    inProcess: number;
+    queued: number;
+    notFound: number;
+    waiting: number;
+  };
+  items: Array<{
+    enrollmentId: string;
+    candidateId: string;
+    name: string;
+    headline: string | null;
+    status: RevealContactStatus;
+    queuePosition: number | null;
+    email: RevealContactStatus | null;
+    mobile: RevealContactStatus | null;
+  }>;
+};
+
 export type LaunchContactUnlock = {
   emailNeeded: number;
   phoneNeeded: number;
@@ -451,6 +491,7 @@ export interface OutreachApi {
   cancelCampaign(id: string): Promise<OutreachCampaign>;
   duplicateCampaign(id: string): Promise<OutreachCampaign>;
   getStats(id: string): Promise<ApiOutreachCampaign["stats"]>;
+  getRevealStatus(id: string): Promise<CampaignRevealStatus>;
   getOverview(): Promise<OutreachOverview>;
   getOutreachStats(): Promise<OutreachOverview>;
   getCampaignBuilder(id: string): Promise<CampaignBuilderState>;
@@ -894,6 +935,31 @@ const mockOutreachApi: OutreachApi = {
       completed: 0,
     };
   },
+  async getRevealStatus() {
+    await simulateMockLatency();
+    return {
+      included: false,
+      channels: [],
+      queue: {
+        phase: "idle" as const,
+        runAt: null,
+        currentEnrollmentId: null,
+        currentContactType: null,
+        currentCandidateName: null,
+        lastError: null,
+      },
+      summary: {
+        total: 0,
+        alreadyRevealed: 0,
+        succeeded: 0,
+        inProcess: 0,
+        queued: 0,
+        notFound: 0,
+        waiting: 0,
+      },
+      items: [],
+    };
+  },
   async getOverview() {
     await simulateMockLatency();
     const { OUTREACH_CAMPAIGNS } = await import("@/lib/mock-outreach");
@@ -1139,6 +1205,12 @@ const liveOutreachApi: OutreachApi = {
   async getStats(id) {
     const result = await apiClient.get<ApiOutreachCampaign["stats"]>(
       `/outreach-campaigns/${id}/stats`
+    );
+    return result.data;
+  },
+  async getRevealStatus(id) {
+    const result = await apiClient.get<CampaignRevealStatus>(
+      `/outreach-campaigns/${id}/reveal-status`
     );
     return result.data;
   },
