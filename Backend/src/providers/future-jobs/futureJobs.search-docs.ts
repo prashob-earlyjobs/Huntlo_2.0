@@ -69,49 +69,25 @@ function pickExperienceYears(record: Record<string, unknown> | null): number | n
   return null;
 }
 
-function timestampFromUnknown(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    if (value > 1e12) return value;
-    if (value > 1e9) return value * 1000;
-    return null;
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const t = Date.parse(value);
-    return Number.isFinite(t) ? t : null;
-  }
-  return null;
-}
-
-function yearsFromEmployerHistory(profile: Record<string, unknown> | null): number | null {
+/** Sum LinkedIn `years_at_company_raw` on current and past employers. */
+function sumYearsAtCompany(profile: Record<string, unknown> | null): number | null {
   if (!profile) return null;
-  const experience = asObj(profile.experience);
-  const details = asObj(experience?.employment_details);
-  const buckets = [
-    details?.current,
-    details?.past,
-    profile.current_employers_object,
-    profile.current_employers,
-    profile.past_employers,
-    profile.all_employers,
-    profile.experience,
-    profile.experiences,
-    profile.positions,
-  ];
-  let earliest: number | null = null;
+  const buckets = [profile.current_employers, profile.past_employers];
+  let total = 0;
+  let found = false;
   for (const bucket of buckets) {
     if (!Array.isArray(bucket)) continue;
     for (const item of bucket) {
       const job = asObj(item);
-      if (!job) continue;
-      const start = timestampFromUnknown(job.start_date ?? job.startDate ?? job.start);
-      if (start == null) continue;
-      if (earliest == null || start < earliest) earliest = start;
+      if (!job || !('years_at_company_raw' in job)) continue;
+      const years = parseExperienceYears(job.years_at_company_raw);
+      if (years == null) continue;
+      total += years;
+      found = true;
     }
   }
-  if (earliest == null) return null;
-  const years = (Date.now() - earliest) / (365.25 * 24 * 60 * 60 * 1000);
-  if (!Number.isFinite(years) || years < 0 || years > 60) return null;
-  return Math.round(years);
+  if (!found || total > 60) return null;
+  return total;
 }
 
 /** Numeric years of experience from a `/wl/search` item or sourcing profile doc. */
@@ -121,10 +97,10 @@ export function experienceYearsFromFjDoc(raw: unknown): number | null {
   const nested = asObj(wrapper.profile);
   const profile = nested ?? (looksLikeProfile(wrapper) ? wrapper : null);
   return (
+    sumYearsAtCompany(profile) ??
+    sumYearsAtCompany(wrapper) ??
     pickExperienceYears(wrapper) ??
-    pickExperienceYears(profile) ??
-    yearsFromEmployerHistory(profile) ??
-    yearsFromEmployerHistory(wrapper)
+    pickExperienceYears(profile)
   );
 }
 

@@ -253,13 +253,10 @@ export function toCandidateSummaryDto(
       asString(fjCandidate?.region) ||
       '',
     experienceYears:
-      (typeof candidate.experienceYears === 'number' &&
-      Number.isFinite(candidate.experienceYears) &&
-      candidate.experienceYears > 0
+      experienceYearsFromFjDoc(candidate.rawDoc) ??
+      (typeof candidate.experienceYears === 'number' && Number.isFinite(candidate.experienceYears)
         ? candidate.experienceYears
-        : experienceYearsFromFjDoc(candidate.rawDoc)) ??
-      candidate.experienceYears ??
-      null,
+        : null),
     skills,
     educationPreview: candidate.educationPreview ?? [],
     experience: history.experience,
