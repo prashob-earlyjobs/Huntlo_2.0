@@ -42,8 +42,8 @@ export {
   extractSearchPromptFromGeminiText,
   extractYearsExperienceRangeFromPrompt,
   extractYearsRangeFromGeminiText,
-  extractCountriesFromPrompt,
-  extractCountriesFromGeminiText,
+  extractLocationFromPrompt,
+  extractLocationFromGeminiText,
 } from './gemini.search-prompt.js';
 export {
   evaluateVideoInterviewResponses,

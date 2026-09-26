@@ -1,6 +1,5 @@
 import { getEnv } from '../../config/env.js';
 import {
-  parseCountriesFromText,
   parseYearsExperienceRangeFromText,
   type WlSearchRangeFilter,
 } from '../future-jobs/futureJobs.filterMapping.js';
@@ -173,66 +172,89 @@ export async function extractYearsExperienceRangeFromPrompt(
   return { range: null, source: 'none' };
 }
 
-export function extractCountriesFromGeminiText(text: string): string[] | null {
+export type PromptLocationExtract = {
+  country: string | null;
+  cities: string[];
+};
+
+function uniquePlaceLabels(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    const label = String(item ?? '').trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
+}
+
+export function extractLocationFromGeminiText(text: string): PromptLocationExtract | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
   const unfenced = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  if (unfenced !== trimmed) return extractCountriesFromGeminiText(unfenced);
+  if (unfenced !== trimmed) return extractLocationFromGeminiText(unfenced);
 
   try {
     const parsed = JSON.parse(trimmed) as {
-      countries?: unknown;
       country?: unknown;
-      country_region?: unknown;
+      countries?: unknown;
+      city?: unknown;
+      cities?: unknown;
     };
-    const raw = parsed.countries ?? parsed.country_region ?? parsed.country;
-    const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
-    const countries = list
-      .map((c) => String(c ?? '').trim())
-      .filter(Boolean)
-      .filter((c, i, arr) => arr.findIndex((x) => x.toLowerCase() === c.toLowerCase()) === i);
-    return countries.length > 0 ? countries : null;
+    const countryRaw = parsed.country ?? parsed.countries;
+    const countryList = uniquePlaceLabels(countryRaw);
+    const country =
+      typeof countryRaw === 'string' && countryRaw.trim()
+        ? countryRaw.trim()
+        : (countryList[0] ?? null);
+    const cities = uniquePlaceLabels(parsed.cities ?? parsed.city);
+    if (!country && cities.length === 0) return null;
+    return { country, cities };
   } catch {
     return null;
   }
 }
 
 /**
- * Extract the most specific location (city > state > country) from a recruiter NL
- * prompt for `/wl/search` `country_region`. Uses Gemini when configured; falls
- * back to a local heuristic.
+ * Split a recruiter prompt into a country and any named cities for `/wl/search`.
+ * Gemini only — there is no local gazetteer fallback.
  */
-export async function extractCountriesFromPrompt(
+export async function extractLocationFromPrompt(
   prompt: string
-): Promise<{ countries: string[] | null; source: 'gemini' | 'heuristic' | 'none' }> {
+): Promise<{
+  country: string | null;
+  cities: string[] | null;
+  source: 'gemini' | 'none';
+}> {
   const text = String(prompt || '').trim();
-  if (!text) return { countries: null, source: 'none' };
+  if (!text) return { country: null, cities: null, source: 'none' };
 
   const result = await callGeminiJson(
     [
-      'Extract location filters for a people-search `country_region` field from this recruiter prompt.',
-      'Return ONLY JSON: {"countries":string[]}.',
+      'Extract location filters from this recruiter people-search prompt.',
+      'Return ONLY JSON: {"country":string|null,"cities":string[]}.',
       'Rules:',
-      '- Put the most specific candidate location named in the prompt into the array.',
-      '- Prefer city / metro over state / province over country. Never widen a named city to its country.',
-      '- If a city is named (even together with a country), return only that city.',
-      '  Examples: "from raipur" → ["Raipur"]; "bangalore, india" or typo "banaglre, india" → ["Bangalore"].',
-      '- If only a state/province is named (no city), return that state (e.g. "in California" → ["California"]).',
-      '- If only a country is named (no city/state), return the country (e.g. "based in India" → ["India"]).',
-      '- Use a common English place name. Fix obvious typos. Expand country abbreviations (UAE, UK, USA, US) only when no more specific place is named.',
-      '- Include only places clearly implied as where candidates live or work.',
-      '- If no location is mentioned → {"countries":[]}.',
-      'Do not invent locations that are not implied by the prompt.',
+      '- country is the country where candidates live or work. Use a common English country name.',
+      '- If a city is named, set country to that city\'s country even when the prompt does not name the country.',
+      '  Example: "node js developer from raipur" → {"country":"India","cities":["Raipur"]}.',
+      '- cities holds only city or metro names mentioned in the prompt.',
+      '  Example: "bangalore, india" or typo "banaglre, india" → {"country":"India","cities":["Bangalore"]}.',
+      '- Do not put a country, state, or province in cities.',
+      '- If only a country is named, cities is []. Example: "based in India" → {"country":"India","cities":[]}.',
+      '- If only a state or province is named, set country and leave cities empty. Example: "in California" → {"country":"United States","cities":[]}.',
+      '- Fix obvious place-name typos. Expand country abbreviations (UAE, UK, USA, US) in country.',
+      '- If no location is mentioned → {"country":null,"cities":[]}.',
+      'Do not invent a city that is not named in the prompt.',
       `Prompt:\n${text.slice(0, MAX_COUNTRY_PROMPT_CHARS)}`,
     ].join('\n')
   );
 
-  if (result.ok) {
-    const countries = extractCountriesFromGeminiText(result.text);
-    if (countries?.length) return { countries, source: 'gemini' };
-  }
-
-  const heuristic = parseCountriesFromText(text);
-  if (heuristic.length > 0) return { countries: heuristic, source: 'heuristic' };
-  return { countries: null, source: 'none' };
+  if (!result.ok) return { country: null, cities: null, source: 'none' };
+  const location = extractLocationFromGeminiText(result.text);
+  if (!location) return { country: null, cities: null, source: 'none' };
+  return { country: location.country, cities: location.cities, source: 'gemini' };
 }

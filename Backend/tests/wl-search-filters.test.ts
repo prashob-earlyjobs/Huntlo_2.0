@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildWlSearchFilters,
-  parseCountriesFromText,
   parseYearsExperienceRangeFromText,
   yearsRangeFromFilterForm,
 } from '../src/providers/future-jobs/futureJobs.filterMapping.js';
 import {
-  extractCountriesFromGeminiText,
+  extractLocationFromGeminiText,
   extractYearsRangeFromGeminiText,
 } from '../src/providers/gemini/gemini.search-prompt.js';
 
@@ -66,6 +65,7 @@ describe('wl/search years_of_experience_raw filters', () => {
       })
     ).toEqual({
       country_region: { type: '=', value: ['United Arab Emirates'] },
+      region: { type: '(.)', value: ['Dubai'] },
     });
   });
 
@@ -79,26 +79,43 @@ describe('wl/search years_of_experience_raw filters', () => {
     });
   });
 
-  it('uses countriesFromPrompt when drawer country is empty', () => {
+  it('uses prompt country and city when the drawer location is empty', () => {
     expect(
       buildWlSearchFilters({
         form: { yearsExpMin: '4', yearsExpMax: '5' },
-        countriesFromPrompt: ['Luxembourg'],
+        countryFromPrompt: 'India',
+        citiesFromPrompt: ['Raipur'],
       })
     ).toEqual({
       years_of_experience_raw: { type: 'RANGE', value: [4, 5] },
-      country_region: { type: '=', value: ['Luxembourg'] },
+      country_region: { type: '=', value: ['India'] },
+      region: { type: '(.)', value: ['Raipur'] },
     });
   });
 
-  it('prefers drawer country over countriesFromPrompt', () => {
+  it('prefers drawer country and city over the prompt', () => {
     expect(
       buildWlSearchFilters({
-        form: { selectRegion: ['Germany'] },
-        countriesFromPrompt: ['Luxembourg'],
+        form: { selectRegion: ['Germany'], location: ['Berlin'] },
+        countryFromPrompt: 'India',
+        citiesFromPrompt: ['Raipur'],
       })
     ).toEqual({
       country_region: { type: '=', value: ['Germany'] },
+      region: { type: '(.)', value: ['Berlin'] },
+    });
+  });
+
+  it('fills only the missing location side from the prompt', () => {
+    expect(
+      buildWlSearchFilters({
+        form: { selectRegion: ['India'] },
+        countryFromPrompt: 'Germany',
+        citiesFromPrompt: ['Raipur'],
+      })
+    ).toEqual({
+      country_region: { type: '=', value: ['India'] },
+      region: { type: '(.)', value: ['Raipur'] },
     });
   });
 
@@ -118,30 +135,6 @@ describe('wl/search years_of_experience_raw filters', () => {
     ).toEqual({ type: 'RANGE', value: [5, 5] });
   });
 
-  it('parses country names from NL heuristically', () => {
-    expect(
-      parseCountriesFromText(
-        'Senior Operations Manager in Luxembourg with 4-5 years of experience'
-      )
-    ).toEqual(['Luxembourg']);
-    expect(parseCountriesFromText('Engineers based in UAE or UK')).toEqual([
-      'United Kingdom',
-      'United Arab Emirates',
-    ]);
-    expect(parseCountriesFromText('Ops manager in Luxemberg')).toEqual(['Luxembourg']);
-  });
-
-  it('infers country from state / province mentions in NL', () => {
-    expect(parseCountriesFromText('Product manager in California')).toEqual([
-      'United States',
-    ]);
-    expect(parseCountriesFromText('Backend engineers in Maharashtra')).toEqual(['India']);
-    expect(parseCountriesFromText('Sales lead based in Dubai')).toEqual([
-      'United Arab Emirates',
-    ]);
-    expect(parseCountriesFromText('Recruiter in Ontario')).toEqual(['Canada']);
-  });
-
   it('parses Gemini JSON year ranges', () => {
     expect(extractYearsRangeFromGeminiText('{"min":1,"max":3}')).toEqual({
       type: 'RANGE',
@@ -154,16 +147,17 @@ describe('wl/search years_of_experience_raw filters', () => {
     expect(extractYearsRangeFromGeminiText('{"min":null,"max":null}')).toBeNull();
   });
 
-  it('parses Gemini JSON countries', () => {
-    expect(extractCountriesFromGeminiText('{"countries":["Luxembourg"]}')).toEqual([
-      'Luxembourg',
-    ]);
-    expect(extractCountriesFromGeminiText('{"countries":["Raipur"]}')).toEqual([
-      'Raipur',
-    ]);
-    expect(extractCountriesFromGeminiText('{"countries":["Bangalore"]}')).toEqual([
-      'Bangalore',
-    ]);
-    expect(extractCountriesFromGeminiText('{"countries":[]}')).toBeNull();
+  it('parses Gemini JSON into country and cities', () => {
+    expect(
+      extractLocationFromGeminiText('{"country":"India","cities":["Raipur"]}')
+    ).toEqual({ country: 'India', cities: ['Raipur'] });
+    expect(
+      extractLocationFromGeminiText('{"country":"India","cities":["Bangalore"]}')
+    ).toEqual({ country: 'India', cities: ['Bangalore'] });
+    expect(extractLocationFromGeminiText('{"country":"Luxembourg","cities":[]}')).toEqual({
+      country: 'Luxembourg',
+      cities: [],
+    });
+    expect(extractLocationFromGeminiText('{"country":null,"cities":[]}')).toBeNull();
   });
 });

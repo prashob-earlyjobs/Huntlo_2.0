@@ -301,7 +301,7 @@ export interface FutureJobsProvider {
 
   /**
    * POST /wl/search
-   * Body: { jdText, filters?: { years_of_experience_raw?: RANGE, country_region?: '=' } }
+   * Body: { jdText, filters?: { years_of_experience_raw?: RANGE, country_region?: '=', region?: '(.)' } }
    * Synchronous natural-language search — wait for profiles, do not poll.
    */
   searchByJdText(
@@ -310,6 +310,7 @@ export interface FutureJobsProvider {
       filters?: {
         years_of_experience_raw?: { type: 'RANGE'; value: [number, number] };
         country_region?: { type: '='; value: string[] };
+        region?: { type: '(.)'; value: string[] };
       };
     },
     opts?: FutureJobsRequestOpts

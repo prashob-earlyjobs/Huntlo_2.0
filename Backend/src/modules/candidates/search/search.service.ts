@@ -10,6 +10,7 @@ import {
   buildWlSearchFilters,
   yearsRangeFromFilterForm,
   countryRegionsFromFilterForm,
+  citiesFromFilterForm,
   DEFAULT_FILTER_FORM,
   extractSearchProfileDocs,
   extractSearchTotalDocs,
@@ -29,7 +30,7 @@ import {
 } from '../../../providers/future-jobs/index.js';
 import {
   extractYearsExperienceRangeFromPrompt,
-  extractCountriesFromPrompt,
+  extractLocationFromPrompt,
   rewriteJobAsSearchPrompt,
 } from '../../../providers/gemini/gemini.search-prompt.js';
 import { emitCandidateSearchPoll } from '../../../realtime/events.js';
@@ -601,7 +602,7 @@ export class CandidateSearchService {
 
   /**
    * Main candidate-search endpoint — POST /wl/search with natural-language jdText
-   * plus structured filters (YoE RANGE + country_region from drawer / prompt YoE).
+   * plus structured filters (YoE RANGE, country_region, and city region).
    * Waits for Future Jobs to return profiles in the same response (no poll).
    */
   async apply(actor: SearchActor, input: ApplySearchInput) {
@@ -619,18 +620,24 @@ export class CandidateSearchService {
 
     const fromFormYears = yearsRangeFromFilterForm(originalFilterForm);
     const fromFormCountries = countryRegionsFromFilterForm(originalFilterForm);
-    const [yearsExtract, countriesExtract] = await Promise.all([
+    const fromFormCities = citiesFromFilterForm(originalFilterForm);
+    const [yearsExtract, locationExtract] = await Promise.all([
       fromFormYears
         ? Promise.resolve({ range: null as null, source: 'none' as const })
         : extractYearsExperienceRangeFromPrompt(prompt),
-      fromFormCountries.length > 0
-        ? Promise.resolve({ countries: null as string[] | null, source: 'none' as const })
-        : extractCountriesFromPrompt(prompt),
+      fromFormCountries.length > 0 && fromFormCities.length > 0
+        ? Promise.resolve({
+            country: null as string | null,
+            cities: null as string[] | null,
+            source: 'none' as const,
+          })
+        : extractLocationFromPrompt(prompt),
     ]);
     const filters = buildWlSearchFilters({
       form: originalFilterForm,
       yearsFromPrompt: yearsExtract.range,
-      countriesFromPrompt: countriesExtract.countries,
+      countryFromPrompt: locationExtract.country,
+      citiesFromPrompt: locationExtract.cities,
     });
 
     const quotaKey = idempotencyKeyForApply(actor, input);
@@ -751,6 +758,8 @@ export class CandidateSearchService {
           yearsFilter: filters?.years_of_experience_raw ?? null,
           hasCountryFilter: Boolean(filters?.country_region),
           countryFilter: filters?.country_region ?? null,
+          hasRegionFilter: Boolean(filters?.region),
+          regionFilter: filters?.region ?? null,
           docCount: docs.length,
           polling: false,
         },
