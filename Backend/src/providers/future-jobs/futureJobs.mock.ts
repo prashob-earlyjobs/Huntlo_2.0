@@ -1005,6 +1005,7 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
       filters?: {
         years_of_experience_raw?: { type: 'RANGE'; value: [number, number] };
         country_region?: { type: '='; value: string[] };
+        region?: { type: '(.)'; value: string[] };
       };
     },
     _opts?: FutureJobsRequestOpts

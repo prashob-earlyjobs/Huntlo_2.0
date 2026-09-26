@@ -59,7 +59,7 @@ import {
   yearsRangeFromFilterForm,
   countryRegionsFromFilterForm,
   parseYearsExperienceRangeFromText,
-  parseCountriesFromText,
+  citiesFromFilterForm,
 } from './futureJobs.filterMapping.js';
 import {
   extractSearchProfileDocs,
@@ -178,7 +178,7 @@ export {
   normalizeRegionForFutureJobs,
   parseGeoDistanceKm,
   parseYearsExperienceRangeFromText,
-  parseCountriesFromText,
+  citiesFromFilterForm,
   promptForSourcingApi,
   resolveFjRevealProfileId,
   yearsRangeFromFilterForm,
@@ -217,6 +217,7 @@ export type {
   WlSearchFilters,
   WlSearchRangeFilter,
   WlSearchEqualsFilter,
+  WlSearchContainsFilter,
 } from './futureJobs.filterMapping.js';
 
 export type {

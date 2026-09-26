@@ -1203,6 +1203,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       filters?: {
         years_of_experience_raw?: { type: 'RANGE'; value: [number, number] };
         country_region?: { type: '='; value: string[] };
+        region?: { type: '(.)'; value: string[] };
       };
     },
     opts: FutureJobsRequestOpts = {}
@@ -1233,6 +1234,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
         jdTextChars: jdText.length,
         hasYearsFilter: Boolean(filters?.years_of_experience_raw),
         hasCountryFilter: Boolean(filters?.country_region),
+        hasRegionFilter: Boolean(filters?.region),
       },
     })) as FutureJobsApiResponse<import('./futureJobs.types.js').FutureJobsSearchData>;
   }
