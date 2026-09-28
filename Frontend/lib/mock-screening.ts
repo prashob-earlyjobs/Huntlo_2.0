@@ -530,6 +530,8 @@ export interface ScreeningResult {
   decision: RecruiterDecision;
   /** Per-candidate invite/call failure reason when present. */
   error?: string | null;
+  /** True when a Hyrefast application (or cached link) exists for video copy. */
+  canCopyInterviewLink?: boolean;
 }
 
 export const SCREENING_RESULTS: ScreeningResult[] = [
@@ -726,11 +728,27 @@ export interface ScreeningResultDetail {
     questionText: string;
     responseText: string;
     transcriptionStatus: string;
+    transcriptionMethod?: string | null;
     transcriptionText: string;
+    responseAnalysis?: {
+      overallAssessment: string | null;
+      strengths: string[];
+      gaps: string[];
+      score: number | null;
+      reasonForScoring: string | null;
+    } | null;
     responseDuration: number | null;
+    durations?: {
+      videoDuration: number | null;
+      audioDuration: number | null;
+      responseLatency: number | null;
+      responseOnsetLatency: number | null;
+    } | null;
     audioUrl: string | null;
     videoUrl: string | null;
     isSkipped: boolean;
+    createdAt?: string | null;
+    updatedAt?: string | null;
   }>;
   recording: {
     durationSeconds: number;

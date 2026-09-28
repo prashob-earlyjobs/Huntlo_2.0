@@ -177,6 +177,187 @@ export async function setHyrefastJobTopics(
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function clipTopicName(value: string): string {
+  return value.trim().slice(0, 120);
+}
+
+function asTopicItem(value: unknown): HyrefastTopicItem | null {
+  if (typeof value === 'string') {
+    const name = clipTopicName(value);
+    return name ? { name } : null;
+  }
+  const row = asRecord(value);
+  if (!row) return null;
+  const name = clipTopicName(String(row.name || row.title || row.topic || ''));
+  if (!name) return null;
+  const minutes = Number(row.discussionMinutes ?? row.discussion_minutes);
+  const sampleQuestions = Array.isArray(row.sampleQuestions)
+    ? row.sampleQuestions.map((item) => String(item).trim()).filter(Boolean)
+    : Array.isArray(row.sample_questions)
+      ? row.sample_questions.map((item) => String(item).trim()).filter(Boolean)
+      : undefined;
+  const reason = String(row.reason || '').trim();
+  return {
+    name,
+    ...(Number.isFinite(minutes) && minutes > 0
+      ? { discussionMinutes: Math.min(60, Math.max(1, Math.round(minutes))) }
+      : {}),
+    ...(reason ? { reason } : {}),
+    ...(sampleQuestions?.length ? { sampleQuestions } : {}),
+  };
+}
+
+/** Pull topicsToFocus / topicsToAvoid from generate-status payloads. */
+export function extractGeneratedTopics(data: unknown): {
+  topicsToFocus: HyrefastTopicItem[];
+  topicsToAvoid: string[];
+} {
+  const root = asRecord(data);
+  const nested = asRecord(root?.topics);
+  // Hyrefast succeeded payload nests topics under `result`.
+  const result = asRecord(root?.result);
+  const resultTopics = asRecord(result?.topics);
+
+  const focusRaw =
+    (Array.isArray(result?.topicsToFocus) && result.topicsToFocus) ||
+    (Array.isArray(result?.topics_to_focus) && result.topics_to_focus) ||
+    (Array.isArray(resultTopics?.topicsToFocus) && resultTopics.topicsToFocus) ||
+    (Array.isArray(root?.topicsToFocus) && root.topicsToFocus) ||
+    (Array.isArray(root?.topics_to_focus) && root.topics_to_focus) ||
+    (Array.isArray(nested?.topicsToFocus) && nested.topicsToFocus) ||
+    (Array.isArray(nested?.topics_to_focus) && nested.topics_to_focus) ||
+    (Array.isArray(root?.topics) && root.topics) ||
+    [];
+  const avoidRaw =
+    (Array.isArray(result?.topicsToAvoid) && result.topicsToAvoid) ||
+    (Array.isArray(result?.topics_to_avoid) && result.topics_to_avoid) ||
+    (Array.isArray(resultTopics?.topicsToAvoid) && resultTopics.topicsToAvoid) ||
+    (Array.isArray(root?.topicsToAvoid) && root.topicsToAvoid) ||
+    (Array.isArray(root?.topics_to_avoid) && root.topics_to_avoid) ||
+    (Array.isArray(nested?.topicsToAvoid) && nested.topicsToAvoid) ||
+    (Array.isArray(nested?.topics_to_avoid) && nested.topics_to_avoid) ||
+    [];
+
+  return {
+    topicsToFocus: focusRaw
+      .map(asTopicItem)
+      .filter((topic): topic is HyrefastTopicItem => Boolean(topic)),
+    topicsToAvoid: avoidRaw
+      .map((item) => String(item || '').trim())
+      .filter(Boolean),
+  };
+}
+
+/**
+ * POST /jobs/{jobId}/topics/generate then poll status until topics are ready.
+ * Does not persist — caller should PUT /jobs/{jobId}/topics to keep them.
+ */
+export async function generateHyrefastJobTopics(
+  jobId: string,
+  options?: { maxWaitMs?: number }
+): Promise<{
+  topicsToFocus: HyrefastTopicItem[];
+  topicsToAvoid: string[];
+  raw: unknown;
+}> {
+  const started = await hyrefastRequest<Record<string, unknown>>(
+    'POST',
+    `/external/api/v1/jobs/${encodeURIComponent(jobId)}/topics/generate`
+  );
+  const startedRow = asRecord(started) || {};
+  // Generate response `jobId` is often the async run id used for status polling.
+  const statusId =
+    String(startedRow.jobId || startedRow.id || jobId).trim() || jobId;
+
+  let waitMs = Number(startedRow.pollAfterMs ?? startedRow.poll_after_ms);
+  if (!Number.isFinite(waitMs) || waitMs <= 0) waitMs = 2000;
+  waitMs = Math.min(waitMs, 5000);
+
+  const maxWaitMs = options?.maxWaitMs ?? 90_000;
+  const deadline = Date.now() + maxWaitMs;
+  let lastRaw: unknown = started;
+  let lastExtracted = extractGeneratedTopics(started);
+
+  while (Date.now() < deadline) {
+    await sleep(waitMs);
+    const statusData = await hyrefastRequest<Record<string, unknown>>(
+      'GET',
+      `/external/api/v1/jobs/topics/generate/status/${encodeURIComponent(statusId)}`
+    );
+    lastRaw = statusData;
+    const row = asRecord(statusData) || {};
+    const status = String(row.status || '').toLowerCase();
+    lastExtracted = extractGeneratedTopics(statusData);
+
+    if (
+      status === 'failed' ||
+      status === 'error' ||
+      status === 'cancelled' ||
+      status === 'canceled'
+    ) {
+      throw new Error(
+        String(row.message || row.error || 'Hyrefast topic generation failed.')
+      );
+    }
+
+    // Only settle on a terminal success status. Returning as soon as the first
+    // topic appears (while still queued/processing) truncates the full set.
+    const inProgress =
+      !status ||
+      status === 'queued' ||
+      status === 'pending' ||
+      status === 'processing' ||
+      status === 'running' ||
+      status === 'in_progress' ||
+      status === 'started';
+    const terminalSuccess =
+      status === 'succeeded' ||
+      status === 'success' ||
+      status === 'completed' ||
+      status === 'done' ||
+      status === 'ready';
+
+    if (
+      terminalSuccess ||
+      (!inProgress && lastExtracted.topicsToFocus.length > 0)
+    ) {
+      if (lastExtracted.topicsToFocus.length === 0) {
+        throw new Error('Hyrefast topic generation finished with no topics.');
+      }
+      return {
+        topicsToFocus: lastExtracted.topicsToFocus,
+        topicsToAvoid: lastExtracted.topicsToAvoid,
+        raw: lastRaw,
+      };
+    }
+
+    const nextWait = Number(row.pollAfterMs ?? row.poll_after_ms);
+    if (Number.isFinite(nextWait) && nextWait > 0) {
+      waitMs = Math.min(nextWait, 5000);
+    }
+  }
+
+  if (lastExtracted.topicsToFocus.length > 0) {
+    // Timed out but we already have some topics — return what we have.
+    return {
+      topicsToFocus: lastExtracted.topicsToFocus,
+      topicsToAvoid: lastExtracted.topicsToAvoid,
+      raw: lastRaw,
+    };
+  }
+
+  throw new Error('Hyrefast topic generation timed out.');
+}
+
 export async function publishHyrefastJob(jobId: string): Promise<void> {
   await hyrefastRequest('POST', `/external/api/v1/jobs/${jobId}/publish`);
 }
@@ -278,18 +459,161 @@ export async function sendHyrefastInterview(
   };
 }
 
+export type HyrefastResponseAnalysisSummary = {
+  overallAssessment: string | null;
+  strengths: string[];
+  gaps: string[];
+  score: number | null;
+  reasonForScoring: string | null;
+  raw: Record<string, unknown>;
+};
+
+export type HyrefastResponseDurations = {
+  videoDuration: number | null;
+  audioDuration: number | null;
+  responseLatency: number | null;
+  responseOnsetLatency: number | null;
+};
+
 export type HyrefastResponseItem = {
   id: string;
   questionNumber: number;
   questionText: string;
   responseText: string;
   transcriptionStatus: string;
+  transcriptionMethod: string | null;
   transcriptionText: string;
+  responseAnalysis: HyrefastResponseAnalysisSummary | null;
   responseDuration: number | null;
+  durations: HyrefastResponseDurations | null;
   audioUrl: string | null;
   videoUrl: string | null;
   isSkipped: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
 };
+
+function asStringList(value: unknown, max = 12): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+function asOptionalNumber(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseResponseAnalysis(
+  value: unknown
+): HyrefastResponseAnalysisSummary | null {
+  const root = asRecord(value);
+  if (!root) return null;
+  const summary =
+    asRecord(root.response_summary) ||
+    asRecord(root.responseSummary) ||
+    root;
+  const scoreRaw = summary.score ?? root.score;
+  const scoreNum = asOptionalNumber(scoreRaw);
+  return {
+    overallAssessment:
+      String(
+        summary.overall_assessment ||
+          summary.overallAssessment ||
+          summary.assessment ||
+          ''
+      ).trim() || null,
+    strengths: asStringList(summary.strengths ?? root.strengths),
+    gaps: asStringList(summary.gaps ?? summary.concerns ?? root.gaps),
+    score:
+      scoreNum == null ? null : Math.max(0, Math.min(100, Math.round(scoreNum))),
+    reasonForScoring:
+      String(
+        summary.reason_for_scoring ||
+          summary.reasonForScoring ||
+          summary.reason ||
+          ''
+      ).trim() || null,
+    raw: root,
+  };
+}
+
+function parseResponseDurations(
+  value: unknown
+): HyrefastResponseDurations | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const parsed: HyrefastResponseDurations = {
+    videoDuration: asOptionalNumber(row.video_duration ?? row.videoDuration),
+    audioDuration: asOptionalNumber(row.audio_duration ?? row.audioDuration),
+    responseLatency: asOptionalNumber(
+      row.response_latency ?? row.responseLatency
+    ),
+    responseOnsetLatency: asOptionalNumber(
+      row.response_onset_latency ?? row.responseOnsetLatency
+    ),
+  };
+  if (
+    parsed.videoDuration == null &&
+    parsed.audioDuration == null &&
+    parsed.responseLatency == null &&
+    parsed.responseOnsetLatency == null
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
+/**
+ * Prefer provider analysis when present (Conversation mode scores live here).
+ */
+export function evaluationFromHyrefastResponseAnalysis(
+  responses: HyrefastResponseItem[]
+): {
+  overallScore: number;
+  summary: string;
+  strengths: string[];
+  concerns: string[];
+  model: string;
+} | null {
+  const analyzed = responses
+    .map((item) => item.responseAnalysis)
+    .filter((item): item is HyrefastResponseAnalysisSummary => Boolean(item));
+  if (analyzed.length === 0) return null;
+
+  const withScore = analyzed.filter((item) => item.score != null);
+  const overallScore =
+    withScore.length > 0
+      ? Math.round(
+          withScore.reduce((sum, item) => sum + (item.score || 0), 0) /
+            withScore.length
+        )
+      : null;
+  if (overallScore == null) return null;
+
+  const strengths = [
+    ...new Set(analyzed.flatMap((item) => item.strengths)),
+  ].slice(0, 8);
+  const concerns = [...new Set(analyzed.flatMap((item) => item.gaps))].slice(
+    0,
+    8
+  );
+  const summary =
+    analyzed
+      .map((item) => item.overallAssessment || item.reasonForScoring || '')
+      .map((text) => text.trim())
+      .find(Boolean) || `Hyrefast scored this interview ${overallScore}/100.`;
+
+  return {
+    overallScore,
+    summary,
+    strengths,
+    concerns,
+    model: 'hyrefast-response-analysis',
+  };
+}
 
 /**
  * List interview responses for an application.
@@ -344,6 +668,9 @@ export async function listHyrefastResponses(
       const item = row as Record<string, unknown>;
       const id = String(item.id || item._id || '').trim();
       if (!id) return null;
+      const transcriptionMethod = String(
+        item.transcriptionMethod || item.transcription_method || ''
+      ).trim();
       return {
         id,
         questionNumber: Number(item.questionNumber ?? item.question_number ?? 0) || 0,
@@ -352,18 +679,23 @@ export async function listHyrefastResponses(
         transcriptionStatus: String(
           item.transcriptionStatus || item.transcription_status || ''
         ).trim(),
+        transcriptionMethod: transcriptionMethod || null,
         transcriptionText: String(
           item.transcriptionText || item.transcription_text || ''
         ).trim(),
+        responseAnalysis: parseResponseAnalysis(item.responseAnalysis ?? item.response_analysis),
         responseDuration:
           typeof item.responseDuration === 'number'
             ? item.responseDuration
             : typeof item.response_duration === 'number'
               ? item.response_duration
               : null,
+        durations: parseResponseDurations(item.durations),
         audioUrl: String(item.audioUrl || item.audio_url || '').trim() || null,
         videoUrl: String(item.videoUrl || item.video_url || '').trim() || null,
         isSkipped: Boolean(item.isSkipped ?? item.is_skipped),
+        createdAt: String(item.createdAt || item.created_at || '').trim() || null,
+        updatedAt: String(item.updatedAt || item.updated_at || '').trim() || null,
       };
     })
     .filter((item): item is HyrefastResponseItem => Boolean(item))

@@ -335,6 +335,9 @@ export function stepErrors(step: number, state: BuilderState): string[] {
   switch (step) {
     case 0: {
       if (!state.name.trim()) errors.push("Campaign name is required.");
+      else if (state.name.trim().length > 500) {
+        errors.push("Campaign name must be at most 500 characters.");
+      }
       if (!state.jobId) errors.push("Select a related job.");
       if (!state.ownerUserId) errors.push("Assign a campaign owner.");
       break;

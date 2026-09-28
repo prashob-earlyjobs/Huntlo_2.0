@@ -61,7 +61,7 @@ export const createPoolCandidateSchema = z.object({
     .union([z.string().trim().max(2000), z.literal(''), z.null()])
     .optional(),
   headline: z.string().trim().max(500).nullable().optional(),
-  currentTitle: z.string().trim().max(200).nullable().optional(),
+  currentTitle: z.string().trim().max(500).nullable().optional(),
   currentCompany: z.string().trim().max(200).nullable().optional(),
   location: z.string().trim().max(200).nullable().optional(),
   experienceYears: z.number().min(0).max(60).nullable().optional(),

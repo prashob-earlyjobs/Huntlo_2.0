@@ -294,7 +294,7 @@ const outreachCampaignSchema = new Schema<OutreachCampaignDocument>(
       index: true,
     },
     jobId: { type: Schema.Types.ObjectId, ref: 'Job', default: null, index: true },
-    name: { type: String, required: true, trim: true, maxlength: 200 },
+    name: { type: String, required: true, trim: true, maxlength: 500 },
     description: { type: String, default: null, maxlength: 4000 },
     objective: { type: String, default: null, maxlength: 500 },
     sourceModule: {

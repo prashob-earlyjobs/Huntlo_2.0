@@ -252,6 +252,38 @@ function scoutLookupProfile(fj: unknown): Record<string, unknown> | null {
 }
 
 /**
+ * Future Jobs `POST /wl/scout-people/reveal-contacts` body uses `profileId`
+ * from scout-people/lookup (`profile._id`), not LinkedIn URL.
+ */
+export function resolveFjRevealProfileId(input: {
+  fjProfileId?: string | null;
+  externalCandidateId?: string | null;
+  rawDoc?: unknown;
+}): string {
+  const raw = asRecord(input.rawDoc);
+  const nested = asRecord(raw?.data);
+  const profile = asRecord(raw?.profile) || asRecord(nested?.profile) || raw;
+  const candidates = [
+    input.fjProfileId,
+    profile?._id,
+    profile?.id,
+    raw?._id,
+    raw?.id,
+    input.externalCandidateId,
+  ];
+
+  for (const value of candidates) {
+    const id = String(value || '').trim();
+    if (!id) continue;
+    if (id.startsWith('linkedin:')) continue;
+    if (/^https?:\/\//i.test(id)) continue;
+    if (/linkedin\.com/i.test(id)) continue;
+    return id;
+  }
+  return '';
+}
+
+/**
  * LinkedIn URLs from `POST /wl/scout-people/lookup` so reveal-contacts can use
  * the member URN FJ just scouted. Live FJ still 404s vanity/flagship on
  * `/reveal-contacts` after lookup — only `profile.linkedin_profile_url` (`/in/ACoAA…`) works.

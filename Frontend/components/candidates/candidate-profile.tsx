@@ -58,6 +58,7 @@ import {
   type PoolCandidate,
   type SavedList,
 } from "@/lib/mock-candidates";
+import { revealCreditsRemaining } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -188,14 +189,8 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           const mobileRow = usage.find((row) => row.id === "mobile-reveals");
           if (emailRow || mobileRow) {
             setRevealQuota({
-              emailRemaining:
-                emailRow?.limit != null
-                  ? Math.max(0, emailRow.limit - emailRow.used)
-                  : 0,
-              mobileRemaining:
-                mobileRow?.limit != null
-                  ? Math.max(0, mobileRow.limit - mobileRow.used)
-                  : 0,
+              emailRemaining: revealCreditsRemaining(emailRow),
+              mobileRemaining: revealCreditsRemaining(mobileRow),
             });
           }
         }

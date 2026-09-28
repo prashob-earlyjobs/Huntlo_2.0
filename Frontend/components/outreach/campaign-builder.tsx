@@ -53,7 +53,7 @@ import {
   type CampaignCreateInput,
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
-import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
+import { REVEAL_COSTS, revealCreditsRemaining } from "@/hooks/use-reveal-quota";
 import type { SequenceStepType } from "@/lib/mock-outreach";
 import { campaignDetailPath, ROUTES } from "@/lib/routes";
 
@@ -200,7 +200,7 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
       })),
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
-      autoScreening: state.autoScreening,
+      autoScreening: state.autoScreening && !state.autoCalendly,
       autoScreeningModality: state.autoScreeningModality,
       autoWhatsAppAfterQualification: campaignHasAiVoice(state)
         ? state.autoWhatsAppAfterQualification
@@ -291,11 +291,9 @@ export function CampaignBuilder({
         }
         const email = usage.find((row) => row.id === "email-reveals");
         const mobile = usage.find((row) => row.id === "mobile-reveals");
-        const remaining = (row?: { used: number; limit: number | null }) =>
-          row && row.limit != null ? Math.max(0, row.limit - row.used) : 0;
         setRevealCredits({
-          emailRemaining: remaining(email),
-          mobileRemaining: remaining(mobile),
+          emailRemaining: revealCreditsRemaining(email),
+          mobileRemaining: revealCreditsRemaining(mobile),
           emailCost: REVEAL_COSTS.email,
           mobileCost: REVEAL_COSTS.mobile,
         });
@@ -460,10 +458,18 @@ export function CampaignBuilder({
         );
       }
       if (key === "autoScreening") {
+        const enabled = Boolean(value);
         return withVoiceDependentQualification(previous, {
-          autoScreening: Boolean(value),
-          // Video option is reserved — keep Audio as the only selectable default.
+          autoScreening: enabled,
           autoScreeningModality: "voice",
+          autoCalendly: enabled ? false : previous.autoCalendly,
+        });
+      }
+      if (key === "autoCalendly") {
+        const enabled = Boolean(value);
+        return withVoiceDependentQualification(previous, {
+          autoCalendly: enabled,
+          autoScreening: enabled ? false : previous.autoScreening,
         });
       }
       return { ...previous, [key]: value };
@@ -529,21 +535,28 @@ export function CampaignBuilder({
         campaignIdRef.current = id;
       }
 
-      const audienceIds = await resolveAudienceCandidateIds({
-        source: state.source,
-        sourceDetail: state.sourceDetail,
-        selectedCandidateIds: state.selectedCandidateIds,
-        poolSearch: state.poolSearch,
-      });
-      if (audienceIds.length > 0) {
-        await outreachApi.addAudience(id, {
-          candidateIds: audienceIds,
-          listId:
-            state.source === "Saved List" || state.source === "CSV/Excel Import"
-              ? state.sourceDetail || undefined
-              : undefined,
-          replace: true,
+      // Sourcing launches copy the session into the pool on the reveal queue.
+      const queueSourcingAudience =
+        mode === "launched" &&
+        state.source === "Sourcing Session" &&
+        Boolean(state.sourceDetail);
+      if (!queueSourcingAudience) {
+        const audienceIds = await resolveAudienceCandidateIds({
+          source: state.source,
+          sourceDetail: state.sourceDetail,
+          selectedCandidateIds: state.selectedCandidateIds,
+          poolSearch: state.poolSearch,
         });
+        if (audienceIds.length > 0) {
+          await outreachApi.addAudience(id, {
+            candidateIds: audienceIds,
+            listId:
+              state.source === "Saved List" || state.source === "CSV/Excel Import"
+                ? state.sourceDetail || undefined
+                : undefined,
+            replace: true,
+          });
+        }
       }
 
       if (mode === "launched") {
@@ -703,6 +716,7 @@ export function CampaignBuilder({
           update={update}
           showErrors={showErrors}
           relatedJobId={state.jobId || null}
+          hideLockedStats={state.source !== "CSV/Excel Import"}
         />
       ) : current === 2 ? (
         <ChannelsStep state={state} update={update} showErrors={showErrors} />

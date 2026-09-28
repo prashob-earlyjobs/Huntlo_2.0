@@ -7,7 +7,11 @@ import {
   getPublicApiBaseUrl,
   HUNAR_AGENTS_URL,
 } from './hunar.config.js';
-import { sendHunarCallViaGateway } from './hunar.gateway.js';
+import {
+  normalizeHunarQuestionsPayload,
+  sendHunarCallViaGateway,
+  type HunarQuestionPayload,
+} from './hunar.gateway.js';
 
 export type HunarAgentWritePayload = {
   name: string;
@@ -19,6 +23,20 @@ export type HunarAgentWritePayload = {
   persona_name: string;
   agent_prompt: string;
   introduction: string;
+  questions: HunarQuestionPayload[];
+};
+
+export type HunarAgentWriteInput = {
+  name: string;
+  agentPrompt: string;
+  objective: string;
+  introduction: string;
+  resultPrompt: string;
+  resultSchema: Record<string, unknown>;
+  voicePersona?: string | null;
+  language?: string | null;
+  personaName?: string | null;
+  questions?: unknown;
 };
 
 export type HunarCalleeRow = {
@@ -84,17 +102,7 @@ export function extractHunarAgentId(body: unknown): string {
   return '';
 }
 
-export function buildHunarAgentWritePayload(input: {
-  name: string;
-  agentPrompt: string;
-  objective: string;
-  introduction: string;
-  resultPrompt: string;
-  resultSchema: Record<string, unknown>;
-  voicePersona?: string | null;
-  language?: string | null;
-  personaName?: string | null;
-}): HunarAgentWritePayload {
+export function buildHunarAgentWritePayload(input: HunarAgentWriteInput): HunarAgentWritePayload {
   const stripEmptyVars = (value: string) => String(value || '').replace(/\{\}/g, '').trim();
   const voicePersona = String(input.voicePersona || getHunarVoicePersona()).trim() || 'NEHA';
   // Hunar PUT rejects updates that change voice_persona/language when persona_name is null.
@@ -115,6 +123,7 @@ export function buildHunarAgentWritePayload(input: {
     persona_name: personaName,
     agent_prompt: stripEmptyVars(String(input.agentPrompt || '')),
     introduction: stripEmptyVars(String(input.introduction || '')),
+    questions: normalizeHunarQuestionsPayload(input.questions),
   };
 }
 
@@ -201,17 +210,7 @@ async function requestHunarJson(
   return body;
 }
 
-export async function createHunarVoiceAgent(input: {
-  name: string;
-  agentPrompt: string;
-  objective: string;
-  introduction: string;
-  resultPrompt: string;
-  resultSchema: Record<string, unknown>;
-  voicePersona?: string | null;
-  language?: string | null;
-  personaName?: string | null;
-}) {
+export async function createHunarVoiceAgent(input: HunarAgentWriteInput) {
   const payload = buildHunarAgentWritePayload(input);
   const body = await requestHunarJson('POST', HUNAR_AGENTS_URL, payload);
   const agentId = extractHunarAgentId(body);
@@ -224,10 +223,7 @@ export async function createHunarVoiceAgent(input: {
   return { agentId, response: body };
 }
 
-export async function updateHunarVoiceAgent(
-  agentId: string,
-  input: Parameters<typeof createHunarVoiceAgent>[0]
-) {
+export async function updateHunarVoiceAgent(agentId: string, input: HunarAgentWriteInput) {
   const id = String(agentId || '').trim();
   if (!id) {
     const err = new Error('Hunar voice agent id is required to update the agent.');

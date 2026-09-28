@@ -167,12 +167,98 @@ type ApiJob = {
   };
   interviewPanel?: string[];
   screeningEnabled?: boolean;
+  assessmentEnabled?: boolean;
   priority?: string;
   targetClosingDate?: string | null;
   tags?: string[];
   internalNotes?: string | null;
   stats?: JobSummary;
 };
+
+/** Flat editable fields for the job create/edit form (not display-formatted). */
+export type JobEditableFields = {
+  id: string;
+  title: string;
+  department: string;
+  employmentType: string;
+  workplaceType: string;
+  location: string;
+  experienceMin: number;
+  experienceMax: number;
+  openings: number;
+  requiredSkills: string[];
+  preferredSkills: string[];
+  seniority: string;
+  industryPreference: string;
+  education: string;
+  description: string;
+  responsibilities: string;
+  requirements: string;
+  benefits: string;
+  minSalary: number | null;
+  maxSalary: number | null;
+  currency: string;
+  salaryVisibility: string;
+  recruiter: string;
+  hiringManager: string;
+  interviewPanel: string;
+  aiScreeningEnabled: boolean;
+  assessmentEnabled: boolean;
+  priority: string;
+  targetClosingDate: string;
+  tags: string[];
+  internalNotes: string;
+  status: string;
+};
+
+function linesFromList(value: string[] | undefined): string {
+  return (value ?? []).map((item) => String(item ?? "").trim()).filter(Boolean).join("\n");
+}
+
+function toDateInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return "";
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function mapEditable(job: ApiJob): JobEditableFields {
+  const priorityRaw = String(job.priority || "medium");
+  return {
+    id: job.id,
+    title: job.title ?? "",
+    department: job.department ?? "",
+    employmentType: job.employmentTypeLabel ?? job.employmentType ?? "Full-time",
+    workplaceType: job.workplaceTypeLabel ?? job.workplaceType ?? "Hybrid",
+    location: (job.location ?? job.locations?.[0] ?? "").trim(),
+    experienceMin: job.experienceMin ?? 0,
+    experienceMax: job.experienceMax ?? 0,
+    openings: job.openings ?? 1,
+    requiredSkills: job.requiredSkills ?? [],
+    preferredSkills: job.preferredSkills ?? [],
+    seniority: job.seniorityLabel ?? job.seniority ?? "Senior",
+    industryPreference: (job.preferredIndustries ?? []).join(", "),
+    education: job.educationRequirements ?? "",
+    description: job.descriptionHtml ?? "",
+    responsibilities: linesFromList(job.responsibilities),
+    requirements: linesFromList(job.requirements),
+    benefits: linesFromList(job.benefits),
+    minSalary: job.compensation?.minSalary ?? null,
+    maxSalary: job.compensation?.maxSalary ?? null,
+    currency: job.compensation?.currency ?? "INR",
+    salaryVisibility: job.compensation?.visibility ?? "Range shown",
+    recruiter: job.recruiter ?? "",
+    hiringManager: job.hiringManager ?? "",
+    interviewPanel: (job.interviewPanel ?? []).join(", "),
+    aiScreeningEnabled: Boolean(job.screeningEnabled),
+    assessmentEnabled: Boolean(job.assessmentEnabled),
+    priority: priorityRaw.charAt(0).toUpperCase() + priorityRaw.slice(1).toLowerCase(),
+    targetClosingDate: toDateInputValue(job.targetClosingDate),
+    tags: job.tags ?? [],
+    internalNotes: job.internalNotes ?? "",
+    status: job.status,
+  };
+}
 
 function toUiStatus(status: string, label?: string): JobStatus {
   if (label) return label as JobStatus;
@@ -319,6 +405,7 @@ export interface JobsApi {
   list(params?: JobsListParams): Promise<JobListItem[]>;
   listPaginated(params?: JobsListParams): Promise<JobsListResult>;
   getById(id: string): Promise<JobDetail | null>;
+  getForEdit(id: string): Promise<JobEditableFields | null>;
   create(input: JobCreateInput): Promise<JobListItem>;
   update(id: string, input: Partial<JobCreateInput>): Promise<JobListItem>;
   remove(id: string): Promise<void>;
@@ -356,6 +443,46 @@ const mockJobsApi: JobsApi = {
     await simulateMockLatency();
     const { getJobDetail } = await import("@/lib/mock-jobs");
     return getJobDetail(id) ?? null;
+  },
+  async getForEdit(id) {
+    const detail = await this.getById(id);
+    if (!detail) return null;
+    return {
+      id: detail.id,
+      title: detail.title,
+      department: detail.department,
+      employmentType: detail.employmentType,
+      workplaceType: detail.workplaceType,
+      location: String(detail.location) === "—" ? "" : detail.location,
+      experienceMin: detail.experienceMin,
+      experienceMax: detail.experienceMax,
+      openings: detail.openings,
+      requiredSkills: detail.requiredSkills,
+      preferredSkills: detail.preferredSkills,
+      seniority: detail.seniority,
+      industryPreference: detail.industryPreference.join(", "),
+      education: detail.education,
+      description: detail.description,
+      responsibilities: detail.responsibilities.join("\n"),
+      requirements: detail.requirements.join("\n"),
+      benefits: detail.benefits.join("\n"),
+      minSalary: detail.compensation.minSalary || null,
+      maxSalary: detail.compensation.maxSalary || null,
+      currency: detail.compensation.currency,
+      salaryVisibility: detail.compensation.visibility,
+      recruiter: detail.recruiter === "—" ? "" : detail.recruiter,
+      hiringManager: detail.hiringManager === "—" ? "" : detail.hiringManager,
+      interviewPanel: detail.interviewPanel.join(", "),
+      aiScreeningEnabled: detail.screening.aiScreeningEnabled,
+      assessmentEnabled: false,
+      priority: detail.priority,
+      targetClosingDate: toDateInputValue(
+        detail.targetClosingDate === "—" ? null : detail.targetClosingDate
+      ),
+      tags: detail.tags,
+      internalNotes: detail.internalNotes,
+      status: String(detail.status).toLowerCase(),
+    };
   },
   async create(input) {
     await simulateMockLatency();
@@ -551,6 +678,21 @@ const liveJobsApi: JobsApi = {
         detail.upcomingInterviews = [];
       }
       return detail;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "statusCode" in error &&
+        (error as { statusCode: number }).statusCode === 404
+      ) {
+        return null;
+      }
+      throw error;
+    }
+  },
+  async getForEdit(id) {
+    try {
+      const result = await apiClient.get<ApiJob>(`/jobs/${id}`);
+      return mapEditable(result.data);
     } catch (error) {
       if (
         error instanceof Error &&

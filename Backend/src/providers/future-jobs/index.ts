@@ -88,6 +88,7 @@ import {
   looksValidContact,
   lowercaseLinkedinProfileUrl,
   normalizeLinkedinProfileUrl,
+  resolveFjRevealProfileId,
 } from './futureJobs.reveal.js';
 import type { FutureJobsProvider } from './futureJobs.types.js';
 
@@ -184,6 +185,7 @@ export {
   parseCountriesFromText,
   parseRegionsFromText,
   promptForSourcingApi,
+  resolveFjRevealProfileId,
   yearsRangeFromFilterForm,
   countryRegionsFromFilterForm,
   regionsFromFilterForm,
@@ -192,6 +194,29 @@ export {
   setMockFutureJobsMode,
   shouldUseFutureJobsMock,
 };
+
+export {
+  ensureFutureJobsOutboundDebugCollection,
+  recordFutureJobsOutboundDebug,
+  startScoutOutboundDebugSession,
+  completeScoutOutboundDebugSession,
+  startRevealOutboundDebugSession,
+  completeRevealOutboundDebugSession,
+  appendRevealOutboundDebugPoll,
+  findInProgressRevealOutboundDebugSession,
+  findAnyInProgressPhoneRevealForUser,
+  PHONE_REVEAL_LOCK_MAX_AGE_MS,
+} from './futureJobs.outbound-debug.js';
+export {
+  FUTURE_JOBS_OUTBOUND_DEBUG_COLLECTION,
+  FUTURE_JOBS_OUTBOUND_DEBUG_MAX,
+  FutureJobsOutboundDebugModel,
+} from './futureJobs.outbound-debug.model.js';
+export type {
+  FutureJobsOutboundDebugDocument,
+  FutureJobsOutboundKind,
+  FutureJobsOutboundRevealType,
+} from './futureJobs.outbound-debug.model.js';
 
 export type {
   GeoExpandStep,

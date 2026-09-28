@@ -14,6 +14,7 @@ import { builderService } from './builder.service.js';
 import { campaignActionsService } from './campaign-actions.service.js';
 import { campaignTrackingService } from './campaign-tracking.service.js';
 import { campaignsService } from './campaigns.service.js';
+import { getCampaignRevealStatus } from './campaign-reveal-status.js';
 import { listLegacyOutreachModuleCampaigns } from './legacy-compat.js';
 import {
   audienceBodySchema,
@@ -451,6 +452,17 @@ campaignRoutes.get(
         gmailQuestionColumns: data.gmailQuestionColumns,
       },
     });
+  })
+);
+
+campaignRoutes.get(
+  '/:id/reveal-status',
+  ...orgAuth,
+  readPerm,
+  asyncHandler(async (req, res) => {
+    const { id } = campaignIdParamSchema.parse(req.params);
+    const data = await getCampaignRevealStatus(req.organizationId!, id);
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
   })
 );
 

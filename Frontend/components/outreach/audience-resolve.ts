@@ -1,4 +1,5 @@
 import {
+  ApiError,
   candidatePoolApi,
   sourcingApi,
   type ApiPoolCandidate,
@@ -418,32 +419,43 @@ export async function ensureSourcedCandidatesInPool(
   const ids: string[] = [];
   for (const result of selected) {
     const linkedin = normalizeLinkedin(result.linkedinUrl);
-    const existingId = await resolveExistingId(result);
+    try {
+      const existingId = await resolveExistingId(result);
 
-    if (existingId) {
-      ids.push(existingId);
-      continue;
-    }
+      if (existingId) {
+        ids.push(existingId);
+        continue;
+      }
 
-    const created = await candidatePoolApi.create({
-      name: result.name,
-      linkedinUrl: result.linkedinUrl || undefined,
-      headline: result.headline,
-      currentTitle: result.title,
-      currentCompany: result.company,
-      location: result.location || undefined,
-      experienceYears: result.experienceYears,
-      skills: result.skills ?? [],
-      sourceType: "sourcing",
-      sourceId: sessionId,
-      externalCandidateId: result.externalCandidateId,
-      profilePictureUrl: result.profilePictureUrl || undefined,
-    });
-    ids.push(created.id);
-    if (result.externalCandidateId) {
-      byExternal.set(result.externalCandidateId, created.id);
+      const created = await candidatePoolApi.create({
+        name: result.name,
+        linkedinUrl: result.linkedinUrl || undefined,
+        headline: result.headline,
+        currentTitle: result.title,
+        currentCompany: result.company,
+        location: result.location || undefined,
+        experienceYears: result.experienceYears,
+        skills: result.skills ?? [],
+        sourceType: "sourcing",
+        sourceId: sessionId,
+        externalCandidateId: result.externalCandidateId,
+        profilePictureUrl: result.profilePictureUrl || undefined,
+      });
+      ids.push(created.id);
+      if (result.externalCandidateId) {
+        byExternal.set(result.externalCandidateId, created.id);
+      }
+      if (linkedin) byLinkedin.set(linkedin, created.id);
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.code !== "VALIDATION_ERROR") {
+        throw err;
+      }
+      console.warn(
+        "Skipped candidate while preparing outreach audience",
+        result.name,
+        err
+      );
     }
-    if (linkedin) byLinkedin.set(linkedin, created.id);
   }
 
   return [...new Set(ids)];

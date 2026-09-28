@@ -108,6 +108,32 @@ describe('wl/search years_of_experience_raw filters', () => {
     });
   });
 
+  it('prefers drawer country and city over the prompt', () => {
+    expect(
+      buildWlSearchFilters({
+        form: { selectRegion: ['Germany'], location: ['Berlin'] },
+        countriesFromPrompt: ['India'],
+        regionsFromPrompt: ['Raipur'],
+      })
+    ).toEqual({
+      country_region: { type: '=', value: ['Germany'] },
+      region: { type: '(.)', value: ['Berlin'] },
+    });
+  });
+
+  it('fills only the missing location side from the prompt', () => {
+    expect(
+      buildWlSearchFilters({
+        form: { selectRegion: ['India'] },
+        countriesFromPrompt: ['Germany'],
+        regionsFromPrompt: ['Raipur'],
+      })
+    ).toEqual({
+      country_region: { type: '=', value: ['India'] },
+      region: { type: '(.)', value: ['Raipur'] },
+    });
+  });
+
   it('moves state labels out of country_region into region', () => {
     expect(
       buildWlSearchFilters({

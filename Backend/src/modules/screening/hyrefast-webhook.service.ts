@@ -134,6 +134,26 @@ export async function processHyrefastWebhook(req: Request): Promise<{
     data.id
   );
 
+  log.info(
+    {
+      event,
+      eventId,
+      applicationId,
+      headers: {
+        'x-hyrefast-event': headerValue(
+          req.headers as Record<string, string | string[] | undefined>,
+          'x-hyrefast-event'
+        ),
+        'x-hyrefast-timestamp': headerValue(
+          req.headers as Record<string, string | string[] | undefined>,
+          'x-hyrefast-timestamp'
+        ),
+      },
+      body,
+    },
+    'Hyrefast webhook received'
+  );
+
   const existing = await VoiceWebhookEventModel.findOne({
     provider: 'hyrefast',
     providerEventId: eventId,

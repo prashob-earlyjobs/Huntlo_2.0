@@ -37,6 +37,11 @@ import {
 import { recordCampaignActivity } from './campaign-activity.model.js';
 import { enrollQualifiedCandidateInCampaignScreening } from './outreach-auto-screening.service.js';
 import {
+  campaignHasAutoCalendly,
+  campaignUsesGatewayConversationalReply,
+  isGatewayWhatsAppProvider,
+} from './gateway-auto-reply.js';
+import {
   looksLikeCandidateQuestion,
   looksLikeJdDetailRequest,
 } from './candidate-question-detect.js';
@@ -1610,7 +1615,7 @@ async function completeQualification(input: {
       }
     }
   }
-  if (status === 'qualified' && config.autoScreening) {
+  if (status === 'qualified' && config.autoScreening && !campaignHasAutoCalendly(campaign)) {
     try {
       const { screeningId } = await enrollQualifiedCandidateInCampaignScreening({
         campaign,
@@ -2148,7 +2153,7 @@ export async function processQualificationAfterReply(input: {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Gmail outreach hands auto-replies to the communication gateway.
+  // Gmail / Huntlo-Meta WhatsApp outreach hands auto-replies to the communication gateway.
   if (input.preferredChannel !== 'whatsapp') {
     const integrationId = input.campaign.channelConfig?.email?.integrationId;
     const row =
@@ -2169,6 +2174,27 @@ export async function processQualificationAfterReply(input: {
         'Qualification skipped — Gmail auto-replies handled by communication gateway'
       );
       return { action: 'skipped_external_gmail_autoreply' };
+    }
+  } else if (campaignUsesGatewayConversationalReply(input.campaign)) {
+    const integrationId = input.campaign.channelConfig?.whatsapp?.integrationId;
+    const row =
+      integrationId && mongoose.Types.ObjectId.isValid(integrationId)
+        ? await UserIntegrationModel.findById(integrationId).select('provider').lean()
+        : await UserIntegrationModel.findOne({
+            organizationId: input.campaign.organizationId,
+            userId: input.campaign.ownerUserId,
+            category: 'whatsapp',
+            status: { $in: ['connected', 'needs_attention'] },
+          })
+            .sort({ isDefault: -1, updatedAt: -1 })
+            .select('provider')
+            .lean();
+    if (isGatewayWhatsAppProvider(row?.provider)) {
+      log().info(
+        { enrollmentId: input.enrollmentId, campaignId: String(input.campaign._id) },
+        'Qualification skipped — WhatsApp auto-replies handled by communication gateway'
+      );
+      return { action: 'skipped_external_whatsapp_autoreply' };
     }
   }
 

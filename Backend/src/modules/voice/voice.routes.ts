@@ -28,6 +28,7 @@ import {
   analysisVariablesFromResultSchema,
   extendResultSchemaForQualificationQuestions,
 } from './voice-qualification-sync.js';
+import { normalizeHunarQuestionsPayload } from '../../providers/hunar/hunar.gateway.js';
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
 const managePerm = requirePermission('outreach:manage', 'outreach:view');
@@ -131,6 +132,7 @@ voiceRoutes.post(
         typeof campaign.voiceAgentConfig?.agentId === 'string'
           ? campaign.voiceAgentConfig.agentId
           : null,
+      questions: campaign.qualificationConfig?.questions || [],
     });
 
     const retry = normalizeVoiceRetryConfig({
@@ -145,6 +147,7 @@ voiceRoutes.post(
       introduction,
       agentPrompt,
       resultPrompt,
+      questions: normalizeHunarQuestionsPayload(campaign.qualificationConfig?.questions || []),
       tone: body.tone || 'professional',
       language: String(body.language || 'ENGLISH').toUpperCase(),
       voicePersona: body.voicePersona || null,

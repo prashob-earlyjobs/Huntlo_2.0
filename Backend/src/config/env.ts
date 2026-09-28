@@ -103,7 +103,7 @@ const envSchema = z.object({
     .enum(['bearer', 'x-api-key', 'x-fj-api-key'])
     .default('x-fj-api-key'),
   FUTURE_JOBS_USE_MOCK: booleanFromEnv.optional(),
-  FUTURE_JOBS_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+  FUTURE_JOBS_TIMEOUT_MS: z.coerce.number().int().min(1000).default(60000),
   FUTURE_JOBS_MAX_RETRIES: z.coerce.number().int().min(0).default(2),
   FUTURE_JOBS_CIRCUIT_FAILURE_THRESHOLD: z.coerce.number().int().min(1).default(5),
   FUTURE_JOBS_CIRCUIT_RESET_MS: z.coerce.number().int().min(1000).default(60000),

@@ -18,22 +18,29 @@ export type HunarQuestionJsonInput = {
   knockoutCondition?: string | null;
 };
 
-/** Gateway expects screening questions as a JSON string, not an object. */
-export function stringifyHunarQuestionsJson(questions?: unknown): string {
+export type HunarQuestionPayload = {
+  id: string;
+  question: string;
+  required: boolean;
+  pass_condition: string;
+};
+
+/** Same question rows for Hunar agent create and gateway dial. */
+export function normalizeHunarQuestionsPayload(questions?: unknown): HunarQuestionPayload[] {
   if (typeof questions === 'string') {
     const trimmed = questions.trim();
-    if (!trimmed) return '[]';
+    if (!trimmed) return [];
     try {
-      JSON.parse(trimmed);
-      return trimmed;
+      const parsed = JSON.parse(trimmed) as unknown;
+      return Array.isArray(parsed) ? normalizeHunarQuestionsPayload(parsed) : [];
     } catch {
-      return JSON.stringify(trimmed);
+      return [];
     }
   }
 
-  if (!Array.isArray(questions)) return '[]';
+  if (!Array.isArray(questions)) return [];
 
-  const rows = questions
+  return questions
     .map((raw, index) => {
       const q = raw && typeof raw === 'object' ? (raw as HunarQuestionJsonInput) : {};
       return {
@@ -47,8 +54,22 @@ export function stringifyHunarQuestionsJson(questions?: unknown): string {
       };
     })
     .filter((row) => row.question);
+}
 
-  return JSON.stringify(rows);
+/** Gateway expects screening questions as a JSON string, not an object. */
+export function stringifyHunarQuestionsJson(questions?: unknown): string {
+  if (typeof questions === 'string') {
+    const trimmed = questions.trim();
+    if (!trimmed) return '[]';
+    try {
+      JSON.parse(trimmed);
+      return trimmed;
+    } catch {
+      return JSON.stringify(trimmed);
+    }
+  }
+
+  return JSON.stringify(normalizeHunarQuestionsPayload(questions));
 }
 
 export async function sendHunarCallViaGateway(input: {

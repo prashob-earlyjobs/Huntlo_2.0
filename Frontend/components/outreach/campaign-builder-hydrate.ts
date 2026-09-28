@@ -201,11 +201,8 @@ export function builderStateFromCampaign(
       )
         ? campaign.qualificationConfig.takeoverCondition
         : TAKEOVER_CONDITIONS[2],
-    autoScreening,
-    autoScreeningModality:
-      campaign.qualificationConfig?.autoScreeningModality === "video"
-        ? ("video" as const)
-        : ("voice" as const),
+    autoScreening: autoScreening && !Boolean(campaign.schedulingConfig?.enabled),
+    autoScreeningModality: "voice",
     autoCalendly: Boolean(campaign.schedulingConfig?.enabled),
     autoWhatsAppAfterQualification: Boolean(
       campaign.qualificationConfig?.autoWhatsAppAfterQualification

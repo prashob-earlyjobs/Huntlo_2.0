@@ -5,6 +5,7 @@ export const BULL_JOB_KINDS = [
   'followup',
   'sync_replies',
   'launch_screening',
+  'launch_reveal',
 ] as const;
 export type BullJobKind = (typeof BULL_JOB_KINDS)[number];
 

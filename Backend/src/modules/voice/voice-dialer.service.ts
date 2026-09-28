@@ -124,6 +124,7 @@ export type VoiceAgentConfigInput = {
   voicePersona?: string | null;
   personaName?: string | null;
   existingAgentId?: string | null;
+  questions?: unknown;
 };
 
 export type VoiceDialContact = {
@@ -284,6 +285,7 @@ export async function syncVoiceAgent(input: VoiceAgentConfigInput): Promise<{ ag
     voicePersona: input.voicePersona || getHunarVoicePersona(),
     language: String(input.language || getHunarVoiceLanguage()).toUpperCase(),
     personaName: input.personaName || 'Roshni',
+    questions: input.questions,
   };
 
   const existing = String(input.existingAgentId || '').trim();

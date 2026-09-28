@@ -208,6 +208,7 @@ describe('AI voice screening (Hunar)', () => {
       introduction: string;
       resultPrompt: string;
       resultSchema?: { properties?: Record<string, unknown> };
+      questions?: Array<{ id?: string; prompt?: string }>;
     };
     expect(agentArg.agentPrompt).toContain('You are Roshni');
     expect(agentArg.agentPrompt).toContain('Tell me about your Node experience');
@@ -217,6 +218,14 @@ describe('AI voice screening (Hunar)', () => {
     expect(agentArg.resultPrompt).toContain('experience');
     expect(agentArg.resultPrompt).toContain('node_experience_answer');
     expect(agentArg.resultSchema?.properties).toHaveProperty('node_experience_answer');
+    expect(agentArg.questions).toEqual([
+      expect.objectContaining({
+        id: 'q1',
+        prompt: 'Tell me about your Node experience',
+        required: true,
+        expectedVariable: 'node_experience',
+      }),
+    ]);
     expect(launched.body.data.providerAgentId).toBe('agent-test-1');
     expect(hunarClient.createHunarVoiceAgent).toHaveBeenCalled();
     expect(hunarClient.createHunarBulkCalls).toHaveBeenCalled();

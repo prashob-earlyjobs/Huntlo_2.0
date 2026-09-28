@@ -83,6 +83,14 @@ export function buildScreeningClosePrompt(input: ScreeningPromptBase): string {
   return fillScreeningPrompt('screening-close', input);
 }
 
+/**
+ * Auto-start AI screening — keep the email conversation going, then tell the
+ * candidate a screening call is next after they pass.
+ */
+export function buildAutoScreeningPrompt(input: ScreeningPromptBase): string {
+  return fillScreeningPrompt('auto-screening', input);
+}
+
 /** WhatsApp Auto-send Calendly — one screening question per reply, then the scheduling link. */
 export function buildWhatsAppAutoCalendlyPrompt(input: ScreeningPromptBase & { calendlyUrl: string }): string {
   return fillScreeningPrompt('whatsapp-auto-calendly', input, { calendly_url: input.calendlyUrl });
@@ -94,6 +102,13 @@ export function buildWhatsAppAutoCalendlyPrompt(input: ScreeningPromptBase & { c
  */
 export function buildWhatsAppScreeningClosePrompt(input: ScreeningPromptBase): string {
   return fillScreeningPrompt('whatsapp-screening-close', input);
+}
+
+/**
+ * WhatsApp Auto-start AI screening — one question per reply, then a screening call.
+ */
+export function buildWhatsAppAutoScreeningPrompt(input: ScreeningPromptBase): string {
+  return fillScreeningPrompt('whatsapp-auto-screening', input);
 }
 
 /**

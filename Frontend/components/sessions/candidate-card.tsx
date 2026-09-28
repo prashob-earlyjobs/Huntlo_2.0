@@ -31,6 +31,7 @@ export function CandidateCard({
   onReveal,
   onOpenProfile,
   onAddToOutreach,
+  disablePhoneReveal = false,
 }: {
   candidate: SessionCandidate;
   selected: boolean;
@@ -42,6 +43,7 @@ export function CandidateCard({
   onReveal: (kind: "email" | "phone") => void;
   onOpenProfile: () => void;
   onAddToOutreach: () => void;
+  disablePhoneReveal?: boolean;
 }) {
   const education = candidate.education[0];
 
@@ -136,6 +138,7 @@ export function CandidateCard({
           candidate={candidate}
           revealed={revealed}
           onReveal={onReveal}
+          disablePhoneReveal={disablePhoneReveal}
         />
       </div>
 

@@ -16,6 +16,7 @@ import {
   Eye,
   FileText,
   GitBranch,
+  ListChecks,
   Mail,
   MessageCircle,
   MessagesSquare,
@@ -36,6 +37,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { CampaignRevealStatusTab } from "@/components/outreach/campaign-reveal-status-tab";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 import { CampaignStatusBadge } from "@/components/outreach/campaign-status-badge";
@@ -531,6 +533,7 @@ const STEP_ICONS: Record<string, LucideIcon> = {
   conditional: GitBranch,
   recruiter_task: UserPlus,
   scheduling_link: CalendarClock,
+  qualification: ListChecks,
 };
 
 function Badge({ text, className }: { text: string; className: string }) {
@@ -974,10 +977,24 @@ function isAnswerTypeStub(text?: string | null): boolean {
   );
 }
 
+function titleDescribesPrompt(title?: string | null, prompt?: string | null): boolean {
+  const titled = normalizeQuestionText(title);
+  const asked = normalizeQuestionText(prompt);
+  if (!titled) return false;
+  if (!asked) return true;
+  if (asked.includes(titled) || titled.includes(asked)) return true;
+  const derived = normalizeQuestionText(suggestQuestionTitle(prompt || ""));
+  if (derived && derived === titled) return true;
+  const words = titled.split(/[^a-z0-9]+/).filter((word) => word.length > 2);
+  if (words.length === 0) return true;
+  const hits = words.filter((word) => asked.includes(word)).length;
+  return hits >= Math.ceil(words.length / 2);
+}
+
 function questionColumnTitle(question: CampaignQuestion): string {
   const titled = question.title?.trim();
-  if (titled) return titled;
-  return suggestQuestionTitle(question.prompt) || question.prompt;
+  if (titled && titleDescribesPrompt(titled, question.prompt)) return titled;
+  return suggestQuestionTitle(question.prompt) || question.prompt || titled || "Question";
 }
 
 function hiringFlowColumnTitle(step: ApiHiringFlowStep): string {
@@ -1001,15 +1018,22 @@ function gmailColumnsFromApi(columns: ApiGmailQuestionColumn[]): ReportColumn[] 
   }));
 }
 
+function reportQuestionTextMatches(
+  question: CampaignQuestion,
+  column: ReportColumn
+): boolean {
+  const qPrompt = normalizeQuestionText(question.prompt);
+  const cPrompt = normalizeQuestionText(column.prompt);
+  const cTitle = normalizeQuestionText(column.title);
+  return Boolean(qPrompt && (qPrompt === cPrompt || qPrompt === cTitle));
+}
+
 function shortReportColumnTitle(column: ReportColumn, questions: CampaignQuestion[]): string {
   const match =
-    questions.find((question) => question.id === column.id) ||
     questions.find(
       (question) =>
-        normalizeQuestionText(question.prompt) === normalizeQuestionText(column.prompt) ||
-        normalizeQuestionText(question.prompt) === normalizeQuestionText(column.title) ||
-        normalizeQuestionText(question.title) === normalizeQuestionText(column.title)
-    );
+        question.id === column.id && reportQuestionTextMatches(question, column)
+    ) || questions.find((question) => reportQuestionTextMatches(question, column));
   const raw = match
     ? questionColumnTitle(match)
     : suggestQuestionTitle(column.prompt || column.title) || column.title;
@@ -1521,16 +1545,94 @@ function QualificationTab({
 
 function SequenceTab({
   steps,
+  qualificationConfig,
+  schedulingConfig,
   state,
   message,
   onRetry,
 }: {
   steps: ApiCampaignSequenceStep[];
+  qualificationConfig?: ApiOutreachCampaign["qualificationConfig"] | null;
+  schedulingConfig?: ApiOutreachCampaign["schedulingConfig"] | null;
   state: ApiUiState;
   message: string | null;
   onRetry: () => void;
 }) {
-  if (state !== "success" || steps.length === 0) {
+  const ordered = [...steps].sort((a, b) => a.order - b.order);
+  const questions = qualificationConfig?.questions ?? [];
+  const autoCalendly = Boolean(schedulingConfig?.enabled);
+  const autoScreening =
+    Boolean(qualificationConfig?.autoScreening) && !autoCalendly;
+  const autoWhatsAppAfterVoice = Boolean(
+    qualificationConfig?.autoWhatsAppAfterQualification
+  );
+
+  type SequenceViewRow = {
+    id: string;
+    type: string;
+    label: string;
+    delay: string;
+    summary: string;
+    badge?: string | null;
+  };
+
+  const rows: SequenceViewRow[] = ordered.map((step, index) => {
+    const delay =
+      step.delayDays === 0
+        ? "Immediately"
+        : `${formatStepDelay(step.delayDays, step.delayUnit ?? "days").replace(/^After /, "")} later`;
+    return {
+      id: step.id || `step-${index}`,
+      type: step.type,
+      label: titleCase(step.type),
+      delay,
+      summary: step.subject || step.note || step.body || titleCase(step.type),
+      badge: step.stopOnReply ? "Stops on reply" : null,
+    };
+  });
+
+  if (questions.length > 0) {
+    rows.push({
+      id: "after-qual-questions",
+      type: "qualification",
+      label: "Qualification",
+      delay: "After reply",
+      summary: `${questions.length} screening question${questions.length === 1 ? "" : "s"} in chat`,
+      badge: qualificationConfig?.aiReplyEnabled ? "AI reply" : null,
+    });
+  }
+
+  if (autoScreening) {
+    rows.push({
+      id: "after-qual-screening",
+      type: "ai_voice",
+      label: "AI screening",
+      delay: "After qualification",
+      summary: "Start an AI voice screening call",
+    });
+  } else if (autoCalendly) {
+    rows.push({
+      id: "after-qual-calendly",
+      type: "scheduling_link",
+      label: "Calendly",
+      delay: "After qualification",
+      summary: "Send a scheduling link. No screening call.",
+    });
+  }
+
+  if (autoWhatsAppAfterVoice) {
+    rows.push({
+      id: "after-qual-whatsapp",
+      type: "whatsapp",
+      label: "WhatsApp",
+      delay: "After voice call",
+      summary: qualificationConfig?.hiringFlowId
+        ? "Run hiring flow (or fallback WhatsApp template)"
+        : "Send WhatsApp after the Hunar/Zyvka call",
+    });
+  }
+
+  if (state !== "success" || rows.length === 0) {
     return (
       <ApiFeedback
         state={state === "success" ? "empty" : state}
@@ -1542,8 +1644,6 @@ function SequenceTab({
     );
   }
 
-  const ordered = [...steps].sort((a, b) => a.order - b.order);
-
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <h3 className="text-sm font-semibold text-foreground">Live sequence</h3>
@@ -1551,17 +1651,11 @@ function SequenceTab({
         Read-only view — pause the campaign to edit steps.
       </p>
       <ol className="mt-4 space-y-0">
-        {ordered.map((step, index) => {
-          const Icon = STEP_ICONS[step.type] ?? Activity;
-          const delay =
-            step.delayDays === 0
-              ? "Immediately"
-              : `${formatStepDelay(step.delayDays, step.delayUnit ?? "days").replace(/^After /, "")} later`;
-          const summary =
-            step.subject || step.note || step.body || titleCase(step.type);
+        {rows.map((row, index) => {
+          const Icon = STEP_ICONS[row.type] ?? Activity;
           return (
-            <li key={step.id} className="relative flex gap-3 pb-4 last:pb-0">
-              {index < ordered.length - 1 ? (
+            <li key={row.id} className="relative flex gap-3 pb-4 last:pb-0">
+              {index < rows.length - 1 ? (
                 <span
                   aria-hidden
                   className="absolute top-10 left-[15px] h-full w-px bg-border"
@@ -1573,17 +1667,17 @@ function SequenceTab({
               <div className="min-w-0 flex-1 rounded-xl border border-border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium text-foreground">
-                    {index + 1}. {titleCase(step.type)}
+                    {index + 1}. {row.label}
                   </p>
-                  <span className="text-xs text-muted-foreground">{delay}</span>
-                  {step.stopOnReply ? (
+                  <span className="text-xs text-muted-foreground">{row.delay}</span>
+                  {row.badge ? (
                     <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      Stops on reply
+                      {row.badge}
                     </span>
                   ) : null}
                 </div>
                 <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {summary}
+                  {row.summary}
                 </p>
               </div>
             </li>
@@ -1798,6 +1892,7 @@ function SettingsTab({
 const CAMPAIGN_DETAIL_TABS = [
   "overview",
   "candidates",
+  "reveals",
   "qualification",
   "conversations",
   "sequence",
@@ -2003,6 +2098,10 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
       setBusy(false);
     }
   }
+
+  const showRevealTab = campaign.channels.some(
+    (channel) => channel === "Email" || channel === "WhatsApp" || channel === "AI Voice"
+  );
 
   const unlockEstimate = (() => {
     const needsEmail = campaign.channels.includes("Email");
@@ -2214,6 +2313,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
           <TabsList className="min-w-max">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="candidates">Candidates</TabsTrigger>
+            {showRevealTab ? <TabsTrigger value="reveals">Reveals</TabsTrigger> : null}
             <TabsTrigger value="qualification">Report</TabsTrigger>
             <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="sequence">Sequence</TabsTrigger>
@@ -2235,6 +2335,12 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
             onRetry={() => setReloadKey((k) => k + 1)}
             onChanged={() => setReloadKey((k) => k + 1)}
             autoScreening={Boolean(raw?.qualificationConfig?.autoScreening)}
+          />
+        </TabsContent>
+        <TabsContent value="reveals" className="pt-3">
+          <CampaignRevealStatusTab
+            campaignId={campaign.id}
+            active={activeTab === "reveals"}
           />
         </TabsContent>
         <TabsContent value="qualification" className="pt-3">
@@ -2259,6 +2365,8 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
         <TabsContent value="sequence" className="pt-3">
           <SequenceTab
             steps={raw?.sequenceSteps ?? []}
+            qualificationConfig={raw?.qualificationConfig ?? null}
+            schedulingConfig={raw?.schedulingConfig ?? null}
             state={rawState}
             message={rawMessage}
             onRetry={() => setReloadKey((k) => k + 1)}

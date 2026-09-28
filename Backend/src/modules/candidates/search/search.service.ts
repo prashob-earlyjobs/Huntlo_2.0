@@ -602,7 +602,7 @@ export class CandidateSearchService {
 
   /**
    * Main candidate-search endpoint — POST /wl/search with natural-language jdText
-   * plus structured filters (YoE RANGE + country_region + region from drawer / prompt).
+   * plus structured filters (YoE RANGE, country_region, and city/state region).
    * Waits for Future Jobs to return profiles in the same response (no poll).
    */
   async apply(actor: SearchActor, input: ApplySearchInput) {
@@ -621,12 +621,11 @@ export class CandidateSearchService {
     const fromFormYears = yearsRangeFromFilterForm(originalFilterForm);
     const fromFormCountries = countryRegionsFromFilterForm(originalFilterForm);
     const fromFormRegions = regionsFromFilterForm(originalFilterForm);
-    const skipLocationExtract = fromFormCountries.length > 0 || fromFormRegions.length > 0;
     const [yearsExtract, locationExtract] = await Promise.all([
       fromFormYears
         ? Promise.resolve({ range: null as null, source: 'none' as const })
         : extractYearsExperienceRangeFromPrompt(prompt),
-      skipLocationExtract
+      fromFormCountries.length > 0 && fromFormRegions.length > 0
         ? Promise.resolve({
             countries: null as string[] | null,
             regions: null as string[] | null,

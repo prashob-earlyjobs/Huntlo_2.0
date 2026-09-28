@@ -78,6 +78,16 @@ export interface ScreeningApi {
   listBatches(params?: ApiQueryParams): Promise<ScreeningBatch[]>;
   getBatch(id: string): Promise<ScreeningBatch | null>;
   createBatch(input: ScreeningCreateInput): Promise<ScreeningBatch>;
+  generateTopicsFromJob(jobId: string): Promise<{
+    hyrefastJobId: string;
+    topicsFocus: Array<{
+      name: string;
+      discussionMinutes: number;
+      reason: string;
+      sampleQuestions: string[];
+    }>;
+    topicsAvoid: string[];
+  }>;
   listResults(params?: ApiQueryParams): Promise<PaginatedResponse<ScreeningResult>>;
   getResult(id: string): Promise<ScreeningResult | null>;
   getResultDetail(id: string): Promise<ScreeningResultDetail | null>;
@@ -89,6 +99,7 @@ export interface ScreeningApi {
   rejectResult(id: string): Promise<ScreeningResult>;
   callAgainResult(id: string): Promise<ScreeningResult>;
   addResultNote(id: string, text: string): Promise<ScreeningResult>;
+  getInterviewLink(id: string): Promise<{ interviewLink: string }>;
 }
 
 function titleCallStatus(status: string): CallStatus {
@@ -202,6 +213,12 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
   const overallAIStatus = row.overallAIStatus
     ? String(row.overallAIStatus).trim() || null
     : null;
+  const interviewLink = String(
+    row.interviewLink || extracted.interviewLink || ""
+  ).trim();
+  const applicationId = String(
+    extracted.hyrefastApplicationId || row.providerRequestId || ""
+  ).trim();
   return {
     id: String(row.id),
     candidateId: (row.candidateId as string | null) ?? null,
@@ -225,6 +242,7 @@ function mapResult(row: Record<string, unknown>): ScreeningResult {
       (row.recruiterDecision as string) || (row.decision as string)
     ),
     error: row.error ? String(row.error).trim() || null : null,
+    canCopyInterviewLink: Boolean(interviewLink || applicationId),
   };
 }
 
@@ -510,19 +528,78 @@ function mapResultDetail(row: Record<string, unknown>): ScreeningResultDetail {
         ? String(extracted.interviewLink)
         : null,
     videoResponses: Array.isArray(row.videoResponses)
-      ? (row.videoResponses as Array<Record<string, unknown>>).map((item, index) => ({
-          id: String(item.id || `vr-${index + 1}`),
-          questionNumber: Number(item.questionNumber ?? index + 1) || index + 1,
-          questionText: String(item.questionText || ""),
-          responseText: String(item.responseText || ""),
-          transcriptionStatus: String(item.transcriptionStatus || ""),
-          transcriptionText: String(item.transcriptionText || ""),
-          responseDuration:
-            typeof item.responseDuration === "number" ? item.responseDuration : null,
-          audioUrl: item.audioUrl ? String(item.audioUrl) : null,
-          videoUrl: item.videoUrl ? String(item.videoUrl) : null,
-          isSkipped: Boolean(item.isSkipped),
-        }))
+      ? (row.videoResponses as Array<Record<string, unknown>>).map((item, index) => {
+          const analysis =
+            item.responseAnalysis &&
+            typeof item.responseAnalysis === "object" &&
+            !Array.isArray(item.responseAnalysis)
+              ? (item.responseAnalysis as Record<string, unknown>)
+              : null;
+          const durations =
+            item.durations &&
+            typeof item.durations === "object" &&
+            !Array.isArray(item.durations)
+              ? (item.durations as Record<string, unknown>)
+              : null;
+          return {
+            id: String(item.id || `vr-${index + 1}`),
+            questionNumber: Number(item.questionNumber ?? index + 1) || index + 1,
+            questionText: String(item.questionText || ""),
+            responseText: String(item.responseText || ""),
+            transcriptionStatus: String(item.transcriptionStatus || ""),
+            transcriptionMethod: item.transcriptionMethod
+              ? String(item.transcriptionMethod)
+              : null,
+            transcriptionText: String(item.transcriptionText || ""),
+            responseAnalysis: analysis
+              ? {
+                  overallAssessment: analysis.overallAssessment
+                    ? String(analysis.overallAssessment)
+                    : null,
+                  strengths: Array.isArray(analysis.strengths)
+                    ? analysis.strengths.map((s) => String(s)).filter(Boolean)
+                    : [],
+                  gaps: Array.isArray(analysis.gaps)
+                    ? analysis.gaps.map((s) => String(s)).filter(Boolean)
+                    : [],
+                  score:
+                    typeof analysis.score === "number" ? analysis.score : null,
+                  reasonForScoring: analysis.reasonForScoring
+                    ? String(analysis.reasonForScoring)
+                    : null,
+                }
+              : null,
+            responseDuration:
+              typeof item.responseDuration === "number"
+                ? item.responseDuration
+                : null,
+            durations: durations
+              ? {
+                  videoDuration:
+                    typeof durations.videoDuration === "number"
+                      ? durations.videoDuration
+                      : null,
+                  audioDuration:
+                    typeof durations.audioDuration === "number"
+                      ? durations.audioDuration
+                      : null,
+                  responseLatency:
+                    typeof durations.responseLatency === "number"
+                      ? durations.responseLatency
+                      : null,
+                  responseOnsetLatency:
+                    typeof durations.responseOnsetLatency === "number"
+                      ? durations.responseOnsetLatency
+                      : null,
+                }
+              : null,
+            audioUrl: item.audioUrl ? String(item.audioUrl) : null,
+            videoUrl: item.videoUrl ? String(item.videoUrl) : null,
+            isSkipped: Boolean(item.isSkipped),
+            createdAt: item.createdAt ? String(item.createdAt) : null,
+            updatedAt: item.updatedAt ? String(item.updatedAt) : null,
+          };
+        })
       : [],
     recording: {
       durationSeconds: Number(row.durationSeconds ?? 0),
@@ -640,6 +717,21 @@ const mockScreeningApi: ScreeningApi = {
       objective: input.objective || "",
     };
   },
+  async generateTopicsFromJob(jobId) {
+    await simulateMockLatency();
+    return {
+      hyrefastJobId: `hf-mock-${jobId}`,
+      topicsFocus: [
+        {
+          name: "Role fit and recent experience",
+          discussionMinutes: 15,
+          reason: "Mock generated topic",
+          sampleQuestions: [],
+        },
+      ],
+      topicsAvoid: [],
+    };
+  },
   async listResults(params) {
     await simulateMockLatency();
     const { SCREENING_RESULTS } = await import("@/lib/mock-screening");
@@ -713,6 +805,12 @@ const mockScreeningApi: ScreeningApi = {
     if (!result) throw new Error("Result not found");
     return result;
   },
+  async getInterviewLink(id) {
+    await simulateMockLatency();
+    return {
+      interviewLink: `https://hyrefast.ai/interview/mock-${id}?token=demo`,
+    };
+  },
 };
 
 const liveScreeningApi: ScreeningApi = {
@@ -737,6 +835,19 @@ const liveScreeningApi: ScreeningApi = {
       { sensitive: true }
     );
     return mapBatch(result.data);
+  },
+  async generateTopicsFromJob(jobId) {
+    const result = await apiClient.post<{
+      hyrefastJobId: string;
+      topicsFocus: Array<{
+        name: string;
+        discussionMinutes: number;
+        reason: string;
+        sampleQuestions: string[];
+      }>;
+      topicsAvoid: string[];
+    }>(`/screenings/jobs/${jobId}/generate-topics`, {}, { timeoutMs: 90_000 });
+    return result.data;
   },
   async listResults(params) {
     const result = await apiClient.get<Record<string, unknown>[]>(
@@ -843,6 +954,14 @@ const liveScreeningApi: ScreeningApi = {
       { sensitive: true }
     );
     return mapResult(result.data);
+  },
+  async getInterviewLink(id) {
+    const result = await apiClient.post<{ interviewLink: string }>(
+      `/screenings/results/${id}/interview-link`,
+      {},
+      { sensitive: true }
+    );
+    return result.data;
   },
 };
 

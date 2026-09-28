@@ -120,23 +120,21 @@ describe('Future Jobs /wl/search response mapping', () => {
     expect(normalized?.profile?.years_of_experience_raw).toBe(8);
   });
 
-  it('estimates years from employer start dates when no YOE field exists', () => {
-    const start = new Date();
-    start.setFullYear(start.getFullYear() - 6);
+  it('sums years_at_company_raw from current and past employers', () => {
     const normalized = normalizeFjProfileDoc({
       profile: {
         id: 'ACoAAYearsJobs',
         fullName: 'Job Dates',
-        current_employers: [
-          {
-            employee_title: 'Engineer',
-            employer_name: 'Acme',
-            start_date: start.toISOString(),
-          },
+        current_employers: [{ title: 'Business Analyst', years_at_company_raw: 2 }],
+        past_employers: [
+          { title: 'Specialist', years_at_company_raw: 0 },
+          { title: 'Associate', years_at_company_raw: 2 },
+          { title: 'Specialist', years_at_company_raw: 1 },
+          { title: 'Auditor', years_at_company_raw: 2 },
         ],
       },
     });
-    expect(normalized?.profile?.years_of_experience_raw).toBe(6);
+    expect(normalized?.profile?.years_of_experience_raw).toBe(7);
   });
 
   it('builds a LinkedIn URL from an ACoAA member id when none is provided', () => {

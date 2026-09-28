@@ -5,6 +5,7 @@ import {
   shouldUseFutureJobsMock,
 } from './futureJobs.auth.js';
 import { appendFutureJobsCurl, logFutureJobsCurlResponse } from './futureJobs.curl-log.js';
+import { recordFutureJobsOutboundDebug } from './futureJobs.outbound-debug.js';
 import {
   createFutureJobsCircuitOpenError,
   createFutureJobsUpstreamError,
@@ -375,6 +376,19 @@ async function futureJobsHttpRequest(options: {
         response: data,
       });
 
+      recordFutureJobsOutboundDebug({
+        operation: fjOperation,
+        method,
+        url,
+        body: hasBody ? body : null,
+        response: data,
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok,
+        elapsedMs,
+        attempt: attempt + 1,
+      });
+
       if (!res.ok) {
         const noMoreProfiles =
           res.status === 400 &&
@@ -523,6 +537,18 @@ async function futureJobsHttpRequest(options: {
         },
         `FJ ← ${fjOperation} network error`
       );
+      recordFutureJobsOutboundDebug({
+        operation: fjOperation,
+        method,
+        url,
+        body: hasBody ? body : null,
+        response: null,
+        status: null,
+        ok: false,
+        elapsedMs: Date.now() - started,
+        attempt: attempt + 1,
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw createFutureJobsUpstreamError({
         details: {
           networkError: err instanceof Error ? err.message : String(err),
@@ -971,25 +997,25 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
   }
 
   async function scoutPeopleRevealContact(
-    linkedinProfileUrl: string,
+    profileId: string,
     revealType: 'EMAIL' | 'PHONE'
   ): Promise<FutureJobsApiResponse> {
     const delegate = resolveDelegate();
-    if (delegate) return delegate.scoutPeopleRevealContact(linkedinProfileUrl, revealType);
+    if (delegate) return delegate.scoutPeopleRevealContact(profileId, revealType);
 
     const { baseUrl, apiKey } = getFutureJobsConfig();
     assertFutureJobsApiKey(apiKey);
 
-    const profileUrl = String(linkedinProfileUrl || '').trim();
+    const id = String(profileId || '').trim();
     const type = String(revealType || '').toUpperCase();
-    if (!profileUrl || (type !== 'PHONE' && type !== 'EMAIL')) {
-      const err = new Error('linkedin_profile_url and revealType (PHONE|EMAIL) are required');
+    if (!id || (type !== 'PHONE' && type !== 'EMAIL')) {
+      const err = new Error('profileId and revealType (PHONE|EMAIL) are required');
       (err as Error & { statusCode: number }).statusCode = 400;
       throw err;
     }
 
     const revealBody = {
-      linkedin_profile_url: profileUrl,
+      profileId: id,
       revealContactType: type === 'EMAIL' ? ['email'] : ['phone'],
     };
     const url = `${baseUrl}/wl/scout-people/reveal-contacts`;

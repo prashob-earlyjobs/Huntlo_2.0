@@ -24,8 +24,8 @@ export type RevealResult = {
 
 export type RevealStatus = {
   candidateId: string;
-  email: { revealed: boolean; revealedAt: string | null };
-  mobile: { revealed: boolean; revealedAt: string | null };
+  email: { revealed: boolean; revealedAt: string | null; values?: string[] };
+  mobile: { revealed: boolean; revealedAt: string | null; values?: string[] };
 };
 
 export type BulkRevealItemInput = {
@@ -127,8 +127,8 @@ const mockCandidatesApi: CandidatesApi = {
     await simulateMockLatency();
     return {
       candidateId,
-      email: { revealed: false, revealedAt: null },
-      mobile: { revealed: false, revealedAt: null },
+      email: { revealed: false, revealedAt: null, values: [] },
+      mobile: { revealed: false, revealedAt: null, values: [] },
     };
   },
   async getActivity() {
@@ -214,7 +214,11 @@ const liveCandidatesApi: CandidatesApi = {
       type === "email"
         ? `/candidates/${candidateId}/reveal/email`
         : `/candidates/${candidateId}/reveal/mobile`;
-    const result = await apiClient.post<RevealResult>(path, {}, { sensitive: true });
+    // Scout must finish before reveal-contacts; keep HTTP open long enough for both.
+    const result = await apiClient.post<RevealResult>(path, {}, {
+      sensitive: true,
+      timeoutMs: 130_000,
+    });
     return result.data;
   },
   async getRevealStatus(candidateId) {

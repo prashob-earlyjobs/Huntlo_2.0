@@ -90,7 +90,7 @@ const candidateSourceSchema = z.object({
 });
 
 export const createCampaignSchema = z.object({
-  name: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1).max(500, "Campaign name must be at most 500 characters"),
   description: z.string().trim().max(4000).nullable().optional(),
   objective: z.string().trim().max(500).nullable().optional(),
   ownerUserId: objectId.nullable().optional(),
@@ -114,7 +114,7 @@ export const createCampaignSchema = z.object({
         })
       ).max(10),
       aiReplyEnabled: z.boolean().optional(),
-      takeoverCondition: z.string().max(200).nullable().optional(),
+      takeoverCondition: z.string().max(2000, "Takeover condition must be at most 2000 characters").nullable().optional(),
       autoScreening: z.boolean().optional(),
       autoScreeningModality: z.enum(['voice', 'video']).optional(),
       autoWhatsAppAfterQualification: z.boolean().optional(),
@@ -171,7 +171,7 @@ export const listEnrollmentsQuerySchema = z.object({
  */
 export const builderDetailsStepSchema = z
   .object({
-    name: z.string().trim().min(1).max(200).optional(),
+    name: z.string().trim().min(1).max(500, "Campaign name must be at most 500 characters").optional(),
     description: z.string().trim().max(4000).nullable().optional(),
     objective: z.string().trim().max(500).nullable().optional(),
     jobId: objectId.nullable().optional(),
@@ -241,7 +241,7 @@ export const builderStepParamSchema = z.object({
 });
 
 export const draftCampaignSchema = z.object({
-  name: z.string().trim().min(1).max(200).optional(),
+  name: z.string().trim().min(1).max(500, "Campaign name must be at most 500 characters").optional(),
   mode: z.enum(CAMPAIGN_MODES).optional(),
   campaignType: z.enum(CAMPAIGN_TYPES).optional(),
   jobId: objectId.nullable().optional(),

@@ -264,6 +264,22 @@ function ToolbarCount({ value }: { value: number }) {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+/** Temporary cap while FJ rate limits are fixed — bulk reveal path kept intact. */
+const MAX_BULK_REVEAL_SELECTION = 5;
+/**
+ * Bulk phone queue only (row / Scout / email unchanged).
+ * FJ ≈ 40/min; leave ~half for other traffic. Worst mobile ≈ 8 calls → ≤2 starts/min.
+ */
+const BULK_PHONE_MAX_STARTS_PER_MIN = 2;
+const BULK_PHONE_MIN_START_GAP_MS = Math.ceil(
+  60_000 / BULK_PHONE_MAX_STARTS_PER_MIN
+);
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 function SessionResultsPager({
   page,
@@ -407,6 +423,10 @@ export function SessionResults({
   const [bulkRevealingKind, setBulkRevealingKind] = useState<"email" | "phone" | null>(
     null
   );
+
+  const phoneRevealBusy =
+    bulkRevealingKind === "phone" ||
+    Object.values(revealedMap).some((state) => state.phoneStatus === "loading");
 
   useEffect(() => {
     setSelected(new Set());
@@ -671,11 +691,29 @@ export function SessionResults({
     }
   }
 
-  async function reveal(id: string, kind: "email" | "phone") {
+  async function reveal(
+    id: string,
+    kind: "email" | "phone",
+    options?: { bypassPhoneBusyGuard?: boolean }
+  ): Promise<"skipped" | "done" | "error"> {
     const candidate = localCandidates.find((c) => c.id === id);
-    if (!candidate) return;
-    if (kind === "email" && candidate.emailRevealed) return;
-    if (kind === "phone" && candidate.phoneRevealed) return;
+    if (!candidate) return "skipped";
+    if (kind === "email" && candidate.emailRevealed) return "skipped";
+    if (kind === "phone" && candidate.phoneRevealed) return "skipped";
+    // Serialize mobile reveals: lookup + reveal + soft-poll saturates FJ rate limits.
+    if (
+      kind === "phone" &&
+      phoneRevealBusy &&
+      !options?.bypassPhoneBusyGuard
+    ) {
+      const alreadyLoading = revealedMap[id]?.phoneStatus === "loading";
+      if (!alreadyLoading) {
+        setRevealError(
+          "Another mobile reveal is in progress. Wait for it to finish before starting another."
+        );
+      }
+      return "skipped";
+    }
 
     setRevealError(null);
     setRevealedMap((previous) => {
@@ -688,51 +726,124 @@ export function SessionResults({
         },
       };
     });
-    try {
-      const result = await candidatesApi.revealContact({
-        candidateId: id,
-        type: uiRevealKindToType(kind),
-      });
-      const value = result.value || result.values[0] || "";
-      if (!result.found || !value) {
-        setRevealedMap((previous) => {
-          const current = previous[id] ?? { email: false, phone: false };
-          return {
-            ...previous,
-            [id]: {
-              ...current,
-              [kind === "email" ? "emailStatus" : "phoneStatus"]: "unavailable",
-            },
-          };
-        });
-        return;
-      }
+
+    const applyPhoneSuccess = (value: string) => {
       setLocalCandidates((previous) =>
-        previous.map((item) => {
-          if (item.id !== id) return item;
-          if (kind === "email") {
-            return {
-              ...item,
-              email: value || item.email,
-              emailRevealed: true,
-            };
-          }
-          return {
-            ...item,
-            phone: value || item.phone,
-            phoneRevealed: true,
-          };
-        })
+        previous.map((item) =>
+          item.id === id
+            ? { ...item, phone: value || item.phone, phoneRevealed: true }
+            : item
+        )
       );
       setRevealedMap((previous) => ({
         ...previous,
         [id]: {
           ...(previous[id] ?? { email: false, phone: false }),
-          [kind]: true,
-          [kind === "email" ? "emailStatus" : "phoneStatus"]: "idle",
+          phone: true,
+          phoneStatus: "idle",
+          phoneValue: value,
         },
       }));
+    };
+
+    const applyEmailSuccess = (value: string) => {
+      setLocalCandidates((previous) =>
+        previous.map((item) =>
+          item.id === id
+            ? { ...item, email: value || item.email, emailRevealed: true }
+            : item
+        )
+      );
+      setRevealedMap((previous) => ({
+        ...previous,
+        [id]: {
+          ...(previous[id] ?? { email: false, phone: false }),
+          email: true,
+          emailStatus: "idle",
+          emailValue: value,
+        },
+      }));
+    };
+
+    const applyUnavailable = () => {
+      setRevealedMap((previous) => {
+        const current = previous[id] ?? { email: false, phone: false };
+        return {
+          ...previous,
+          [id]: {
+            ...current,
+            [kind === "email" ? "emailStatus" : "phoneStatus"]: "unavailable",
+          },
+        };
+      });
+    };
+
+    const isRevealTimeoutError = (err: unknown) => {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: unknown }).code)
+          : "";
+      return code === "TIMEOUT" || code === "ABORTED";
+    };
+
+    /** Poll reveal-status while BG reveal may still be finishing (scout → reveal). */
+    const pollRevealStatus = async (): Promise<boolean> => {
+      const pollDeadline = Date.now() + 60_000;
+      while (Date.now() < pollDeadline) {
+        try {
+          const status = await candidatesApi.getRevealStatus(id);
+          if (kind === "email") {
+            const emailValue = (status.email.values?.[0] || "").trim();
+            if (status.email.revealed && emailValue) {
+              applyEmailSuccess(emailValue);
+              return true;
+            }
+          } else {
+            const phoneValue = (status.mobile.values?.[0] || "").trim();
+            if (status.mobile.revealed && phoneValue) {
+              applyPhoneSuccess(phoneValue);
+              return true;
+            }
+          }
+        } catch {
+          // Keep polling through transient errors.
+        }
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 10_000);
+        });
+      }
+      return false;
+    };
+
+    try {
+      const result = await candidatesApi.revealContact({
+        candidateId: id,
+        type: uiRevealKindToType(kind),
+      });
+      const value = (result.value || result.values[0] || "").trim();
+      if (result.found && value) {
+        if (kind === "email") {
+          applyEmailSuccess(value);
+          return "done";
+        }
+        applyPhoneSuccess(value);
+        return "done";
+      }
+
+      // Empty / still processing — keep loading and poll status (BG may finish later).
+      const found = await pollRevealStatus();
+      if (found) return "done";
+
+      applyUnavailable();
+      return "done";
     } catch (err) {
+      // FE timed out while BG reveal continues — keep loading and poll for the result.
+      if (isRevealTimeoutError(err)) {
+        const found = await pollRevealStatus();
+        if (found) return "done";
+        applyUnavailable();
+        return "done";
+      }
       setRevealedMap((previous) => {
         const current = previous[id] ?? { email: false, phone: false };
         return {
@@ -744,12 +855,54 @@ export function SessionResults({
         };
       });
       setRevealError(getApiErrorMessage(err));
+      return "error";
     }
   }
 
   async function revealSelectedContacts(kind: "email" | "phone") {
     const ids = Array.from(selected);
     if (!ids.length || bulkRevealingKind) return;
+    // Temporary rate-limit guard — disable bulk when selection is too large; keep path below.
+    if (ids.length > MAX_BULK_REVEAL_SELECTION) {
+      setRevealError(
+        `Select at most ${MAX_BULK_REVEAL_SELECTION} candidates to bulk reveal.`
+      );
+      return;
+    }
+    if (kind === "phone" && phoneRevealBusy) {
+      setRevealError(
+        "Another mobile reveal is in progress. Wait for it to finish before starting another."
+      );
+      return;
+    }
+
+    // Mobile bulk queue: 1 at a time + soft-poll; ≤2 starts/min (FJ 40/min budget).
+    // Row button / Scout / email bulk unchanged. Old bulkReveal job kept for email below.
+    if (kind === "phone") {
+      setBulkRevealingKind("phone");
+      setRevealError(null);
+      let lastStartAt = 0;
+      try {
+        for (const id of ids) {
+          const candidate = localCandidates.find((c) => c.id === id);
+          if (!candidate || candidate.phoneRevealed) continue;
+          if (revealedMap[id]?.phone) continue;
+
+          if (lastStartAt > 0) {
+            const waitMs =
+              BULK_PHONE_MIN_START_GAP_MS - (Date.now() - lastStartAt);
+            if (waitMs > 0) await sleepMs(waitMs);
+          }
+
+          lastStartAt = Date.now();
+          await reveal(id, "phone", { bypassPhoneBusyGuard: true });
+        }
+      } finally {
+        setBulkRevealingKind(null);
+      }
+      return;
+    }
+
     const contactType = uiRevealKindToType(kind);
     const statusKey = kind === "email" ? "emailStatus" : "phoneStatus";
     const revealedKey = kind === "email" ? "email" : "phone";
@@ -816,18 +969,20 @@ export function SessionResults({
           const found = byId.get(id);
           const current = next[id] ?? { email: false, phone: false };
           if (kind === "email") {
-            const email = Boolean(found?.email.values[0]);
+            const email = (found?.email.values[0] ?? "").trim();
             next[id] = {
               ...current,
-              email,
+              email: Boolean(email) || current.email,
               emailStatus: email ? "idle" : "unavailable",
+              ...(email ? { emailValue: email } : {}),
             };
           } else {
-            const phone = Boolean(found?.mobile.values[0]);
+            const phone = (found?.mobile.values[0] ?? "").trim();
             next[id] = {
               ...current,
-              phone,
+              phone: Boolean(phone) || current.phone,
               phoneStatus: phone ? "idle" : "unavailable",
+              ...(phone ? { phoneValue: phone } : {}),
             };
           }
         }
@@ -1224,7 +1379,15 @@ export function SessionResults({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={Boolean(bulkRevealingKind)}
+                disabled={
+                  Boolean(bulkRevealingKind) ||
+                  selected.size > MAX_BULK_REVEAL_SELECTION
+                }
+                title={
+                  selected.size > MAX_BULK_REVEAL_SELECTION
+                    ? `Select at most ${MAX_BULK_REVEAL_SELECTION} candidates to bulk reveal`
+                    : undefined
+                }
                 aria-busy={bulkRevealingKind === "email"}
                 onClick={() => void revealSelectedContacts("email")}
               >
@@ -1239,7 +1402,16 @@ export function SessionResults({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={Boolean(bulkRevealingKind)}
+                disabled={
+                  Boolean(bulkRevealingKind) ||
+                  phoneRevealBusy ||
+                  selected.size > MAX_BULK_REVEAL_SELECTION
+                }
+                title={
+                  selected.size > MAX_BULK_REVEAL_SELECTION
+                    ? `Select at most ${MAX_BULK_REVEAL_SELECTION} candidates to bulk reveal`
+                    : undefined
+                }
                 aria-busy={bulkRevealingKind === "phone"}
                 onClick={() => void revealSelectedContacts("phone")}
               >
@@ -1322,6 +1494,7 @@ export function SessionResults({
               onReveal={(id, kind) => void reveal(id, kind)}
               onOpenProfile={setDrawerId}
               onAddToOutreach={(id) => void startOutreach([id])}
+              disablePhoneReveal={phoneRevealBusy}
             />
           ) : (
             <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -1342,6 +1515,7 @@ export function SessionResults({
                   onReveal={(kind) => void reveal(candidate.id, kind)}
                   onOpenProfile={() => setDrawerId(candidate.id)}
                   onAddToOutreach={() => void startOutreach([candidate.id])}
+                  disablePhoneReveal={phoneRevealBusy}
                 />
               ))}
             </div>
@@ -1498,6 +1672,7 @@ export function SessionResults({
         }
         onToggleSave={() => drawerId && openAddToList([drawerId])}
         onAddToOutreach={() => drawerId && void startOutreach([drawerId])}
+        disablePhoneReveal={phoneRevealBusy}
       />
       <AddToListDialog
         open={addToListOpen}

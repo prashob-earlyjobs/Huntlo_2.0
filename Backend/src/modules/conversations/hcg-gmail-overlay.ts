@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import { type CandidatePipelineStatus } from '../outreach/enrollment-pipeline-status.js';
+import { isMailDeliveryFailure } from './mail-delivery-failure.js';
 import {
   HcgGmailConversationModel,
   type HcgGmailConversationDocument,
@@ -116,9 +117,10 @@ function messageDate(msg: HcgGmailConversationMessage): Date | null {
 
 function sortedMessages(doc: HcgGmailConversationLean): HcgGmailConversationMessage[] {
   return [...(doc.messages || [])].sort((a, b) => {
-    const left = messageDate(a)?.getTime() || 0;
-    const right = messageDate(b)?.getTime() || 0;
-    return left - right;
+    const left = messageDate(a)?.getTime() ?? Number.POSITIVE_INFINITY;
+    const right = messageDate(b)?.getTime() ?? Number.POSITIVE_INFINITY;
+    if (left !== right) return left - right;
+    return String(a.messageId || '').localeCompare(String(b.messageId || ''));
   });
 }
 
@@ -208,14 +210,21 @@ export function hcgGmailMessagesToEvents(
     const html = messageHtml(msg);
     const strippedHtml = inbound ? stripGmailQuoteHtml(html) : html;
     const text = strippedHtml ? htmlToFormattedText(strippedHtml) : messageText(msg);
+    const bounce =
+      inbound &&
+      isMailDeliveryFailure({
+        from: msg.from,
+        subject: msg.subject,
+        bodyText: text,
+      });
     return {
       id: msg.messageId || `hcg-gmail-${index}`,
       channel: 'Email',
-      author: inbound ? 'candidate' : 'recruiter',
-      authorName: inbound ? candidateName : String(msg.from || 'Recruiter'),
+      author: bounce ? 'system' : inbound ? 'candidate' : 'recruiter',
+      authorName: bounce ? 'Mail delivery' : inbound ? candidateName : String(msg.from || 'Recruiter'),
       subject: msg.subject || undefined,
-      text,
-      html: strippedHtml || undefined,
+      text: bounce ? 'This email could not be delivered.' : text,
+      html: bounce ? undefined : strippedHtml || undefined,
       time: relativeTime(at),
       delivery: inbound ? undefined : 'Sent',
       error: undefined,
