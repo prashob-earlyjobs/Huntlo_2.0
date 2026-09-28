@@ -348,6 +348,7 @@ export function buildJdTextFromPromptAndFilters(
 /** Future Jobs `/wl/search` structured filter clause. */
 export type WlSearchRangeFilter = { type: 'RANGE'; value: [number, number] };
 export type WlSearchEqualsFilter = { type: '='; value: string[] };
+/** Contains / partial match — used for city/state `region`. */
 export type WlSearchContainsFilter = { type: '(.)'; value: string[] };
 
 export type WlSearchFilters = {
@@ -438,75 +439,397 @@ export function parseYearsExperienceRangeFromText(text: string): WlSearchRangeFi
   return null;
 }
 
-function uniqueLabels(values: unknown): string[] {
-  const list = Array.isArray(values) ? values : [];
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const item of list) {
-    const label = String(item ?? '').trim();
-    if (!label) continue;
-    const key = label.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(label);
-  }
-  return out;
-}
-
-/**
- * City names from the drawer Region field (`location`).
- * "Dubai, United Arab Emirates" → "Dubai". A single chip is used as-is.
- */
-export function citiesFromFilterForm(
-  form?: Partial<FutureJobsFilterForm> | null
-): string[] {
-  if (!form || typeof form !== 'object') return [];
-  const raw = form.location;
-  const chips = Array.isArray(raw)
-    ? raw
-    : typeof raw === 'string'
-      ? [raw]
-      : [];
-  const cities: string[] = [];
-  for (const chip of chips) {
-    let text = String(chip ?? '').trim();
-    if (!text) continue;
-    text = text.replace(/^\d{4,6}(?:-\d{4})?\s*,\s*/i, '').trim();
-    text = text.replace(/^\d{4,6}(?:-\d{4})?,/i, '').trim();
-    const parts = text
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean);
-    if (parts[0]) cities.push(parts[0]);
-  }
-  return uniqueLabels(cities);
-}
-
-/** Prefer drawer YoE, country, and city; otherwise use prompt-derived values. */
+/** Prefer drawer YoE; otherwise use a prompt-derived range. Attach country_region + region. */
 export function buildWlSearchFilters(input: {
   form?: Partial<FutureJobsFilterForm> | null;
   yearsFromPrompt?: WlSearchRangeFilter | null;
-  countryFromPrompt?: string | null;
-  citiesFromPrompt?: string[] | null;
+  countriesFromPrompt?: string[] | null;
+  regionsFromPrompt?: string[] | null;
 }): WlSearchFilters | undefined {
   const fromForm = yearsRangeFromFilterForm(input.form);
   const yoe = fromForm ?? input.yearsFromPrompt ?? null;
   const fromFormCountries = countryRegionsFromFilterForm(input.form);
-  const promptCountry = String(input.countryFromPrompt ?? '').trim();
-  const countries =
-    fromFormCountries.length > 0 ? fromFormCountries : promptCountry ? [promptCountry] : [];
+  const fromFormRegions = regionsFromFilterForm(input.form);
+  const promptCountries = (input.countriesFromPrompt ?? [])
+    .map((c) => String(c ?? '').trim())
+    .filter(Boolean);
+  const promptRegions = (input.regionsFromPrompt ?? [])
+    .map((c) => String(c ?? '').trim())
+    .filter(Boolean);
 
-  const fromFormCities = citiesFromFilterForm(input.form);
-  const cities =
-    fromFormCities.length > 0 ? fromFormCities : uniqueLabels(input.citiesFromPrompt);
+  const rawCountries = fromFormCountries.length > 0 ? fromFormCountries : promptCountries;
+  const rawRegions = fromFormRegions.length > 0 ? fromFormRegions : promptRegions;
+  const { countries, regions } = canonicalizeWlLocationFilters({
+    countries: rawCountries,
+    regions: rawRegions,
+  });
 
   const filters: WlSearchFilters = {};
   if (yoe) filters.years_of_experience_raw = yoe;
   if (countries.length > 0) {
     filters.country_region = { type: '=', value: countries };
   }
-  if (cities.length > 0) {
-    filters.region = { type: '(.)', value: cities };
+  if (regions.length > 0) {
+    filters.region = { type: '(.)', value: regions };
   }
   return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
+/**
+ * Heuristic country extract from NL (used when Gemini is unavailable).
+ * Matches known country names / abbreviations as whole words.
+ */
+const KNOWN_COUNTRY_NAMES = [
+  'United Arab Emirates',
+  'United Kingdom',
+  'United States',
+  'Saudi Arabia',
+  'South Africa',
+  'South Korea',
+  'New Zealand',
+  'Czech Republic',
+  'Hong Kong',
+  'Sri Lanka',
+  'Afghanistan',
+  'Argentina',
+  'Australia',
+  'Austria',
+  'Bahrain',
+  'Bangladesh',
+  'Belgium',
+  'Brazil',
+  'Canada',
+  'Chile',
+  'China',
+  'Colombia',
+  'Denmark',
+  'Egypt',
+  'Finland',
+  'France',
+  'Germany',
+  'Greece',
+  'Hungary',
+  'Iceland',
+  'India',
+  'Indonesia',
+  'Ireland',
+  'Israel',
+  'Italy',
+  'Japan',
+  'Jordan',
+  'Kenya',
+  'Kuwait',
+  'Luxembourg',
+  'Malaysia',
+  'Mexico',
+  'Morocco',
+  'Nepal',
+  'Netherlands',
+  'Nigeria',
+  'Norway',
+  'Oman',
+  'Pakistan',
+  'Philippines',
+  'Poland',
+  'Portugal',
+  'Qatar',
+  'Romania',
+  'Russia',
+  'Singapore',
+  'Spain',
+  'Sweden',
+  'Switzerland',
+  'Thailand',
+  'Turkey',
+  'Ukraine',
+  'Vietnam',
+].sort((a, b) => b.length - a.length);
+
+const COUNTRY_NAME_ALIASES: Record<string, string> = {
+  usa: 'United States',
+  us: 'United States',
+  'u.s.': 'United States',
+  'u.s.a.': 'United States',
+  america: 'United States',
+  uk: 'United Kingdom',
+  britain: 'United Kingdom',
+  england: 'United Kingdom',
+  uae: 'United Arab Emirates',
+  emirates: 'United Arab Emirates',
+  holland: 'Netherlands',
+  luxemberg: 'Luxembourg',
+  luxumbourg: 'Luxembourg',
+};
+
+/** State / province / emirate → country for prompt extract. Longer keys first. */
+const STATE_TO_COUNTRY: Record<string, string> = {
+  // United States
+  alabama: 'United States',
+  alaska: 'United States',
+  arizona: 'United States',
+  arkansas: 'United States',
+  california: 'United States',
+  colorado: 'United States',
+  connecticut: 'United States',
+  delaware: 'United States',
+  florida: 'United States',
+  hawaii: 'United States',
+  idaho: 'United States',
+  illinois: 'United States',
+  indiana: 'United States',
+  iowa: 'United States',
+  kansas: 'United States',
+  kentucky: 'United States',
+  louisiana: 'United States',
+  maine: 'United States',
+  maryland: 'United States',
+  massachusetts: 'United States',
+  michigan: 'United States',
+  minnesota: 'United States',
+  mississippi: 'United States',
+  missouri: 'United States',
+  montana: 'United States',
+  nebraska: 'United States',
+  nevada: 'United States',
+  'new hampshire': 'United States',
+  'new jersey': 'United States',
+  'new mexico': 'United States',
+  'new york': 'United States',
+  'north carolina': 'United States',
+  'north dakota': 'United States',
+  ohio: 'United States',
+  oklahoma: 'United States',
+  oregon: 'United States',
+  pennsylvania: 'United States',
+  'rhode island': 'United States',
+  'south carolina': 'United States',
+  'south dakota': 'United States',
+  tennessee: 'United States',
+  texas: 'United States',
+  utah: 'United States',
+  vermont: 'United States',
+  virginia: 'United States',
+  // "georgia" / "washington" omitted — ambiguous with country Georgia / DC naming
+  'west virginia': 'United States',
+  wisconsin: 'United States',
+  wyoming: 'United States',
+  'washington dc': 'United States',
+  'washington d.c.': 'United States',
+  'district of columbia': 'United States',
+  'washington state': 'United States',
+  // India
+  'andhra pradesh': 'India',
+  'arunachal pradesh': 'India',
+  assam: 'India',
+  bihar: 'India',
+  chhattisgarh: 'India',
+  goa: 'India',
+  gujarat: 'India',
+  haryana: 'India',
+  'himachal pradesh': 'India',
+  jharkhand: 'India',
+  karnataka: 'India',
+  kerala: 'India',
+  'madhya pradesh': 'India',
+  maharashtra: 'India',
+  manipur: 'India',
+  meghalaya: 'India',
+  mizoram: 'India',
+  nagaland: 'India',
+  odisha: 'India',
+  orissa: 'India',
+  punjab: 'India',
+  rajasthan: 'India',
+  sikkim: 'India',
+  'tamil nadu': 'India',
+  telangana: 'India',
+  tripura: 'India',
+  'uttar pradesh': 'India',
+  uttarakhand: 'India',
+  'west bengal': 'India',
+  delhi: 'India',
+  'new delhi': 'India',
+  'jammu and kashmir': 'India',
+  ladakh: 'India',
+  puducherry: 'India',
+  chandigarh: 'India',
+  // Canada
+  ontario: 'Canada',
+  quebec: 'Canada',
+  'british columbia': 'Canada',
+  alberta: 'Canada',
+  manitoba: 'Canada',
+  saskatchewan: 'Canada',
+  'nova scotia': 'Canada',
+  'new brunswick': 'Canada',
+  // UAE emirates
+  dubai: 'United Arab Emirates',
+  'abu dhabi': 'United Arab Emirates',
+  sharjah: 'United Arab Emirates',
+  ajman: 'United Arab Emirates',
+  // UK nations / regions already partly aliased; keep Scotland/Wales/NI
+  scotland: 'United Kingdom',
+  wales: 'United Kingdom',
+  'northern ireland': 'United Kingdom',
+};
+
+const STATE_NAMES_BY_LENGTH = Object.keys(STATE_TO_COUNTRY).sort(
+  (a, b) => b.length - a.length
+);
+
+function titleCaseWords(value: string): string {
+  return value
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+function pushUnique(out: string[], seen: Set<string>, label: string): void {
+  const s = String(label || '').trim();
+  if (!s) return;
+  const key = s.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  out.push(s);
+}
+
+function lookupKnownCountry(raw: string): string | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const lower = s.toLowerCase();
+  const known = KNOWN_COUNTRY_NAMES.find((n) => n.toLowerCase() === lower);
+  if (known) return known;
+  if (COUNTRY_NAME_ALIASES[lower]) return COUNTRY_NAME_ALIASES[lower]!;
+  return null;
+}
+
+function lookupKnownStateRegion(raw: string): string | null {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const lower = s.toLowerCase();
+  if (STATE_TO_COUNTRY[lower]) return titleCaseWords(lower);
+  return null;
+}
+
+/**
+ * City/state chips for Future Jobs `region` (type "(.)").
+ * Uses filterForm.location; prefers the leading city segment of "City, Country" chips.
+ */
+export function regionsFromFilterForm(
+  form?: Partial<FutureJobsFilterForm> | null
+): string[] {
+  if (!form || typeof form !== 'object') return [];
+  const raw = form.location as unknown;
+  const chips: string[] = [];
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const s = String(item ?? '').trim();
+      if (s) chips.push(s);
+    }
+  } else if (typeof raw === 'string' && raw.trim()) {
+    chips.push(raw.trim());
+  }
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const chip of chips) {
+    const cleaned = String(chip || '')
+      .replace(/^\d{4,6}(?:-\d{4})?\s*,\s*/i, '')
+      .replace(/^\d{4,6}(?:-\d{4})?,/i, '')
+      .trim();
+    if (!cleaned) continue;
+    const parts = cleaned
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length === 0) continue;
+    // "Bengaluru, India" / "Dubai, UAE" → leading city; single token stays as-is.
+    const city = parts[0]!;
+    if (lookupKnownCountry(city)) continue;
+    pushUnique(out, seen, city);
+  }
+  return out;
+}
+
+/**
+ * Split/normalize Gemini or form labels into country_region vs region.
+ * States wrongly listed as countries become regions — never invent a country from them.
+ */
+export function canonicalizeWlLocationFilters(input: {
+  countries?: string[] | null;
+  regions?: string[] | null;
+}): { countries: string[]; regions: string[] } {
+  const countries: string[] = [];
+  const regions: string[] = [];
+  const seenCountry = new Set<string>();
+  const seenRegion = new Set<string>();
+
+  for (const raw of input.countries ?? []) {
+    const s = String(raw ?? '').trim();
+    if (!s) continue;
+    const country = lookupKnownCountry(s);
+    if (country) {
+      pushUnique(countries, seenCountry, country);
+      continue;
+    }
+    const state = lookupKnownStateRegion(s);
+    if (state) {
+      pushUnique(regions, seenRegion, state);
+      continue;
+    }
+    // Unknown "country" labels — treat as region (city) rather than inventing a country.
+    pushUnique(regions, seenRegion, s);
+  }
+
+  for (const raw of input.regions ?? []) {
+    const s = String(raw ?? '').trim();
+    if (!s) continue;
+    const country = lookupKnownCountry(s);
+    if (country) {
+      pushUnique(countries, seenCountry, country);
+      continue;
+    }
+    const state = lookupKnownStateRegion(s);
+    pushUnique(regions, seenRegion, state ?? s);
+  }
+
+  return { countries, regions };
+}
+
+/** Explicit countries / aliases only — never invent a country from a city/state. */
+export function parseCountriesFromText(text: string): string[] {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+
+  const lower = raw.toLowerCase();
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const name of KNOWN_COUNTRY_NAMES) {
+    const re = new RegExp(`\\b${name.replace(/\s+/g, '\\s+')}\\b`, 'i');
+    if (re.test(raw)) pushUnique(out, seen, name);
+  }
+
+  for (const [alias, canonical] of Object.entries(COUNTRY_NAME_ALIASES)) {
+    const re = new RegExp(`\\b${alias.replace(/\./g, '\\.')}\\b`, 'i');
+    if (re.test(lower)) pushUnique(out, seen, canonical);
+  }
+
+  return out;
+}
+
+/** Heuristic city/state extract (known states + emirates). Cities rely on Gemini. */
+export function parseRegionsFromText(text: string): string[] {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  const lower = raw.toLowerCase();
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const state of STATE_NAMES_BY_LENGTH) {
+    const re = new RegExp(`\\b${state.replace(/\s+/g, '\\s+').replace(/\./g, '\\.')}\\b`, 'i');
+    if (re.test(lower)) pushUnique(out, seen, titleCaseWords(state));
+  }
+
+  return out;
 }
