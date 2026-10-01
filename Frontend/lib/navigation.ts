@@ -13,6 +13,8 @@ import {
   LayoutTemplate,
   MessageSquare,
   Orbit,
+  // PhoneCall,
+  // PhoneIncoming,
   Plug,
   Search,
   Send,
@@ -159,6 +161,30 @@ export const NAV_SECTIONS: NavSection[] = [
       // },
     ],
   },
+  // {
+  //   label: "AI Calling",
+  //   items: [
+  //     {
+  //       title: "AI Calling",
+  //       href: ROUTES.aiCalling,
+  //       icon: PhoneCall,
+  //       description: "AI voice call campaigns and dials",
+  //       featureLabel: "New",
+  //     },
+  //     {
+  //       title: "Call Results",
+  //       href: ROUTES.aiCallingResults,
+  //       icon: PhoneIncoming,
+  //       description: "Completed call outcomes and scores",
+  //     },
+  //     {
+  //       title: "Call History",
+  //       href: ROUTES.aiCallingHistory,
+  //       icon: HistoryIcon,
+  //       description: "Past AI calling activity",
+  //     },
+  //   ],
+  // },
   {
     label: "Schedule",
     items: [

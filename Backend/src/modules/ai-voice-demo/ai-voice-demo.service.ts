@@ -144,13 +144,13 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
       ? await sendHunarCallViaGateway({
           agentId,
           campaignId: String(record._id),
-          questions: demoQuestionsFor(job),
+          questions: demoQuestionsFor(job, company),
           data: [callee],
         })
       : await sendZyastraCallViaGateway({
           campaignId: String(record._id),
           prompt: agentInput.agentPrompt,
-          questions: demoQuestionsFor(job),
+          questions: demoQuestionsFor(job, company),
           data: [callee],
         });
 

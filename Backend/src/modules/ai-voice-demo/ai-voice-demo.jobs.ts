@@ -11,6 +11,8 @@ export const AI_VOICE_DEMO_JOBS = [
   'Business Development Executive',
   'MERN Developer',
   'Delivery Partner',
+  'Real Estate Property Visit – Feedback Call',
+  'Real Estate Property Requirement Call',
 ] as const;
 
 export type AiVoiceDemoJob = (typeof AI_VOICE_DEMO_JOBS)[number];
@@ -106,6 +108,70 @@ const QUESTIONS: Record<AiVoiceDemoJob, DemoQuestion[]> = {
       question: 'How soon can you start?',
     },
   ],
+  'Real Estate Property Visit – Feedback Call': [
+    {
+      id: 'overall-experience',
+      question: 'How was your overall experience during the {company} property visit?',
+    },
+    {
+      id: 'expectations',
+      question:
+        'Did the {company} property meet your expectations based on the information shared with you?',
+    },
+    {
+      id: 'liked-most',
+      question:
+        'What did you like most about the {company} property — location, amenities, layout, or something else?',
+    },
+    {
+      id: 'concerns',
+      question:
+        'Do you have any concerns regarding the {company} property, pricing, location, or amenities?',
+    },
+    {
+      id: 'interest',
+      question:
+        'After the visit, how interested are you in moving forward with this {company} property? Options: Very Interested, Interested, Need More Information, Not Interested.',
+    },
+    {
+      id: 'sales-follow-up',
+      question:
+        'Would you like the {company} sales team to contact you to discuss the next steps or arrange another visit?',
+    },
+  ],
+  'Real Estate Property Requirement Call': [
+    {
+      id: 'property-type',
+      question:
+        'What type of {company} property are you looking for? Options: 1 BHK, 2 BHK, 3 BHK, 4 BHK, Plot, Villa, or Commercial.',
+    },
+    {
+      id: 'location',
+      question: 'Which location or areas are you primarily looking for with {company}?',
+    },
+    {
+      id: 'size',
+      question: 'What is your preferred {company} property size or configuration?',
+    },
+    {
+      id: 'budget',
+      question: 'What is your approximate budget for the {company} property?',
+    },
+    {
+      id: 'purpose',
+      question: 'Are you looking for the {company} property for self-use or investment?',
+    },
+    {
+      id: 'timeline',
+      question:
+        'When are you planning to purchase the {company} property? Options: Immediately, Within 3 months, 3–6 months, or 6+ months.',
+    },
+    {
+      id: 'visit',
+      question:
+        'Would you be interested in visiting a {company} property? If yes, when would be a convenient time for you?',
+    },
+  ],
 };
 
 const RESULT_FIELDS = [
@@ -128,26 +194,55 @@ export function isAiVoiceDemoJob(value: string): value is AiVoiceDemoJob {
   return (AI_VOICE_DEMO_JOBS as readonly string[]).includes(value);
 }
 
-export function demoQuestionsFor(job: AiVoiceDemoJob): DemoQuestion[] {
-  return QUESTIONS[job];
+export function demoQuestionsFor(job: AiVoiceDemoJob, company: string): DemoQuestion[] {
+  const name = company.trim();
+  return QUESTIONS[job].map((row) => ({
+    ...row,
+    question: row.question.replaceAll('{company}', name),
+  }));
+}
+
+function isRealEstateCall(job: AiVoiceDemoJob): boolean {
+  return job.startsWith('Real Estate');
 }
 
 export function buildDemoAgentInput(job: AiVoiceDemoJob, company: string): HunarAgentWriteInput {
-  const questions = demoQuestionsFor(job);
+  const questions = demoQuestionsFor(job, company);
   const questionList = questions.map((row, index) => `${index + 1}. ${row.question}`).join('\n');
+  const realEstate = isRealEstateCall(job);
+  const feedback = job === 'Real Estate Property Visit – Feedback Call';
 
   return {
     name: `Huntlo demo · ${job}`.slice(0, 64),
     personaName: 'Roshni',
-    objective: `Screen the caller for the ${job} role at ${company} and capture interest, notice period, and salary expectations.`,
-    introduction: `Hello, this is Roshni calling on behalf of ${company} about the ${job} opening. This is a short screening call. Do you have a minute?`,
+    objective: realEstate
+      ? feedback
+        ? `Collect property-visit feedback for ${company} and capture interest level and whether the sales team should follow up.`
+        : `Understand the property requirements for a ${company} buyer and capture type, location, budget, timeline, and visit interest.`
+      : `Screen the caller for the ${job} role at ${company} and capture interest, notice period, and salary expectations.`,
+    introduction: realEstate
+      ? feedback
+        ? `Hello, this is Roshni calling on behalf of ${company}. This is a ${job} about your recent property visit. Do you have a minute?`
+        : `Hello, this is Roshni calling on behalf of ${company}. This is a ${job} to understand the property you are looking for. Do you have a minute?`
+      : `Hello, this is Roshni calling on behalf of ${company} about the ${job} opening. This is a short screening call. Do you have a minute?`,
     agentPrompt: [
-      `You are Roshni, a warm and professional AI recruiter calling on behalf of ${company}.`,
-      `The hiring company is ${company}. Say this company name when you introduce the role. Do not replace it with Huntlo or leave it out.`,
-      `You are calling the person who requested a Huntlo demo. Screen them the way you would screen a candidate for the ${job} role at ${company}.`,
+      realEstate
+        ? `You are Roshni, a warm and professional caller from ${company}.`
+        : `You are Roshni, a warm and professional AI recruiter calling on behalf of ${company}.`,
+      `The company is ${company}. Say this company name when you introduce yourself. Do not replace it with Huntlo or leave it out.`,
+      `Call type: ${job}.`,
+      realEstate
+        ? feedback
+          ? `You are calling the person who requested a Huntlo demo. Treat them as someone who recently visited a ${company} property and collect feedback.`
+          : `You are calling the person who requested a Huntlo demo. Treat them as a property buyer and capture their requirements for ${company}.`
+        : `You are calling the person who requested a Huntlo demo. Screen them the way you would screen a candidate for the ${job} role at ${company}.`,
       `Keep the call short. Ask one question at a time, listen, and follow up only when an answer is unclear.`,
-      `Do not invent salary, location, or benefits that were not provided.`,
-      `Close by thanking them and saying a recruiter will review the screen.`,
+      realEstate
+        ? `When a question lists options, offer those options and record the closest match. Do not invent property details, prices, or locations that were not provided.`
+        : `Do not invent salary, location, or benefits that were not provided.`,
+      realEstate
+        ? `Close by thanking them and confirming the next step they agreed to.`
+        : `Close by thanking them and saying a recruiter will review the screen.`,
       ``,
       `Questions to ask:`,
       questionList,
