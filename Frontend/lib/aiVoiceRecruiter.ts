@@ -35,6 +35,8 @@ export const DEMO_JOBS = [
   "Business Development Executive",
   "MERN Developer",
   "Delivery Partner",
+  "Real Estate Property Visit – Feedback Call",
+  "Real Estate Property Requirement Call",
 ] as const;
 
 export const TRUST_METRICS = [

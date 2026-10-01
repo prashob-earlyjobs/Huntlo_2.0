@@ -96,7 +96,14 @@ const FOOTER_COLUMNS: {
   {
     title: "Hiring OS",
     titleHref: "/hiring-os",
-    links: ["Sourcing", "Candidate Discovery", "Screening", "Assessments", "Interview"],
+    links: [
+      "Sourcing",
+      "Candidate Discovery",
+      "Screening",
+      "AI Voice Recruiter",
+      "Assessments",
+      "Interview",
+    ],
   },
   {
     title: "Product",
