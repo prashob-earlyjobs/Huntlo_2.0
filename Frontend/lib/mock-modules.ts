@@ -615,6 +615,36 @@ export const MODULE_PAGES: Record<RouteKey, ModulePageData> = {
       description: "Run an AI screening batch to see qualification outcomes here.",
     },
   },
+  aiCalling: {
+    href: ROUTES.aiCalling,
+    title: "AI Calling",
+    description: "Launch and manage AI voice call campaigns.",
+    metrics: [],
+    empty: {
+      title: "AI Calling workspace",
+      description: "Campaign list and dial controls will appear here.",
+    },
+  },
+  aiCallingResults: {
+    href: ROUTES.aiCallingResults,
+    title: "Call Results",
+    description: "Review completed AI call outcomes and scores.",
+    metrics: [],
+    empty: {
+      title: "Call results",
+      description: "Outcome tables and transcripts will appear here.",
+    },
+  },
+  aiCallingHistory: {
+    href: ROUTES.aiCallingHistory,
+    title: "Call History",
+    description: "Browse past AI calling activity across campaigns.",
+    metrics: [],
+    empty: {
+      title: "Call history",
+      description: "Historical dial activity will appear here.",
+    },
+  },
   assessments: {
     href: ROUTES.assessments,
     title: "Assessments",
