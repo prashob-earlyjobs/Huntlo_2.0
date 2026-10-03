@@ -46,6 +46,25 @@ export const TRUST_METRICS = [
   { value: "100%", label: "Conversation Logs" },
 ] as const;
 
+export const SAMPLE_CALLS = [
+  {
+    title: "Customer Care Executive",
+    src: "/audio/constomercare%20executive.wav",
+  },
+  {
+    title: "Delivery Partner",
+    src: "/audio/delivery%20boy.wav",
+  },
+  {
+    title: "Onboarding Agent",
+    src: "/audio/Onboarding%20agent.wav",
+  },
+  {
+    title: "Sales Executive",
+    src: "/audio/Sales%20Executive.wav",
+  },
+] as const;
+
 export const TODAY_STEPS = [
   "Search",
   "Find Number",

@@ -8,6 +8,7 @@ import {
   ListTodo,
   Mail,
   Megaphone,
+  PhoneCall,
   Plug,
   Search,
   Settings,
@@ -70,6 +71,17 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         icon: Megaphone,
         description: "Live outreach monitoring",
         badge: 4,
+      },
+    ],
+  },
+  {
+    label: "Leads",
+    items: [
+      {
+        title: "AI Voice Demo",
+        href: ADMIN_ROUTES.voiceDemoLeads,
+        icon: PhoneCall,
+        description: "Company, email, and mobile from the public demo form",
       },
     ],
   },

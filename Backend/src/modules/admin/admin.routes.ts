@@ -46,6 +46,7 @@ import {
 } from '../outreach/outreach.validation.js';
 import { adminHiringFlowsService } from '../outreach/hiring-flows.service.js';
 import { listApprovedMetaWhatsAppTemplates } from '../../providers/meta-whatsapp/meta.templates.js';
+import { listAiVoiceDemoLeads } from '../ai-voice-demo/ai-voice-demo.service.js';
 
 const adminAuth = [requireAuth, requireAdmin];
 
@@ -363,6 +364,16 @@ adminConsoleRouter.get(
   asyncHandler(async (req, res) => {
     const query = adminListQuerySchema.parse(req.query);
     const data = await adminConsoleService.listCandidates(query);
+    successResponse(res, data, { meta: { requestId: getRequestId(req), pagination: data } });
+  })
+);
+adminConsoleRouter.get(
+  '/voice-demo-leads',
+  ...adminAuth,
+  requireAdminPermission('admin:dashboard:read'),
+  asyncHandler(async (req, res) => {
+    const query = adminListQuerySchema.parse(req.query);
+    const data = await listAiVoiceDemoLeads(query);
     successResponse(res, data, { meta: { requestId: getRequestId(req), pagination: data } });
   })
 );
