@@ -446,6 +446,18 @@ export type UpdateAdminUtmCampaignInput = Partial<CreateAdminUtmCampaignInput> &
   status?: "active" | "archived";
 };
 
+export type AdminVoiceDemoLead = {
+  id: string;
+  company: string;
+  email: string;
+  phone: string;
+  job: string;
+  status: "dialed" | "failed";
+  dialedCount: number;
+  errorMessage: string | null;
+  createdAt: string | null;
+};
+
 export type Paginated<T> = {
   items: T[];
   total: number;
@@ -533,6 +545,12 @@ export interface AdminApi {
     userId?: string;
     organizationId?: string;
   }): Promise<Paginated<AdminSourcingSession>>;
+  listVoiceDemoLeads(params?: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: string;
+  }): Promise<Paginated<AdminVoiceDemoLead>>;
   listBackgroundJobs(params?: { page?: number; limit?: number; status?: string }): Promise<Paginated<Record<string, unknown>>>;
   listPendingWorkerTasks(params?: {
     queue?: "all" | "background" | "outreach" | "campaign";
@@ -783,6 +801,12 @@ const liveAdminApi: AdminApi = {
   async listSourcingSessions(params) {
     const result = await apiClient.get<Paginated<AdminSourcingSession>>(
       `/admin/sourcing-sessions${buildQueryString(params)}`
+    );
+    return result.data;
+  },
+  async listVoiceDemoLeads(params) {
+    const result = await apiClient.get<Paginated<AdminVoiceDemoLead>>(
+      `/admin/voice-demo-leads${buildQueryString(params)}`
     );
     return result.data;
   },
@@ -1483,6 +1507,18 @@ const mockAdminApi: AdminApi = {
   },
   async listInterviews() {
     return { items: [], total: 0, page: 1, limit: 20, totalPages: 1 };
+  },
+  async listVoiceDemoLeads(params) {
+    await simulateMockLatency();
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit) || 20));
+    return {
+      items: [] as AdminVoiceDemoLead[],
+      total: 0,
+      page,
+      limit,
+      totalPages: 1,
+    };
   },
   async listSourcingSessions(params) {
     await simulateMockLatency();
