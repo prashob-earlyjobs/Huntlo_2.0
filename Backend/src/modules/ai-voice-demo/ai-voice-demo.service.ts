@@ -97,7 +97,7 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
     throw new AppError(
       429,
       'QUOTA_EXCEEDED',
-      "You've used both complimentary demo calls for today."
+      `You've used all ${AI_VOICE_DEMO_LIMIT} complimentary demo calls for today.`
     );
   }
 
