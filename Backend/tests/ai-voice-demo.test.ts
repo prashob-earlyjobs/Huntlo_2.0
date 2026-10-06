@@ -20,8 +20,11 @@ describe('AI voice demo jobs', () => {
       expect(agent.agentPrompt).toContain(job);
       expect(Array.isArray(agent.questions)).toBe(true);
       expect((agent.questions as unknown[]).length).toBeGreaterThan(0);
-      if (job.startsWith('Real Estate')) {
-        const asked = (agent.questions as { question: string }[]).map((row) => row.question).join(' ');
+      const asked = (agent.questions as { question: string }[]).map((row) => row.question).join(' ');
+      if (job === 'Real Estate Alice Greens Call') {
+        expect(asked).not.toContain('Innostax');
+        expect(asked).not.toContain('{company}');
+      } else if (job.startsWith('Real Estate')) {
         expect(asked).toContain('Innostax');
         expect(asked).not.toContain('{company}');
       }
