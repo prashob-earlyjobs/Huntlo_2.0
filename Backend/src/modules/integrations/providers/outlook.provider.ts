@@ -5,6 +5,7 @@ import {
   fetchMicrosoftProfile,
   getOutlookOAuthConfig,
   getOutlookOAuthRedirectUri,
+  getOutlookTenantId,
   OUTLOOK_MAIL_SCOPES,
   refreshOutlookAccessToken,
 } from '../../../providers/outlook/outlook.oauth.js';
@@ -22,7 +23,7 @@ export const outlookProvider: EmailProvider = {
     if (!getOutlookOAuthConfig()) {
       throw Object.assign(
         new Error(
-          'Microsoft OAuth is not configured. Set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET.'
+          'Microsoft OAuth is not configured. Set MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET (or OUTLOOK_CLIENT_ID / OUTLOOK_CLIENT_SECRET).'
         ),
         { statusCode: 503 }
       );
@@ -74,7 +75,7 @@ export const outlookProvider: EmailProvider = {
       providerAccountId: profile.id || profile.email,
       scopes: [...OUTLOOK_MAIL_SCOPES],
       config: {
-        outlookTenantId: process.env.MICROSOFT_TENANT_ID || 'common',
+        outlookTenantId: getOutlookTenantId(),
         outlookUserId: profile.id,
       },
     };

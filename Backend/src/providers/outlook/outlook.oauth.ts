@@ -12,19 +12,31 @@ export const OUTLOOK_MAIL_SCOPES = [
   'Mail.Read',
 ];
 
+function envFirst(...keys: string[]): string {
+  for (const key of keys) {
+    const value = String(process.env[key] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 export function getOutlookOAuthConfig(): { clientId: string; clientSecret: string } | null {
-  const clientId = String(process.env.MICROSOFT_CLIENT_ID || '').trim();
-  const clientSecret = String(process.env.MICROSOFT_CLIENT_SECRET || '').trim();
+  // Prefer MICROSOFT_* (docs/.env.example); also accept OUTLOOK_* aliases.
+  const clientId = envFirst('MICROSOFT_CLIENT_ID', 'OUTLOOK_CLIENT_ID');
+  const clientSecret = envFirst('MICROSOFT_CLIENT_SECRET', 'OUTLOOK_CLIENT_SECRET');
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
 }
 
 export function getOutlookTenantId(): string {
-  return String(process.env.MICROSOFT_TENANT_ID || 'common').trim() || 'common';
+  return envFirst('MICROSOFT_TENANT_ID', 'OUTLOOK_TENANT_ID') || 'common';
 }
 
 export function getOutlookOAuthRedirectUri(frontendUrl: string): string {
-  const explicit = String(process.env.MICROSOFT_OAUTH_REDIRECT_URI || '').trim();
+  const explicit = envFirst(
+    'MICROSOFT_OAUTH_REDIRECT_URI',
+    'OUTLOOK_REDIRECT_URI'
+  );
   if (explicit) return explicit;
   const frontend = frontendUrl.replace(/\/$/, '');
   return `${frontend}/integrations/outlook/callback`;

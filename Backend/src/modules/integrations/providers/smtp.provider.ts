@@ -22,6 +22,7 @@ export const smtpProvider: EmailProvider = {
           smtpHost: config.smtpHost,
           smtpPort: config.smtpPort,
           smtpSecurity: config.security,
+          username: config.username,
           ...(imapHost ? { imapHost, imapPort } : {}),
         },
         credentials: {
