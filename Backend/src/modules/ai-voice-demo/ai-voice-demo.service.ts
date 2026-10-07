@@ -97,7 +97,7 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
     throw new AppError(
       429,
       'QUOTA_EXCEEDED',
-      "You've used both complimentary demo calls for today."
+      `You've used all ${AI_VOICE_DEMO_LIMIT} complimentary demo calls for today.`
     );
   }
 
@@ -144,13 +144,13 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
       ? await sendHunarCallViaGateway({
           agentId,
           campaignId: String(record._id),
-          questions: demoQuestionsFor(job),
+          questions: demoQuestionsFor(job, company),
           data: [callee],
         })
       : await sendZyastraCallViaGateway({
           campaignId: String(record._id),
           prompt: agentInput.agentPrompt,
-          questions: demoQuestionsFor(job),
+          questions: demoQuestionsFor(job, company),
           data: [callee],
         });
 
@@ -185,4 +185,55 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
     log().error({ err: error, agentId, demoId: String(record._id) }, 'Hunar demo dial failed');
     throw wrapped;
   }
+}
+
+export async function listAiVoiceDemoLeads(query: {
+  page: number;
+  limit: number;
+  q?: string;
+  status?: string;
+}) {
+  const clauses: Record<string, unknown>[] = [];
+  const status = query.status?.trim();
+  if (status === 'dialed' || status === 'failed') {
+    clauses.push({ status });
+  }
+  const search = query.q?.trim();
+  if (search) {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(escaped, 'i');
+    clauses.push({
+      $or: [{ company: pattern }, { email: pattern }, { phone: pattern }, { job: pattern }],
+    });
+  }
+
+  const filter = clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0]! : { $and: clauses };
+  const page = query.page;
+  const limit = query.limit;
+  const [rows, total] = await Promise.all([
+    AiVoiceDemoCallModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    AiVoiceDemoCallModel.countDocuments(filter),
+  ]);
+
+  return {
+    items: rows.map((row) => ({
+      id: String(row._id),
+      company: row.company,
+      email: row.email,
+      phone: row.phone,
+      job: row.job,
+      status: row.status,
+      dialedCount: row.dialedCount ?? 0,
+      errorMessage: row.errorMessage ?? null,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : null,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+  };
 }

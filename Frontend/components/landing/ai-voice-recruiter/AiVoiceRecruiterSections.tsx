@@ -17,6 +17,8 @@ import {
   WORKFLOW,
 } from "@/lib/aiVoiceRecruiter";
 
+import { SampleCallPlayers } from "./SampleCallPlayers";
+
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5b4dff]">{children}</p>
@@ -113,7 +115,7 @@ function FlowColumn({
 export function AiVoiceRecruiterSections({ reduceMotion }: { reduceMotion: boolean }) {
   return (
     <>
-      <section className="border-y border-black/5 bg-[#f8f9fb] px-4 py-10 md:px-8 lg:px-12">
+      <section className="border-y border-black/5 bg-[#f8f9fb] px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-[80rem]">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#667085]">
             Trusted by Modern Recruiting Teams
@@ -128,6 +130,7 @@ export function AiVoiceRecruiterSections({ reduceMotion }: { reduceMotion: boole
               </div>
             ))}
           </div>
+          <SampleCallPlayers />
           <p className="mx-auto mt-8 max-w-3xl text-center text-sm text-[#475467]">
             Built for Staffing Agencies, Recruiters, Talent Acquisition Teams, and Enterprise Hiring.
           </p>

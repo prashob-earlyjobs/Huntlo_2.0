@@ -28,13 +28,16 @@ export const AI_VOICE_RECRUITER_GEO = {
     "What is Huntlo AI Voice Recruiter on /ai-voice-recruiter (https://www.huntlo.ai/ai-voice-recruiter)? How does it call, qualify, and shortlist candidates before recruiters spend time screening?",
 } as const;
 
-export const DEMO_CALL_LIMIT = 2;
+export const DEMO_CALL_LIMIT = 5;
 
 export const DEMO_JOBS = [
   "Customer Care Executive",
   "Business Development Executive",
   "MERN Developer",
   "Delivery Partner",
+  "Real Estate Property Visit – Feedback Call",
+  "Real Estate Property Requirement Call",
+  "Real Estate Alice Greens Call",
 ] as const;
 
 export const TRUST_METRICS = [
@@ -42,6 +45,25 @@ export const TRUST_METRICS = [
   { value: "5x", label: "Faster Candidate Qualification" },
   { value: "24×7", label: "AI Recruiter Availability" },
   { value: "100%", label: "Conversation Logs" },
+] as const;
+
+export const SAMPLE_CALLS = [
+  {
+    title: "Customer Care Executive",
+    src: "/audio/constomercare%20executive.wav",
+  },
+  {
+    title: "Delivery Partner",
+    src: "/audio/delivery%20boy.wav",
+  },
+  {
+    title: "Onboarding Agent",
+    src: "/audio/Onboarding%20agent.wav",
+  },
+  {
+    title: "Sales Executive",
+    src: "/audio/Sales%20Executive.wav",
+  },
 ] as const;
 
 export const TODAY_STEPS = [
@@ -203,6 +225,6 @@ export const AI_VOICE_RECRUITER_FAQS = [
   {
     question: "How many demo calls do I get?",
     answer:
-      "Each company receives 2 complimentary AI demo calls. The AI Recruiter calls the mobile number you enter and runs the same screen it would with a candidate.",
+      `Each company receives ${DEMO_CALL_LIMIT} complimentary AI demo calls. The AI Recruiter calls the mobile number you enter and runs the same screen it would with a candidate.`,
   },
 ] as const;

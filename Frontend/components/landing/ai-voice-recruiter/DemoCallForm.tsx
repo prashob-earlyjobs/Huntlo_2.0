@@ -142,7 +142,7 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
     const browserRemaining = Math.min(remaining, readStoredRemaining());
     if (browserRemaining <= 0) {
       applyRemaining(0);
-      setError("You've used both complimentary demo calls from this browser today.");
+      setError(`You've used all ${DEMO_CALL_LIMIT} complimentary demo calls from this browser today.`);
       return;
     }
     if (!values.company.trim() || !values.email.trim() || !values.phone.trim() || !values.role.trim()) {
@@ -327,7 +327,7 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
       </div>
       <p className="mt-3 text-xs leading-relaxed text-[#667085]">
         No sales call. Experience the AI recruiter yourself.
-        {variant === "page" ? " Each company receives 2 complimentary AI demo calls." : null}
+        {variant === "page" ? ` Each company receives ${DEMO_CALL_LIMIT} complimentary AI demo calls.` : null}
       </p>
       {error ? <p className="mt-2 text-xs font-medium text-[#b42318]">{error}</p> : null}
     </form>

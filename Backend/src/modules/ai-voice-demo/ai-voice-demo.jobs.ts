@@ -4,13 +4,16 @@ type HunarAgentWriteInput = Parameters<typeof createHunarVoiceAgent>[0] & {
   questions: DemoQuestion[];
 };
 
-export const AI_VOICE_DEMO_LIMIT = 2;
+export const AI_VOICE_DEMO_LIMIT = 5;
 
 export const AI_VOICE_DEMO_JOBS = [
   'Customer Care Executive',
   'Business Development Executive',
   'MERN Developer',
   'Delivery Partner',
+  'Real Estate Property Visit – Feedback Call',
+  'Real Estate Property Requirement Call',
+  'Real Estate Alice Greens Call',
 ] as const;
 
 export type AiVoiceDemoJob = (typeof AI_VOICE_DEMO_JOBS)[number];
@@ -106,6 +109,100 @@ const QUESTIONS: Record<AiVoiceDemoJob, DemoQuestion[]> = {
       question: 'How soon can you start?',
     },
   ],
+  'Real Estate Property Visit – Feedback Call': [
+    {
+      id: 'overall-experience',
+      question: 'How was your overall experience during the {company} property visit?',
+    },
+    {
+      id: 'expectations',
+      question:
+        'Did the {company} property meet your expectations based on the information shared with you?',
+    },
+    {
+      id: 'liked-most',
+      question:
+        'What did you like most about the {company} property — location, amenities, layout, or something else?',
+    },
+    {
+      id: 'concerns',
+      question:
+        'Do you have any concerns regarding the {company} property, pricing, location, or amenities?',
+    },
+    {
+      id: 'interest',
+      question:
+        'After the visit, how interested are you in moving forward with this {company} property? Options: Very Interested, Interested, Need More Information, Not Interested.',
+    },
+    {
+      id: 'sales-follow-up',
+      question:
+        'Would you like the {company} sales team to contact you to discuss the next steps or arrange another visit?',
+    },
+  ],
+  'Real Estate Property Requirement Call': [
+    {
+      id: 'property-type',
+      question:
+        'What type of {company} property are you looking for? Options: 1 BHK, 2 BHK, 3 BHK, 4 BHK, Plot, Villa, or Commercial.',
+    },
+    {
+      id: 'location',
+      question: 'Which location or areas are you primarily looking for with {company}?',
+    },
+    {
+      id: 'size',
+      question: 'What is your preferred {company} property size or configuration?',
+    },
+    {
+      id: 'budget',
+      question: 'What is your approximate budget for the {company} property?',
+    },
+    {
+      id: 'purpose',
+      question: 'Are you looking for the {company} property for self-use or investment?',
+    },
+    {
+      id: 'timeline',
+      question:
+        'When are you planning to purchase the {company} property? Options: Immediately, Within 3 months, 3–6 months, or 6+ months.',
+    },
+    {
+      id: 'visit',
+      question:
+        'Would you be interested in visiting a {company} property? If yes, when would be a convenient time for you?',
+    },
+  ],
+  'Real Estate Alice Greens Call': [
+    {
+      id: 'product',
+      question: 'Are you exploring a residential plot or a 3 BHK luxury villa?',
+    },
+    {
+      id: 'location',
+      question:
+        'The project is on Roorkee Bypass Road, opposite Jaipuria School. Does this location work for you?',
+    },
+    {
+      id: 'size',
+      question:
+        'There are 259 plots from 1,100 to 2,162 square feet, and 60 three-BHK villas from 1,209 to 1,681 square feet. Which option interests you?',
+    },
+    {
+      id: 'purpose',
+      question: 'Are you looking at this project for self-use or as an investment?',
+    },
+    {
+      id: 'timeline',
+      question:
+        'When are you planning to decide? Options: Immediately, Within 3 months, 3–6 months, or 6+ months.',
+    },
+    {
+      id: 'sales-follow-up',
+      question:
+        'For pricing and further details, the sales consultant team can contact you. Would you like them to call you?',
+    },
+  ],
 };
 
 const RESULT_FIELDS = [
@@ -128,26 +225,81 @@ export function isAiVoiceDemoJob(value: string): value is AiVoiceDemoJob {
   return (AI_VOICE_DEMO_JOBS as readonly string[]).includes(value);
 }
 
-export function demoQuestionsFor(job: AiVoiceDemoJob): DemoQuestion[] {
-  return QUESTIONS[job];
+export function demoQuestionsFor(job: AiVoiceDemoJob, company: string): DemoQuestion[] {
+  const name = company.trim();
+  return QUESTIONS[job].map((row) => ({
+    ...row,
+    question: row.question.replaceAll('{company}', name),
+  }));
+}
+
+function isRealEstateCall(job: AiVoiceDemoJob): boolean {
+  return job.startsWith('Real Estate');
 }
 
 export function buildDemoAgentInput(job: AiVoiceDemoJob, company: string): HunarAgentWriteInput {
-  const questions = demoQuestionsFor(job);
+  const questions = demoQuestionsFor(job, company);
   const questionList = questions.map((row, index) => `${index + 1}. ${row.question}`).join('\n');
+  const realEstate = isRealEstateCall(job);
+  const feedback = job === 'Real Estate Property Visit – Feedback Call';
+  const alice = job === 'Real Estate Alice Greens Call';
 
   return {
     name: `Huntlo demo · ${job}`.slice(0, 64),
     personaName: 'Roshni',
-    objective: `Screen the caller for the ${job} role at ${company} and capture interest, notice period, and salary expectations.`,
-    introduction: `Hello, this is Roshni calling on behalf of ${company} about the ${job} opening. This is a short screening call. Do you have a minute?`,
+    objective: realEstate
+      ? alice
+        ? `Introduce the ${company} project once, then capture plot or villa interest. For pricing, arrange a sales consultant follow-up.`
+        : feedback
+          ? `Collect property-visit feedback for ${company} and capture interest level and whether the sales team should follow up.`
+          : `Understand the property requirements for a ${company} buyer and capture type, location, budget, timeline, and visit interest.`
+      : `Screen the caller for the ${job} role at ${company} and capture interest, notice period, and salary expectations.`,
+    introduction: realEstate
+      ? alice
+        ? `Hello, this is Roshni calling on behalf of ${company}. This is a ${job} about premium residential plots and 3 BHK luxury villas on the Haridwar–Delhi Highway. Do you have a minute?`
+        : feedback
+          ? `Hello, this is Roshni calling on behalf of ${company}. This is a ${job} about your recent property visit. Do you have a minute?`
+          : `Hello, this is Roshni calling on behalf of ${company}. This is a ${job} to understand the property you are looking for. Do you have a minute?`
+      : `Hello, this is Roshni calling on behalf of ${company} about the ${job} opening. This is a short screening call. Do you have a minute?`,
     agentPrompt: [
-      `You are Roshni, a warm and professional AI recruiter calling on behalf of ${company}.`,
-      `The hiring company is ${company}. Say this company name when you introduce the role. Do not replace it with Huntlo or leave it out.`,
-      `You are calling the person who requested a Huntlo demo. Screen them the way you would screen a candidate for the ${job} role at ${company}.`,
-      `Keep the call short. Ask one question at a time, listen, and follow up only when an answer is unclear.`,
-      `Do not invent salary, location, or benefits that were not provided.`,
-      `Close by thanking them and saying a recruiter will review the screen.`,
+      realEstate
+        ? `You are Roshni, a warm and professional caller from ${company}.`
+        : `You are Roshni, a warm and professional AI recruiter calling on behalf of ${company}.`,
+      alice
+        ? `The company is ${company}. Say it once in the opening only. Do not say it in any question.`
+        : `The company is ${company}. Say this company name when you introduce yourself. Do not replace it with Huntlo or leave it out.`,
+      `Call type: ${job}.`,
+      realEstate
+        ? alice
+          ? `You are calling the person who requested a Huntlo demo. Greet them from Alice World. Say the company name only once, in the opening. Do not say the company name or the project name again. After the opening, say the project or this project. Ask each question exactly as written. Do not insert the company name into a question. Do not read the call type or job title aloud. Share a short overview, then ask the questions. Answer follow-ups only from the project facts below.`
+          : feedback
+            ? `You are calling the person who requested a Huntlo demo. Treat them as someone who recently visited a ${company} property and collect feedback.`
+            : `You are calling the person who requested a Huntlo demo. Treat them as a property buyer and capture their requirements for ${company}.`
+        : `You are calling the person who requested a Huntlo demo. Screen them the way you would screen a candidate for the ${job} role at ${company}.`,
+      alice
+        ? [
+            `Project facts for ${company}:`,
+            `Premium residential plots and 3 BHK luxury villas.`,
+            `Location: NH-334, Haridwar–Delhi Highway, Roorkee Bypass Road, opposite Jaipuria School. Centrally located between Haridwar and Roorkee.`,
+            `Alice World has 20+ years of legacy in construction and 4+ years in real estate. Portfolio of 1.5 million+ sq. ft. of residential and commercial development. 6.75 lakh+ sq. ft. delivered. 8.5 lakh+ sq. ft. under development. Trusted by 650+ families.`,
+            `Land parcel: about 100 bigha. Plots: 259, sizes 1,100 to 2,162 sq. ft. Villas: 60 three-BHK luxury villas, sizes 1,209 to 1,681 sq. ft.`,
+            `Approvals and amenities: HRDA and RERA approved, 2-tier gated security, semi and fully loaded luxury villas, grand temple, swimming pool, 9 themed parks, badminton court, walking track, yoga and meditation zone, dedicated kids' play area.`,
+            `Nearby: IIT Roorkee, COER Engineering and Nursing College, Quadra Hospital, Jaipuria School, Montfort School, Patanjali Yogpeeth and Research Institute, Crystal World Water and Amusement Park, restaurants and daily conveniences, and the upcoming RRTS corridor.`,
+            `Home loans are available through SBI and other leading banks.`,
+            `Do not quote a price. If they ask about pricing or want more detail, say the sales consultant team will contact them.`,
+          ].join(' ')
+        : `Keep the call short. Ask one question at a time, listen, and follow up only when an answer is unclear.`,
+      alice
+        ? `Keep the call short. Ask one question at a time, listen, and follow up only when an answer is unclear.`
+        : realEstate
+          ? `When a question lists options, offer those options and record the closest match. Do not invent property details, prices, or locations that were not provided.`
+          : `Do not invent salary, location, or benefits that were not provided.`,
+      alice
+        ? `When a question lists options, offer those options and record the closest match. Do not invent prices, sizes, or locations beyond these project facts.`
+        : realEstate
+          ? `Close by thanking them and confirming the next step they agreed to.`
+          : `Close by thanking them and saying a recruiter will review the screen.`,
+      alice ? `Close by thanking them. For pricing and further details, confirm that the sales consultant team will contact them.` : '',
       ``,
       `Questions to ask:`,
       questionList,
