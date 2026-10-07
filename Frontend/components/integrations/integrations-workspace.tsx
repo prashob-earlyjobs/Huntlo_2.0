@@ -4,6 +4,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   ExternalLink,
+  Eye,
+  EyeOff,
   Loader2,
   Plug,
   RefreshCw,
@@ -294,20 +296,64 @@ function InlineAlert({
   );
 }
 
+function toSmtpUiSecurity(raw: unknown): string {
+  const value = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (value === "ssl" || value === "ssl/tls") return "SSL/TLS";
+  if (value === "none") return "None";
+  return "STARTTLS";
+}
+
+function smtpFormFromProvider(provider: IntegrationProvider) {
+  const config = provider.connectionConfig || {};
+  const fromEmail =
+    provider.connectedEmail || provider.connectedIdentity || "";
+  return {
+    ...SMTP_CONFIG_DEFAULTS,
+    fromEmail,
+    displayName: provider.connectedDisplayName || "",
+    smtpHost: config.smtpHost != null ? String(config.smtpHost) : "",
+    smtpPort:
+      config.smtpPort != null ? String(config.smtpPort) : SMTP_CONFIG_DEFAULTS.smtpPort,
+    security: toSmtpUiSecurity(config.smtpSecurity),
+    username:
+      config.username != null
+        ? String(config.username)
+        : fromEmail || "",
+    password: "",
+    imapHost: config.imapHost != null ? String(config.imapHost) : "",
+    imapPort:
+      config.imapPort != null ? String(config.imapPort) : SMTP_CONFIG_DEFAULTS.imapPort,
+  };
+}
+
 function SmtpConfigPanel({
-  providerId,
+  provider,
   onFeedback,
   onConnected,
 }: {
-  providerId: string;
+  provider: IntegrationProvider;
   onFeedback: (message: string, tone?: FlashTone) => void;
   onConnected: () => void;
 }) {
-  const [form, setForm] = useState(SMTP_CONFIG_DEFAULTS);
+  const [form, setForm] = useState(() => smtpFormFromProvider(provider));
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [alert, setAlert] = useState<{ tone: FlashTone; text: string } | null>(
     null
   );
+
+  useEffect(() => {
+    setForm(smtpFormFromProvider(provider));
+    setShowPassword(false);
+    setAlert(null);
+  }, [
+    provider.integrationRecordId,
+    provider.connectedEmail,
+    provider.connectedDisplayName,
+    provider.connectionConfig,
+  ]);
 
   return (
     <div className="space-y-3">
@@ -319,6 +365,7 @@ function SmtpConfigPanel({
           <Input
             id="smtp-from"
             value={form.fromEmail}
+            placeholder="you@company.com"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -331,6 +378,7 @@ function SmtpConfigPanel({
           <Input
             id="smtp-display"
             value={form.displayName}
+            placeholder="Recruiting Team"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -343,6 +391,7 @@ function SmtpConfigPanel({
           <Input
             id="smtp-host"
             value={form.smtpHost}
+            placeholder="smtp.example.com"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -355,6 +404,7 @@ function SmtpConfigPanel({
           <Input
             id="smtp-port"
             value={form.smtpPort}
+            placeholder="587"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -387,6 +437,7 @@ function SmtpConfigPanel({
           <Input
             id="smtp-user"
             value={form.username}
+            placeholder="SMTP username"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -401,24 +452,41 @@ function SmtpConfigPanel({
           className="sm:col-span-2"
           hint="Required to connect or update. Stored encrypted."
         >
-          <Input
-            id="smtp-pass"
-            type="password"
-            value={form.password}
-            placeholder="••••••••"
-            autoComplete="new-password"
-            onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                password: event.target.value,
-              }))
-            }
-          />
+          <div className="relative">
+            <Input
+              id="smtp-pass"
+              type={showPassword ? "text" : "password"}
+              value={form.password}
+              placeholder="••••••••"
+              autoComplete="new-password"
+              className="pr-9"
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  password: event.target.value,
+                }))
+              }
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-0 inline-flex w-9 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {showPassword ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </button>
+          </div>
         </Field>
         <Field label="IMAP host" htmlFor="imap-host">
           <Input
             id="imap-host"
             value={form.imapHost}
+            placeholder="imap.example.com"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -431,6 +499,7 @@ function SmtpConfigPanel({
           <Input
             id="imap-port"
             value={form.imapPort}
+            placeholder="993"
             onChange={(event) =>
               setForm((previous) => ({
                 ...previous,
@@ -456,7 +525,7 @@ function SmtpConfigPanel({
                   : form.security === "None"
                     ? "none"
                     : "tls";
-              const result = await integrationsApi.connect(providerId, {
+              const result = await integrationsApi.connect(provider.id, {
                 fromEmail: form.fromEmail,
                 displayName: form.displayName,
                 smtpHost: form.smtpHost,
@@ -489,7 +558,11 @@ function SmtpConfigPanel({
           })();
         }}
       >
-        {busy ? "Connecting…" : "Save & connect SMTP"}
+        {busy
+          ? "Saving…"
+          : provider.status === "Not Connected"
+            ? "Save & connect SMTP"
+            : "Update SMTP connection"}
       </Button>
     </div>
   );
@@ -858,12 +931,22 @@ function ConnectionDrawer({
 }) {
   const [testState, setTestState] = useState<TestState>("idle");
   const [testMessage, setTestMessage] = useState("");
-  const [showConfig, setShowConfig] = useState(true);
+  const [showConfig, setShowConfig] = useState(false);
   const [busy, setBusy] = useState(false);
   const [drawerAlert, setDrawerAlert] = useState<{
     tone: FlashTone;
     text: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (!provider || !open) return;
+    setShowConfig(provider.status === "Not Connected");
+    setTestState("idle");
+    setTestMessage("");
+    setDrawerAlert(null);
+    // Only reset when the drawer opens or a different provider is selected —
+    // not when refresh() replaces the provider object after Run test.
+  }, [provider?.id, open]);
 
   if (!provider) return null;
 
@@ -1024,6 +1107,25 @@ function ConnectionDrawer({
                 {provider.connectedIdentity ?? "—"}
               </dd>
             </div>
+            {provider.status !== "Not Connected" &&
+            provider.connectionDetails.length > 0
+              ? provider.connectionDetails
+                  .filter(
+                    (detail) =>
+                      detail.label !== "From email" ||
+                      detail.value !== provider.connectedIdentity
+                  )
+                  .map((detail) => (
+                    <div key={`${detail.label}-${detail.value}`}>
+                      <dt className="text-xs text-muted-foreground">
+                        {detail.label}
+                      </dt>
+                      <dd className="break-all text-sm font-medium text-foreground">
+                        {detail.value}
+                      </dd>
+                    </div>
+                  ))
+              : null}
             <div>
               <dt className="text-xs text-muted-foreground">Last sync</dt>
               <dd className="text-sm font-medium text-foreground">
@@ -1175,22 +1277,37 @@ function ConnectionDrawer({
               {showConfig ? (
                 provider.configKind === "smtp" ? (
                   <SmtpConfigPanel
-                    providerId={provider.id}
+                    provider={provider}
                     onFeedback={notify}
-                    onConnected={onRefresh}
+                    onConnected={() => {
+                      setShowConfig(false);
+                      onRefresh();
+                    }}
                   />
                 ) : provider.configKind === "whatsapp" ? (
                   <WhatsAppConfigPanel
                     providerId={provider.id}
                     onFeedback={notify}
-                    onConnected={onRefresh}
+                    onConnected={() => {
+                      setShowConfig(false);
+                      onRefresh();
+                    }}
                   />
                 ) : provider.configKind === "zwayam" ? (
-                  <ZwayamConfigPanel onSave={onFlash} onConnected={onRefresh} />
+                  <ZwayamConfigPanel
+                    onSave={onFlash}
+                    onConnected={() => {
+                      setShowConfig(false);
+                      onRefresh();
+                    }}
+                  />
                 ) : (
                   <CalendlyConfigPanel
                     onFeedback={notify}
-                    onConnected={onRefresh}
+                    onConnected={() => {
+                      setShowConfig(false);
+                      onRefresh();
+                    }}
                   />
                 )
               ) : null}
