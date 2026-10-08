@@ -105,6 +105,7 @@ import {
 } from "@/lib/mock-team";
 import { workEmailDomain } from "@/lib/work-email";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
 const EMPTY_ORG_FORM = {
   name: "",
@@ -506,17 +507,56 @@ function MemberDrawer({
   open,
   onOpenChange,
   onAction,
+  onUpdated,
 }: {
   member: TeamMember | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAction: (message: string) => void;
+  onUpdated: (member: TeamMember) => void;
 }) {
+  const { user } = useAuth();
   const [role, setRole] = useState<TeamRole | null>(null);
+  const [modules, setModules] = useState<ModuleAccess[]>([]);
+  const [savingModules, setSavingModules] = useState(false);
+
+  const canEditAccess =
+    (user?.role === "owner" || user?.role === "admin") &&
+    member?.role !== "Workspace Owner";
+
+  useEffect(() => {
+    setRole(null);
+    setModules(member?.moduleAccess ?? []);
+  }, [member?.id, member?.moduleAccess]);
 
   if (!member) return null;
 
   const displayRole = role ?? member.role;
+  const roleModules = availableModulesForRole(displayRole);
+
+  async function toggleModule(mod: ModuleAccess) {
+    if (!canEditAccess || savingModules || !roleModules.includes(mod)) return;
+    const previous = modules;
+    const next = previous.includes(mod)
+      ? previous.filter((value) => value !== mod)
+      : [...previous, mod];
+    setModules(next);
+    setSavingModules(true);
+    try {
+      const updated = await teamApi.updateMemberPermissions(member!.id, {
+        allowedModules: modulesToAllowedKeys(next),
+      });
+      const mapped = mapApiMemberToUi(updated);
+      setModules(mapped.moduleAccess);
+      onUpdated(mapped);
+      onAction(`Updated module access for ${member!.name}.`);
+    } catch (error) {
+      setModules(previous);
+      onAction(getApiErrorMessage(error, "Unable to update module access."));
+    } finally {
+      setSavingModules(false);
+    }
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -596,9 +636,6 @@ function MemberDrawer({
               <TabsTrigger value="usage" className="flex-1">
                 Usage
               </TabsTrigger>
-              <TabsTrigger value="activity" className="flex-1">
-                Activity
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-3 pt-3">
@@ -677,9 +714,43 @@ function MemberDrawer({
                 <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                   Module access
                 </p>
+                {member.role === "Workspace Owner" ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Workspace owners always have full access.
+                  </p>
+                ) : null}
                 <ul className="mt-2 space-y-1">
                   {MODULE_ACCESS_OPTIONS.map((mod) => {
-                    const allowed = member.moduleAccess.includes(mod);
+                    const allowed = modules.includes(mod);
+                    const supported = roleModules.includes(mod);
+                    if (canEditAccess) {
+                      return (
+                        <li key={mod}>
+                          <label
+                            className={cn(
+                              "flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm",
+                              supported
+                                ? "cursor-pointer"
+                                : "cursor-not-allowed opacity-50"
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={allowed}
+                              disabled={!supported || savingModules}
+                              onChange={() => void toggleModule(mod)}
+                              className="size-3.5 accent-primary"
+                            />
+                            <span className="flex-1">{mod}</span>
+                            {!supported ? (
+                              <span className="text-[10px] text-muted-foreground">
+                                Not in role
+                              </span>
+                            ) : null}
+                          </label>
+                        </li>
+                      );
+                    }
                     return (
                       <li
                         key={mod}
@@ -735,38 +806,6 @@ function MemberDrawer({
                   </div>
                 ))}
               </div>
-            </TabsContent>
-
-            <TabsContent value="activity" className="pt-3">
-              <ol className="space-y-0">
-                {member.activity.map((entry, index) => (
-                  <li
-                    key={entry.id}
-                    className="relative flex gap-3 pb-4 last:pb-0"
-                  >
-                    {index < member.activity.length - 1 ? (
-                      <span
-                        aria-hidden
-                        className="absolute top-6 left-[11px] h-full w-px bg-border"
-                      />
-                    ) : null}
-                    <span className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
-                      <span className="size-1.5 rounded-full bg-muted-foreground" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">
-                        {entry.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {entry.detail}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {entry.time}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
             </TabsContent>
           </Tabs>
         </div>
@@ -1555,6 +1594,12 @@ export function TeamWorkspace() {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onAction={flash}
+        onUpdated={(updated) => {
+          setSelected(updated);
+          setMembers((previous) =>
+            previous.map((item) => (item.id === updated.id ? updated : item))
+          );
+        }}
       />
     </div>
   );
