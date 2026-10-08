@@ -281,7 +281,9 @@ export function ChannelsStep({
       try {
         const [providers, usage, integrations] = await Promise.all([
           integrationsApi.listProviders(),
-          plansApi.getUsage(),
+          // Recruiters can launch campaigns without plans:view. A 403 here must
+          // not discard the connection result and leave every channel Disconnected.
+          plansApi.getUsage().catch(() => [] as UsageQuota[]),
           integrationsApi.listRaw(),
         ]);
         if (cancelled) return;
