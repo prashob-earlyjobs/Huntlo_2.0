@@ -3,6 +3,8 @@ import { createDomainService, simulateMockLatency } from "./service";
 import type { TeamMember } from "./contracts";
 import {
   labelsFromModuleKeys,
+  MODULE_KEY_TO_LABEL,
+  MODULE_LABEL_TO_KEY,
   modulesFromPermissions,
   type PermissionModule,
 } from "@/lib/access-control";
@@ -36,6 +38,14 @@ export type ApiTeamMember = {
   status: string;
   joinedAt: string | null;
   lastLoginAt: string | null;
+  usage?: {
+    searches: number;
+    reveals: number;
+    outreach: number;
+    screenings: number;
+  };
+  candidatesSourced?: number;
+  campaigns?: number;
 };
 
 export type TeamInvitation = {
@@ -142,6 +152,24 @@ export function toRoleKey(role: string): TeamRoleKey | string {
   return ROLE_LABEL_TO_KEY[role] ?? role;
 }
 
+function moduleLabelsFromApi(member: ApiTeamMember): ModuleAccess[] {
+  const raw =
+    (member.moduleAccess?.length ? member.moduleAccess : null) ??
+    member.allowedModules ??
+    modulesFromPermissions(member.permissions ?? []);
+
+  const keys = raw
+    .map((value) => {
+      if (value in MODULE_KEY_TO_LABEL) return value as PermissionModule;
+      return MODULE_LABEL_TO_KEY[value];
+    })
+    .filter((key): key is PermissionModule => Boolean(key));
+
+  return labelsFromModuleKeys(keys).filter((label): label is ModuleAccess =>
+    Boolean(label)
+  );
+}
+
 export function mapApiMemberToUi(member: ApiTeamMember): TeamMember {
   const statusMap: Record<string, TeamMember["status"]> = {
     active: "Active",
@@ -150,18 +178,7 @@ export function mapApiMemberToUi(member: ApiTeamMember): TeamMember {
     deactivated: "Deactivated",
   };
 
-  const moduleKeys =
-    member.allowedModules ??
-    (member.moduleAccess as PermissionModule[] | undefined) ??
-    modulesFromPermissions(member.permissions ?? []);
-
-  const moduleAccess = (
-    member.moduleAccess?.length
-      ? member.moduleAccess
-      : labelsFromModuleKeys(moduleKeys)
-  ).filter((label): label is ModuleAccess =>
-    Boolean(label)
-  ) as ModuleAccess[];
+  const moduleAccess = moduleLabelsFromApi(member);
 
   return {
     id: member.id,
@@ -172,8 +189,8 @@ export function mapApiMemberToUi(member: ApiTeamMember): TeamMember {
     phone: member.phone ?? "",
     title: member.title ?? "",
     assignedJobs: [],
-    candidatesSourced: 0,
-    campaigns: 0,
+    candidatesSourced: member.candidatesSourced ?? 0,
+    campaigns: member.campaigns ?? 0,
     lastActive: member.lastLoginAt
       ? new Date(member.lastLoginAt).toLocaleString()
       : "—",
@@ -182,7 +199,12 @@ export function mapApiMemberToUi(member: ApiTeamMember): TeamMember {
       : "—",
     status: statusMap[member.status] ?? "Active",
     moduleAccess,
-    usage: { searches: 0, reveals: 0, outreach: 0, screenings: 0 },
+    usage: {
+      searches: member.usage?.searches ?? 0,
+      reveals: member.usage?.reveals ?? 0,
+      outreach: member.usage?.outreach ?? 0,
+      screenings: member.usage?.screenings ?? 0,
+    },
     activity: [],
   };
 }

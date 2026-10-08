@@ -10,6 +10,11 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { normalizeEmail } from '../../shared/validation/email.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { quotaService, type QuotaUsageView } from '../../shared/usage/index.js';
+import { UsageLedgerModel } from '../../shared/usage/usage-ledger.model.js';
+import { OutreachCampaignModel } from '../outreach/campaign.model.js';
+import { ScreeningModel } from '../screening/screening.model.js';
+import { SourcedCandidateModel } from '../sourcing/sourced-candidate.model.js';
+import { SourcingSessionModel } from '../sourcing/sourcing-session.model.js';
 import { UserModel, type UserDocument } from '../auth/user.model.js';
 import { UserSessionModel } from '../auth/session.model.js';
 import { assertSameOrganization } from '../../middleware/auth.js';
@@ -114,6 +119,116 @@ async function assertSeatAvailable(organizationId: mongoose.Types.ObjectId, plan
   }
 }
 
+type MemberUsageStats = {
+  searches: number;
+  reveals: number;
+  outreach: number;
+  screenings: number;
+  candidatesSourced: number;
+  campaigns: number;
+};
+
+function emptyMemberUsage(): MemberUsageStats {
+  return {
+    searches: 0,
+    reveals: 0,
+    outreach: 0,
+    screenings: 0,
+    candidatesSourced: 0,
+    campaigns: 0,
+  };
+}
+
+async function loadMemberUsage(
+  organizationId: mongoose.Types.ObjectId,
+  userIds: mongoose.Types.ObjectId[]
+): Promise<Map<string, MemberUsageStats>> {
+  const usage = new Map<string, MemberUsageStats>();
+  for (const userId of userIds) {
+    usage.set(userId.toHexString(), emptyMemberUsage());
+  }
+  if (userIds.length === 0) return usage;
+
+  const bump = (userId: unknown, field: keyof MemberUsageStats, amount: number) => {
+    const key = String(userId);
+    const row = usage.get(key);
+    if (!row) return;
+    row[field] += amount;
+  };
+
+  const [ledger, searches, screenings, sourced, campaigns] = await Promise.all([
+    UsageLedgerModel.aggregate<{ _id: { userId: mongoose.Types.ObjectId; metric: string }; total: number }>([
+      {
+        $match: {
+          organizationId,
+          userId: { $in: userIds },
+          status: 'committed',
+          action: { $in: ['commit', 'increment'] },
+          metric: {
+            $in: ['email_reveal', 'mobile_reveal', 'email_outreach', 'whatsapp_outreach'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { userId: '$userId', metric: '$metric' },
+          total: { $sum: '$quantity' },
+        },
+      },
+    ]),
+    SourcingSessionModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
+      {
+        $match: {
+          organizationId,
+          ownerUserId: { $in: userIds },
+          status: { $ne: 'draft' },
+        },
+      },
+      { $group: { _id: '$ownerUserId', total: { $sum: 1 } } },
+    ]),
+    ScreeningModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
+      {
+        $match: {
+          organizationId,
+          ownerUserId: { $in: userIds },
+          deletedAt: null,
+        },
+      },
+      { $group: { _id: '$ownerUserId', total: { $sum: 1 } } },
+    ]),
+    SourcedCandidateModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
+      { $match: { organizationId, userId: { $in: userIds } } },
+      { $group: { _id: '$userId', total: { $sum: 1 } } },
+    ]),
+    OutreachCampaignModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
+      {
+        $match: {
+          organizationId,
+          ownerUserId: { $in: userIds },
+          deletedAt: null,
+        },
+      },
+      { $group: { _id: '$ownerUserId', total: { $sum: 1 } } },
+    ]),
+  ]);
+
+  for (const row of ledger) {
+    const total = Number(row.total) || 0;
+    const metric = row._id.metric;
+    if (metric === 'email_reveal' || metric === 'mobile_reveal') {
+      bump(row._id.userId, 'reveals', total);
+    } else if (metric === 'email_outreach' || metric === 'whatsapp_outreach') {
+      bump(row._id.userId, 'outreach', total);
+    }
+  }
+  for (const row of searches) bump(row._id, 'searches', Number(row.total) || 0);
+  for (const row of screenings) bump(row._id, 'screenings', Number(row.total) || 0);
+  for (const row of sourced) bump(row._id, 'candidatesSourced', Number(row.total) || 0);
+  for (const row of campaigns) bump(row._id, 'campaigns', Number(row.total) || 0);
+
+  return usage;
+}
+
 function toPublicMember(
   member: {
     _id: mongoose.Types.ObjectId;
@@ -134,7 +249,8 @@ function toPublicMember(
     phone?: string | null;
     jobTitle?: string | null;
     lastLoginAt?: Date | null;
-  } | null
+  } | null,
+  stats: MemberUsageStats = emptyMemberUsage()
 ) {
   const firstName = user?.firstName ?? '';
   const lastName = user?.lastName ?? '';
@@ -165,7 +281,27 @@ function toPublicMember(
     status: member.status,
     joinedAt: member.joinedAt?.toISOString() ?? null,
     lastLoginAt: user?.lastLoginAt?.toISOString() ?? null,
+    usage: {
+      searches: stats.searches,
+      reveals: stats.reveals,
+      outreach: stats.outreach,
+      screenings: stats.screenings,
+    },
+    candidatesSourced: stats.candidatesSourced,
+    campaigns: stats.campaigns,
   };
+}
+
+async function toPublicMemberWithUsage(
+  member: Parameters<typeof toPublicMember>[0],
+  user: Parameters<typeof toPublicMember>[1]
+) {
+  const usage = await loadMemberUsage(member.organizationId, [member.userId]);
+  return toPublicMember(
+    member,
+    user,
+    usage.get(member.userId.toHexString()) ?? emptyMemberUsage()
+  );
 }
 
 function toPublicInvitation(invite: {
@@ -275,8 +411,16 @@ export class OrganizationService {
       revokedAt: null,
     }).sort({ createdAt: -1 });
 
+    const usageByUser = await loadMemberUsage(
+      organization._id,
+      members.map((member) => member.userId)
+    );
     const publicMembers = members.map((member) =>
-      toPublicMember(member, userMap.get(member.userId.toHexString()) ?? null)
+      toPublicMember(
+        member,
+        userMap.get(member.userId.toHexString()) ?? null,
+        usageByUser.get(member.userId.toHexString())
+      )
     );
 
     const occupiedSeats = await countOccupiedSeats(organization._id);
@@ -468,7 +612,7 @@ export class OrganizationService {
       });
 
       return {
-        member: toPublicMember(member, user),
+        member: await toPublicMemberWithUsage(member, user),
         credentials: {
           email,
           temporaryPassword,
@@ -608,7 +752,7 @@ export class OrganizationService {
     });
 
     return {
-      member: toPublicMember(member, user),
+      member: await toPublicMemberWithUsage(member, user),
       organization: toPublicOrganization(organization),
     };
   }
@@ -667,7 +811,7 @@ export class OrganizationService {
     assertSameOrganization(member.organizationId, actor.organizationId);
 
     const user = await UserModel.findById(member.userId);
-    return toPublicMember(member, user);
+    return await toPublicMemberWithUsage(member, user);
   }
 
   async updateMember(actor: ActorContext, memberId: string, input: Record<string, unknown>) {
@@ -704,7 +848,7 @@ export class OrganizationService {
       metadata: { memberId, fields: Object.keys(input) },
     });
 
-    return toPublicMember(member, user);
+    return await toPublicMemberWithUsage(member, user);
   }
 
   async updateMemberRole(actor: ActorContext, memberId: string, role: string) {
@@ -736,7 +880,7 @@ export class OrganizationService {
     });
 
     const user = await UserModel.findById(member.userId);
-    return toPublicMember(member, user);
+    return await toPublicMemberWithUsage(member, user);
   }
 
   async updateMemberPermissions(
@@ -775,7 +919,7 @@ export class OrganizationService {
     });
 
     const user = await UserModel.findById(member.userId);
-    return toPublicMember(member, user);
+    return await toPublicMemberWithUsage(member, user);
   }
 
   async updateMemberStatus(actor: ActorContext, memberId: string, status: string) {
@@ -816,7 +960,7 @@ export class OrganizationService {
     });
 
     const user = await UserModel.findById(member.userId);
-    return toPublicMember(member, user);
+    return await toPublicMemberWithUsage(member, user);
   }
 
   async resetMemberPassword(actor: ActorContext, memberId: string) {
