@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import { countryIsoFromDial } from '../../shared/phone/country-from-dial.js';
 import {
   buildOrganizationInitials,
 } from '../../shared/auth/crypto.js';
@@ -86,7 +87,7 @@ async function createOrganizationForOwner(user: UserDocument) {
       timezone: user.timezone || 'Asia/Kolkata',
       defaultTimezone: user.timezone || 'Asia/Kolkata',
       currency: 'INR',
-      country: 'IN',
+      country: countryIsoFromDial({ phone: user.phone }),
       status: 'active',
       ownerUserId: user._id,
       companyType: user.onboardingCompanyType ?? null,

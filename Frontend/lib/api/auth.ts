@@ -15,6 +15,8 @@ export type RegisterInput = {
   fullName: string;
   companyName: string;
   mobile: string;
+  /** ISO country for the selected dial code (e.g. "US"). */
+  country?: string;
   /** 5-digit signup email OTP (required in non-test environments). */
   otp?: string;
   /** @deprecated Prefer fullName + companyName */
