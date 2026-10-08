@@ -14,6 +14,7 @@ import {
 } from '../../shared/auth/crypto.js';
 import { parseDurationMs, signAccessToken } from '../../shared/auth/jwt.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { countryIsoFromDial } from '../../shared/phone/country-from-dial.js';
 import { consumeRateLimit, resetRateLimit } from '../../middleware/rate-limit.js';
 import {
   isSystemMailConfigured,
@@ -327,6 +328,7 @@ export class AuthService {
     lastName: string;
     companyName: string;
     mobile?: string | null;
+    country?: string | null;
     otp?: string | null;
     organizationName?: string;
     attribution?: {
@@ -377,7 +379,10 @@ export class AuthService {
         timezone: 'Asia/Kolkata',
         defaultTimezone: 'Asia/Kolkata',
         currency: 'INR',
-        country: 'IN',
+        country: countryIsoFromDial({
+          countryIso: input.country,
+          phone: input.mobile,
+        }),
         status: 'active',
       });
 
