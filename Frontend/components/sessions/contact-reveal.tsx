@@ -15,8 +15,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { canRevealContact } from "@/lib/access-control";
 import type { SessionCandidate } from "@/lib/mock-sessions";
 import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
+import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -104,6 +106,8 @@ function RevealButton({
   onReveal,
   className,
   disabled: disabledProp = false,
+  disabledLabel = "Busy…",
+  title,
 }: {
   kind: "email" | "phone";
   candidate: SessionCandidate;
@@ -111,6 +115,8 @@ function RevealButton({
   onReveal: (kind: "email" | "phone") => void;
   className?: string;
   disabled?: boolean;
+  disabledLabel?: string;
+  title?: string;
 }) {
   const Icon = kind === "email" ? Mail : Phone;
   const label = kind === "email" ? "Reveal email" : "Reveal mobile";
@@ -124,6 +130,7 @@ function RevealButton({
       type="button"
       size="xs"
       variant="outline"
+      title={title}
       // Keep "unavailable" clickable so the user can retry after a soft miss.
       disabled={isLoading || blocked}
       onClick={() => onReveal(kind)}
@@ -135,7 +142,7 @@ function RevealButton({
         : isUnavailable
           ? "Retry"
           : blocked
-            ? "Busy…"
+            ? disabledLabel
             : label}
       {!isLoading && !isUnavailable && !blocked ? (
         <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
@@ -250,6 +257,8 @@ export function ContactReveal({
   /** Block starting another mobile reveal while one is in progress. */
   disablePhoneReveal?: boolean;
 }) {
+  const { permissions } = useAuth();
+  const allowReveal = canRevealContact(permissions);
   const emailVisible = revealed.email || candidate.emailRevealed;
   const phoneVisible = revealed.phone || candidate.phoneRevealed;
   const emailValue = (candidate.email || revealed.emailValue || "").trim();
@@ -262,6 +271,8 @@ export function ContactReveal({
   const buttonClass = fill ? "w-full" : undefined;
   const phoneBusy =
     disablePhoneReveal && phoneStatus !== "loading" && !phoneVisible;
+  const revealDenied = !allowReveal;
+  const revealDeniedReason = "You do not have permission to reveal contacts";
 
   if (compact) {
     const showEmailValue = emailVisible && Boolean(emailValue);
@@ -290,6 +301,8 @@ export function ContactReveal({
             visible={emailVisible}
             status={emailStatus}
             onReveal={onReveal}
+            disabled={revealDenied}
+            disabledReason={revealDeniedReason}
           />
         )}
         {showPhoneValue ? (
@@ -307,8 +320,12 @@ export function ContactReveal({
             visible={phoneVisible}
             status={phoneStatus}
             onReveal={onReveal}
-            disabled={phoneBusy}
-            disabledReason="Wait for the current mobile reveal to finish"
+            disabled={revealDenied || phoneBusy}
+            disabledReason={
+              revealDenied
+                ? revealDeniedReason
+                : "Wait for the current mobile reveal to finish"
+            }
           />
         )}
       </div>
@@ -341,6 +358,9 @@ export function ContactReveal({
             status={emailStatus}
             onReveal={onReveal}
             className={buttonClass}
+            disabled={revealDenied}
+            disabledLabel="No access"
+            title={revealDenied ? revealDeniedReason : undefined}
           />
         </div>
       )}
@@ -363,7 +383,15 @@ export function ContactReveal({
             status={phoneStatus}
             onReveal={onReveal}
             className={buttonClass}
-            disabled={phoneBusy}
+            disabled={revealDenied || phoneBusy}
+            disabledLabel={revealDenied ? "No access" : "Busy…"}
+            title={
+              revealDenied
+                ? revealDeniedReason
+                : phoneBusy
+                  ? "Wait for the current mobile reveal to finish"
+                  : undefined
+            }
           />
         </div>
       )}

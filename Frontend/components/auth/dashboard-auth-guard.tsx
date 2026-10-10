@@ -25,12 +25,19 @@ function isTrialGateAllowed(pathname: string): boolean {
 export function DashboardAuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { sessionState, user, organization, isMockMode, permissions } = useAuth();
+  const {
+    sessionState,
+    user,
+    organization,
+    isMockMode,
+    permissions,
+    allowedModules,
+  } = useAuth();
 
   const trialExpired = Boolean(organization?.trialExpired);
   const accessDenied =
     sessionState === "authenticated" &&
-    !canAccessPath(permissions, pathname);
+    !canAccessPath(permissions, pathname, allowedModules);
 
   useEffect(() => {
     if (sessionState === "loading") return;
@@ -127,7 +134,7 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (accessDenied) {
-    const fallback = firstAccessibleRoute(permissions);
+    const fallback = firstAccessibleRoute(permissions, allowedModules);
     return (
       <div className="flex min-h-svh items-center justify-center bg-background px-4">
         <div className="max-w-md space-y-4 text-center">

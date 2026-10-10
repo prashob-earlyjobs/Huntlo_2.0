@@ -64,6 +64,202 @@ function moduleActions(module: PermissionModule, actions: PermissionAction[]): P
   return actions.map((action) => `${module}:${action}` as PermissionKey);
 }
 
+/**
+ * Cross-module permissions required by product workflows when a module is
+ * allow-listed (UI/API calls span modules). Each action is still capped by the
+ * member's role defaults — never escalates beyond `DEFAULT_ROLE_PERMISSIONS`.
+ *
+ * Keep this map in sync with Frontend `MODULE_IMPLIED_PERMISSIONS` in
+ * `lib/access-control.ts`. Regression coverage lives in permissions.unit.test.ts.
+ */
+export const MODULE_IMPLIED_PERMISSIONS: Partial<
+  Record<PermissionModule, Partial<Record<PermissionModule, readonly PermissionAction[]>>>
+> = {
+  /** Reveal, pool sync, lists, job→prompt picker, credit meters. */
+  sourcing: {
+    candidates: ['view', 'create', 'edit'],
+    jobs: ['view'],
+    plans: ['view'],
+  },
+  /** Save to pool / lists after lookup; credit meters. */
+  peopleScout: {
+    candidates: ['view', 'create', 'edit'],
+    plans: ['view'],
+  },
+  /**
+   * Audience builder (pool + sourcing sessions), channels, job/owner pickers,
+   * reveal-on-launch, credit meters.
+   */
+  outreach: {
+    candidates: ['view', 'create', 'edit'],
+    sourcing: ['view', 'create'],
+    integrations: ['view', 'edit'],
+    jobs: ['view'],
+    team: ['view'],
+    plans: ['view'],
+  },
+  /** AudienceStep + job/owner pickers + credit meters. */
+  screening: {
+    candidates: ['view', 'create', 'edit'],
+    sourcing: ['view'],
+    jobs: ['view'],
+    team: ['view'],
+    plans: ['view'],
+  },
+  /** Same audience path as screening, plus event types for booking steps. */
+  huntlo360: {
+    candidates: ['view', 'create', 'edit'],
+    sourcing: ['view'],
+    jobs: ['view'],
+    team: ['view'],
+    scheduling: ['view'],
+    plans: ['view'],
+  },
+  /** Pool pickers, Calendly, job association, invite templates, credits. */
+  scheduling: {
+    candidates: ['view', 'create', 'edit'],
+    integrations: ['view', 'edit'],
+    jobs: ['view'],
+    outreach: ['view'],
+    plans: ['view'],
+  },
+  /** Job filters on lists; reveal quota meters on profiles. */
+  candidates: {
+    jobs: ['view'],
+    plans: ['view'],
+  },
+  jobs: { plans: ['view'] },
+  assessments: { plans: ['view'] },
+  analytics: { plans: ['view'] },
+  integrations: { plans: ['view'] },
+  team: { plans: ['view'] },
+  settings: { plans: ['view'] },
+  plans: {},
+};
+
+/**
+ * Permissions every allow-listed member needs for shared chrome:
+ * credits header + Home dashboard widgets.
+ */
+const UNIVERSAL_ALLOW_LIST_ACTIONS: Array<{
+  module: PermissionModule;
+  actions: readonly PermissionAction[];
+}> = [
+  { module: 'plans', actions: ['view'] },
+  { module: 'analytics', actions: ['view'] },
+];
+
+function applyModuleImpliedPermissions(
+  allowed: Set<PermissionModule>,
+  effective: Set<string>,
+  base: PermissionKey[]
+): void {
+  if (allowed.size === 0) return;
+
+  const roleCeiling = expandPermissions(base);
+  roleCeiling.delete('*');
+
+  const grant = (module: PermissionModule, actions: readonly PermissionAction[]) => {
+    for (const action of actions) {
+      const key = `${module}:${action}` as PermissionKey;
+      if (roleCeiling.has(key)) {
+        effective.add(key);
+      }
+    }
+  };
+
+  for (const { module, actions } of UNIVERSAL_ALLOW_LIST_ACTIONS) {
+    grant(module, actions);
+  }
+
+  for (const module of allowed) {
+    const implied = MODULE_IMPLIED_PERMISSIONS[module];
+    if (!implied) continue;
+    for (const [targetModule, actions] of Object.entries(implied)) {
+      grant(targetModule as PermissionModule, actions);
+    }
+  }
+}
+
+/**
+ * Workflow contracts used by regression tests: for each primary module, the
+ * minimum foreign permissions a recruiter must receive when only that module
+ * is allow-listed (intersection with role ceiling).
+ */
+export const MODULE_WORKFLOW_CONTRACT: Record<
+  PermissionModule,
+  readonly PermissionKey[]
+> = {
+  jobs: ['plans:view', 'analytics:view'],
+  sourcing: [
+    'candidates:view',
+    'candidates:create',
+    'candidates:edit',
+    'jobs:view',
+    'plans:view',
+    'analytics:view',
+  ],
+  candidates: ['jobs:view', 'plans:view', 'analytics:view'],
+  peopleScout: [
+    'candidates:view',
+    'candidates:create',
+    'candidates:edit',
+    'plans:view',
+    'analytics:view',
+  ],
+  outreach: [
+    'candidates:view',
+    'candidates:create',
+    'candidates:edit',
+    'sourcing:view',
+    'sourcing:create',
+    'integrations:view',
+    'integrations:edit',
+    'jobs:view',
+    'team:view',
+    'plans:view',
+    'analytics:view',
+  ],
+  huntlo360: [
+    'candidates:view',
+    'candidates:create',
+    'candidates:edit',
+    'sourcing:view',
+    'jobs:view',
+    'team:view',
+    'scheduling:view',
+    'plans:view',
+    'analytics:view',
+  ],
+  screening: [
+    'candidates:view',
+    'candidates:create',
+    'candidates:edit',
+    'sourcing:view',
+    'jobs:view',
+    'team:view',
+    'plans:view',
+    'analytics:view',
+  ],
+  assessments: ['plans:view', 'analytics:view'],
+  scheduling: [
+    'candidates:view',
+    'candidates:create',
+    'candidates:edit',
+    'integrations:view',
+    'integrations:edit',
+    'jobs:view',
+    'outreach:view',
+    'plans:view',
+    'analytics:view',
+  ],
+  analytics: ['plans:view', 'analytics:view'],
+  integrations: ['plans:view', 'analytics:view'],
+  plans: ['plans:view', 'analytics:view'],
+  team: ['plans:view', 'analytics:view'],
+  settings: ['plans:view', 'analytics:view'],
+};
+
 /** Default permissions granted by system roles. */
 export const DEFAULT_ROLE_PERMISSIONS: Record<OrganizationRole, PermissionKey[]> = {
   owner: ['*'],
@@ -171,6 +367,8 @@ export function resolvePermissions(
         return module ? allowed.has(module as PermissionModule) : false;
       })
     );
+
+    applyModuleImpliedPermissions(allowed, effective, base);
   }
 
   return Array.from(effective).sort();

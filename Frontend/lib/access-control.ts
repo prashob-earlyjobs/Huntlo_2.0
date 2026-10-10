@@ -115,6 +115,75 @@ export function hasAnyPermission(
   return required.some((permission) => hasPermission(granted, permission));
 }
 
+/**
+ * Permissions that unlock contact reveal (email/mobile). Mirrors backend
+ * `requirePermission` on `/candidates/:id/reveal/*`.
+ */
+export const REVEAL_CONTACT_PERMISSIONS = [
+  "candidates:edit",
+  "sourcing:edit",
+  "peopleScout:edit",
+] as const;
+
+export function canRevealContact(permissions: string[]): boolean {
+  return hasAnyPermission(permissions, [...REVEAL_CONTACT_PERMISSIONS]);
+}
+
+/**
+ * Must stay aligned with Backend `MODULE_IMPLIED_PERMISSIONS`.
+ * Documented here so frontend reviewers catch cross-module gaps.
+ */
+export const MODULE_IMPLIED_PERMISSIONS: Partial<
+  Record<PermissionModule, Partial<Record<PermissionModule, readonly string[]>>>
+> = {
+  sourcing: {
+    candidates: ["view", "create", "edit"],
+    jobs: ["view"],
+    plans: ["view"],
+  },
+  peopleScout: {
+    candidates: ["view", "create", "edit"],
+    plans: ["view"],
+  },
+  outreach: {
+    candidates: ["view", "create", "edit"],
+    sourcing: ["view", "create"],
+    integrations: ["view", "edit"],
+    jobs: ["view"],
+    team: ["view"],
+    plans: ["view"],
+  },
+  screening: {
+    candidates: ["view", "create", "edit"],
+    sourcing: ["view"],
+    jobs: ["view"],
+    team: ["view"],
+    plans: ["view"],
+  },
+  huntlo360: {
+    candidates: ["view", "create", "edit"],
+    sourcing: ["view"],
+    jobs: ["view"],
+    team: ["view"],
+    scheduling: ["view"],
+    plans: ["view"],
+  },
+  scheduling: {
+    candidates: ["view", "create", "edit"],
+    integrations: ["view", "edit"],
+    jobs: ["view"],
+    outreach: ["view"],
+    plans: ["view"],
+  },
+  candidates: { jobs: ["view"], plans: ["view"] },
+  jobs: { plans: ["view"] },
+  assessments: { plans: ["view"] },
+  analytics: { plans: ["view"] },
+  integrations: { plans: ["view"] },
+  team: { plans: ["view"] },
+  settings: { plans: ["view"] },
+};
+
 type RouteRule = {
   prefix: string;
   permissions: string[];
@@ -172,32 +241,62 @@ export function requiredPermissionsForPath(pathname: string): string[] | null {
   return [];
 }
 
+/** Module owning a path, derived from its primary route permission. */
+export function moduleForPath(pathname: string): PermissionModule | null {
+  const required = requiredPermissionsForPath(pathname);
+  if (!required || required.length === 0) return null;
+  const [module] = required[0].split(":");
+  if (module && module in MODULE_KEY_TO_LABEL) {
+    return module as PermissionModule;
+  }
+  return null;
+}
+
 export function canAccessPath(
   permissions: string[],
-  pathname: string
+  pathname: string,
+  allowedModules: PermissionModule[] | string[] | null = null
 ): boolean {
   const required = requiredPermissionsForPath(pathname);
   if (required === null) return true;
   if (required.length === 0) return true;
-  return hasAnyPermission(permissions, required);
+  if (!hasAnyPermission(permissions, required)) return false;
+  if (allowedModules === null) return true;
+  const module = moduleForPath(pathname);
+  if (module === null) return true;
+  return (allowedModules as PermissionModule[]).includes(module);
 }
 
+/**
+ * Sidebar visibility. When `allowedModules` is set, only explicitly granted
+ * modules appear — implied API permissions (e.g. candidates:edit for search
+ * reveal) do not unlock Candidate Pool / Integrations nav items.
+ */
 export function filterNavSections(
   permissions: string[],
-  sections: NavSection[] = NAV_SECTIONS
+  sections: NavSection[] = NAV_SECTIONS,
+  allowedModules: PermissionModule[] | string[] | null = null
 ): NavSection[] {
+  const allow =
+    allowedModules === null
+      ? null
+      : new Set(allowedModules as PermissionModule[]);
+
   return sections
     .map((section) => ({
       ...section,
       items: section.items.filter((item) =>
-        canAccessPath(permissions, item.href)
+        canAccessPath(permissions, item.href, allow === null ? null : [...allow])
       ),
     }))
     .filter((section) => section.items.length > 0);
 }
 
-export function firstAccessibleRoute(permissions: string[]): string {
-  for (const section of filterNavSections(permissions)) {
+export function firstAccessibleRoute(
+  permissions: string[],
+  allowedModules: PermissionModule[] | string[] | null = null
+): string {
+  for (const section of filterNavSections(permissions, NAV_SECTIONS, allowedModules)) {
     for (const item of section.items) {
       if (!item.disabled) return item.href;
     }
@@ -229,7 +328,10 @@ export function labelsFromModuleKeys(
 
 export function filterNavItems(
   permissions: string[],
-  items: NavItem[]
+  items: NavItem[],
+  allowedModules: PermissionModule[] | string[] | null = null
 ): NavItem[] {
-  return items.filter((item) => canAccessPath(permissions, item.href));
+  return items.filter((item) =>
+    canAccessPath(permissions, item.href, allowedModules)
+  );
 }

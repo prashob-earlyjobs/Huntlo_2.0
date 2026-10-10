@@ -508,17 +508,25 @@ function MemberDrawer({
   onOpenChange,
   onAction,
   onUpdated,
+  onPasswordReset,
 }: {
   member: TeamMember | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAction: (message: string) => void;
+  onAction: (message: string, reload?: boolean) => void;
   onUpdated: (member: TeamMember) => void;
+  onPasswordReset: (
+    credentials: CreateTeamAccountResult["credentials"]
+  ) => void;
 }) {
   const { user } = useAuth();
   const [role, setRole] = useState<TeamRole | null>(null);
   const [modules, setModules] = useState<ModuleAccess[]>([]);
   const [savingModules, setSavingModules] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    "reset" | "suspend" | "activate" | "deactivate" | null
+  >(null);
+  const [busy, setBusy] = useState(false);
 
   const canEditAccess =
     (user?.role === "owner" || user?.role === "admin") &&
@@ -527,6 +535,7 @@ function MemberDrawer({
   useEffect(() => {
     setRole(null);
     setModules(member?.moduleAccess ?? []);
+    setConfirmAction(null);
   }, [member?.id, member?.moduleAccess]);
 
   if (!member) return null;
@@ -558,6 +567,46 @@ function MemberDrawer({
     }
   }
 
+  async function runConfirmedAction() {
+    if (!confirmAction) return;
+    setBusy(true);
+    try {
+      if (confirmAction === "reset") {
+        const credentials = await teamApi.resetMemberPassword(member.id);
+        onPasswordReset(credentials);
+        onAction(`Password reset for ${member.name}.`);
+      } else if (confirmAction === "suspend") {
+        await teamApi.updateMemberStatus(member.id, "suspended");
+        onAction(`Suspended ${member.name}.`, true);
+        onOpenChange(false);
+      } else if (confirmAction === "activate") {
+        await teamApi.updateMemberStatus(member.id, "active");
+        onAction(`Activated ${member.name}.`, true);
+        onOpenChange(false);
+      } else {
+        await teamApi.removeMember(member.id);
+        onAction(`Deactivated ${member.name}.`, true);
+        onOpenChange(false);
+      }
+      setConfirmAction(null);
+    } catch (error) {
+      onAction(
+        getApiErrorMessage(error, `Unable to ${confirmAction} member.`)
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const actionLabel =
+    confirmAction === "reset"
+      ? "Reset password"
+      : confirmAction === "suspend"
+        ? "Suspend member"
+        : confirmAction === "activate"
+          ? "Activate member"
+          : "Deactivate member";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
@@ -584,31 +633,59 @@ function MemberDrawer({
               <Button
                 size="xs"
                 variant="outline"
+                disabled={busy}
                 onClick={() =>
-                  onAction(`Resent invitation to ${member.email}.`)
+                  void teamApi
+                    .resendInvitation(member.id)
+                    .then(() =>
+                      onAction(`Resent invitation to ${member.email}.`, true)
+                    )
+                    .catch((error) =>
+                      onAction(
+                        getApiErrorMessage(
+                          error,
+                          "Unable to resend invitation."
+                        )
+                      )
+                    )
                 }
               >
                 Resend Invitation
               </Button>
             ) : null}
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() =>
-                onAction(`Password reset link prepared for ${member.name}.`)
-              }
-            >
-              <KeyRound aria-hidden />
-              Reset Password
-            </Button>
-            {member.status === "Active" ? (
+            {member.role !== "Workspace Owner" &&
+            member.status !== "Deactivated" ? (
               <Button
                 size="xs"
                 variant="outline"
-                onClick={() => onAction(`Suspended ${member.name}.`)}
+                disabled={busy}
+                onClick={() => setConfirmAction("reset")}
+              >
+                <KeyRound aria-hidden />
+                Reset Password
+              </Button>
+            ) : null}
+            {member.status === "Active" &&
+            member.role !== "Workspace Owner" ? (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setConfirmAction("suspend")}
               >
                 <UserMinus aria-hidden />
                 Suspend
+              </Button>
+            ) : null}
+            {member.status === "Suspended" ? (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setConfirmAction("activate")}
+              >
+                <UserCheck aria-hidden />
+                Activate
               </Button>
             ) : null}
             {member.status !== "Deactivated" &&
@@ -617,13 +694,51 @@ function MemberDrawer({
                 size="xs"
                 variant="outline"
                 className="text-destructive hover:text-destructive"
-                onClick={() => onAction(`Deactivated ${member.name}.`)}
+                disabled={busy}
+                onClick={() => setConfirmAction("deactivate")}
               >
                 <UserX aria-hidden />
                 Deactivate
               </Button>
             ) : null}
           </div>
+
+          <AlertDialog
+            open={confirmAction !== null}
+            onOpenChange={(next) => !next && !busy && setConfirmAction(null)}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{actionLabel}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {confirmAction === "reset"
+                    ? `This signs ${member.name} out on every device and creates a new temporary password.`
+                    : confirmAction === "suspend"
+                      ? `${member.name} will be signed out and unable to access the workspace until reactivated.`
+                      : confirmAction === "activate"
+                        ? `${member.name} will be able to sign in and access assigned modules again.`
+                        : `${member.name} will be signed out and removed from active workspace access.`}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={busy}
+                  className={
+                    confirmAction === "deactivate"
+                      ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      : undefined
+                  }
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void runConfirmedAction();
+                  }}
+                >
+                  {busy ? "Working…" : actionLabel}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Tabs defaultValue="profile">
             <TabsList className="w-full">
@@ -1594,6 +1709,7 @@ export function TeamWorkspace() {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onAction={flash}
+        onPasswordReset={setResetCredentials}
         onUpdated={(updated) => {
           setSelected(updated);
           setMembers((previous) =>

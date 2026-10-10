@@ -92,6 +92,7 @@ function mapAuthPayload(data: AuthPayload): AuthSession & { me: AuthMeResponse }
       user: data.user,
       organization: data.organization,
       permissions: data.permissions,
+      allowedModules: data.allowedModules ?? null,
     },
   };
 }
@@ -206,6 +207,7 @@ const mockAuthApi: AuthApi = {
         },
         organization: workspace,
         permissions: ["*"],
+        allowedModules: null,
       },
     };
   },
@@ -256,6 +258,7 @@ const mockAuthApi: AuthApi = {
       },
       organization: WORKSPACES[0]!,
       permissions: ["*"],
+      allowedModules: null,
     };
   },
   async updateMe(input) {

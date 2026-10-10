@@ -52,28 +52,42 @@ type SessionMeta = {
   userAgent?: string;
 };
 
-async function resolveUserPermissions(
+async function resolveMemberAccess(
   user: UserDocument,
   organizationId: mongoose.Types.ObjectId
-): Promise<string[]> {
+): Promise<{ permissions: string[]; allowedModules: PermissionModule[] | null }> {
   const member = await OrganizationMemberModel.findOne({
     organizationId,
     userId: user._id,
   });
 
   if (!member) {
-    return resolvePermissions(user.role);
+    return {
+      permissions: resolvePermissions(user.role),
+      allowedModules: null,
+    };
   }
 
   const allowedModules = normalizeAllowedModules(
     member.allowedModules as string[] | null | undefined
   ) as PermissionModule[] | null;
 
-  return resolvePermissions(
-    member.role || user.role,
-    member.permissions ?? [],
-    allowedModules
-  );
+  return {
+    permissions: resolvePermissions(
+      member.role || user.role,
+      member.permissions ?? [],
+      allowedModules
+    ),
+    allowedModules,
+  };
+}
+
+async function resolveUserPermissions(
+  user: UserDocument,
+  organizationId: mongoose.Types.ObjectId
+): Promise<string[]> {
+  const access = await resolveMemberAccess(user, organizationId);
+  return access.permissions;
 }
 
 function slugify(value: string): string {
@@ -221,7 +235,7 @@ async function organizationAuthPayload(organization: OrganizationDocument) {
 async function buildAuthResponse(userId: string, sessionId: string) {
   const user = await loadActiveUser(userId);
   const organization = await loadOrganization(user.organizationId);
-  const permissions = await resolveUserPermissions(user, organization._id);
+  const access = await resolveMemberAccess(user, organization._id);
 
   const accessToken = signAccessToken({
     sub: user._id.toHexString(),
@@ -235,7 +249,8 @@ async function buildAuthResponse(userId: string, sessionId: string) {
     me: {
       user: toPublicUser(user, organization.plan),
       organization: await organizationAuthPayload(organization),
-      permissions,
+      permissions: access.permissions,
+      allowedModules: access.allowedModules,
     },
   };
 }
@@ -809,11 +824,12 @@ export class AuthService {
   async me(context: RequestContext) {
     const user = await loadActiveUser(context.userId);
     const organization = await loadOrganization(user.organizationId);
-    const permissions = await resolveUserPermissions(user, organization._id);
+    const access = await resolveMemberAccess(user, organization._id);
     return {
       user: toPublicUser(user, organization.plan),
       organization: await organizationAuthPayload(organization),
-      permissions,
+      permissions: access.permissions,
+      allowedModules: access.allowedModules,
     };
   }
 

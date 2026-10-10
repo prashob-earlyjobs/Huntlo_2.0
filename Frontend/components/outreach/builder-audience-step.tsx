@@ -353,11 +353,17 @@ export function AudienceStep({
     void (async () => {
       setLoadingOptions(true);
       try {
-        const [nextLists, nextSessions] = await Promise.all([
+        // Load independently so a missing sourcing (or pool) permission does
+        // not fail the entire audience step via Promise.all rejection.
+        const [listsResult, sessionsResult] = await Promise.allSettled([
           candidatePoolApi.listLists(),
           sourcingApi.listSessions({ limit: 50, sort: "-createdAt" }),
         ]);
         if (cancelled) return;
+        const nextLists =
+          listsResult.status === "fulfilled" ? listsResult.value : [];
+        const nextSessions =
+          sessionsResult.status === "fulfilled" ? sessionsResult.value : [];
         // Keep the currently selected list even if archived so the trigger
         // can show its name instead of a raw id.
         setLists(
@@ -368,6 +374,19 @@ export function AudienceStep({
           )
         );
         setSessions(nextSessions);
+        if (
+          listsResult.status === "rejected" &&
+          sessionsResult.status === "rejected"
+        ) {
+          setError(
+            getApiErrorMessage(
+              listsResult.reason,
+              "Unable to load audience options."
+            )
+          );
+        } else {
+          setError(null);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(getApiErrorMessage(err, "Unable to load audience options."));
