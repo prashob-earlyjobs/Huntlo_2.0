@@ -540,9 +540,7 @@ function MemberDrawer({
 
   if (!member) return null;
 
-  // Narrow for nested async handlers (prop can still be typed as nullable).
-  const currentMember = member;
-  const displayRole = role ?? currentMember.role;
+  const displayRole = role ?? member.role;
   const roleModules = availableModulesForRole(displayRole);
 
   async function toggleModule(mod: ModuleAccess) {
@@ -554,13 +552,13 @@ function MemberDrawer({
     setModules(next);
     setSavingModules(true);
     try {
-      const updated = await teamApi.updateMemberPermissions(currentMember.id, {
+      const updated = await teamApi.updateMemberPermissions(member!.id, {
         allowedModules: modulesToAllowedKeys(next),
       });
       const mapped = mapApiMemberToUi(updated);
       setModules(mapped.moduleAccess);
       onUpdated(mapped);
-      onAction(`Updated module access for ${currentMember.name}.`);
+      onAction(`Updated module access for ${member!.name}.`);
     } catch (error) {
       setModules(previous);
       onAction(getApiErrorMessage(error, "Unable to update module access."));
@@ -574,20 +572,20 @@ function MemberDrawer({
     setBusy(true);
     try {
       if (confirmAction === "reset") {
-        const credentials = await teamApi.resetMemberPassword(currentMember.id);
+        const credentials = await teamApi.resetMemberPassword(member.id);
         onPasswordReset(credentials);
-        onAction(`Password reset for ${currentMember.name}.`);
+        onAction(`Password reset for ${member.name}.`);
       } else if (confirmAction === "suspend") {
-        await teamApi.updateMemberStatus(currentMember.id, "suspended");
-        onAction(`Suspended ${currentMember.name}.`, true);
+        await teamApi.updateMemberStatus(member.id, "suspended");
+        onAction(`Suspended ${member.name}.`, true);
         onOpenChange(false);
       } else if (confirmAction === "activate") {
-        await teamApi.updateMemberStatus(currentMember.id, "active");
-        onAction(`Activated ${currentMember.name}.`, true);
+        await teamApi.updateMemberStatus(member.id, "active");
+        onAction(`Activated ${member.name}.`, true);
         onOpenChange(false);
       } else {
-        await teamApi.removeMember(currentMember.id);
-        onAction(`Deactivated ${currentMember.name}.`, true);
+        await teamApi.removeMember(member.id);
+        onAction(`Deactivated ${member.name}.`, true);
         onOpenChange(false);
       }
       setConfirmAction(null);
