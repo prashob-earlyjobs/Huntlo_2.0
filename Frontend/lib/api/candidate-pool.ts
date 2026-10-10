@@ -577,7 +577,7 @@ const mockApi: CandidatePoolApi = {
   async archiveList(id) {
     await simulateMockLatency();
     const current = SAVED_LISTS.find((l) => l.id === id) ?? SAVED_LISTS[0]!;
-    return { ...current, archived: true };
+    return { ...current, archived: !current.archived };
   },
   async importPreview(file) {
     await simulateMockLatency();

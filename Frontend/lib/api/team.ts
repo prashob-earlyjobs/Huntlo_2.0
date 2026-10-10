@@ -152,21 +152,33 @@ export function toRoleKey(role: string): TeamRoleKey | string {
   return ROLE_LABEL_TO_KEY[role] ?? role;
 }
 
-function moduleLabelsFromApi(member: ApiTeamMember): ModuleAccess[] {
-  const raw =
-    (member.moduleAccess?.length ? member.moduleAccess : null) ??
-    member.allowedModules ??
-    modulesFromPermissions(member.permissions ?? []);
-
-  const keys = raw
+function normalizeModuleKeys(raw: string[]): PermissionModule[] {
+  return raw
     .map((value) => {
       if (value in MODULE_KEY_TO_LABEL) return value as PermissionModule;
       return MODULE_LABEL_TO_KEY[value];
     })
     .filter((key): key is PermissionModule => Boolean(key));
+}
 
-  return labelsFromModuleKeys(keys).filter((label): label is ModuleAccess =>
-    Boolean(label)
+/**
+ * Checkbox state for Team → Module access must follow the explicit allow-list
+ * (`allowedModules`), not effective permissions. Implied API permissions
+ * (e.g. sourcing → candidates:edit) must not force Candidate Pool back on.
+ *
+ * - `allowedModules: string[]` → those modules (empty = none)
+ * - `allowedModules: null/undefined` → unrestricted; fall back to role perms
+ */
+function moduleLabelsFromApi(member: ApiTeamMember): ModuleAccess[] {
+  const raw =
+    member.allowedModules !== undefined && member.allowedModules !== null
+      ? member.allowedModules
+      : member.moduleAccess?.length
+        ? member.moduleAccess
+        : modulesFromPermissions(member.permissions ?? []);
+
+  return labelsFromModuleKeys(normalizeModuleKeys(raw)).filter(
+    (label): label is ModuleAccess => Boolean(label)
   );
 }
 

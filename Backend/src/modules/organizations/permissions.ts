@@ -128,7 +128,11 @@ export const MODULE_IMPLIED_PERMISSIONS: Partial<
     jobs: ['view'],
     plans: ['view'],
   },
-  jobs: { plans: ['view'] },
+  /** Job form location/skills autocomplete shares the sourcing filter API. */
+  jobs: {
+    plans: ['view'],
+    sourcing: ['view'],
+  },
   assessments: { plans: ['view'] },
   analytics: { plans: ['view'] },
   integrations: { plans: ['view'] },
@@ -190,7 +194,7 @@ export const MODULE_WORKFLOW_CONTRACT: Record<
   PermissionModule,
   readonly PermissionKey[]
 > = {
-  jobs: ['plans:view', 'analytics:view'],
+  jobs: ['plans:view', 'analytics:view', 'sourcing:view'],
   sourcing: [
     'candidates:view',
     'candidates:create',

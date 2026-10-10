@@ -11,6 +11,7 @@ import {
   conversationsApi,
   getApiErrorMessage,
   isAbortError,
+  isPermissionError,
 } from "@/lib/api";
 import {
   isHcgStatusOnlyEvent,
@@ -72,6 +73,7 @@ export function ConversationsPanel({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const requestIdRef = useRef(0);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
@@ -106,9 +108,17 @@ export function ConversationsPanel({
         setTotalPages(result.pagination.totalPages);
         setTotal(result.pagination.total);
         setError(null);
+        setPermissionDenied(false);
       } catch (err) {
         if (requestId !== requestIdRef.current) return;
         if (isAbortError(err)) return;
+        if (isPermissionError(err)) {
+          setPermissionDenied(true);
+          setError(null);
+          setConversations([]);
+          return;
+        }
+        setPermissionDenied(false);
         setError(getApiErrorMessage(err, "Unable to load conversations."));
       } finally {
         if (requestId === requestIdRef.current) setLoading(false);
@@ -230,13 +240,21 @@ export function ConversationsPanel({
     );
   }
 
-  if (conversations.length === 0) {
+  if (permissionDenied || conversations.length === 0) {
     return (
       <div className={cn(variant === "embedded" && "p-4", className)}>
         <EmptyState
           icon={Users}
-          title="No conversations yet"
-          description={emptyDescription}
+          title={
+            permissionDenied
+              ? "Outreach access required"
+              : "No conversations yet"
+          }
+          description={
+            permissionDenied
+              ? "Ask an admin to grant Outreach access to view email, WhatsApp, and voice threads."
+              : emptyDescription
+          }
         />
       </div>
     );

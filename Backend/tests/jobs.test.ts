@@ -155,12 +155,18 @@ describe('Jobs API', () => {
       .expect(200)
       .expect((res) => expect(res.body.data.status).toBe('archived'));
 
+    await agentA
+      .post(`/api/v1/jobs/${id}/reopen`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => expect(res.body.data.status).toBe('active'));
+
     const activity = await agentA
       .get(`/api/v1/jobs/${id}/activity`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
-    expect(activity.body.data.items.length).toBeGreaterThanOrEqual(5);
+    expect(activity.body.data.items.length).toBeGreaterThanOrEqual(6);
   });
 
   it('duplicates a job as a draft with reset counters', async () => {
@@ -263,5 +269,90 @@ describe('Jobs API', () => {
 
     expect(sales.body.data.items).toHaveLength(1);
     expect(sales.body.data.items[0].status).toBe('draft');
+  });
+
+  it('lets the job creator delete without jobs:delete', async () => {
+    const ownerReg = await register(agentA, 'jobs-del-owner@huntlo.ai', 'Delete Jobs Org');
+    const ownerToken = ownerReg.body.data.accessToken as string;
+
+    const invite = await agentA
+      .post('/api/v1/team/invitations')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ email: 'jobs-del-rec@huntlo.ai', role: 'recruiter' })
+      .expect(201);
+
+    await agentB
+      .post(`/api/v1/team/invitations/${invite.body.data.token}/accept`)
+      .send({
+        firstName: 'Del',
+        lastName: 'Recruiter',
+        password: 'Password123!',
+      })
+      .expect(200);
+
+    const recruiterLogin = await agentB
+      .post('/api/v1/auth/login')
+      .send({ email: 'jobs-del-rec@huntlo.ai', password: 'Password123!' })
+      .expect(200);
+
+    const recruiterToken = recruiterLogin.body.data.accessToken as string;
+    const recruiterUserId = recruiterLogin.body.data.user.id as string;
+
+    const created = await agentB
+      .post('/api/v1/jobs')
+      .set('Authorization', `Bearer ${recruiterToken}`)
+      .send({ title: 'Own Role', department: 'Engineering' })
+      .expect(201);
+
+    const jobId = created.body.data.id as string;
+    expect(created.body.data.createdBy).toBe(recruiterUserId);
+
+    await agentB
+      .delete(`/api/v1/jobs/${jobId}`)
+      .set('Authorization', `Bearer ${recruiterToken}`)
+      .expect(200);
+
+    await agentB
+      .get(`/api/v1/jobs/${jobId}`)
+      .set('Authorization', `Bearer ${recruiterToken}`)
+      .expect(404);
+  });
+
+  it('blocks delete when user is not creator and lacks jobs:delete', async () => {
+    const ownerReg = await register(agentA, 'jobs-del-block@huntlo.ai', 'Delete Block Org');
+    const ownerToken = ownerReg.body.data.accessToken as string;
+
+    const invite = await agentA
+      .post('/api/v1/team/invitations')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ email: 'jobs-del-block-rec@huntlo.ai', role: 'recruiter' })
+      .expect(201);
+
+    await agentB
+      .post(`/api/v1/team/invitations/${invite.body.data.token}/accept`)
+      .send({
+        firstName: 'Block',
+        lastName: 'Recruiter',
+        password: 'Password123!',
+      })
+      .expect(200);
+
+    const recruiterLogin = await agentB
+      .post('/api/v1/auth/login')
+      .send({ email: 'jobs-del-block-rec@huntlo.ai', password: 'Password123!' })
+      .expect(200);
+
+    const recruiterToken = recruiterLogin.body.data.accessToken as string;
+
+    const created = await agentA
+      .post('/api/v1/jobs')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ title: 'Owner Role', department: 'Sales' })
+      .expect(201);
+
+    await agentB
+      .delete(`/api/v1/jobs/${created.body.data.id}`)
+      .set('Authorization', `Bearer ${recruiterToken}`)
+      .expect(403);
   });
 });

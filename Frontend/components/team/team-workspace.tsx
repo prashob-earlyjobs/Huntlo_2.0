@@ -420,9 +420,28 @@ function AccountCredentialsDialog({
   onClose: () => void;
   title?: string;
 }) {
-  const copy = (value: string) => {
-    void navigator.clipboard.writeText(value);
-  };
+  const [copied, setCopied] = useState<"email" | "password" | "all" | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!credentials) setCopied(null);
+  }, [credentials]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  async function copy(value: string, key: "email" | "password" | "all") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(key);
+    } catch {
+      setCopied(null);
+    }
+  }
 
   return (
     <Dialog open={Boolean(credentials)} onOpenChange={(open) => !open && onClose()}>
@@ -448,10 +467,16 @@ function AccountCredentialsDialog({
                   type="button"
                   size="icon"
                   variant="outline"
-                  aria-label="Copy login email"
-                  onClick={() => copy(credentials.email)}
+                  aria-label={
+                    copied === "email" ? "Email copied" : "Copy login email"
+                  }
+                  onClick={() => void copy(credentials.email, "email")}
                 >
-                  <Copy aria-hidden />
+                  {copied === "email" ? (
+                    <Check aria-hidden className="text-success" />
+                  ) : (
+                    <Copy aria-hidden />
+                  )}
                 </Button>
               </div>
             </Field>
@@ -467,10 +492,20 @@ function AccountCredentialsDialog({
                   type="button"
                   size="icon"
                   variant="outline"
-                  aria-label="Copy temporary password"
-                  onClick={() => copy(credentials.temporaryPassword)}
+                  aria-label={
+                    copied === "password"
+                      ? "Password copied"
+                      : "Copy temporary password"
+                  }
+                  onClick={() =>
+                    void copy(credentials.temporaryPassword, "password")
+                  }
                 >
-                  <Copy aria-hidden />
+                  {copied === "password" ? (
+                    <Check aria-hidden className="text-success" />
+                  ) : (
+                    <Copy aria-hidden />
+                  )}
                 </Button>
               </div>
             </Field>
@@ -483,11 +518,18 @@ function AccountCredentialsDialog({
             variant="outline"
             onClick={() =>
               credentials &&
-              copy(`Email: ${credentials.email}\nPassword: ${credentials.temporaryPassword}`)
+              void copy(
+                `Email: ${credentials.email}\nPassword: ${credentials.temporaryPassword}`,
+                "all"
+              )
             }
           >
-            <Copy aria-hidden />
-            Copy credentials
+            {copied === "all" ? (
+              <Check aria-hidden className="text-success" />
+            ) : (
+              <Copy aria-hidden />
+            )}
+            {copied === "all" ? "Copied" : "Copy credentials"}
           </Button>
           <Button type="button" onClick={onClose}>
             Done
@@ -519,24 +561,47 @@ function MemberDrawer({
     credentials: CreateTeamAccountResult["credentials"]
   ) => void;
 }) {
-  const { user } = useAuth();
+  const { user, permissions } = useAuth();
   const [role, setRole] = useState<TeamRole | null>(null);
   const [modules, setModules] = useState<ModuleAccess[]>([]);
   const [savingModules, setSavingModules] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
     "reset" | "suspend" | "activate" | "deactivate" | null
   >(null);
   const [busy, setBusy] = useState(false);
 
+  const canManageTeam =
+    user?.role === "owner" ||
+    user?.role === "admin" ||
+    user?.accountRole === "owner" ||
+    permissions.includes("*") ||
+    permissions.includes("team:manage");
+  const isSelf =
+    Boolean(user?.email) &&
+    Boolean(member?.email) &&
+    user!.email.toLowerCase() === member!.email.toLowerCase();
   const canEditAccess =
-    (user?.role === "owner" || user?.role === "admin") &&
-    member?.role !== "Workspace Owner";
+    canManageTeam && member?.role !== "Workspace Owner";
+  // Role changes are admin/owner only, and never for your own account.
+  const canChangeRole = canEditAccess && !isSelf;
+
+  const savedModuleAccessKey = (member?.moduleAccess ?? [])
+    .slice()
+    .sort()
+    .join("|");
+  const draftModuleAccessKey = modules.slice().sort().join("|");
+  const modulesDirty = draftModuleAccessKey !== savedModuleAccessKey;
 
   useEffect(() => {
     setRole(null);
-    setModules(member?.moduleAccess ?? []);
     setConfirmAction(null);
-  }, [member?.id, member?.moduleAccess]);
+  }, [member?.id]);
+
+  useEffect(() => {
+    if (savingModules) return;
+    setModules(member?.moduleAccess ?? []);
+  }, [member?.id, savedModuleAccessKey, savingModules, member?.moduleAccess]);
 
   if (!member) return null;
 
@@ -545,27 +610,57 @@ function MemberDrawer({
   const displayRole = role ?? currentMember.role;
   const roleModules = availableModulesForRole(displayRole);
 
-  async function toggleModule(mod: ModuleAccess) {
+  function toggleModule(mod: ModuleAccess) {
     if (!canEditAccess || savingModules || !roleModules.includes(mod)) return;
-    const previous = modules;
-    const next = previous.includes(mod)
-      ? previous.filter((value) => value !== mod)
-      : [...previous, mod];
-    setModules(next);
+    setModules((previous) =>
+      previous.includes(mod)
+        ? previous.filter((value) => value !== mod)
+        : [...previous, mod]
+    );
+  }
+
+  function resetModules() {
+    setModules(currentMember.moduleAccess ?? []);
+  }
+
+  async function saveModules() {
+    if (!canEditAccess || savingModules || !modulesDirty) return;
     setSavingModules(true);
     try {
       const updated = await teamApi.updateMemberPermissions(currentMember.id, {
-        allowedModules: modulesToAllowedKeys(next),
+        allowedModules: modulesToAllowedKeys(modules),
       });
       const mapped = mapApiMemberToUi(updated);
       setModules(mapped.moduleAccess);
       onUpdated(mapped);
       onAction(`Updated module access for ${currentMember.name}.`);
     } catch (error) {
-      setModules(previous);
       onAction(getApiErrorMessage(error, "Unable to update module access."));
     } finally {
       setSavingModules(false);
+    }
+  }
+
+  async function changeRole(nextRole: TeamRole) {
+    if (!canChangeRole || savingRole || nextRole === currentMember.role) return;
+    if (nextRole === "Workspace Owner") return;
+    setSavingRole(true);
+    setRole(nextRole);
+    try {
+      const updated = await teamApi.updateMemberRole(
+        currentMember.id,
+        String(toRoleKey(nextRole))
+      );
+      const mapped = mapApiMemberToUi(updated);
+      setRole(mapped.role);
+      setModules(mapped.moduleAccess);
+      onUpdated(mapped);
+      onAction(`Role for ${mapped.name} set to ${mapped.role}.`, true);
+    } catch (error) {
+      setRole(null);
+      onAction(getApiErrorMessage(error, "Unable to update role."));
+    } finally {
+      setSavingRole(false);
     }
   }
 
@@ -800,31 +895,53 @@ function MemberDrawer({
             </TabsContent>
 
             <TabsContent value="access" className="space-y-3 pt-3">
-              <Field label="Change role" htmlFor="member-role">
-                <Select
-                  value={displayRole}
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    setRole(value as TeamRole);
-                    onAction(`Role for ${member.name} set to ${value}.`);
-                  }}
-                  disabled={member.role === "Workspace Owner"}
-                >
-                  <SelectTrigger id="member-role" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TEAM_ROLES.map((r) => (
-                      <SelectItem
-                        key={r}
-                        value={r}
-                        disabled={r === "Workspace Owner"}
-                      >
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Field
+                label={canChangeRole ? "Change role" : "Role"}
+                htmlFor="member-role"
+              >
+                {canChangeRole ? (
+                  <Select
+                    value={displayRole}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      void changeRole(value as TeamRole);
+                    }}
+                    disabled={savingRole}
+                  >
+                    <SelectTrigger id="member-role" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEAM_ROLES.filter((r) => r !== "Workspace Owner").map(
+                        (r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p
+                    id="member-role"
+                    className="rounded-lg border border-border bg-muted/30 px-2.5 py-2 text-sm text-foreground"
+                  >
+                    {displayRole}
+                    {isSelf ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        You can’t change your own role. Ask another admin.
+                      </span>
+                    ) : member.role === "Workspace Owner" ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Workspace owner role can’t be changed here.
+                      </span>
+                    ) : !canManageTeam ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Only admins can change member roles.
+                      </span>
+                    ) : null}
+                  </p>
+                )}
               </Field>
 
               <div>
@@ -855,7 +972,7 @@ function MemberDrawer({
                               type="checkbox"
                               checked={allowed}
                               disabled={!supported || savingModules}
-                              onChange={() => void toggleModule(mod)}
+                              onChange={() => toggleModule(mod)}
                               className="size-3.5 accent-primary"
                             />
                             <span className="flex-1">{mod}</span>
@@ -897,6 +1014,30 @@ function MemberDrawer({
                     );
                   })}
                 </ul>
+                {canEditAccess ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      disabled={!modulesDirty || savingModules}
+                      onClick={() => void saveModules()}
+                    >
+                      {savingModules ? "Saving…" : "Save module access"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!modulesDirty || savingModules}
+                      onClick={resetModules}
+                    >
+                      Reset
+                    </Button>
+                    {modulesDirty ? (
+                      <span className="text-xs text-muted-foreground">
+                        Unsaved changes
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </TabsContent>
 

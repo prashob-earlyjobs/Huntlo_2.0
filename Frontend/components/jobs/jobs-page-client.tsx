@@ -79,7 +79,21 @@ export function JobsPageClient() {
       {loading && jobs.length === 0 ? (
         <JobsWorkspaceSkeleton />
       ) : (
-        <JobsWorkspace jobs={jobs} />
+        <JobsWorkspace
+          jobs={jobs}
+          onJobUpdated={(updated) => {
+            setJobs((previous) => {
+              const index = previous.findIndex((job) => job.id === updated.id);
+              if (index === -1) return [updated, ...previous];
+              const next = [...previous];
+              next[index] = updated;
+              return next;
+            });
+          }}
+          onJobRemoved={(jobId) => {
+            setJobs((previous) => previous.filter((job) => job.id !== jobId));
+          }}
+        />
       )}
     </>
   );

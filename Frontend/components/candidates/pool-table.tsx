@@ -8,8 +8,9 @@ import {
   Mail,
   MoreHorizontal,
   Phone,
-  Send,
+  Plus,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,7 +22,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -43,14 +48,9 @@ import { candidateDetailPath } from "@/lib/routes";
 const HEAD = "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
 
 /** One clear, status-appropriate action per row instead of a wall of buttons. */
-const PRIMARY_ACTION: Record<
-  CandidateStatus,
-  { label: string; icon: typeof Send }
+const PRIMARY_ACTION: Partial<
+  Record<CandidateStatus, { label: string; icon: LucideIcon }>
 > = {
-  New: { label: "Add to Outreach", icon: Send },
-  Saved: { label: "Add to Outreach", icon: Send },
-  Contacted: { label: "Add to Outreach", icon: Send },
-  Interested: { label: "Add to Outreach", icon: Send },
   Qualified: { label: "Start Screening", icon: AudioLines },
   Screening: { label: "Start Screening", icon: AudioLines },
   Shortlisted: { label: "Schedule Interview", icon: CalendarClock },
@@ -98,6 +98,12 @@ export function PoolTable({
   onToggleSelect,
   onToggleSelectAll,
   onRemove,
+  lists = [],
+  onAddToList,
+  onCreateList,
+  onStartScreening,
+  onScheduleInterview,
+  removeLabel = "Remove from pool",
   caption = "Candidate pool with pipeline status, lists and owners",
 }: {
   candidates: PoolCandidate[];
@@ -105,11 +111,34 @@ export function PoolTable({
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
   onRemove: (id: string) => void;
+  lists?: { id: string; name: string }[];
+  onAddToList?: (candidateId: string, listId: string, listName: string) => void;
+  onCreateList?: (candidateId: string) => void;
+  onStartScreening?: (candidateId: string) => void;
+  onScheduleInterview?: (candidateId: string) => void;
+  removeLabel?: string;
   caption?: string;
 }) {
   const router = useRouter();
   const allSelected =
     candidates.length > 0 && candidates.every((c) => selected.has(c.id));
+
+  function runPrimaryAction(
+    candidate: PoolCandidate,
+    label: string
+  ) {
+    if (label === "View Profile") {
+      router.push(candidateDetailPath(candidate.id));
+      return;
+    }
+    if (label === "Start Screening") {
+      onStartScreening?.(candidate.id);
+      return;
+    }
+    if (label === "Schedule Interview") {
+      onScheduleInterview?.(candidate.id);
+    }
+  }
 
   return (
     <div className="overflow-x-auto">
@@ -143,7 +172,7 @@ export function PoolTable({
         <TableBody>
           {candidates.map((candidate) => {
             const primaryAction = PRIMARY_ACTION[candidate.pipelineStatus];
-            const PrimaryIcon = primaryAction.icon;
+            const PrimaryIcon = primaryAction?.icon;
             return (
               <TableRow
                 key={candidate.id}
@@ -230,21 +259,26 @@ export function PoolTable({
                 </TableCell>
                 <TableCell className="py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            size="icon-xs"
-                            variant="ghost"
-                            aria-label={`${primaryAction.label} for ${candidate.name}`}
-                          />
-                        }
-                      >
-                        <PrimaryIcon aria-hidden />
-                      </TooltipTrigger>
-                      <TooltipContent>{primaryAction.label}</TooltipContent>
-                    </Tooltip>
+                    {primaryAction && PrimaryIcon ? (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              size="icon-xs"
+                              variant="ghost"
+                              aria-label={`${primaryAction.label} for ${candidate.name}`}
+                              onClick={() =>
+                                runPrimaryAction(candidate, primaryAction.label)
+                              }
+                            />
+                          }
+                        >
+                          <PrimaryIcon aria-hidden />
+                        </TooltipTrigger>
+                        <TooltipContent>{primaryAction.label}</TooltipContent>
+                      </Tooltip>
+                    ) : null}
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -259,34 +293,78 @@ export function PoolTable({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-52">
                         <DropdownMenuItem
-                          onClick={() => router.push(candidateDetailPath(candidate.id))}
+                          onClick={() =>
+                            router.push(candidateDetailPath(candidate.id))
+                          }
                         >
                           <Eye aria-hidden />
                           View profile
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <ListPlus aria-hidden />
-                          Add to list
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Send aria-hidden />
-                          Add to outreach
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <AudioLines aria-hidden />
-                          Start screening
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <CalendarClock aria-hidden />
-                          Schedule interview
-                        </DropdownMenuItem>
+                        {onAddToList || onCreateList ? (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <ListPlus aria-hidden />
+                              Add to list
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent className="w-52">
+                              <DropdownMenuLabel>Choose list</DropdownMenuLabel>
+                              {lists.length > 0 ? (
+                                lists.map((list) => (
+                                  <DropdownMenuItem
+                                    key={list.id}
+                                    onClick={() =>
+                                      onAddToList?.(
+                                        candidate.id,
+                                        list.id,
+                                        list.name
+                                      )
+                                    }
+                                  >
+                                    {list.name}
+                                  </DropdownMenuItem>
+                                ))
+                              ) : (
+                                <DropdownMenuItem disabled>
+                                  No lists yet
+                                </DropdownMenuItem>
+                              )}
+                              {onCreateList ? (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => onCreateList(candidate.id)}
+                                  >
+                                    <Plus aria-hidden />
+                                    Create new list
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        ) : null}
+                        {onStartScreening ? (
+                          <DropdownMenuItem
+                            onClick={() => onStartScreening(candidate.id)}
+                          >
+                            <AudioLines aria-hidden />
+                            Start screening
+                          </DropdownMenuItem>
+                        ) : null}
+                        {onScheduleInterview ? (
+                          <DropdownMenuItem
+                            onClick={() => onScheduleInterview(candidate.id)}
+                          >
+                            <CalendarClock aria-hidden />
+                            Schedule interview
+                          </DropdownMenuItem>
+                        ) : null}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="destructive"
                           onClick={() => onRemove(candidate.id)}
                         >
                           <Trash2 aria-hidden />
-                          Remove from pool
+                          {removeLabel}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

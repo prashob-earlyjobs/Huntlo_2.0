@@ -176,7 +176,7 @@ export const MODULE_IMPLIED_PERMISSIONS: Partial<
     plans: ["view"],
   },
   candidates: { jobs: ["view"], plans: ["view"] },
-  jobs: { plans: ["view"] },
+  jobs: { plans: ["view"], sourcing: ["view"] },
   assessments: { plans: ["view"] },
   analytics: { plans: ["view"] },
   integrations: { plans: ["view"] },

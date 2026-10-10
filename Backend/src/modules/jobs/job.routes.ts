@@ -36,7 +36,7 @@ jobsRouter.post('/parse-jd', ...orgAuth, requirePermission('jobs:create', 'jobs:
 
 jobsRouter.get('/:id', ...orgAuth, requirePermission('jobs:view'), getJob);
 jobsRouter.patch('/:id', ...orgAuth, requirePermission('jobs:edit'), updateJob);
-jobsRouter.delete('/:id', ...orgAuth, requirePermission('jobs:delete'), deleteJob);
+jobsRouter.delete('/:id', ...orgAuth, requirePermission('jobs:view'), deleteJob);
 
 jobsRouter.post('/:id/publish', ...orgAuth, requirePermission('jobs:launch', 'jobs:edit'), publishJob);
 jobsRouter.post('/:id/pause', ...orgAuth, requirePermission('jobs:edit'), pauseJob);
