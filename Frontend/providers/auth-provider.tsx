@@ -35,6 +35,7 @@ import {
   setPendingRedirectPath,
 } from "@/lib/claim-public-search";
 import { candidateSearchApi } from "@/lib/api/candidate-search";
+import { markIntentionalLogout } from "@/lib/logout-redirect";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -237,6 +238,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    if (me?.user?.id) {
+      markIntentionalLogout({ id: me.user.id, email: me.user.email });
+    }
     try {
       await authApi.logout();
     } finally {
@@ -245,8 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionState("unauthenticated");
       setAuthSessionCookie(false);
     }
-  }, []);
-
+  }, [me?.user?.email, me?.user?.id]);
   const refresh = useCallback(async () => {
     await bootstrap();
   }, [bootstrap]);

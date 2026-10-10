@@ -69,5 +69,10 @@ export function JobDetailPageClient({ id }: { id: string }) {
     return null;
   }
 
-  return <JobDetailView job={job} />;
+  return (
+    <JobDetailView
+      job={job}
+      onJobUpdated={(next) => setJob(next)}
+    />
+  );
 }

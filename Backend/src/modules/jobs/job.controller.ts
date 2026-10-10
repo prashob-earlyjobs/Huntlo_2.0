@@ -21,6 +21,7 @@ function actorFrom(req: Request) {
     userId: req.userId!,
     organizationId: req.organizationId!,
     role: req.member?.role ?? req.auth?.role ?? 'recruiter',
+    permissions: req.member?.permissions ?? [],
     ipHash: hashIp(getClientIp(req)),
     userAgent: req.headers['user-agent'] ?? null,
   };
