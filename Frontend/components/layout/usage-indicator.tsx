@@ -18,6 +18,7 @@ import { UsageProgress } from "@/components/shared/usage-progress";
 import { plansApi, type UsageMetricRow } from "@/lib/api/plans";
 import type { CreditMetric } from "@/lib/types";
 import { ROUTES } from "@/lib/routes";
+import { USAGE_REFRESH_EVENT } from "@/lib/usage-refresh";
 import { useAuth } from "@/providers";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
@@ -97,6 +98,14 @@ export function UsageIndicator() {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    function onRefresh() {
+      void refresh();
+    }
+    window.addEventListener(USAGE_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(USAGE_REFRESH_EVENT, onRefresh);
   }, [refresh]);
 
   useRealtimeRefresh("usage.updated", () => {

@@ -123,6 +123,12 @@ export type AuthMeResponse = {
   user: AuthUser;
   organization: AuthOrganization;
   permissions: string[];
+  /**
+   * Explicit module allow-list from Team settings. `null` means unrestricted
+   * (role defaults). Used for nav visibility so implied API permissions do not
+   * surface modules the admin did not grant.
+   */
+  allowedModules?: string[] | null;
 };
 
 export type AuthSessionState =

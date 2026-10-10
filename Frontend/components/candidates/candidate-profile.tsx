@@ -51,6 +51,7 @@ import {
   uiRevealKindToType,
   type AssessmentResult,
 } from "@/lib/api";
+import { notifyUsageRefresh } from "@/lib/usage-refresh";
 import {
   CANDIDATE_STATUSES,
   type CandidateNote,
@@ -252,6 +253,9 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           ? `Revealed (${result.creditsCharged} credits)`
           : "Already unlocked — no credits charged"
       );
+      if (result.charged) {
+        notifyUsageRefresh();
+      }
     } catch (err) {
       setRevealError(getApiErrorMessage(err));
     }

@@ -42,10 +42,14 @@ plansRouter.get(
   })
 );
 
+/**
+ * Current plan + usage meters power shared chrome (header credits, reveal
+ * quotas). Any active org member may read them; upgrading still needs
+ * plans:manage via billing routes.
+ */
 plansRouter.get(
   '/current',
   ...orgAuth,
-  requirePermission('plans:view'),
   asyncHandler(async (req, res) => {
     const data = await plansService.getCurrentPlan(req.organizationId!, req.userId!);
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
@@ -55,7 +59,6 @@ plansRouter.get(
 usageRouter.get(
   '/',
   ...orgAuth,
-  requirePermission('plans:view'),
   asyncHandler(async (req, res) => {
     await plansService.ensureSubscription(req.organizationId!);
     const data = await quotaService.getUsage(req.organizationId!);
@@ -79,7 +82,6 @@ usageRouter.get(
 usageRouter.get(
   '/summary',
   ...orgAuth,
-  requirePermission('plans:view'),
   asyncHandler(async (req, res) => {
     await plansService.ensureSubscription(req.organizationId!);
     const data = await quotaService.getSummary(req.organizationId!);
@@ -90,7 +92,6 @@ usageRouter.get(
 usageRouter.get(
   '/:metric',
   ...orgAuth,
-  requirePermission('plans:view'),
   asyncHandler(async (req, res) => {
     const metric = String(req.params.metric ?? '');
     if (!isUsageMetric(metric)) {

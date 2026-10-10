@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/sheet";
 import { SessionResultsTableSkeleton } from "@/components/sessions/session-results-skeleton";
 import { ensureSourcedCandidatesInPool } from "@/components/outreach/audience-resolve";
+import { notifyUsageRefresh } from "@/lib/usage-refresh";
 import {
   getApiErrorMessage,
   candidatesApi,
@@ -824,15 +825,21 @@ export function SessionResults({
       if (result.found && value) {
         if (kind === "email") {
           applyEmailSuccess(value);
-          return "done";
+        } else {
+          applyPhoneSuccess(value);
         }
-        applyPhoneSuccess(value);
+        if (result.charged !== false) {
+          notifyUsageRefresh();
+        }
         return "done";
       }
 
       // Empty / still processing — keep loading and poll status (BG may finish later).
       const found = await pollRevealStatus();
-      if (found) return "done";
+      if (found) {
+        notifyUsageRefresh();
+        return "done";
+      }
 
       applyUnavailable();
       return "done";
@@ -840,7 +847,10 @@ export function SessionResults({
       // FE timed out while BG reveal continues — keep loading and poll for the result.
       if (isRevealTimeoutError(err)) {
         const found = await pollRevealStatus();
-        if (found) return "done";
+        if (found) {
+          notifyUsageRefresh();
+          return "done";
+        }
         applyUnavailable();
         return "done";
       }

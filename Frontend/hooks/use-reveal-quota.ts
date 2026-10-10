@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { plansApi } from "@/lib/api";
+import { USAGE_REFRESH_EVENT } from "@/lib/usage-refresh";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 export type RevealQuota = {
   emailRemaining: number;
@@ -41,6 +43,14 @@ const EMPTY_QUOTA: RevealQuota = {
 
 let cachedQuota: RevealQuota | null = null;
 let inflight: Promise<RevealQuota> | null = null;
+const listeners = new Set<(quota: RevealQuota) => void>();
+
+function publishQuota(quota: RevealQuota) {
+  cachedQuota = quota;
+  for (const listener of listeners) {
+    listener(quota);
+  }
+}
 
 async function fetchRevealQuota(): Promise<RevealQuota> {
   const usage = await plansApi.getUsage();
@@ -54,6 +64,26 @@ async function fetchRevealQuota(): Promise<RevealQuota> {
   };
 }
 
+/** Drop the shared cache so the next read hits the usage API. */
+export function invalidateRevealQuota(): void {
+  cachedQuota = null;
+  inflight = null;
+}
+
+/** Refetch reveal meters and notify all mounted hooks + usage chrome. */
+export async function refreshRevealQuota(): Promise<RevealQuota> {
+  invalidateRevealQuota();
+  inflight = fetchRevealQuota()
+    .then((data) => {
+      publishQuota(data);
+      return data;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
+}
+
 /**
  * Live reveal quota derived from `plansApi.getUsage()`. The first result is
  * memoised at module scope so many candidate rows share a single request.
@@ -64,6 +94,13 @@ export function useRevealQuota(): RevealQuota {
   const [quota, setQuota] = useState<RevealQuota>(cachedQuota ?? EMPTY_QUOTA);
 
   useEffect(() => {
+    listeners.add(setQuota);
+    return () => {
+      listeners.delete(setQuota);
+    };
+  }, []);
+
+  useEffect(() => {
     if (cachedQuota) {
       setQuota(cachedQuota);
       return;
@@ -72,7 +109,7 @@ export function useRevealQuota(): RevealQuota {
     inflight = inflight ?? fetchRevealQuota();
     void inflight
       .then((data) => {
-        cachedQuota = data;
+        publishQuota(data);
         if (!cancelled) setQuota(data);
       })
       .catch(() => {
@@ -85,6 +122,18 @@ export function useRevealQuota(): RevealQuota {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    function onRefresh() {
+      void refreshRevealQuota();
+    }
+    window.addEventListener(USAGE_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(USAGE_REFRESH_EVENT, onRefresh);
+  }, []);
+
+  useRealtimeRefresh("usage.updated", () => {
+    void refreshRevealQuota();
+  });
 
   return quota;
 }

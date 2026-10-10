@@ -30,6 +30,7 @@ import type { ScoutProfile } from "@/lib/mock-scout";
 import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api";
 import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
+import { notifyUsageRefresh } from "@/lib/usage-refresh";
 import { cn } from "@/lib/utils";
 
 const LOOKUP_POLL_INTERVAL_MS = 10_000;
@@ -156,6 +157,9 @@ export function ScoutProfileCard({
         ? `Revealed (${creditsCharged ?? (type === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile)} credits)`
         : "Already unlocked — no credits charged"
     );
+    if (charged) {
+      notifyUsageRefresh();
+    }
   }
 
   function applyRevealUnavailable(
