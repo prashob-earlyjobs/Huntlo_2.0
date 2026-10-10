@@ -5,11 +5,11 @@ import {
   CalendarClock,
   ChevronDown,
   ClipboardList,
-  Contact,
   Info,
   ListPlus,
   MapPin,
   MoreHorizontal,
+  Plus,
   Send,
   StickyNote,
   Timer,
@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { ConversationsPanel } from "@/components/conversations/conversations-panel";
 import { PipelineStatusBadge } from "@/components/candidates/pipeline-status-badge";
 import {
@@ -27,19 +28,16 @@ import { MatchScoreCompact } from "@/components/sessions/match-score";
 import { ActivityTimeline } from "@/components/shared/activity-timeline";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
 import { SectionHeader } from "@/components/shared/section-header";
+import { Snackbar } from "@/components/shared/snackbar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import {
   assessmentsApi,
@@ -51,6 +49,7 @@ import {
   uiRevealKindToType,
   type AssessmentResult,
 } from "@/lib/api";
+import { hasAnyPermission } from "@/lib/access-control";
 import { notifyUsageRefresh } from "@/lib/usage-refresh";
 import {
   CANDIDATE_STATUSES,
@@ -62,6 +61,7 @@ import {
 import { revealCreditsRemaining } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers";
 
 function Card({
   className,
@@ -140,6 +140,11 @@ function detailValue(value: unknown): string {
 }
 
 export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
+  const { permissions } = useAuth();
+  const canViewConversations = hasAnyPermission(permissions, [
+    "outreach:view",
+    "outreach:manage",
+  ]);
   const [status, setStatus] = useState<CandidateStatus>(
     candidate.pipelineStatus
   );
@@ -150,9 +155,12 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
   });
   const [notes, setNotes] = useState<CandidateNote[]>(candidate.notes);
   const [noteDraft, setNoteDraft] = useState("");
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [revealError, setRevealError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    message: string;
+    variant: "default" | "error";
+  } | null>(null);
   const [lists, setLists] = useState<SavedList[]>([]);
+  const [createListOpen, setCreateListOpen] = useState(false);
   const [noteBusy, setNoteBusy] = useState(false);
   const [assessmentResults, setAssessmentResults] = useState<AssessmentResult[]>([]);
   const [liveInterviews, setLiveInterviews] = useState(candidate.interviews);
@@ -229,16 +237,26 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
     };
   }, [candidate.id, candidate.notes.length]);
 
-  function flash(message: string) {
-    setFeedback(message);
-    window.setTimeout(() => setFeedback(null), 2400);
+  function flash(message: string, variant: "default" | "error" = "default") {
+    setFeedback({ message, variant });
   }
 
   async function handleReveal(kind: "email" | "phone") {
-    setRevealError(null);
+    const statusKey = kind === "email" ? "emailStatus" : "phoneStatus";
+    const valueKey = kind === "email" ? "emailValue" : "phoneValue";
+    if (revealed[statusKey] === "loading") return;
+
+    setFeedback(null);
+    setRevealed((previous) => ({
+      ...previous,
+      [statusKey]: "loading",
+    }));
+
     try {
+      const revealCandidateId =
+        profile.externalCandidateId?.trim() || profile.id;
       const result = await candidatesApi.revealContact({
-        candidateId: profile.id,
+        candidateId: revealCandidateId,
         type: uiRevealKindToType(kind),
       });
       const value = result.value || result.values[0] || "";
@@ -247,17 +265,39 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           ? { ...previous, email: value || previous.email, emailRevealed: true }
           : { ...previous, phone: value || previous.phone, phoneRevealed: true }
       );
-      setRevealed((previous) => ({ ...previous, [kind]: true }));
-      flash(
-        result.charged
-          ? `Revealed (${result.creditsCharged} credits)`
-          : "Already unlocked — no credits charged"
-      );
-      if (result.charged) {
-        notifyUsageRefresh();
+      if (result.found && value) {
+        setRevealed((previous) => ({
+          ...previous,
+          [kind]: true,
+          [statusKey]: "idle",
+          [valueKey]: value,
+        }));
+        flash(
+          result.charged
+            ? `Revealed (${result.creditsCharged} credits)`
+            : "Already unlocked — no credits charged"
+        );
+        if (result.charged) {
+          notifyUsageRefresh();
+        }
+      } else {
+        setRevealed((previous) => ({
+          ...previous,
+          [statusKey]: "unavailable",
+        }));
+        flash(
+          kind === "email"
+            ? "No email found for this candidate."
+            : "No mobile found for this candidate.",
+          "error"
+        );
       }
     } catch (err) {
-      setRevealError(getApiErrorMessage(err));
+      setRevealed((previous) => ({
+        ...previous,
+        [statusKey]: "idle",
+      }));
+      flash(getApiErrorMessage(err), "error");
     }
   }
 
@@ -269,7 +309,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
       flash(`Status changed to “${option}”.`);
     } catch (err) {
       setStatus(previous);
-      flash(getApiErrorMessage(err));
+      flash(getApiErrorMessage(err), "error");
     }
   }
 
@@ -283,7 +323,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
       setNoteDraft("");
       flash("Note added.");
     } catch (err) {
-      flash(getApiErrorMessage(err));
+      flash(getApiErrorMessage(err), "error");
     } finally {
       setNoteBusy(false);
     }
@@ -299,7 +339,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
       );
       flash(`Added ${candidate.name} to “${list.name}”.`);
     } catch (err) {
-      flash(getApiErrorMessage(err));
+      flash(getApiErrorMessage(err), "error");
     }
   }
 
@@ -385,28 +425,6 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
 
           {/* Main actions */}
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger render={<Button size="sm" variant="outline" />}>
-                <Contact aria-hidden />
-                Reveal Contact
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 p-3">
-                <p className="mb-2 text-xs font-semibold text-foreground">
-                  Contact details
-                </p>
-                <ContactReveal
-                  candidate={profile as unknown as import("@/lib/mock-sessions").SessionCandidate}
-                  revealed={revealed}
-                  onReveal={(kind) => void handleReveal(kind)}
-                  layout="stack"
-                />
-                {revealError ? (
-                  <p role="alert" className="mt-2 text-xs text-destructive">
-                    {revealError}
-                  </p>
-                ) : null}
-              </PopoverContent>
-            </Popover>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
                 <ListPlus aria-hidden />
@@ -414,6 +432,13 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuLabel>Add to list</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => setCreateListOpen(true)}
+                >
+                  <Plus aria-hidden />
+                  Create new
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {lists.length === 0 ? (
                   <DropdownMenuItem disabled>No lists yet</DropdownMenuItem>
                 ) : (
@@ -428,6 +453,19 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            <CreateListDialog
+              trigger={null}
+              open={createListOpen}
+              onOpenChange={setCreateListOpen}
+              onCreated={(list) => {
+                setLists((previous) =>
+                  previous.some((item) => item.id === list.id)
+                    ? previous
+                    : [list, ...previous]
+                );
+                void addToList(list);
+              }}
+            />
             <Button
               size="sm"
               variant="outline"
@@ -477,14 +515,6 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           </div>
         </div>
 
-        {feedback ? (
-          <p
-            role="status"
-            className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
-          >
-            {feedback}
-          </p>
-        ) : null}
       </Card>
 
       {/* 8/4 layout */}
@@ -600,17 +630,19 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
             )}
           </Card>
 
-          <Card className="overflow-hidden p-0">
-            <div className="space-y-3 p-4 pb-0">
-              <SectionHeader title="Conversations" />
-            </div>
-            <ConversationsPanel
-              candidateId={candidate.id}
-              emptyDescription="Email, WhatsApp, and voice replies for this candidate will show up here."
-              variant="embedded"
-              className="rounded-none border-0 border-t border-border"
-            />
-          </Card>
+          {canViewConversations ? (
+            <Card className="overflow-hidden p-0">
+              <div className="space-y-3 p-4 pb-0">
+                <SectionHeader title="Conversations" />
+              </div>
+              <ConversationsPanel
+                candidateId={candidate.id}
+                emptyDescription="Email, WhatsApp, and voice replies for this candidate will show up here."
+                variant="embedded"
+                className="rounded-none border-0 border-t border-border"
+              />
+            </Card>
+          ) : null}
         </div>
 
         {/* Recruiter context */}
@@ -622,12 +654,8 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
               revealed={revealed}
               onReveal={(kind) => void handleReveal(kind)}
               layout="stack"
+              fill
             />
-            {revealError ? (
-              <p role="alert" className="text-xs text-destructive">
-                {revealError}
-              </p>
-            ) : null}
             {revealQuota ? (
               <p className="border-t border-border pt-3 text-xs text-muted-foreground">
                 {revealQuota.emailRemaining.toLocaleString("en-IN")} email and{" "}
@@ -826,6 +854,11 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           </Card>
         </div>
       </div>
+      <Snackbar
+        message={feedback?.message ?? null}
+        variant={feedback?.variant ?? "default"}
+        onDismiss={() => setFeedback(null)}
+      />
     </div>
   );
 }

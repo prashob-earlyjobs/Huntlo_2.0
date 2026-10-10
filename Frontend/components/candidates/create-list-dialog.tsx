@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { ListVisibility } from "@/lib/mock-candidates";
+import type { ListVisibility, SavedList } from "@/lib/mock-candidates";
 import { getApiErrorMessage, candidatePoolApi, jobsApi } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
 
@@ -36,10 +36,19 @@ const VISIBILITY_OPTIONS: { value: ListVisibility; hint: string }[] = [
 export function CreateListDialog({
   trigger,
   onCreated,
+  open: openProp,
+  onOpenChange,
 }: {
-  trigger?: React.ReactElement;
-  onCreated?: () => void;
+  trigger?: React.ReactElement | null;
+  onCreated?: (list: SavedList) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -49,6 +58,14 @@ export function CreateListDialog({
   const [created, setCreated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
+
+  const activeJobs = jobs.filter((job) => job.status !== "Archived");
+  const jobItems = Object.fromEntries(
+    activeJobs.map((job) => [job.id, job.title || job.id])
+  );
+  const visibilityItems = Object.fromEntries(
+    VISIBILITY_OPTIONS.map((option) => [option.value, option.value])
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +82,16 @@ export function CreateListDialog({
     };
   }, []);
 
+  function resetForm() {
+    setName("");
+    setDescription("");
+    setJobId(null);
+    setVisibility("Team");
+    setTags("");
+    setError(null);
+    setCreated(false);
+  }
+
   async function handleCreate() {
     if (!name.trim()) {
       setError("List name is required.");
@@ -73,7 +100,7 @@ export function CreateListDialog({
     setError(null);
     setBusy(true);
     try {
-      await candidatePoolApi.createList({
+      const list = await candidatePoolApi.createList({
         name: name.trim(),
         description: description.trim() || undefined,
         jobId,
@@ -84,8 +111,12 @@ export function CreateListDialog({
           .filter(Boolean),
       });
       setCreated(true);
-      onCreated?.();
-      window.setTimeout(() => setCreated(false), 1600);
+      onCreated?.(list);
+      window.setTimeout(() => {
+        setCreated(false);
+        resetForm();
+        setOpen(false);
+      }, 900);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -94,17 +125,26 @@ export function CreateListDialog({
   }
 
   return (
-    <Dialog>
-      <DialogTrigger
-        render={
-          trigger ?? (
-            <Button size="sm" variant="outline">
-              <ListPlus aria-hidden />
-              Create List
-            </Button>
-          )
-        }
-      />
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy && !next) return;
+        setOpen(next);
+        if (!next) resetForm();
+      }}
+    >
+      {trigger !== null ? (
+        <DialogTrigger
+          render={
+            trigger ?? (
+              <Button size="sm" variant="outline">
+                <ListPlus aria-hidden />
+                Create List
+              </Button>
+            )
+          }
+        />
+      ) : null}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Create list</DialogTitle>
@@ -144,12 +184,16 @@ export function CreateListDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="list-job">Related job</Label>
-              <Select value={jobId} onValueChange={(value) => setJobId(value)}>
+              <Select
+                items={jobItems}
+                value={jobId}
+                onValueChange={(value) => setJobId(value)}
+              >
                 <SelectTrigger id="list-job" className="w-full">
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
-                  {jobs.filter((job) => job.status !== "Archived").map((job) => (
+                  {activeJobs.map((job) => (
                     <SelectItem key={job.id} value={job.id}>
                       {job.title}
                     </SelectItem>
@@ -160,6 +204,7 @@ export function CreateListDialog({
             <div className="space-y-1.5">
               <Label htmlFor="list-visibility">Visibility</Label>
               <Select
+                items={visibilityItems}
                 value={visibility}
                 onValueChange={(value) =>
                   value && setVisibility(value as ListVisibility)

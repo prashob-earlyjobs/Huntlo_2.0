@@ -120,6 +120,7 @@ function RevealButton({
 }) {
   const Icon = kind === "email" ? Mail : Phone;
   const label = kind === "email" ? "Reveal email" : "Reveal mobile";
+  const missingLabel = kind === "email" ? "No email found" : "No mobile found";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const isLoading = status === "loading";
   const isUnavailable = status === "unavailable";
@@ -130,22 +131,34 @@ function RevealButton({
       type="button"
       size="xs"
       variant="outline"
-      title={title}
+      title={
+        isUnavailable
+          ? `${missingLabel}. Click to try again.`
+          : title
+      }
+      aria-busy={isLoading || undefined}
       // Keep "unavailable" clickable so the user can retry after a soft miss.
       disabled={isLoading || blocked}
       onClick={() => onReveal(kind)}
-      className={className}
+      className={cn("min-w-[10.5rem] justify-start", className)}
     >
-      {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
+      {isLoading ? (
+        <Loader2 aria-hidden className="size-3 animate-spin" />
+      ) : (
+        <Icon aria-hidden />
+      )}
       {isLoading
         ? "Fetching…"
         : isUnavailable
-          ? "Retry"
+          ? missingLabel
           : blocked
             ? disabledLabel
             : label}
       {!isLoading && !isUnavailable && !blocked ? (
         <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
+      ) : null}
+      {isUnavailable ? (
+        <span className="text-muted-foreground">· Retry</span>
       ) : null}
     </Button>
   );
