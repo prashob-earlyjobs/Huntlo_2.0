@@ -565,6 +565,7 @@ function MemberDrawer({
   const [role, setRole] = useState<TeamRole | null>(null);
   const [modules, setModules] = useState<ModuleAccess[]>([]);
   const [savingModules, setSavingModules] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
     "reset" | "suspend" | "activate" | "deactivate" | null
   >(null);
@@ -576,8 +577,14 @@ function MemberDrawer({
     user?.accountRole === "owner" ||
     permissions.includes("*") ||
     permissions.includes("team:manage");
+  const isSelf =
+    Boolean(user?.email) &&
+    Boolean(member?.email) &&
+    user!.email.toLowerCase() === member!.email.toLowerCase();
   const canEditAccess =
     canManageTeam && member?.role !== "Workspace Owner";
+  // Role changes are admin/owner only, and never for your own account.
+  const canChangeRole = canEditAccess && !isSelf;
 
   const savedModuleAccessKey = (member?.moduleAccess ?? [])
     .slice()
@@ -631,6 +638,29 @@ function MemberDrawer({
       onAction(getApiErrorMessage(error, "Unable to update module access."));
     } finally {
       setSavingModules(false);
+    }
+  }
+
+  async function changeRole(nextRole: TeamRole) {
+    if (!canChangeRole || savingRole || nextRole === currentMember.role) return;
+    if (nextRole === "Workspace Owner") return;
+    setSavingRole(true);
+    setRole(nextRole);
+    try {
+      const updated = await teamApi.updateMemberRole(
+        currentMember.id,
+        String(toRoleKey(nextRole))
+      );
+      const mapped = mapApiMemberToUi(updated);
+      setRole(mapped.role);
+      setModules(mapped.moduleAccess);
+      onUpdated(mapped);
+      onAction(`Role for ${mapped.name} set to ${mapped.role}.`, true);
+    } catch (error) {
+      setRole(null);
+      onAction(getApiErrorMessage(error, "Unable to update role."));
+    } finally {
+      setSavingRole(false);
     }
   }
 
@@ -865,31 +895,53 @@ function MemberDrawer({
             </TabsContent>
 
             <TabsContent value="access" className="space-y-3 pt-3">
-              <Field label="Change role" htmlFor="member-role">
-                <Select
-                  value={displayRole}
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    setRole(value as TeamRole);
-                    onAction(`Role for ${member.name} set to ${value}.`);
-                  }}
-                  disabled={member.role === "Workspace Owner"}
-                >
-                  <SelectTrigger id="member-role" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TEAM_ROLES.map((r) => (
-                      <SelectItem
-                        key={r}
-                        value={r}
-                        disabled={r === "Workspace Owner"}
-                      >
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Field
+                label={canChangeRole ? "Change role" : "Role"}
+                htmlFor="member-role"
+              >
+                {canChangeRole ? (
+                  <Select
+                    value={displayRole}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      void changeRole(value as TeamRole);
+                    }}
+                    disabled={savingRole}
+                  >
+                    <SelectTrigger id="member-role" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEAM_ROLES.filter((r) => r !== "Workspace Owner").map(
+                        (r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p
+                    id="member-role"
+                    className="rounded-lg border border-border bg-muted/30 px-2.5 py-2 text-sm text-foreground"
+                  >
+                    {displayRole}
+                    {isSelf ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        You can’t change your own role. Ask another admin.
+                      </span>
+                    ) : member.role === "Workspace Owner" ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Workspace owner role can’t be changed here.
+                      </span>
+                    ) : !canManageTeam ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Only admins can change member roles.
+                      </span>
+                    ) : null}
+                  </p>
+                )}
               </Field>
 
               <div>

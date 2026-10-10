@@ -2,6 +2,7 @@
 
 import {
   BookmarkCheck,
+  Check,
   Copy,
   Eye,
   Link as LinkIcon,
@@ -16,6 +17,7 @@ import { useEffect, useState } from "react";
 
 import { ScoutProfileCard } from "@/components/scout/scout-profile-card";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
+import { Snackbar } from "@/components/shared/snackbar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -116,12 +118,14 @@ function LookupDrawer({
   const [detail, setDetail] = useState<ScoutLookupResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inputCopied, setInputCopied] = useState(false);
 
   useEffect(() => {
     if (!open || !lookup) {
       setDetail(null);
       setError(null);
       setLoading(false);
+      setInputCopied(false);
       return;
     }
 
@@ -268,10 +272,18 @@ function LookupDrawer({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => void navigator.clipboard?.writeText(lookup.input)}
+                onClick={() => {
+                  void navigator.clipboard?.writeText(lookup.input);
+                  setInputCopied(true);
+                  window.setTimeout(() => setInputCopied(false), 1500);
+                }}
               >
-                <Copy aria-hidden />
-                Copy Input
+                {inputCopied ? (
+                  <Check aria-hidden className="text-success" />
+                ) : (
+                  <Copy aria-hidden />
+                )}
+                {inputCopied ? "Copied" : "Copy Input"}
               </Button>
             </div>
           </div>
@@ -292,6 +304,7 @@ export function ScoutLookupsTable({
 }) {
   const [active, setActive] = useState<RecentLookup | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [copyAck, setCopyAck] = useState<string | null>(null);
 
   function openDrawer(lookup: RecentLookup) {
     setActive(lookup);
@@ -414,9 +427,10 @@ export function ScoutLookupsTable({
                           Rerun lookup
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() =>
-                            void navigator.clipboard?.writeText(lookup.input)
-                          }
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(lookup.input);
+                            setCopyAck("Input copied");
+                          }}
                         >
                           <Copy aria-hidden />
                           Copy input
@@ -437,6 +451,11 @@ export function ScoutLookupsTable({
         onOpenChange={setDrawerOpen}
         onRerun={onRerun}
         onProfileSaved={onLookupUpdated}
+      />
+
+      <Snackbar
+        message={copyAck}
+        onDismiss={() => setCopyAck(null)}
       />
     </section>
   );

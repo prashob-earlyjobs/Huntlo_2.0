@@ -572,22 +572,26 @@ export function SessionResults({
     session.state === "running" && candidates.length === 0
   );
 
-  // Keep the progressive reveal in sync with live candidate growth. Never leave
-  // the skeleton stuck after the session leaves "running".
+  // Keep the progressive reveal in sync with live candidate growth. Stay on the
+  // shimmer while there are no rows yet — never flash empty between status
+  // flips and the first candidate payload.
   useEffect(() => {
     if (session.state !== "running") {
-      setInitialLoading(false);
+      setInitialLoading(candidates.length === 0);
       setProgressCount(candidates.length);
       return;
     }
 
     if (candidates.length === 0) {
       setInitialLoading(true);
-      const timer = window.setTimeout(() => setInitialLoading(false), 800);
-      return () => window.clearTimeout(timer);
+      return;
     }
 
     setInitialLoading(false);
+    // Show the first row immediately so we never paint an empty body first.
+    setProgressCount((previous) =>
+      previous > 0 ? previous : Math.min(1, candidates.length)
+    );
     const interval = window.setInterval(() => {
       setProgressCount((previous) => {
         if (previous >= candidates.length) {
@@ -1105,16 +1109,33 @@ export function SessionResults({
     }
   }
 
-  const isEmpty = session.state === "empty";
   const isFailed = session.state === "failed";
-  const totalCandidates = pagination?.total ?? visibleCandidates.length;
+  const reportedTotal = Math.max(
+    session.resultCount ?? 0,
+    pagination?.total ?? 0,
+    candidates.length
+  );
+  const totalCandidates = reportedTotal;
+  // Only treat as empty once the session is terminal and every count says zero.
+  const confirmedEmpty =
+    session.state === "empty" ||
+    (session.state !== "running" &&
+      !pageLoading &&
+      candidates.length === 0 &&
+      reportedTotal === 0);
+  const waitingForResults =
+    !isFailed &&
+    !confirmedEmpty &&
+    (initialLoading ||
+      pageLoading ||
+      candidates.length === 0 ||
+      (session.state === "running" && progressCount === 0));
+  const isEmpty = confirmedEmpty;
   const showResults =
     !isEmpty &&
     !isFailed &&
-    !initialLoading &&
-    (visibleCandidates.length > 0 || totalCandidates > 0);
-  const showNoResults =
-    !isEmpty && !isFailed && !initialLoading && visibleCandidates.length === 0 && totalCandidates === 0;
+    !waitingForResults &&
+    (visibleCandidates.length > 0 || reportedTotal > 0);
 
   return (
     <div className="space-y-4">
@@ -1461,7 +1482,7 @@ export function SessionResults({
       ) : null}
 
       {/* Results body */}
-      {initialLoading ? (
+      {waitingForResults ? (
         <SessionResultsTableSkeleton rows={8} />
       ) : isFailed ? (
         <EmptyState
@@ -1481,12 +1502,6 @@ export function SessionResults({
           description="Try broadening your location, skills or experience filters and run the search again."
           actionLabel="Edit Search"
           onAction={startEditSearch}
-        />
-      ) : showNoResults ? (
-        <EmptyState
-          icon={Users}
-          title="No results yet"
-          description="The search is still loading candidates. Check back in a moment."
         />
       ) : showResults ? (
         <section className="rounded-xl border border-border bg-card">

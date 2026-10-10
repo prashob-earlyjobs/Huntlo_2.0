@@ -58,9 +58,9 @@ export function RevealedValue({
   previouslyRevealed: boolean;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1">
+    <div className="flex min-w-0 items-center gap-1.5">
       <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 truncate text-xs font-medium text-foreground">
+      <span className="min-w-0 truncate text-sm text-foreground">
         {value}
       </span>
       <CopyButton value={value} label={label} />

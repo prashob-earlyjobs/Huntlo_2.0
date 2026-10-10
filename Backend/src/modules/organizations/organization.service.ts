@@ -856,6 +856,9 @@ export class OrganizationService {
     if (!member) throw AppError.notFound('Member not found');
     assertSameOrganization(member.organizationId, actor.organizationId);
 
+    if (member.userId.toHexString() === actor.userId) {
+      throw AppError.forbidden('You cannot change your own role');
+    }
     if (member.role === 'owner') {
       throw AppError.forbidden('Cannot change the workspace owner role');
     }
