@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { getRequestId } from '../../middleware/request-id.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { successResponse } from '../../shared/http/response.js';
+import { aiVoiceDemoLimit } from './ai-voice-demo.jobs.js';
 import { startAiVoiceDemo } from './ai-voice-demo.service.js';
 import { startAiVoiceDemoSchema } from './ai-voice-demo.validation.js';
 
@@ -11,6 +12,10 @@ import { startAiVoiceDemoSchema } from './ai-voice-demo.validation.js';
  * Creates a Hunar agent for the selected job, then dials that agent.
  */
 export const aiVoiceDemoRouter = Router();
+
+aiVoiceDemoRouter.get('/limit', (req, res) => {
+  successResponse(res, { limit: aiVoiceDemoLimit() }, { meta: { requestId: getRequestId(req) } });
+});
 
 aiVoiceDemoRouter.post(
   '/',
