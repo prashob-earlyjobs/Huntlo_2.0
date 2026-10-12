@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { startAiVoiceDemo } from "@/lib/api/ai-voice-demo";
+import { getAiVoiceDemoLimit, startAiVoiceDemo } from "@/lib/api/ai-voice-demo";
 import { getApiErrorMessage } from "@/lib/api/errors";
 import { DEMO_CALL_LIMIT, DEMO_JOBS } from "@/lib/aiVoiceRecruiter";
 import {
@@ -21,10 +21,13 @@ import {
   nationalNumberPlaceholder,
 } from "@/lib/phone-countries";
 
-type DemoCallsContextValue = {
+type DemoCallsState = {
   remaining: number;
   limit: number;
-  applyRemaining: (remaining: number) => void;
+};
+
+type DemoCallsContextValue = DemoCallsState & {
+  applyRemaining: (remaining: number, limit?: number) => void;
 };
 
 const DemoCallsContext = createContext<DemoCallsContextValue | null>(null);
@@ -34,55 +37,88 @@ const DEMO_CALLS_STORAGE_KEY = "huntlo-ai-voice-demo-calls";
 type StoredDemoCalls = {
   day: string;
   used: number;
+  limit?: number;
 };
+
+const defaultDemoCalls: DemoCallsState = { remaining: DEMO_CALL_LIMIT, limit: DEMO_CALL_LIMIT };
 
 function istDay(now = new Date()): string {
   const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
   return ist.toISOString().slice(0, 10);
 }
 
-function readStoredRemaining(): number {
-  if (typeof window === "undefined") return DEMO_CALL_LIMIT;
+function validLimit(value: unknown): number | null {
+  const limit = Number(value);
+  return Number.isInteger(limit) && limit > 0 ? limit : null;
+}
+
+/** Limit is learned from the API (20 on QA, 5 in production). */
+function readStoredDemoCalls(): DemoCallsState {
+  if (typeof window === "undefined") return defaultDemoCalls;
   try {
     const raw = window.localStorage.getItem(DEMO_CALLS_STORAGE_KEY);
-    if (!raw) return DEMO_CALL_LIMIT;
+    if (!raw) return defaultDemoCalls;
     const parsed = JSON.parse(raw) as StoredDemoCalls;
-    if (parsed.day !== istDay()) return DEMO_CALL_LIMIT;
+    const limit = validLimit(parsed.limit);
+    if (!limit) return defaultDemoCalls;
+    if (parsed.day !== istDay()) return { remaining: limit, limit };
     const used = Number(parsed.used);
-    if (!Number.isFinite(used)) return DEMO_CALL_LIMIT;
-    return Math.max(0, DEMO_CALL_LIMIT - Math.min(DEMO_CALL_LIMIT, used));
+    if (!Number.isFinite(used)) return { remaining: limit, limit };
+    return { remaining: Math.max(0, limit - Math.min(limit, used)), limit };
   } catch {
-    return DEMO_CALL_LIMIT;
+    return defaultDemoCalls;
   }
 }
 
-function writeStoredRemaining(remaining: number) {
+function writeStoredDemoCalls({ remaining, limit }: DemoCallsState) {
   if (typeof window === "undefined") return;
-  const used = Math.max(0, DEMO_CALL_LIMIT - remaining);
-  const payload: StoredDemoCalls = { day: istDay(), used };
+  const used = Math.max(0, limit - remaining);
+  const payload: StoredDemoCalls = { day: istDay(), used, limit };
   window.localStorage.setItem(DEMO_CALLS_STORAGE_KEY, JSON.stringify(payload));
 }
 
+function readStoredRemaining(): number {
+  return readStoredDemoCalls().remaining;
+}
+
 export function DemoCallsProvider({ children }: { children: ReactNode }) {
-  const [remaining, setRemaining] = useState(DEMO_CALL_LIMIT);
+  const [state, setState] = useState<DemoCallsState>(defaultDemoCalls);
 
   useEffect(() => {
-    setRemaining(readStoredRemaining());
+    setState(readStoredDemoCalls());
+    let cancelled = false;
+    getAiVoiceDemoLimit()
+      .then((serverLimit) => {
+        const limit = validLimit(serverLimit);
+        if (cancelled || !limit) return;
+        setState((current) => {
+          const used = Math.max(0, current.limit - current.remaining);
+          const updated = { remaining: Math.max(0, limit - Math.min(limit, used)), limit };
+          writeStoredDemoCalls(updated);
+          return updated;
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const value = useMemo<DemoCallsContextValue>(
     () => ({
-      remaining,
-      limit: DEMO_CALL_LIMIT,
-      applyRemaining: (next: number) => {
-        setRemaining((current) => {
-          const value = Math.max(0, Math.min(DEMO_CALL_LIMIT, current, next));
-          writeStoredRemaining(value);
-          return value;
+      ...state,
+      applyRemaining: (next: number, nextLimit?: number) => {
+        setState((current) => {
+          const limit = validLimit(nextLimit) ?? current.limit;
+          const ceiling = nextLimit === undefined ? current.remaining : limit;
+          const remaining = Math.max(0, Math.min(limit, ceiling, next));
+          const updated = { remaining, limit };
+          writeStoredDemoCalls(updated);
+          return updated;
         });
       },
     }),
-    [remaining]
+    [state]
   );
 
   return <DemoCallsContext.Provider value={value}>{children}</DemoCallsContext.Provider>;
@@ -126,6 +162,7 @@ const labelClass = "block text-xs font-semibold tracking-wide text-[#344054]";
 
 export function DemoCallForm({ variant, id }: DemoCallFormProps) {
   const { remaining, limit, applyRemaining } = useDemoCalls();
+  const browserUsed = limit - remaining;
   const [values, setValues] = useState<DemoFormValues>(emptyValues);
   const [countryIso, setCountryIso] = useState(DEFAULT_PHONE_COUNTRY_ISO);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +179,7 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
     const browserRemaining = Math.min(remaining, readStoredRemaining());
     if (browserRemaining <= 0) {
       applyRemaining(0);
-      setError(`You've used all ${DEMO_CALL_LIMIT} complimentary demo calls from this browser today.`);
+      setError(`You've used all ${limit} complimentary demo calls from this browser today.`);
       return;
     }
     if (!values.company.trim() || !values.email.trim() || !values.phone.trim() || !values.role.trim()) {
@@ -168,7 +205,11 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
         phone,
         job: values.role.trim(),
       });
-      applyRemaining(Math.min(browserRemaining - 1, result.remaining));
+      const serverLimit = result.limit > 0 ? result.limit : limit;
+      applyRemaining(
+        Math.min(serverLimit - browserUsed - 1, result.remaining),
+        serverLimit
+      );
       setCalledNumber(result.phone);
     } catch (submitError) {
       setError(getApiErrorMessage(submitError, "Unable to start the demo call."));
@@ -327,7 +368,7 @@ export function DemoCallForm({ variant, id }: DemoCallFormProps) {
       </div>
       <p className="mt-3 text-xs leading-relaxed text-[#667085]">
         No sales call. Experience the AI recruiter yourself.
-        {variant === "page" ? ` Each company receives ${DEMO_CALL_LIMIT} complimentary AI demo calls.` : null}
+        {variant === "page" ? ` Each company receives ${limit} complimentary AI demo calls.` : null}
       </p>
       {error ? <p className="mt-2 text-xs font-medium text-[#b42318]">{error}</p> : null}
     </form>

@@ -28,6 +28,7 @@ export const AI_VOICE_RECRUITER_GEO = {
     "What is Huntlo AI Voice Recruiter on /ai-voice-recruiter (https://www.huntlo.ai/ai-voice-recruiter)? How does it call, qualify, and shortlist candidates before recruiters spend time screening?",
 } as const;
 
+/** Production default; the live limit comes from the demo API response. */
 export const DEMO_CALL_LIMIT = 5;
 
 export const DEMO_JOBS = [
@@ -38,6 +39,7 @@ export const DEMO_JOBS = [
   "Real Estate Property Visit – Feedback Call",
   "Real Estate Property Requirement Call",
   "Real Estate Alice Greens Call",
+  "Real Estate DMX Urban Greens Call",
 ] as const;
 
 export const TRUST_METRICS = [

@@ -20,3 +20,10 @@ export async function startAiVoiceDemo(input: {
   });
   return result.data;
 }
+
+export async function getAiVoiceDemoLimit(): Promise<number> {
+  const result = await apiClient.get<{ limit: number }>("/public/ai-voice-demo/limit", {
+    retry: false,
+  });
+  return result.data.limit;
+}

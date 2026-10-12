@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AI_VOICE_DEMO_JOBS,
+  aiVoiceDemoLimit,
   buildDemoAgentInput,
 } from '../src/modules/ai-voice-demo/ai-voice-demo.jobs.js';
 import {
@@ -14,14 +15,16 @@ describe('AI voice demo jobs', () => {
     for (const job of AI_VOICE_DEMO_JOBS) {
       const agent = buildDemoAgentInput(job, 'Innostax');
       expect(agent.name).toContain(job);
-      expect(agent.introduction).toContain(job);
+      if (job !== 'Real Estate DMX Urban Greens Call') {
+        expect(agent.introduction).toContain(job);
+      }
       expect(agent.introduction).toContain('Innostax');
       expect(agent.agentPrompt).toContain('company is Innostax');
       expect(agent.agentPrompt).toContain(job);
       expect(Array.isArray(agent.questions)).toBe(true);
       expect((agent.questions as unknown[]).length).toBeGreaterThan(0);
       const asked = (agent.questions as { question: string }[]).map((row) => row.question).join(' ');
-      if (job === 'Real Estate Alice Greens Call') {
+      if (job === 'Real Estate Alice Greens Call' || job === 'Real Estate DMX Urban Greens Call') {
         expect(asked).not.toContain('Innostax');
         expect(asked).not.toContain('{company}');
       } else if (job.startsWith('Real Estate')) {
@@ -38,5 +41,23 @@ describe('AI voice demo jobs', () => {
     expect(toDemoMobile('123')).toBeNull();
     expect(isIndianDemoMobile('+919876543210')).toBe(true);
     expect(isIndianDemoMobile('+14155552671')).toBe(false);
+  });
+
+  it('allows 20 demo calls in development and 5 elsewhere', () => {
+    const prevEnv = process.env.APP_ENV;
+    const prevLimit = process.env.AI_VOICE_DEMO_DAILY_LIMIT;
+    try {
+      delete process.env.AI_VOICE_DEMO_DAILY_LIMIT;
+      process.env.APP_ENV = 'development';
+      expect(aiVoiceDemoLimit()).toBe(20);
+      process.env.APP_ENV = 'production';
+      expect(aiVoiceDemoLimit()).toBe(5);
+      process.env.AI_VOICE_DEMO_DAILY_LIMIT = '8';
+      expect(aiVoiceDemoLimit()).toBe(8);
+    } finally {
+      process.env.APP_ENV = prevEnv;
+      if (prevLimit === undefined) delete process.env.AI_VOICE_DEMO_DAILY_LIMIT;
+      else process.env.AI_VOICE_DEMO_DAILY_LIMIT = prevLimit;
+    }
   });
 });
