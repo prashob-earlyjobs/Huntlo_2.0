@@ -110,12 +110,17 @@ export class RevealQuotaService {
     organizationId: string,
     reservationId: string,
     contactType: RevealQuotaContactType,
-    amount?: number
+    amountOrOptions?: number | { amount?: number; userId?: string | null }
   ): Promise<RevealQuotaStatus> {
+    const options =
+      typeof amountOrOptions === 'number'
+        ? { amount: amountOrOptions }
+        : (amountOrOptions ?? {});
     await sharedQuotaService.reserveUsage({
       organizationId,
+      userId: options.userId ?? null,
       metric: metricFor(contactType),
-      quantity: amount ?? (await costFor(contactType)),
+      quantity: options.amount ?? (await costFor(contactType)),
       idempotencyKey: `reveal:${reservationId}`,
       relatedEntityType: 'reveal',
       relatedEntityId: reservationId,
@@ -123,11 +128,16 @@ export class RevealQuotaService {
     return toStatus(organizationId);
   }
 
-  async commit(organizationId: string, reservationId: string): Promise<RevealQuotaStatus> {
+  async commit(
+    organizationId: string,
+    reservationId: string,
+    userId?: string | null
+  ): Promise<RevealQuotaStatus> {
     const reservation = await findRevealReservation(organizationId, reservationId);
     if (reservation) {
       await sharedQuotaService.commitUsage({
         organizationId,
+        userId: userId ?? reservation.userId?.toHexString() ?? null,
         metric: reservation.metric,
         idempotencyKey: `reveal:${reservationId}`,
       });

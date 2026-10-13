@@ -3,6 +3,7 @@ import {
   ANSWER_TYPES,
   CAMPAIGN_OBJECTIVES,
   CHANNEL_CONFIGS,
+  ASK_RESUME_QUESTION_ID,
   MAX_QUALIFICATION_QUESTIONS,
   RETRY_OPTIONS,
   SEND_WINDOWS,
@@ -133,23 +134,30 @@ export function builderStateFromCampaign(
     : TIMEZONE_OPTIONS[0];
 
   const steps = hydrateSteps(campaign.sequenceSteps || []);
-  const questions =
-    campaign.qualificationConfig?.questions?.map((question) => {
-      const text = question.prompt;
-      const title =
-        ("title" in question && typeof question.title === "string"
-          ? question.title
-          : ""
-        ).trim() || suggestQuestionTitle(text);
-      return {
-        id: question.id,
-        title,
-        text,
-        answerType: asAnswerType(question.answerType),
-        knockout: Boolean(question.knockout),
-        knockoutCondition: question.knockoutCondition || "",
-      };
-    }) ?? base.questions;
+  const savedQuestions = campaign.qualificationConfig?.questions;
+  const askResume = Boolean(
+    savedQuestions?.some((question) => question.id === ASK_RESUME_QUESTION_ID)
+  );
+  const questions = savedQuestions
+    ? savedQuestions
+        .filter((question) => question.id !== ASK_RESUME_QUESTION_ID)
+        .map((question) => {
+          const text = question.prompt;
+          const title =
+            ("title" in question && typeof question.title === "string"
+              ? question.title
+              : ""
+            ).trim() || suggestQuestionTitle(text);
+          return {
+            id: question.id,
+            title,
+            text,
+            answerType: asAnswerType(question.answerType),
+            knockout: Boolean(question.knockout),
+            knockoutCondition: question.knockoutCondition || "",
+          };
+        })
+    : base.questions;
   const cappedQuestions = questions.slice(0, MAX_QUALIFICATION_QUESTIONS);
   const autoScreening = Boolean(campaign.qualificationConfig?.autoScreening);
   const hydratedChannels =
@@ -204,6 +212,7 @@ export function builderStateFromCampaign(
     autoScreening: autoScreening && !Boolean(campaign.schedulingConfig?.enabled),
     autoScreeningModality: "voice",
     autoCalendly: Boolean(campaign.schedulingConfig?.enabled),
+    askResume,
     autoWhatsAppAfterQualification: Boolean(
       campaign.qualificationConfig?.autoWhatsAppAfterQualification
     ),

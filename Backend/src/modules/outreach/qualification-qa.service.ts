@@ -388,6 +388,13 @@ function knockoutFailReason(question: QualificationQuestion, answer: string): st
   return `Not qualified: "${snippet}" failed knockout "${cond}".`;
 }
 
+const ASK_RESUME_QUESTION_ID = 'ask-resume';
+
+function isResumeQuestion(question: QualificationQuestion): boolean {
+  if (question.id === ASK_RESUME_QUESTION_ID) return true;
+  return String(question.answerType || '').trim().toLowerCase() === 'file';
+}
+
 /** Prefer deterministic knockout rules over Gemini when the rule is clear. */
 function resolveKnockoutDecision(
   question: QualificationQuestion,
@@ -2639,23 +2646,39 @@ export async function processQualificationAfterReply(input: {
     const current = questions[idx];
     if (!current) break;
 
-    const evaluation = await evaluateScreeningAnswer({
-      question: {
-        id: current.id,
-        prompt: current.prompt,
-        answerType: current.answerType,
-        knockout: current.knockout,
-        knockoutCondition: current.knockoutCondition,
-      },
-      candidateReply: input.bodyText,
-      conversation,
-      extractedVariables: input.extractedVariables,
-      intent: input.intent,
-      channel: screeningChannel,
-      jobContext,
-      campaignName: input.campaign.name || null,
-      allQuestions: allQuestionSummaries,
-    });
+    const hasFile =
+      Boolean(input.hasAttachment) ||
+      Boolean(input.attachments && input.attachments.length > 0);
+    const attachmentName =
+      input.attachments?.find((item) => item?.name?.trim())?.name?.trim() || '';
+    const evaluation =
+      isResumeQuestion(current) && hasFile
+        ? {
+            answersQuestion: true,
+            isNotAnAnswer: false,
+            isCandidateQuestion: false,
+            answerValue: attachmentName || 'Resume attached',
+            knockout: 'pass' as const,
+            reason: 'file-received',
+            model: 'local',
+          }
+        : await evaluateScreeningAnswer({
+            question: {
+              id: current.id,
+              prompt: current.prompt,
+              answerType: current.answerType,
+              knockout: current.knockout,
+              knockoutCondition: current.knockoutCondition,
+            },
+            candidateReply: input.bodyText,
+            conversation,
+            extractedVariables: input.extractedVariables,
+            intent: input.intent,
+            channel: screeningChannel,
+            jobContext,
+            campaignName: input.campaign.name || null,
+            allQuestions: allQuestionSummaries,
+          });
 
     log().info(
       {

@@ -319,6 +319,14 @@ export type ApiCampaignEnrollment = {
     answer: string;
     status: string;
     description: string;
+    media?: {
+      kind: string;
+      name: string;
+      mimeType?: string | null;
+      url: string;
+      messageId?: string;
+      attachmentIndex?: number;
+    } | null;
   }>;
 };
 

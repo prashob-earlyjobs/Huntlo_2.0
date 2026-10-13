@@ -27,6 +27,13 @@ type HcgGmailConversationLean = {
   updatedAt?: Date;
 };
 
+export type HcgGmailQuestionMedia = {
+  kind: string;
+  name: string;
+  mimeType: string | null;
+  url: string;
+};
+
 export type HcgGmailQuestionView = {
   id: string;
   question: string;
@@ -34,6 +41,7 @@ export type HcgGmailQuestionView = {
   answer: string;
   status: string;
   description: string;
+  media?: HcgGmailQuestionMedia | null;
 };
 
 export type HcgGmailQuestionColumn = {
@@ -417,20 +425,90 @@ export async function overlayHcgGmailOnListItems(
   }
 }
 
+function looksLikeMediaPlaceholder(value: string): boolean {
+  const text = String(value || '').trim();
+  return (
+    /^\[image\]$/i.test(text) ||
+    /^\[audio\]$/i.test(text) ||
+    /^\[video\]$/i.test(text) ||
+    /^\[document(?::[^\]]*)?\]$/i.test(text) ||
+    /^\[file\]$/i.test(text)
+  );
+}
+
+function extractHttpUrlsFromHtml(html: string): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  const patterns = [
+    /<img[^>]+src=["'](https?:\/\/[^"']+)["']/gi,
+    /<a[^>]+href=["'](https?:\/\/[^"']+\.(?:png|jpe?g|gif|webp|pdf)(?:\?[^"']*)?)["']/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of html.matchAll(pattern)) {
+      const url = String(match[1] || '').trim();
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+  return urls;
+}
+
+function inboundGmailMediaPool(doc: HcgGmailConversationLean): HcgGmailQuestionMedia[] {
+  const pool: HcgGmailQuestionMedia[] = [];
+  const seen = new Set<string>();
+  for (const msg of sortedMessages(doc)) {
+    if (msg.direction !== 'inbound') continue;
+    const html = messageHtml(msg);
+    if (!html) continue;
+    for (const url of extractHttpUrlsFromHtml(html)) {
+      if (seen.has(url)) continue;
+      seen.add(url);
+      const lower = url.toLowerCase();
+      const isPdf = lower.includes('.pdf');
+      pool.push({
+        kind: isPdf ? 'document' : 'image',
+        name: isPdf ? 'document.pdf' : 'image',
+        mimeType: isPdf ? 'application/pdf' : 'image/jpeg',
+        url,
+      });
+    }
+  }
+  return pool;
+}
+
 function mapHcgGmailQuestions(
-  questions?: HcgGmailConversationLean['questions']
+  questions?: HcgGmailConversationLean['questions'],
+  doc?: HcgGmailConversationLean
 ): HcgGmailQuestionView[] {
+  const mediaPool = doc ? inboundGmailMediaPool(doc) : [];
+  let mediaIndex = 0;
   return (questions || [])
     .map((raw, index) => {
       const question = String(raw?.question || '').trim();
       const id = String(raw?.id || '').trim() || (question ? `q-${index}` : '');
+      const answer = raw?.answer == null ? '' : String(raw.answer).trim();
+      let media: HcgGmailQuestionMedia | null = null;
+      if (looksLikeMediaPlaceholder(answer) && mediaIndex < mediaPool.length) {
+        media = mediaPool[mediaIndex] || null;
+        mediaIndex += 1;
+      } else if (/^https?:\/\//i.test(answer)) {
+        const isPdf = answer.toLowerCase().includes('.pdf');
+        media = {
+          kind: isPdf ? 'document' : 'image',
+          name: isPdf ? 'document.pdf' : 'image',
+          mimeType: isPdf ? 'application/pdf' : 'image/jpeg',
+          url: answer,
+        };
+      }
       return {
         id,
         question,
         asked: Boolean(raw?.asked),
-        answer: raw?.answer == null ? '' : String(raw.answer).trim(),
+        answer,
         status: String(raw?.status || 'unanswered').trim() || 'unanswered',
         description: String(raw?.description || '').trim(),
+        media,
       };
     })
     .filter((row) => row.id || row.question);
@@ -441,7 +519,7 @@ function collectHcgGmailQuestionColumns(
 ): HcgGmailQuestionColumn[] {
   const seen = new Map<string, HcgGmailQuestionColumn>();
   for (const doc of docs) {
-    for (const question of mapHcgGmailQuestions(doc.questions)) {
+    for (const question of mapHcgGmailQuestions(doc.questions, doc)) {
       const id = question.id || question.question;
       if (!id || seen.has(id)) continue;
       const title = question.question || question.id;
@@ -478,7 +556,7 @@ export async function overlayHcgGmailOverallAiStatus(
     if (label) item.overallAIStatus = label;
     const description = String(doc.overallAIDescription || '').trim();
     item.overallAIDescription = description || null;
-    item.gmailQuestions = mapHcgGmailQuestions(doc.questions);
+    item.gmailQuestions = mapHcgGmailQuestions(doc.questions, doc);
   }
   return collectHcgGmailQuestionColumns(docs);
 }

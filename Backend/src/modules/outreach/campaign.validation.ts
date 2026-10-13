@@ -112,7 +112,7 @@ export const createCampaignSchema = z.object({
           knockout: z.boolean().optional(),
           knockoutCondition: z.string().max(500).nullable().optional(),
         })
-      ).max(10),
+      ).max(11),
       aiReplyEnabled: z.boolean().optional(),
       takeoverCondition: z.string().max(2000, "Takeover condition must be at most 2000 characters").nullable().optional(),
       autoScreening: z.boolean().optional(),
