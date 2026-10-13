@@ -10,6 +10,7 @@ import {
 } from '../../shared/pagination/paginate.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { UserModel } from '../auth/user.model.js';
+import { hasPermission } from '../organizations/permissions.js';
 import { JobActivityModel, type JobActivityType } from './job-activity.model.js';
 import {
   emptyJobStats,
@@ -23,6 +24,7 @@ type ActorContext = {
   userId: string;
   organizationId: string;
   role: string;
+  permissions: string[];
   ipHash?: string | null;
   userAgent?: string | null;
 };
@@ -43,7 +45,7 @@ const STATUS_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   paused: ['active', 'on_hold', 'closed', 'archived'],
   on_hold: ['active', 'paused', 'closed', 'archived'],
   closed: ['active', 'archived'],
-  archived: [],
+  archived: ['active'],
 };
 
 function splitLines(value: string | string[] | undefined | null): string[] {
@@ -590,6 +592,12 @@ export class JobService {
 
   async softDelete(actor: ActorContext, jobId: string) {
     const job = await loadJobForOrg(jobId, actor.organizationId);
+    const isCreator = job.createdBy.toHexString() === actor.userId;
+    const canDelete =
+      hasPermission(actor.permissions, 'jobs:delete') || isCreator;
+    if (!canDelete) {
+      throw AppError.forbidden('You cannot delete this job');
+    }
     job.deletedAt = new Date();
     job.status = 'archived';
     await job.save();

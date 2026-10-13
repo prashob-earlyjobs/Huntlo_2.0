@@ -9,12 +9,25 @@ import {
   MoreHorizontal,
   Pause,
   PenLine,
+  Play,
   Send,
+  Trash2,
   UserSearch,
 } from "lucide-react";
+import { useState } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,9 +44,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getApiErrorMessage, jobsApi } from "@/lib/api";
+import { hasPermission } from "@/lib/access-control";
 import type { JobListItem } from "@/lib/mock-jobs";
 import { ROUTES, jobDetailPath, jobEditPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers";
 
 const HEAD =
   "h-9 whitespace-nowrap text-xs font-medium text-muted-foreground";
@@ -42,38 +58,18 @@ function experienceLabel(job: JobListItem) {
   return `${job.experienceMin}–${job.experienceMax} yrs`;
 }
 
-function PipelineCell({ job }: { job: JobListItem }) {
-  const conversion =
-    job.candidatesSourced > 0
-      ? Math.min(100, Math.round((job.qualified / job.candidatesSourced) * 100))
-      : 0;
-
-  return (
-    <div className="min-w-36">
-      <div className="flex items-center gap-2">
-        <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
-          <span
-            className="block h-full rounded-full bg-primary"
-            style={{ width: `${Math.max(conversion, job.qualified > 0 ? 4 : 0)}%` }}
-          />
-        </span>
-        <span className="text-xs tabular-nums whitespace-nowrap text-muted-foreground">
-          {job.candidatesSourced.toLocaleString("en-IN")} sourced
-        </span>
-      </div>
-      <p className="mt-1 text-xs whitespace-nowrap text-muted-foreground">
-        {job.qualified.toLocaleString("en-IN")} qualified · {job.interviews.toLocaleString("en-IN")} interviews
-      </p>
-    </div>
-  );
-}
-
 export function JobsTable({
   jobs,
   className,
+  onJobUpdated,
+  onJobRemoved,
+  onActionMessage,
 }: {
   jobs: JobListItem[];
   className?: string;
+  onJobUpdated?: (job: JobListItem) => void;
+  onJobRemoved?: (jobId: string) => void;
+  onActionMessage?: (message: string, variant?: "success" | "error") => void;
 }) {
   const router = useRouter();
 
@@ -99,7 +95,6 @@ export function JobsTable({
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className={HEAD}>Job</TableHead>
-            {/* <TableHead className={HEAD}>Pipeline</TableHead> */}
             <TableHead className={HEAD}>Owner</TableHead>
             <TableHead className={HEAD}>Posted</TableHead>
             <TableHead className={HEAD}>Status</TableHead>
@@ -131,9 +126,6 @@ export function JobsTable({
                     {job.department} · {job.location} · {experienceLabel(job)}
                   </p>
                 </TableCell>
-                {/* <TableCell className="py-2">
-                  <PipelineCell job={job} />
-                </TableCell> */}
                 <TableCell className="py-2">
                   <p className="text-sm whitespace-nowrap text-foreground">{job.recruiter}</p>
                   <p className="mt-0.5 text-xs whitespace-nowrap text-muted-foreground">
@@ -151,7 +143,12 @@ export function JobsTable({
                   onClick={(event) => event.stopPropagation()}
                   onKeyDown={(event) => event.stopPropagation()}
                 >
-                  <JobRowActions job={job} />
+                  <JobRowActions
+                    job={job}
+                    onJobUpdated={onJobUpdated}
+                    onJobRemoved={onJobRemoved}
+                    onActionMessage={onActionMessage}
+                  />
                 </TableCell>
               </TableRow>
             );
@@ -162,8 +159,92 @@ export function JobsTable({
   );
 }
 
-function JobRowActions({ job }: { job: JobListItem }) {
+function JobRowActions({
+  job,
+  onJobUpdated,
+  onJobRemoved,
+  onActionMessage,
+}: {
+  job: JobListItem;
+  onJobUpdated?: (job: JobListItem) => void;
+  onJobRemoved?: (jobId: string) => void;
+  onActionMessage?: (message: string, variant?: "success" | "error") => void;
+}) {
+  const router = useRouter();
+  const { user, permissions } = useAuth();
+  const canDelete =
+    hasPermission(permissions, "jobs:delete") ||
+    Boolean(user?.id && job.createdBy && job.createdBy === user.id);
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function runAction(
+    action: "duplicate" | "pause" | "reopen" | "archive"
+  ) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      let updated: JobListItem;
+      if (action === "duplicate") {
+        updated = await jobsApi.duplicate(job.id);
+        onJobUpdated?.(updated);
+        onActionMessage?.(`Duplicated “${job.title}”.`, "success");
+        router.push(jobEditPath(updated.id));
+        return;
+      }
+      if (action === "pause") {
+        updated = await jobsApi.pause(job.id);
+        onJobUpdated?.(updated);
+        onActionMessage?.(`Paused “${job.title}”.`, "success");
+        return;
+      }
+      if (action === "reopen") {
+        updated = await jobsApi.reopen(job.id);
+        onJobUpdated?.(updated);
+        onActionMessage?.(`Reopened “${job.title}”.`, "success");
+        return;
+      }
+      updated = await jobsApi.archive(job.id);
+      onJobUpdated?.(updated);
+      onActionMessage?.(`Archived “${job.title}”.`, "success");
+    } catch (error) {
+      onActionMessage?.(
+        getApiErrorMessage(error, `Unable to ${action} job.`),
+        "error"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const canPause = job.status === "Active";
+  const canReopen =
+    job.status === "Paused" ||
+    job.status === "On Hold" ||
+    job.status === "Archived";
+  const canArchive = job.status !== "Archived";
+
+  async function deleteJob() {
+    if (busy) return false;
+    setBusy(true);
+    try {
+      await jobsApi.remove(job.id);
+      onJobRemoved?.(job.id);
+      onActionMessage?.(`Deleted “${job.title}”.`, "success");
+      return true;
+    } catch (error) {
+      onActionMessage?.(
+        getApiErrorMessage(error, "Unable to delete job."),
+        "error"
+      );
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
@@ -171,6 +252,7 @@ function JobRowActions({ job }: { job: JobListItem }) {
             size="icon-sm"
             variant="ghost"
             aria-label={`Actions for ${job.title}`}
+            disabled={busy}
           />
         }
       >
@@ -194,19 +276,89 @@ function JobRowActions({ job }: { job: JobListItem }) {
           Create outreach
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={busy}
+          onClick={() => void runAction("duplicate")}
+        >
           <Copy aria-hidden />
           Duplicate
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Pause aria-hidden />
-          Pause job
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive">
-          <Archive aria-hidden />
-          Archive
-        </DropdownMenuItem>
+        {canPause ? (
+          <DropdownMenuItem
+            disabled={busy}
+            onClick={() => void runAction("pause")}
+          >
+            <Pause aria-hidden />
+            Pause job
+          </DropdownMenuItem>
+        ) : null}
+        {canReopen ? (
+          <DropdownMenuItem
+            disabled={busy}
+            onClick={() => void runAction("reopen")}
+          >
+            <Play aria-hidden />
+            Reopen job
+          </DropdownMenuItem>
+        ) : null}
+        {canArchive ? (
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void runAction("archive")}
+          >
+            <Archive aria-hidden />
+            Archive
+          </DropdownMenuItem>
+        ) : null}
+        {canDelete ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={busy}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 aria-hidden />
+              Delete
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+    <AlertDialog
+      open={confirmDelete}
+      onOpenChange={(open) => {
+        if (busy && !open) return;
+        setConfirmDelete(open);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete “{job.title}”?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This removes the job from your workspace. Linked pipeline data may
+            remain for audit purposes.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={busy}
+            onClick={(event) => {
+              event.preventDefault();
+              void (async () => {
+                const ok = await deleteJob();
+                if (ok) setConfirmDelete(false);
+              })();
+            }}
+          >
+            {busy ? "Deleting…" : "Delete job"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

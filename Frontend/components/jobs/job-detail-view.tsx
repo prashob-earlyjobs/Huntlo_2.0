@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Archive,
   CalendarClock,
@@ -9,10 +10,12 @@ import {
   ListChecks,
   MapPin,
   PenLine,
+  Play,
   Send,
   UserSearch,
   Users,
 } from "lucide-react";
+import { useState } from "react";
 
 import { ActivityTimeline } from "@/components/shared/activity-timeline";
 import { CandidateAvatar } from "@/components/shared/candidate-avatar";
@@ -33,6 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getApiErrorMessage, jobsApi } from "@/lib/api";
 import type { JobDetail } from "@/lib/mock-jobs";
 import { ROUTES, jobEditPath, searchPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -355,7 +359,20 @@ function JobConfigurationPanel({ job }: { job: JobDetail }) {
   );
 }
 
-function QuickActionsPanel({ jobId }: { jobId: string }) {
+function QuickActionsPanel({
+  job,
+  onJobUpdated,
+}: {
+  job: JobDetail;
+  onJobUpdated?: (job: JobDetail) => void;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<"duplicate" | "archive" | "reopen" | null>(
+    null
+  );
+  const [message, setMessage] = useState<string | null>(null);
+  const jobId = job.id;
+
   const actions = [
     {
       label: "Source candidates",
@@ -367,6 +384,53 @@ function QuickActionsPanel({ jobId }: { jobId: string }) {
     { label: "Send assessment", icon: ListChecks, href: ROUTES.assessments },
     { label: "Schedule interview", icon: CalendarClock, href: ROUTES.interviews },
   ];
+
+  async function duplicateJob() {
+    if (busy) return;
+    setBusy("duplicate");
+    setMessage(null);
+    try {
+      const created = await jobsApi.duplicate(jobId);
+      setMessage(`Duplicated as “${created.title}”.`);
+      router.push(jobEditPath(created.id));
+    } catch (error) {
+      setMessage(getApiErrorMessage(error, "Unable to duplicate job."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function archiveJob() {
+    if (busy || job.status === "Archived") return;
+    setBusy("archive");
+    setMessage(null);
+    try {
+      const updated = await jobsApi.archive(jobId);
+      const next = { ...job, status: updated.status };
+      onJobUpdated?.(next);
+      setMessage(`Archived “${job.title}”.`);
+    } catch (error) {
+      setMessage(getApiErrorMessage(error, "Unable to archive job."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reopenJob() {
+    if (busy || job.status !== "Archived") return;
+    setBusy("reopen");
+    setMessage(null);
+    try {
+      const updated = await jobsApi.reopen(jobId);
+      const next = { ...job, status: updated.status };
+      onJobUpdated?.(next);
+      setMessage(`Reopened “${job.title}”.`);
+    } catch (error) {
+      setMessage(getApiErrorMessage(error, "Unable to reopen job."));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <section className="rounded-lg border border-border bg-card p-2">
@@ -384,19 +448,40 @@ function QuickActionsPanel({ jobId }: { jobId: string }) {
         ))}
         <button
           type="button"
-          className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+          disabled={Boolean(busy)}
+          onClick={() => void duplicateJob()}
+          className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
         >
           <Copy aria-hidden className="size-4 text-muted-foreground" />
-          Duplicate job
+          {busy === "duplicate" ? "Duplicating…" : "Duplicate job"}
         </button>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <Archive aria-hidden className="size-4" />
-          Archive job
-        </button>
+        {job.status === "Archived" ? (
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void reopenJob()}
+            className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+          >
+            <Play aria-hidden className="size-4 text-muted-foreground" />
+            {busy === "reopen" ? "Reopening…" : "Reopen job"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            onClick={() => void archiveJob()}
+            className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-destructive outline-none transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+          >
+            <Archive aria-hidden className="size-4" />
+            {busy === "archive" ? "Archiving…" : "Archive job"}
+          </button>
+        )}
       </div>
+      {message ? (
+        <p className="mt-2 px-2 text-xs text-muted-foreground" role="status">
+          {message}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -476,7 +561,13 @@ function SimpleTable({
   );
 }
 
-export function JobDetailView({ job }: { job: JobDetail }) {
+export function JobDetailView({
+  job,
+  onJobUpdated,
+}: {
+  job: JobDetail;
+  onJobUpdated?: (job: JobDetail) => void;
+}) {
   return (
     <>
       <PageHeader
@@ -528,7 +619,7 @@ export function JobDetailView({ job }: { job: JobDetail }) {
           <HiringTeamPanel job={job} />
           <ImportantDatesPanel job={job} />
           <JobConfigurationPanel job={job} />
-          <QuickActionsPanel jobId={job.id} />
+          <QuickActionsPanel job={job} onJobUpdated={onJobUpdated} />
         </div>
       </div>
 

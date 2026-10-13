@@ -143,6 +143,7 @@ type ApiJob = {
   recruiter: string | null;
   hiringManager: string | null;
   createdAt: string | null;
+  createdBy?: string;
   status: string;
   statusLabel?: string;
   employmentTypeLabel?: string;
@@ -295,6 +296,7 @@ function mapListItem(job: ApiJob): JobListItem {
         })
       : "—",
     status: toUiStatus(job.status, job.statusLabel),
+    createdBy: job.createdBy,
   };
 }
 

@@ -15,12 +15,14 @@ import {
   Workflow,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { ImportCandidatesDialog } from "@/components/candidates/import-dialog";
 import { PoolWorkspaceSkeleton } from "@/components/candidates/pool-skeleton";
 import { PoolTable } from "@/components/candidates/pool-table";
+import { ScheduleInterviewFlow } from "@/components/schedule/schedule-interview-flow";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -65,7 +67,9 @@ import {
   POOL_SAVED_VIEWS,
   POOL_SOURCES,
   type PoolCandidate,
+  type SavedList,
 } from "@/lib/mock-candidates";
+import { ROUTES } from "@/lib/routes";
 
 const EXPERIENCE_BUCKETS = [
   { id: "any", label: "Any experience", min: 0, max: Infinity },
@@ -95,6 +99,7 @@ function contactMatches(candidate: PoolCandidate, availability: string) {
 }
 
 export function PoolWorkspace() {
+  const router = useRouter();
   const [candidates, setCandidates] = useState<PoolCandidate[]>([]);
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [lists, setLists] = useState<{ id: string; name: string }[]>([]);
@@ -116,6 +121,14 @@ export function PoolWorkspace() {
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [createListOpen, setCreateListOpen] = useState(false);
+  const [createListCandidateId, setCreateListCandidateId] = useState<
+    string | null
+  >(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleCandidateIds, setScheduleCandidateIds] = useState<string[]>(
+    []
+  );
 
   async function refreshPool() {
     setLoading(true);
@@ -377,6 +390,38 @@ export function PoolWorkspace() {
     }
   }
 
+  async function addOneToList(
+    candidateId: string,
+    listId: string,
+    listName: string
+  ) {
+    try {
+      await candidatePoolApi.bulkAddToList([candidateId], listId);
+      setCandidates((previous) =>
+        previous.map((candidate) =>
+          candidate.id === candidateId && !candidate.lists.includes(listName)
+            ? { ...candidate, lists: [...candidate.lists, listName] }
+            : candidate
+        )
+      );
+      setBulkMessage(`Added to “${listName}”.`);
+      window.setTimeout(() => setBulkMessage(null), 2400);
+    } catch (err) {
+      setBulkMessage(getApiErrorMessage(err));
+    }
+  }
+
+  async function removeOne(id: string) {
+    try {
+      await candidatePoolApi.bulkArchive([id]);
+      setRemoved((previous) => new Set(previous).add(id));
+      setBulkMessage("Archived candidate from the pool.");
+      window.setTimeout(() => setBulkMessage(null), 2400);
+    } catch (err) {
+      setBulkMessage(getApiErrorMessage(err));
+    }
+  }
+
   async function removeSelected() {
     const ids = Array.from(selected);
     try {
@@ -390,6 +435,26 @@ export function PoolWorkspace() {
     } catch (err) {
       setBulkMessage(getApiErrorMessage(err));
     }
+  }
+
+  function startScreening(candidateIds: string[]) {
+    if (candidateIds.length === 0) return;
+    const params = new URLSearchParams();
+    params.set("candidateIds", candidateIds.join(","));
+    router.push(`${ROUTES.screeningNew}?${params.toString()}`);
+  }
+
+  function openSchedule(candidateIds: string[]) {
+    if (candidateIds.length === 0) return;
+    setScheduleCandidateIds(candidateIds);
+    setScheduleOpen(true);
+  }
+
+  async function handleListCreated(list: SavedList) {
+    await refreshPool();
+    if (!createListCandidateId) return;
+    await addOneToList(createListCandidateId, list.id, list.name);
+    setCreateListCandidateId(null);
   }
 
   async function exportSelected() {
@@ -545,7 +610,14 @@ export function PoolWorkspace() {
               </SelectContent>
             </Select>
             <ImportCandidatesDialog onImported={() => void refreshPool()} />
-            <CreateListDialog onCreated={() => void refreshPool()} />
+            <CreateListDialog
+              open={createListOpen}
+              onOpenChange={(open) => {
+                setCreateListOpen(open);
+                if (!open) setCreateListCandidateId(null);
+              }}
+              onCreated={(list) => void handleListCreated(list)}
+            />
           </div>
         </div>
 
@@ -665,9 +737,7 @@ export function PoolWorkspace() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() =>
-              runBulkAction(`Screening started for ${selected.size} candidates.`)
-            }
+            onClick={() => startScreening(Array.from(selected))}
           >
             <AudioLines aria-hidden />
             Start Screening
@@ -762,9 +832,17 @@ export function PoolWorkspace() {
               selected={selected}
               onToggleSelect={toggleSelect}
               onToggleSelectAll={toggleSelectAll}
-              onRemove={(id) => {
-                setRemoved((previous) => new Set(previous).add(id));
+              lists={lists}
+              onAddToList={(candidateId, listId, listName) =>
+                void addOneToList(candidateId, listId, listName)
+              }
+              onCreateList={(candidateId) => {
+                setCreateListCandidateId(candidateId);
+                setCreateListOpen(true);
               }}
+              onStartScreening={(id) => startScreening([id])}
+              onScheduleInterview={(id) => openSchedule([id])}
+              onRemove={(id) => void removeOne(id)}
             />
             <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted-foreground">
@@ -853,6 +931,20 @@ export function PoolWorkspace() {
           />
         )}
       </section>
+
+      <ScheduleInterviewFlow
+        open={scheduleOpen}
+        onOpenChange={(open) => {
+          setScheduleOpen(open);
+          if (!open) setScheduleCandidateIds([]);
+        }}
+        initialCandidateIds={scheduleCandidateIds}
+        onComplete={(message) => {
+          setBulkMessage(message);
+          window.setTimeout(() => setBulkMessage(null), 2400);
+          void refreshPool();
+        }}
+      />
     </div>
   );
 }

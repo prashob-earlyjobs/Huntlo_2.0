@@ -48,12 +48,12 @@ const NAV_RESULTS: SearchResult[] = NAV_ITEMS.map((item) => ({
 
 export function GlobalSearch() {
   const router = useRouter();
-  const { permissions } = useAuth();
+  const { permissions, allowedModules } = useAuth();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const allowedNavResults = useMemo(
     () =>
-      filterNavItems(permissions, NAV_ITEMS).map((item) => ({
+      filterNavItems(permissions, NAV_ITEMS, allowedModules).map((item) => ({
         id: `nav-${item.href}`,
         group: "Go to",
         title: item.title,
@@ -61,7 +61,7 @@ export function GlobalSearch() {
         href: item.href as AppRoute,
         icon: item.icon,
       })),
-    [permissions]
+    [permissions, allowedModules]
   );
   const [results, setResults] = useState<SearchResult[]>(allowedNavResults);
   const [loading, setLoading] = useState(false);

@@ -105,6 +105,7 @@ import {
 } from "@/lib/mock-team";
 import { workEmailDomain } from "@/lib/work-email";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
 const EMPTY_ORG_FORM = {
   name: "",
@@ -419,9 +420,28 @@ function AccountCredentialsDialog({
   onClose: () => void;
   title?: string;
 }) {
-  const copy = (value: string) => {
-    void navigator.clipboard.writeText(value);
-  };
+  const [copied, setCopied] = useState<"email" | "password" | "all" | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!credentials) setCopied(null);
+  }, [credentials]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  async function copy(value: string, key: "email" | "password" | "all") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(key);
+    } catch {
+      setCopied(null);
+    }
+  }
 
   return (
     <Dialog open={Boolean(credentials)} onOpenChange={(open) => !open && onClose()}>
@@ -447,10 +467,16 @@ function AccountCredentialsDialog({
                   type="button"
                   size="icon"
                   variant="outline"
-                  aria-label="Copy login email"
-                  onClick={() => copy(credentials.email)}
+                  aria-label={
+                    copied === "email" ? "Email copied" : "Copy login email"
+                  }
+                  onClick={() => void copy(credentials.email, "email")}
                 >
-                  <Copy aria-hidden />
+                  {copied === "email" ? (
+                    <Check aria-hidden className="text-success" />
+                  ) : (
+                    <Copy aria-hidden />
+                  )}
                 </Button>
               </div>
             </Field>
@@ -466,10 +492,20 @@ function AccountCredentialsDialog({
                   type="button"
                   size="icon"
                   variant="outline"
-                  aria-label="Copy temporary password"
-                  onClick={() => copy(credentials.temporaryPassword)}
+                  aria-label={
+                    copied === "password"
+                      ? "Password copied"
+                      : "Copy temporary password"
+                  }
+                  onClick={() =>
+                    void copy(credentials.temporaryPassword, "password")
+                  }
                 >
-                  <Copy aria-hidden />
+                  {copied === "password" ? (
+                    <Check aria-hidden className="text-success" />
+                  ) : (
+                    <Copy aria-hidden />
+                  )}
                 </Button>
               </div>
             </Field>
@@ -482,11 +518,18 @@ function AccountCredentialsDialog({
             variant="outline"
             onClick={() =>
               credentials &&
-              copy(`Email: ${credentials.email}\nPassword: ${credentials.temporaryPassword}`)
+              void copy(
+                `Email: ${credentials.email}\nPassword: ${credentials.temporaryPassword}`,
+                "all"
+              )
             }
           >
-            <Copy aria-hidden />
-            Copy credentials
+            {copied === "all" ? (
+              <Check aria-hidden className="text-success" />
+            ) : (
+              <Copy aria-hidden />
+            )}
+            {copied === "all" ? "Copied" : "Copy credentials"}
           </Button>
           <Button type="button" onClick={onClose}>
             Done
@@ -506,17 +549,160 @@ function MemberDrawer({
   open,
   onOpenChange,
   onAction,
+  onUpdated,
+  onPasswordReset,
 }: {
   member: TeamMember | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAction: (message: string) => void;
+  onAction: (message: string, reload?: boolean) => void;
+  onUpdated: (member: TeamMember) => void;
+  onPasswordReset: (
+    credentials: CreateTeamAccountResult["credentials"]
+  ) => void;
 }) {
+  const { user, permissions } = useAuth();
   const [role, setRole] = useState<TeamRole | null>(null);
+  const [modules, setModules] = useState<ModuleAccess[]>([]);
+  const [savingModules, setSavingModules] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    "reset" | "suspend" | "activate" | "deactivate" | null
+  >(null);
+  const [busy, setBusy] = useState(false);
+
+  const canManageTeam =
+    user?.role === "owner" ||
+    user?.role === "admin" ||
+    user?.accountRole === "owner" ||
+    permissions.includes("*") ||
+    permissions.includes("team:manage");
+  const isSelf =
+    Boolean(user?.email) &&
+    Boolean(member?.email) &&
+    user!.email.toLowerCase() === member!.email.toLowerCase();
+  const canEditAccess =
+    canManageTeam && member?.role !== "Workspace Owner";
+  // Role changes are admin/owner only, and never for your own account.
+  const canChangeRole = canEditAccess && !isSelf;
+
+  const savedModuleAccessKey = (member?.moduleAccess ?? [])
+    .slice()
+    .sort()
+    .join("|");
+  const draftModuleAccessKey = modules.slice().sort().join("|");
+  const modulesDirty = draftModuleAccessKey !== savedModuleAccessKey;
+
+  useEffect(() => {
+    setRole(null);
+    setConfirmAction(null);
+  }, [member?.id]);
+
+  useEffect(() => {
+    if (savingModules) return;
+    setModules(member?.moduleAccess ?? []);
+  }, [member?.id, savedModuleAccessKey, savingModules, member?.moduleAccess]);
 
   if (!member) return null;
 
-  const displayRole = role ?? member.role;
+  // Narrow for nested async handlers (prop can still be typed as nullable).
+  const currentMember = member;
+  const displayRole = role ?? currentMember.role;
+  const roleModules = availableModulesForRole(displayRole);
+
+  function toggleModule(mod: ModuleAccess) {
+    if (!canEditAccess || savingModules || !roleModules.includes(mod)) return;
+    setModules((previous) =>
+      previous.includes(mod)
+        ? previous.filter((value) => value !== mod)
+        : [...previous, mod]
+    );
+  }
+
+  function resetModules() {
+    setModules(currentMember.moduleAccess ?? []);
+  }
+
+  async function saveModules() {
+    if (!canEditAccess || savingModules || !modulesDirty) return;
+    setSavingModules(true);
+    try {
+      const updated = await teamApi.updateMemberPermissions(currentMember.id, {
+        allowedModules: modulesToAllowedKeys(modules),
+      });
+      const mapped = mapApiMemberToUi(updated);
+      setModules(mapped.moduleAccess);
+      onUpdated(mapped);
+      onAction(`Updated module access for ${currentMember.name}.`);
+    } catch (error) {
+      onAction(getApiErrorMessage(error, "Unable to update module access."));
+    } finally {
+      setSavingModules(false);
+    }
+  }
+
+  async function changeRole(nextRole: TeamRole) {
+    if (!canChangeRole || savingRole || nextRole === currentMember.role) return;
+    if (nextRole === "Workspace Owner") return;
+    setSavingRole(true);
+    setRole(nextRole);
+    try {
+      const updated = await teamApi.updateMemberRole(
+        currentMember.id,
+        String(toRoleKey(nextRole))
+      );
+      const mapped = mapApiMemberToUi(updated);
+      setRole(mapped.role);
+      setModules(mapped.moduleAccess);
+      onUpdated(mapped);
+      onAction(`Role for ${mapped.name} set to ${mapped.role}.`, true);
+    } catch (error) {
+      setRole(null);
+      onAction(getApiErrorMessage(error, "Unable to update role."));
+    } finally {
+      setSavingRole(false);
+    }
+  }
+
+  async function runConfirmedAction() {
+    if (!confirmAction) return;
+    setBusy(true);
+    try {
+      if (confirmAction === "reset") {
+        const credentials = await teamApi.resetMemberPassword(currentMember.id);
+        onPasswordReset(credentials);
+        onAction(`Password reset for ${currentMember.name}.`);
+      } else if (confirmAction === "suspend") {
+        await teamApi.updateMemberStatus(currentMember.id, "suspended");
+        onAction(`Suspended ${currentMember.name}.`, true);
+        onOpenChange(false);
+      } else if (confirmAction === "activate") {
+        await teamApi.updateMemberStatus(currentMember.id, "active");
+        onAction(`Activated ${currentMember.name}.`, true);
+        onOpenChange(false);
+      } else {
+        await teamApi.removeMember(currentMember.id);
+        onAction(`Deactivated ${currentMember.name}.`, true);
+        onOpenChange(false);
+      }
+      setConfirmAction(null);
+    } catch (error) {
+      onAction(
+        getApiErrorMessage(error, `Unable to ${confirmAction} member.`)
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const actionLabel =
+    confirmAction === "reset"
+      ? "Reset password"
+      : confirmAction === "suspend"
+        ? "Suspend member"
+        : confirmAction === "activate"
+          ? "Activate member"
+          : "Deactivate member";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -544,31 +730,59 @@ function MemberDrawer({
               <Button
                 size="xs"
                 variant="outline"
+                disabled={busy}
                 onClick={() =>
-                  onAction(`Resent invitation to ${member.email}.`)
+                  void teamApi
+                    .resendInvitation(member.id)
+                    .then(() =>
+                      onAction(`Resent invitation to ${member.email}.`, true)
+                    )
+                    .catch((error) =>
+                      onAction(
+                        getApiErrorMessage(
+                          error,
+                          "Unable to resend invitation."
+                        )
+                      )
+                    )
                 }
               >
                 Resend Invitation
               </Button>
             ) : null}
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() =>
-                onAction(`Password reset link prepared for ${member.name}.`)
-              }
-            >
-              <KeyRound aria-hidden />
-              Reset Password
-            </Button>
-            {member.status === "Active" ? (
+            {member.role !== "Workspace Owner" &&
+            member.status !== "Deactivated" ? (
               <Button
                 size="xs"
                 variant="outline"
-                onClick={() => onAction(`Suspended ${member.name}.`)}
+                disabled={busy}
+                onClick={() => setConfirmAction("reset")}
+              >
+                <KeyRound aria-hidden />
+                Reset Password
+              </Button>
+            ) : null}
+            {member.status === "Active" &&
+            member.role !== "Workspace Owner" ? (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setConfirmAction("suspend")}
               >
                 <UserMinus aria-hidden />
                 Suspend
+              </Button>
+            ) : null}
+            {member.status === "Suspended" ? (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setConfirmAction("activate")}
+              >
+                <UserCheck aria-hidden />
+                Activate
               </Button>
             ) : null}
             {member.status !== "Deactivated" &&
@@ -577,13 +791,51 @@ function MemberDrawer({
                 size="xs"
                 variant="outline"
                 className="text-destructive hover:text-destructive"
-                onClick={() => onAction(`Deactivated ${member.name}.`)}
+                disabled={busy}
+                onClick={() => setConfirmAction("deactivate")}
               >
                 <UserX aria-hidden />
                 Deactivate
               </Button>
             ) : null}
           </div>
+
+          <AlertDialog
+            open={confirmAction !== null}
+            onOpenChange={(next) => !next && !busy && setConfirmAction(null)}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{actionLabel}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {confirmAction === "reset"
+                    ? `This signs ${member.name} out on every device and creates a new temporary password.`
+                    : confirmAction === "suspend"
+                      ? `${member.name} will be signed out and unable to access the workspace until reactivated.`
+                      : confirmAction === "activate"
+                        ? `${member.name} will be able to sign in and access assigned modules again.`
+                        : `${member.name} will be signed out and removed from active workspace access.`}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={busy}
+                  className={
+                    confirmAction === "deactivate"
+                      ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      : undefined
+                  }
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void runConfirmedAction();
+                  }}
+                >
+                  {busy ? "Working…" : actionLabel}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Tabs defaultValue="profile">
             <TabsList className="w-full">
@@ -595,9 +847,6 @@ function MemberDrawer({
               </TabsTrigger>
               <TabsTrigger value="usage" className="flex-1">
                 Usage
-              </TabsTrigger>
-              <TabsTrigger value="activity" className="flex-1">
-                Activity
               </TabsTrigger>
             </TabsList>
 
@@ -646,40 +895,96 @@ function MemberDrawer({
             </TabsContent>
 
             <TabsContent value="access" className="space-y-3 pt-3">
-              <Field label="Change role" htmlFor="member-role">
-                <Select
-                  value={displayRole}
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    setRole(value as TeamRole);
-                    onAction(`Role for ${member.name} set to ${value}.`);
-                  }}
-                  disabled={member.role === "Workspace Owner"}
-                >
-                  <SelectTrigger id="member-role" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TEAM_ROLES.map((r) => (
-                      <SelectItem
-                        key={r}
-                        value={r}
-                        disabled={r === "Workspace Owner"}
-                      >
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Field
+                label={canChangeRole ? "Change role" : "Role"}
+                htmlFor="member-role"
+              >
+                {canChangeRole ? (
+                  <Select
+                    value={displayRole}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      void changeRole(value as TeamRole);
+                    }}
+                    disabled={savingRole}
+                  >
+                    <SelectTrigger id="member-role" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEAM_ROLES.filter((r) => r !== "Workspace Owner").map(
+                        (r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p
+                    id="member-role"
+                    className="rounded-lg border border-border bg-muted/30 px-2.5 py-2 text-sm text-foreground"
+                  >
+                    {displayRole}
+                    {isSelf ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        You can’t change your own role. Ask another admin.
+                      </span>
+                    ) : member.role === "Workspace Owner" ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Workspace owner role can’t be changed here.
+                      </span>
+                    ) : !canManageTeam ? (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Only admins can change member roles.
+                      </span>
+                    ) : null}
+                  </p>
+                )}
               </Field>
 
               <div>
                 <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                   Module access
                 </p>
+                {member.role === "Workspace Owner" ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Workspace owners always have full access.
+                  </p>
+                ) : null}
                 <ul className="mt-2 space-y-1">
                   {MODULE_ACCESS_OPTIONS.map((mod) => {
-                    const allowed = member.moduleAccess.includes(mod);
+                    const allowed = modules.includes(mod);
+                    const supported = roleModules.includes(mod);
+                    if (canEditAccess) {
+                      return (
+                        <li key={mod}>
+                          <label
+                            className={cn(
+                              "flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm",
+                              supported
+                                ? "cursor-pointer"
+                                : "cursor-not-allowed opacity-50"
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={allowed}
+                              disabled={!supported || savingModules}
+                              onChange={() => toggleModule(mod)}
+                              className="size-3.5 accent-primary"
+                            />
+                            <span className="flex-1">{mod}</span>
+                            {!supported ? (
+                              <span className="text-[10px] text-muted-foreground">
+                                Not in role
+                              </span>
+                            ) : null}
+                          </label>
+                        </li>
+                      );
+                    }
                     return (
                       <li
                         key={mod}
@@ -709,6 +1014,30 @@ function MemberDrawer({
                     );
                   })}
                 </ul>
+                {canEditAccess ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      disabled={!modulesDirty || savingModules}
+                      onClick={() => void saveModules()}
+                    >
+                      {savingModules ? "Saving…" : "Save module access"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!modulesDirty || savingModules}
+                      onClick={resetModules}
+                    >
+                      Reset
+                    </Button>
+                    {modulesDirty ? (
+                      <span className="text-xs text-muted-foreground">
+                        Unsaved changes
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </TabsContent>
 
@@ -735,38 +1064,6 @@ function MemberDrawer({
                   </div>
                 ))}
               </div>
-            </TabsContent>
-
-            <TabsContent value="activity" className="pt-3">
-              <ol className="space-y-0">
-                {member.activity.map((entry, index) => (
-                  <li
-                    key={entry.id}
-                    className="relative flex gap-3 pb-4 last:pb-0"
-                  >
-                    {index < member.activity.length - 1 ? (
-                      <span
-                        aria-hidden
-                        className="absolute top-6 left-[11px] h-full w-px bg-border"
-                      />
-                    ) : null}
-                    <span className="relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
-                      <span className="size-1.5 rounded-full bg-muted-foreground" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">
-                        {entry.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {entry.detail}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {entry.time}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
             </TabsContent>
           </Tabs>
         </div>
@@ -1555,6 +1852,13 @@ export function TeamWorkspace() {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onAction={flash}
+        onPasswordReset={setResetCredentials}
+        onUpdated={(updated) => {
+          setSelected(updated);
+          setMembers((previous) =>
+            previous.map((item) => (item.id === updated.id ? updated : item))
+          );
+        }}
       />
     </div>
   );

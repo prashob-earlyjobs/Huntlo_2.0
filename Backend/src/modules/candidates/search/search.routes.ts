@@ -72,7 +72,14 @@ candidateSearchRouter.post(
 candidateSearchRouter.get(
   '/filters/autocomplete',
   ...orgAuth,
-  requirePermission('sourcing:view', 'sourcing:create'),
+  // Used by Candidate Search filters and Job form location/skills pickers.
+  requirePermission(
+    'sourcing:view',
+    'sourcing:create',
+    'jobs:view',
+    'jobs:create',
+    'jobs:edit'
+  ),
   autocompleteFilters
 );
 

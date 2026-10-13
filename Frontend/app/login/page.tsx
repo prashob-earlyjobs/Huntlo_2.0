@@ -3,7 +3,7 @@
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { getApiErrorMessage } from "@/lib/api";
 import { postAuthPath, resolvePostAuthDestination, sanitizeInternalPath } from "@/lib/auth-redirect";
 import { peekPendingRedirectPath } from "@/lib/claim-public-search";
+import { consumeLogoutAccountChange } from "@/lib/logout-redirect";
 import { useAuth } from "@/providers/auth-provider";
 
 function LoginForm() {
@@ -23,13 +24,37 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const hasRoutedRef = useRef(false);
 
   const nextFromQuery = sanitizeInternalPath(searchParams.get("next"), "");
 
+  /** A→A keeps ?next=; A→B opens Home. */
+  function preferredAfterLogin(nextUser: {
+    id: string;
+    email?: string | null;
+  }): string | null {
+    const pendingClaim = peekPendingRedirectPath();
+    if (pendingClaim) {
+      consumeLogoutAccountChange(nextUser);
+      return pendingClaim;
+    }
+    const accountChange = consumeLogoutAccountChange(nextUser);
+    if (accountChange === "switched") {
+      return null;
+    }
+    return nextFromQuery || null;
+  }
+
   useEffect(() => {
+    if (hasRoutedRef.current) return;
     if (!isLoading && isAuthenticated && user) {
+      hasRoutedRef.current = true;
+      const preferred = preferredAfterLogin(user);
       router.replace(
-        resolvePostAuthDestination(user, peekPendingRedirectPath() || nextFromQuery || null)
+        resolvePostAuthDestination(
+          user,
+          postAuthPath(user) === "/dashboard" ? preferred : null
+        )
       );
     }
   }, [isAuthenticated, isLoading, nextFromQuery, router, user]);
@@ -38,13 +63,19 @@ function LoginForm() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    // Claim routing before login() flips isAuthenticated (avoids useEffect race).
+    hasRoutedRef.current = true;
     try {
       const nextUser = await login({ email, password });
-      const preferred =
-        peekPendingRedirectPath() ||
-        (postAuthPath(nextUser) === "/dashboard" ? nextFromQuery || null : null);
-      router.replace(resolvePostAuthDestination(nextUser, preferred));
+      const preferred = preferredAfterLogin(nextUser);
+      router.replace(
+        resolvePostAuthDestination(
+          nextUser,
+          postAuthPath(nextUser) === "/dashboard" ? preferred : null
+        )
+      );
     } catch (err) {
+      hasRoutedRef.current = false;
       setError(getApiErrorMessage(err, "Unable to sign in. Check your credentials."));
     } finally {
       setSubmitting(false);

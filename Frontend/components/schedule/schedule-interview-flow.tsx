@@ -720,10 +720,13 @@ export function ScheduleInterviewFlow({
   open,
   onOpenChange,
   onComplete,
+  initialCandidateIds,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete: (message: string) => void;
+  /** Preselect pool candidates when opening from another surface. */
+  initialCandidateIds?: string[];
 }) {
   const { user } = useAuth();
   const [state, setState] = useState<FlowState>(() => initialState(user?.id));
@@ -867,6 +870,19 @@ export function ScheduleInterviewFlow({
                 }
           );
         }
+        if (initialCandidateIds?.length) {
+          const known = new Set(pool.map((row) => row.id));
+          const preset = initialCandidateIds.filter((id) => known.has(id));
+          if (preset.length > 0) {
+            setCandidateSource("pool");
+            setState((previous) => ({
+              ...previous,
+              candidateIds: [
+                ...new Set([...preset, ...previous.candidateIds]),
+              ],
+            }));
+          }
+        }
       } catch {
         // Leave pickers empty when the API is unavailable — no mock fallbacks.
       }
@@ -874,7 +890,7 @@ export function ScheduleInterviewFlow({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, initialCandidateIds?.join(",")]);
 
   useEffect(() => {
     if (!user?.id) return;

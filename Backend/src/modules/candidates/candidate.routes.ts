@@ -30,7 +30,7 @@ candidatesRouter.use(candidateSearchRouter);
 candidatesRouter.post(
   '/reveal/bulk',
   ...orgAuth,
-  requirePermission('candidates:edit'),
+  requirePermission('candidates:edit', 'sourcing:edit', 'peopleScout:edit'),
   createBulkReveal
 );
 candidatesRouter.get(
@@ -55,19 +55,19 @@ candidatesRouter.get(
 candidatesRouter.post(
   '/:candidateId/enrich',
   ...orgAuth,
-  requirePermission('candidates:edit'),
+  requirePermission('candidates:edit', 'sourcing:edit', 'peopleScout:edit'),
   enrichCandidate
 );
 candidatesRouter.post(
   '/:candidateId/reveal/email',
   ...orgAuth,
-  requirePermission('candidates:edit'),
+  requirePermission('candidates:edit', 'sourcing:edit', 'peopleScout:edit'),
   revealEmail
 );
 candidatesRouter.post(
   '/:candidateId/reveal/mobile',
   ...orgAuth,
-  requirePermission('candidates:edit'),
+  requirePermission('candidates:edit', 'sourcing:edit', 'peopleScout:edit'),
   revealMobile
 );
 candidatesRouter.get(

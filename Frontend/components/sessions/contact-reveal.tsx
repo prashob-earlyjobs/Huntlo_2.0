@@ -15,8 +15,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { canRevealContact } from "@/lib/access-control";
 import type { SessionCandidate } from "@/lib/mock-sessions";
 import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
+import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -56,9 +58,9 @@ export function RevealedValue({
   previouslyRevealed: boolean;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1">
+    <div className="flex min-w-0 items-center gap-1.5">
       <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 truncate text-xs font-medium text-foreground">
+      <span className="min-w-0 truncate text-sm text-foreground">
         {value}
       </span>
       <CopyButton value={value} label={label} />
@@ -104,6 +106,8 @@ function RevealButton({
   onReveal,
   className,
   disabled: disabledProp = false,
+  disabledLabel = "Busy…",
+  title,
 }: {
   kind: "email" | "phone";
   candidate: SessionCandidate;
@@ -111,9 +115,12 @@ function RevealButton({
   onReveal: (kind: "email" | "phone") => void;
   className?: string;
   disabled?: boolean;
+  disabledLabel?: string;
+  title?: string;
 }) {
   const Icon = kind === "email" ? Mail : Phone;
   const label = kind === "email" ? "Reveal email" : "Reveal mobile";
+  const missingLabel = kind === "email" ? "No email found" : "No mobile found";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const isLoading = status === "loading";
   const isUnavailable = status === "unavailable";
@@ -124,21 +131,34 @@ function RevealButton({
       type="button"
       size="xs"
       variant="outline"
+      title={
+        isUnavailable
+          ? `${missingLabel}. Click to try again.`
+          : title
+      }
+      aria-busy={isLoading || undefined}
       // Keep "unavailable" clickable so the user can retry after a soft miss.
       disabled={isLoading || blocked}
       onClick={() => onReveal(kind)}
-      className={className}
+      className={cn("min-w-[10.5rem] justify-start", className)}
     >
-      {isLoading ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
+      {isLoading ? (
+        <Loader2 aria-hidden className="size-3 animate-spin" />
+      ) : (
+        <Icon aria-hidden />
+      )}
       {isLoading
         ? "Fetching…"
         : isUnavailable
-          ? "Retry"
+          ? missingLabel
           : blocked
-            ? "Busy…"
+            ? disabledLabel
             : label}
       {!isLoading && !isUnavailable && !blocked ? (
         <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
+      ) : null}
+      {isUnavailable ? (
+        <span className="text-muted-foreground">· Retry</span>
       ) : null}
     </Button>
   );
@@ -250,6 +270,8 @@ export function ContactReveal({
   /** Block starting another mobile reveal while one is in progress. */
   disablePhoneReveal?: boolean;
 }) {
+  const { permissions } = useAuth();
+  const allowReveal = canRevealContact(permissions);
   const emailVisible = revealed.email || candidate.emailRevealed;
   const phoneVisible = revealed.phone || candidate.phoneRevealed;
   const emailValue = (candidate.email || revealed.emailValue || "").trim();
@@ -262,6 +284,8 @@ export function ContactReveal({
   const buttonClass = fill ? "w-full" : undefined;
   const phoneBusy =
     disablePhoneReveal && phoneStatus !== "loading" && !phoneVisible;
+  const revealDenied = !allowReveal;
+  const revealDeniedReason = "You do not have permission to reveal contacts";
 
   if (compact) {
     const showEmailValue = emailVisible && Boolean(emailValue);
@@ -290,6 +314,8 @@ export function ContactReveal({
             visible={emailVisible}
             status={emailStatus}
             onReveal={onReveal}
+            disabled={revealDenied}
+            disabledReason={revealDeniedReason}
           />
         )}
         {showPhoneValue ? (
@@ -307,8 +333,12 @@ export function ContactReveal({
             visible={phoneVisible}
             status={phoneStatus}
             onReveal={onReveal}
-            disabled={phoneBusy}
-            disabledReason="Wait for the current mobile reveal to finish"
+            disabled={revealDenied || phoneBusy}
+            disabledReason={
+              revealDenied
+                ? revealDeniedReason
+                : "Wait for the current mobile reveal to finish"
+            }
           />
         )}
       </div>
@@ -341,6 +371,9 @@ export function ContactReveal({
             status={emailStatus}
             onReveal={onReveal}
             className={buttonClass}
+            disabled={revealDenied}
+            disabledLabel="No access"
+            title={revealDenied ? revealDeniedReason : undefined}
           />
         </div>
       )}
@@ -363,7 +396,15 @@ export function ContactReveal({
             status={phoneStatus}
             onReveal={onReveal}
             className={buttonClass}
-            disabled={phoneBusy}
+            disabled={revealDenied || phoneBusy}
+            disabledLabel={revealDenied ? "No access" : "Busy…"}
+            title={
+              revealDenied
+                ? revealDeniedReason
+                : phoneBusy
+                  ? "Wait for the current mobile reveal to finish"
+                  : undefined
+            }
           />
         </div>
       )}

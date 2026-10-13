@@ -45,6 +45,8 @@ export const registerSchema = z
     companyName: z.string().trim().min(1).max(120).optional(),
     organizationName: z.string().trim().min(1).max(120).optional(),
     mobile: z.string().trim().min(1).max(30).optional(),
+    /** ISO country of the dial code selected with the mobile number. */
+    country: z.string().trim().min(2).max(2).optional(),
     otp: z
       .string()
       .trim()
@@ -248,6 +250,7 @@ export type NormalizedRegisterInput = {
   lastName: string;
   companyName: string;
   mobile: string | null;
+  country: string | null;
   otp: string | null;
   attribution: {
     sessionId: string | null;
@@ -313,6 +316,7 @@ export function normalizeRegisterInput(input: z.infer<typeof registerSchema>): N
     lastName,
     companyName,
     mobile,
+    country: input.country?.trim().toUpperCase() || null,
     otp: input.otp?.trim() || null,
     attribution,
   };

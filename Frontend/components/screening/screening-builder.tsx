@@ -2272,9 +2272,21 @@ function toCreateInput(
   };
 }
 
-export function ScreeningBuilder() {
+export function ScreeningBuilder({
+  initialCandidateIds,
+}: {
+  initialCandidateIds?: string[];
+} = {}) {
   const { user } = useAuth();
-  const [state, setState] = useState<BuilderState>(initialState);
+  const [state, setState] = useState<BuilderState>(() => {
+    const ids = (initialCandidateIds ?? []).filter(Boolean);
+    if (ids.length === 0) return initialState();
+    return {
+      ...initialState(),
+      source: "Candidate Pool",
+      selectedCandidateIds: [...new Set(ids)],
+    };
+  });
   const [current, setCurrent] = useState(0);
   const [attempted, setAttempted] = useState<Set<number>>(new Set());
   const [outcome, setOutcome] = useState<Outcome | null>(null);

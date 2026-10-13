@@ -155,6 +155,8 @@ export interface JobListItem {
   hiringManager: string;
   createdAt: string;
   status: JobStatus;
+  /** User id of the member who created the job (API only). */
+  createdBy?: string;
 }
 
 export const JOBS: JobListItem[] = [

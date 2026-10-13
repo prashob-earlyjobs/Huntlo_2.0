@@ -178,12 +178,12 @@ export function NavList({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
-  const { permissions } = useAuth();
+  const { permissions, allowedModules } = useAuth();
   const activeHref = useActiveHref();
   const [interviewCount, setInterviewCount] = useState<number | undefined>();
   const sections = useMemo(
-    () => filterNavSections(permissions),
-    [permissions]
+    () => filterNavSections(permissions, undefined, allowedModules),
+    [permissions, allowedModules]
   );
   const sectionLabels = useMemo(
     () => sections.map((section) => section.label),

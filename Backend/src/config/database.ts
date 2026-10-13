@@ -69,7 +69,9 @@ export async function connectDatabase(): Promise<typeof mongoose> {
   mongoose.set('strictQuery', true);
 
   mongoose.connection.on('connected', () => {
-    logger.info('MongoDB connected');
+    const dbName =
+      mongoose.connection.name || mongoose.connection.db?.databaseName || 'unknown';
+    logger.info({ db: dbName }, `MongoDB connected (${dbName})`);
     isConnected = true;
   });
 

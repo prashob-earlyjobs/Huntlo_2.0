@@ -15,6 +15,8 @@ export type RegisterInput = {
   fullName: string;
   companyName: string;
   mobile: string;
+  /** ISO country for the selected dial code (e.g. "US"). */
+  country?: string;
   /** 5-digit signup email OTP (required in non-test environments). */
   otp?: string;
   /** @deprecated Prefer fullName + companyName */
@@ -90,6 +92,7 @@ function mapAuthPayload(data: AuthPayload): AuthSession & { me: AuthMeResponse }
       user: data.user,
       organization: data.organization,
       permissions: data.permissions,
+      allowedModules: data.allowedModules ?? null,
     },
   };
 }
@@ -204,6 +207,7 @@ const mockAuthApi: AuthApi = {
         },
         organization: workspace,
         permissions: ["*"],
+        allowedModules: null,
       },
     };
   },
@@ -254,6 +258,7 @@ const mockAuthApi: AuthApi = {
       },
       organization: WORKSPACES[0]!,
       permissions: ["*"],
+      allowedModules: null,
     };
   },
   async updateMe(input) {

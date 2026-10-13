@@ -30,6 +30,7 @@ import type { ScoutProfile } from "@/lib/mock-scout";
 import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api";
 import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
+import { notifyUsageRefresh } from "@/lib/usage-refresh";
 import { cn } from "@/lib/utils";
 
 const LOOKUP_POLL_INTERVAL_MS = 10_000;
@@ -54,9 +55,9 @@ function RevealedRow({
 }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+    <div className="flex min-w-0 items-center gap-1.5">
       <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 truncate text-xs font-medium text-foreground">
+      <span className="min-w-0 truncate text-sm text-foreground">
         {value}
       </span>
       <Button
@@ -156,6 +157,9 @@ export function ScoutProfileCard({
         ? `Revealed (${creditsCharged ?? (type === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile)} credits)`
         : "Already unlocked — no credits charged"
     );
+    if (charged) {
+      notifyUsageRefresh();
+    }
   }
 
   function applyRevealUnavailable(

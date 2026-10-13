@@ -21,6 +21,7 @@ import {
   Users2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
@@ -29,7 +30,9 @@ import {
   PoolTableSkeleton,
   SavedListsWorkspaceSkeleton,
 } from "@/components/candidates/pool-skeleton";
+import { ScheduleInterviewFlow } from "@/components/schedule/schedule-interview-flow";
 import { EmptyState } from "@/components/shared/empty-state";
+import { Snackbar } from "@/components/shared/snackbar";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -68,7 +71,7 @@ import {
   type PoolCandidate,
   type SavedList,
 } from "@/lib/mock-candidates";
-import { jobDetailPath } from "@/lib/routes";
+import { jobDetailPath, ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type SmartListId = "all" | "recent" | "revealed";
@@ -134,7 +137,7 @@ function NavButton({
       onClick={onClick}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+        "flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "bg-brand-subtle font-medium text-primary"
           : "text-foreground hover:bg-muted",
@@ -149,6 +152,7 @@ function NavButton({
 }
 
 export function SavedListsWorkspace() {
+  const router = useRouter();
   const [lists, setLists] = useState<SavedList[]>([]);
   const [pool, setPool] = useState<PoolCandidate[]>([]);
   const [page, setPage] = useState(1);
@@ -173,23 +177,41 @@ export function SavedListsWorkspace() {
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [listQuery, setListQuery] = useState("");
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    message: string;
+    variant: "default" | "error";
+  } | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [renameBusy, setRenameBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [createListOpen, setCreateListOpen] = useState(false);
+  const [createListCandidateId, setCreateListCandidateId] = useState<
+    string | null
+  >(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleCandidateIds, setScheduleCandidateIds] = useState<string[]>(
+    []
+  );
 
   async function refresh() {
     try {
-      const [nextLists, all, recent, revealed] = await Promise.all([
-        candidatePoolApi.listLists(),
+      const [activeLists, archivedOnly, all, recent, revealed] = await Promise.all([
+        candidatePoolApi.listLists({ archived: false, limit: 100 }),
+        candidatePoolApi.listLists({ archived: true, limit: 100 }),
         candidatePoolApi.listPage({ view: "all", page: 1, limit: 1 }),
         candidatePoolApi.listPage({ view: "recent", page: 1, limit: 1 }),
         candidatePoolApi.listPage({ view: "revealed", page: 1, limit: 1 }),
       ]);
-      setLists(nextLists);
+      const merged = [...activeLists];
+      for (const list of archivedOnly) {
+        if (!merged.some((item) => item.id === list.id)) {
+          merged.push(list);
+        }
+      }
+      setLists(merged);
       setSmartCounts({
         all: all.pagination.total,
         recent: recent.pagination.total,
@@ -197,9 +219,7 @@ export function SavedListsWorkspace() {
       });
       setRefreshVersion((value) => value + 1);
     } catch (err) {
-      setFeedback(getApiErrorMessage(err));
-      setLists([]);
-      setPool([]);
+      flash(getApiErrorMessage(err), "error");
     } finally {
       setLoading(false);
     }
@@ -209,9 +229,8 @@ export function SavedListsWorkspace() {
     void refresh();
   }, []);
 
-  function flash(message: string) {
-    setFeedback(message);
-    window.setTimeout(() => setFeedback(null), 2400);
+  function flash(message: string, variant: "default" | "error" = "default") {
+    setFeedback({ message, variant });
   }
 
   const normalizedQuery = listQuery.trim().toLowerCase();
@@ -237,6 +256,61 @@ export function SavedListsWorkspace() {
       : null;
 
   const candidates = pool;
+  const listOptions = lists
+    .filter((list) => !list.archived)
+    .map((list) => ({ id: list.id, name: list.name }));
+
+  async function addOneToList(
+    candidateId: string,
+    listId: string,
+    listName: string
+  ) {
+    try {
+      await candidatePoolApi.bulkAddToList([candidateId], listId);
+      flash(`Added to “${listName}”.`);
+      await refresh();
+    } catch (err) {
+      flash(getApiErrorMessage(err), "error");
+    }
+  }
+
+  async function removeOne(id: string) {
+    try {
+      if (selection.kind === "list") {
+        await candidatePoolApi.bulkRemoveFromList([id], selection.id);
+        flash("Removed from list.");
+      } else {
+        await candidatePoolApi.bulkArchive([id]);
+        flash("Archived candidate from the pool.");
+      }
+      setSelected((previous) => {
+        const next = new Set(previous);
+        next.delete(id);
+        return next;
+      });
+      await refresh();
+    } catch (err) {
+      flash(getApiErrorMessage(err), "error");
+    }
+  }
+
+  function startScreening(candidateId: string) {
+    const params = new URLSearchParams();
+    params.set("candidateIds", candidateId);
+    router.push(`${ROUTES.screeningNew}?${params.toString()}`);
+  }
+
+  function openSchedule(candidateId: string) {
+    setScheduleCandidateIds([candidateId]);
+    setScheduleOpen(true);
+  }
+
+  async function handleListCreated(list: SavedList) {
+    await refresh();
+    if (!createListCandidateId) return;
+    await addOneToList(createListCandidateId, list.id, list.name);
+    setCreateListCandidateId(null);
+  }
 
   function openRename() {
     if (!currentList) return;
@@ -248,7 +322,7 @@ export function SavedListsWorkspace() {
     if (!currentList) return;
     const nextName = renameValue.trim();
     if (!nextName) {
-      flash("List name is required.");
+      flash("List name is required.", "error");
       return;
     }
     setRenameBusy(true);
@@ -265,7 +339,7 @@ export function SavedListsWorkspace() {
       flash(`Renamed to “${nextName}”.`);
       await refresh();
     } catch (err) {
-      flash(getApiErrorMessage(err));
+      flash(getApiErrorMessage(err), "error");
     } finally {
       setRenameBusy(false);
     }
@@ -299,7 +373,7 @@ export function SavedListsWorkspace() {
       );
       flash(`Exported ${exportedCount} candidates.`);
     } catch (err) {
-      flash(getApiErrorMessage(err));
+      flash(getApiErrorMessage(err), "error");
     } finally {
       setExportBusy(false);
     }
@@ -317,7 +391,7 @@ export function SavedListsWorkspace() {
       setSelection({ kind: "smart", id: "all" });
       await refresh();
     } catch (err) {
-      flash(getApiErrorMessage(err));
+      flash(getApiErrorMessage(err), "error");
     } finally {
       setDeleteBusy(false);
     }
@@ -343,7 +417,7 @@ export function SavedListsWorkspace() {
       } catch (err) {
         if (!cancelled) {
           setPool([]);
-          setFeedback(getApiErrorMessage(err));
+          flash(getApiErrorMessage(err), "error");
         }
       } finally {
         if (!cancelled) setTableLoading(false);
@@ -423,26 +497,29 @@ export function SavedListsWorkspace() {
             </ul>
           ) : null}
 
+          <p className="mt-3 mb-1 px-2.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Custom Lists
+          </p>
           {activeLists.length > 0 ? (
-            <>
-              <p className="mt-3 mb-1 px-2.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Custom Lists
-              </p>
-              <ul className="space-y-0.5">
-                {activeLists.map((list) => (
-                  <li key={list.id}>
-                    <NavButton
-                      active={selection.kind === "list" && selection.id === list.id}
-                      onClick={() => select({ kind: "list", id: list.id })}
-                      icon={FolderOpen}
-                      label={list.name}
-                      count={listCount(list)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
+            <ul className="space-y-0.5">
+              {activeLists.map((list) => (
+                <li key={list.id}>
+                  <NavButton
+                    active={selection.kind === "list" && selection.id === list.id}
+                    onClick={() => select({ kind: "list", id: list.id })}
+                    icon={FolderOpen}
+                    label={list.name}
+                    count={listCount(list)}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-2.5 py-2 text-xs text-muted-foreground">
+              No lists yet. Use{" "}
+              <span className="font-medium text-foreground">Create List</span> below.
+            </p>
+          )}
 
           {archivedLists.length > 0 ? (
             <>
@@ -477,7 +554,12 @@ export function SavedListsWorkspace() {
 
         <div className="mt-2 border-t border-border p-1.5">
           <CreateListDialog
-            onCreated={() => void refresh()}
+            open={createListOpen}
+            onOpenChange={(open) => {
+              setCreateListOpen(open);
+              if (!open) setCreateListCandidateId(null);
+            }}
+            onCreated={(list) => void handleListCreated(list)}
             trigger={
               <Button size="sm" variant="outline" className="w-full">
                 <ListPlus aria-hidden />
@@ -534,28 +616,38 @@ export function SavedListsWorkspace() {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
+                      disabled={currentList.archived}
                       onClick={() =>
                         void (async () => {
                           try {
                             await candidatePoolApi.archiveList(currentList.id);
-                            flash(
-                              currentList.archived
-                                ? `Restored “${currentList.name}”.`
-                                : `Archived “${currentList.name}”.`
-                            );
+                            flash(`Archived “${currentList.name}”.`);
                             await refresh();
                           } catch (err) {
-                            flash(getApiErrorMessage(err));
+                            flash(getApiErrorMessage(err), "error");
                           }
                         })()
                       }
                     >
-                      {currentList.archived ? (
-                        <ArchiveRestore aria-hidden />
-                      ) : (
-                        <Archive aria-hidden />
-                      )}
-                      {currentList.archived ? "Restore list" : "Archive list"}
+                      <Archive aria-hidden />
+                      Archive list
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={!currentList.archived}
+                      onClick={() =>
+                        void (async () => {
+                          try {
+                            await candidatePoolApi.archiveList(currentList.id);
+                            flash(`Restored “${currentList.name}”.`);
+                            await refresh();
+                          } catch (err) {
+                            flash(getApiErrorMessage(err), "error");
+                          }
+                        })()
+                      }
+                    >
+                      <ArchiveRestore aria-hidden />
+                      Restore list
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       variant="destructive"
@@ -569,15 +661,6 @@ export function SavedListsWorkspace() {
               ) : null}
             </div>
           </div>
-
-          {feedback ? (
-            <p
-              role="status"
-              className="mt-3 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
-            >
-              {feedback}
-            </p>
-          ) : null}
 
           <dl className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
@@ -655,7 +738,22 @@ export function SavedListsWorkspace() {
                 selected={selected}
                 onToggleSelect={toggleSelect}
                 onToggleSelectAll={toggleSelectAll}
-                onRemove={() => {}}
+                lists={listOptions}
+                onAddToList={(candidateId, listId, listName) =>
+                  void addOneToList(candidateId, listId, listName)
+                }
+                onCreateList={(candidateId) => {
+                  setCreateListCandidateId(candidateId);
+                  setCreateListOpen(true);
+                }}
+                onStartScreening={startScreening}
+                onScheduleInterview={openSchedule}
+                onRemove={(id) => void removeOne(id)}
+                removeLabel={
+                  selection.kind === "list"
+                    ? "Remove from list"
+                    : "Remove from pool"
+                }
                 caption={`Candidates in ${currentList ? currentList.name : currentSmart!.label}`}
               />
               <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -814,6 +912,24 @@ export function SavedListsWorkspace() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ScheduleInterviewFlow
+        open={scheduleOpen}
+        onOpenChange={(open) => {
+          setScheduleOpen(open);
+          if (!open) setScheduleCandidateIds([]);
+        }}
+        initialCandidateIds={scheduleCandidateIds}
+        onComplete={(message) => {
+          flash(message);
+          void refresh();
+        }}
+      />
+
+      <Snackbar
+        message={feedback?.message ?? null}
+        variant={feedback?.variant ?? "default"}
+        onDismiss={() => setFeedback(null)}
+      />
     </div>
   );
 }

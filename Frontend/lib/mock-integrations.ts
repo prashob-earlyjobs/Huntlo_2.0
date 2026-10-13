@@ -95,6 +95,10 @@ export interface IntegrationProvider {
   configKind: "email" | "smtp" | "whatsapp" | "calendly" | "zwayam" | "generic" | "voice" | "payments" | "data";
   /** Backend UserIntegration id when connected (live API). */
   integrationRecordId?: string;
+  /** Public (non-secret) connection config from the API. */
+  connectionConfig?: Record<string, unknown>;
+  connectedEmail?: string | null;
+  connectedDisplayName?: string | null;
   /** True when server has provider credentials configured. */
   serverConfigured?: boolean;
   /** Public OAuth client id (e.g. Google) when needed for popup auth. */
@@ -155,7 +159,6 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
     connectionDetails: [],
     isDefault: false,
     configKind: "email",
-    inactive: true,
   },
   {
     id: "zoho-mail",
@@ -427,14 +430,14 @@ export const EMAIL_CONFIG_DEFAULTS = {
 };
 
 export const SMTP_CONFIG_DEFAULTS = {
-  fromEmail: "noreply@acmetalent.com",
-  displayName: "Acme Talent Recruiting",
-  smtpHost: "smtp.acmetalent.com",
+  fromEmail: "",
+  displayName: "",
+  smtpHost: "",
   smtpPort: "587",
   security: "STARTTLS",
-  username: "noreply@acmetalent.com",
+  username: "",
   password: "",
-  imapHost: "imap.acmetalent.com",
+  imapHost: "",
   imapPort: "993",
 };
 

@@ -278,6 +278,7 @@ export default function SignupPage() {
         companyName: form.companyName.trim(),
         email: form.email.trim().toLowerCase(),
         mobile,
+        country: form.countryIso,
         password: form.password,
         confirmPassword: form.confirmPassword,
         otp: code,

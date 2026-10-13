@@ -148,15 +148,50 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
   }
 
   const details: { label: string; value: string }[] = [];
-  if (connection.scopes?.length) {
-    details.push({ label: "Scopes", value: connection.scopes.slice(0, 4).join(", ") });
+  const config = connection.config || {};
+
+  if (item.id === "smtp" || template.configKind === "smtp") {
+    const fromEmail =
+      connection.email || connection.connectedIdentity || connection.providerAccountId;
+    if (fromEmail) details.push({ label: "From email", value: String(fromEmail) });
+    if (connection.displayName) {
+      details.push({ label: "Display name", value: String(connection.displayName) });
+    }
+    if (config.username != null && String(config.username).trim()) {
+      details.push({ label: "Username", value: String(config.username) });
+    }
+    const smtpHost = config.smtpHost != null ? String(config.smtpHost) : "";
+    const smtpPort = config.smtpPort != null ? String(config.smtpPort) : "";
+    const security = config.smtpSecurity != null ? String(config.smtpSecurity) : "";
+    if (smtpHost) {
+      details.push({
+        label: "SMTP",
+        value: [smtpHost, smtpPort].filter(Boolean).join(":") + (security ? ` (${security})` : ""),
+      });
+    }
+    const imapHost = config.imapHost != null ? String(config.imapHost) : "";
+    const imapPort = config.imapPort != null ? String(config.imapPort) : "";
+    if (imapHost) {
+      details.push({
+        label: "IMAP",
+        value: [imapHost, imapPort].filter(Boolean).join(":"),
+      });
+    }
+  } else {
+    if (connection.scopes?.length) {
+      details.push({
+        label: "Scopes",
+        value: connection.scopes.slice(0, 4).join(", "),
+      });
+    }
+    for (const [key, value] of Object.entries(config)) {
+      if (value == null || typeof value === "object") continue;
+      details.push({ label: key, value: String(value) });
+    }
   }
+
   if (connection.errorMessage) {
     details.push({ label: "Error", value: connection.errorMessage });
-  }
-  for (const [key, value] of Object.entries(connection.config || {})) {
-    if (value == null || typeof value === "object") continue;
-    details.push({ label: key, value: String(value) });
   }
 
   return {
@@ -166,7 +201,10 @@ function catalogToProvider(item: IntegrationCatalogItem): IntegrationProvider {
     connectedIdentity: connection.connectedIdentity,
     lastSynced: formatRelative(connection.lastSyncAt || connection.updatedAt),
     isDefault: connection.isDefault,
-    connectionDetails: details.slice(0, 6),
+    connectionDetails: details.slice(0, 8),
+    connectionConfig: config,
+    connectedEmail: connection.email,
+    connectedDisplayName: connection.displayName,
     integrationRecordId: connection.id,
     serverConfigured: item.configured,
     oauthClientId: item.oauthClientId ?? null,

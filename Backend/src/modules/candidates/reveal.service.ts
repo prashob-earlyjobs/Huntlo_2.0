@@ -38,6 +38,7 @@ import {
 } from '../../providers/future-jobs/futureJobs.actor-context.js';
 import { SourcedCandidateModel } from '../sourcing/sourced-candidate.model.js';
 import { CandidateActivityModel } from './candidate-activity.model.js';
+import { SavedCandidateModel } from './saved-candidate.model.js';
 import {
   CANDIDATE_CONTACT_CACHE_TTL_MS,
   CandidateContactCacheModel,
@@ -302,6 +303,15 @@ function encryptValues(values: string[]): EncryptedPayload[] {
   return values.map((v) => encryptField(v));
 }
 
+async function findSourcedByExternalId(organizationId: string, externalId: string) {
+  const id = String(externalId || '').trim();
+  if (!id) return null;
+  return SourcedCandidateModel.findOne({
+    organizationId,
+    $or: [{ externalCandidateId: id }, { candidateId: id }],
+  });
+}
+
 async function resolveCandidate(organizationId: string, candidateId: string) {
   const raw = String(candidateId || '').trim();
   if (!raw) {
@@ -313,10 +323,37 @@ async function resolveCandidate(organizationId: string, candidateId: string) {
     : null;
 
   if (!candidate) {
-    candidate = await SourcedCandidateModel.findOne({
-      organizationId,
-      externalCandidateId: raw,
-    });
+    candidate = await findSourcedByExternalId(organizationId, raw);
+  }
+
+  // Pool profile pages pass SavedCandidate (pool) ids — map to SourcedCandidate.
+  if (!candidate) {
+    const pool = isValidObjectId(raw)
+      ? await SavedCandidateModel.findOne({
+          _id: raw,
+          organizationId,
+          deletedAt: null,
+        })
+      : await SavedCandidateModel.findOne({
+          organizationId,
+          externalCandidateId: raw,
+          deletedAt: null,
+        });
+
+    if (pool) {
+      assertSameOrganization(pool.organizationId, organizationId);
+      if (pool.externalCandidateId) {
+        candidate = await findSourcedByExternalId(
+          organizationId,
+          pool.externalCandidateId
+        );
+      }
+      if (!candidate) {
+        throw AppError.notFound(
+          'Contact reveal needs a sourced profile for this candidate. Search or People Scout them again, then retry.'
+        );
+      }
+    }
   }
 
   if (!candidate) {

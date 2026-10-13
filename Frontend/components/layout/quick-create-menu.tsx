@@ -67,14 +67,15 @@ const QUICK_CREATE_OPTIONS = [
 ] as const;
 
 export function QuickCreateMenu() {
-  const { permissions } = useAuth();
-  const options = QUICK_CREATE_OPTIONS.filter(
-    (option) =>
-      canAccessPath(permissions, option.href) ||
-      permissions.includes("*") ||
+  const { permissions, allowedModules } = useAuth();
+  const options = QUICK_CREATE_OPTIONS.filter((option) => {
+    if (permissions.includes("*")) return true;
+    if (!canAccessPath(permissions, option.href, allowedModules)) return false;
+    return (
       permissions.includes(option.permission) ||
       permissions.includes(`${option.permission.split(":")[0]}:manage`)
-  );
+    );
+  });
 
   if (options.length === 0) return null;
 
