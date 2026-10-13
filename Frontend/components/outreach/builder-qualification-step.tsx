@@ -59,6 +59,7 @@ export function QualificationStep({
 }) {
   const errors = showErrors ? stepErrors(4, state) : [];
   const hasAiVoice = campaignHasAiVoice(state);
+  const hasWhatsApp = state.enabledChannels.includes("WhatsApp");
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [hiringFlows, setHiringFlows] = useState<ApiHiringFlow[]>([]);
@@ -219,8 +220,9 @@ export function QualificationStep({
           ) : null}
           {state.questions.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-              No qualification questions — every interested reply is treated as
-              qualified (or generate from the linked JD).
+              {hasWhatsApp && state.askResume
+                ? "No other qualification questions. Candidates will be asked to share a resume on WhatsApp."
+                : "No qualification questions — every interested reply is treated as qualified (or generate from the linked JD)."}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -378,6 +380,15 @@ export function QualificationStep({
                 checked={state.autoCalendly}
                 onChange={(checked) => update("autoCalendly", checked)}
               />
+              {hasWhatsApp ? (
+                <ToggleRow
+                  id="qual-ask-resume"
+                  label="Ask for resume"
+                  description="Ask for a resume in the WhatsApp chat. A file counts as the answer."
+                  checked={Boolean(state.askResume)}
+                  onChange={(checked) => update("askResume", checked)}
+                />
+              ) : null}
             </div>
           </div>
           {hasAiVoice && state.autoWhatsAppAfterQualification ? (

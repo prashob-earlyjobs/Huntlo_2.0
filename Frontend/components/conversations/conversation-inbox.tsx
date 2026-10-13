@@ -426,8 +426,10 @@ function MessageAttachmentView({
   }
 
   function openExternalPreview() {
-    if (!objectUrl) return;
-    window.open(objectUrl, "_blank", "noopener,noreferrer");
+    const raw = String(attachment.url || "").trim();
+    const target = isDirectMediaUrl(raw) ? raw : objectUrl;
+    if (!target) return;
+    window.open(target, "_blank", "noopener,noreferrer");
   }
 
   if (attachment.url && isImage) {
@@ -589,7 +591,8 @@ function MessageAttachmentView({
             variant="ghost"
             className="h-7 gap-1 px-2 text-xs text-muted-foreground"
             onClick={() => {
-              if (isPdf) setPreviewOpen(true);
+              const raw = String(attachment.url || "").trim();
+              if (isPdf && !isDirectMediaUrl(raw)) setPreviewOpen(true);
               else openExternalPreview();
             }}
           >
@@ -869,11 +872,18 @@ function EventBubble({ event }: { event: ConversationEvent }) {
       : "";
 
   const hasMedia = (event.attachments?.length || 0) > 0;
+  const textIsAttachmentName =
+    hasMedia &&
+    (event.attachments || []).some((attachment) => {
+      const name = String(attachment.name || "").trim().toLowerCase();
+      return Boolean(name) && name === displayText.trim().toLowerCase();
+    });
   const isMediaPlaceholder =
     hasMedia &&
-    /^(?:\[Image\]|\[Audio\]|\[Video\]|\[Document:[^\]]*\])$/i.test(
-      displayText.trim()
-    );
+    (textIsAttachmentName ||
+      /^(?:\[Image\]|\[Audio\]|\[Video\]|\[Document:[^\]]*\])$/i.test(
+        displayText.trim()
+      ));
 
   return (
     <div

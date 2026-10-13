@@ -54,7 +54,7 @@ import {
 } from "@/lib/api";
 import type { JobListItem } from "@/lib/api/contracts";
 import { REVEAL_COSTS, revealCreditsRemaining } from "@/hooks/use-reveal-quota";
-import type { SequenceStepType } from "@/lib/mock-outreach";
+import { ASK_RESUME_QUESTION, type SequenceStepType } from "@/lib/mock-outreach";
 import { campaignDetailPath, ROUTES } from "@/lib/routes";
 
 const BUILDER_STEPS = [
@@ -190,14 +190,21 @@ function toCreateInput(state: BuilderState): CampaignCreateInput {
     })),
     qualificationConfig: {
       enabled: true,
-      questions: state.questions.map((question) => ({
-        id: question.id,
-        title: question.title.trim(),
-        prompt: question.text,
-        answerType: question.answerType,
-        knockout: question.knockout,
-        knockoutCondition: question.knockoutCondition || null,
-      })),
+      questions: [
+        ...state.questions
+          .filter((question) => question.id !== ASK_RESUME_QUESTION.id)
+          .map((question) => ({
+            id: question.id,
+            title: question.title.trim(),
+            prompt: question.text,
+            answerType: question.answerType,
+            knockout: question.knockout,
+            knockoutCondition: question.knockoutCondition || null,
+          })),
+        ...(state.enabledChannels.includes("WhatsApp") && state.askResume
+          ? [ASK_RESUME_QUESTION]
+          : []),
+      ],
       aiReplyEnabled: true,
       takeoverCondition: state.takeoverCondition || null,
       autoScreening: state.autoScreening && !state.autoCalendly,

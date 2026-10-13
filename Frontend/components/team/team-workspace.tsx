@@ -27,6 +27,7 @@ import {
   FilterPopover,
   type FilterOption,
 } from "@/components/shared/filter-popover";
+import { Snackbar } from "@/components/shared/snackbar";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -555,7 +556,11 @@ function MemberDrawer({
   member: TeamMember | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAction: (message: string, reload?: boolean) => void;
+  onAction: (
+    message: string,
+    reload?: boolean,
+    variant?: "default" | "error"
+  ) => void;
   onUpdated: (member: TeamMember) => void;
   onPasswordReset: (
     credentials: CreateTeamAccountResult["credentials"]
@@ -635,7 +640,11 @@ function MemberDrawer({
       onUpdated(mapped);
       onAction(`Updated module access for ${currentMember.name}.`);
     } catch (error) {
-      onAction(getApiErrorMessage(error, "Unable to update module access."));
+      onAction(
+        getApiErrorMessage(error, "Unable to update module access."),
+        false,
+        "error"
+      );
     } finally {
       setSavingModules(false);
     }
@@ -658,7 +667,11 @@ function MemberDrawer({
       onAction(`Role for ${mapped.name} set to ${mapped.role}.`, true);
     } catch (error) {
       setRole(null);
-      onAction(getApiErrorMessage(error, "Unable to update role."));
+      onAction(
+        getApiErrorMessage(error, "Unable to update role."),
+        false,
+        "error"
+      );
     } finally {
       setSavingRole(false);
     }
@@ -673,13 +686,21 @@ function MemberDrawer({
         onPasswordReset(credentials);
         onAction(`Password reset for ${currentMember.name}.`);
       } else if (confirmAction === "suspend") {
-        await teamApi.updateMemberStatus(currentMember.id, "suspended");
-        onAction(`Suspended ${currentMember.name}.`, true);
-        onOpenChange(false);
+        const updated = await teamApi.updateMemberStatus(
+          currentMember.id,
+          "suspended"
+        );
+        const mapped = mapApiMemberToUi(updated);
+        onUpdated(mapped);
+        onAction(`Suspended ${mapped.name}.`, true);
       } else if (confirmAction === "activate") {
-        await teamApi.updateMemberStatus(currentMember.id, "active");
-        onAction(`Activated ${currentMember.name}.`, true);
-        onOpenChange(false);
+        const updated = await teamApi.updateMemberStatus(
+          currentMember.id,
+          "active"
+        );
+        const mapped = mapApiMemberToUi(updated);
+        onUpdated(mapped);
+        onAction(`Enabled ${mapped.name}.`, true);
       } else {
         await teamApi.removeMember(currentMember.id);
         onAction(`Deactivated ${currentMember.name}.`, true);
@@ -688,7 +709,9 @@ function MemberDrawer({
       setConfirmAction(null);
     } catch (error) {
       onAction(
-        getApiErrorMessage(error, `Unable to ${confirmAction} member.`)
+        getApiErrorMessage(error, `Unable to ${confirmAction} member.`),
+        false,
+        "error"
       );
     } finally {
       setBusy(false);
@@ -701,7 +724,7 @@ function MemberDrawer({
       : confirmAction === "suspend"
         ? "Suspend member"
         : confirmAction === "activate"
-          ? "Activate member"
+          ? "Enable account"
           : "Deactivate member";
 
   return (
@@ -742,7 +765,9 @@ function MemberDrawer({
                         getApiErrorMessage(
                           error,
                           "Unable to resend invitation."
-                        )
+                        ),
+                        false,
+                        "error"
                       )
                     )
                 }
@@ -777,12 +802,11 @@ function MemberDrawer({
             {member.status === "Suspended" ? (
               <Button
                 size="xs"
-                variant="outline"
                 disabled={busy}
                 onClick={() => setConfirmAction("activate")}
               >
                 <UserCheck aria-hidden />
-                Activate
+                Enable account
               </Button>
             ) : null}
             {member.status !== "Deactivated" &&
@@ -811,7 +835,7 @@ function MemberDrawer({
                   {confirmAction === "reset"
                     ? `This signs ${member.name} out on every device and creates a new temporary password.`
                     : confirmAction === "suspend"
-                      ? `${member.name} will be signed out and unable to access the workspace until reactivated.`
+                      ? `${member.name} will be signed out and unable to access the workspace until you enable the account again.`
                       : confirmAction === "activate"
                         ? `${member.name} will be able to sign in and access assigned modules again.`
                         : `${member.name} will be signed out and removed from active workspace access.`}
@@ -1282,7 +1306,11 @@ function MemberRowActions({
 }: {
   member: TeamMember;
   onOpen: () => void;
-  onAction: (message: string, reload?: boolean) => void;
+  onAction: (
+    message: string,
+    reload?: boolean,
+    variant?: "default" | "error"
+  ) => void;
   onPasswordReset: (
     credentials: CreateTeamAccountResult["credentials"]
   ) => void;
@@ -1305,7 +1333,7 @@ function MemberRowActions({
         onAction(`Suspended ${member.name}.`, true);
       } else if (confirmAction === "activate") {
         await teamApi.updateMemberStatus(member.id, "active");
-        onAction(`Activated ${member.name}.`, true);
+        onAction(`Enabled ${member.name}.`, true);
       } else {
         await teamApi.removeMember(member.id);
         onAction(`Deactivated ${member.name}.`, true);
@@ -1313,7 +1341,9 @@ function MemberRowActions({
       setConfirmAction(null);
     } catch (error) {
       onAction(
-        getApiErrorMessage(error, `Unable to ${confirmAction} member.`)
+        getApiErrorMessage(error, `Unable to ${confirmAction} member.`),
+        false,
+        "error"
       );
     } finally {
       setBusy(false);
@@ -1326,7 +1356,7 @@ function MemberRowActions({
       : confirmAction === "suspend"
         ? "Suspend member"
         : confirmAction === "activate"
-          ? "Activate member"
+          ? "Enable account"
           : "Deactivate member";
 
   return (
@@ -1353,7 +1383,11 @@ function MemberRowActions({
                   .resendInvitation(member.id)
                   .then(() => onAction(`Resent invitation to ${member.email}.`, true))
                   .catch((error) =>
-                    onAction(getApiErrorMessage(error, "Unable to resend invitation."))
+                    onAction(
+                      getApiErrorMessage(error, "Unable to resend invitation."),
+                      false,
+                      "error"
+                    )
                   )
               }
             >
@@ -1378,7 +1412,7 @@ function MemberRowActions({
           {member.status === "Suspended" ? (
             <DropdownMenuItem onClick={() => setConfirmAction("activate")}>
               <UserCheck aria-hidden />
-              Activate
+              Enable account
             </DropdownMenuItem>
           ) : null}
           {member.role !== "Workspace Owner" &&
@@ -1405,7 +1439,7 @@ function MemberRowActions({
               {confirmAction === "reset"
                 ? `This signs ${member.name} out on every device and creates a new temporary password.`
                 : confirmAction === "suspend"
-                  ? `${member.name} will be signed out and unable to access the workspace until reactivated.`
+                  ? `${member.name} will be signed out and unable to access the workspace until you enable the account again.`
                   : confirmAction === "activate"
                     ? `${member.name} will be able to sign in and access assigned modules again.`
                     : `${member.name} will be signed out and removed from active workspace access.`}
@@ -1442,7 +1476,10 @@ export function TeamWorkspace() {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    message: string;
+    variant: "default" | "error";
+  } | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<
     CreateTeamAccountResult["credentials"] | null
@@ -1512,7 +1549,10 @@ export function TeamWorkspace() {
         },
       ]);
     } catch (error) {
-      setMessage(getApiErrorMessage(error, "Unable to load team."));
+      setFeedback({
+        message: getApiErrorMessage(error, "Unable to load team."),
+        variant: "error",
+      });
       setMembers([]);
       setMetrics([]);
     } finally {
@@ -1545,9 +1585,19 @@ export function TeamWorkspace() {
   const hasFilters =
     Boolean(query) || roleFilter.length > 0 || statusFilter.length > 0;
 
-  function flash(text: string, shouldReload = false) {
-    setMessage(text);
-    window.setTimeout(() => setMessage(null), 2400);
+  function flash(
+    text: string,
+    shouldReload = false,
+    variant?: "default" | "error"
+  ) {
+    const looksLikeError =
+      /unable to|failed|forbidden|not found|missing permission|only owners|only admins|cannot |can'?t |denied|unauthorized|do not have/i.test(
+        text
+      );
+    setFeedback({
+      message: text,
+      variant: variant ?? (looksLikeError ? "error" : "default"),
+    });
     if (shouldReload) void reload();
   }
 
@@ -1644,15 +1694,6 @@ export function TeamWorkspace() {
               </div>
             </div>
           </div>
-
-          {message ? (
-            <p
-              role="status"
-              className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
-            >
-              {message}
-            </p>
-          ) : null}
 
           <section className="rounded-lg border border-border bg-card">
             <div className="border-b border-border px-4 py-3">
@@ -1778,14 +1819,6 @@ export function TeamWorkspace() {
         </TabsContent>
 
         <TabsContent value="organisation" className="space-y-4 pt-3">
-          {message ? (
-            <p
-              role="status"
-              className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
-            >
-              {message}
-            </p>
-          ) : null}
           <OrganisationSettings
             organization={organization}
             ownerName={ownerName}
@@ -1859,6 +1892,12 @@ export function TeamWorkspace() {
             previous.map((item) => (item.id === updated.id ? updated : item))
           );
         }}
+      />
+
+      <Snackbar
+        message={feedback?.message ?? null}
+        variant={feedback?.variant ?? "default"}
+        onDismiss={() => setFeedback(null)}
       />
     </div>
   );
