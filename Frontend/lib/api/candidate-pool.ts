@@ -328,6 +328,10 @@ export interface CandidatePoolApi {
   listPage(params?: PoolListParams): Promise<PoolPage>;
   /** Unmapped pool rows (LinkedIn URL, external IDs, contact fields). */
   listRaw(params?: PoolListParams): Promise<ApiPoolCandidate[]>;
+  /** Same rows as listRaw, plus pagination so callers can stop on the last page. */
+  listRawPage(
+    params?: PoolListParams
+  ): Promise<{ items: ApiPoolCandidate[]; pagination: PoolPagination }>;
   getOverview(): Promise<PoolOverview>;
   getById(id: string): Promise<PoolCandidate | null>;
   create(input: Record<string, unknown>): Promise<PoolCandidate>;
@@ -384,6 +388,28 @@ export type PoolOverview = {
   byStatus: Record<string, number>;
 };
 
+function mockRawCandidates(): ApiPoolCandidate[] {
+  return POOL_CANDIDATES.map((candidate) => ({
+    id: candidate.id,
+    name: candidate.name,
+    email: candidate.email || null,
+    phone: candidate.phone || null,
+    linkedinUrl: null,
+    headline: candidate.headline || null,
+    currentTitle: candidate.currentRole,
+    currentCompany: candidate.currentCompany,
+    location: candidate.location,
+    experienceYears: candidate.experienceYears,
+    skills: candidate.skills,
+    tags: [],
+    status: "saved",
+    pipelineStatus: candidate.pipelineStatus,
+    sourceType: "manual",
+    emailRevealed: candidate.emailRevealed,
+    phoneRevealed: candidate.phoneRevealed,
+  }));
+}
+
 const mockApi: CandidatePoolApi = {
   async list(params) {
     return (await this.listPage(params)).items;
@@ -424,25 +450,21 @@ const mockApi: CandidatePoolApi = {
   },
   async listRaw() {
     await simulateMockLatency();
-    return POOL_CANDIDATES.map((candidate) => ({
-      id: candidate.id,
-      name: candidate.name,
-      email: candidate.email || null,
-      phone: candidate.phone || null,
-      linkedinUrl: null,
-      headline: candidate.headline || null,
-      currentTitle: candidate.currentRole,
-      currentCompany: candidate.currentCompany,
-      location: candidate.location,
-      experienceYears: candidate.experienceYears,
-      skills: candidate.skills,
-      tags: [],
-      status: "saved",
-      pipelineStatus: candidate.pipelineStatus,
-      sourceType: "manual",
-      emailRevealed: candidate.emailRevealed,
-      phoneRevealed: candidate.phoneRevealed,
-    }));
+    return mockRawCandidates();
+  },
+  async listRawPage(params) {
+    await simulateMockLatency();
+    const all = mockRawCandidates();
+    const limit = params?.limit ?? 20;
+    const total = all.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const requested = params?.page ?? 1;
+    const page = Math.min(requested, totalPages);
+    const start = (page - 1) * limit;
+    return {
+      items: all.slice(start, start + limit),
+      pagination: { page, limit, total, totalPages },
+    };
   },
   async getOverview() {
     await simulateMockLatency();
@@ -681,11 +703,26 @@ const liveApi: CandidatePoolApi = {
     };
   },
   async listRaw(params) {
+    return (await this.listRawPage(params)).items;
+  },
+  async listRawPage(params) {
     const qs = buildQueryString(params ?? {});
-    const result = await apiClient.get<{ items: ApiPoolCandidate[] }>(
-      `/candidate-pool${qs}`
-    );
-    return result.data.items ?? [];
+    const result = await apiClient.get<{
+      items: ApiPoolCandidate[];
+      pagination?: PoolPagination;
+    }>(`/candidate-pool${qs}`);
+    const items = result.data.items ?? [];
+    const limit = params?.limit ?? (items.length || 1);
+    return {
+      items,
+      pagination: result.data.pagination ?? {
+        page: params?.page ?? 1,
+        limit,
+        total: items.length,
+        // A missing page count must not look like "this full page is the last one".
+        totalPages: items.length < limit ? (params?.page ?? 1) : Number.NaN,
+      },
+    };
   },
   async getOverview() {
     const result = await apiClient.get<PoolOverview>("/candidate-pool/overview");
