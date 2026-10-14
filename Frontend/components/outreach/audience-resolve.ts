@@ -1,3 +1,4 @@
+import { collectPoolPages } from "@/components/outreach/audience-page";
 import {
   ApiError,
   candidatePoolApi,
@@ -129,22 +130,28 @@ function mapSourcedToAudienceRow(
   };
 }
 
-/** Paginate pool list until exhausted (backend max page size is 200). */
+/**
+ * Paginate the pool until the last real page.
+ * The API repeats the last page when asked past the end, so a full page is
+ * not proof that another page exists.
+ */
 export async function listAllPoolPages(
   params: PoolListParams,
   pageSize = 200
 ): Promise<ApiPoolCandidate[]> {
-  const all: ApiPoolCandidate[] = [];
-  for (let page = 1; page <= 50; page += 1) {
-    const rows = await candidatePoolApi.listRaw({
-      ...params,
-      page,
-      limit: pageSize,
-    });
-    all.push(...rows);
-    if (rows.length < pageSize) break;
-  }
-  return all;
+  return collectPoolPages(
+    (page, limit) =>
+      candidatePoolApi.listRawPage({
+        ...params,
+        page,
+        limit,
+      }),
+    pageSize
+  );
+}
+
+function uniqueCandidateIds(rows: Array<{ id: string }>): string[] {
+  return [...new Set(rows.map((row) => row.id))];
 }
 
 /** Load pool rows for the current audience selection (no side effects). */
@@ -281,17 +288,17 @@ export async function resolveAudienceCandidateIds(
     const rows = await listAllPoolPages({
       search: state.poolSearch.trim() || undefined,
     });
-    return rows.map((row) => row.id);
+    return uniqueCandidateIds(rows);
   }
 
   if (state.source === "Saved List" && state.sourceDetail) {
     const rows = await listAllPoolPages({ listId: state.sourceDetail });
-    return rows.map((row) => row.id);
+    return uniqueCandidateIds(rows);
   }
 
   if (state.source === "CSV/Excel Import" && state.sourceDetail) {
     const rows = await listAllPoolPages({ listId: state.sourceDetail });
-    return rows.map((row) => row.id);
+    return uniqueCandidateIds(rows);
   }
 
   if (state.source === "Sourcing Session" && state.sourceDetail) {

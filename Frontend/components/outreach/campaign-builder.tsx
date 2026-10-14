@@ -42,6 +42,7 @@ import {
   resolveAudienceCandidateIds,
   statsFromPoolRows,
 } from "@/components/outreach/audience-resolve";
+import { chunkAudienceIds } from "@/components/outreach/audience-page";
 import { Stepper } from "@/components/shared/stepper";
 import { Button } from "@/components/ui/button";
 import {
@@ -547,14 +548,16 @@ export function CampaignBuilder({
           selectedCandidateIds: state.selectedCandidateIds,
           poolSearch: state.poolSearch,
         });
-        if (audienceIds.length > 0) {
+        const audienceChunks = chunkAudienceIds(audienceIds);
+        const listId =
+          state.source === "Saved List" || state.source === "CSV/Excel Import"
+            ? state.sourceDetail || undefined
+            : undefined;
+        for (let index = 0; index < audienceChunks.length; index += 1) {
           await outreachApi.addAudience(id, {
-            candidateIds: audienceIds,
-            listId:
-              state.source === "Saved List" || state.source === "CSV/Excel Import"
-                ? state.sourceDetail || undefined
-                : undefined,
-            replace: true,
+            candidateIds: audienceChunks[index],
+            listId,
+            replace: index === 0,
           });
         }
       }
