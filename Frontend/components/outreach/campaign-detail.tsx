@@ -14,7 +14,6 @@ import {
   Copy,
   Download,
   Eye,
-  FileText,
   GitBranch,
   ListChecks,
   Mail,
@@ -302,6 +301,19 @@ function looksLikeMediaPlaceholder(value: string): boolean {
   );
 }
 
+function mediaLinkLabel(media: ReportAnswerMedia): string {
+  const name = String(media.name || "").trim();
+  if (
+    name &&
+    !looksLikeMediaPlaceholder(name) &&
+    !/^attachment$/i.test(name) &&
+    !/^wamid\./i.test(name)
+  ) {
+    return name;
+  }
+  return mediaKindLabel(media);
+}
+
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(String(value || "").trim());
 }
@@ -387,89 +399,81 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
   }
 
   const label = mediaKindLabel(media);
-  // Keep link text short — provider filenames (e.g. wamid.*) are not useful in the table.
-  const linkLabel = "File";
-  const externalUrl = isHttpUrl(media.url) ? media.url : null;
+  const linkLabel = mediaLinkLabel(media);
   const isImage =
     media.kind.toLowerCase() === "image" ||
     String(media.mimeType || "").toLowerCase().startsWith("image/");
   const isPdf =
     String(media.mimeType || "").toLowerCase() === "application/pdf" ||
     media.name.toLowerCase().endsWith(".pdf");
+  // Only images and PDFs open in the preview dialog. Other types download.
+  const canPreview = isImage || isPdf;
 
   return (
     <>
-      {externalUrl ? (
-        <a
-          href={externalUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex max-w-full items-center gap-1 truncate font-medium text-primary underline-offset-4 hover:underline"
-          title={externalUrl}
-        >
-          {linkLabel}
-        </a>
-      ) : (
-        <button
-          type="button"
-          className="inline-flex max-w-full cursor-pointer items-center gap-1 truncate font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
-          title={`Open ${linkLabel}`}
-          onClick={() => setOpen(true)}
-        >
-          {linkLabel}
-        </button>
-      )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl gap-3">
-          <DialogHeader>
-            <DialogTitle className="truncate">{media.name || label}</DialogTitle>
-            <DialogDescription>
-              {label}
-              {answer.text &&
-              !looksLikeMediaPlaceholder(answer.text) &&
-              answer.text !== `[${label}]`
-                ? ` · ${answer.text}`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2">
-            {loading ? (
-              <span className="text-sm text-muted-foreground">Loading…</span>
-            ) : failed ? (
-              <span className="text-sm text-muted-foreground">Preview unavailable</span>
-            ) : objectUrl && isImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={objectUrl}
-                alt={media.name || "Image"}
-                className="max-h-[70vh] max-w-full object-contain"
-              />
-            ) : objectUrl && isPdf ? (
-              <iframe
-                title={media.name || "Document preview"}
-                src={objectUrl}
-                className="h-[70vh] w-full rounded-md bg-background"
-              />
-            ) : objectUrl ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <FileText aria-hidden className="size-10 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Preview not available for this file type. Download to open.
-                </p>
-              </div>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Close
-            </Button>
-            <Button type="button" onClick={() => void downloadFile()}>
-              <Download aria-hidden className="size-4" />
-              Download
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <button
+        type="button"
+        className="inline-flex max-w-full cursor-pointer items-center gap-1 truncate font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+        title={
+          canPreview
+            ? `Open ${media.name || linkLabel}`
+            : `Download ${media.name || linkLabel}`
+        }
+        onClick={() => {
+          if (canPreview) setOpen(true);
+          else void downloadFile();
+        }}
+      >
+        {linkLabel}
+      </button>
+      {canPreview ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-3xl gap-3">
+            <DialogHeader>
+              <DialogTitle className="truncate">{media.name || label}</DialogTitle>
+              <DialogDescription>
+                {label}
+                {answer.text &&
+                !looksLikeMediaPlaceholder(answer.text) &&
+                answer.text !== `[${label}]`
+                  ? ` · ${answer.text}`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2">
+              {loading ? (
+                <span className="text-sm text-muted-foreground">Loading…</span>
+              ) : failed ? (
+                <span className="text-sm text-muted-foreground">
+                  Preview unavailable
+                </span>
+              ) : objectUrl && isImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={objectUrl}
+                  alt={media.name || "Image"}
+                  className="max-h-[70vh] max-w-full object-contain"
+                />
+              ) : objectUrl && isPdf ? (
+                <iframe
+                  title={media.name || "Document preview"}
+                  src={objectUrl}
+                  className="h-[70vh] w-full rounded-md bg-background"
+                />
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" onClick={() => void downloadFile()}>
+                <Download aria-hidden className="size-4" />
+                Download
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   );
 }
@@ -1102,8 +1106,10 @@ function findGmailQuestion(
     questions.find((row) => row.id === column.id) ||
     questions.find(
       (row) =>
-        normalizeQuestionText(row.question) === normalizeQuestionText(column.prompt) ||
-        normalizeQuestionText(row.question) === normalizeQuestionText(column.title)
+        normalizeQuestionText(row.question) ===
+          normalizeQuestionText(column.prompt) ||
+        normalizeQuestionText(row.question) ===
+          normalizeQuestionText(column.title)
     ) ||
     null
   );
@@ -1213,7 +1219,7 @@ function reportAnswer(
   const gmailMatch = findGmailQuestion(enrollment, column);
   const fromGmail = gmailQuestionAnswer(enrollment, column);
   // Prefer enrollment bag (may include media URLs). Don't let a bare
-  // Gmail "[image]" placeholder wipe the attachment link.
+  // HCG/Gmail "[Image]" placeholder wipe the attachment link.
   if (fromBag.media) {
     return {
       text: fromBag.text || fromGmail,
@@ -1224,7 +1230,15 @@ function reportAnswer(
   if (fromQuestion) {
     return { text: fromGmail || fromBag.text, media: fromQuestion };
   }
-  if (fromGmail) return { text: fromGmail, media: null };
+  if (fromGmail) {
+    const fromBags = findMediaInEnrollmentBags(
+      enrollment,
+      column.id,
+      fromGmail
+    );
+    if (fromBags) return { text: fromGmail, media: fromBags };
+    return { text: fromGmail, media: null };
+  }
   return fromBag;
 }
 

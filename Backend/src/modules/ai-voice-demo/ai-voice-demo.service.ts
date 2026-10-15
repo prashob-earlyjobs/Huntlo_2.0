@@ -7,7 +7,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { normalizePhone } from '../../shared/validation/phone.js';
 import { AiVoiceDemoCallModel } from './ai-voice-demo.model.js';
 import {
-  AI_VOICE_DEMO_LIMIT,
+  aiVoiceDemoLimit,
   buildDemoAgentInput,
   demoQuestionsFor,
   type AiVoiceDemoJob,
@@ -92,12 +92,13 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
   }
 
   const phoneDigits = phone.replace(/\D/g, '');
+  const limit = aiVoiceDemoLimit();
   const used = await usedToday(input.company, phoneDigits);
-  if (used >= AI_VOICE_DEMO_LIMIT) {
+  if (used >= limit) {
     throw new AppError(
       429,
       'QUOTA_EXCEEDED',
-      `You've used all ${AI_VOICE_DEMO_LIMIT} complimentary demo calls for today.`
+      `You've used all ${limit} complimentary demo calls for today.`
     );
   }
 
@@ -166,7 +167,7 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
     record.errorMessage = null;
     await record.save();
 
-    const remaining = Math.max(0, AI_VOICE_DEMO_LIMIT - (used + 1));
+    const remaining = Math.max(0, limit - (used + 1));
     log().info({ agentId, demoId: String(record._id), job }, 'AI voice demo call queued');
 
     return {
@@ -175,7 +176,7 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
       job,
       agentId,
       remaining,
-      limit: AI_VOICE_DEMO_LIMIT,
+      limit,
     };
   } catch (error) {
     if (error instanceof AppError) throw error;

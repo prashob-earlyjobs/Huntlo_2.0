@@ -484,11 +484,13 @@ export async function overlayHcgWhatsappOverallAiStatus(
       (row) => campaignIdOf(row) === cid && docTouchesPhone(row, phone)
     );
     if (!doc) continue;
-    if (item.overallAIStatus) continue;
-    const label = formatHcgOverallAiStatus(doc.overallAIStatus);
-    if (label) item.overallAIStatus = label;
-    const description = String(doc.overallAIDescription || '').trim();
-    item.overallAIDescription = description || null;
+    if (!item.overallAIStatus) {
+      const label = formatHcgOverallAiStatus(doc.overallAIStatus);
+      if (label) item.overallAIStatus = label;
+      const description = String(doc.overallAIDescription || '').trim();
+      item.overallAIDescription = description || null;
+    }
+    // Always attach media-enriched Q&A so "[Image]" cells become openable links.
     item.gmailQuestions = mapHcgWhatsappQuestions(doc.questions, doc);
   }
   return collectHcgWhatsappQuestionColumns(docs);
