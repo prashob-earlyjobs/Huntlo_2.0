@@ -14,7 +14,6 @@ import {
   Copy,
   Download,
   Eye,
-  FileText,
   GitBranch,
   ListChecks,
   Mail,
@@ -365,6 +364,8 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
   const isPdf =
     String(media.mimeType || "").toLowerCase() === "application/pdf" ||
     media.name.toLowerCase().endsWith(".pdf");
+  // Only images and PDFs open in the preview dialog. Other types download.
+  const canPreview = isImage || isPdf;
 
   return (
     <>
@@ -373,58 +374,65 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
         size="sm"
         variant="ghost"
         className="h-7 w-fit gap-1 px-2 text-xs text-muted-foreground"
-        onClick={() => setOpen(true)}
+        title={
+          canPreview
+            ? `Open ${media.name || label}`
+            : `Download ${media.name || label}`
+        }
+        onClick={() => {
+          if (canPreview) setOpen(true);
+          else void downloadFile();
+        }}
       >
         <Eye aria-hidden className="size-3.5" />
         View
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl gap-3">
-          <DialogHeader>
-            <DialogTitle className="truncate">{media.name || label}</DialogTitle>
-            <DialogDescription>
-              {label}
-              {answer.text && answer.text !== `[${label}]` ? ` · ${answer.text}` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2">
-            {loading ? (
-              <span className="text-sm text-muted-foreground">Loading…</span>
-            ) : failed ? (
-              <span className="text-sm text-muted-foreground">Preview unavailable</span>
-            ) : objectUrl && isImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={objectUrl}
-                alt={media.name || "Image"}
-                className="max-h-[70vh] max-w-full object-contain"
-              />
-            ) : objectUrl && isPdf ? (
-              <iframe
-                title={media.name || "Document preview"}
-                src={objectUrl}
-                className="h-[70vh] w-full rounded-md bg-background"
-              />
-            ) : objectUrl ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <FileText aria-hidden className="size-10 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Preview not available for this file type. Download to open.
-                </p>
-              </div>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Close
-            </Button>
-            <Button type="button" onClick={() => void downloadFile()}>
-              <Download aria-hidden className="size-4" />
-              Download
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {canPreview ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-3xl gap-3">
+            <DialogHeader>
+              <DialogTitle className="truncate">{media.name || label}</DialogTitle>
+              <DialogDescription>
+                {label}
+                {answer.text && answer.text !== `[${label}]`
+                  ? ` · ${answer.text}`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2">
+              {loading ? (
+                <span className="text-sm text-muted-foreground">Loading…</span>
+              ) : failed ? (
+                <span className="text-sm text-muted-foreground">
+                  Preview unavailable
+                </span>
+              ) : objectUrl && isImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={objectUrl}
+                  alt={media.name || "Image"}
+                  className="max-h-[70vh] max-w-full object-contain"
+                />
+              ) : objectUrl && isPdf ? (
+                <iframe
+                  title={media.name || "Document preview"}
+                  src={objectUrl}
+                  className="h-[70vh] w-full rounded-md bg-background"
+                />
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" onClick={() => void downloadFile()}>
+                <Download aria-hidden className="size-4" />
+                Download
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   );
 }
