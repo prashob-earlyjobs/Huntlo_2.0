@@ -27,6 +27,13 @@ type HcgWhatsappConversationLean = {
   updatedAt?: Date;
 };
 
+export type HcgWhatsappQuestionMedia = {
+  kind: string;
+  name: string;
+  mimeType: string | null;
+  url: string;
+};
+
 export type HcgWhatsappQuestionView = {
   id: string;
   question: string;
@@ -34,6 +41,7 @@ export type HcgWhatsappQuestionView = {
   answer: string;
   status: string;
   description: string;
+  media?: HcgWhatsappQuestionMedia | null;
 };
 
 export type HcgWhatsappQuestionColumn = {
@@ -190,11 +198,19 @@ export function hcgWhatsappLastPreview(doc: HcgWhatsappConversationLean): {
   };
 }
 
-function hcgWhatsappImageAttachment(msg: HcgWhatsappConversationMessage) {
+function hcgWhatsappMediaAttachment(msg: HcgWhatsappConversationMessage) {
   const type = String(msg.type || '').toLowerCase();
   const mediaPath = String(msg.mediaPath || '').trim();
-  if (type !== 'image' || !mediaPath) return [];
-  let name = 'image.jpg';
+  if (!mediaPath) return [];
+  if (!['image', 'document', 'video', 'audio'].includes(type)) return [];
+  let name =
+    type === 'image'
+      ? 'image.jpg'
+      : type === 'document'
+        ? 'document'
+        : type === 'video'
+          ? 'video.mp4'
+          : 'audio';
   try {
     const last = new URL(mediaPath).pathname.split('/').filter(Boolean).at(-1);
     name = decodeURIComponent(last || '') || name;
@@ -202,15 +218,62 @@ function hcgWhatsappImageAttachment(msg: HcgWhatsappConversationMessage) {
     const last = mediaPath.split('?')[0]?.split('/').filter(Boolean).at(-1);
     name = decodeURIComponent(last || '') || name;
   }
+  const bodyName = messageText(msg);
+  if (
+    bodyName &&
+    bodyName.length <= 180 &&
+    !bodyName.includes('\n') &&
+    /\.[a-z0-9]{2,8}$/i.test(bodyName)
+  ) {
+    name = bodyName;
+  }
   return [
     {
       name,
       size: '',
       url: mediaPath,
-      mimeType: String(msg.mimeType || 'image/jpeg'),
-      kind: 'image' as const,
+      mimeType: String(
+        msg.mimeType ||
+          (type === 'image'
+            ? 'image/jpeg'
+            : type === 'video'
+              ? 'video/mp4'
+              : type === 'audio'
+                ? 'audio/ogg'
+                : 'application/octet-stream')
+      ),
+      kind: type as 'image' | 'document' | 'video' | 'audio',
     },
   ];
+}
+
+function looksLikeMediaPlaceholder(value: string): boolean {
+  const text = String(value || '').trim();
+  return (
+    /^\[image\]$/i.test(text) ||
+    /^\[audio\]$/i.test(text) ||
+    /^\[video\]$/i.test(text) ||
+    /^\[document(?::[^\]]*)?\]$/i.test(text) ||
+    /^\[file\]$/i.test(text)
+  );
+}
+
+function inboundWhatsappMediaPool(
+  doc: HcgWhatsappConversationLean
+): HcgWhatsappQuestionMedia[] {
+  const pool: HcgWhatsappQuestionMedia[] = [];
+  for (const msg of sortedMessages(doc)) {
+    if (msg.direction !== 'inbound') continue;
+    for (const attachment of hcgWhatsappMediaAttachment(msg)) {
+      pool.push({
+        kind: attachment.kind,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        url: attachment.url,
+      });
+    }
+  }
+  return pool;
 }
 
 export function hcgWhatsappMessagesToEvents(
@@ -221,7 +284,7 @@ export function hcgWhatsappMessagesToEvents(
     const inbound = msg.direction === 'inbound';
     const at = messageDate(msg);
     const text = messageText(msg);
-    const attachments = hcgWhatsappImageAttachment(msg);
+    const attachments = hcgWhatsappMediaAttachment(msg);
     return {
       id: msg.messageId || `hcg-whatsapp-${index}`,
       channel: 'WhatsApp',
@@ -355,19 +418,29 @@ export async function overlayHcgWhatsappOnListItems(
 }
 
 function mapHcgWhatsappQuestions(
-  questions?: HcgWhatsappConversationLean['questions']
+  questions?: HcgWhatsappConversationLean['questions'],
+  doc?: HcgWhatsappConversationLean
 ): HcgWhatsappQuestionView[] {
+  const mediaPool = doc ? inboundWhatsappMediaPool(doc) : [];
+  let mediaIndex = 0;
   return (questions || [])
     .map((raw, index) => {
       const question = String(raw?.question || '').trim();
       const id = String(raw?.id || '').trim() || (question ? `q-${index}` : '');
+      const answer = raw?.answer == null ? '' : String(raw.answer).trim();
+      let media: HcgWhatsappQuestionMedia | null = null;
+      if (looksLikeMediaPlaceholder(answer) && mediaIndex < mediaPool.length) {
+        media = mediaPool[mediaIndex] || null;
+        mediaIndex += 1;
+      }
       return {
         id,
         question,
         asked: Boolean(raw?.asked),
-        answer: raw?.answer == null ? '' : String(raw.answer).trim(),
+        answer,
         status: String(raw?.status || 'unanswered').trim() || 'unanswered',
         description: String(raw?.description || '').trim(),
+        media,
       };
     })
     .filter((row) => row.id || row.question);
@@ -378,7 +451,7 @@ function collectHcgWhatsappQuestionColumns(
 ): HcgWhatsappQuestionColumn[] {
   const seen = new Map<string, HcgWhatsappQuestionColumn>();
   for (const doc of docs) {
-    for (const question of mapHcgWhatsappQuestions(doc.questions)) {
+    for (const question of mapHcgWhatsappQuestions(doc.questions, doc)) {
       const id = question.id || question.question;
       if (!id || seen.has(id)) continue;
       const title = question.question || question.id;
@@ -411,12 +484,14 @@ export async function overlayHcgWhatsappOverallAiStatus(
       (row) => campaignIdOf(row) === cid && docTouchesPhone(row, phone)
     );
     if (!doc) continue;
-    if (item.overallAIStatus) continue;
-    const label = formatHcgOverallAiStatus(doc.overallAIStatus);
-    if (label) item.overallAIStatus = label;
-    const description = String(doc.overallAIDescription || '').trim();
-    item.overallAIDescription = description || null;
-    item.gmailQuestions = mapHcgWhatsappQuestions(doc.questions);
+    if (!item.overallAIStatus) {
+      const label = formatHcgOverallAiStatus(doc.overallAIStatus);
+      if (label) item.overallAIStatus = label;
+      const description = String(doc.overallAIDescription || '').trim();
+      item.overallAIDescription = description || null;
+    }
+    // Always attach media-enriched Q&A so "[Image]" cells become openable links.
+    item.gmailQuestions = mapHcgWhatsappQuestions(doc.questions, doc);
   }
   return collectHcgWhatsappQuestionColumns(docs);
 }
