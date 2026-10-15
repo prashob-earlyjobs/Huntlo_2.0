@@ -290,6 +290,30 @@ function mediaKindLabel(media: ReportAnswerMedia): string {
   return "File";
 }
 
+function looksLikeMediaPlaceholder(value: string): boolean {
+  const text = String(value || "").trim();
+  return (
+    /^\[image\]$/i.test(text) ||
+    /^\[audio\]$/i.test(text) ||
+    /^\[video\]$/i.test(text) ||
+    /^\[document(?::[^\]]*)?\]$/i.test(text) ||
+    /^\[file\]$/i.test(text)
+  );
+}
+
+function mediaLinkLabel(media: ReportAnswerMedia): string {
+  const name = String(media.name || "").trim();
+  if (
+    name &&
+    !looksLikeMediaPlaceholder(name) &&
+    !/^attachment$/i.test(name) &&
+    !/^wamid\./i.test(name)
+  ) {
+    return name;
+  }
+  return mediaKindLabel(media);
+}
+
 function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
   const [open, setOpen] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -350,14 +374,16 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
   }
 
   if (!media?.url) {
+    const text = answer.text || "";
     return (
-      <span className={answer.text ? "text-foreground" : "text-muted-foreground"}>
-        {answer.text || "—"}
+      <span className={text ? "text-foreground" : "text-muted-foreground"}>
+        {text || "—"}
       </span>
     );
   }
 
   const label = mediaKindLabel(media);
+  const linkLabel = mediaLinkLabel(media);
   const isImage =
     media.kind.toLowerCase() === "image" ||
     String(media.mimeType || "").toLowerCase().startsWith("image/");
@@ -369,24 +395,21 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
 
   return (
     <>
-      <Button
+      <button
         type="button"
-        size="sm"
-        variant="ghost"
-        className="h-7 w-fit gap-1 px-2 text-xs text-muted-foreground"
+        className="inline-flex max-w-full cursor-pointer items-center gap-1 truncate font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
         title={
           canPreview
-            ? `Open ${media.name || label}`
-            : `Download ${media.name || label}`
+            ? `Open ${media.name || linkLabel}`
+            : `Download ${media.name || linkLabel}`
         }
         onClick={() => {
           if (canPreview) setOpen(true);
           else void downloadFile();
         }}
       >
-        <Eye aria-hidden className="size-3.5" />
-        View
-      </Button>
+        {linkLabel}
+      </button>
       {canPreview ? (
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-w-3xl gap-3">
@@ -394,7 +417,9 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
               <DialogTitle className="truncate">{media.name || label}</DialogTitle>
               <DialogDescription>
                 {label}
-                {answer.text && answer.text !== `[${label}]`
+                {answer.text &&
+                !looksLikeMediaPlaceholder(answer.text) &&
+                answer.text !== `[${label}]`
                   ? ` · ${answer.text}`
                   : ""}
               </DialogDescription>
@@ -1056,18 +1081,29 @@ function normalizeQuestionText(value?: string | null): string {
     .replace(/\s+/g, " ");
 }
 
+function findGmailQuestion(
+  enrollment: ApiCampaignEnrollment,
+  column: ReportColumn
+) {
+  const questions = enrollment.gmailQuestions || [];
+  return (
+    questions.find((row) => row.id === column.id) ||
+    questions.find(
+      (row) =>
+        normalizeQuestionText(row.question) ===
+          normalizeQuestionText(column.prompt) ||
+        normalizeQuestionText(row.question) ===
+          normalizeQuestionText(column.title)
+    ) ||
+    null
+  );
+}
+
 function gmailQuestionAnswer(
   enrollment: ApiCampaignEnrollment,
   column: ReportColumn
 ): string {
-  const questions = enrollment.gmailQuestions || [];
-  const match =
-    questions.find((row) => row.id === column.id) ||
-    questions.find(
-      (row) =>
-        normalizeQuestionText(row.question) === normalizeQuestionText(column.prompt) ||
-        normalizeQuestionText(row.question) === normalizeQuestionText(column.title)
-    );
+  const match = findGmailQuestion(enrollment, column);
   if (!match) return "";
   if (match.answer) return match.answer;
   if (match.status === "passed") return "Passed";
@@ -1080,16 +1116,49 @@ function gmailQuestionHint(
   enrollment: ApiCampaignEnrollment,
   column: ReportColumn
 ): string {
-  const questions = enrollment.gmailQuestions || [];
-  const match =
-    questions.find((row) => row.id === column.id) ||
-    questions.find(
-      (row) =>
-        normalizeQuestionText(row.question) === normalizeQuestionText(column.prompt) ||
-        normalizeQuestionText(row.question) === normalizeQuestionText(column.title)
-    );
+  const match = findGmailQuestion(enrollment, column);
   if (!match) return "";
   return [titleCase(match.status), match.description].filter(Boolean).join(" — ");
+}
+
+function parseGmailQuestionMedia(
+  match: NonNullable<ApiCampaignEnrollment["gmailQuestions"]>[number] | null
+): ReportAnswerMedia | null {
+  if (!match?.media?.url) return null;
+  return {
+    kind: String(match.media.kind || "file"),
+    name: String(match.media.name || match.answer || "attachment"),
+    mimeType: match.media.mimeType ? String(match.media.mimeType) : null,
+    url: String(match.media.url),
+  };
+}
+
+function findMediaInEnrollmentBags(
+  enrollment: ApiCampaignEnrollment,
+  preferredKey: string,
+  placeholderText: string
+): ReportAnswerMedia | null {
+  const bags = [
+    enrollment.qualificationState?.answers || {},
+    enrollment.hiringFlowState?.answers || {},
+  ];
+  for (const bag of bags) {
+    const direct = parseReportAnswer(bag[preferredKey]);
+    if (direct.media) return direct.media;
+  }
+  if (!looksLikeMediaPlaceholder(placeholderText)) return null;
+  for (const bag of bags) {
+    for (const entry of Object.values(bag)) {
+      const parsed = parseReportAnswer(entry);
+      if (
+        parsed.media &&
+        (looksLikeMediaPlaceholder(parsed.text) || !parsed.text)
+      ) {
+        return parsed.media;
+      }
+    }
+  }
+  return null;
 }
 
 function hiringFlowColumnsFromSteps(steps: ApiHiringFlowStep[]): ReportColumn[] {
@@ -1119,15 +1188,42 @@ function reportAnswer(
   column: ReportColumn
 ): ReportAnswerValue {
   if (column.source === "gmail") {
-    return { text: gmailQuestionAnswer(enrollment, column), media: null };
+    const match = findGmailQuestion(enrollment, column);
+    const text = gmailQuestionAnswer(enrollment, column);
+    const fromQuestion = parseGmailQuestionMedia(match);
+    if (fromQuestion) return { text, media: fromQuestion };
+    const fromBags = findMediaInEnrollmentBags(enrollment, column.id, text);
+    return { text, media: fromBags };
   }
-  const fromGmail = gmailQuestionAnswer(enrollment, column);
-  if (fromGmail) return { text: fromGmail, media: null };
   const bag =
     column.source === "hiring_flow"
       ? enrollment.hiringFlowState?.answers || {}
       : enrollment.qualificationState?.answers || {};
-  return parseReportAnswer(bag[column.id]);
+  const fromBag = parseReportAnswer(bag[column.id]);
+  const gmailMatch = findGmailQuestion(enrollment, column);
+  const fromGmail = gmailQuestionAnswer(enrollment, column);
+  // Prefer enrollment bag (may include media URLs). Don't let a bare
+  // HCG/Gmail "[Image]" placeholder wipe the attachment link.
+  if (fromBag.media) {
+    return {
+      text: fromBag.text || fromGmail,
+      media: fromBag.media,
+    };
+  }
+  const fromQuestion = parseGmailQuestionMedia(gmailMatch);
+  if (fromQuestion) {
+    return { text: fromGmail || fromBag.text, media: fromQuestion };
+  }
+  if (fromGmail) {
+    const fromBags = findMediaInEnrollmentBags(
+      enrollment,
+      column.id,
+      fromGmail
+    );
+    if (fromBags) return { text: fromGmail, media: fromBags };
+    return { text: fromGmail, media: null };
+  }
+  return fromBag;
 }
 
 const QUALIFICATION_PAGE_SIZE = 20;
