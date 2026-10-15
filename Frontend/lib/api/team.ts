@@ -209,7 +209,8 @@ export function mapApiMemberToUi(member: ApiTeamMember): TeamMember {
     lastLogin: member.lastLoginAt
       ? new Date(member.lastLoginAt).toLocaleString()
       : "—",
-    status: statusMap[member.status] ?? "Active",
+    status:
+      statusMap[String(member.status || "").toLowerCase()] ?? "Active",
     moduleAccess,
     usage: {
       searches: member.usage?.searches ?? 0,

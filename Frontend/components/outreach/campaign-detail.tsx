@@ -314,6 +314,10 @@ function mediaLinkLabel(media: ReportAnswerMedia): string {
   return mediaKindLabel(media);
 }
 
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(String(value || "").trim());
+}
+
 function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
   const [open, setOpen] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -375,6 +379,18 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
 
   if (!media?.url) {
     const text = answer.text || "";
+    if (isHttpUrl(text)) {
+      return (
+        <a
+          href={text}
+          target="_blank"
+          rel="noreferrer"
+          className="truncate font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {text}
+        </a>
+      );
+    }
     return (
       <span className={text ? "text-foreground" : "text-muted-foreground"}>
         {text || "—"}

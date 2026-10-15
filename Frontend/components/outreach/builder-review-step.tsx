@@ -209,7 +209,10 @@ export function ReviewStep({
             />
             <SummaryRow
               label="Qualification"
-              value={`${state.questions.length} questions · AI reply on`}
+              value={`${
+                state.questions.length +
+                (state.enabledChannels.includes("WhatsApp") && state.askResume ? 1 : 0)
+              } questions · AI reply on`}
             />
           </dl>
 

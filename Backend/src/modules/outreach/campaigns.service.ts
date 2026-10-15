@@ -42,7 +42,10 @@ import {
   sourcingSessionIdFromLabel,
 } from './campaign-launch-reveal.js';
 import { compileBuilderToCampaign } from './compile-builder.js';
-import { enrichEnrollmentRowsWithAnswerMedia } from './enrollment-answer-media.js';
+import {
+  enrichEnrollmentRowsWithAnswerMedia,
+  enrichGmailQuestionsWithAnswerMedia,
+} from './enrollment-answer-media.js';
 import {
   BullOutreachJobModel,
   cancelJobsForCampaign,
@@ -1682,6 +1685,14 @@ export const campaignsService = {
           answer: string;
           status: string;
           description: string;
+          media?: {
+            kind: string;
+            name: string;
+            mimeType: string | null;
+            url: string;
+            messageId: string;
+            attachmentIndex: number;
+          } | null;
         }>,
       };
     });
@@ -1709,6 +1720,12 @@ export const campaignsService = {
               : hunarQuestionColumns.length > 0
                 ? hunarQuestionColumns
                 : zyvkaQuestionColumns;
+
+    await enrichGmailQuestionsWithAnswerMedia({
+      organizationId,
+      campaignId: id,
+      items,
+    });
 
     return {
       items,

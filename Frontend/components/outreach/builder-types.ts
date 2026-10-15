@@ -66,6 +66,8 @@ export interface BuilderState {
   /** Modality for auto-start screening after qualify. Video UI is reserved / disabled. */
   autoScreeningModality: "voice" | "video";
   autoCalendly: boolean;
+  /** WhatsApp only. Appends a hardcoded resume question when the campaign is saved. */
+  askResume: boolean;
   autoWhatsAppAfterQualification: boolean;
   autoWhatsAppTemplateId: string | null;
   /** Templates hiring flow to run after qualification. */
@@ -287,6 +289,7 @@ export function initialBuilderState(): BuilderState {
     autoScreening: false,
     autoScreeningModality: "voice",
     autoCalendly: false,
+    askResume: false,
     autoWhatsAppAfterQualification: false,
     autoWhatsAppTemplateId:
       getDefaultPostQualificationWhatsAppTemplate()?.id ?? "resume_share",
