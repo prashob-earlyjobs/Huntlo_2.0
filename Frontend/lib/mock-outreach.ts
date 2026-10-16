@@ -622,6 +622,18 @@ export interface QualificationQuestion {
 
 export const MAX_QUALIFICATION_QUESTIONS = 10;
 
+/** Injected into the saved questions list when "Ask for resume" is on. */
+export const ASK_RESUME_QUESTION_ID = "ask-resume";
+
+export const ASK_RESUME_QUESTION = {
+  id: ASK_RESUME_QUESTION_ID,
+  title: "Resume",
+  prompt: "Please share your latest resume.",
+  answerType: "File",
+  knockout: false,
+  knockoutCondition: null,
+} as const;
+
 /** Derive a short heading from a full question prompt. */
 export function suggestQuestionTitle(prompt: string): string {
   let value = prompt.trim();

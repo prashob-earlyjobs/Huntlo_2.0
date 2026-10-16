@@ -311,7 +311,7 @@ export type ApiCampaignEnrollment = {
   overallAIStatus?: string | null;
   /** Gmail gateway `overallAIDescription` for the status tooltip. */
   overallAIDescription?: string | null;
-  /** Screening Q&A from `hcg_gmail_conversations.questions`. */
+  /** Screening Q&A from `hcg_gmail_conversations.questions` (also used for WhatsApp HCG). */
   gmailQuestions?: Array<{
     id: string;
     question: string;
@@ -319,6 +319,14 @@ export type ApiCampaignEnrollment = {
     answer: string;
     status: string;
     description: string;
+    media?: {
+      kind: string;
+      name: string;
+      mimeType?: string | null;
+      url: string;
+      messageId?: string;
+      attachmentIndex?: number;
+    } | null;
   }>;
 };
 
