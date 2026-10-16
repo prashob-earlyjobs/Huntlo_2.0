@@ -6,7 +6,10 @@ import {
 } from '../modules/outreach/campaign.model.js';
 import { ScreeningModel, screeningService } from '../modules/screening/index.js';
 import { OutreachEnrollmentModel } from '../modules/outreach/enrollment.model.js';
-import { campaignsService } from '../modules/outreach/campaigns.service.js';
+import {
+  campaignsService,
+  enrollmentAlreadyContacted,
+} from '../modules/outreach/campaigns.service.js';
 import { conversationsService } from '../modules/conversations/conversations.service.js';
 import { ConversationMessageModel } from '../modules/conversations/conversation-message.model.js';
 import type { ConversationChannel } from '../modules/conversations/conversation-thread.model.js';
@@ -235,10 +238,16 @@ async function runSendOrFollowup(mongoJobId: string) {
         };
         job.markModified('details');
 
-        await OutreachCampaignModel.updateOne(
-          { _id: campaign._id },
-          { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }
+        const alreadyContacted = await enrollmentAlreadyContacted(
+          String(campaign._id),
+          String(enrollment._id)
         );
+        if (!alreadyContacted) {
+          await OutreachCampaignModel.updateOne(
+            { _id: campaign._id },
+            { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }
+          );
+        }
       } else {
         job.details = {
           ...(job.details || {}),

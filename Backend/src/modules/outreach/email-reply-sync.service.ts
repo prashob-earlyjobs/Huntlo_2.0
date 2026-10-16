@@ -1,7 +1,8 @@
 /**
  * Syncs candidate email replies.
  * Gmail: Pub/Sub push (history.list) when GMAIL_PUBSUB_TOPIC is set; otherwise poll.
- * Outlook / Zoho / SMTP: still polled.
+ * Outlook: Graph inbox subscription when a public HTTPS notification URL is set; otherwise polled.
+ * Zoho / SMTP: still polled.
  */
 
 import { getLogger } from '../../config/logger.js';
@@ -477,6 +478,18 @@ async function syncOneIntegration(input: {
   return 0;
 }
 
+/** Inbox pull for one Outlook mailbox after a Graph change notification. */
+export async function syncOutlookMailboxFromPush(
+  organizationId: string,
+  integrationId: string
+): Promise<number> {
+  return syncOneIntegration({
+    organizationId,
+    integrationId,
+    limit: replySyncBatchSize(),
+  });
+}
+
 /** Sync replies for one organisation's connected email mailboxes used by active campaigns. */
 export async function syncEmailRepliesForOrganization(
   organizationId: string,
@@ -542,6 +555,13 @@ export async function syncEmailReplies(limit?: number): Promise<number> {
       logger().warn({ err: error }, 'Gmail watch renew failed');
     });
   }
+
+  const { renewExpiringOutlookSubscriptions } = await import(
+    './outlook-subscription.service.js'
+  );
+  await renewExpiringOutlookSubscriptions().catch((error) => {
+    logger().warn({ err: error }, 'Outlook subscription renew failed');
+  });
 
   let synced = 0;
   for (const orgId of orgIds.slice(0, 25)) {

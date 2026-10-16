@@ -237,7 +237,7 @@ export type ApplyHuntlo360FromHcgInput = {
   phone?: string | null;
   /** Prefer when known (conversation thread catch-up) — skips email/phone lookup. */
   enrollmentId?: string | null;
-  source: 'gmail' | 'zoho' | 'whatsapp' | 'hunar' | 'zyvkay' | 'sync';
+  source: 'gmail' | 'zoho' | 'outlook' | 'whatsapp' | 'hunar' | 'zyvkay' | 'sync';
 };
 
 /** Email gateway sometimes leaves overallAIStatus as interested after all Q&A pass. */
@@ -254,13 +254,19 @@ async function hcgEmailQuestionsAllPassed(
   const { findHcgZohoConversation } = await import(
     '../conversations/hcg-zoho-overlay.js'
   );
+  const { findHcgOutlookConversation } = await import(
+    '../conversations/hcg-outlook-overlay.js'
+  );
   const gmail = await findHcgGmailConversation(campaignId, normalized);
   const zoho = gmail ? null : await findHcgZohoConversation(campaignId, normalized);
+  const outlook = gmail || zoho ? null : await findHcgOutlookConversation(campaignId, normalized);
   const questions = Array.isArray(gmail?.questions)
     ? gmail.questions
     : Array.isArray(zoho?.questions)
       ? zoho.questions
-      : [];
+      : Array.isArray(outlook?.questions)
+        ? outlook.questions
+        : [];
   if (!questions.length) return false;
   return questions.every(
     (q) => String((q as { status?: string }).status || '').toLowerCase() === 'passed'
@@ -401,7 +407,7 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
   // Email Q&A can finish while overallAIStatus stays in_qualification / interested.
   if (
     !event &&
-    (input.source === 'gmail' || input.source === 'zoho') &&
+    (input.source === 'gmail' || input.source === 'zoho' || input.source === 'outlook') &&
     emailEarly &&
     String(input.campaignId || '').trim()
   ) {
@@ -491,7 +497,7 @@ export async function applyHuntlo360FromHcgOverallAiStatus(
       !alreadyScreening &&
       Boolean(campaign.qualificationConfig?.autoScreening) &&
       !campaign.schedulingConfig?.enabled &&
-      (input.source === 'gmail' || input.source === 'zoho') &&
+      (input.source === 'gmail' || input.source === 'zoho' || input.source === 'outlook') &&
       email &&
       event === 'qualification_pass'
     ) {

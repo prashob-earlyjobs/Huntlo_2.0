@@ -352,6 +352,47 @@ export function emitHcgZohoUpdated(payload: HcgZohoUpdatedPayload): void {
   }
 }
 
+export type HcgOutlookUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  outlookThreadId: string | null;
+  email?: string | null;
+  overallAIStatus: string | null;
+  messageCount: number;
+  questionCount: number;
+  reasons: Array<'message' | 'status' | 'questions' | 'upsert'>;
+  userId?: string;
+};
+
+export function emitHcgOutlookUpdated(payload: HcgOutlookUpdatedPayload): void {
+  const event = {
+    ...payload,
+    timestamp: new Date().toISOString(),
+  };
+  emitRealtime('hcg.outlook.updated', event, orgTarget(payload.organizationId, payload.userId));
+  emitCampaignThreadUpdated({
+    organizationId: payload.organizationId,
+    campaignId: payload.campaignId,
+    threadId: payload.outlookThreadId || payload.campaignId,
+    status: 'open',
+    unreadCount: 0,
+    qualificationStatus: 'pending',
+    userId: payload.userId,
+  });
+  if (payload.reasons.includes('message') || payload.reasons.includes('upsert')) {
+    emitConversationMessageCreated({
+      organizationId: payload.organizationId,
+      threadId: payload.outlookThreadId || payload.campaignId,
+      messageId: `hcg-outlook-${payload.outlookThreadId || payload.campaignId}-${payload.messageCount}`,
+      campaignId: payload.campaignId,
+      candidateId: '',
+      direction: 'inbound',
+      channel: 'email',
+      userId: payload.userId,
+    });
+  }
+}
+
 export type HcgWhatsappUpdatedPayload = {
   organizationId: string;
   campaignId: string;

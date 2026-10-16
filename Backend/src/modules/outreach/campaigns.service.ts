@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 
 import { overlayHcgGmailOverallAiStatus, countHcgGmailOverviewStats } from '../conversations/hcg-gmail-overlay.js';
 import { overlayHcgZohoOverallAiStatus, countHcgZohoOverviewStats } from '../conversations/hcg-zoho-overlay.js';
+import { overlayHcgOutlookOverallAiStatus, countHcgOutlookOverviewStats } from '../conversations/hcg-outlook-overlay.js';
 import { overlayHcgWhatsappOverallAiStatus, countHcgWhatsappOverviewStats } from '../conversations/hcg-whatsapp-overlay.js';
 import { overlayHcgHunarOverallAiStatus, countHcgHunarOverviewStats } from '../conversations/hcg-hunar-overlay.js';
 import { overlayHcgZyvkaOverallAiStatus, countHcgZyvkaOverviewStats } from '../conversations/hcg-zyvka-overlay.js';
@@ -258,6 +259,56 @@ async function jobTitle(jobId: mongoose.Types.ObjectId | null): Promise<string |
   return job?.title ? String(job.title) : null;
 }
 
+/** People, not message rows. Empty ids are ignored. */
+export function uniqueIdCount(ids: Iterable<unknown>): number {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (id == null) continue;
+    const value = String(id).trim();
+    if (!value || value === 'null' || value === 'undefined') continue;
+    seen.add(value);
+  }
+  return seen.size;
+}
+
+function sentOutreachJobQuery(
+  campaignId: mongoose.Types.ObjectId,
+  enrollmentId?: mongoose.Types.ObjectId
+) {
+  return {
+    campaignId,
+    ...(enrollmentId ? { enrollmentId } : {}),
+    status: 'done' as const,
+    kind: { $in: ['send', 'followup'] as const },
+    $or: [
+      { 'details.delivery': 'sent' },
+      {
+        channel: { $in: ['email', 'whatsapp', 'ai_voice'] },
+        'details.delivery': { $exists: false },
+      },
+    ],
+  };
+}
+
+/** True once this enrollment already has a successful first send. Follow-ups should not recount them. */
+export async function enrollmentAlreadyContacted(
+  campaignId: string,
+  enrollmentId: string
+): Promise<boolean> {
+  const campaignOid = new mongoose.Types.ObjectId(campaignId);
+  const enrollmentOid = new mongoose.Types.ObjectId(enrollmentId);
+  const [legacy, bull] = await Promise.all([
+    CampaignJobModel.exists({
+      campaignId: campaignOid,
+      enrollmentId: enrollmentOid,
+      status: 'succeeded',
+      'result.delivery': 'sent',
+    }),
+    BullOutreachJobModel.exists(sentOutreachJobQuery(campaignOid, enrollmentOid)),
+  ]);
+  return Boolean(legacy || bull);
+}
+
 function recomputeStatsFromCounts(counts: Record<string, number>) {
   const stats = defaultStats();
   stats.enrolled = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -345,6 +396,7 @@ export async function refreshCampaignStats(campaignId: string) {
 
   const hcgStats = await countHcgGmailOverviewStats(campaignId);
   const hcgZohoStats = await countHcgZohoOverviewStats(campaignId);
+  const hcgOutlookStats = await countHcgOutlookOverviewStats(campaignId);
   const hcgWaStats = await countHcgWhatsappOverviewStats(campaignId);
   const hcgHunarStats = await countHcgHunarOverviewStats(campaignId);
   const hcgZyvkaStats = await countHcgZyvkaOverviewStats(campaignId);
@@ -352,6 +404,7 @@ export async function refreshCampaignStats(campaignId: string) {
     stats.replies,
     hcgStats.replies,
     hcgZohoStats.replies,
+    hcgOutlookStats.replies,
     hcgWaStats.replies,
     hcgHunarStats.replies,
     hcgZyvkaStats.replies
@@ -360,6 +413,7 @@ export async function refreshCampaignStats(campaignId: string) {
     stats.interested,
     hcgStats.interested,
     hcgZohoStats.interested,
+    hcgOutlookStats.interested,
     hcgWaStats.interested,
     hcgHunarStats.interested,
     hcgZyvkaStats.interested
@@ -368,36 +422,24 @@ export async function refreshCampaignStats(campaignId: string) {
     stats.qualified,
     hcgStats.qualified,
     hcgZohoStats.qualified,
+    hcgOutlookStats.qualified,
     hcgWaStats.qualified,
     hcgHunarStats.qualified,
     hcgZyvkaStats.qualified
   );
 
-  // Succeeded send jobs are the source of truth for Contacted/Delivered.
-  // (Nested Mixed `stats.sent++` was often not persisted by Mongoose.)
-  // Count both legacy CampaignJob rows and BullMQ outreach jobs — get() refreshes
-  // from this, so Bull-only voice/email sends were previously wiped back to 0.
-  const [legacySent, bullSent] = await Promise.all([
-    CampaignJobModel.countDocuments({
+  // Contacted and Delivered are people, not messages. A follow-up to the same
+  // enrollment must not add another contact. Count distinct enrollments across
+  // legacy CampaignJob rows and BullMQ send/follow-up jobs.
+  const [legacyEnrollmentIds, bullEnrollmentIds] = await Promise.all([
+    CampaignJobModel.distinct('enrollmentId', {
       campaignId: oid,
       status: 'succeeded',
       'result.delivery': 'sent',
     }),
-    BullOutreachJobModel.countDocuments({
-      campaignId: oid,
-      status: 'done',
-      kind: { $in: ['send', 'followup'] },
-      $or: [
-        { 'details.delivery': 'sent' },
-        // Backfill: jobs completed before details.delivery was stamped.
-        {
-          channel: { $in: ['email', 'whatsapp', 'ai_voice'] },
-          'details.delivery': { $exists: false },
-        },
-      ],
-    }),
+    BullOutreachJobModel.distinct('enrollmentId', sentOutreachJobQuery(oid)),
   ]);
-  const sentCount = legacySent + bullSent;
+  const sentCount = uniqueIdCount([...legacyEnrollmentIds, ...bullEnrollmentIds]);
   stats.sent = sentCount;
   stats.delivered = sentCount;
 
@@ -1698,28 +1740,36 @@ export const campaignsService = {
     });
     const emailVendor = await resolveCampaignEmailVendor(id);
     const gmailQuestionColumns =
-      emailVendor === 'zoho-mail'
+      emailVendor === 'zoho-mail' || emailVendor === 'outlook'
         ? []
         : await overlayHcgGmailOverallAiStatus(id, items);
     const zohoQuestionColumns =
-      emailVendor === 'gmail'
+      emailVendor === 'gmail' || emailVendor === 'outlook'
         ? []
         : await overlayHcgZohoOverallAiStatus(id, items);
+    const outlookQuestionColumns =
+      emailVendor === 'gmail' || emailVendor === 'zoho-mail'
+        ? []
+        : await overlayHcgOutlookOverallAiStatus(id, items);
     const whatsappQuestionColumns = await overlayHcgWhatsappOverallAiStatus(id, items);
     const hunarQuestionColumns = await overlayHcgHunarOverallAiStatus(id, items);
     const zyvkaQuestionColumns = await overlayHcgZyvkaOverallAiStatus(id, items);
     const questionColumns =
-      emailVendor === 'zoho-mail' && zohoQuestionColumns.length > 0
-        ? zohoQuestionColumns
-        : gmailQuestionColumns.length > 0
-          ? gmailQuestionColumns
-          : zohoQuestionColumns.length > 0
-            ? zohoQuestionColumns
-            : whatsappQuestionColumns.length > 0
-              ? whatsappQuestionColumns
-              : hunarQuestionColumns.length > 0
-                ? hunarQuestionColumns
-                : zyvkaQuestionColumns;
+      emailVendor === 'outlook' && outlookQuestionColumns.length > 0
+        ? outlookQuestionColumns
+        : emailVendor === 'zoho-mail' && zohoQuestionColumns.length > 0
+          ? zohoQuestionColumns
+          : gmailQuestionColumns.length > 0
+            ? gmailQuestionColumns
+            : zohoQuestionColumns.length > 0
+              ? zohoQuestionColumns
+              : outlookQuestionColumns.length > 0
+                ? outlookQuestionColumns
+                : whatsappQuestionColumns.length > 0
+                  ? whatsappQuestionColumns
+                  : hunarQuestionColumns.length > 0
+                    ? hunarQuestionColumns
+                    : zyvkaQuestionColumns;
 
     await enrichGmailQuestionsWithAnswerMedia({
       organizationId,
