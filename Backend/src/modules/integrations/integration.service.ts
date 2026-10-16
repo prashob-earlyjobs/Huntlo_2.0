@@ -635,6 +635,12 @@ export const integrationsService = {
         const { ensureGmailWatch } = await import('../outreach/email-reply-sync.service.js');
         await ensureGmailWatch(organizationId, String(doc._id)).catch(() => undefined);
       }
+      if (provider === 'outlook') {
+        const { ensureOutlookSubscription } = await import(
+          '../outreach/outlook-subscription.service.js'
+        );
+        await ensureOutlookSubscription(organizationId, String(doc._id));
+      }
       await audit('integration.connect', organizationId, userId, {
         provider,
         integrationId: String(doc._id),
@@ -805,6 +811,12 @@ export const integrationsService = {
       if (provider === 'gmail') {
         const { ensureGmailWatch } = await import('../outreach/email-reply-sync.service.js');
         await ensureGmailWatch(ownerOrgId, String(doc._id)).catch(() => undefined);
+      }
+      if (provider === 'outlook') {
+        const { ensureOutlookSubscription } = await import(
+          '../outreach/outlook-subscription.service.js'
+        );
+        await ensureOutlookSubscription(ownerOrgId, String(doc._id));
       }
       await audit('integration.oauth_callback', ownerOrgId, ownerUserId, {
         provider,
@@ -990,6 +1002,25 @@ export const integrationsService = {
     const wasDefault = doc.isDefault;
     const category = doc.category;
     const provider = doc.provider;
+
+    if (provider === 'outlook') {
+      const accessToken = await integrationsService
+        .ensureFreshAccessToken(organizationId, id)
+        .catch(() => null);
+      const { deleteOutlookSubscriptionForIntegration } = await import(
+        '../outreach/outlook-subscription.service.js'
+      );
+      await deleteOutlookSubscriptionForIntegration({
+        accessToken,
+        config: (doc.config || {}) as Record<string, unknown>,
+      });
+      const config = { ...((doc.config || {}) as Record<string, unknown>) };
+      delete config.outlookSubscriptionId;
+      delete config.outlookSubscriptionExpiration;
+      delete config.outlookWebhookSecret;
+      doc.config = config;
+      doc.markModified('config');
+    }
 
     doc.encryptedAccessToken = null;
     doc.encryptedRefreshToken = null;

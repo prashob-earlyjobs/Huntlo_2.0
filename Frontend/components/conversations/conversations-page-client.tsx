@@ -151,6 +151,7 @@ export function ConversationsPageClient() {
     [
       "hcg.gmail.updated",
       "hcg.zoho.updated",
+      "hcg.outlook.updated",
       "hcg.whatsapp.updated",
       "hcg.hunar.updated",
       "hcg.zyvkay.updated",

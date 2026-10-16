@@ -1,41 +1,57 @@
-/** Send email via Microsoft Graph. */
+/** Outlook outreach sends through the communication gateway. The gateway loads the mailbox token from `from`. */
 
-export async function sendOutlookMail(input: {
-  accessToken: string;
+export async function sendOutlookViaGateway(input: {
   to: string;
+  from: string;
   subject: string;
-  text?: string;
-  html?: string;
-}): Promise<{ messageId?: string }> {
-  const contentType = input.html ? 'HTML' : 'Text';
-  const content = input.html || input.text || '';
+  html: string;
+  campaignId?: string | null;
+  prompt?: string | null;
+  autoReply?: boolean;
+  threadId?: string | null;
+}): Promise<{ messageId?: string; threadId?: string }> {
+  const base = String(process.env.COMMUNICATION_GATEWAY_URL || 'http://localhost:5055/api/v1')
+    .trim()
+    .replace(/\/$/, '');
+  const url = `${base}/messages/send${input.autoReply === false ? '' : '?autoReply=true'}`;
 
-  const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${input.accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: {
-        subject: input.subject,
-        body: { contentType, content },
-        toRecipients: [{ emailAddress: { address: input.to } }],
-      },
-      saveToSentItems: true,
+      type: 'email',
+      vendor: 'outlook',
+      to: input.to,
+      from: input.from,
+      subject: input.subject,
+      html: input.html,
+      ...(input.campaignId ? { campaignId: input.campaignId } : {}),
+      ...(input.prompt ? { prompt: input.prompt } : {}),
+      ...(input.threadId ? { threadId: input.threadId } : {}),
     }),
   });
 
+  const data = (await res.json().catch(() => ({}))) as {
+    id?: string;
+    messageId?: string;
+    threadId?: string;
+    message?: string;
+    error?: string | { message?: string };
+    data?: { id?: string; messageId?: string; threadId?: string };
+  };
   if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as {
-      error?: { message?: string };
-    };
-    throw Object.assign(
-      new Error(data.error?.message || `Outlook send failed (${res.status})`),
-      { statusCode: res.status >= 400 && res.status < 600 ? res.status : 502 }
-    );
+    const errorMessage =
+      (typeof data.error === 'string' && data.error) ||
+      (typeof data.error === 'object' && data.error?.message) ||
+      data.message ||
+      `Outlook gateway send failed (${res.status})`;
+    throw Object.assign(new Error(errorMessage), {
+      statusCode: res.status >= 400 && res.status < 600 ? res.status : 502,
+    });
   }
 
-  // Graph sendMail returns 202 with empty body
-  return {};
+  return {
+    messageId: data.data?.id || data.data?.messageId || data.id || data.messageId,
+    threadId: data.data?.threadId || data.threadId,
+  };
 }

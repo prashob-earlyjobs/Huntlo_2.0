@@ -30,7 +30,7 @@ import {
   findApprovedMetaTemplate,
 } from '../../providers/meta-whatsapp/meta.templates.js';
 import { stampWhatsAppOutboundRoute } from '../webhooks/whatsapp-outbound-route.service.js';
-import { sendOutlookMail } from '../../providers/outlook/outlook.send.js';
+import { sendOutlookViaGateway } from '../../providers/outlook/outlook.send.js';
 import { refreshOutlookAccessToken } from '../../providers/outlook/outlook.oauth.js';
 import {
   sendSmtpMail,
@@ -76,6 +76,10 @@ import {
   findHcgZohoConversation,
   hcgZohoShouldStopSequence,
 } from '../conversations/hcg-zoho-overlay.js';
+import {
+  findHcgOutlookConversation,
+  hcgOutlookShouldStopSequence,
+} from '../conversations/hcg-outlook-overlay.js';
 import { HcgWhatsappConversationModel } from '../communication-gateway/models/hcg-whatsapp-conversation.model.js';
 import {
   findHcgWhatsappConversation,
@@ -349,6 +353,8 @@ export async function enrollmentHasLiveGatewayReply(input: {
     if (hcgGmailShouldStopSequence(gmail)) return true;
     const zoho = await findHcgZohoConversation(input.campaignId, email);
     if (hcgZohoShouldStopSequence(zoho)) return true;
+    const outlook = await findHcgOutlookConversation(input.campaignId, email);
+    if (hcgOutlookShouldStopSequence(outlook)) return true;
   }
   if (phone) {
     const wa = await findHcgWhatsappConversation(input.campaignId, phone);
@@ -665,13 +671,30 @@ async function sendEmailViaIntegration(input: {
   }
 
   if (secrets.provider === 'outlook') {
-    const result = await sendOutlookMail({
-      accessToken,
+    const from = String(input.fromOverride || secrets.email || '').trim();
+    if (!from) {
+      throw Object.assign(new Error('Outlook from address is missing.'), { statusCode: 400 });
+    }
+    const html = /<[a-z][\s\S]*>/i.test(text)
+      ? text
+      : `<p>${text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>')}</p>`;
+    const result = await sendOutlookViaGateway({
       to: input.to,
+      from,
       subject,
-      text,
+      html,
+      autoReply: false,
+      threadId: input.providerThreadId,
     });
-    return { messageId: result.messageId, provider: 'outlook' };
+    return {
+      messageId: result.messageId,
+      providerThreadId: result.threadId || input.providerThreadId || undefined,
+      provider: 'outlook',
+    };
   }
 
   if (secrets.provider === 'zoho-mail') {
@@ -1492,6 +1515,64 @@ export async function executeCampaignMessageStep(input: {
           messageId: result.messageId,
           providerThreadId: result.threadId || threadId || undefined,
           provider: 'gmail',
+        };
+      } else if (integration.secrets.provider === 'outlook') {
+        const from = String(
+          campaign.channelConfig.email?.senderEmail || integration.secrets.email || ''
+        ).trim();
+        if (!from) {
+          throw Object.assign(new Error('Outlook from address is missing.'), { statusCode: 400 });
+        }
+
+        const html = /<[a-z][\s\S]*>/i.test(renderedBody)
+          ? renderedBody
+          : `<p>${renderedBody
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\n/g, '<br>')}</p>`;
+
+        const followUp = isFollowUpEmailSequenceStep(campaign, step);
+        const prompt = followUp
+          ? null
+          : await buildSequenceGatewayPrompt({
+              campaign,
+              candidate,
+              email,
+              organizationId,
+              userId,
+              channel: 'email',
+            });
+
+        let threadId: string | null = null;
+        if (followUp) {
+          const threading = await resolveSequenceEmailThreading({
+            organizationId,
+            enrollmentId: String(enrollment._id),
+            fallbackSubject: renderedSubject,
+          });
+          subjectOut = threading.providerThreadId
+            ? threading.subject
+            : withUniqueZohoSubject(renderedSubject, String(enrollment._id));
+          threadId = threading.providerThreadId;
+        } else {
+          subjectOut = withUniqueZohoSubject(renderedSubject, String(enrollment._id));
+        }
+
+        const result = await sendOutlookViaGateway({
+          to: email,
+          from,
+          subject: subjectOut,
+          html,
+          campaignId: String(campaign._id),
+          prompt: followUp ? null : prompt,
+          autoReply: followUp ? false : Boolean(prompt),
+          threadId,
+        });
+        sent = {
+          messageId: result.messageId,
+          providerThreadId: result.threadId || threadId || undefined,
+          provider: 'outlook',
         };
       } else if (
         integration.secrets.provider === 'zoho-mail' &&
