@@ -247,6 +247,17 @@ function attachmentApiPath(url: string): string {
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
+/** Public media (for example a stored WhatsApp file) can be shown directly. */
+function isDirectMediaUrl(url: string): boolean {
+  const trimmed = String(url || "").trim();
+  if (!/^https?:\/\//i.test(trimmed)) return false;
+  try {
+    return !new URL(trimmed).pathname.includes("/api/v1/");
+  } catch {
+    return false;
+  }
+}
+
 function formatQualificationAnswer(entry: unknown): string {
   if (entry == null) return "";
   if (
@@ -327,6 +338,12 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
 
   useEffect(() => {
     if (!open || !media?.url) return;
+    if (isDirectMediaUrl(media.url)) {
+      setLoading(false);
+      setFailed(false);
+      setObjectUrl(media.url);
+      return;
+    }
     let cancelled = false;
     const path = attachmentApiPath(media.url);
     setLoading(true);
@@ -336,7 +353,15 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
       .download(path)
       .then((downloaded) => {
         if (cancelled) return;
-        const href = URL.createObjectURL(downloaded.blob);
+        let blob = downloaded.blob;
+        const preferred = String(media.mimeType || "").trim();
+        if (
+          preferred &&
+          (!blob.type || blob.type === "application/octet-stream")
+        ) {
+          blob = new Blob([blob], { type: preferred });
+        }
+        const href = URL.createObjectURL(blob);
         setObjectUrl(href);
         setLoading(false);
       })
@@ -348,19 +373,34 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
     return () => {
       cancelled = true;
       setObjectUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
+        if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
         return null;
       });
     };
-  }, [open, media?.url]);
+  }, [open, media?.url, media?.mimeType]);
 
   async function downloadFile() {
     if (!media?.url) return;
-    if (objectUrl) {
+    if (objectUrl?.startsWith("blob:")) {
       const a = document.createElement("a");
       a.href = objectUrl;
       a.download = media.name || "attachment";
       a.click();
+      return;
+    }
+    if (isDirectMediaUrl(media.url)) {
+      try {
+        const response = await fetch(media.url);
+        if (!response.ok) throw new Error("download failed");
+        const href = URL.createObjectURL(await response.blob());
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = media.name || "attachment";
+        a.click();
+        URL.revokeObjectURL(href);
+      } catch {
+        window.open(media.url, "_blank", "noopener,noreferrer");
+      }
       return;
     }
     const path = attachmentApiPath(media.url);
@@ -400,6 +440,7 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
 
   const label = mediaKindLabel(media);
   const linkLabel = mediaLinkLabel(media);
+  const showFileName = linkLabel === String(media.name || "").trim();
   const isImage =
     media.kind.toLowerCase() === "image" ||
     String(media.mimeType || "").toLowerCase().startsWith("image/");
@@ -428,10 +469,12 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
       </button>
       {canPreview ? (
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-w-3xl gap-3">
-            <DialogHeader>
-              <DialogTitle className="truncate">{media.name || label}</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-full flex-col gap-3 overflow-hidden sm:max-w-3xl">
+            <DialogHeader className="min-w-0 shrink-0 pr-8">
+              <DialogTitle className={cn("truncate", !showFileName && "sr-only")}>
+                {showFileName ? media.name : label}
+              </DialogTitle>
+              <DialogDescription className="truncate">
                 {label}
                 {answer.text &&
                 !looksLikeMediaPlaceholder(answer.text) &&
@@ -440,7 +483,7 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
                   : ""}
               </DialogDescription>
             </DialogHeader>
-            <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-lg border border-border bg-muted/30 p-2">
               {loading ? (
                 <span className="text-sm text-muted-foreground">Loading…</span>
               ) : failed ? (
@@ -452,17 +495,18 @@ function ReportAnswerCell({ answer }: { answer: ReportAnswerValue }) {
                 <img
                   src={objectUrl}
                   alt={media.name || "Image"}
-                  className="max-h-[70vh] max-w-full object-contain"
+                  className="max-h-[calc(100dvh-14rem)] max-w-full object-contain"
+                  onError={() => setFailed(true)}
                 />
               ) : objectUrl && isPdf ? (
                 <iframe
                   title={media.name || "Document preview"}
                   src={objectUrl}
-                  className="h-[70vh] w-full rounded-md bg-background"
+                  className="h-[min(70vh,calc(100dvh-14rem))] w-full rounded-md bg-background"
                 />
               ) : null}
             </div>
-            <DialogFooter>
+            <DialogFooter className="shrink-0">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Close
               </Button>
@@ -2077,7 +2121,7 @@ export function CampaignDetail({ campaign }: { campaign: OutreachCampaign }) {
   );
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
-  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated", "hcg.gmail.updated", "hcg.zoho.updated", "hcg.whatsapp.updated", "hcg.hunar.updated", "hcg.zyvkay.updated"], (event) => {
+  useRealtimeRefresh(["campaign.updated", "campaign.thread.updated", "hcg.gmail.updated", "hcg.zoho.updated", "hcg.outlook.updated", "hcg.whatsapp.updated", "hcg.hunar.updated", "hcg.zyvkay.updated"], (event) => {
     const data =
       event?.data && typeof event.data === "object"
         ? (event.data as { campaignId?: string | null })

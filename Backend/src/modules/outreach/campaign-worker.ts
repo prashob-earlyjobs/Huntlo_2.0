@@ -14,7 +14,7 @@ import {
   OutreachEnrollmentModel,
   type OutreachEnrollmentDocument,
 } from './enrollment.model.js';
-import { campaignsService } from './campaigns.service.js';
+import { campaignsService, enrollmentAlreadyContacted } from './campaigns.service.js';
 import { recordCampaignActivity } from './campaign-activity.model.js';
 import { executeCampaignMessageStep, type DeliveryResult } from './campaign-delivery.js';
 import { ConversationThreadModel } from '../conversations/conversation-thread.model.js';
@@ -493,9 +493,13 @@ export async function processDueCampaignJobs(limit = 25): Promise<number> {
           deliveryStatus: 'sent',
         });
 
-        // Only count stats when a brand-new outbound row was written, so a retry
-        // that reuses an already-sent delivery cannot inflate sent/delivered.
-        if (insertedNew) {
+        // Count a person once. A later follow-up, or a retry of a send already
+        // stored, must not add another Contacted/Delivered.
+        const alreadyContacted = await enrollmentAlreadyContacted(
+          String(campaign._id),
+          String(enrollment._id)
+        );
+        if (insertedNew && !alreadyContacted) {
           await OutreachCampaignModel.updateOne(
             { _id: campaign._id },
             { $inc: { 'stats.sent': 1, 'stats.delivered': 1 } }

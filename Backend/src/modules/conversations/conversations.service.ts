@@ -75,6 +75,13 @@ import {
   hcgZohoStatus,
   overlayHcgZohoOnListItems,
 } from './hcg-zoho-overlay.js';
+import {
+  findHcgOutlookConversation,
+  hcgOutlookLastPreview,
+  hcgOutlookMessagesToEvents,
+  hcgOutlookStatus,
+  overlayHcgOutlookOnListItems,
+} from './hcg-outlook-overlay.js';
 import { resolveCampaignEmailVendor } from './campaign-email-vendor.js';
 import {
   findHcgWhatsappConversation,
@@ -512,6 +519,65 @@ function mergeHcgVoiceOverlay<
   return [...otherEvents, ...enriched];
 }
 
+type HcgEmailOverlay =
+  | {
+      kind: 'gmail';
+      doc: NonNullable<Awaited<ReturnType<typeof findHcgGmailConversation>>>;
+    }
+  | {
+      kind: 'zoho';
+      doc: NonNullable<Awaited<ReturnType<typeof findHcgZohoConversation>>>;
+    }
+  | {
+      kind: 'outlook';
+      doc: NonNullable<Awaited<ReturnType<typeof findHcgOutlookConversation>>>;
+    };
+
+async function loadHcgEmailOverlay(
+  campaignId: string | null,
+  email: string | null | undefined,
+  vendor: Awaited<ReturnType<typeof resolveCampaignEmailVendor>>
+): Promise<HcgEmailOverlay | null> {
+  if (vendor === 'outlook') {
+    const doc = await findHcgOutlookConversation(campaignId, email);
+    return doc?.messages?.length ? { kind: 'outlook', doc } : null;
+  }
+  if (vendor === 'zoho-mail') {
+    const doc = await findHcgZohoConversation(campaignId, email);
+    return doc?.messages?.length ? { kind: 'zoho', doc } : null;
+  }
+  if (vendor === 'gmail') {
+    const doc = await findHcgGmailConversation(campaignId, email);
+    return doc?.messages?.length ? { kind: 'gmail', doc } : null;
+  }
+
+  const gmail = await findHcgGmailConversation(campaignId, email);
+  if (gmail?.messages?.length) return { kind: 'gmail', doc: gmail };
+  const zoho = await findHcgZohoConversation(campaignId, email);
+  if (zoho?.messages?.length) return { kind: 'zoho', doc: zoho };
+  const outlook = await findHcgOutlookConversation(campaignId, email);
+  if (outlook?.messages?.length) return { kind: 'outlook', doc: outlook };
+  return null;
+}
+
+function hcgEmailEvents(overlay: HcgEmailOverlay, candidateName: string) {
+  if (overlay.kind === 'outlook') return hcgOutlookMessagesToEvents(overlay.doc, candidateName);
+  if (overlay.kind === 'zoho') return hcgZohoMessagesToEvents(overlay.doc, candidateName);
+  return hcgGmailMessagesToEvents(overlay.doc, candidateName);
+}
+
+function hcgEmailStatus(overlay: HcgEmailOverlay) {
+  if (overlay.kind === 'outlook') return hcgOutlookStatus(overlay.doc);
+  if (overlay.kind === 'zoho') return hcgZohoStatus(overlay.doc);
+  return hcgGmailStatus(overlay.doc);
+}
+
+function hcgEmailPreview(overlay: HcgEmailOverlay) {
+  if (overlay.kind === 'outlook') return hcgOutlookLastPreview(overlay.doc);
+  if (overlay.kind === 'zoho') return hcgZohoLastPreview(overlay.doc);
+  return hcgGmailLastPreview(overlay.doc);
+}
+
 /** Fill leftover WhatsApp {{1}}/{{2}} tokens for inbox display. */
 function resolveDisplayBody(
   bodyText: string,
@@ -712,56 +778,31 @@ async function toDisplayConversation(thread: ConversationThreadDocument) {
   const emailVendor = await resolveCampaignEmailVendor(
     thread.campaignId ? String(thread.campaignId) : null
   );
-  const hcgGmail =
-    emailVendor === 'zoho-mail'
-      ? null
-      : await findHcgGmailConversation(
-          thread.campaignId ? String(thread.campaignId) : null,
-          candidate?.email || null
-        );
-  const hcgZoho =
-    emailVendor === 'gmail'
-      ? null
-      : emailVendor === 'zoho-mail' || !hcgGmail?.messages?.length
-        ? await findHcgZohoConversation(
-            thread.campaignId ? String(thread.campaignId) : null,
-            candidate?.email || null
-          )
-        : null;
-  const hcgEmail = hcgZoho?.messages?.length
-    ? { kind: 'zoho' as const, doc: hcgZoho }
-    : hcgGmail?.messages?.length
-      ? { kind: 'gmail' as const, doc: hcgGmail }
-      : null;
+  const hcgEmail = await loadHcgEmailOverlay(
+    thread.campaignId ? String(thread.campaignId) : null,
+    candidate?.email || null,
+    emailVendor
+  );
   const hcgWa = await findHcgWhatsappConversation(
     thread.campaignId ? String(thread.campaignId) : null,
     candidate?.phone || null
   );
   if (hcgEmail) {
-    const emailEvents =
-      hcgEmail.kind === 'zoho'
-        ? hcgZohoMessagesToEvents(hcgEmail.doc, candidate?.name || 'Candidate')
-        : hcgGmailMessagesToEvents(hcgEmail.doc, candidate?.name || 'Candidate');
+    const emailEvents = hcgEmailEvents(hcgEmail, candidate?.name || 'Candidate');
     const otherEvents = events.filter((event) =>
       shouldKeepLocalEventAlongsideHcg(event, 'Email')
     );
     events = sortEventsBySentAt([...otherEvents, ...emailEvents]) as typeof events;
-    const status =
-      hcgEmail.kind === 'zoho'
-        ? hcgZohoStatus(hcgEmail.doc)
-        : hcgGmailStatus(hcgEmail.doc);
+    const status = hcgEmailStatus(hcgEmail);
     replyStatus = status.replyStatus;
     pipelineStatus = status.pipelineStatus;
-    const preview =
-      hcgEmail.kind === 'zoho'
-        ? hcgZohoLastPreview(hcgEmail.doc)
-        : hcgGmailLastPreview(hcgEmail.doc);
+    const preview = hcgEmailPreview(hcgEmail);
     if (preview.lastMessage) lastMessage = preview.lastMessage;
     if (preview.lastTime !== '—') lastTime = preview.lastTime;
     overallAIDescription =
       String(hcgEmail.doc.overallAIDescription || '').trim() || null;
     if (thread.campaignId && hcgEmail.doc.overallAIStatus) {
-      const source = hcgEmail.kind === 'zoho' ? 'zoho' : 'gmail';
+      const source = hcgEmail.kind === 'outlook' ? 'outlook' : hcgEmail.kind === 'zoho' ? 'zoho' : 'gmail';
       const hcgEmailAddress = String(hcgEmail.doc.emailAddress || '').trim();
       void import('../huntlo-360/hcg-qualification-transition.js')
         .then(({ applyHuntlo360FromHcgOverallAiStatus }) =>
@@ -1090,6 +1131,7 @@ export const conversationsService = {
     const items = await Promise.all(threads.map((thread) => toListConversation(thread)));
     await overlayHcgGmailOnListItems(items);
     await overlayHcgZohoOnListItems(items);
+    await overlayHcgOutlookOnListItems(items);
     await overlayHcgWhatsappOnListItems(items);
     await overlayHcgHunarOnListItems(items);
     await overlayHcgZyvkaOnListItems(items);
@@ -1118,37 +1160,20 @@ export const conversationsService = {
     const emailVendor = await resolveCampaignEmailVendor(
       thread.campaignId ? String(thread.campaignId) : null
     );
-    const hcgGmail =
-      emailVendor === 'zoho-mail'
-        ? null
-        : await findHcgGmailConversation(
-            thread.campaignId ? String(thread.campaignId) : null,
-            candidate?.email || null
-          );
-    const hcgZoho =
-      emailVendor === 'gmail'
-        ? null
-        : emailVendor === 'zoho-mail' || !hcgGmail?.messages?.length
-          ? await findHcgZohoConversation(
-              thread.campaignId ? String(thread.campaignId) : null,
-              candidate?.email || null
-            )
-          : null;
-    const hcgEmail = hcgZoho?.messages?.length
-      ? { kind: 'zoho' as const, doc: hcgZoho }
-      : hcgGmail?.messages?.length
-        ? { kind: 'gmail' as const, doc: hcgGmail }
-        : null;
+    const hcgEmail = await loadHcgEmailOverlay(
+      thread.campaignId ? String(thread.campaignId) : null,
+      candidate?.email || null,
+      emailVendor
+    );
     if (hcgEmail) {
-      const events =
-        hcgEmail.kind === 'zoho'
-          ? hcgZohoMessagesToEvents(hcgEmail.doc, candidate?.name || 'Candidate')
-          : hcgGmailMessagesToEvents(hcgEmail.doc, candidate?.name || 'Candidate');
+      const events = hcgEmailEvents(hcgEmail, candidate?.name || 'Candidate');
       const items = events.map((event, index) => ({
         id: event.id || `hcg-${index}`,
-        provider: (hcgEmail.kind === 'zoho' ? 'zoho-mail' : 'gmail') as
-          | 'zoho-mail'
-          | 'gmail',
+        provider: (hcgEmail.kind === 'outlook'
+          ? 'outlook'
+          : hcgEmail.kind === 'zoho'
+            ? 'zoho-mail'
+            : 'gmail') as 'outlook' | 'zoho-mail' | 'gmail',
         channel: 'email' as const,
         direction: event.direction,
         sender: event.authorName,

@@ -186,6 +186,10 @@ function stripGmailQuoteHtml(html: string): string {
     .trim();
 }
 
+function looksLikeEmailHtml(value: string): boolean {
+  return /<\/?[a-z][a-z0-9]*(?:\s[^>]*|\/)?>/i.test(value);
+}
+
 function sanitizeEmailHtml(html: string): string {
   return stripGmailQuoteHtml(html)
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -867,7 +871,7 @@ function EventBubble({ event }: { event: ConversationEvent }) {
   }
 
   const html =
-    event.channel === "Email" && event.html
+    event.channel === "Email" && event.html && looksLikeEmailHtml(event.html)
       ? sanitizeEmailHtml(event.html)
       : "";
 
