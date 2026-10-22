@@ -29,7 +29,7 @@ export function GoogleAnalyticsRoute() {
       return;
     }
 
-    const win = window as Window & {
+    const win = window as unknown as {
       gtag?: (...args: unknown[]) => void;
     } & Record<string, unknown>;
     const disableKey = `ga-disable-${GA_MEASUREMENT_ID}`;
