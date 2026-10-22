@@ -14,6 +14,7 @@ export type RevealContactInput = {
 export type RevealResult = {
   found: boolean;
   charged: boolean;
+  pending?: boolean;
   source: "previous_reveal" | "shared_cache" | "provider" | "missing";
   contactType: RevealContactType;
   values: string[];
@@ -217,7 +218,7 @@ const liveCandidatesApi: CandidatesApi = {
     // Scout must finish before reveal-contacts; keep HTTP open long enough for both.
     const result = await apiClient.post<RevealResult>(path, {}, {
       sensitive: true,
-      timeoutMs: 130_000,
+      timeoutMs: 200_000,
     });
     return result.data;
   },

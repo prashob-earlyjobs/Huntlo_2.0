@@ -6,6 +6,9 @@ import { getMetaWebhookVerifyToken } from '../../providers/meta-whatsapp/meta.co
 import { AppError } from '../../shared/errors/app-error.js';
 import { ingestWebhook } from './ingest.service.js';
 import type { WebhookProvider } from './webhook-event.model.js';
+import { futureJobsWebhookVerify } from '../../middleware/futureJobs.js';
+import { revealService } from '../candidates/reveal.service.js';
+import { recordFutureJobsRevealWebhook } from '../../providers/future-jobs/futureJobs.outbound-debug.js';
 
 export const webhooksRouter = Router();
 
@@ -159,3 +162,18 @@ webhooksRouter.post(
   '/gmail',
   asyncHandler(async (req, res) => handlePost('gmail', req, res))
 );
+
+
+webhooksRouter.post(
+  '/contact-reveal',
+  futureJobsWebhookVerify,
+  asyncHandler(async (req, res) => {
+    const event = asBody(req);
+    console.log('event', event);
+    recordFutureJobsRevealWebhook(event);
+    await revealService.settlePhoneRevealWebhook(event);
+    res.status(200).json({ success: true });
+  })
+);
+
+

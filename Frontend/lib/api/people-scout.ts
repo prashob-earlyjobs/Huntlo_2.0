@@ -67,6 +67,9 @@ export interface PeopleScoutApi {
   getLookup(id: string): Promise<ScoutLookupResponse | null>;
   lookup(input: ScoutLookupInput): Promise<ScoutLookupResponse>;
   revealContact(input: ScoutRevealInput): Promise<RevealResult>;
+  phoneRevealStatus(
+    lookupId: string
+  ): Promise<{ status: "none" | "pending" | "missing" | "completed"; value: string }>;
   saveToPool(lookupId: string, listId?: string | null): Promise<{
     created: boolean;
     candidateId?: string;
@@ -441,6 +444,9 @@ const mockPeopleScoutApi: PeopleScoutApi = {
       matches: [],
     };
   },
+  async phoneRevealStatus() {
+    return { status: "none" as const, value: "" };
+  },
   async revealContact({ profileId, type }) {
     await simulateMockLatency();
     const value = type === "email" ? "scout@example.com" : "+919999988888";
@@ -496,10 +502,16 @@ const livePeopleScoutApi: PeopleScoutApi = {
     );
     return normalizeLookupPayload(result.data);
   },
+  async phoneRevealStatus(lookupId) {
+    const result = await apiClient.get<{
+      status: "none" | "pending" | "missing" | "completed";
+      value: string;
+    }>(`/people-scout/lookups/${lookupId}/phone-reveal`);
+    return result.data;
+  },
   async revealContact({ lookupId, profileId, linkedinUrl, type }) {
-    // Phone UX polls lookup after empty/error reveal; keep HTTP timeout long
-    // enough for a slow FJ response before that poll window.
-    const revealTimeoutMs = 130_000;
+    // Must outlast the backend reveal-contacts wait (180s, no retry).
+    const revealTimeoutMs = 200_000;
     if (lookupId) {
       const result = await apiClient.post<RevealResult>(
         `/people-scout/lookups/${lookupId}/reveal/${type}`,

@@ -81,7 +81,9 @@ import {
   setMockFutureJobsMode,
 } from './futureJobs.mock.js';
 import {
+  extractRevealChannelStatus,
   extractRevealValues,
+  parseFutureJobsPhoneWebhook,
   linkedinCacheLookupKeys,
   linkedinUrlsForContactReveal,
   linkedinUrlsFromScoutLookup,
@@ -153,7 +155,9 @@ export {
   createMockFutureJobsProvider,
   enrichFilterFormSkillsFromPrompt,
   ensureSkillsForFutureJobs,
+  extractRevealChannelStatus,
   extractRevealValues,
+  parseFutureJobsPhoneWebhook,
   extractSearchProfileDocs,
   extractSearchTotalDocs,
   experienceYearsFromFjDoc,
@@ -202,8 +206,8 @@ export {
   completeScoutOutboundDebugSession,
   startRevealOutboundDebugSession,
   completeRevealOutboundDebugSession,
-  appendRevealOutboundDebugPoll,
-  findInProgressRevealOutboundDebugSession,
+  noteRevealDebugTarget,
+  recordFutureJobsRevealWebhook,
   findAnyInProgressPhoneRevealForUser,
   PHONE_REVEAL_LOCK_MAX_AGE_MS,
 } from './futureJobs.outbound-debug.js';

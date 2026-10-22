@@ -2,24 +2,18 @@ import mongoose from 'mongoose';
 
 import {
   FutureJobsUpstreamError,
-  extractRevealValues,
-  findInProgressRevealOutboundDebugSession,
-  getFutureJobsConfig,
   getFutureJobsProvider,
   isFjProfileNotFoundError,
   normalizeLinkedinProfileUrl,
   resolveFjRevealProfileId,
-  appendRevealOutboundDebugPoll,
   completeRevealOutboundDebugSession,
   completeScoutOutboundDebugSession,
   startScoutOutboundDebugSession,
 } from '../../providers/future-jobs/index.js';
-import { setFutureJobsOutboundDebugId } from '../../providers/future-jobs/futureJobs.actor-context.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { poolService } from '../candidates/pool.service.js';
 import {
-  persistSoftPolledMobileReveal,
   resolveLinkedinRevealValues,
   revealService,
   assertNoConcurrentPhoneRevealForActor,
@@ -78,7 +72,7 @@ export type PublicPeopleScoutLookup = {
   saved: boolean;
   savedCandidateId: string | null;
   contactRevealed: 'email' | 'mobile' | 'both' | 'none';
-  /** FJ-shaped reveal hydrate from encrypted contact cache (for soft-poll UX). */
+  /** Email and phone already stored for this lookup. */
   revealStatus: {
     email: ScoutRevealChannelStatus;
     phone: ScoutRevealChannelStatus;
@@ -654,119 +648,7 @@ export class PeopleScoutLookupService {
     });
     if (!lookup) throw AppError.notFound('People Scout lookup not found');
 
-    // Soft-poll FJ scout-people/lookup while a phone reveal session is in progress.
-    await this.softPollFjPhoneReveal(actor, lookup);
-
     return toPublicLookup(lookup);
-  }
-
-  /**
-   * While phone reveal soft-poll UX is active, re-hit FJ /wl/scout-people/lookup
-   * (up to 6 times via frontend getLookup). When revealStatus.phone.values appear,
-   * persist them as a mobile reveal.
-   */
-  private async softPollFjPhoneReveal(
-    actor: ActorContext,
-    lookup: PeopleScoutLookupDocument
-  ): Promise<void> {
-    if (lookup.resultStatus !== 'found') return;
-
-    const session = await findInProgressRevealOutboundDebugSession({
-      lookupId: lookup._id.toHexString(),
-      userId: actor.userId,
-      type: 'phone',
-    });
-    if (!session) return;
-
-    const preferred = pickPreferredLinkedinUrl({
-      flagshipUrl: lookup.candidateSnapshot?.linkedinFlagshipUrl,
-      profileUrl: lookup.candidateSnapshot?.linkedinProfileUrl,
-      username: lookup.candidateSnapshot?.linkedinUsername,
-    });
-    const revealKey = pickRevealLinkedinUrl({
-      flagshipUrl: lookup.candidateSnapshot?.linkedinFlagshipUrl,
-      profileUrl: lookup.candidateSnapshot?.linkedinProfileUrl,
-      username: lookup.candidateSnapshot?.linkedinUsername,
-    });
-    const linkedinUrl =
-      normalizeLinkedinProfileUrl(preferred) ||
-      normalizeLinkedinProfileUrl(revealKey);
-    if (!linkedinUrl) return;
-
-    // Already have a stored phone — no need to keep hitting FJ.
-    const cached = await resolveLinkedinRevealValues({
-      organizationId: actor.organizationId,
-      userId: actor.userId,
-      linkedinUrl: normalizeLinkedinProfileUrl(revealKey) || linkedinUrl,
-      externalCandidateId: lookup.externalCandidateId,
-    });
-    if (cached.mobile.length > 0) {
-      completeRevealOutboundDebugSession({
-        debugId: session.id,
-        lookupId: lookup._id.toHexString(),
-        type: 'phone',
-        found: true,
-        charged: false,
-        source: 'cache',
-        values: cached.mobile,
-      });
-      return;
-    }
-
-    const baseUrl = getFutureJobsConfig().baseUrl.replace(/\/$/, '');
-    const fjUrl = `${baseUrl}/wl/scout-people/lookup`;
-    setFutureJobsOutboundDebugId(session.id);
-
-    const provider = getFutureJobsProvider();
-    try {
-      const fj = await provider.scoutPeopleLookup({ linkedin_url: linkedinUrl });
-      appendRevealOutboundDebugPoll({
-        lookupId: lookup._id.toHexString(),
-        type: 'phone',
-        url: fjUrl,
-        response: fj,
-        userId: actor.userId,
-      });
-
-      const phones = extractRevealValues(fj, 'PHONE');
-      if (phones.length === 0) return;
-
-      await persistSoftPolledMobileReveal({
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        linkedinUrl: normalizeLinkedinProfileUrl(revealKey) || linkedinUrl,
-        externalCandidateId: lookup.externalCandidateId,
-        values: phones,
-      });
-
-      const existingContactReveal = await PeopleScoutContactRevealModel.findOne({
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        lookupId: lookup._id,
-        contactType: 'mobile',
-      });
-      if (!existingContactReveal) {
-        await PeopleScoutContactRevealModel.create({
-          organizationId: actor.organizationId,
-          userId: actor.userId,
-          lookupId: lookup._id,
-          contactType: 'mobile',
-          contactCacheId: null,
-          quotaTransactionId: `reveal:${lookup._id.toHexString()}:mobile:soft-poll`,
-          revealedAt: new Date(),
-        });
-      }
-    } catch (err) {
-      appendRevealOutboundDebugPoll({
-        lookupId: lookup._id.toHexString(),
-        type: 'phone',
-        url: fjUrl,
-        response: {
-          error: err instanceof Error ? err.message : String(err),
-        },
-        userId: actor.userId,
-      });
-    }
   }
 
   async revealContact(
@@ -820,11 +702,16 @@ export class PeopleScoutLookupService {
 
     let result: RevealResult;
     try {
-      // Scout (lookup) completes first inside revealByLinkedin; kind:reveal starts after.
+      // Lookup already succeeded for this card. Email uses that profileId.
       result = await revealService.revealByLinkedin(actor, {
         linkedinUrl: normalized,
         contactType,
         profileId: fjProfileId,
+        lookupAlreadyCompleted: contactType === 'email',
+        linkedinUrls: [
+          lookup.candidateSnapshot?.linkedinProfileUrl,
+          lookup.candidateSnapshot?.linkedinFlagshipUrl,
+        ],
         idempotencyKey,
         revealDebug: {
           type: revealType,

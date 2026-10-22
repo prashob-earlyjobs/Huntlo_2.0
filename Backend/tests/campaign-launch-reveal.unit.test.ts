@@ -89,8 +89,7 @@ describe('enrichCampaignContactsForLaunch mobile queue', () => {
     });
   });
 
-  it('polls getRevealStatus once, one minute after an empty mobile reveal', async () => {
-    vi.useFakeTimers();
+  it('does not poll after an empty mobile reveal', async () => {
     const candidate = makeCandidate({ phone: null, email: 'a@example.com' });
     const sourcedId = new mongoose.Types.ObjectId().toHexString();
 
@@ -118,12 +117,8 @@ describe('enrichCampaignContactsForLaunch mobile queue', () => {
       source: 'missing',
       candidateId: sourcedId,
     });
-    getRevealStatusMock.mockResolvedValue({
-      mobile: { revealed: true, values: ['+919876543210'] },
-      email: { revealed: false, values: [] },
-    });
 
-    const done = enrichCampaignContactsForLaunch({
+    const summary = await enrichCampaignContactsForLaunch({
       organizationId: orgId,
       userId,
       campaign: {
@@ -136,23 +131,12 @@ describe('enrichCampaignContactsForLaunch mobile queue', () => {
       } as never,
     });
 
-    await vi.advanceTimersByTimeAsync(0);
-    await Promise.resolve();
     expect(revealMock).toHaveBeenCalledTimes(1);
     expect(getRevealStatusMock).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(59_000);
-    await Promise.resolve();
-    expect(getRevealStatusMock).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(1_000);
-    const summary = await done;
-
-    expect(getRevealStatusMock).toHaveBeenCalledTimes(1);
-    expect(summary.phoneUnlocked).toBe(1);
-    expect(candidate.phone).toBe('+919876543210');
-    expect(candidate.save).toHaveBeenCalled();
-    vi.useRealTimers();
+    expect(summary.phoneUnlocked).toBe(0);
+    expect(summary.failed).toBe(1);
+    expect(candidate.phone).toBeNull();
+    expect(candidate.save).not.toHaveBeenCalled();
   });
 
   it('paces mobile starts (≥30s gap) for multiple candidates', async () => {

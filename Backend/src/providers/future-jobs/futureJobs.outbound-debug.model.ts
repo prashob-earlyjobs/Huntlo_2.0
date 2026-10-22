@@ -1,101 +1,53 @@
 import mongoose, { type InferSchemaType, type Model } from 'mongoose';
 
 /**
- * Ring buffer of outbound Future Jobs HTTP / reveal-session debug rows.
- * Kept at max 400 docs via insert-time trim (uncapped so poll arrays can grow).
+ * Ring buffer of Future Jobs gateway calls.
+ * One document per HTTP call: which API, who called it, URL, body, response.
+ * `webhook` is set only on `phone_reveal`, when contact.reveal.completed arrives.
  */
 export const FUTURE_JOBS_OUTBOUND_DEBUG_COLLECTION = 'future_jobs_outbound_debug';
-export const FUTURE_JOBS_OUTBOUND_DEBUG_MAX = 400;
+export const FUTURE_JOBS_OUTBOUND_DEBUG_MAX = 4_000;
 
-export type FutureJobsOutboundKind = 'scout' | 'reveal' | 'search' | 'other';
+export const FUTURE_JOBS_OUTBOUND_KINDS = [
+  'search',
+  'session_create',
+  'session_update',
+  'session_profiles',
+  'session_fetch_more',
+  'candidate_details',
+  'filter_autocomplete',
+  'session_preview',
+  'session_annotation',
+  'scout_lookup',
+  'email_reveal',
+  'phone_reveal',
+] as const;
+
+export type FutureJobsOutboundKind = (typeof FUTURE_JOBS_OUTBOUND_KINDS)[number];
+
+/** Email or phone, used by reveal callers. Not stored on the gateway row. */
 export type FutureJobsOutboundRevealType = 'email' | 'phone';
-export type FutureJobsOutboundSessionStatus =
-  | 'in_progress'
-  | 'completed'
-  | 'failed'
-  | null;
-export type FutureJobsOutboundDataFoundFrom = 'main_api' | 'poll' | 'cache' | null;
-
-const outboundCallSchema = new mongoose.Schema(
-  {
-    at: { type: Date, default: () => new Date() },
-    operation: { type: String, default: '' },
-    method: { type: String, default: 'POST' },
-    url: { type: String, default: '' },
-    body: { type: mongoose.Schema.Types.Mixed, default: null },
-    response: { type: mongoose.Schema.Types.Mixed, default: null },
-    status: { type: Number, default: null },
-    statusText: { type: String, default: null },
-    ok: { type: Boolean, default: false },
-    elapsedMs: { type: Number, default: null },
-    attempt: { type: Number, default: 1 },
-    error: { type: String, default: null },
-  },
-  { _id: false }
-);
-
-const outboundPollSchema = new mongoose.Schema(
-  {
-    url: { type: String, required: true, trim: true },
-    response: { type: mongoose.Schema.Types.Mixed, default: null },
-    createdAt: { type: Date, required: true, default: () => new Date() },
-  },
-  { _id: false }
-);
 
 const futureJobsOutboundDebugSchema = new mongoose.Schema(
   {
     kind: {
       type: String,
-      enum: ['scout', 'reveal', 'search', 'other'],
+      enum: FUTURE_JOBS_OUTBOUND_KINDS,
       required: true,
-      index: true,
-    },
-    /** Set when kind is `reveal` — email or phone contact unlock. */
-    type: {
-      type: String,
-      enum: ['email', 'phone'],
       index: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       index: true,
     },
-    organizationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      index: true,
-    },
-    /** Reveal-session only */
-    lookupId: {
-      type: mongoose.Schema.Types.ObjectId,
-      index: true,
-    },
-    linkedinUrl: { type: String, trim: true },
-    sessionStatus: {
-      type: String,
-      enum: ['in_progress', 'completed', 'failed'],
-      index: true,
-    },
-    mainApi: { type: outboundCallSchema },
-    calls: { type: [outboundCallSchema] },
-    polls: { type: [outboundPollSchema] },
-    dataFoundFrom: {
-      type: String,
-      enum: ['main_api', 'poll', 'cache'],
-    },
-    resultSummary: { type: mongoose.Schema.Types.Mixed },
-    // Flat fields for one-shot outbound rows (scout / search / other)
-    operation: { type: String, required: true, trim: true },
-    method: { type: String, required: true, trim: true },
-    url: { type: String, required: true, trim: true },
-    body: { type: mongoose.Schema.Types.Mixed },
-    response: { type: mongoose.Schema.Types.Mixed },
-    status: { type: Number },
-    statusText: { type: String },
-    ok: { type: Boolean, default: false },
-    elapsedMs: { type: Number },
-    attempt: { type: Number, default: 1 },
-    error: { type: String },
+    /** Called Future Jobs URL. */
+    url: { type: String, default: '', trim: true },
+    /** Request body, or the query parameters when the call has no JSON body. */
+    body: { type: mongoose.Schema.Types.Mixed, default: null },
+    /** Future Jobs response JSON. */
+    response: { type: mongoose.Schema.Types.Mixed, default: null },
+    /** Incoming contact.reveal webhook. Only set on phone_reveal. */
+    webhook: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   {
     collection: FUTURE_JOBS_OUTBOUND_DEBUG_COLLECTION,

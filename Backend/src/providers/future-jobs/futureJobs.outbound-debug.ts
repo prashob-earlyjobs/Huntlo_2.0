@@ -14,97 +14,52 @@ import {
   type FutureJobsOutboundKind,
   type FutureJobsOutboundRevealType,
 } from './futureJobs.outbound-debug.model.js';
-import { extractRevealValues } from './futureJobs.reveal.js';
+import {
+  linkedinCacheLookupKeys,
+  normalizeLinkedinProfileUrl,
+  parseFutureJobsPhoneWebhook,
+} from './futureJobs.reveal.js';
 
 const log = () =>
   createChildLogger({ provider: 'future-jobs', component: 'outbound-debug' });
 
 const MAX_JSON_CHARS = 24_000;
-const MAX_POLLS = 30;
-/** Frontend phone soft-poll window is ~60s / 10s ≈ 6 attempts; close debug session after. */
-const PHONE_POLL_COMPLETE_AFTER = 6;
 
 let ensurePromise: Promise<void> | null = null;
 
 type OutboundCallSnapshot = {
-  at: Date;
-  operation: string;
-  method: string;
   url: string;
   body: unknown;
   response: unknown;
-  status: number | null;
-  statusText: string | null;
   ok: boolean;
-  elapsedMs: number | null;
-  attempt: number;
-  error: string | null;
 };
 
-function classifyOperation(operation: string): FutureJobsOutboundKind {
-  const op = String(operation || '').toLowerCase();
+/** Which Future Jobs API this call is. The endpoint decides the kind. */
+function classifyOperation(operation: string, url = ''): FutureJobsOutboundKind | null {
+  const op = `${operation || ''} ${url || ''}`.toLowerCase();
   if (op.includes('scout-people/lookup') || (op.includes('/lookup') && !op.includes('reveal'))) {
-    return 'scout';
+    return 'scout_lookup';
   }
-  if (
-    op.includes('reveal-contacts') ||
-    op.includes('contact/reveal') ||
-    op.includes('/reveal')
-  ) {
-    return 'reveal';
+  if (op.includes('reveal-contacts')) return 'email_reveal';
+  if (op.includes('contact/reveal')) return 'phone_reveal';
+  if (op.includes('fetch-more')) return 'session_fetch_more';
+  if (op.includes('update-session')) return 'session_update';
+  if (op.includes('filters/autocomplete') || op.includes('autocomplete')) {
+    return 'filter_autocomplete';
   }
-  if (op.includes('/wl/search') || op.includes('search')) return 'search';
-  return 'other';
-}
-
-function normalizeRevealType(raw: unknown): FutureJobsOutboundRevealType | null {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  const s = String(value ?? '')
-    .trim()
-    .toLowerCase();
-  if (s === 'email' || s === 'mail') return 'email';
-  if (s === 'phone' || s === 'mobile' || s === 'phonenumber') return 'phone';
-  return null;
-}
-
-function revealTypeFromRequest(
-  body: unknown,
-  url: string
-): FutureJobsOutboundRevealType | null {
-  if (body && typeof body === 'object') {
-    const o = body as Record<string, unknown>;
-    const fromBody =
-      normalizeRevealType(o.revealContactType) ||
-      normalizeRevealType(o.revealType) ||
-      normalizeRevealType(o.contactType) ||
-      normalizeRevealType(o.type);
-    if (fromBody) return fromBody;
-  }
-
-  try {
-    const parsed = new URL(url);
-    const fromQuery =
-      normalizeRevealType(parsed.searchParams.get('revealType')) ||
-      normalizeRevealType(parsed.searchParams.get('revealContactType')) ||
-      normalizeRevealType(parsed.searchParams.get('type'));
-    if (fromQuery) return fromQuery;
-  } catch {
-    // ignore
-  }
-
-  const lower = url.toLowerCase();
-  if (lower.includes('revealtype=email') || lower.includes('revealtype=mail')) {
-    return 'email';
-  }
-  if (lower.includes('revealtype=phone') || lower.includes('revealtype=mobile')) {
-    return 'phone';
+  if (op.includes('/candidate/') && op.includes('details')) return 'candidate_details';
+  if (op.includes('get-annotation') || op.includes('annotation')) return 'session_annotation';
+  if (op.includes('sourcing-session/preview') || op.includes('/preview')) return 'session_preview';
+  if (op.includes('/profiles') || op.includes('profileswhenready')) return 'session_profiles';
+  if (op.includes('/wl/search') || /\bsearch\b/.test(op)) return 'search';
+  if (/\/wl\/sourcing-session\/?(\?|$)/.test(op) || op.includes('post /wl/sourcing-session')) {
+    return 'session_create';
   }
   return null;
 }
 
-function isMainRevealOperation(operation: string): boolean {
-  const op = String(operation || '').toLowerCase();
-  return op.includes('reveal-contacts') || op.includes('contact/reveal');
+function revealKind(type: FutureJobsOutboundRevealType | null | undefined): FutureJobsOutboundKind {
+  return type === 'email' ? 'email_reveal' : 'phone_reveal';
 }
 
 function truncateJson(value: unknown): unknown {
@@ -130,6 +85,22 @@ function asObjectId(value: unknown): mongoose.Types.ObjectId | null {
   return new mongoose.Types.ObjectId(raw);
 }
 
+/** Phone reveal sends its parameters on the URL. Store those as the request body. */
+function bodyForLog(url: string, body: unknown): unknown {
+  if (body != null) return truncateJson(body);
+  try {
+    const params = new URL(url).searchParams;
+    if ([...params.keys()].length === 0) return null;
+    const query: Record<string, string> = {};
+    params.forEach((value, key) => {
+      query[key] = value;
+    });
+    return query;
+  } catch {
+    return null;
+  }
+}
+
 function callSnapshot(input: {
   operation: string;
   method: string;
@@ -144,18 +115,10 @@ function callSnapshot(input: {
   error?: string | null;
 }): OutboundCallSnapshot {
   return {
-    at: new Date(),
-    operation: String(input.operation || '').trim() || 'unknown',
-    method: String(input.method || 'GET').toUpperCase(),
     url: String(input.url || ''),
-    body: truncateJson(input.body ?? null),
+    body: bodyForLog(String(input.url || ''), input.body ?? null),
     response: truncateJson(input.response ?? null),
-    status: input.status ?? null,
-    statusText: input.statusText ?? null,
     ok: Boolean(input.ok),
-    elapsedMs: input.elapsedMs ?? null,
-    attempt: input.attempt ?? 1,
-    error: input.error ?? null,
   };
 }
 
@@ -198,14 +161,84 @@ export async function ensureFutureJobsOutboundDebugCollection(): Promise<void> {
       }
 
       const stats = (await db.command({ collStats: name })) as { capped?: boolean };
-      if (!stats.capped) return;
+      if (stats.capped) {
+        log().warn(
+          { collection: name },
+          'outbound debug collection was capped; recreating uncapped'
+        );
+        await db.dropCollection(name);
+        await db.createCollection(name);
+        return;
+      }
 
-      log().warn(
-        { collection: name },
-        'outbound debug collection was capped; recreating uncapped for poll arrays'
+      const col = db.collection(name);
+      const remap: Array<[RegExp, FutureJobsOutboundKind]> = [
+        [/scout-people\/lookup/i, 'scout_lookup'],
+        [/scout-people\/reveal-contacts/i, 'email_reveal'],
+        [/contact\/reveal/i, 'phone_reveal'],
+        [/fetch-more/i, 'session_fetch_more'],
+        [/update-session/i, 'session_update'],
+        [/filters\/autocomplete/i, 'filter_autocomplete'],
+        [/\/candidate\/[^/]+\/details/i, 'candidate_details'],
+        [/get-annotation/i, 'session_annotation'],
+        [/sourcing-session\/preview/i, 'session_preview'],
+        [/\/profiles/i, 'session_profiles'],
+        [/\/wl\/search/i, 'search'],
+      ];
+      for (const [url, kind] of remap) {
+        await col.updateMany({ url }, { $set: { kind } });
+      }
+      await col.updateMany(
+        { url: /\/wl\/sourcing-session\/?(?:\?.*)?$/i },
+        { $set: { kind: 'session_create' } }
       );
-      await db.dropCollection(name);
-      await db.createCollection(name);
+      await col.updateMany({ kind: 'scout' }, { $set: { kind: 'scout_lookup' } });
+      await col.updateMany(
+        { kind: 'reveal', type: 'phone' },
+        { $set: { kind: 'phone_reveal' } }
+      );
+      await col.updateMany(
+        { kind: 'reveal', type: 'email' },
+        { $set: { kind: 'email_reveal' } }
+      );
+      await col.updateMany(
+        { kind: 'reveal', url: /webhooks\/contact-reveal/i },
+        { $set: { kind: 'phone_reveal' } }
+      );
+      await col.updateMany(
+        {
+          linkedinUrl: { $type: 'string', $ne: '' },
+          $or: [{ body: null }, { body: { $exists: false } }],
+        },
+        [{ $set: { body: { linkedin_profile_url: '$linkedinUrl' } } }]
+      );
+      await col.updateMany(
+        {},
+        {
+          $unset: {
+            mainApi: '',
+            calls: '',
+            polls: '',
+            dataFoundFrom: '',
+            resultSummary: '',
+            operation: '',
+            method: '',
+            status: '',
+            statusText: '',
+            ok: '',
+            elapsedMs: '',
+            attempt: '',
+            error: '',
+            organizationId: '',
+            lookupId: '',
+            profileId: '',
+            sessionStatus: '',
+            type: '',
+            linkedinUrl: '',
+          },
+        }
+      );
+      await col.dropIndex('type_1').catch(() => undefined);
     })().catch((err) => {
       ensurePromise = null;
       log().warn(
@@ -225,6 +258,9 @@ export async function startScoutOutboundDebugSession(input: {
   body?: unknown;
   userId?: string | null;
   organizationId?: string | null;
+  /** Accepted from existing callers. Lookup rows are always kind scout_lookup. */
+  type?: FutureJobsOutboundRevealType | null;
+  asReveal?: boolean;
 }): Promise<string | null> {
   if (isTest()) return null;
   if (mongoose.connection.readyState !== 1) return null;
@@ -233,19 +269,12 @@ export async function startScoutOutboundDebugSession(input: {
     await ensureFutureJobsOutboundDebugCollection();
     const actor = getFutureJobsActor();
     const userId = asObjectId(input.userId ?? actor.userId);
-    const organizationId = asObjectId(input.organizationId ?? actor.organizationId);
     const baseUrl = getFutureJobsConfig().baseUrl.replace(/\/$/, '');
     const doc = await FutureJobsOutboundDebugModel.create({
-      kind: 'scout',
+      kind: 'scout_lookup',
       ...(userId ? { userId } : {}),
-      ...(organizationId ? { organizationId } : {}),
-      sessionStatus: 'in_progress',
-      operation: 'POST /wl/scout-people/lookup',
-      method: 'POST',
       url: `${baseUrl}/wl/scout-people/lookup`,
       ...(input.body != null ? { body: truncateJson(input.body) } : {}),
-      ok: false,
-      attempt: 1,
     });
     const id = doc._id.toHexString();
     setFutureJobsOutboundDebugId(id);
@@ -274,10 +303,9 @@ export async function completeScoutOutboundDebugSession(input: {
   try {
     await ensureFutureJobsOutboundDebugCollection();
     const existing = await FutureJobsOutboundDebugModel.findById(debugId);
-    if (!existing || existing.kind !== 'scout') return;
-    if (existing.sessionStatus !== 'in_progress') return;
-    existing.sessionStatus = input.error ? 'failed' : 'completed';
-    if (input.error) existing.error = input.error;
+    if (!existing || existing.kind !== 'scout_lookup') return;
+    if (existing.response != null || !input.error) return;
+    existing.response = { error: input.error };
     await existing.save();
   } catch (err) {
     log().warn(
@@ -288,7 +316,7 @@ export async function completeScoutOutboundDebugSession(input: {
 }
 
 /**
- * Start a reveal debug session (phone soft-poll UX). Returns doc id.
+ * Start a reveal debug session. Returns doc id.
  */
 export async function startRevealOutboundDebugSession(input: {
   type: FutureJobsOutboundRevealType;
@@ -304,27 +332,16 @@ export async function startRevealOutboundDebugSession(input: {
     await ensureFutureJobsOutboundDebugCollection();
     const actor = getFutureJobsActor();
     const userId = asObjectId(input.userId ?? actor.userId);
-    const organizationId = asObjectId(input.organizationId ?? actor.organizationId);
-    const lookupId = asObjectId(input.lookupId);
     const baseUrl = getFutureJobsConfig().baseUrl.replace(/\/$/, '');
+    const linkedinUrl = String(input.linkedinUrl || '').trim();
     const doc = await FutureJobsOutboundDebugModel.create({
-      kind: 'reveal',
-      type: input.type,
+      kind: revealKind(input.type),
       ...(userId ? { userId } : {}),
-      ...(organizationId ? { organizationId } : {}),
-      ...(lookupId ? { lookupId } : {}),
-      ...(input.linkedinUrl?.trim()
-        ? { linkedinUrl: input.linkedinUrl.trim() }
-        : {}),
-      sessionStatus: 'in_progress',
-      calls: [],
-      polls: [],
-      operation: `reveal-session:${input.type}`,
-      method: 'POST',
-      // Mongoose rejects empty string for required String fields.
-      url: `${baseUrl}/wl/scout-people/reveal-contacts`,
-      ok: false,
-      attempt: 1,
+      url:
+        input.type === 'phone'
+          ? `${baseUrl}/wl/sourcing-session/contact/reveal`
+          : `${baseUrl}/wl/scout-people/reveal-contacts`,
+      ...(linkedinUrl ? { body: { linkedin_profile_url: linkedinUrl } } : {}),
     });
     const id = doc._id.toHexString();
     setFutureJobsOutboundDebugId(id);
@@ -354,51 +371,23 @@ export function completeRevealOutboundDebugSession(input: {
 
   const actor = getFutureJobsActor();
   const debugId = asObjectId(input.debugId ?? actor.outboundDebugId);
-  const lookupId = asObjectId(input.lookupId);
 
   void (async () => {
     await ensureFutureJobsOutboundDebugCollection();
     const filter = debugId
       ? { _id: debugId }
       : {
-          kind: 'reveal' as const,
-          sessionStatus: 'in_progress',
-          ...(input.type ? { type: input.type } : {}),
-          ...(lookupId ? { lookupId } : {}),
+          kind: input.type ? revealKind(input.type) : { $in: ['email_reveal', 'phone_reveal'] },
+          response: null,
           ...(asObjectId(actor.userId) ? { userId: asObjectId(actor.userId) } : {}),
         };
 
     const existing = await FutureJobsOutboundDebugModel.findOne(filter).sort({
       createdAt: -1,
     });
-    if (!existing) return;
+    if (!existing || existing.response != null || !input.error) return;
 
-    const dataFoundFrom =
-      input.found && !existing.dataFoundFrom
-        ? existing.polls?.some((p) => phoneFoundInPollResponse(p.response))
-          ? 'poll'
-          : 'main_api'
-        : existing.dataFoundFrom;
-
-    // Phone UX polls getLookup after empty/error main reveal — keep session open
-    // so soft-poll observations can still append. Email closes immediately.
-    const keepOpenForPhonePoll =
-      (input.type === 'phone' || existing.type === 'phone') && !input.found;
-
-    existing.sessionStatus = keepOpenForPhonePoll
-      ? 'in_progress'
-      : input.error
-        ? 'failed'
-        : 'completed';
-    existing.dataFoundFrom = dataFoundFrom ?? existing.dataFoundFrom;
-    existing.resultSummary = truncateJson({
-      found: input.found,
-      charged: input.charged ?? false,
-      source: input.source ?? null,
-      values: input.values ?? [],
-      error: input.error ?? null,
-    });
-    if (input.error) existing.error = input.error;
+    existing.response = { error: input.error };
     await existing.save();
   })().catch((err) => {
     log().warn(
@@ -408,167 +397,16 @@ export function completeRevealOutboundDebugSession(input: {
   });
 }
 
-function phoneFoundInPollResponse(response: unknown): boolean {
-  if (!response || typeof response !== 'object') return false;
-  const root = response as Record<string, unknown>;
-  const data =
-    root.data && typeof root.data === 'object'
-      ? (root.data as Record<string, unknown>)
-      : root;
-  const rs =
-    data.revealStatus && typeof data.revealStatus === 'object'
-      ? (data.revealStatus as Record<string, unknown>)
-      : root.revealStatus && typeof root.revealStatus === 'object'
-        ? (root.revealStatus as Record<string, unknown>)
-        : null;
-  if (!rs) return false;
-  const phone =
-    rs.phone && typeof rs.phone === 'object'
-      ? (rs.phone as { values?: unknown })
-      : null;
-  return Array.isArray(phone?.values) && phone.values.length > 0;
-}
-
-/**
- * Append a soft-poll (GET lookup) observation onto the in-progress phone reveal session.
- * Stores only url + response + createdAt per poll.
- */
-export function appendRevealOutboundDebugPoll(input: {
-  lookupId: string;
-  url: string;
-  response: unknown;
-  type?: FutureJobsOutboundRevealType;
-  userId?: string | null;
-}): void {
-  if (isTest()) return;
-  if (mongoose.connection.readyState !== 1) return;
-
-  const lookupId = asObjectId(input.lookupId);
-  if (!lookupId) return;
-  const userId = asObjectId(input.userId ?? getFutureJobsActor().userId);
-  const url = String(input.url || '').trim();
-  if (!url) return;
-  const found = phoneFoundInPollResponse(input.response);
-
-  void (async () => {
-    await ensureFutureJobsOutboundDebugCollection();
-    const session = await FutureJobsOutboundDebugModel.findOne({
-      kind: 'reveal',
-      sessionStatus: 'in_progress',
-      lookupId,
-      ...(input.type ? { type: input.type } : { type: 'phone' }),
-      ...(userId ? { userId } : {}),
-    })
-      .sort({ createdAt: -1 })
-      .exec();
-
-    if (!session) return;
-    if ((session.polls?.length ?? 0) >= MAX_POLLS) return;
-
-    const phoneValues = (() => {
-      if (!input.response || typeof input.response !== 'object') return [] as string[];
-      const root = input.response as Record<string, unknown>;
-      const data =
-        root.data && typeof root.data === 'object'
-          ? (root.data as Record<string, unknown>)
-          : root;
-      const rs =
-        data.revealStatus && typeof data.revealStatus === 'object'
-          ? (data.revealStatus as Record<string, unknown>)
-          : root.revealStatus && typeof root.revealStatus === 'object'
-            ? (root.revealStatus as Record<string, unknown>)
-            : null;
-      const phone =
-        rs && rs.phone && typeof rs.phone === 'object'
-          ? (rs.phone as { values?: unknown })
-          : null;
-      return Array.isArray(phone?.values)
-        ? phone.values.map((v) => String(v)).filter(Boolean)
-        : [];
-    })();
-
-    session.set('polls', [
-      ...(session.polls ?? []),
-      {
-        url,
-        response: truncateJson(input.response),
-        createdAt: new Date(),
-      },
-    ]);
-
-    if (found && phoneValues.length > 0) {
-      if (!session.dataFoundFrom) session.dataFoundFrom = 'poll';
-      session.sessionStatus = 'completed';
-      session.resultSummary = truncateJson({
-        found: true,
-        charged: false,
-        source: 'poll',
-        values: phoneValues,
-        error: null,
-      });
-    } else if ((session.polls?.length ?? 0) >= PHONE_POLL_COMPLETE_AFTER) {
-      session.sessionStatus = 'completed';
-      session.resultSummary = truncateJson({
-        found: false,
-        charged: false,
-        source: 'poll_exhausted',
-        values: [],
-        error: null,
-        pollCount: session.polls?.length ?? 0,
-      });
-    }
-
-    await session.save();
-  })().catch((err) => {
-    log().warn(
-      { err: err instanceof Error ? err.message : String(err) },
-      'failed to append reveal outbound debug poll'
-    );
-  });
-}
-
-/** Latest in-progress phone reveal debug session for soft-poll FJ lookup. */
-export async function findInProgressRevealOutboundDebugSession(input: {
-  lookupId: string;
-  userId?: string | null;
-  type?: FutureJobsOutboundRevealType;
-}): Promise<{ id: string; pollCount: number } | null> {
-  if (isTest()) return null;
-  if (mongoose.connection.readyState !== 1) return null;
-  const lookupId = asObjectId(input.lookupId);
-  if (!lookupId) return null;
-  const userId = asObjectId(input.userId ?? getFutureJobsActor().userId);
-
-  await ensureFutureJobsOutboundDebugCollection();
-  const session = await FutureJobsOutboundDebugModel.findOne({
-    kind: 'reveal',
-    sessionStatus: 'in_progress',
-    lookupId,
-    type: input.type ?? 'phone',
-    ...(userId ? { userId } : {}),
-  })
-    .sort({ createdAt: -1 })
-    .select({ _id: 1, polls: 1 })
-    .lean()
-    .exec();
-
-  if (!session?._id) return null;
-  return {
-    id: String(session._id),
-    pollCount: Array.isArray(session.polls) ? session.polls.length : 0,
-  };
-}
-
-/** Reveal + soft-poll window (~130s HTTP + 60s poll). Stale locks auto-clear. */
+/** Stale in-progress phone reveals auto-clear so the next unlock can start. */
 export const PHONE_REVEAL_LOCK_MAX_AGE_MS = 4 * 60 * 1000;
 
 /**
  * Any in-progress phone reveal for this user (any candidate), used to serialize
- * lookup + reveal-contacts + soft-poll and avoid FJ rate limits.
+ * lookup + reveal-contacts and avoid FJ rate limits.
  */
 export async function findAnyInProgressPhoneRevealForUser(
   userId?: string | null
-): Promise<{ id: string; createdAt: Date; lookupId?: string } | null> {
+): Promise<{ id: string; createdAt: Date } | null> {
   if (isTest()) return null;
   if (mongoose.connection.readyState !== 1) return null;
   const uid = asObjectId(userId ?? getFutureJobsActor().userId);
@@ -576,13 +414,12 @@ export async function findAnyInProgressPhoneRevealForUser(
 
   await ensureFutureJobsOutboundDebugCollection();
   const session = await FutureJobsOutboundDebugModel.findOne({
-    kind: 'reveal',
-    type: 'phone',
-    sessionStatus: 'in_progress',
+    kind: 'phone_reveal',
     userId: uid,
+    response: null,
   })
     .sort({ createdAt: -1 })
-    .select({ _id: 1, createdAt: 1, lookupId: 1 })
+    .select({ _id: 1, createdAt: 1 })
     .lean()
     .exec();
 
@@ -590,7 +427,6 @@ export async function findAnyInProgressPhoneRevealForUser(
   return {
     id: String(session._id),
     createdAt: session.createdAt instanceof Date ? session.createdAt : new Date(session.createdAt),
-    ...(session.lookupId ? { lookupId: String(session.lookupId) } : {}),
   };
 }
 
@@ -617,9 +453,8 @@ export function recordFutureJobsOutboundDebug(input: {
 
   const actor = getFutureJobsActor();
   const snapshot = callSnapshot(input);
-  const kind = classifyOperation(input.operation);
-  const revealType =
-    kind === 'reveal' ? revealTypeFromRequest(input.body, input.url) : null;
+  const kind = classifyOperation(input.operation, input.url);
+  if (!kind) return;
   const debugId = asObjectId(actor.outboundDebugId);
 
   void (async () => {
@@ -627,90 +462,110 @@ export function recordFutureJobsOutboundDebug(input: {
 
     if (debugId) {
       const session = await FutureJobsOutboundDebugModel.findById(debugId);
-      if (session) {
-        // Scout: insert-on-click row → update with response (lean, no calls/polls).
-        if (
-          session.kind === 'scout' &&
-          session.sessionStatus === 'in_progress'
-        ) {
-          session.operation = snapshot.operation;
-          session.method = snapshot.method;
-          session.url = snapshot.url;
-          if (snapshot.body != null) session.body = snapshot.body;
-          if (snapshot.response != null) session.response = snapshot.response;
-          if (snapshot.status != null) session.status = snapshot.status;
-          if (snapshot.statusText) session.statusText = snapshot.statusText;
-          session.ok = snapshot.ok;
-          if (snapshot.elapsedMs != null) session.elapsedMs = snapshot.elapsedMs;
-          session.attempt = snapshot.attempt;
-          if (snapshot.error) session.error = snapshot.error;
-          session.sessionStatus = snapshot.ok ? 'completed' : 'failed';
-          await session.save();
-          return;
-        }
-
-        // Reveal: append main reveal HTTP to `calls` / `mainApi` even if
-        // complete() already ran (phone soft-poll keeps session in_progress).
-        // Soft-poll scout-people/lookup must NOT land in `calls` — only in
-        // `polls` via appendRevealOutboundDebugPoll.
-        if (session.kind === 'reveal') {
-          if (!isMainRevealOperation(snapshot.operation)) {
-            return;
-          }
-          session.set('calls', [...(session.calls ?? []), snapshot]);
-          session.mainApi = snapshot;
-          session.operation = snapshot.operation;
-          session.method = snapshot.method;
-          session.url = snapshot.url;
-          session.body = snapshot.body;
-          session.response = snapshot.response;
-          session.status = snapshot.status;
-          session.statusText = snapshot.statusText;
-          session.ok = snapshot.ok;
-          session.elapsedMs = snapshot.elapsedMs;
-          session.attempt = snapshot.attempt;
-          if (snapshot.error) session.error = snapshot.error;
-          // Only mark main_api when the channel actually returned values.
-          const fjType = session.type === 'email' ? 'EMAIL' : 'PHONE';
-          const values = extractRevealValues(snapshot.response, fjType);
-          if (snapshot.ok && values.length > 0 && !session.dataFoundFrom) {
-            session.dataFoundFrom = 'main_api';
-          }
-          if (revealType && !session.type) session.type = revealType;
-          await session.save();
-          return;
-        }
+      // Same API as the open row: fill url, body, and response on it.
+      if (session && session.kind === kind) {
+        session.url = snapshot.url;
+        if (snapshot.body != null) session.body = snapshot.body;
+        if (snapshot.response != null) session.response = snapshot.response;
+        await session.save();
+        return;
       }
     }
 
-    // Lean one-shot row (search / other, or scout without a pre-started session).
+    // A different API (lookup, then reveal-contacts) is its own row.
     const userId = asObjectId(input.userId ?? actor.userId);
-    const organizationId = asObjectId(input.organizationId ?? actor.organizationId);
     await FutureJobsOutboundDebugModel.create({
       kind,
-      ...(kind === 'reveal' && revealType ? { type: revealType } : {}),
       ...(userId ? { userId } : {}),
-      ...(organizationId ? { organizationId } : {}),
-      operation: snapshot.operation,
-      method: snapshot.method,
       url: snapshot.url,
       ...(snapshot.body != null ? { body: snapshot.body } : {}),
       ...(snapshot.response != null ? { response: snapshot.response } : {}),
-      ...(snapshot.status != null ? { status: snapshot.status } : {}),
-      ...(snapshot.statusText ? { statusText: snapshot.statusText } : {}),
-      ok: snapshot.ok,
-      ...(snapshot.elapsedMs != null ? { elapsedMs: snapshot.elapsedMs } : {}),
-      attempt: snapshot.attempt,
-      ...(snapshot.error ? { error: snapshot.error } : {}),
     });
     await trimOutboundDebugCollection();
   })().catch((err) => {
     log().warn(
       {
         err: err instanceof Error ? err.message : String(err),
-        operation: snapshot.operation,
+        operation: input.operation,
       },
       'failed to record Future Jobs outbound debug row'
+    );
+  });
+}
+
+/** Remember which profile this reveal log belongs to, so the webhook can be attached. */
+export function noteRevealDebugTarget(input: {
+  profileId?: string | null;
+  linkedinUrl?: string | null;
+}): void {
+  if (isTest()) return;
+  if (mongoose.connection.readyState !== 1) return;
+  const debugId = asObjectId(getFutureJobsActor().outboundDebugId);
+  if (!debugId) return;
+  const linkedinUrl = String(input.linkedinUrl || '').trim();
+  if (!linkedinUrl) return;
+  void (async () => {
+    const existing = await FutureJobsOutboundDebugModel.findById(debugId);
+    if (!existing) return;
+    const current =
+      existing.body && typeof existing.body === 'object' && !Array.isArray(existing.body)
+        ? (existing.body as Record<string, unknown>)
+        : null;
+    if (current?.linkedin_profile_url || current?.linkedin_url) return;
+    existing.body = { ...(current ?? {}), linkedin_profile_url: linkedinUrl };
+    await existing.save();
+  })().catch((err) => {
+    log().warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      'failed to note reveal debug target'
+    );
+  });
+}
+
+/**
+ * Store the incoming contact.reveal webhook on the reveal log it finishes.
+ * The row then has the called URL, request body, response, and this webhook.
+ */
+export function recordFutureJobsRevealWebhook(event: unknown): void {
+  if (isTest()) return;
+  if (mongoose.connection.readyState !== 1) return;
+  const parsed = parseFutureJobsPhoneWebhook(event);
+  if (!parsed) return;
+  const webhook = truncateJson(event);
+
+  void (async () => {
+    await ensureFutureJobsOutboundDebugCollection();
+    const linkedinUrl = normalizeLinkedinProfileUrl(parsed?.linkedinUrl);
+    const keys = linkedinUrl ? linkedinCacheLookupKeys(linkedinUrl) : [];
+    const linkedinKeys = keys.length > 0 ? keys : linkedinUrl ? [linkedinUrl] : [];
+
+    const existing = linkedinKeys.length
+      ? await FutureJobsOutboundDebugModel.findOne({
+          kind: 'phone_reveal',
+          $or: [
+            { 'body.linkedin_profile_url': { $in: linkedinKeys } },
+            { 'body.linkedin_url': { $in: linkedinKeys } },
+          ],
+        }).sort({ createdAt: -1 })
+      : null;
+
+    if (existing) {
+      existing.webhook = webhook;
+      await existing.save();
+      return;
+    }
+
+    await FutureJobsOutboundDebugModel.create({
+      kind: 'phone_reveal',
+      url: '/api/v1/webhooks/contact-reveal',
+      webhook,
+      ...(linkedinUrl ? { body: { linkedin_profile_url: linkedinUrl } } : {}),
+    });
+    await trimOutboundDebugCollection();
+  })().catch((err) => {
+    log().warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      'failed to record Future Jobs reveal webhook'
     );
   });
 }

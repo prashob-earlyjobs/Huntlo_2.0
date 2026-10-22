@@ -19,7 +19,9 @@ import { OrganizationModel } from '../src/modules/organizations/organization.mod
 import { SourcedCandidateModel } from '../src/modules/sourcing/sourced-candidate.model.js';
 import { SourcingSessionModel } from '../src/modules/sourcing/sourcing-session.model.js';
 import {
+  extractRevealChannelStatus,
   extractRevealValues,
+  parseFutureJobsPhoneWebhook,
   FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE,
   FUTURE_JOBS_PROFILE_NOT_FOUND_CODE,
   getFutureJobsProvider,
@@ -103,6 +105,118 @@ async function seedCandidate(
 }
 
 describe('extractRevealValues / LinkedIn reveal URLs', () => {
+  it('treats a PENDING phone as not ready yet', () => {
+    const pendingBody = {
+      statusCode: 200,
+      data: [{ type: 'PHONE', values: [], status: 'PENDING' }],
+      message: 'Phone reveal is in progress. You will be notified once the number is fetched.',
+      status: 'SUCCESS',
+    };
+    expect(extractRevealValues(pendingBody, 'PHONE')).toEqual([]);
+    expect(extractRevealChannelStatus(pendingBody, 'PHONE')).toBe('PENDING');
+
+    expect(
+      parseFutureJobsPhoneWebhook({
+        id: 'c54175d9-774d-4951-a37e-a8546a66f7c1',
+        eventType: 'contact.reveal.completed',
+        timestamp: '2026-10-07T15:04:59.652Z',
+        payload: {
+          profileId: '6ab45b29e0ba78e1cf5015ac',
+          linkedinUrl: 'https://www.linkedin.com/in/jane-doe',
+          outcome: 'REVEALED',
+          revealStatus: {
+            email: { revealed: false, status: null, values: [] },
+            phone: { revealed: true, status: 'REVEALED', values: ['+919876543210'] },
+          },
+        },
+      })
+    ).toMatchObject({
+      profileId: '6ab45b29e0ba78e1cf5015ac',
+      outcome: 'REVEALED',
+      values: ['+919876543210'],
+    });
+
+    expect(
+      parseFutureJobsPhoneWebhook({
+        id: '0b9d2f4e-1c3a-4f6b-8e2d-7a5c9b1e3f40',
+        eventType: 'contact.reveal.completed',
+        timestamp: '2026-10-07T15:04:59.652Z',
+        payload: {
+          profileId: '6ab45b29e0ba78e1cf5015ac',
+          linkedinUrl: 'https://www.linkedin.com/in/jane-doe',
+          outcome: 'NOT_FOUND',
+          revealStatus: {
+            email: { revealed: false, status: null, values: [] },
+            phone: { revealed: false, status: 'NOT_FOUND', values: [] },
+          },
+        },
+      })
+    ).toMatchObject({
+      profileId: '6ab45b29e0ba78e1cf5015ac',
+      outcome: 'NOT_FOUND',
+      values: [],
+    });
+
+    expect(
+      parseFutureJobsPhoneWebhook({
+        id: 'email-only',
+        eventType: 'contact.reveal.completed',
+        timestamp: '2026-10-17T06:21:42.000Z',
+        payload: {
+          profileId: 'profile-1',
+          linkedinUrl: 'https://www.linkedin.com/in/jane-doe',
+          outcome: 'REVEALED',
+          revealStatus: {
+            email: { revealed: false, status: 'PENDING', values: [] },
+            phone: { revealed: false, status: 'PENDING', values: [] },
+          },
+        },
+      })
+    ).toBeNull();
+  });
+
+  it('extracts a FOUND phone from the sourcing-session contact reveal list', () => {
+    const values = extractRevealValues(
+      {
+        statusCode: 200,
+        status: 'SUCCESS',
+        message: 'Phone revealed successfully',
+        data: [
+          { type: 'EMAIL', values: [], status: null },
+          { type: 'PHONE', values: ['+919876543210'], status: 'FOUND' },
+        ],
+      },
+      'PHONE'
+    );
+    expect(values).toEqual(['+919876543210']);
+  });
+
+  it('extracts a REVEALED phone from the sourcing-session contact reveal list', () => {
+    const body = {
+      statusCode: 200,
+      status: 'SUCCESS',
+      message: 'Contact revealed successfully',
+      data: [{ type: 'PHONE', values: ['+919876543210'], status: 'REVEALED' }],
+    };
+    expect(extractRevealValues(body, 'PHONE')).toEqual(['+919876543210']);
+    expect(extractRevealChannelStatus(body, 'PHONE')).toBe('FOUND');
+  });
+
+  it('ignores an empty phone entry in the sourcing-session contact reveal list', () => {
+    const values = extractRevealValues(
+      {
+        statusCode: 200,
+        status: 'SUCCESS',
+        data: [
+          { type: 'EMAIL', values: ['a@example.com'], status: 'FOUND' },
+          { type: 'PHONE', values: [], status: null },
+        ],
+      },
+      'PHONE'
+    );
+    expect(values).toEqual([]);
+  });
+
   it('extracts email values from revealStatus shape', () => {
     const values = extractRevealValues(
       {
@@ -484,15 +598,12 @@ describe('Candidates reveal API', () => {
     expect(ledgerCount).toBe(1);
   });
 
-  it('reveals /wl/search candidates via scout-people instead of sourcing-session', async () => {
+  it('reveals phone via sourcing-session contact/reveal', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent);
     const memberId = 'ACoAAClWlSearchRevealId';
-    const memberUrl = `https://www.linkedin.com/in/${memberId}`;
     const vanity = 'https://www.linkedin.com/in/aisha-rahman-search';
-    // Profile already scouted (People Scout / prior lookup).
-    await getFutureJobsProvider().scoutPeopleLookup({ linkedin_url: memberUrl });
     const { candidate } = await seedCandidate(organizationId, userId, {
-      externalSessionId: `wl-search-${Date.now()}`,
+      externalSessionId: 'fj-session-phone-reveal',
       linkedinUrl: vanity,
       externalCandidateId: memberId,
       rawDoc: {
@@ -515,13 +626,12 @@ describe('Candidates reveal API', () => {
     expect(phone.body.data.values.length).toBeGreaterThan(0);
   });
 
-  it('phone reveal runs scout-people lookup then reveal-contacts', async () => {
+  it('phone reveal calls sourcing-session contact/reveal with the session id', async () => {
     const { token, organizationId, userId } = await registerAndAuth(agent, '-us');
     const memberUrl =
       'https://www.linkedin.com/in/ACoAAMockJaneDoeSeattle01';
-    await getFutureJobsProvider().scoutPeopleLookup({ linkedin_url: memberUrl });
     const { candidate } = await seedCandidate(organizationId, userId, {
-      externalSessionId: `wl-search-${Date.now()}`,
+      externalSessionId: 'fj-session-phone-direct',
       linkedinUrl: memberUrl,
       externalCandidateId: 'ACoAAMockJaneDoeSeattle01',
       rawDoc: {

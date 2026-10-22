@@ -31,10 +31,8 @@ import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api"
 import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { notifyUsageRefresh } from "@/lib/usage-refresh";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { cn } from "@/lib/utils";
-
-const LOOKUP_POLL_INTERVAL_MS = 10_000;
-const LOOKUP_POLL_WINDOW_MS = 60_000;
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -113,9 +111,10 @@ export function ScoutProfileCard({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
   const [revealing, setRevealing] = useState<"email" | "mobile" | null>(null);
-  const [takingLonger, setTakingLonger] = useState(false);
+  const [phonePending, setPhonePending] = useState(false);
   const [listNames, setListNames] = useState<string[]>([]);
   const revealGenerationRef = useRef(0);
+  const phonePendingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +130,106 @@ export function ScoutProfileCard({
       cancelled = true;
     };
   }, []);
+
+  function markPhoneWaiting() {
+    phonePendingRef.current = true;
+    setPhonePending(true);
+  }
+
+  function markPhoneMissing() {
+    phonePendingRef.current = false;
+    setPhonePending(false);
+    setUnavailable((previous) => ({ ...previous, phone: true }));
+  }
+
+  function applyPhoneFromWebhook(found: boolean, value: string) {
+    phonePendingRef.current = false;
+    setPhonePending(false);
+    if (found && value) {
+      setPhoneValue(value);
+      setUnavailable((previous) => ({ ...previous, phone: false }));
+      setRevealed((previous) => ({ ...previous, phone: true }));
+      flash("Revealed");
+      notifyUsageRefresh();
+      return;
+    }
+    markPhoneMissing();
+    flash("Phone not found");
+  }
+
+  useRealtimeRefresh("candidates.reveal.phone", (event) => {
+    const data =
+      event.data && typeof event.data === "object"
+        ? (event.data as {
+            lookupId?: string | null;
+            linkedinUrl?: string | null;
+            found?: boolean;
+            value?: string;
+            values?: string[];
+          })
+        : null;
+    if (!data) return;
+    const matchesLookup = Boolean(lookupId) && data.lookupId === lookupId;
+    const eventUrl = (data.linkedinUrl ?? "").trim().replace(/\/+$/, "").toLowerCase();
+    const profileUrl = (profile.linkedinUrl ?? "").trim().replace(/\/+$/, "").toLowerCase();
+    const matchesUrl = Boolean(eventUrl) && eventUrl === profileUrl;
+    if (!matchesLookup && !matchesUrl) return;
+    applyPhoneFromWebhook(Boolean(data.found), (data.value || data.values?.[0] || "").trim());
+  });
+
+  useEffect(() => {
+    if (!lookupId) return;
+    let cancelled = false;
+    void peopleScoutApi
+      .phoneRevealStatus(lookupId)
+      .then((row) => {
+        if (cancelled) return;
+        if (row.status === "pending") {
+          markPhoneWaiting();
+          return;
+        }
+        if (row.status === "missing") {
+          markPhoneMissing();
+          return;
+        }
+        if (row.status === "completed" && row.value.trim()) {
+          setPhonePending(false);
+          setPhoneValue(row.value.trim());
+          setUnavailable((previous) => ({ ...previous, phone: false }));
+          setRevealed((previous) => ({ ...previous, phone: true }));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [lookupId]);
+
+  useEffect(() => {
+    if (!phonePending || !lookupId) return;
+    let cancelled = false;
+    const tick = () => {
+      void peopleScoutApi
+        .phoneRevealStatus(lookupId)
+        .then((row) => {
+          if (cancelled) return;
+          if (row.status === "missing") {
+            applyPhoneFromWebhook(false, "");
+            return;
+          }
+          if (row.status === "completed" && row.value.trim()) {
+            applyPhoneFromWebhook(true, row.value.trim());
+          }
+        })
+        .catch(() => undefined);
+    };
+    tick();
+    const timer = window.setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [phonePending, lookupId]);
 
   function flash(message: string) {
     setFeedback(message);
@@ -185,21 +284,9 @@ export function ScoutProfileCard({
     return code === "TIMEOUT" || code === "ABORTED";
   }
 
-  function phoneValueFromLookup(
-    lookup: Awaited<ReturnType<typeof peopleScoutApi.getLookup>>
-  ): string {
-    if (!lookup) return "";
-    return (
-      lookup.revealStatus.phone.values[0] ||
-      lookup.profile?.phone ||
-      ""
-    ).trim();
-  }
-
-  /** Email: synchronous reveal; timeout → contact not found (no lookup poll). */
+  /** Email: one reveal request. A timeout is a failed wait, not a missing address. */
   async function handleEmailReveal() {
     setRevealError(null);
-    setTakingLonger(false);
     setRevealing("email");
     const generation = ++revealGenerationRef.current;
 
@@ -220,40 +307,22 @@ export function ScoutProfileCard({
     } catch (err) {
       if (revealGenerationRef.current !== generation) return;
       if (isRevealTimeoutError(err)) {
-        applyRevealUnavailable("email", "Email not found");
+        setRevealError("Email reveal timed out. Try again.");
         return;
       }
       setRevealError(getApiErrorMessage(err));
     } finally {
       if (revealGenerationRef.current === generation) {
         setRevealing(null);
-        setTakingLonger(false);
       }
     }
   }
 
-  /**
-   * Mobile: desire a phone number. Only skip polling when reveal returns a
-   * phone. Any other outcome (2xx empty, 4xx/5xx, timeout) → poll getLookup
-   * every 10s for 60s. Email reveal is unchanged (no poll).
-   */
   async function handleMobileReveal() {
     setRevealError(null);
-    setTakingLonger(false);
     setRevealing("mobile");
     const generation = ++revealGenerationRef.current;
 
-    let settled = false;
-    const isActive = () =>
-      revealGenerationRef.current === generation && !settled;
-
-    const finish = (action: () => void) => {
-      if (!isActive()) return;
-      settled = true;
-      action();
-    };
-
-    let gotPhone = false;
     try {
       const result = await peopleScoutApi.revealContact({
         lookupId: lookupId ?? "",
@@ -263,76 +332,29 @@ export function ScoutProfileCard({
       });
       if (revealGenerationRef.current !== generation) return;
       const value = result.value || result.values[0] || "";
-      if (result.found && value) {
-        gotPhone = true;
-        finish(() => {
-          applyRevealSuccess(
-            "mobile",
-            value,
-            result.charged,
-            result.creditsCharged
-          );
-        });
+      if (result.pending) {
+        markPhoneWaiting();
+        flash("Still fetching this phone. It will appear when ready.");
+        return;
       }
+      if (!result.found || !value) {
+        markPhoneMissing();
+        flash("Phone not found");
+        return;
+      }
+      applyRevealSuccess("mobile", value, result.charged, result.creditsCharged);
     } catch (err) {
       if (revealGenerationRef.current !== generation) return;
-      const message = getApiErrorMessage(err, "");
-      // Do not soft-poll when another mobile reveal holds the per-user lock.
-      if (/already in progress|REVEAL_IN_PROGRESS/i.test(message)) {
-        finish(() => {
-          setRevealError(message);
-        });
-      } else if (!isRevealTimeoutError(err) && !lookupId) {
-        // 4xx/5xx without a lookup to poll — surface the error.
-        finish(() => {
-          setRevealError(message);
-        });
+      if (isRevealTimeoutError(err)) {
+        markPhoneMissing();
+        flash("Phone not found");
+        return;
       }
-      // Timeout / empty / other errors with lookupId → fall through to soft-poll.
-    }
-
-    if (gotPhone || !isActive()) {
+      setRevealError(getApiErrorMessage(err));
+    } finally {
       if (revealGenerationRef.current === generation) {
         setRevealing(null);
-        setTakingLonger(false);
       }
-      return;
-    }
-
-    if (lookupId) {
-      setTakingLonger(true);
-      flash("Still checking for phone…");
-      const pollDeadline = Date.now() + LOOKUP_POLL_WINDOW_MS;
-      while (isActive() && Date.now() < pollDeadline) {
-        try {
-          const lookup = await peopleScoutApi.getLookup(lookupId);
-          const value = phoneValueFromLookup(lookup);
-          if (value) {
-            finish(() => {
-              setPhoneValue(value);
-              setUnavailable((previous) => ({ ...previous, phone: false }));
-              setRevealed((previous) => ({ ...previous, phone: true }));
-              flash("Revealed");
-            });
-            break;
-          }
-        } catch {
-          // Keep polling through transient lookup errors.
-        }
-        if (!isActive()) break;
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, LOOKUP_POLL_INTERVAL_MS);
-        });
-      }
-    }
-
-    if (isActive()) {
-      finish(() => applyRevealUnavailable("mobile"));
-    }
-
-    if (revealGenerationRef.current === generation) {
-      setRevealing(null);
-      setTakingLonger(false);
     }
   }
 
@@ -414,7 +436,7 @@ export function ScoutProfileCard({
             </span>
           </Button>
         )}
-        {revealing === "mobile" ? (
+        {phonePending ? (
           <Button
             type="button"
             size="sm"
@@ -424,7 +446,19 @@ export function ScoutProfileCard({
             aria-busy
           >
             <Loader2 aria-hidden className="animate-spin" />
-            {takingLonger ? "Taking longer…" : "Unlocking phone…"}
+            Waiting for phone…
+          </Button>
+        ) : revealing === "mobile" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            disabled
+            aria-busy
+          >
+            <Loader2 aria-hidden className="animate-spin" />
+            Unlocking phone…
           </Button>
         ) : revealed.phone ? (
           <RevealedRow
