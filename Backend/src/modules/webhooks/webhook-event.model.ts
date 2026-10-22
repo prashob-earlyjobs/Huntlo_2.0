@@ -10,6 +10,7 @@ export const WEBHOOK_PROVIDERS = [
   'razorpay',
   'dodo',
   'gmail',
+  'futureJobs',
 ] as const;
 export type WebhookProvider = (typeof WEBHOOK_PROVIDERS)[number];
 

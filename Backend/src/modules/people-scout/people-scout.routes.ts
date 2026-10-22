@@ -122,6 +122,21 @@ peopleScoutRouter.post(
   })
 );
 
+peopleScoutRouter.get(
+  '/lookups/:id/phone-reveal',
+  ...orgAuth,
+  requirePermission('peopleScout:view', 'candidates:view'),
+  asyncHandler(async (req, res) => {
+    const actor = actorFrom(req);
+    const data = await revealService.phoneRevealStatusForLookup(
+      actor.organizationId,
+      actor.userId,
+      String(req.params.id ?? '')
+    );
+    successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
 peopleScoutRouter.post(
   '/lookups/:id/reveal/mobile',
   ...orgAuth,

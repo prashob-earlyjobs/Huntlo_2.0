@@ -20,7 +20,9 @@ import {
   SlidersHorizontal,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 import { AddToListDialog } from "@/components/candidates/add-to-list-dialog";
 import { CandidateCard } from "@/components/sessions/candidate-card";
@@ -269,7 +271,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const MAX_BULK_REVEAL_SELECTION = 5;
 /**
  * Bulk phone queue only (row / Scout / email unchanged).
- * FJ ≈ 40/min; leave ~half for other traffic. Worst mobile ≈ 8 calls → ≤2 starts/min.
+ * FJ ≈ 40/min; leave ~half for other traffic. One mobile unlock is lookup + reveal.
  */
 const BULK_PHONE_MAX_STARTS_PER_MIN = 2;
 const BULK_PHONE_MIN_START_GAP_MS = Math.ceil(
@@ -424,10 +426,62 @@ export function SessionResults({
   const [bulkRevealingKind, setBulkRevealingKind] = useState<"email" | "phone" | null>(
     null
   );
+  const pendingPhoneIdsRef = useRef(new Set<string>());
+  const candidatesRef = useRef(localCandidates);
+  candidatesRef.current = localCandidates;
 
   const phoneRevealBusy =
     bulkRevealingKind === "phone" ||
     Object.values(revealedMap).some((state) => state.phoneStatus === "loading");
+
+  useRealtimeRefresh("candidates.reveal.phone", (event) => {
+    const data =
+      event.data && typeof event.data === "object"
+        ? (event.data as {
+            candidateId?: string;
+            found?: boolean;
+            value?: string;
+            values?: string[];
+          })
+        : null;
+    const id = data?.candidateId || "";
+    if (!id) return;
+    const value = (data?.value || data?.values?.[0] || "").trim();
+    const waiting = pendingPhoneIdsRef.current.has(id);
+    pendingPhoneIdsRef.current.delete(id);
+    if (data?.found && value) {
+      setLocalCandidates((previous) =>
+        previous.map((item) =>
+          item.id === id
+            ? { ...item, phone: value || item.phone, phoneRevealed: true }
+            : item
+        )
+      );
+      setRevealedMap((previous) => ({
+        ...previous,
+        [id]: {
+          ...(previous[id] ?? { email: false, phone: false }),
+          phone: true,
+          phoneStatus: "idle",
+          phoneValue: value,
+        },
+      }));
+      notifyUsageRefresh();
+      return;
+    }
+    if (!waiting) return;
+    setRevealedMap((previous) => ({
+      ...previous,
+      [id]: {
+        ...(previous[id] ?? { email: false, phone: false }),
+        phoneStatus: "unavailable",
+      },
+    }));
+    const name =
+      candidatesRef.current.find((candidate) => candidate.id === id)?.name ||
+      "this profile";
+    setRevealError(`No mobile found for ${name}.`);
+  });
 
   useEffect(() => {
     setSelected(new Set());
@@ -705,7 +759,7 @@ export function SessionResults({
     if (!candidate) return "skipped";
     if (kind === "email" && candidate.emailRevealed) return "skipped";
     if (kind === "phone" && candidate.phoneRevealed) return "skipped";
-    // Serialize mobile reveals: lookup + reveal + soft-poll saturates FJ rate limits.
+    // Serialize mobile reveals so lookup + reveal-contacts stay inside the FJ rate limit.
     if (
       kind === "phone" &&
       phoneRevealBusy &&
@@ -791,24 +845,16 @@ export function SessionResults({
       return code === "TIMEOUT" || code === "ABORTED";
     };
 
-    /** Poll reveal-status while BG reveal may still be finishing (scout → reveal). */
-    const pollRevealStatus = async (): Promise<boolean> => {
+    /** Email only: poll reveal-status while a background reveal may still finish. */
+    const pollEmailRevealStatus = async (): Promise<boolean> => {
       const pollDeadline = Date.now() + 60_000;
       while (Date.now() < pollDeadline) {
         try {
           const status = await candidatesApi.getRevealStatus(id);
-          if (kind === "email") {
-            const emailValue = (status.email.values?.[0] || "").trim();
-            if (status.email.revealed && emailValue) {
-              applyEmailSuccess(emailValue);
-              return true;
-            }
-          } else {
-            const phoneValue = (status.mobile.values?.[0] || "").trim();
-            if (status.mobile.revealed && phoneValue) {
-              applyPhoneSuccess(phoneValue);
-              return true;
-            }
+          const emailValue = (status.email.values?.[0] || "").trim();
+          if (status.email.revealed && emailValue) {
+            applyEmailSuccess(emailValue);
+            return true;
           }
         } catch {
           // Keep polling through transient errors.
@@ -826,6 +872,18 @@ export function SessionResults({
         type: uiRevealKindToType(kind),
       });
       const value = (result.value || result.values[0] || "").trim();
+      if (kind === "phone" && result.pending) {
+        pendingPhoneIdsRef.current.add(id);
+        setRevealedMap((previous) => ({
+          ...previous,
+          [id]: {
+            ...(previous[id] ?? { email: false, phone: false }),
+            phoneStatus: "pending",
+          },
+        }));
+        return "done";
+      }
+
       if (result.found && value) {
         if (kind === "email") {
           applyEmailSuccess(value);
@@ -838,8 +896,12 @@ export function SessionResults({
         return "done";
       }
 
-      // Empty / still processing — keep loading and poll status (BG may finish later).
-      const found = await pollRevealStatus();
+      if (kind === "phone") {
+        applyUnavailable();
+        return "done";
+      }
+
+      const found = await pollEmailRevealStatus();
       if (found) {
         notifyUsageRefresh();
         return "done";
@@ -848,9 +910,12 @@ export function SessionResults({
       applyUnavailable();
       return "done";
     } catch (err) {
-      // FE timed out while BG reveal continues — keep loading and poll for the result.
+      if (kind === "phone" && isRevealTimeoutError(err)) {
+        applyUnavailable();
+        return "done";
+      }
       if (isRevealTimeoutError(err)) {
-        const found = await pollRevealStatus();
+        const found = await pollEmailRevealStatus();
         if (found) {
           notifyUsageRefresh();
           return "done";
@@ -890,7 +955,7 @@ export function SessionResults({
       return;
     }
 
-    // Mobile bulk queue: 1 at a time + soft-poll; ≤2 starts/min (FJ 40/min budget).
+    // Mobile bulk queue: 1 at a time, ≤2 starts/min (FJ 40/min budget).
     // Row button / Scout / email bulk unchanged. Old bulkReveal job kept for email below.
     if (kind === "phone") {
       setBulkRevealingKind("phone");

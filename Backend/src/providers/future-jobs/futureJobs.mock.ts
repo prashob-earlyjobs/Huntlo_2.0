@@ -710,7 +710,24 @@ export function createMockFutureJobsProvider(): FutureJobsProvider {
         logFailure: false,
       });
     }
-    return buildRevealResponse(type as 'EMAIL' | 'PHONE', profileUrl);
+    const revealed = type === 'PHONE';
+    return {
+      status: 'SUCCESS',
+      statusCode: 200,
+      message: revealed ? 'Phone revealed successfully' : 'Email revealed successfully',
+      data: [
+        {
+          type: 'EMAIL',
+          values: revealed ? [] : [`${profileUrl.slice(0, 12)}@example.com`],
+          status: revealed ? null : 'FOUND',
+        },
+        {
+          type: 'PHONE',
+          values: revealed ? ['+919876543210'] : [],
+          status: revealed ? 'FOUND' : null,
+        },
+      ],
+    };
   }
 
   async function scoutPeopleRevealContact(

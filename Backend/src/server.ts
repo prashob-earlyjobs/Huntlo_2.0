@@ -25,6 +25,9 @@ async function startServer(): Promise<void> {
   const app = createApp();
   const httpServer = createServer(app);
   const realtime = attachWebSocketServer(httpServer);
+  if (realtime) {
+    logger.info({ wsPath: env.REALTIME_WS_PATH }, 'Realtime gateway attached');
+  }
   const stopHcgGmailChangeStream = startHcgGmailChangeStream();
   const stopHcgZohoChangeStream = startHcgZohoChangeStream();
   const stopHcgOutlookChangeStream = startHcgOutlookChangeStream();

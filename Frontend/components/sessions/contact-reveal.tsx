@@ -93,7 +93,7 @@ export interface RevealState {
   phoneValue?: string;
 }
 
-export type RevealRequestStatus = "idle" | "loading" | "unavailable";
+export type RevealRequestStatus = "idle" | "loading" | "pending" | "unavailable";
 
 /**
  * Contact reveal block. `revealed` reflects session-local reveals;
@@ -123,8 +123,9 @@ function RevealButton({
   const missingLabel = kind === "email" ? "No email found" : "No mobile found";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const isLoading = status === "loading";
+  const isPending = status === "pending";
   const isUnavailable = status === "unavailable";
-  const blocked = Boolean(disabledProp) && !isLoading && !isUnavailable;
+  const blocked = Boolean(disabledProp) && !isLoading && !isPending && !isUnavailable;
 
   return (
     <Button
@@ -136,25 +137,27 @@ function RevealButton({
           ? `${missingLabel}. Click to try again.`
           : title
       }
-      aria-busy={isLoading || undefined}
+      aria-busy={isLoading || isPending || undefined}
       // Keep "unavailable" clickable so the user can retry after a soft miss.
-      disabled={isLoading || blocked}
+      disabled={isLoading || isPending || blocked}
       onClick={() => onReveal(kind)}
       className={cn("min-w-[10.5rem] justify-start", className)}
     >
-      {isLoading ? (
+      {isLoading || isPending ? (
         <Loader2 aria-hidden className="size-3 animate-spin" />
       ) : (
         <Icon aria-hidden />
       )}
       {isLoading
         ? "Fetching…"
-        : isUnavailable
-          ? missingLabel
-          : blocked
-            ? disabledLabel
-            : label}
-      {!isLoading && !isUnavailable && !blocked ? (
+        : isPending
+          ? "Waiting for phone…"
+          : isUnavailable
+            ? missingLabel
+            : blocked
+              ? disabledLabel
+              : label}
+      {!isLoading && !isPending && !isUnavailable && !blocked ? (
         <span className="tabular-nums text-muted-foreground">· {cost} cr</span>
       ) : null}
       {isUnavailable ? (
@@ -186,16 +189,19 @@ function ContactIconButton({
   const label = kind === "email" ? "email" : "mobile";
   const cost = kind === "email" ? REVEAL_COSTS.email : REVEAL_COSTS.mobile;
   const isLoading = status === "loading";
+  const isPending = status === "pending";
   const isUnavailable = status === "unavailable";
   // Revealed-but-empty: keep enabled so user can copy once value hydrates / retry isn't blocked.
   const blocked =
-    Boolean(disabledProp) && !isLoading && !visible && !isUnavailable;
+    Boolean(disabledProp) && !isLoading && !isPending && !visible && !isUnavailable;
   const tooltip = copied
     ? `${kind === "email" ? "Email" : "Mobile"} copied`
     : visible
       ? value || `${kind === "email" ? "Email" : "Mobile"} revealed`
-      : isLoading
-        ? `Fetching ${label}…`
+      : isLoading || isPending
+        ? isPending
+          ? `Waiting for ${label}…`
+          : `Fetching ${label}…`
         : isUnavailable
           ? `Retry ${label} reveal`
           : blocked
@@ -212,16 +218,18 @@ function ContactIconButton({
           ? value
             ? `Copy ${label}`
             : `${label} revealed`
-          : isLoading
-            ? `Fetching ${label}`
-            : isUnavailable
-              ? `Retry ${label}`
-              : blocked
-                ? disabledReason || "Mobile reveal in progress"
-              : `Reveal ${label} for ${cost} credits`
+          : isPending
+            ? `Waiting for ${label}`
+            : isLoading
+              ? `Fetching ${label}`
+              : isUnavailable
+                ? `Retry ${label}`
+                : blocked
+                  ? disabledReason || "Mobile reveal in progress"
+                  : `Reveal ${label} for ${cost} credits`
       }
       // Unavailable stays clickable for retry; only loading / phone-busy block.
-      disabled={isLoading || blocked}
+      disabled={isLoading || isPending || blocked}
       onClick={() => {
         if (!visible) {
           onReveal(kind);
@@ -233,7 +241,7 @@ function ContactIconButton({
         window.setTimeout(() => setCopied(false), 1500);
       }}
     >
-      {isLoading ? (
+      {isLoading || isPending ? (
         <Loader2 aria-hidden className="animate-spin" />
       ) : copied ? (
         <Check aria-hidden className="text-success" />

@@ -70,9 +70,9 @@ export function extractRevealValues(
     }
   }
 
-  if (data && Array.isArray(data.values) && data.values.length > 0) {
-    collectStringsFromUnknown(data.values, raw);
-  } else if (Array.isArray(data) && data.length > 0) {
+  if (Array.isArray(data) && data.length > 0) {
+    // POST /wl/sourcing-session/contact/reveal:
+    // data: [{ type: "PHONE", values: ["+91..."], status: "FOUND" }]
     const match = data.find(
       (entry) =>
         entry &&
@@ -80,13 +80,14 @@ export function extractRevealValues(
         String((entry as { type?: unknown }).type || '').toUpperCase() === revealType
     );
     if (match && typeof match === 'object') {
-      const m = match as { values?: unknown };
-      if (Array.isArray(m.values) && m.values.length > 0) {
+      const m = match as { values?: unknown; status?: unknown };
+      const status = m.status == null ? '' : String(m.status).trim().toUpperCase();
+      if ((status === '' || status === 'FOUND' || status === 'REVEALED') && Array.isArray(m.values)) {
         collectStringsFromUnknown(m.values, raw);
-      } else {
-        collectStringsFromUnknown(match, raw);
       }
     }
+  } else if (data && Array.isArray(data.values) && data.values.length > 0) {
+    collectStringsFromUnknown(data.values, raw);
   } else if (data?.value != null) {
     collectStringsFromUnknown(data.value, raw);
   } else if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -102,6 +103,106 @@ export function extractRevealValues(
     deduped.push(v);
   }
   return deduped;
+}
+
+export type RevealChannelStatus = 'FOUND' | 'PENDING' | 'MISSING';
+
+function phoneChannelStatus(entry: unknown): RevealChannelStatus | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const row = entry as { type?: unknown; status?: unknown; values?: unknown };
+  if (String(row.type || '').toUpperCase() !== 'PHONE') return null;
+  const status = row.status == null ? '' : String(row.status).trim().toUpperCase();
+  if (status === 'PENDING') return 'PENDING';
+  if (status === 'FOUND' || status === 'REVEALED') return 'FOUND';
+  if (status === 'NOT_FOUND' || status === 'FAILED' || status === 'UNAVAILABLE') {
+    return 'MISSING';
+  }
+  return null;
+}
+
+function statusOfRevealChannel(entry: unknown): RevealChannelStatus | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const status = String((entry as { status?: unknown }).status ?? '')
+    .trim()
+    .toUpperCase();
+  if (status === 'PENDING') return 'PENDING';
+  if (status === 'FOUND' || status === 'REVEALED') return 'FOUND';
+  if (status === 'NOT_FOUND' || status === 'FAILED' || status === 'UNAVAILABLE') {
+    return 'MISSING';
+  }
+  return null;
+}
+
+/** Phone channel on a sourcing-session reveal body, including `status: "PENDING"`. */
+export function extractRevealChannelStatus(
+  fj: unknown,
+  revealType: FutureJobsRevealType
+): RevealChannelStatus {
+  if (revealType !== 'PHONE') {
+    return extractRevealValues(fj, revealType).length > 0 ? 'FOUND' : 'MISSING';
+  }
+  const root = fj && typeof fj === 'object' ? (fj as Record<string, unknown>) : {};
+  const data = root.data;
+  if (Array.isArray(data)) {
+    for (const entry of data) {
+      const status = phoneChannelStatus(entry);
+      if (status === 'PENDING') return 'PENDING';
+      if (status === 'MISSING') return 'MISSING';
+    }
+  }
+  return extractRevealValues(fj, 'PHONE').length > 0 ? 'FOUND' : 'MISSING';
+}
+
+export type FutureJobsPhoneWebhookResult = {
+  eventId: string;
+  profileId: string;
+  linkedinUrl: string;
+  outcome: 'REVEALED' | 'NOT_FOUND';
+  values: string[];
+};
+
+/**
+ * `contact.reveal.completed` once a PENDING phone finishes.
+ * Match the unlock with `payload.profileId`. `outcome` is REVEALED or NOT_FOUND.
+ */
+export function parseFutureJobsPhoneWebhook(body: unknown): FutureJobsPhoneWebhookResult | null {
+  const root = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
+  if (!root || String(root.eventType || '') !== 'contact.reveal.completed') return null;
+  const payload =
+    root.payload && typeof root.payload === 'object'
+      ? (root.payload as Record<string, unknown>)
+      : null;
+  if (!payload) return null;
+
+  const profileId = String(payload.profileId || '').trim();
+  if (!profileId) return null;
+  const outcomeRaw = String(payload.outcome || '').trim().toUpperCase();
+  if (outcomeRaw !== 'REVEALED' && outcomeRaw !== 'NOT_FOUND') return null;
+
+  const revealStatus =
+    payload.revealStatus && typeof payload.revealStatus === 'object'
+      ? (payload.revealStatus as Record<string, unknown>)
+      : null;
+  const phone =
+    revealStatus?.phone && typeof revealStatus.phone === 'object'
+      ? (revealStatus.phone as Record<string, unknown>)
+      : null;
+  // Email finishes on reveal-contacts. This event settles a phone only.
+  const phoneStatus = statusOfRevealChannel(phone);
+  if (phoneStatus !== 'FOUND' && phoneStatus !== 'MISSING') return null;
+  const outcome = phoneStatus === 'MISSING' ? 'NOT_FOUND' : 'REVEALED';
+  const values =
+    outcome === 'REVEALED' && phone
+      ? extractRevealValues({ data: { revealStatus: { phone } } }, 'PHONE')
+      : [];
+
+  return {
+    eventId: String(root.id || '').trim(),
+    profileId,
+    linkedinUrl: String(payload.linkedinUrl || '').trim(),
+    outcome,
+    values,
+  };
 }
 
 function encodeLinkedinSlug(slug: string): string {

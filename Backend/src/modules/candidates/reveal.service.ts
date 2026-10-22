@@ -12,20 +12,20 @@ import {
 import { AppError } from '../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import {
-  appendRevealOutboundDebugPoll,
   completeRevealOutboundDebugSession,
   completeScoutOutboundDebugSession,
+  extractRevealChannelStatus,
   extractRevealValues,
+  parseFutureJobsPhoneWebhook,
   findAnyInProgressPhoneRevealForUser,
-  findInProgressRevealOutboundDebugSession,
   FutureJobsUpstreamError,
-  getFutureJobsConfig,
   getFutureJobsProvider,
   isFjInvalidLinkedinUrlError,
   isFjProfileNotFoundError,
   linkedinCacheLookupKeys,
   linkedinUrlsForContactReveal,
   normalizeLinkedinProfileUrl,
+  noteRevealDebugTarget,
   PHONE_REVEAL_LOCK_MAX_AGE_MS,
   resolveFjRevealProfileId,
   startRevealOutboundDebugSession,
@@ -36,8 +36,11 @@ import {
   getFutureJobsActor,
   setFutureJobsOutboundDebugId,
 } from '../../providers/future-jobs/futureJobs.actor-context.js';
+import { emitRealtime } from '../../realtime/events.js';
 import { SourcedCandidateModel } from '../sourcing/sourced-candidate.model.js';
+import { SourcingSessionModel } from '../sourcing/sourcing-session.model.js';
 import { CandidateActivityModel } from './candidate-activity.model.js';
+import { PendingPhoneRevealModel } from './pending-phone-reveal.model.js';
 import { SavedCandidateModel } from './saved-candidate.model.js';
 import {
   CANDIDATE_CONTACT_CACHE_TTL_MS,
@@ -73,12 +76,94 @@ function isFutureJobsRevealUrlMiss(error: FutureJobsUpstreamError): boolean {
   );
 }
 
+function revealUpstreamMessage(error: FutureJobsUpstreamError): string {
+  if (error.fjHttpStatus === 401) return 'Unauthorized';
+  if (error.fjHttpStatus === 402) return error.message || 'Insufficient credits.';
+  return REVEAL_UPSTREAM_USER_MESSAGE;
+}
+
+async function sourcingSessionExternalId(sourcingSessionId: unknown): Promise<string> {
+  if (!sourcingSessionId) return '';
+  const session = await SourcingSessionModel.findById(sourcingSessionId)
+    .select({ futureJobsSessionId: 1, externalSessionId: 1 })
+    .lean();
+  return String(session?.futureJobsSessionId || session?.externalSessionId || '').trim();
+}
+
+function isLiveFjSessionId(value: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(value.trim());
+}
+
+/** Future Jobs session id for POST /wl/sourcing-session/contact/reveal. */
+async function resolvePhoneSourcingSessionId(options: {
+  explicitSessionId?: string | null;
+  sourcingSessionId?: unknown;
+  organizationId: string;
+  linkedinUrl?: string | null;
+  linkedinUrls?: Array<string | null | undefined>;
+  profileId?: string | null;
+}): Promise<string> {
+  const explicit = String(options.explicitSessionId || '').trim();
+  if (explicit) return explicit;
+
+  const fromSession = await sourcingSessionExternalId(options.sourcingSessionId);
+  if (fromSession) return fromSession;
+
+  const keys = [
+    ...new Set(
+      [options.linkedinUrl, ...(options.linkedinUrls ?? [])].flatMap((url) =>
+        linkedinCacheLookupKeys(url)
+      )
+    ),
+  ];
+  const profileId = String(options.profileId || '').trim();
+  const matchers: Record<string, unknown>[] = [];
+  if (keys.length > 0) {
+    matchers.push(
+      { linkedinUrlNormalized: { $in: keys } },
+      { linkedinProfileUrl: { $in: keys } },
+      { 'basicProfile.linkedinUrl': { $in: keys } }
+    );
+  }
+  if (profileId) {
+    matchers.push({ externalCandidateId: profileId }, { candidateId: profileId });
+  }
+  if (matchers.length > 0) {
+    const row = await SourcedCandidateModel.findOne({
+      organizationId: options.organizationId,
+      $or: matchers,
+    })
+      .sort({ updatedAt: -1 })
+      .select({ futureJobsSessionId: 1, sourcingSessionId: 1 })
+      .lean();
+    const onRow = String(row?.futureJobsSessionId || '').trim();
+    if (onRow) return onRow;
+    const fromRow = await sourcingSessionExternalId(row?.sourcingSessionId);
+    if (fromRow) return fromRow;
+  }
+
+  // People Scout profiles are not created inside a search. The reveal URL still
+  // requires sourcingSessionId, so use the org's latest live FutureJobs session.
+  const latest = await SourcingSessionModel.findOne({
+    organizationId: options.organizationId,
+    futureJobsSessionId: { $regex: /^[a-f0-9]{24}$/i },
+  })
+    .sort({ updatedAt: -1 })
+    .select({ futureJobsSessionId: 1 })
+    .lean();
+  const latestId = String(latest?.futureJobsSessionId || '').trim();
+  return isLiveFjSessionId(latestId) ? latestId : '';
+}
+
 async function scoutThenRevealContact(options: {
   provider: ReturnType<typeof getFutureJobsProvider>;
   fjProfileId: string;
   linkedinKey: string;
   fjType: FutureJobsRevealType;
+  fjSessionId?: string;
   candidateIdHex: string;
+  /** People Scout lookup already succeeded. Email reveal uses that profileId. */
+  lookupAlreadyCompleted?: boolean;
   /** When set, kind:reveal is started only after scout lookup completes. */
   revealDebug?: {
     type: 'email' | 'phone';
@@ -93,7 +178,85 @@ async function scoutThenRevealContact(options: {
   fjProfileId: string;
   revealDebugId: string | null;
 }> {
-  const { provider, linkedinKey, fjType, candidateIdHex, revealDebug } = options;
+  const { provider, linkedinKey, fjType, fjSessionId, candidateIdHex, revealDebug } = options;
+
+  if (fjType === 'PHONE') {
+    const sessionId = String(fjSessionId || '').trim();
+    if (!sessionId) {
+      throw AppError.badRequest('A sourcing session is required to reveal a phone');
+    }
+    if (!linkedinKey) {
+      throw AppError.badRequest('LinkedIn URL is required to reveal a phone');
+    }
+
+    let revealDebugId: string | null = getFutureJobsActor().outboundDebugId ?? null;
+    if (revealDebug) {
+      revealDebugId = await startRevealOutboundDebugSession({
+        type: revealDebug.type,
+        lookupId: revealDebug.lookupId,
+        linkedinUrl: revealDebug.linkedinUrl ?? linkedinKey,
+        userId: revealDebug.userId,
+        organizationId: revealDebug.organizationId,
+      });
+    }
+    if (revealDebugId) {
+      setFutureJobsOutboundDebugId(revealDebugId);
+    }
+    noteRevealDebugTarget({
+      profileId: options.fjProfileId,
+      linkedinUrl: linkedinKey,
+    });
+
+    log().info(
+      {
+        candidateId: candidateIdHex,
+        sourcingSessionId: sessionId,
+        linkedinProfileUrlLen: linkedinKey.length,
+      },
+      'reveal phone via sourcing-session/contact/reveal'
+    );
+
+    return {
+      fjResponse: await provider.revealSourcingSessionContact(sessionId, linkedinKey, 'PHONE'),
+      linkedinKey,
+      fjProfileId: options.fjProfileId,
+      revealDebugId,
+    };
+  }
+
+  // People Scout already called lookup and stored profileId. Do not call it again.
+  if (options.lookupAlreadyCompleted && options.fjProfileId) {
+    let revealDebugId: string | null = null;
+    if (revealDebug) {
+      revealDebugId = await startRevealOutboundDebugSession({
+        type: revealDebug.type,
+        lookupId: revealDebug.lookupId,
+        linkedinUrl: revealDebug.linkedinUrl ?? linkedinKey,
+        userId: revealDebug.userId,
+        organizationId: revealDebug.organizationId,
+      });
+    }
+    if (revealDebugId) {
+      setFutureJobsOutboundDebugId(revealDebugId);
+    }
+
+    log().info(
+      {
+        candidateId: candidateIdHex,
+        fjProfileId: options.fjProfileId,
+        linkedinProfileUrlLen: linkedinKey.length,
+        fjType,
+      },
+      'reveal via reveal-contacts using profileId from completed lookup'
+    );
+
+    return {
+      fjResponse: await provider.scoutPeopleRevealContact(options.fjProfileId, fjType),
+      linkedinKey,
+      fjProfileId: options.fjProfileId,
+      revealDebugId,
+    };
+  }
 
   // Vendor contract: FJ reveal-contacts 404s unless /lookup completed first for this profile.
   if (!linkedinKey) {
@@ -117,6 +280,8 @@ async function scoutThenRevealContact(options: {
     body: lookupBody,
     userId: getFutureJobsActor().userId,
     organizationId: getFutureJobsActor().organizationId,
+    type: fjType === 'EMAIL' ? 'email' : 'phone',
+    asReveal: true,
   });
 
   let profileId = '';
@@ -144,9 +309,9 @@ async function scoutThenRevealContact(options: {
     throw error;
   }
 
-  // 2) THEN REVEAL — kind:reveal session + reveal-contacts (only after scout completed)
-  let revealDebugId: string | null = getFutureJobsActor().outboundDebugId ?? null;
-  if (revealDebug) {
+  // Same reveal row. reveal-contacts replaces the lookup url/body/response on it.
+  let revealDebugId: string | null = scoutDebugId ?? getFutureJobsActor().outboundDebugId ?? null;
+  if (revealDebug && !revealDebugId) {
     revealDebugId = await startRevealOutboundDebugSession({
       type: revealDebug.type,
       lookupId: revealDebug.lookupId,
@@ -184,6 +349,7 @@ async function revealContactFromProvider(options: {
   linkedinKeys: string[];
   fjType: FutureJobsRevealType;
   candidateIdHex: string;
+  lookupAlreadyCompleted?: boolean;
   revealDebug?: {
     type: 'email' | 'phone';
     lookupId: string;
@@ -197,22 +363,31 @@ async function revealContactFromProvider(options: {
   fjProfileId: string;
   revealDebugId: string | null;
 }> {
-  const { provider, fjProfileId, linkedinKeys, fjType, candidateIdHex, revealDebug } =
-    options;
+  const {
+    provider,
+    fjSessionId,
+    fjProfileId,
+    linkedinKeys,
+    fjType,
+    candidateIdHex,
+    revealDebug,
+    lookupAlreadyCompleted,
+  } = options;
   const linkedinKey = linkedinKeys.find(Boolean) || '';
 
   if (!linkedinKey && !fjProfileId) {
     throw AppError.badRequest('LinkedIn URL or Future Jobs profileId is required for contact reveal');
   }
 
-  // Scout completes first; kind:reveal + reveal-contacts only after that.
-  // Soft-poll (mobile) happens after empty via getRevealStatus / getLookup.
+  // Phone uses sourcing-session/contact/reveal. Email still scouts, then reveal-contacts.
   return scoutThenRevealContact({
     provider,
     fjProfileId,
     linkedinKey,
     fjType,
+    fjSessionId,
     candidateIdHex,
+    lookupAlreadyCompleted,
     revealDebug,
   });
 }
@@ -230,6 +405,8 @@ export type RevealSource = 'previous_reveal' | 'shared_cache' | 'provider';
 export type RevealResult = {
   found: boolean;
   charged: boolean;
+  /** Phone is still being fetched; the webhook finishes it. */
+  pending?: boolean;
   source: RevealSource | 'missing';
   contactType: RevealedContactType;
   values: string[];
@@ -247,7 +424,7 @@ function costFor(contactType: RevealedContactType): number {
 }
 
 /**
- * Only one mobile reveal (lookup + reveal-contacts + soft-poll) per user at a time.
+ * Only one mobile reveal (lookup + reveal-contacts) per user at a time.
  * Stale in_progress sessions older than the lock window are abandoned.
  */
 async function assertNoConcurrentPhoneReveal(actor: ActorContext): Promise<void> {
@@ -419,7 +596,7 @@ function valuesFromSharedCache(
 
 /**
  * Hydrate email/phone values for a LinkedIn-keyed People Scout reveal
- * (ledger + shared contact cache). Used by GET lookup soft-poll UX.
+ * (ledger + shared contact cache).
  */
 export async function resolveLinkedinRevealValues(options: {
   organizationId: string;
@@ -487,198 +664,6 @@ export async function resolveLinkedinRevealValues(options: {
     return empty;
   }
   return { email, mobile };
-}
-
-/**
- * Persist phone values discovered via FJ scout-people/lookup soft-poll
- * after an empty reveal-contacts response.
- */
-export async function persistSoftPolledMobileReveal(options: {
-  organizationId: string;
-  userId: string;
-  linkedinUrl: string;
-  externalCandidateId?: string | null;
-  values: string[];
-}): Promise<{ stored: boolean; values: string[] }> {
-  const linkedinKey = normalizeLinkedinProfileUrl(options.linkedinUrl);
-  const values = options.values.map((v) => String(v).trim()).filter(Boolean);
-  if (!linkedinKey || values.length === 0) {
-    return { stored: false, values: [] };
-  }
-
-  const candidateObjectId = syntheticCandidateIdFromLinkedin(linkedinKey);
-  const candidateIdHex = candidateObjectId.toHexString();
-  const externalCandidateId =
-    options.externalCandidateId?.trim() || `linkedin:${linkedinKey}`;
-
-  const already = await RevealedContactModel.findOne({
-    organizationId: options.organizationId,
-    userId: options.userId,
-    candidateId: candidateObjectId,
-    contactType: 'mobile',
-  });
-  if (already) {
-    const cache = await upsertContactCache({
-      linkedinUrlKey: linkedinKey,
-      externalCandidateId,
-      contactType: 'mobile',
-      values,
-    });
-    if (cache && !already.contactCacheId) {
-      already.contactCacheId = cache._id;
-      await already.save();
-    }
-    return { stored: true, values };
-  }
-
-  const reservationId = [
-    options.organizationId,
-    options.userId,
-    candidateIdHex,
-    'mobile',
-    'soft-poll',
-  ].join(':');
-
-  await revealQuotaService.reserve(options.organizationId, reservationId, 'mobile');
-  try {
-    const cache = await upsertContactCache({
-      linkedinUrlKey: linkedinKey,
-      externalCandidateId,
-      contactType: 'mobile',
-      values,
-    });
-    await createLedgerEntry({
-      organizationId: options.organizationId,
-      userId: options.userId,
-      candidateId: candidateObjectId,
-      externalCandidateId,
-      contactType: 'mobile',
-      contactCacheId: cache?._id ?? null,
-      quotaTransactionId: reservationId,
-    });
-    await revealQuotaService.commit(options.organizationId, reservationId);
-    await CandidateActivityModel.create({
-      organizationId: options.organizationId,
-      candidateId: candidateObjectId,
-      userId: options.userId,
-      action: 'mobile_revealed',
-      metadata: {
-        source: 'provider_soft_poll',
-        channel: 'people_scout',
-        charged: true,
-        valueCount: values.length,
-        creditsCharged: costFor('mobile'),
-      },
-    });
-    log().info(
-      {
-        organizationId: options.organizationId,
-        candidateId: candidateIdHex,
-        valueCount: values.length,
-      },
-      'people scout mobile reveal from FJ lookup soft-poll'
-    );
-    return { stored: true, values };
-  } catch (error) {
-    await revealQuotaService.refund(options.organizationId, reservationId).catch(() => undefined);
-    throw error;
-  }
-}
-
-/**
- * Persist phone values discovered via FJ scout-people/lookup soft-poll
- * for a sourced candidate (session results / candidate profile).
- */
-async function persistSoftPolledMobileRevealForCandidate(options: {
-  organizationId: string;
-  userId: string;
-  candidateId: mongoose.Types.ObjectId;
-  linkedinUrl: string;
-  externalCandidateId?: string | null;
-  values: string[];
-}): Promise<{ stored: boolean; values: string[] }> {
-  const linkedinKey = normalizeLinkedinProfileUrl(options.linkedinUrl);
-  const values = options.values.map((v) => String(v).trim()).filter(Boolean);
-  if (!linkedinKey || values.length === 0) {
-    return { stored: false, values: [] };
-  }
-
-  const candidateIdHex = options.candidateId.toHexString();
-  const externalCandidateId =
-    options.externalCandidateId?.trim() || `linkedin:${linkedinKey}`;
-
-  const already = await RevealedContactModel.findOne({
-    organizationId: options.organizationId,
-    userId: options.userId,
-    candidateId: options.candidateId,
-    contactType: 'mobile',
-  });
-  if (already) {
-    const cache = await upsertContactCache({
-      linkedinUrlKey: linkedinKey,
-      externalCandidateId,
-      contactType: 'mobile',
-      values,
-    });
-    if (cache && !already.contactCacheId) {
-      already.contactCacheId = cache._id;
-      await already.save();
-    }
-    return { stored: true, values };
-  }
-
-  const reservationId = [
-    options.organizationId,
-    options.userId,
-    candidateIdHex,
-    'mobile',
-    'soft-poll',
-  ].join(':');
-
-  await revealQuotaService.reserve(options.organizationId, reservationId, 'mobile');
-  try {
-    const cache = await upsertContactCache({
-      linkedinUrlKey: linkedinKey,
-      externalCandidateId,
-      contactType: 'mobile',
-      values,
-    });
-    await createLedgerEntry({
-      organizationId: options.organizationId,
-      userId: options.userId,
-      candidateId: options.candidateId,
-      externalCandidateId,
-      contactType: 'mobile',
-      contactCacheId: cache?._id ?? null,
-      quotaTransactionId: reservationId,
-    });
-    await revealQuotaService.commit(options.organizationId, reservationId);
-    await CandidateActivityModel.create({
-      organizationId: options.organizationId,
-      candidateId: options.candidateId,
-      userId: options.userId,
-      action: 'mobile_revealed',
-      metadata: {
-        source: 'provider_soft_poll',
-        channel: 'sourcing_session',
-        charged: true,
-        valueCount: values.length,
-        creditsCharged: costFor('mobile'),
-      },
-    });
-    log().info(
-      {
-        organizationId: options.organizationId,
-        candidateId: candidateIdHex,
-        valueCount: values.length,
-      },
-      'candidate mobile reveal from FJ lookup soft-poll'
-    );
-    return { stored: true, values };
-  } catch (error) {
-    await revealQuotaService.refund(options.organizationId, reservationId).catch(() => undefined);
-    throw error;
-  }
 }
 
 function isDuplicateKeyError(error: unknown): boolean {
@@ -824,6 +809,7 @@ async function createLedgerEntry(options: {
 function buildRevealResult(options: {
   found: boolean;
   charged: boolean;
+  pending?: boolean;
   source: RevealSource | 'missing';
   contactType: RevealedContactType;
   values: string[];
@@ -833,6 +819,7 @@ function buildRevealResult(options: {
   return {
     found: options.found,
     charged: options.charged,
+    pending: options.pending ?? false,
     source: options.source,
     contactType: options.contactType,
     values: options.values,
@@ -842,94 +829,49 @@ function buildRevealResult(options: {
   };
 }
 
-/**
- * While phone reveal soft-poll UX is active (kind:reveal session in_progress),
- * re-hit FJ /wl/scout-people/lookup. When phone values appear, persist them
- * against the sourced candidate.
- */
-async function softPollCandidatePhoneReveal(
-  actor: ActorContext,
-  candidate: Awaited<ReturnType<typeof resolveCandidate>>
-): Promise<void> {
-  const candidateIdHex = candidate._id.toHexString();
-  const session = await findInProgressRevealOutboundDebugSession({
-    lookupId: candidateIdHex,
-    userId: actor.userId,
-    type: 'phone',
+async function existingPendingPhoneReveal(
+  organizationId: string,
+  userId: string,
+  candidateId: mongoose.Types.ObjectId
+) {
+  return PendingPhoneRevealModel.findOne({
+    organizationId,
+    userId,
+    candidateId,
+    status: 'pending',
   });
-  if (!session) return;
+}
 
-  const revealUrls = linkedinUrlsForContactReveal({
-    rawDoc: candidate.rawDoc,
-    linkedinProfileUrl: candidate.linkedinProfileUrl,
-    basicLinkedinUrl: candidate.basicProfile?.linkedinUrl,
-    externalCandidateId: candidate.externalCandidateId || candidate.candidateId,
-  });
-  const linkedinUrl =
-    revealUrls[0] ||
-    normalizeLinkedinProfileUrl(candidate.linkedinProfileUrl) ||
-    normalizeLinkedinProfileUrl(candidate.basicProfile?.linkedinUrl);
-  if (!linkedinUrl) return;
-
-  const already = await RevealedContactModel.findOne({
-    organizationId: actor.organizationId,
-    userId: actor.userId,
-    candidateId: candidate._id,
-    contactType: 'mobile',
-  });
-  if (already) {
-    const values = await loadContactValuesFromCache(already.contactCacheId, 'mobile');
-    if (values.length > 0) {
-      completeRevealOutboundDebugSession({
-        debugId: session.id,
-        lookupId: candidateIdHex,
-        type: 'phone',
-        found: true,
-        charged: false,
-        source: 'cache',
-        values,
-      });
-    }
-    return;
-  }
-
-  const baseUrl = getFutureJobsConfig().baseUrl.replace(/\/$/, '');
-  const fjUrl = `${baseUrl}/wl/scout-people/lookup`;
-  setFutureJobsOutboundDebugId(session.id);
-
-  const provider = getFutureJobsProvider();
-  try {
-    const fj = await provider.scoutPeopleLookup({ linkedin_url: linkedinUrl });
-    appendRevealOutboundDebugPoll({
-      lookupId: candidateIdHex,
-      type: 'phone',
-      url: fjUrl,
-      response: fj,
-      userId: actor.userId,
-    });
-
-    const phones = extractRevealValues(fj, 'PHONE');
-    if (phones.length === 0) return;
-
-    await persistSoftPolledMobileRevealForCandidate({
-      organizationId: actor.organizationId,
-      userId: actor.userId,
-      candidateId: candidate._id,
-      linkedinUrl,
-      externalCandidateId: candidate.externalCandidateId,
-      values: phones,
-    });
-  } catch (err) {
-    appendRevealOutboundDebugPoll({
-      lookupId: candidateIdHex,
-      type: 'phone',
-      url: fjUrl,
-      response: {
-        error: err instanceof Error ? err.message : String(err),
+async function rememberPendingPhoneReveal(options: {
+  organizationId: string;
+  userId: string;
+  candidateId: mongoose.Types.ObjectId;
+  externalCandidateId: string;
+  profileId: string;
+  linkedinUrlKey: string;
+  sourcingSessionId: string;
+  reservationId: string;
+  lookupId?: string | null;
+}) {
+  await PendingPhoneRevealModel.findOneAndUpdate(
+    {
+      organizationId: options.organizationId,
+      userId: options.userId,
+      candidateId: options.candidateId,
+      status: 'pending',
+    },
+    {
+      $set: {
+        externalCandidateId: options.externalCandidateId,
+        profileId: options.profileId,
+        linkedinUrlKey: options.linkedinUrlKey,
+        sourcingSessionId: options.sourcingSessionId,
+        reservationId: options.reservationId,
+        lookupId: options.lookupId || null,
       },
-      userId: actor.userId,
-    });
-  }
+    },
+    { upsert: true, new: true }
+  );
 }
 
 export class RevealService {
@@ -1229,6 +1171,26 @@ export class RevealService {
       throw AppError.badRequest('Candidate is missing a LinkedIn profile URL');
     }
 
+    if (contactType === 'mobile') {
+      const waiting = await existingPendingPhoneReveal(
+        actor.organizationId,
+        actor.userId,
+        candidateObjectId
+      );
+      if (waiting) {
+        return buildRevealResult({
+          found: false,
+          charged: false,
+          pending: true,
+          source: 'provider',
+          contactType,
+          values: [],
+          candidateId: candidateIdHex,
+          creditsCharged: 0,
+        });
+      }
+    }
+
     // Reserve quota (deterministic id → concurrent same-user/type reveals share one reservation)
     const reservationId = [
       actor.organizationId,
@@ -1239,9 +1201,18 @@ export class RevealService {
     await revealQuotaService.reserve(actor.organizationId, reservationId, contactType);
 
     try {
-      // 4. Call provider — scout completes first, then kind:reveal + reveal-contacts
+      // Phone: sourcing-session/contact/reveal. Email: scout, then reveal-contacts.
       const provider = getFutureJobsProvider();
       const fjType = toFjRevealType(contactType);
+      const fjSessionId =
+        contactType === 'mobile'
+          ? await resolvePhoneSourcingSessionId({
+              explicitSessionId: candidate.futureJobsSessionId,
+              sourcingSessionId: candidate.sourcingSessionId,
+              organizationId: actor.organizationId,
+              linkedinUrl: revealUrls[0],
+            })
+          : '';
 
       if (!revealUrls.length) {
         await revealQuotaService.refund(actor.organizationId, reservationId);
@@ -1282,7 +1253,7 @@ export class RevealService {
 
       const revealed = await revealContactFromProvider({
         provider,
-        fjSessionId: '',
+        fjSessionId,
         fjProfileId,
         linkedinKeys: revealUrls,
         fjType,
@@ -1295,6 +1266,37 @@ export class RevealService {
 
       // 5. Extract values
       const values = extractRevealValues(fjResponse, fjType);
+      if (
+        values.length === 0 &&
+        contactType === 'mobile' &&
+        extractRevealChannelStatus(fjResponse, 'PHONE') === 'PENDING'
+      ) {
+        await rememberPendingPhoneReveal({
+          organizationId: actor.organizationId,
+          userId: actor.userId,
+          candidateId: candidateObjectId,
+          externalCandidateId: candidate.externalCandidateId,
+          profileId: revealed.fjProfileId,
+          linkedinUrlKey: usedLinkedinKey,
+          sourcingSessionId: fjSessionId,
+          reservationId,
+        });
+        const result = buildRevealResult({
+          found: false,
+          charged: false,
+          pending: true,
+          source: 'provider',
+          contactType,
+          values: [],
+          candidateId: candidateIdHex,
+          creditsCharged: 0,
+        });
+        finishRevealDebug({ found: false, charged: false, source: 'pending', values: [] });
+        if (options.idempotencyKey) {
+          await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
+        }
+        return result;
+      }
       if (values.length === 0) {
         await revealQuotaService.refund(actor.organizationId, reservationId);
         const result = buildRevealResult({
@@ -1306,7 +1308,6 @@ export class RevealService {
           candidateId: candidateIdHex,
           creditsCharged: 0,
         });
-        // Keep kind:reveal session in_progress so soft-poll can append.
         finishRevealDebug({ found: false, charged: false, source: 'missing', values: [] });
         if (options.idempotencyKey) {
           await this.storeIdempotentResponse(actor, scope, options.idempotencyKey, 200, result);
@@ -1415,7 +1416,7 @@ export class RevealService {
           values: [],
           error: error.message,
         });
-        throw new AppError(error.statusCode, error.code, REVEAL_UPSTREAM_USER_MESSAGE, {
+        throw new AppError(error.statusCode, error.code, revealUpstreamMessage(error), {
           cause: error,
         });
       }
@@ -1431,7 +1432,6 @@ export class RevealService {
 
   async getRevealStatus(actor: ActorContext, candidateId: string) {
     const candidate = await resolveCandidate(actor.organizationId, candidateId);
-    await softPollCandidatePhoneReveal(actor, candidate);
 
     const reveals = await RevealedContactModel.find({
       organizationId: actor.organizationId,
@@ -1558,7 +1558,10 @@ export class RevealService {
       linkedinUrl: string;
       contactType: RevealedContactType;
       profileId?: string;
+      linkedinUrls?: Array<string | null | undefined>;
       idempotencyKey?: string;
+      /** Set only when People Scout lookup already returned this profile. */
+      lookupAlreadyCompleted?: boolean;
       /** Start kind:reveal only after scout lookup completes. */
       revealDebug?: {
         type: 'email' | 'phone';
@@ -1703,6 +1706,26 @@ export class RevealService {
       }
     }
 
+    if (contactType === 'mobile') {
+      const waiting = await existingPendingPhoneReveal(
+        actor.organizationId,
+        actor.userId,
+        candidateObjectId
+      );
+      if (waiting) {
+        return buildRevealResult({
+          found: false,
+          charged: false,
+          pending: true,
+          source: 'provider',
+          contactType,
+          values: [],
+          candidateId: candidateIdHex,
+          creditsCharged: 0,
+        });
+      }
+    }
+
     const reservationId = [
       actor.organizationId,
       actor.userId,
@@ -1727,13 +1750,23 @@ export class RevealService {
         await revealQuotaService.refund(actor.organizationId, reservationId);
         throw AppError.badRequest('Future Jobs profileId is required for contact reveal');
       }
+      const fjSessionId =
+        contactType === 'mobile'
+          ? await resolvePhoneSourcingSessionId({
+              organizationId: actor.organizationId,
+              linkedinUrl: linkedinKey,
+              linkedinUrls: input.linkedinUrls,
+              profileId: fjProfileId,
+            })
+          : '';
       const revealed = await revealContactFromProvider({
         provider,
-        fjSessionId: '',
+        fjSessionId,
         fjProfileId,
         linkedinKeys,
         fjType,
         candidateIdHex,
+        lookupAlreadyCompleted: input.lookupAlreadyCompleted,
         revealDebug:
           input.revealDebug ??
           ({
@@ -1747,6 +1780,38 @@ export class RevealService {
       const fjResponse = revealed.fjResponse;
       const usedLinkedinKey = revealed.linkedinKey;
       const values = extractRevealValues(fjResponse, fjType);
+
+      if (
+        values.length === 0 &&
+        contactType === 'mobile' &&
+        extractRevealChannelStatus(fjResponse, 'PHONE') === 'PENDING'
+      ) {
+        await rememberPendingPhoneReveal({
+          organizationId: actor.organizationId,
+          userId: actor.userId,
+          candidateId: candidateObjectId,
+          externalCandidateId,
+          profileId: revealed.fjProfileId,
+          linkedinUrlKey: usedLinkedinKey,
+          sourcingSessionId: fjSessionId,
+          reservationId,
+          lookupId: input.revealDebug?.lookupId ?? null,
+        });
+        const result = buildRevealResult({
+          found: false,
+          charged: false,
+          pending: true,
+          source: 'provider',
+          contactType,
+          values: [],
+          candidateId: candidateIdHex,
+          creditsCharged: 0,
+        });
+        if (input.idempotencyKey) {
+          await this.storeIdempotentResponse(actor, scope, input.idempotencyKey, 200, result);
+        }
+        return result;
+      }
 
       if (values.length === 0) {
         await revealQuotaService.refund(actor.organizationId, reservationId);
@@ -1842,11 +1907,154 @@ export class RevealService {
           }
           return result;
         }
-        throw new AppError(error.statusCode, error.code, REVEAL_UPSTREAM_USER_MESSAGE, {
+        throw new AppError(error.statusCode, error.code, revealUpstreamMessage(error), {
           cause: error,
         });
       }
       throw error;
+    }
+  }
+
+  /** Latest phone-reveal row for a People Scout lookup. */
+  async phoneRevealStatusForLookup(
+    organizationId: string,
+    userId: string,
+    lookupId: string
+  ): Promise<{ status: 'none' | 'pending' | 'missing' | 'completed'; value: string }> {
+    const id = lookupId.trim();
+    if (!id) return { status: 'none', value: '' };
+    const row = await PendingPhoneRevealModel.findOne({
+      organizationId,
+      userId,
+      lookupId: id,
+    }).sort({ updatedAt: -1 });
+    if (!row || row.status === 'pending' || row.status === 'settling') {
+      return { status: row ? 'pending' : 'none', value: '' };
+    }
+    if (row.status === 'missing') return { status: 'missing', value: '' };
+    const value = Array.isArray(row.values) ? String(row.values[0] ?? '').trim() : '';
+    return { status: 'completed', value };
+  }
+
+  /** Finish a phone unlock that FutureJobs returned as PENDING. */
+  async settlePhoneRevealWebhook(body: unknown): Promise<void> {
+    const parsed = parseFutureJobsPhoneWebhook(body);
+    if (!parsed) return;
+
+    let rows = await PendingPhoneRevealModel.find({
+      status: 'pending',
+      profileId: parsed.profileId,
+    });
+    const linkedinUrlKey = normalizeLinkedinProfileUrl(parsed.linkedinUrl);
+    if (!rows.length && linkedinUrlKey) {
+      const keys = linkedinCacheLookupKeys(linkedinUrlKey);
+      rows = await PendingPhoneRevealModel.find({
+        status: 'pending',
+        linkedinUrlKey: { $in: keys.length > 0 ? keys : [linkedinUrlKey] },
+      });
+    }
+    if (!rows.length) {
+      log().info(
+        { eventId: parsed.eventId, outcome: parsed.outcome, hasProfileId: Boolean(parsed.profileId) },
+        'contact.reveal.completed matched no pending phone reveal'
+      );
+    }
+
+    for (const row of rows) {
+      const claimed = await PendingPhoneRevealModel.findOneAndUpdate(
+        { _id: row._id, status: 'pending' },
+        { $set: { status: 'settling' } },
+        { new: true }
+      );
+      if (!claimed) continue;
+
+      const organizationId = String(claimed.organizationId);
+      const userId = String(claimed.userId);
+      const linkedinUrlKey =
+        claimed.linkedinUrlKey || normalizeLinkedinProfileUrl(parsed.linkedinUrl);
+      const found = parsed.outcome === 'REVEALED' && parsed.values.length > 0 && Boolean(linkedinUrlKey);
+      try {
+        if (found) {
+          const cache = await upsertContactCache({
+            linkedinUrlKey,
+            externalCandidateId: claimed.externalCandidateId || `linkedin:${linkedinUrlKey}`,
+            contactType: 'mobile',
+            values: parsed.values,
+          });
+          await createLedgerEntry({
+            organizationId,
+            userId,
+            candidateId: claimed.candidateId,
+            externalCandidateId: claimed.externalCandidateId || `linkedin:${linkedinUrlKey}`,
+            contactType: 'mobile',
+            contactCacheId: cache?._id ?? null,
+            quotaTransactionId: claimed.reservationId,
+          });
+          await revealQuotaService.commit(organizationId, claimed.reservationId, userId);
+          await CandidateActivityModel.create({
+            organizationId,
+            candidateId: claimed.candidateId,
+            userId,
+            action: 'mobile_revealed',
+            metadata: {
+              source: 'provider_webhook',
+              charged: true,
+              valueCount: parsed.values.length,
+              creditsCharged: costFor('mobile'),
+            },
+          });
+          if (claimed.lookupId && isValidObjectId(claimed.lookupId)) {
+            const { PeopleScoutContactRevealModel } = await import(
+              '../people-scout/contact-reveal.model.js'
+            );
+            const lookupId = new mongoose.Types.ObjectId(claimed.lookupId);
+            const existing = await PeopleScoutContactRevealModel.findOne({
+              organizationId,
+              userId,
+              lookupId,
+              contactType: 'mobile',
+            });
+            if (!existing) {
+              await PeopleScoutContactRevealModel.create({
+                organizationId,
+                userId,
+                lookupId,
+                contactType: 'mobile',
+                contactCacheId: cache?._id ?? null,
+                quotaTransactionId: claimed.reservationId,
+                revealedAt: new Date(),
+              });
+            }
+          }
+          claimed.status = 'completed';
+          claimed.values = parsed.values;
+        } else {
+          await revealQuotaService.refund(organizationId, claimed.reservationId);
+          claimed.status = 'missing';
+        }
+        await claimed.save();
+        emitRealtime(
+          'candidates.reveal.phone',
+          {
+            candidateId: String(claimed.candidateId),
+            externalCandidateId: claimed.externalCandidateId,
+            lookupId: claimed.lookupId,
+            linkedinUrl: linkedinUrlKey,
+            found,
+            values: found ? parsed.values : [],
+            value: found ? parsed.values[0] : '',
+            charged: found,
+            creditsCharged: found ? costFor('mobile') : 0,
+          },
+          { organizationId, userId }
+        );
+      } catch (error) {
+        await PendingPhoneRevealModel.updateOne(
+          { _id: claimed._id, status: 'settling' },
+          { $set: { status: 'pending' } }
+        );
+        throw error;
+      }
     }
   }
 }

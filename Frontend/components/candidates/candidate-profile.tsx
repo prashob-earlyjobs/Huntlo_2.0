@@ -15,7 +15,9 @@ import {
   Timer,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 import { CreateListDialog } from "@/components/candidates/create-list-dialog";
 import { ConversationsPanel } from "@/components/conversations/conversations-panel";
@@ -168,6 +170,7 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
     emailRemaining: number;
     mobileRemaining: number;
   } | null>(null);
+  const phonePendingRef = useRef(false);
 
   useEffect(() => {
     setProfile(candidate);
@@ -237,6 +240,52 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
     };
   }, [candidate.id, candidate.notes.length]);
 
+  useRealtimeRefresh("candidates.reveal.phone", (event) => {
+    const data =
+      event.data && typeof event.data === "object"
+        ? (event.data as {
+            candidateId?: string;
+            externalCandidateId?: string;
+            found?: boolean;
+            value?: string;
+            values?: string[];
+          })
+        : null;
+    if (!data) return;
+    const mine = [profile.id, profile.externalCandidateId]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+    const incoming = [data.candidateId, data.externalCandidateId]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+    if (!mine.some((id) => incoming.includes(id))) return;
+    const value = (data.value || data.values?.[0] || "").trim();
+    const waiting = phonePendingRef.current;
+    phonePendingRef.current = false;
+    if (data.found && value) {
+      setProfile((previous) => ({
+        ...previous,
+        phone: value || previous.phone,
+        phoneRevealed: true,
+      }));
+      setRevealed((previous) => ({
+        ...previous,
+        phone: true,
+        phoneStatus: "idle",
+        phoneValue: value,
+      }));
+      flash(`Revealed`);
+      notifyUsageRefresh();
+      return;
+    }
+    if (!waiting) return;
+    setRevealed((previous) => ({
+      ...previous,
+      phoneStatus: "unavailable",
+    }));
+    flash("No mobile found for this candidate.", "error");
+  });
+
   function flash(message: string, variant: "default" | "error" = "default") {
     setFeedback({ message, variant });
   }
@@ -265,6 +314,15 @@ export function CandidateProfile({ candidate }: { candidate: PoolCandidate }) {
           ? { ...previous, email: value || previous.email, emailRevealed: true }
           : { ...previous, phone: value || previous.phone, phoneRevealed: true }
       );
+      if (kind === "phone" && result.pending) {
+        phonePendingRef.current = true;
+        setRevealed((previous) => ({
+          ...previous,
+          phoneStatus: "pending",
+        }));
+        flash("Still fetching this phone. It will appear when ready.");
+        return;
+      }
       if (result.found && value) {
         setRevealed((previous) => ({
           ...previous,

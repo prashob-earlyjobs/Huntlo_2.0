@@ -9,6 +9,10 @@ export const FUTURE_JOBS_CIRCUIT_OPEN_CODE = 'FUTURE_JOBS_CIRCUIT_OPEN';
 
 export const FUTURE_JOBS_PROFILE_NOT_FOUND_CODE = 'FUTURE_JOBS_PROFILE_NOT_FOUND';
 
+export const FUTURE_JOBS_UNAUTHORIZED_CODE = 'FUTURE_JOBS_UNAUTHORIZED';
+
+export const FUTURE_JOBS_PAYMENT_REQUIRED_CODE = 'FUTURE_JOBS_PAYMENT_REQUIRED';
+
 export const FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE = 'FUTURE_JOBS_INVALID_LINKEDIN_URL';
 
 const FJ_RESPONSE_LOG_MAX_CHARS = 2_000;
@@ -187,33 +191,53 @@ export function throwIfFjHttpNotOk(
       : typeof data === 'string'
         ? data
         : '';
+  const contactReveal = /contact\/reveal/i.test(String(logContext.fjOperation || ''));
   const noMoreProfiles =
     res.status === 400 && /no profiles match/i.test(fjMessage);
   const revealProfileNotFound =
-    res.status === 404 && /no profile found/i.test(fjMessage);
+    res.status === 404 &&
+    (contactReveal || /no profile found|no phone/i.test(fjMessage));
+  const unauthorized = res.status === 401;
+  const paymentRequired = res.status === 402;
   const invalidLinkedinUrl = isFjInvalidLinkedinUrlResponse(res.status, data);
-  const expectedMiss = noMoreProfiles || revealProfileNotFound || invalidLinkedinUrl;
+  const expectedMiss =
+    noMoreProfiles ||
+    revealProfileNotFound ||
+    invalidLinkedinUrl ||
+    unauthorized ||
+    paymentRequired;
 
   throw createFutureJobsUpstreamError({
     details: data,
     fjHttpStatus: res.status,
     fjOperation: logContext.fjOperation ?? logContext.label,
-    // Business "exhausted" / "not found" / invalid-input responses — not an upstream outage.
+    // Auth, billing, and not-found responses are not an upstream outage.
     statusCode: expectedMiss ? res.status : 502,
     message: noMoreProfiles
       ? fjMessage || 'No profiles match your search criteria.'
-      : revealProfileNotFound
-        ? fjMessage || 'No profile found for the given linkedin_profile_url'
-        : invalidLinkedinUrl
-          ? 'Invalid LinkedIn profile URL'
-          : undefined,
+      : unauthorized
+        ? 'Unauthorized'
+        : paymentRequired
+          ? fjMessage || 'Insufficient credits.'
+          : revealProfileNotFound
+            ? fjMessage ||
+              (contactReveal
+                ? 'Profile not found or no phone available for this LinkedIn URL.'
+                : 'No profile found for the given linkedin_profile_url')
+            : invalidLinkedinUrl
+              ? 'Invalid LinkedIn profile URL'
+              : undefined,
     code: noMoreProfiles
       ? 'FUTURE_JOBS_NO_MORE_PROFILES'
-      : revealProfileNotFound
-        ? FUTURE_JOBS_PROFILE_NOT_FOUND_CODE
-        : invalidLinkedinUrl
-          ? FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE
-          : undefined,
+      : unauthorized
+        ? FUTURE_JOBS_UNAUTHORIZED_CODE
+        : paymentRequired
+          ? FUTURE_JOBS_PAYMENT_REQUIRED_CODE
+          : revealProfileNotFound
+            ? FUTURE_JOBS_PROFILE_NOT_FOUND_CODE
+            : invalidLinkedinUrl
+              ? FUTURE_JOBS_INVALID_LINKEDIN_URL_CODE
+              : undefined,
     logFailure: !expectedMiss,
     logExtra: logContext.extra,
   });

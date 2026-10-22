@@ -19,14 +19,13 @@ import { OutreachEnrollmentModel } from './enrollment.model.js';
 const log = () => createChildLogger({ module: 'outreach-launch-reveal' });
 
 /**
- * FJ ≈ 40/min; leave ~half for other traffic. Worst mobile = lookup + reveal + 1 poll.
- * Outreach only: one poll, 1 minute after reveal. Email is lookup + reveal (no poll).
+ * FJ ≈ 40/min; leave ~half for other traffic. Mobile is lookup + reveal, one at a time.
+ * Email is the same two calls, without the start gap.
  */
 const LAUNCH_MOBILE_MAX_STARTS_PER_MIN = 2;
 const LAUNCH_MOBILE_MIN_START_GAP_MS = Math.ceil(
   60_000 / LAUNCH_MOBILE_MAX_STARTS_PER_MIN
 );
-const LAUNCH_MOBILE_POLL_DELAY_MS = 60_000;
 
 export type LaunchRevealSummary = {
   emailNeeded: number;
@@ -122,38 +121,6 @@ type RevealOutcome = {
   creditsCharged: number;
 };
 
-/**
- * One lookup poll, one minute after an empty mobile reveal.
- * Phone is 3 FutureJobs calls: lookup, reveal, this poll. Email does not poll.
- */
-async function softPollSourcedMobile(
-  actor: Actor,
-  candidateId: string
-): Promise<RevealOutcome | null> {
-  await sleep(LAUNCH_MOBILE_POLL_DELAY_MS);
-  try {
-    const status = await revealService.getRevealStatus(actor, candidateId);
-    const value = (status.mobile.values?.[0] || '').trim();
-    if (status.mobile.revealed && value) {
-      return {
-        found: true,
-        value,
-        charged: true,
-        creditsCharged: 0,
-      };
-    }
-  } catch (err) {
-    log().warn(
-      {
-        candidateId,
-        err: err instanceof Error ? err.message : String(err),
-      },
-      'launch mobile poll failed'
-    );
-  }
-  return null;
-}
-
 async function runContactReveal(
   actor: Actor,
   target: NonNullable<Awaited<ReturnType<typeof resolveRevealCandidateId>>>,
@@ -189,19 +156,6 @@ async function runContactRevealInner(
     };
   }
 
-  // Mobile + sourced: soft-poll (lookup/reveal DB sessions already started by reveal()).
-  if (contactType === 'mobile' && target.mode === 'sourced') {
-    const polled = await softPollSourcedMobile(actor, target.id);
-    if (polled?.value) {
-      return {
-        found: true,
-        value: polled.value,
-        charged: true,
-        creditsCharged: polled.creditsCharged,
-      };
-    }
-  }
-
   return {
     found: false,
     value: null,
@@ -215,8 +169,8 @@ async function runContactRevealInner(
  * candidates according to enabled channels. Charges reveal credits via
  * revealService (same path as manual unlock).
  *
- * Mobile: queued 1-at-a-time with soft-poll + ≥30s between starts (FJ 40/min).
- * Email: unchanged (no soft-poll / no start-gap queue).
+ * Mobile: queued 1-at-a-time with ≥30s between starts (FJ 40/min).
+ * Email: no start-gap queue.
  */
 export async function enrichCampaignContactsForLaunch(
   input: {
@@ -330,7 +284,7 @@ export async function enrichCampaignContactsForLaunch(
     resolved.push({ ...item, target });
   }
 
-  // --- Email first (no soft-poll / no FJ start-gap queue) ---
+  // --- Email first (no FJ start-gap queue) ---
   for (const item of resolved) {
     if (!item.types.includes('email')) continue;
 
@@ -386,7 +340,7 @@ export async function enrichCampaignContactsForLaunch(
     }
   }
 
-  // --- Mobile queue: 1 at a time, soft-poll, ≤2 starts/min ---
+  // --- Mobile queue: 1 at a time, ≤2 starts/min ---
   let lastMobileStartAt = 0;
   for (const item of resolved) {
     if (!item.types.includes('mobile')) continue;
@@ -468,7 +422,6 @@ export async function enrichCampaignContactsForLaunch(
       mobileQueue: {
         maxStartsPerMin: LAUNCH_MOBILE_MAX_STARTS_PER_MIN,
         minStartGapMs: LAUNCH_MOBILE_MIN_START_GAP_MS,
-        pollDelayMs: LAUNCH_MOBILE_POLL_DELAY_MS,
       },
       ...summary,
     },

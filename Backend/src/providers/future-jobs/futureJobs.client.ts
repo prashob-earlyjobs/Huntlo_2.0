@@ -13,6 +13,7 @@ import {
   isFjInvalidLinkedinUrlResponse,
   isFjNoMoreProfilesError,
   isFjProfileNotFoundError,
+  isFutureJobsUpstreamError,
   throwIfFjHttpNotOk,
 } from './futureJobs.errors.js';
 import { createMockFutureJobsProvider } from './futureJobs.mock.js';
@@ -394,13 +395,23 @@ async function futureJobsHttpRequest(options: {
           res.status === 400 &&
           typeof responseSummary.message === 'string' &&
           /no profiles match/i.test(String(responseSummary.message));
+        const contactReveal = /contact\/reveal/i.test(fjOperation);
         const revealProfileNotFound =
           res.status === 404 &&
-          typeof responseSummary.message === 'string' &&
-          /no profile found/i.test(String(responseSummary.message));
+          (contactReveal ||
+            (typeof responseSummary.message === 'string' &&
+              /no profile found|no phone/i.test(String(responseSummary.message))));
+        const unauthorized = res.status === 401;
+        const paymentRequired = res.status === 402;
         const invalidLinkedinUrl = isFjInvalidLinkedinUrlResponse(res.status, data);
 
-        if (noMoreProfiles || revealProfileNotFound || invalidLinkedinUrl) {
+        if (
+          noMoreProfiles ||
+          revealProfileNotFound ||
+          invalidLinkedinUrl ||
+          unauthorized ||
+          paymentRequired
+        ) {
           log().info(
             {
               fjOperation,
@@ -415,9 +426,13 @@ async function futureJobsHttpRequest(options: {
             },
             noMoreProfiles
               ? `FJ ← ${fjOperation} no more profiles`
-              : invalidLinkedinUrl
-                ? `FJ ← ${fjOperation} invalid linkedin url`
-                : `FJ ← ${fjOperation} profile not found`
+              : unauthorized
+                ? `FJ ← ${fjOperation} unauthorized`
+                : paymentRequired
+                  ? `FJ ← ${fjOperation} payment required`
+                  : invalidLinkedinUrl
+                    ? `FJ ← ${fjOperation} invalid linkedin url`
+                    : `FJ ← ${fjOperation} profile not found`
           );
           throwIfFjHttpNotOk(res, data, {
             label: `${fjOperation || defaultErrorPrefix} HTTP ${res.status}`,
@@ -478,6 +493,10 @@ async function futureJobsHttpRequest(options: {
       return data;
     } catch (err) {
       lastError = err;
+
+      if (isFutureJobsUpstreamError(err)) {
+        throw err;
+      }
 
       if (err instanceof Error && 'code' in err) {
         const code = (err as { code?: string }).code;
@@ -977,7 +996,7 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
     });
     const url = `${baseUrl}/wl/sourcing-session/contact/reveal?${params.toString()}`;
 
-    return (await futureJobsHttpRequest({
+    const body = (await futureJobsHttpRequest({
       method: 'POST',
       url,
       apiKey,
@@ -994,6 +1013,17 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
         },
       },
     })) as FutureJobsApiResponse;
+
+    const bodyStatus = Number(body?.statusCode);
+    if (bodyStatus === 401 || bodyStatus === 402 || bodyStatus === 404) {
+      throwIfFjHttpNotOk(
+        { ok: false, status: bodyStatus },
+        body,
+        { fjOperation: 'POST /wl/sourcing-session/contact/reveal' }
+      );
+    }
+
+    return body;
   }
 
   async function scoutPeopleRevealContact(
@@ -1025,6 +1055,8 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       'FJ reveal-contacts request body'
     );
 
+    // Email reveal often outlives the 60s default. One long wait; retries
+    // stack past the browser timeout and the UI treats that abort as "not found".
     return (await futureJobsHttpRequest({
       method: 'POST',
       url,
@@ -1032,6 +1064,8 @@ export function createLiveFutureJobsProvider(): FutureJobsProvider {
       apiKey,
       fjOperation: 'POST /wl/scout-people/reveal-contacts',
       defaultErrorPrefix: 'Future Jobs scout reveal-contacts',
+      timeoutMs: 180_000,
+      maxRetries: 0,
       logContext: {
         revealType: type,
         body: revealBody,
