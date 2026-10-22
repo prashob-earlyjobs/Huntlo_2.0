@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 
+import { GoogleAnalyticsRoute } from "@/components/analytics/GoogleAnalyticsRoute";
 import { AuthProvider, RealtimeProvider } from "@/providers";
 import { CookieBanner } from "@/components/cookie-banner/CookieBanner";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -39,6 +41,24 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full min-w-0 flex-col overflow-x-hidden">
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-KQE932R4J6"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            window.gtag = gtag;
+            gtag('js', new Date());
+            var path = window.location.pathname || "/";
+            var isBlog = path === "/blog" || path.indexOf("/blog/") === 0 || path === "/admin/blog" || path.indexOf("/admin/blog/") === 0;
+            if (!isBlog) {
+              gtag('config', 'G-KQE932R4J6');
+            }
+          `}
+        </Script>
+        <GoogleAnalyticsRoute />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
