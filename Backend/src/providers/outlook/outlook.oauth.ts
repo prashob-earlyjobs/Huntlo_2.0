@@ -44,7 +44,8 @@ export function getOutlookOAuthRedirectUri(frontendUrl: string): string {
 
 export function getOutlookOAuthEndpoints(tenantId?: string) {
   const tenant = String(tenantId || getOutlookTenantId()).trim() || 'common';
-  const base = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0`;
+  // const base = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0`;
+  const base = `https://login.microsoftonline.com/common/oauth2/v2.0`;
   return {
     authorizeUrl: `${base}/authorize`,
     tokenUrl: `${base}/token`,
