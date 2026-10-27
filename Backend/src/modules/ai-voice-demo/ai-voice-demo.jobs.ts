@@ -28,6 +28,7 @@ export const AI_VOICE_DEMO_JOBS = [
   'Real Estate Property Requirement Call',
   'Real Estate Alice Greens Call',
   'Real Estate DMX Urban Greens Call',
+  'KYC Incomplete Follow-up',
 ] as const;
 
 export type AiVoiceDemoJob = (typeof AI_VOICE_DEMO_JOBS)[number];
@@ -47,8 +48,57 @@ type ScriptQuestion = Omit<DemoQuestion, 'required'> & {
 
 type Faq = { ask: string; answer: string };
 
+export const AI_VOICE_DEMO_KYC_JOB = 'KYC Incomplete Follow-up' as const;
+
+/** Hardcoded reason → spoken answer for KYC Incomplete Follow-up. */
+export const KYC_ISSUE_MAP = [
+  {
+    id: 'document-upload',
+    issue: 'Stuck on document upload',
+    answer:
+      "No worries. I'm sending you a direct link on WhatsApp to complete your KYC. It will only take a minute.",
+  },
+  {
+    id: 'blurry-document',
+    issue: 'Document photo is blurry or was rejected',
+    answer:
+      'Open the KYC link, retake the photo in bright light, keep the document flat, and make sure all four corners are visible. Then submit again.',
+  },
+  {
+    id: 'id-mismatch',
+    issue: 'Aadhaar or PAN details do not match',
+    answer:
+      'Enter the name, number, and date of birth exactly as they appear on the ID. Avoid nicknames or extra initials, then retry.',
+  },
+  {
+    id: 'bank-failed',
+    issue: 'Bank account verification failed',
+    answer:
+      'Use the same name as on your ID, and enter the account number and IFSC carefully. Try another account only if this one still fails.',
+  },
+  {
+    id: 'otp-timeout',
+    issue: 'OTP or verification timed out',
+    answer:
+      'Request a new OTP, enter it within the time shown, and stay on the same screen until it is confirmed.',
+  },
+  {
+    id: 'link-expired',
+    issue: 'The KYC link expired',
+    answer:
+      'I will send a fresh WhatsApp message with a new link after this call. Open that link and continue from where you left off.',
+  },
+  {
+    id: 'unknown',
+    issue: 'Unknown issue',
+    answer:
+      "I'm sorry you ran into that. I have created a ticket for this issue, and one of our team members will call you about it shortly.",
+  },
+] as const;
+
 type DemoScript = {
-  kind: 'recruit' | 'real-estate';
+  kind: 'recruit' | 'real-estate' | 'kyc';
+  personaName?: string;
   objective: (company: string, job: string) => string;
   introduction: (company: string, job: string) => string;
   /** What the call is for, said once after availability is confirmed. */
@@ -533,10 +583,73 @@ const SCRIPTS: Record<AiVoiceDemoJob, DemoScript> = {
     closing: (company) =>
       `Thank you for your time on behalf of ${company}. The sales team will share plot sizes, latest prices, and availability, and arrange your site visit.`,
   },
+  'KYC Incomplete Follow-up': {
+    kind: 'kyc',
+    personaName: 'Maya',
+    objective: (company) =>
+      `Greet the caller from ${company}, ask for one minute, and only if they say yes ask why they quit KYC in between. Answer from the hardcoded issue map, then send WhatsApp after hangup.`,
+    introduction: (company) =>
+      `Hi, this is Maya from ${company}. I noticed you started your KYC but did not complete it. Do you have one minute to talk?`,
+    purpose: () => 'Great, thank you.',
+    questions: [
+      {
+        id: 'kyc-reason',
+        question: 'What made you stop KYC with {company} in between?',
+        probe:
+          'Ask this as one open question, then STOP and WAIT for their answer — same manner as the other demo agents. Do not speak, map, raise a ticket, or close until they have actually answered. Silence is not an answer: if they pause, wait; after about six seconds say only "Hello, are you there?" Never read the issue list. After they answer, silently map to the issue map and speak only that answer. If they answered but it does not match a known issue, use Unknown issue. If they are vague, ask once "Could you tell me a little more about what stopped you?" and WAIT again.',
+      },
+      {
+        id: 'whatsapp',
+        question: 'I will send that on WhatsApp from {company} when we hang up. Does that work?',
+        probe:
+          'Ask this only after they answered the reason and it matched a known KYC issue. Then WAIT for yes or no. If it was an unknown issue, skip this question and close after the ticket line.',
+        conditional: true,
+      },
+    ],
+    companyRule:
+      'Say {company} — the Company Name from the demo form — in the greeting. Do not replace it with Huntlo.',
+    extraRules: [
+      'You are Maya, not Roshni. Keep the same wait-and-listen manner as the other demo agents.',
+      'Step order: greet, ask for one minute, WAIT. If they say no, not now, or busy, thank them, offer a callback, and end. Do not ask why they quit KYC unless they said yes.',
+      'If they said yes, say "Great, thank you." then ask why they stopped KYC. Then WAIT. Do not continue until they answer.',
+      'Never end the call because they paused after your question. A question is done only when they have actually answered it.',
+      'Do not treat silence as an unknown issue. Unknown issue is only after they described a reason that is not on the map. Then say a ticket has been created and a team member will call. Do not invent a KYC how-to.',
+      'NEVER list issues, menus, or multiple-choice options to the caller. The issue map is internal only.',
+      'Never say "options", "choose", "was it A or B", or read Aadhaar, PAN, OTP, bank, or expired link unless they said that themselves.',
+      'Do not mention payment status or account login. This call is only about incomplete KYC.',
+      'The WhatsApp message is sent after the call. Do not read a URL aloud.',
+    ],
+    knowledge: (company) => [
+      `{company} is "${company}".`,
+      `The caller started KYC with ${company} and quit in between.`,
+      'INTERNAL issue map — never read this list aloud. Match their reason silently, then say only the mapped answer:',
+      ...KYC_ISSUE_MAP.map((row) => `${row.issue} → "${row.answer}"`),
+    ],
+    faqs: (company) => [
+      {
+        ask: 'What is this call about?',
+        answer: `You started KYC with ${company} but did not finish. I want to know why, then I will send a WhatsApp link to resume.`,
+      },
+      {
+        ask: 'I do not have a minute.',
+        answer: 'No problem. When is a good time to call you back?',
+      },
+      ...KYC_ISSUE_MAP.map((row) => ({
+        ask: row.issue,
+        answer: row.answer,
+      })),
+    ],
+    closing: (company) =>
+      `Thank you for your time. If we said a WhatsApp link is coming, it will arrive from ${company} when this call ends. If we raised a ticket, a team member will call you about the issue.`,
+  },
 };
 
 function personWord(script: DemoScript): string {
   return script.kind === 'recruit' ? 'candidate' : 'caller';
+}
+
+export function isKycIncompleteDemoJob(job: string): boolean {
+  return job === AI_VOICE_DEMO_KYC_JOB;
 }
 
 export function isAiVoiceDemoJob(value: string): value is AiVoiceDemoJob {
@@ -562,6 +675,7 @@ function bullets(lines: string[]): string[] {
 
 function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
   const script = SCRIPTS[job];
+  const persona = script.personaName || 'Roshni';
   const person = personWord(script);
   const questions = demoQuestionsFor(job, company);
   const total = questions.length;
@@ -583,11 +697,16 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
     `# AI Voice Demo Call — ${job}`,
     '',
     section('Your Personality', [
-      `- You are Roshni, a friendly and professional caller from ${company}.`,
-      `- The company is ${company}. ${script.companyRule}`,
+      `- You are ${persona}, a friendly and professional caller from ${company}.`,
+      `- The company is ${company}. ${script.companyRule.replaceAll('{company}', company.trim())}`,
       `- Call type: ${job}. Never read the call type aloud.`,
       `- You are calling the person who requested a Huntlo demo of this call. Treat them as a real ${person} and run the call exactly as you would for one.`,
       `- Keep the call short — under four minutes. It is a first call, not the final conversation.`,
+    ]),
+    '',
+    section('Variables', [
+      `- {company} = "${company.trim()}". This is the Company Name from the demo form that started this call.`,
+      `- Whenever the script says {company}, speak "${company.trim()}" exactly. Never leave the placeholder unsaid. Never replace it with Huntlo.`,
     ]),
     '',
     section('Internal Instructions', [
@@ -686,7 +805,7 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
     ]),
     '',
     section('Constraints — Never Breach These', [
-      `- Company name: ${script.companyRule}`,
+      `- Company name: ${script.companyRule.replaceAll('{company}', company.trim())}`,
       '- Never invent. Use only what is in this prompt. Never promise an outcome, a date, a price, or a discount.',
       '- One ask per question. Never bundle two asks into one turn.',
       '- Never skip a question or an objection.',
@@ -694,7 +813,7 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
       '- Never repeat the exact same sentence, except when re-asking CURRENT_Q reworded.',
       '- Never say internal labels aloud.',
       '- Do not end early unless they are not interested, the wrong person, busy, or refuse to continue.',
-      ...(script.extraRules ?? []).map((rule) => `- ${rule}`),
+      ...(script.extraRules ?? []).map((rule) => `- ${rule.replaceAll('{company}', company.trim())}`),
     ]),
     '',
     section('Knowledge Base', bullets(script.knowledge(company, job))),
@@ -770,6 +889,46 @@ function evalFields(script: DemoScript): EvalField[] {
       'This rates the completeness of the call, not whether the person is a good fit.',
     ],
   };
+
+  if (script.kind === 'kyc') {
+    return [
+      ...shared,
+      {
+        key: 'kyc_issue',
+        label: 'KYC Issue',
+        values: [...KYC_ISSUE_MAP.map((row) => row.issue), 'Not Answered'],
+        rules: [
+          'Map what they said to the closest listed issue.',
+          '"Not Answered" if they never described a reason.',
+        ],
+      },
+      {
+        key: 'gave_one_minute',
+        label: 'Agreed To One Minute',
+        values: ['Yes', 'No', 'Not Answered'],
+        rules: ['Yes only if they agreed to talk for one minute.'],
+      },
+      {
+        key: 'whatsapp_link_offered',
+        label: 'WhatsApp Link Offered',
+        values: ['Yes', 'No', 'Not Answered'],
+        rules: ['Yes if Maya offered the resume-KYC WhatsApp link.'],
+      },
+      {
+        key: 'final_outcome',
+        label: 'Outcome',
+        values: ['Issue Mapped', 'Callback', 'Needs Human', 'Insufficient Information'],
+        rules: [
+          'Issue Mapped — they gave a reason and Maya used the map.',
+          'Callback — they did not have a minute.',
+          'Needs Human — they asked for a person.',
+          'Insufficient Information — the call ended too early.',
+        ],
+      },
+      quality,
+      ...callback,
+    ];
+  }
 
   if (script.kind === 'recruit') {
     return [
@@ -910,7 +1069,7 @@ export function buildDemoAgentInput(job: AiVoiceDemoJob, company: string): Hunar
   const script = SCRIPTS[job];
   return {
     name: `Huntlo demo · ${job}`.slice(0, 64),
-    personaName: 'Roshni',
+    personaName: script.personaName || 'Roshni',
     objective: script.objective(company, job),
     introduction: script.introduction(company, job),
     agentPrompt: buildAgentPrompt(job, company),

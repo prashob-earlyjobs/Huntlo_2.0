@@ -17,6 +17,7 @@ import type { HunarWebhookKind } from '../../providers/hunar/hunar.webhook.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { processHunarWebhook } from '../screening/webhook.service.js';
 import { VoiceCallModel } from './voice-call.model.js';
+import { tryProcessAiVoiceDemoWebhook } from '../ai-voice-demo/ai-voice-demo.webhook.js';
 import { processCampaignVoiceWebhook } from './voice-webhook.service.js';
 import { normalizeVoiceAnalysisVariables } from './voice-qualification-sync.js';
 import { fetchZyastraCall, fetchZyastraRecordingUrl } from '../../providers/zyastra/zyastra.client.js';
@@ -354,6 +355,15 @@ export async function processZyastraVoiceWebhook(input: {
 
   for (const item of bodies) {
     if (campaignId && !screeningId) {
+      const demo = await tryProcessAiVoiceDemoWebhook({
+        campaignId,
+        kind: item.kind,
+        body: item.body,
+      });
+      if (demo?.handled) {
+        results.push(demo);
+        continue;
+      }
       const result = await processCampaignVoiceWebhook({
         kind: item.kind,
         campaignId,

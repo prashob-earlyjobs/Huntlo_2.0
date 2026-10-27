@@ -15,7 +15,7 @@ describe('AI voice demo jobs', () => {
     for (const job of AI_VOICE_DEMO_JOBS) {
       const agent = buildDemoAgentInput(job, 'Innostax');
       expect(agent.name).toContain(job);
-      if (job !== 'Real Estate DMX Urban Greens Call') {
+      if (job !== 'Real Estate DMX Urban Greens Call' && job !== 'KYC Incomplete Follow-up') {
         expect(agent.introduction).toContain(job);
       }
       expect(agent.introduction).toContain('Innostax');
@@ -27,7 +27,7 @@ describe('AI voice demo jobs', () => {
       if (job === 'Real Estate Alice Greens Call' || job === 'Real Estate DMX Urban Greens Call') {
         expect(asked).not.toContain('Innostax');
         expect(asked).not.toContain('{company}');
-      } else if (job.startsWith('Real Estate')) {
+      } else if (job.startsWith('Real Estate') || job === 'KYC Incomplete Follow-up') {
         expect(asked).toContain('Innostax');
         expect(asked).not.toContain('{company}');
       }

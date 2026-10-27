@@ -22,6 +22,7 @@ export const listCampaignsQuerySchema = z.object({
   status: statusWithAlias.optional(),
   sourceModule: z.enum(CAMPAIGN_SOURCE_MODULES).optional(),
   jobId: objectId.optional(),
+  channel: z.enum(['email', 'whatsapp', 'ai_voice']).optional(),
   q: z.string().trim().max(120).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),

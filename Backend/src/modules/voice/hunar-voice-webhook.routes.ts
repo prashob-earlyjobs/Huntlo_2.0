@@ -2,9 +2,14 @@ import { Router, type Request, type Response } from 'express';
 
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { webhookBodyMiddleware } from '../../middleware/raw-body.js';
+import { AppError } from '../../shared/errors/app-error.js';
+import { tryProcessAiVoiceDemoWebhook } from '../ai-voice-demo/ai-voice-demo.webhook.js';
 import { processHunarWebhook } from '../screening/webhook.service.js';
 import { processCampaignVoiceWebhook } from './voice-webhook.service.js';
-import type { HunarWebhookKind } from '../../providers/hunar/hunar.webhook.js';
+import {
+  verifyHunarWebhookAuthenticity,
+  type HunarWebhookKind,
+} from '../../providers/hunar/hunar.webhook.js';
 
 /**
  * Hunar voice callbacks — primary mount:
@@ -20,12 +25,35 @@ async function handleKind(kind: HunarWebhookKind, req: Request, res: Response) {
   const campaignId = String(req.query?.campaignId || '').trim() || null;
 
   if (campaignId && !screeningId) {
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const rawBody = req.rawBody ?? null;
+    const auth = verifyHunarWebhookAuthenticity({
+      headers,
+      rawBody,
+      campaignId,
+      entityId: campaignId,
+    });
+    if (!auth.ok) {
+      throw new AppError(401, 'WEBHOOK_UNAUTHORIZED', auth.reason || 'Unauthorized webhook');
+    }
+
+    const demo = await tryProcessAiVoiceDemoWebhook({
+      campaignId,
+      kind,
+      body: req.body,
+    });
+    if (demo?.handled) {
+      res.status(200).json({ success: true, data: demo });
+      return;
+    }
+
     const result = await processCampaignVoiceWebhook({
       kind,
       campaignId,
       body: req.body,
-      headers: req.headers as Record<string, string | string[] | undefined>,
-      rawBody: req.rawBody ?? null,
+      headers,
+      rawBody,
+      alreadyVerified: true,
     });
     res.status(200).json({ success: true, data: result });
     return;

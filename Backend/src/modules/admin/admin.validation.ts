@@ -160,3 +160,33 @@ export const patchPlatformSettingsSchema = z.object({
     )
     .optional(),
 });
+
+export const createVocallabsAgentSchema = z.object({
+  name: z.string().trim().min(1, 'Agent name is required').max(120),
+});
+
+export const listVocallabsAgentsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const testVocallabsAgentSchema = z.object({
+  phone: z.string().trim().min(8).max(20),
+});
+
+export const assignVocallabsAgentUsersSchema = z.object({
+  agentName: z.string().trim().max(120).optional().default(''),
+  userIds: z.array(z.string().trim().min(1).max(40)).max(500),
+});
+
+export const updateVocallabsAgentSchema = z.object({
+  name: z.string().trim().min(1, 'Agent name is required').max(120),
+  contactId: z.string().trim().max(200).optional().default(''),
+  welcomeMessage: z.string().trim().max(4000).optional().default(''),
+  agentPrompt: z.string().trim().max(20_000).optional().default(''),
+  analyticsPrompt: z.string().trim().max(20_000).optional().default(''),
+  language: z.string().trim().max(80).optional().default(''),
+  callTokenId: z.string().trim().max(200).optional().default(''),
+  voiceId: z.string().trim().max(200).optional().default(''),
+  inputsNeeded: z.record(z.string(), z.unknown()).optional(),
+});

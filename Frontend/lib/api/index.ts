@@ -27,6 +27,7 @@ export * from "./system";
 export * from "./profile";
 export * from "./settings";
 export * from "./voice-defaults";
+export * from "./vocallabs";
 export * from "./product-tour";
 
 export { apiClient, setTokenProvider, tokenStorage } from "./client";
