@@ -206,6 +206,8 @@ const ROUTE_PERMISSION_RULES: RouteRule[] = [
   { prefix: ROUTES.outreach, permissions: ["outreach:view"] },
   { prefix: ROUTES.conversations, permissions: ["outreach:view"] },
   { prefix: ROUTES.templates, permissions: ["outreach:view"] },
+  { prefix: ROUTES.aiCallCampaigns, permissions: ["outreach:view"] },
+  { prefix: ROUTES.aiCalls, permissions: ["outreach:view"] },
   { prefix: ROUTES.huntlo360New, permissions: ["huntlo360:create"] },
   { prefix: ROUTES.huntlo360, permissions: ["huntlo360:view"] },
   { prefix: ROUTES.screeningNew, permissions: ["screening:create"] },

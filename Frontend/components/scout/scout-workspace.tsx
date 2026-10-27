@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getApiErrorMessage,
   peopleScoutApi,
@@ -188,6 +189,7 @@ export function ScoutWorkspace() {
   const [value, setValue] = useState("");
   const [state, setState] = useState<ScoutState>({ kind: "idle" });
   const [recent, setRecent] = useState<RecentLookup[]>([]);
+  const [tab, setTab] = useState("lookups");
   const [quota, setQuota] = useState<ScoutQuota>({
     limit: 0,
     used: 0,
@@ -294,9 +296,9 @@ export function ScoutWorkspace() {
   }
 
   const searching = state.kind === "searching";
-
-  return (
     <div className="space-y-4">
+      </TabsList>
+      <TabsContent value="lookups" className="space-y-4">
       <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
         <form
           onSubmit={(event) => {
@@ -512,8 +514,8 @@ export function ScoutWorkspace() {
       <ScoutLookupsTable
         lookups={recent}
         onRerun={rerunFromHistory}
-        onLookupUpdated={() => void refreshSideData()}
-      />
     </div>
+      </TabsContent>
+    </Tabs>
   );
 }

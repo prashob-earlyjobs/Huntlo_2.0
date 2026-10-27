@@ -87,6 +87,7 @@ import {
 } from './modules/public/index.js';
 import { publicUtmRouter } from './modules/utm/index.js';
 import { aiVoiceDemoRouter } from './modules/ai-voice-demo/index.js';
+import { vocallabsRouter } from './modules/vocallabs/vocallabs.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -167,6 +168,7 @@ export function createApp(): Express {
   app.use('/api/v1/huntlo-360', huntlo360Router);
   app.use('/api/v1/screenings', screeningRouter);
   app.use('/api/v1/voice', voiceDefaultsRouter);
+  app.use('/api/v1/vocallabs', vocallabsRouter);
   app.use('/api/v1/assessments', assessmentsRouter);
   app.use('/api/v1/interviews', interviewsRouter);
   app.use('/api/v1/availability', availabilityRouter);

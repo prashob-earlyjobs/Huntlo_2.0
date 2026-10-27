@@ -304,6 +304,7 @@ export function OutreachWorkspace({
   onSearchChange,
   onPageChange,
   onCampaignsChange,
+  createHref = ROUTES.outreachNew,
 }: {
   campaigns: OutreachCampaign[];
   pagination: PaginationMeta;
@@ -311,6 +312,7 @@ export function OutreachWorkspace({
   onSearchChange: (value: string) => void;
   onPageChange: (page: number) => void;
   onCampaignsChange?: (campaigns: OutreachCampaign[]) => void;
+  createHref?: string;
 }) {
   const [campaigns, setCampaigns] = useState(initialCampaigns);
   const [channelFilter, setChannelFilter] = useState<string[]>([]);
@@ -725,7 +727,7 @@ export function OutreachWorkspace({
             title="No campaigns match these filters"
             description="Adjust your filters, or create a new campaign to start reaching candidates."
             actionLabel="Create Campaign"
-            actionHref={ROUTES.outreachNew}
+            actionHref={createHref}
             className="m-4 border-0"
           />
         )}

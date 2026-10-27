@@ -149,6 +149,17 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       },
     ],
   },
+  {
+    label: "Vocallabs",
+    items: [
+      {
+        title: "Agents",
+        href: ADMIN_ROUTES.vocallabsAgents,
+        icon: PhoneCall,
+        description: "Rylo calling agents",
+      },
+    ],
+  },
 ];
 
 export const ADMIN_NAV_ITEMS = ADMIN_NAV_SECTIONS.flatMap(

@@ -606,6 +606,19 @@ const mockOutreachApi: OutreachApi = {
     if (jobId) {
       rows = rows.filter((campaign) => campaign.relatedJobId === jobId);
     }
+    const channelQuery =
+      typeof params?.channel === "string" ? params.channel : "";
+    const channelLabel =
+      channelQuery === "email"
+        ? "Email"
+        : channelQuery === "whatsapp"
+          ? "WhatsApp"
+          : channelQuery === "ai_voice"
+            ? "AI Voice"
+            : "";
+    if (channelLabel) {
+      rows = rows.filter((campaign) => campaign.channels.includes(channelLabel));
+    }
 
     const total = rows.length;
     const totalPages = Math.max(1, Math.ceil(total / limit));
