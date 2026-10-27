@@ -25,7 +25,7 @@ function readStatus(record: Record<string, unknown>): string {
   const text = readText(raw);
   if (!text) return 'Active';
   if (text.toLowerCase() === 'inactive' || text.toLowerCase() === 'disabled') return 'Inactive';
-  return text[0].toUpperCase() + text.slice(1);
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function readAvatar(record: Record<string, unknown>): string | null {

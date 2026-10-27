@@ -82,8 +82,9 @@ export function parseCampaignContactsCsv(
   };
   const finish = (): ParsedCampaignContact[] => {
     if (!issues.length) return [];
+    const summary = issues[0] ?? 'This CSV needs changes before it can be imported.';
     throw AppError.validation(
-      issues.length === 1 ? issues[0] : 'This CSV needs changes before it can be imported.',
+      issues.length === 1 ? summary : 'This CSV needs changes before it can be imported.',
       issues.map((message) => ({ message }))
     );
   };
@@ -98,7 +99,12 @@ export function parseCampaignContactsCsv(
     return finish();
   }
 
-  const headers = splitCsvLine(lines[0]);
+  const headerLine = lines[0];
+  if (!headerLine) {
+    addIssue('The file is empty.');
+    return finish();
+  }
+  const headers = splitCsvLine(headerLine);
   const normalized = headers.map(columnKey);
   const required = requiredColumns.map((column) => column.trim()).filter(Boolean);
   const requiredKeys = new Set(required.map(columnKey));
@@ -168,9 +174,9 @@ export function parseCampaignContactsCsv(
       data[column] = String(cells[columnIndex] ?? '').trim().slice(0, 500);
     }
     contacts.push({
-      name: (nameIndex >= 0 ? cells[nameIndex] : '').trim().slice(0, 120),
+      name: String(nameIndex >= 0 ? cells[nameIndex] ?? '' : '').trim().slice(0, 120),
       phone: phone.slice(0, 20),
-      email: (emailIndex >= 0 ? cells[emailIndex] : '').trim().slice(0, 200),
+      email: String(emailIndex >= 0 ? cells[emailIndex] ?? '' : '').trim().slice(0, 200),
       data,
     });
   });
@@ -307,7 +313,11 @@ async function saveCampaignContacts(
       updateOne: {
         filter: { organizationId, campaignId, phone: contact.phone },
         update: {
-          $set: { name: contact.name, email: contact.email, data: contact.data },
+          $set: {
+            name: contact.name,
+            email: contact.email,
+            data: new Map(Object.entries(contact.data)),
+          },
           $setOnInsert: { organizationId, campaignId, phone: contact.phone },
         },
         upsert: true,
