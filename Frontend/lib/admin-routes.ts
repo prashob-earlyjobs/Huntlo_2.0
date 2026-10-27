@@ -40,6 +40,7 @@ export const ADMIN_ROUTE_LABELS: Record<AdminRoute, string> = {
   [ADMIN_ROUTES.workerTasks]: "Worker tasks",
   [ADMIN_ROUTES.integrations]: "Integrations",
   [ADMIN_ROUTES.vocallabsAgents]: "Agents",
+  [ADMIN_ROUTES.settings]: "Platform settings",
   [ADMIN_ROUTES.blog]: "Blog",
   [ADMIN_ROUTES.emailTemplates]: "Email templates",
   [ADMIN_ROUTES.hiringFlows]: "Hiring flows",
