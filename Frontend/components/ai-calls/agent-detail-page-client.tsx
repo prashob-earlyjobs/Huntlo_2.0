@@ -1,21 +1,21 @@
 "use client";
 
-import { ChevronLeft, Rocket, Search } from "lucide-react";
+import { ChevronLeft, Pencil, Phone, Rocket, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { recordFromAgentDetails } from "@/components/ai-calls/agent-record-view";
 import {
   agentAvatarUrl,
   agentInitials,
   agentVoiceLabel,
-  inputKeysFromRecord,
   languageFlag,
   shortAgentId,
 } from "@/components/ai-calls/agent-display";
 import { extractPromptVariables } from "@/components/admin/vocallabs-agent-defaults";
 import { EmptyState } from "@/components/shared/empty-state";
+import { Snackbar } from "@/components/shared/snackbar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ApiError,
   getApiErrorMessage,
@@ -83,6 +84,30 @@ function PromptBody({ text }: { text: string }) {
   );
 }
 
+function EditScriptButton({
+  label,
+  pressed,
+  onClick,
+}: {
+  label: string;
+  pressed: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      size="icon-xs"
+      variant="outline"
+      className="size-7 rounded-full"
+      aria-label={label}
+      aria-pressed={pressed}
+      onClick={onClick}
+    >
+      <Pencil aria-hidden />
+    </Button>
+  );
+}
+
 function Panel({
   title,
   action,
@@ -91,7 +116,7 @@ function Panel({
   className,
 }: {
   title: string;
-  action?: string;
+  action?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
@@ -100,7 +125,7 @@ function Panel({
     <section className={`flex min-h-0 flex-col rounded-xl border border-border bg-card ${className ?? ""}`}>
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <h2 className="text-xs font-semibold tracking-wide text-foreground uppercase">{title}</h2>
-        {action ? <span className="text-[11px] text-muted-foreground">{action}</span> : null}
+        {action ?? null}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
       {footer ? <div className="border-t border-border p-4">{footer}</div> : null}
@@ -122,6 +147,18 @@ export function AgentDetailPageClient({ id }: { id: string }) {
   const [launchAgents, setLaunchAgents] = useState<AssignedVocallabsAgent[]>([]);
   const [launchSaving, setLaunchSaving] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [testOpen, setTestOpen] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testValues, setTestValues] = useState<Record<string, string>>({});
+  const [testSaving, setTestSaving] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [draftWelcome, setDraftWelcome] = useState("");
+  const [draftPrompt, setDraftPrompt] = useState("");
+  const [editingWelcome, setEditingWelcome] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [scriptSaving, setScriptSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; variant: "default" | "error" } | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +168,10 @@ export function AgentDetailPageClient({ id }: { id: string }) {
     vocallabsApi
       .getAssignedAgent(id)
       .then((remote) => {
-        if (!cancelled) setDetails(remote);
+        if (cancelled) return;
+        setDetails(remote);
+        setDraftWelcome(remote.welcomeMessage);
+        setDraftPrompt(remote.agentPrompt);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -169,12 +209,10 @@ export function AgentDetailPageClient({ id }: { id: string }) {
     () => (details ? recordFromAgentDetails(details) : {}),
     [details]
   );
-  const variables = useMemo(() => {
-    if (!details) return [];
-    const fromPrompt = extractPromptVariables(details.welcomeMessage, details.agentPrompt);
-    const extra = inputKeysFromRecord(record).filter((key) => !fromPrompt.includes(key));
-    return [...fromPrompt, ...extra];
-  }, [details, record]);
+  const variables = useMemo(
+    () => extractPromptVariables(draftWelcome, draftPrompt),
+    [draftWelcome, draftPrompt]
+  );
 
   if (loading) return <AgentDetailSkeleton />;
 
@@ -227,6 +265,47 @@ export function AgentDetailPageClient({ id }: { id: string }) {
     }
   }
 
+  const testFields = variables.includes("name") ? variables : ["name", ...variables];
+
+  function openTest() {
+    const initial: Record<string, string> = {};
+    for (const key of testFields) initial[key] = "";
+    setTestValues(initial);
+    setTestPhone("");
+    setTestError(null);
+    setTestSaving(false);
+    setTestOpen(true);
+  }
+
+  async function submitTest() {
+    if (!details || testSaving) return;
+    const phone = testPhone.trim();
+    if (phone.replace(/\D/g, "").length < 8) {
+      setTestError("Enter a phone number with at least 8 digits.");
+      return;
+    }
+    const values: Record<string, string> = {};
+    for (const key of testFields) {
+      const value = (testValues[key] ?? "").trim();
+      if (!value) {
+        setTestError(`Enter ${key}.`);
+        return;
+      }
+      values[key] = value;
+    }
+    setTestSaving(true);
+    setTestError(null);
+    try {
+      await vocallabsApi.testAssignedAgent(details.id, { phone, values });
+      setTestOpen(false);
+      setToast({ message: "Test call started.", variant: "default" });
+    } catch (err) {
+      setTestError(getApiErrorMessage(err, "Could not create the test contact."));
+    } finally {
+      setTestSaving(false);
+    }
+  }
+
   if (!details) return null;
 
   const agentChoices = launchAgents.some((agent) => agent.id === details.id)
@@ -255,8 +334,32 @@ export function AgentDetailPageClient({ id }: { id: string }) {
   const voice = agentVoiceLabel(record);
   const language = details.language.trim();
   const flag = languageFlag(language);
-  const welcome = details.welcomeMessage.trim();
-  const prompt = details.agentPrompt.trim();
+  const scriptDirty =
+    draftWelcome !== details.welcomeMessage || draftPrompt !== details.agentPrompt;
+
+  async function submitScript() {
+    if (!details || scriptSaving || !scriptDirty) return;
+    setScriptSaving(true);
+    try {
+      const updated = await vocallabsApi.updateAssignedAgent(details.id, {
+        welcomeMessage: draftWelcome,
+        agentPrompt: draftPrompt,
+      });
+      setDetails(updated);
+      setDraftWelcome(updated.welcomeMessage);
+      setDraftPrompt(updated.agentPrompt);
+      setEditingWelcome(false);
+      setEditingPrompt(false);
+      setToast({ message: "Agent updated.", variant: "default" });
+    } catch (err) {
+      setToast({
+        message: getApiErrorMessage(err, "Could not update this agent."),
+        variant: "error",
+      });
+    } finally {
+      setScriptSaving(false);
+    }
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -306,16 +409,51 @@ export function AgentDetailPageClient({ id }: { id: string }) {
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
         <div className="grid min-h-0 gap-3">
-          <Panel title="Welcome message">
-            {welcome ? (
-              <PromptBody text={welcome} />
+          <Panel
+            title="Welcome message"
+            action={
+              <EditScriptButton
+                label="Edit welcome message"
+                pressed={editingWelcome}
+                onClick={() => setEditingWelcome((current) => !current)}
+              />
+            }
+          >
+            {editingWelcome ? (
+              <Textarea
+                value={draftWelcome}
+                aria-label="Welcome message"
+                disabled={scriptSaving}
+                className="min-h-24 font-mono text-[13px] leading-6"
+                onChange={(event) => setDraftWelcome(event.target.value)}
+              />
+            ) : draftWelcome.trim() ? (
+              <PromptBody text={draftWelcome} />
             ) : (
               <p className="text-sm text-muted-foreground">No welcome message saved.</p>
             )}
           </Panel>
-          <Panel title="Agent prompt" className="min-h-[28rem]">
-            {prompt ? (
-              <PromptBody text={prompt} />
+          <Panel
+            title="Agent prompt"
+            className="min-h-[28rem]"
+            action={
+              <EditScriptButton
+                label="Edit agent prompt"
+                pressed={editingPrompt}
+                onClick={() => setEditingPrompt((current) => !current)}
+              />
+            }
+          >
+            {editingPrompt ? (
+              <Textarea
+                value={draftPrompt}
+                aria-label="Agent prompt"
+                disabled={scriptSaving}
+                className="min-h-[24rem] font-mono text-[13px] leading-6"
+                onChange={(event) => setDraftPrompt(event.target.value)}
+              />
+            ) : draftPrompt.trim() ? (
+              <PromptBody text={draftPrompt} />
             ) : (
               <p className="text-sm text-muted-foreground">No agent prompt saved.</p>
             )}
@@ -326,9 +464,21 @@ export function AgentDetailPageClient({ id }: { id: string }) {
           title="Prompt variables"
           footer={
             <div className="grid gap-2">
+              <Button
+                className="w-full"
+                type="button"
+                disabled={!scriptDirty || scriptSaving}
+                onClick={() => void submitScript()}
+              >
+                {scriptSaving ? "Submitting…" : "Submit"}
+              </Button>
               <Button className="w-full" type="button" onClick={openLaunch}>
                 <Rocket aria-hidden />
                 Launch campaign
+              </Button>
+              <Button className="w-full" variant="outline" type="button" onClick={openTest}>
+                <Phone aria-hidden />
+                Test agent
               </Button>
             </div>
           }
@@ -452,6 +602,63 @@ export function AgentDetailPageClient({ id }: { id: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={testOpen}
+        onOpenChange={(next) => {
+          if (!next && !testSaving) setTestOpen(false);
+        }}
+      >
+        <DialogContent className="gap-4">
+          <DialogHeader>
+            <DialogTitle>Test agent</DialogTitle>
+            <DialogDescription>
+              Enter the phone number and each required value for this agent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid max-h-80 gap-3 overflow-y-auto pr-1">
+            <div className="grid gap-1.5">
+              <Label htmlFor="assigned-agent-test-phone">Phone number</Label>
+              <Input
+                id="assigned-agent-test-phone"
+                type="tel"
+                autoComplete="tel"
+                value={testPhone}
+                placeholder="+91 98000 00000"
+                disabled={testSaving}
+                onChange={(event) => setTestPhone(event.target.value)}
+              />
+            </div>
+            {testFields.map((key) => (
+              <div key={key} className="grid gap-1.5">
+                <Label htmlFor={`assigned-agent-test-${key}`}>{key}</Label>
+                <Input
+                  id={`assigned-agent-test-${key}`}
+                  value={testValues[key] ?? ""}
+                  disabled={testSaving}
+                  onChange={(event) =>
+                    setTestValues((current) => ({ ...current, [key]: event.target.value }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          {testError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {testError}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={testSaving} onClick={() => setTestOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={testSaving} onClick={() => void submitTest()}>
+              {testSaving ? "Submitting…" : "Submit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Snackbar message={toast?.message ?? null} variant={toast?.variant} onDismiss={dismissToast} />
     </div>
   );
 }
