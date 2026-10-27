@@ -1,11 +1,12 @@
 "use client";
 
 import { Megaphone, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampaignCard } from "@/components/ai-calls/campaign-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { Snackbar } from "@/components/shared/snackbar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage, vocallabsApi, type VocallabsCampaign } from "@/lib/api";
@@ -20,11 +21,22 @@ function CampaignsSkeleton() {
   );
 }
 
+const LAUNCHED_TOAST_KEY = "huntlo-campaign-launched";
+
 export function AiCallCampaignsPage() {
   const [campaigns, setCampaigns] = useState<VocallabsCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    const message = sessionStorage.getItem(LAUNCHED_TOAST_KEY);
+    if (!message) return;
+    sessionStorage.removeItem(LAUNCHED_TOAST_KEY);
+    setToast(message);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +121,7 @@ export function AiCallCampaignsPage() {
           ))}
         </ul>
       ) : null}
+      <Snackbar message={toast} onDismiss={dismissToast} />
     </>
   );
 }

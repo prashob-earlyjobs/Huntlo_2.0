@@ -14,6 +14,7 @@ const vocallabsCampaignSchema = new mongoose.Schema(
     agentId: { type: String, required: true, trim: true, maxlength: 80 },
     contactGroupId: { type: String, default: '', trim: true, maxlength: 80 },
     contactGroupName: { type: String, default: '', trim: true, maxlength: 120 },
+    active: { type: Boolean, default: false },
   },
   { timestamps: true, collection: 'vocallabs_campaigns' }
 );

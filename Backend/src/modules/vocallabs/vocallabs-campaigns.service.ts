@@ -10,6 +10,7 @@ export type StoredVocallabsCampaign = {
   agentId: string;
   contactGroupId: string;
   contactGroupName: string;
+  active: boolean;
   createdAt: string | null;
 };
 
@@ -61,6 +62,7 @@ export async function saveVocallabsCampaign(input: {
     agentId: doc?.agentId || agentId,
     contactGroupId: doc?.contactGroupId || '',
     contactGroupName: doc?.contactGroupName || '',
+    active: doc?.active === true,
     createdAt: doc?.createdAt ? new Date(doc.createdAt).toISOString() : null,
   };
 }
@@ -81,8 +83,16 @@ export async function getStoredVocallabsCampaign(
     agentId: doc.agentId,
     contactGroupId: doc.contactGroupId || '',
     contactGroupName: doc.contactGroupName || '',
+    active: doc.active === true,
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
   };
+}
+
+export async function markCampaignActive(organizationId: string, campaignId: string): Promise<void> {
+  await VocallabsCampaignModel.updateOne(
+    { organizationId: organizationId.trim(), campaignId: campaignId.trim() },
+    { $set: { active: true } }
+  );
 }
 
 export async function saveCampaignContactGroup(input: {
@@ -112,6 +122,7 @@ export async function listStoredVocallabsCampaigns(
     agentId: doc.agentId,
     contactGroupId: doc.contactGroupId || '',
     contactGroupName: doc.contactGroupName || '',
+    active: doc.active === true,
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
   }));
 }

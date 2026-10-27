@@ -29,6 +29,7 @@ import {
 import {
   getStoredVocallabsCampaign,
   listStoredVocallabsCampaigns,
+  markCampaignActive,
   saveCampaignContactGroup,
   saveVocallabsCampaign,
   type StoredVocallabsCampaign,
@@ -71,7 +72,7 @@ function campaignFromStored(row: StoredVocallabsCampaign): RyloCampaign {
     name: row.name,
     agentId: row.agentId,
     agentName: '',
-    active: false,
+    active: row.active,
     concurrency: null,
     pendingCount: 0,
     contactCount: 0,
@@ -103,7 +104,10 @@ vocallabsRouter.get(
     try {
       const live = await listRyloCampaigns();
       const liveById = new Map(live.map((campaign) => [campaign.id, campaign]));
-      const items = stored.map((row) => liveById.get(row.campaignId) ?? campaignFromStored(row));
+      const items = stored.map((row) => {
+        const live = liveById.get(row.campaignId) ?? campaignFromStored(row);
+        return { ...live, active: live.active || row.active };
+      });
       successResponse(res, { items }, { meta: { requestId: getRequestId(req) } });
     } catch (error) {
       if (error instanceof RyloRequestError) {
@@ -236,6 +240,7 @@ vocallabsRouter.post(
     if (!campaign) throw AppError.notFound('Campaign not found');
     try {
       await activateRyloCampaign(campaign.campaignId);
+      await markCampaignActive(req.organizationId!, campaign.campaignId);
       successResponse(res, { active: true }, { meta: { requestId: getRequestId(req) } });
     } catch (error) {
       if (error instanceof RyloRequestError) throw customerError(error);

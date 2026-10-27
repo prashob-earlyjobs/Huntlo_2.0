@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronLeft, Phone, Rocket, Search } from "lucide-react";
+import { ChevronLeft, Rocket, Search } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { recordFromAgentDetails } from "@/components/ai-calls/agent-record-view";
 import {
@@ -15,7 +16,6 @@ import {
 } from "@/components/ai-calls/agent-display";
 import { extractPromptVariables } from "@/components/admin/vocallabs-agent-defaults";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Snackbar } from "@/components/shared/snackbar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,7 +35,7 @@ import {
   type AssignedVocallabsAgent,
   type VocallabsAgentDetails,
 } from "@/lib/api";
-import { ROUTES } from "@/lib/routes";
+import { aiCallCampaignPath, ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const CAMPAIGN_NAME_MAX = 120;
@@ -109,15 +109,11 @@ function Panel({
 }
 
 export function AgentDetailPageClient({ id }: { id: string }) {
+  const router = useRouter();
   const [details, setDetails] = useState<VocallabsAgentDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [testOpen, setTestOpen] = useState(false);
-  const [testPhone, setTestPhone] = useState("");
-  const [testSaving, setTestSaving] = useState(false);
-  const [testError, setTestError] = useState<string | null>(null);
-  const [testStarted, setTestStarted] = useState(false);
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchName, setLaunchName] = useState("");
   const [launchNameTouched, setLaunchNameTouched] = useState(false);
@@ -126,8 +122,6 @@ export function AgentDetailPageClient({ id }: { id: string }) {
   const [launchAgents, setLaunchAgents] = useState<AssignedVocallabsAgent[]>([]);
   const [launchSaving, setLaunchSaving] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; variant: "default" | "error" } | null>(null);
-  const dismissToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,43 +217,13 @@ export function AgentDetailPageClient({ id }: { id: string }) {
     setLaunchSaving(true);
     setLaunchError(null);
     try {
-      await vocallabsApi.createCampaign({ name, agentId: launchAgentId });
+      const created = await vocallabsApi.createCampaign({ name, agentId: launchAgentId });
       setLaunchOpen(false);
-      setToast({
-        message: "Campaign created. It will show under Campaigns.",
-        variant: "default",
-      });
+      router.push(`${aiCallCampaignPath(created.id)}?created=1`);
     } catch (err) {
       setLaunchError(getApiErrorMessage(err, "Could not create the campaign."));
     } finally {
       setLaunchSaving(false);
-    }
-  }
-
-  function openTest() {
-    setTestPhone("");
-    setTestError(null);
-    setTestStarted(false);
-    setTestSaving(false);
-    setTestOpen(true);
-  }
-
-  async function submitTest() {
-    if (!details || testSaving) return;
-    const phone = testPhone.trim();
-    if (phone.replace(/\D/g, "").length < 8) {
-      setTestError("Enter a phone number with at least 8 digits.");
-      return;
-    }
-    setTestSaving(true);
-    setTestError(null);
-    try {
-      await vocallabsApi.testAssignedAgent(details.id, { phone });
-      setTestStarted(true);
-    } catch (err) {
-      setTestError(getApiErrorMessage(err, "Could not start the test call."));
-    } finally {
-      setTestSaving(false);
     }
   }
 
@@ -365,10 +329,6 @@ export function AgentDetailPageClient({ id }: { id: string }) {
               <Button className="w-full" type="button" onClick={openLaunch}>
                 <Rocket aria-hidden />
                 Launch campaign
-              </Button>
-              <Button className="w-full" variant="outline" type="button" onClick={openTest}>
-                <Phone aria-hidden />
-                Test agent
               </Button>
             </div>
           }
@@ -492,55 +452,6 @@ export function AgentDetailPageClient({ id }: { id: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog
-        open={testOpen}
-        onOpenChange={(next) => {
-          if (!next && !testSaving) setTestOpen(false);
-        }}
-      >
-        <DialogContent className="gap-4">
-          <DialogHeader>
-            <DialogTitle>Test agent</DialogTitle>
-            <DialogDescription>
-              This number is called using {details.name || "this agent"}. Required inputs are filled with test values.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-1.5">
-            <Label htmlFor="assigned-agent-test-phone">Phone number</Label>
-            <Input
-              id="assigned-agent-test-phone"
-              type="tel"
-              autoComplete="tel"
-              value={testPhone}
-              placeholder="+91 98000 00000"
-              disabled={testSaving || testStarted}
-              onChange={(event) => setTestPhone(event.target.value)}
-            />
-          </div>
-          {testError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {testError}
-            </p>
-          ) : null}
-          {testStarted ? (
-            <p className="text-sm text-foreground" role="status">
-              Test call started. This number is being called.
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={testSaving} onClick={() => setTestOpen(false)}>
-              {testStarted ? "Close" : "Cancel"}
-            </Button>
-            {testStarted ? null : (
-              <Button type="button" disabled={testSaving} onClick={() => void submitTest()}>
-                {testSaving ? "Calling…" : "Start test call"}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Snackbar message={toast?.message ?? null} variant={toast?.variant} onDismiss={dismissToast} />
     </div>
   );
 }

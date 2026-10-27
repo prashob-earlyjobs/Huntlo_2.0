@@ -2,6 +2,7 @@
 
 import { Check, ChevronLeft, Download, FileText, Info, Loader2, Megaphone, Rocket, Upload } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useEffect } from "react";
 
 import { EmptyState } from "@/components/shared/empty-state";
@@ -45,7 +46,10 @@ function contactValue(contact: CampaignContact, column: string): string {
   return contact.data?.[column] ?? "";
 }
 
+const LAUNCHED_TOAST_KEY = "huntlo-campaign-launched";
+
 export function CampaignDetailPageClient({ id }: { id: string }) {
+  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [campaign, setCampaign] = useState<VocallabsCampaign | null>(null);
   const [contacts, setContacts] = useState<CampaignContact[]>([]);
@@ -58,6 +62,15 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
   >(null);
   const [toast, setToast] = useState<{ message: string; variant: "default" | "error" } | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("created") !== "1") return;
+    setToast({ message: "Campaign created. It will show under Campaigns.", variant: "default" });
+    params.delete("created");
+    const next = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
+  }, [id]);
   const [error, setError] = useState<string | null>(null);
   const [uploadIssues, setUploadIssues] = useState<string[]>([]);
 
@@ -133,7 +146,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
   }
 
   async function launchCampaign() {
-    if (launchPhase) return;
+    if (launchPhase || campaign?.active) return;
     setLaunchPhase("launching");
     setToast(null);
     try {
@@ -148,11 +161,11 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
         launched.contactCount === 1
           ? "1 candidate was added"
           : `${launched.contactCount} candidates were added`;
-      setToast({
-        message: `Launched. ${added} to ${launched.groupName}.`,
-        variant: "default",
-      });
-      window.setTimeout(() => setLaunchPhase(null), 1600);
+      const message = `Launched. ${added} to ${launched.groupName}.`;
+      window.setTimeout(() => {
+        sessionStorage.setItem(LAUNCHED_TOAST_KEY, message);
+        router.push(ROUTES.aiCallCampaigns);
+      }, 1600);
     } catch (err) {
       setLaunchPhase(null);
       setToast({
@@ -321,7 +334,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
         </section>
       ) : null}
 
-      {!loading && campaign && contacts.length > 0 ? (
+      {!loading && campaign && contacts.length > 0 && (!campaign.active || launchPhase) ? (
         <div className="mt-auto flex justify-end">
           <Button
             type="button"

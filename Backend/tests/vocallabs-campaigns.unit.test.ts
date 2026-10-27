@@ -61,6 +61,7 @@ describe('saveVocallabsCampaign', () => {
       agentId: 'agent-1',
       contactGroupId: '',
       contactGroupName: '',
+      active: false,
       createdAt: '2026-10-27T00:00:00.000Z',
     });
 
@@ -103,6 +104,7 @@ describe('listStoredVocallabsCampaigns', () => {
         agentId: 'agent-1',
         contactGroupId: '',
         contactGroupName: '',
+        active: false,
         createdAt: '2026-10-27T00:00:00.000Z',
       },
     ]);
