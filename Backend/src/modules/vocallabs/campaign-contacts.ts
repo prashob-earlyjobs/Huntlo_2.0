@@ -2,12 +2,23 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { VocallabsCampaignContactModel } from './vocallabs-campaign-contact.model.js';
 import { VocallabsCampaignModel } from './vocallabs-campaign.model.js';
 
+export type CampaignContactCall = {
+  status: string;
+  summary: string;
+  durationSeconds: number | null;
+  recordingUrl: string;
+  answers: Array<{ key: string; value: string }>;
+  messages: Array<{ role: string; content: string; createdAt: string }>;
+};
+
 export type CampaignContact = {
   id: string;
   name: string;
   phone: string;
   email: string;
   data: Record<string, string>;
+  callStatus: string;
+  call: CampaignContactCall | null;
 };
 
 export type ParsedCampaignContact = {
@@ -291,13 +302,91 @@ export async function listCampaignContacts(
   })
     .sort({ createdAt: -1 })
     .lean();
-  return docs.map((doc) => ({
-    id: hexId(doc._id),
-    name: doc.name || '',
-    phone: doc.phone,
-    email: doc.email || '',
-    data: readStoredData(doc.data),
+  return docs.map((doc) => {
+    const answers = (doc.callAnswers ?? []).map((answer) => ({
+      key: answer.key || '',
+      value: answer.value || '',
+    }));
+    const messages = (doc.callMessages ?? []).map((message) => ({
+      role: message.role || '',
+      content: message.content || '',
+      createdAt: message.createdAt || '',
+    }));
+    const hasCall = Boolean(doc.callId || doc.callStatus || doc.callSummary || messages.length);
+    return {
+      id: hexId(doc._id),
+      name: doc.name || '',
+      phone: doc.phone,
+      email: doc.email || '',
+      data: readStoredData(doc.data),
+      callStatus: doc.callStatus || '',
+      call: hasCall
+        ? {
+            status: doc.callStatus || '',
+            summary: doc.callSummary || '',
+            durationSeconds: typeof doc.callDurationSeconds === 'number' ? doc.callDurationSeconds : null,
+            recordingUrl: doc.callRecordingUrl || '',
+            answers,
+            messages,
+          }
+        : null,
+    };
+  });
+}
+
+export type CampaignContactCallUpdate = {
+  organizationId: string;
+  campaignId: string;
+  contactId: string;
+  callStatus: string;
+};
+
+export async function setCampaignContactCallStatus(input: {
+  campaignId: string;
+  phone: string;
+  status: string;
+  callId: string;
+  queueId: string;
+  summary?: string;
+  durationSeconds?: number | null;
+  recordingUrl?: string;
+  answers?: Array<{ key: string; value: string }>;
+  messages?: Array<{ role: string; content: string; createdAt: string }>;
+}): Promise<CampaignContactCallUpdate | null> {
+  const campaignId = input.campaignId.trim();
+  const status = input.status.trim().slice(0, 40);
+  const digits = phoneDigits(input.phone);
+  if (!campaignId || !status || digits.length < 8) return null;
+
+  const docs = await VocallabsCampaignContactModel.find({ campaignId });
+  const match = docs.find((doc) => {
+    const stored = phoneDigits(doc.phone);
+    return stored === digits || stored.endsWith(digits) || digits.endsWith(stored);
+  });
+  if (!match) return null;
+
+  match.callStatus = status;
+  match.callId = input.callId.trim().slice(0, 80);
+  match.queueId = input.queueId.trim().slice(0, 80);
+  match.callSummary = (input.summary || '').slice(0, 8000);
+  match.callDurationSeconds = typeof input.durationSeconds === 'number' ? input.durationSeconds : null;
+  match.callRecordingUrl = (input.recordingUrl || '').slice(0, 500);
+  match.callAnswers = (input.answers ?? []).slice(0, 40).map((answer) => ({
+    key: answer.key.slice(0, 80),
+    value: answer.value.slice(0, 500),
   }));
+  match.callMessages = (input.messages ?? []).slice(0, 200).map((message) => ({
+    role: message.role.slice(0, 40),
+    content: message.content.slice(0, 4000),
+    createdAt: message.createdAt.slice(0, 40),
+  }));
+  await match.save();
+  return {
+    organizationId: match.organizationId,
+    campaignId,
+    contactId: hexId(match._id),
+    callStatus: status,
+  };
 }
 
 async function saveCampaignContacts(

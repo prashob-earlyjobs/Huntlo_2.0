@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, Download, FileText, Info, Loader2, Megaphone, Rocket, Upload } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, FileText, Info, Loader2, Megaphone, Rocket, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useEffect } from "react";
@@ -11,10 +11,18 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   ApiError,
   getApiErrorMessage,
@@ -22,6 +30,7 @@ import {
   type CampaignContact,
   type VocallabsCampaign,
 } from "@/lib/api";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { ROUTES } from "@/lib/routes";
 
 function contactColumns(contacts: CampaignContact[]): string[] {
@@ -36,12 +45,59 @@ function contactColumns(contacts: CampaignContact[]): string[] {
       extras.push(key);
     }
   }
-  return ["name", "phone", ...(hasEmail ? ["email"] : []), ...extras];
+  return ["name", "phone", "status", "call", ...(hasEmail ? ["email"] : []), ...extras];
+}
+
+function formatAnswerKey(value: string): string {
+  const text = value.trim().replace(/_/g, " ");
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "";
+  const whole = Math.round(seconds);
+  const minutes = Math.floor(whole / 60);
+  const rest = whole % 60;
+  if (minutes === 0) return `${rest} sec`;
+  if (rest === 0) return `${minutes} min`;
+  return `${minutes} min ${rest} sec`;
+}
+
+function speakerLabel(role: string): string {
+  return role.toLowerCase() === "user" ? "Candidate" : "Agent";
+}
+
+function formatCallStatus(value: string): string {
+  const text = value.trim().replace(/_/g, " ");
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function statusTone(value: string): string {
+  const status = value.trim().toLowerCase();
+  if (status === "completed") return "bg-success/10 text-success";
+  if (status === "failed" || status === "busy" || status === "no_answer" || status === "no-answer") {
+    return "bg-destructive/10 text-destructive";
+  }
+  if (!status) return "bg-muted text-muted-foreground";
+  return "bg-muted text-foreground";
+}
+
+function columnLabel(column: string): string {
+  if (column === "call") return "Call";
+  return formatAnswerKey(column);
+}
+
+function contactInitial(name: string): string {
+  const letter = name.trim().charAt(0);
+  return letter ? letter.toUpperCase() : "?";
 }
 
 function contactValue(contact: CampaignContact, column: string): string {
   if (column === "name") return contact.name;
   if (column === "phone") return contact.phone;
+  if (column === "status") return formatCallStatus(contact.callStatus ?? "");
   if (column === "email") return contact.email;
   return contact.data?.[column] ?? "";
 }
@@ -61,6 +117,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     "launching" | "creating" | "attaching" | "success" | null
   >(null);
   const [toast, setToast] = useState<{ message: string; variant: "default" | "error" } | null>(null);
+  const [openCall, setOpenCall] = useState<CampaignContact | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
@@ -98,6 +155,24 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
       cancelled = true;
     };
   }, [id]);
+
+  const refreshContacts = useCallback(async () => {
+    const contactPage = await vocallabsApi.listCampaignContacts(id);
+    setContacts(contactPage.items);
+    setOpenCall((current) => {
+      if (!current) return null;
+      return contactPage.items.find((item) => item.id === current.id) ?? current;
+    });
+  }, [id]);
+
+  useRealtimeRefresh("ai-call.updated", (event) => {
+    const data =
+      event.data && typeof event.data === "object"
+        ? (event.data as { campaignId?: string })
+        : null;
+    if (data?.campaignId && data.campaignId !== id) return;
+    void refreshContacts().catch(() => undefined);
+  });
 
   function issuesFromUploadError(err: unknown): string[] {
     if (err instanceof ApiError && err.details?.length) {
@@ -306,14 +381,17 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
                 <tr className="border-b border-border bg-muted/40 text-left">
                   {columns.map((column) => (
                     <th key={column} className="px-4 py-2.5 font-medium text-muted-foreground">
-                      {column}
+                      {columnLabel(column)}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {contacts.map((contact) => (
-                  <tr key={contact.id} className="border-b border-border last:border-b-0">
+                  <tr
+                    key={contact.id}
+                    className="border-b border-border last:border-b-0 transition-colors duration-150 ease-out hover:bg-muted/30"
+                  >
                     {columns.map((column) => (
                       <td
                         key={column}
@@ -323,7 +401,35 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
                             : "whitespace-nowrap px-4 py-3 text-foreground"
                         }
                       >
-                        {contactValue(contact, column) || "—"}
+                        {column === "status" ? (
+                          contact.callStatus ? (
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusTone(contact.callStatus)}`}
+                            >
+                              {formatCallStatus(contact.callStatus)}
+                            </span>
+                          ) : (
+                            "—"
+                          )
+                        ) : column === "call" ? (
+                          contact.call ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 rounded-md text-sm text-muted-foreground transition-[color,transform] duration-150 ease-out hover:text-foreground active:scale-[0.97]"
+                              onClick={() => setOpenCall(contact)}
+                            >
+                              <span className="tabular-nums">
+                                {formatDuration(contact.call.durationSeconds) || "Open"}
+                              </span>
+                              <ChevronRight aria-hidden className="size-3.5" />
+                              <span className="sr-only">Open call for {contact.name || contact.phone}</span>
+                            </button>
+                          ) : (
+                            "—"
+                          )
+                        ) : (
+                          contactValue(contact, column) || "—"
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -361,6 +467,108 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
           </Button>
         </div>
       ) : null}
+      <Sheet open={Boolean(openCall)} onOpenChange={(next) => { if (!next) setOpenCall(null); }}>
+        <SheetContent
+          side="right"
+          className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-lg"
+        >
+          <SheetHeader className="border-b border-border pr-12">
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                {contactInitial(openCall?.name || "")}
+              </span>
+              <div className="min-w-0">
+                <SheetTitle className="truncate">{openCall?.name || "Call"}</SheetTitle>
+                <SheetDescription className="font-mono">{openCall?.phone}</SheetDescription>
+              </div>
+            </div>
+            {openCall?.call ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {openCall.call.status ? (
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusTone(openCall.call.status)}`}
+                  >
+                    {formatCallStatus(openCall.call.status)}
+                  </span>
+                ) : null}
+                {formatDuration(openCall.call.durationSeconds) ? (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {formatDuration(openCall.call.durationSeconds)}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </SheetHeader>
+          {openCall?.call ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <div className="grid gap-5">
+                {openCall.call.recordingUrl ? (
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={openCall.call.recordingUrl}
+                    className="h-10 w-full"
+                  >
+                    <a href={openCall.call.recordingUrl}>Play recording</a>
+                  </audio>
+                ) : null}
+                <section className="grid gap-2">
+                  <h2 className="text-sm font-medium text-foreground">Summary</h2>
+                  <p className="rounded-xl bg-muted/50 px-3.5 py-3 text-sm leading-6 text-foreground">
+                    {openCall.call.summary || "No summary yet."}
+                  </p>
+                </section>
+                <section className="grid gap-2">
+                  <h2 className="text-sm font-medium text-foreground">Answers</h2>
+                  {openCall.call.answers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No answers captured.</p>
+                  ) : (
+                    <dl className="grid grid-cols-2 gap-2">
+                      {openCall.call.answers.map((answer) => (
+                        <div key={answer.key} className="rounded-xl bg-muted/50 px-3 py-2.5">
+                          <dt className="text-[11px] text-muted-foreground">{formatAnswerKey(answer.key)}</dt>
+                          <dd className="mt-0.5 text-sm font-medium text-foreground">{answer.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </section>
+                <section className="grid gap-3">
+                  <h2 className="text-sm font-medium text-foreground">Transcript</h2>
+                  {openCall.call.messages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No transcript yet.</p>
+                  ) : (
+                    <ol className="grid gap-2.5">
+                      {openCall.call.messages.map((message, index) => {
+                        const candidate = message.role.toLowerCase() === "user";
+                        return (
+                          <li
+                            key={`${message.createdAt}-${index}`}
+                            className={candidate ? "flex justify-end" : "flex justify-start"}
+                          >
+                            <div
+                              className={
+                                candidate
+                                  ? "max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-primary-foreground"
+                                  : "max-w-[85%] rounded-2xl rounded-bl-md bg-muted px-3 py-2 text-foreground"
+                              }
+                            >
+                              <p className={candidate ? "text-[11px] text-primary-foreground/70" : "text-[11px] text-muted-foreground"}>
+                                {speakerLabel(message.role)}
+                              </p>
+                              <p className="mt-0.5 text-sm leading-6">{message.content}</p>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                </section>
+              </div>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
       <Snackbar message={toast?.message ?? null} variant={toast?.variant} onDismiss={dismissToast} />
     </div>
   );

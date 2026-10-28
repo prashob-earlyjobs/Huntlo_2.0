@@ -407,7 +407,7 @@ export function AgentDetailPageClient({ id }: { id: string }) {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
         <div className="grid min-h-0 gap-3">
           <Panel
             title="Welcome message"
@@ -460,18 +460,11 @@ export function AgentDetailPageClient({ id }: { id: string }) {
           </Panel>
         </div>
 
+        <div className="grid content-start gap-3 lg:sticky lg:top-4 lg:z-10 lg:max-h-[calc(100dvh-5rem)] lg:self-start lg:overflow-y-auto">
         <Panel
           title="Prompt variables"
           footer={
             <div className="grid gap-2">
-              <Button
-                className="w-full"
-                type="button"
-                disabled={!scriptDirty || scriptSaving}
-                onClick={() => void submitScript()}
-              >
-                {scriptSaving ? "Submitting…" : "Submit"}
-              </Button>
               <Button className="w-full" type="button" onClick={openLaunch}>
                 <Rocket aria-hidden />
                 Launch campaign
@@ -498,6 +491,15 @@ export function AgentDetailPageClient({ id }: { id: string }) {
             </ul>
           )}
         </Panel>
+        <Button
+          type="button"
+          className="w-full"
+          disabled={!scriptDirty || scriptSaving}
+          onClick={() => void submitScript()}
+        >
+          {scriptSaving ? "Submitting…" : "Submit"}
+        </Button>
+        </div>
       </div>
 
       <Dialog

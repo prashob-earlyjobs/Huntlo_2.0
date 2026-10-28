@@ -37,12 +37,23 @@ export type VocallabsCampaign = {
   createdAt: string | null;
 };
 
+export type CampaignContactCall = {
+  status: string;
+  summary: string;
+  durationSeconds: number | null;
+  recordingUrl: string;
+  answers: Array<{ key: string; value: string }>;
+  messages: Array<{ role: string; content: string; createdAt: string }>;
+};
+
 export type CampaignContact = {
   id: string;
   name: string;
   phone: string;
   email: string;
   data?: Record<string, string>;
+  callStatus?: string;
+  call?: CampaignContactCall | null;
 };
 
 export type VocallabsApi = {
