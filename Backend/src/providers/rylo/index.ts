@@ -31,7 +31,7 @@ export {
   type RyloCreatedAgent,
   type RyloVoice,
 } from './rylo.agents.js';
-export { testRyloAiAgent } from './rylo.calls.js';
+export { createRyloTestContact, testRyloAiAgent } from './rylo.calls.js';
 export {
   activateRyloCampaign,
   attachRyloCampaignContactGroup,

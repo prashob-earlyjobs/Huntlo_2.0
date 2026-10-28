@@ -41,13 +41,62 @@ import {
   createRyloCampaignContactGroup,
   getRyloAiAgent,
   listRyloCampaigns,
+  updateRyloAiAgent,
   RyloRequestError,
-  testRyloAiAgent,
+  createRyloTestContact,
   type RyloCampaign,
 } from '../../providers/rylo/index.js';
 
+const updateAssignedAgentSchema = z.object({
+  welcomeMessage: z.string().max(8_000),
+  agentPrompt: z.string().max(80_000),
+});
+
+const PROMPT_PLACEHOLDER = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function promptVariableKeys(...texts: string[]): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const text of texts) {
+    for (const match of text.matchAll(PROMPT_PLACEHOLDER)) {
+      const key = match[1]?.trim();
+      if (!key || key === 'contact_id' || seen.has(key)) continue;
+      seen.add(key);
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
+function inputsForScript(
+  existing: unknown,
+  contactId: string,
+  keys: string[]
+): Record<string, unknown> {
+  const current = asRecord(existing);
+  const inputs: Record<string, unknown> = {};
+  const savedContactId =
+    contactId || (typeof current.contact_id === 'string' ? current.contact_id.trim() : '');
+  if (savedContactId) inputs.contact_id = savedContactId;
+  for (const key of keys) {
+    const previous = current[key];
+    inputs[key] =
+      previous && typeof previous === 'object'
+        ? previous
+        : { key, about: `Value for ${key.replace(/_/g, ' ')}` };
+  }
+  return inputs;
+}
+
 const testAssignedAgentSchema = z.object({
-  phone: z.string().trim().min(8).max(20),
+  phone: z.string().trim().min(8).max(32),
+  values: z.record(z.string(), z.string().max(500)).optional(),
 });
 
 const createCampaignSchema = z.object({
@@ -332,6 +381,47 @@ vocallabsRouter.get(
   })
 );
 
+vocallabsRouter.patch(
+  '/agents/:id',
+  ...orgAuth,
+  testPerm,
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    const assigned = await vocallabsAgentIsAssignedToUser(req.userId!, id);
+    if (!assigned) throw AppError.notFound('Agent not found');
+    const body = updateAssignedAgentSchema.parse(req.body ?? {});
+    try {
+      const agent = await getRyloAiAgent(id);
+      const keys = promptVariableKeys(body.welcomeMessage, body.agentPrompt);
+      await updateRyloAiAgent({
+        agentId: id,
+        name: agent.name,
+        contactId: agent.contactId,
+        welcomeMessage: body.welcomeMessage,
+        agentPrompt: body.agentPrompt,
+        analyticsPrompt: agent.analyticsPrompt,
+        language: agent.language,
+        callTokenId: agent.callTokenId,
+        voiceId: agent.voiceId,
+        inputsNeeded: inputsForScript(agent.record.inputs_needed, agent.contactId, keys),
+      });
+      const fresh = await getRyloAiAgent(id);
+      successResponse(
+        res,
+        {
+          ...fresh,
+          welcomeMessage: body.welcomeMessage.trim(),
+          agentPrompt: body.agentPrompt.trim(),
+        },
+        { meta: { requestId: getRequestId(req) } }
+      );
+    } catch (error) {
+      if (error instanceof RyloRequestError) throw customerError(error);
+      throw error;
+    }
+  })
+);
+
 vocallabsRouter.post(
   '/agents/:id/test',
   ...orgAuth,
@@ -342,7 +432,11 @@ vocallabsRouter.post(
     if (!assigned) throw AppError.notFound('Agent not found');
     const body = testAssignedAgentSchema.parse(req.body ?? {});
     try {
-      const data = await testRyloAiAgent({ agentId: id, phone: body.phone });
+      const data = await createRyloTestContact({
+        agentId: id,
+        phone: body.phone,
+        values: body.values ?? {},
+      });
       successResponse(res, data, { meta: { requestId: getRequestId(req) } });
     } catch (error) {
       if (error instanceof RyloRequestError) throw customerError(error);

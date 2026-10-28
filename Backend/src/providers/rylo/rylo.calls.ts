@@ -9,6 +9,19 @@ import {
 } from './rylo.config.js';
 
 const TEST_GROUP_NAME = 'Huntlo tests';
+export const TEST_PROSPECT_GROUP_ID = '791767d6-2047-4dad-9902-9a2e56d5ad1d';
+
+export function testContactCreateBody(input: { name: string; phone: string }): {
+  name: string;
+  phone: string;
+  prospect_group_id: string;
+} {
+  return {
+    name: input.name.trim(),
+    phone: input.phone.trim(),
+    prospect_group_id: TEST_PROSPECT_GROUP_ID,
+  };
+}
 
 let testGroupId: string | null = null;
 
@@ -218,6 +231,95 @@ async function ensureTestGroup(): Promise<string> {
   }
   testGroupId = createdId;
   return createdId;
+}
+
+export async function createRyloTestContact(input: {
+  agentId: string;
+  phone: string;
+  values: Record<string, string>;
+}): Promise<{ prospectId: string; call: unknown }> {
+  const agentId = input.agentId.trim();
+  if (!agentId) throw new RyloRequestError('Agent id is required', 400, 'VALIDATION_ERROR');
+  const phone = normalizeTestPhone(input.phone);
+  const agent = await getRyloAiAgent(agentId);
+  if (!agent.callTokenId) {
+    throw new RyloRequestError(
+      'Vocallabs has no phone line on this agent. Add a call API token in Vocallabs, set Call token on the agent, then start the test call again.',
+      400,
+      'VALIDATION_ERROR'
+    );
+  }
+  const required = requiredContactKeys(agent.record?.inputs_needed, [
+    agent.welcomeMessage,
+    agent.agentPrompt,
+    agent.analyticsPrompt,
+  ]);
+  const values: Record<string, string> = {};
+  for (const [key, value] of Object.entries(input.values ?? {})) {
+    const name = key.trim();
+    const text = value.trim();
+    if (!name || !text) continue;
+    values[name] = text.slice(0, 500);
+  }
+  const missing = required.filter((key) => !values[key]);
+  if (missing.length) {
+    throw new RyloRequestError(`Enter ${missing.join(', ')}.`, 400, 'VALIDATION_ERROR');
+  }
+  const name = values.name || '';
+  if (!name) throw new RyloRequestError('Enter a name.', 400, 'VALIDATION_ERROR');
+
+  const contact = await withVocallabsAuth((token) =>
+    fetch(RYLO_CREATE_CONTACT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(testContactCreateBody({ name, phone })),
+    })
+  );
+  const contactBody = await ryloJson(contact, 'create the test contact');
+  const prospectId = readContactId(contactBody, TEST_PROSPECT_GROUP_ID);
+  if (!prospectId || prospectId === TEST_PROSPECT_GROUP_ID) {
+    throw new RyloRequestError('Vocallabs did not return a contact id', 502, 'RYLO_ERROR');
+  }
+
+  const updated = await withVocallabsAuth((token) =>
+    fetch(RYLO_UPDATE_CONTACT_DATA_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ prospect_id: prospectId, data: values }),
+    })
+  );
+  await ryloJson(updated, 'save the test contact details');
+
+  const call = await withVocallabsAuth((token) =>
+    fetch(RYLO_INITIATE_CALL_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ agentId, prospect_id: prospectId }),
+    })
+  );
+  const startedAt = Date.now();
+  const callBody = await ryloJson(call, 'start the test call');
+  const callStatus = await readLatestCallStatus(phone, startedAt);
+  if (callStatus === 'fail') {
+    throw new RyloRequestError(
+      'Vocallabs could not connect this call. Set Call token to the owned number (+912269850574), save, turn DND off, then try again.',
+      400,
+      'VALIDATION_ERROR'
+    );
+  }
+  return { prospectId, call: callBody };
 }
 
 export async function testRyloAiAgent(input: { agentId: string; phone: string }): Promise<{

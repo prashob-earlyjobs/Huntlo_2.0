@@ -37,12 +37,23 @@ export type VocallabsCampaign = {
   createdAt: string | null;
 };
 
+export type CampaignContactCall = {
+  status: string;
+  summary: string;
+  durationSeconds: number | null;
+  recordingUrl: string;
+  answers: Array<{ key: string; value: string }>;
+  messages: Array<{ role: string; content: string; createdAt: string }>;
+};
+
 export type CampaignContact = {
   id: string;
   name: string;
   phone: string;
   email: string;
   data?: Record<string, string>;
+  callStatus?: string;
+  call?: CampaignContactCall | null;
 };
 
 export type VocallabsApi = {
@@ -64,10 +75,14 @@ export type VocallabsApi = {
   attachCampaignGroup(campaignId: string): Promise<void>;
   startCampaign(campaignId: string): Promise<void>;
   getAssignedAgent(id: string): Promise<VocallabsAgentDetails>;
+  updateAssignedAgent(
+    id: string,
+    input: { welcomeMessage: string; agentPrompt: string }
+  ): Promise<VocallabsAgentDetails>;
   testAssignedAgent(
     id: string,
-    input: { phone: string }
-  ): Promise<{ agentId: string; prospectId: string; call: unknown }>;
+    input: { phone: string; values: Record<string, string> }
+  ): Promise<{ prospectId: string }>;
 };
 
 const liveVocallabsApi: VocallabsApi = {
@@ -136,8 +151,15 @@ const liveVocallabsApi: VocallabsApi = {
     );
     return result.data;
   },
+  async updateAssignedAgent(id, input) {
+    const result = await apiClient.patch<VocallabsAgentDetails>(
+      `/vocallabs/agents/${encodeURIComponent(id)}`,
+      input
+    );
+    return result.data;
+  },
   async testAssignedAgent(id, input) {
-    const result = await apiClient.post<{ agentId: string; prospectId: string; call: unknown }>(
+    const result = await apiClient.post<{ prospectId: string }>(
       `/vocallabs/agents/${encodeURIComponent(id)}/test`,
       input
     );
@@ -180,6 +202,21 @@ const mockVocallabsApi: VocallabsApi = {
   async startCampaign() {
     await simulateMockLatency();
   },
+  async updateAssignedAgent(id, input) {
+    await simulateMockLatency();
+    return {
+      id,
+      name: "",
+      contactId: "",
+      welcomeMessage: input.welcomeMessage,
+      agentPrompt: input.agentPrompt,
+      analyticsPrompt: "",
+      language: "",
+      callTokenId: "",
+      voiceId: "",
+      record: {},
+    };
+  },
   async getAssignedAgent(id) {
     await simulateMockLatency();
     return {
@@ -197,7 +234,7 @@ const mockVocallabsApi: VocallabsApi = {
   },
   async testAssignedAgent(id) {
     await simulateMockLatency();
-    return { agentId: id, prospectId: "prospect-test", call: { status: "success" } };
+    return { prospectId: "prospect-test" };
   },
 };
 

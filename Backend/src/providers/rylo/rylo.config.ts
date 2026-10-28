@@ -34,6 +34,26 @@ export function ryloListContactGroupsUrl(limit: number, offset: number): string 
   return `${RYLO_API_BASE_URL}/b2b/v1/getContactGroups?${params.toString()}`;
 }
 
+export function ryloGetVocallabsCallUrl(callId: string): string {
+  return `${RYLO_API_BASE_URL}/b2b/v1/getVocallabsCall?callId=${encodeURIComponent(callId)}`;
+}
+
+export function ryloGetCallConversationUrl(callId: string): string {
+  return `${RYLO_API_BASE_URL}/b2b/v1/getCallConversation?call_id=${encodeURIComponent(callId)}`;
+}
+
+export function ryloGetCallDataUrl(callId: string): string {
+  return `${RYLO_API_BASE_URL}/b2b/v1/getCallData?call_id=${encodeURIComponent(callId)}`;
+}
+
+export function ryloGetCallStatusUrl(callId: string): string {
+  return `${RYLO_API_BASE_URL}/b2b/v1/getCallStatus?call_id=${encodeURIComponent(callId)}`;
+}
+
+export function ryloGetCallSummaryUrl(callId: string): string {
+  return `${RYLO_API_BASE_URL}/b2b/v1/getCallSummary?call_id=${encodeURIComponent(callId)}`;
+}
+
 export function ryloCallTimelineUrl(phone: string, limit = 5, offset = 0): string {
   const params = new URLSearchParams({
     phone_to: phone.replace(/\D/g, ''),
