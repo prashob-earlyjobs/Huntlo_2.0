@@ -371,15 +371,21 @@ export async function setCampaignContactCallStatus(input: {
   match.callSummary = (input.summary || '').slice(0, 8000);
   match.callDurationSeconds = typeof input.durationSeconds === 'number' ? input.durationSeconds : null;
   match.callRecordingUrl = (input.recordingUrl || '').slice(0, 500);
-  match.callAnswers = (input.answers ?? []).slice(0, 40).map((answer) => ({
-    key: answer.key.slice(0, 80),
-    value: answer.value.slice(0, 500),
-  }));
-  match.callMessages = (input.messages ?? []).slice(0, 200).map((message) => ({
-    role: message.role.slice(0, 40),
-    content: message.content.slice(0, 4000),
-    createdAt: message.createdAt.slice(0, 40),
-  }));
+  match.set(
+    'callAnswers',
+    (input.answers ?? []).slice(0, 40).map((answer) => ({
+      key: answer.key.slice(0, 80),
+      value: answer.value.slice(0, 500),
+    }))
+  );
+  match.set(
+    'callMessages',
+    (input.messages ?? []).slice(0, 200).map((message) => ({
+      role: message.role.slice(0, 40),
+      content: message.content.slice(0, 4000),
+      createdAt: message.createdAt.slice(0, 40),
+    }))
+  );
   await match.save();
   return {
     organizationId: match.organizationId,
