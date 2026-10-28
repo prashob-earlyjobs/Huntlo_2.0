@@ -2,6 +2,8 @@ import { withVocallabsAuth } from './rylo.agents.js';
 import { ryloGetPostCallDataUrl } from './rylo.config.js';
 
 const HIDDEN_KEYS = new Set(['cut_the_call', 'contact_id']);
+const KEY_TTL_MS = 60_000;
+const keyCache = new Map<string, { at: number; keys: string[] }>();
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -43,18 +45,24 @@ export function readPostCallDataKeys(body: unknown): string[] {
 export async function listRyloPostCallDataKeys(agentId: string): Promise<string[]> {
   const id = agentId.trim();
   if (!id) return [];
-  const response = await withVocallabsAuth((token) =>
-    fetch(ryloGetPostCallDataUrl(id), {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    })
-  );
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) return [];
-  const keys = readPostCallDataKeys(body);
-  console.info('[vocallabs post call data]', JSON.stringify({ agentId: id, keys }));
-  return keys;
+  const cached = keyCache.get(id);
+  if (cached && Date.now() - cached.at < KEY_TTL_MS) return cached.keys;
+  try {
+    const response = await withVocallabsAuth((token) =>
+      fetch(ryloGetPostCallDataUrl(id), {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+    );
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) return cached?.keys ?? [];
+    const keys = readPostCallDataKeys(body);
+    keyCache.set(id, { at: Date.now(), keys });
+    return keys;
+  } catch {
+    return cached?.keys ?? [];
+  }
 }

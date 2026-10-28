@@ -84,6 +84,43 @@ describe('createRyloAuthToken', () => {
     );
   });
 
+  it('retries a 502 from the token service and keeps the next token', async () => {
+    process.env.RYLO_CLIENT_ID = 'client-1';
+    process.env.RYLO_CLIENT_SECRET = 'secret-1';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => null,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ authToken: 'token-live', id: 'account-9' }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const token = await createRyloAuthToken();
+
+    expect(token.authToken).toBe('token-live');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry when the token service rejects the credentials', async () => {
+    process.env.RYLO_CLIENT_ID = 'client-1';
+    process.env.RYLO_CLIENT_SECRET = 'secret-1';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'unauthorized' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createRyloAuthToken()).rejects.toThrow('Rylo auth failed (401)');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses to call Rylo when credentials are missing', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

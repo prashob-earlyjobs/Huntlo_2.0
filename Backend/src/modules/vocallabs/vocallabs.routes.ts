@@ -114,7 +114,10 @@ const uploadContactsSchema = z.object({
 const contactFileUpload = createImportUpload().single('file');
 
 function customerError(error: RyloRequestError): AppError {
-  const message = error.message.replace(/\bVocallabs\b/gi, "Huntlo");
+  const message =
+    error.code === 'RYLO_AUTH_FAILED'
+      ? 'Could not reach the calling service. Try again.'
+      : error.message.replace(/\bVocallabs\b/gi, 'Huntlo');
   return new AppError(error.statusCode, error.code, message);
 }
 
@@ -200,16 +203,24 @@ vocallabsRouter.post(
   })
 );
 
+const COLUMN_TTL_MS = 10 * 60_000;
+const columnCache = new Map<string, { at: number; columns: string[] }>();
+
 async function columnsForCampaign(organizationId: string, campaignId: string): Promise<string[]> {
   const campaign = await getStoredVocallabsCampaign(organizationId, campaignId);
   if (!campaign) throw AppError.notFound('Campaign not found');
+  const cached = columnCache.get(campaign.agentId);
+  if (cached && Date.now() - cached.at < COLUMN_TTL_MS) return cached.columns;
   try {
     const agent = await getRyloAiAgent(campaign.agentId);
-    return requiredSampleColumns({
+    const columns = requiredSampleColumns({
       inputsNeeded: agent.record?.inputs_needed,
       texts: [agent.welcomeMessage, agent.agentPrompt, agent.analyticsPrompt],
     });
+    columnCache.set(campaign.agentId, { at: Date.now(), columns });
+    return columns;
   } catch (error) {
+    if (cached) return cached.columns;
     if (error instanceof RyloRequestError) throw customerError(error);
     throw error;
   }
