@@ -1,5 +1,7 @@
 import { apiClient } from "./client";
 import { createDomainService, simulateMockLatency } from "./service";
+import type { PaginationMeta } from "./contracts/envelopes";
+import { buildQueryString } from "./types";
 
 export type AssignedVocallabsAgent = {
   id: string;
@@ -64,7 +66,10 @@ export type VocallabsApi = {
     name: string;
     agentId: string;
   }>;
-  listCampaignContacts(campaignId: string): Promise<{ items: CampaignContact[]; answerColumns: string[] }>;
+  listCampaignContacts(
+    campaignId: string,
+    params?: { page?: number; limit?: number; all?: boolean }
+  ): Promise<{ items: CampaignContact[]; answerColumns: string[]; pagination: PaginationMeta }>;
   uploadCampaignContacts(campaignId: string, file: File): Promise<{ items: CampaignContact[] }>;
   downloadCampaignContactSample(campaignId: string): Promise<{ blob: Blob; filename: string | null }>;
   createCampaignGroup(campaignId: string): Promise<{
@@ -101,11 +106,28 @@ const liveVocallabsApi: VocallabsApi = {
     );
     return result.data;
   },
-  async listCampaignContacts(campaignId) {
-    const result = await apiClient.get<{ items: CampaignContact[]; answerColumns?: string[] }>(
-      `/vocallabs/campaigns/${encodeURIComponent(campaignId)}/contacts`
+  async listCampaignContacts(campaignId, params) {
+    const query = params?.all
+      ? { all: 1 }
+      : { page: params?.page, limit: params?.limit };
+    const result = await apiClient.get<{
+      items: CampaignContact[];
+      answerColumns?: string[];
+      pagination?: PaginationMeta;
+    }>(
+      `/vocallabs/campaigns/${encodeURIComponent(campaignId)}/contacts${buildQueryString(query)}`
     );
-    return { items: result.data.items, answerColumns: result.data.answerColumns ?? [] };
+    const pagination = result.data.pagination ?? {
+      page: params?.page ?? 1,
+      limit: params?.limit ?? result.data.items.length,
+      total: result.data.items.length,
+      totalPages: 1,
+    };
+    return {
+      items: result.data.items,
+      answerColumns: result.data.answerColumns ?? [],
+      pagination,
+    };
   },
   async uploadCampaignContacts(campaignId, file) {
     const body = new FormData();
@@ -180,9 +202,18 @@ const mockVocallabsApi: VocallabsApi = {
     await simulateMockLatency();
     return { id: "campaign-test", name: input.name, agentId: input.agentId };
   },
-  async listCampaignContacts() {
+  async listCampaignContacts(_campaignId, params) {
     await simulateMockLatency();
-    return { items: [], answerColumns: [] };
+    return {
+      items: [],
+      answerColumns: [],
+      pagination: {
+        page: params?.page ?? 1,
+        limit: params?.limit ?? 25,
+        total: 0,
+        totalPages: 1,
+      },
+    };
   },
   async uploadCampaignContacts() {
     await simulateMockLatency();

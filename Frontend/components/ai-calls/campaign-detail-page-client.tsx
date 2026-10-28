@@ -8,13 +8,6 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Snackbar } from "@/components/shared/snackbar";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
@@ -32,6 +25,61 @@ import {
 } from "@/lib/api";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { ROUTES } from "@/lib/routes";
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
+const TABLE_SKELETON_COLUMNS = [112, 128, 72, 64, 96, 104, 88, 120] as const;
+const TABLE_SKELETON_ROWS = 8;
+
+function CampaignContactsSkeleton() {
+  return (
+    <div aria-busy aria-label="Loading campaign" className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+      <div className="flex shrink-0 items-center gap-3">
+        <Skeleton className="h-8 w-16 rounded-lg" />
+        <Skeleton className="h-4 w-40 max-w-[40%]" />
+        <Skeleton className="ml-auto h-8 w-20 rounded-lg" />
+      </div>
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="border-b border-border bg-muted/60 px-4 py-2.5">
+            <div className="flex min-w-max items-center gap-6">
+              {TABLE_SKELETON_COLUMNS.map((width, index) => (
+                <Skeleton
+                  key={`head-${index}`}
+                  className="h-3 shrink-0"
+                  style={{ width }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="divide-y divide-border">
+            {Array.from({ length: TABLE_SKELETON_ROWS }).map((_, row) => (
+              <div key={row} className="flex min-w-max items-center gap-6 px-4 py-3.5">
+                {TABLE_SKELETON_COLUMNS.map((width, index) => (
+                  <Skeleton
+                    key={`cell-${row}-${index}`}
+                    className={index === 2 ? "h-5 w-16 shrink-0 rounded-full" : "h-3.5 shrink-0"}
+                    style={index === 2 ? undefined : { width: Math.round(width * (0.55 + ((row + index) % 3) * 0.15)) }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <Skeleton className="h-3 w-36" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="h-8 w-14 rounded-md" />
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="size-8 rounded-md" />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function contactColumns(contacts: CampaignContact[], answerColumns: string[]): string[] {
   const extras: string[] = [];
@@ -126,6 +174,51 @@ function contactValue(contact: CampaignContact, column: string): string {
   return contact.data?.[column] ?? "";
 }
 
+function csvEscape(value: string): string {
+  if (/[",\n\r]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function tableCellValue(
+  contact: CampaignContact,
+  column: string,
+  launched: boolean,
+  capturedColumns: Set<string>
+): string {
+  if (column === "status") return displayCallStatus(contact.callStatus ?? "", launched);
+  if (column === "call") {
+    if (!contact.call) return "";
+    return formatDuration(contact.call.durationSeconds) || "Open";
+  }
+  if (capturedColumns.has(column)) return answerValue(contact, column);
+  return contactValue(contact, column);
+}
+
+function buildContactsCsv(
+  contacts: CampaignContact[],
+  columns: string[],
+  launched: boolean,
+  capturedColumns: Set<string>
+): string {
+  const header = columns.map((column) => csvEscape(columnLabel(column))).join(",");
+  const rows = contacts.map((contact) =>
+    columns
+      .map((column) => csvEscape(tableCellValue(contact, column, launched, capturedColumns)))
+      .join(",")
+  );
+  return [header, ...rows].join("\n");
+}
+
+function safeFilename(value: string): string {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "campaign"
+  );
+}
+
 const LAUNCHED_TOAST_KEY = "huntlo-campaign-launched";
 
 function ImportContactsBody({
@@ -185,8 +278,13 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
   const [campaign, setCampaign] = useState<VocallabsCampaign | null>(null);
   const [contacts, setContacts] = useState<CampaignContact[]>([]);
   const [answerColumns, setAnswerColumns] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [importOpen, setImportOpen] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [downloadingSample, setDownloadingSample] = useState(false);
   const [launchPhase, setLaunchPhase] = useState<
@@ -208,21 +306,24 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
+    setPage(1);
+  }, [id, pageSize]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([vocallabsApi.listCampaigns(), vocallabsApi.listCampaignContacts(id)])
-      .then(([page, contactPage]) => {
+    vocallabsApi
+      .listCampaigns()
+      .then((campaignPage) => {
         if (cancelled) return;
-        setCampaign(page.items.find((item) => item.id === id) ?? null);
-        setContacts(contactPage.items);
-        setAnswerColumns(contactPage.answerColumns);
+        const found = campaignPage.items.find((item) => item.id === id) ?? null;
+        setCampaign(found);
+        if (found) setPageLoading(true);
       })
       .catch((err) => {
         if (!cancelled) {
           setCampaign(null);
-          setContacts([]);
-          setAnswerColumns([]);
           setError(getApiErrorMessage(err, "Could not load this campaign."));
         }
       })
@@ -234,15 +335,58 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     };
   }, [id]);
 
+  const applyContactPage = useCallback(
+    (contactPage: Awaited<ReturnType<typeof vocallabsApi.listCampaignContacts>>) => {
+      setContacts(contactPage.items);
+      setAnswerColumns(contactPage.answerColumns);
+      setTotal(contactPage.pagination.total);
+      setTotalPages(Math.max(1, contactPage.pagination.totalPages));
+      setPage((current) =>
+        contactPage.pagination.page !== current ? contactPage.pagination.page : current
+      );
+      setOpenCall((current) => {
+        if (!current) return null;
+        return contactPage.items.find((item) => item.id === current.id) ?? current;
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!campaign) return;
+    let cancelled = false;
+    setPageLoading(true);
+    setError(null);
+    vocallabsApi
+      .listCampaignContacts(id, { page, limit: pageSize })
+      .then((contactPage) => {
+        if (cancelled) return;
+        applyContactPage(contactPage);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setContacts([]);
+          setAnswerColumns([]);
+          setTotal(0);
+          setTotalPages(1);
+          setError(getApiErrorMessage(err, "Could not load candidates."));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, campaign, page, pageSize, applyContactPage]);
+
   const refreshContacts = useCallback(async () => {
-    const contactPage = await vocallabsApi.listCampaignContacts(id);
-    setContacts(contactPage.items);
-    setAnswerColumns(contactPage.answerColumns);
-    setOpenCall((current) => {
-      if (!current) return null;
-      return contactPage.items.find((item) => item.id === current.id) ?? current;
+    const contactPage = await vocallabsApi.listCampaignContacts(id, {
+      page,
+      limit: pageSize,
     });
-  }, [id]);
+    applyContactPage(contactPage);
+  }, [id, page, pageSize, applyContactPage]);
 
   useRealtimeRefresh("ai-call.updated", (event) => {
     const data =
@@ -268,9 +412,13 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     setUploading(true);
     setUploadError(null);
     try {
-      const page = await vocallabsApi.uploadCampaignContacts(id, file);
-      setContacts(page.items);
-      setImportOpen(false);
+      await vocallabsApi.uploadCampaignContacts(id, file);
+      setPage(1);
+      const contactPage = await vocallabsApi.listCampaignContacts(id, {
+        page: 1,
+        limit: pageSize,
+      });
+      applyContactPage(contactPage);
     } catch (err) {
       setUploadError(uploadErrorMessage(err));
     } finally {
@@ -328,23 +476,56 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     }
   }
 
-  function openImport() {
-    setUploadError(null);
-    setImportOpen(true);
+  async function exportTable() {
+    if (!campaign || total === 0 || exporting) return;
+    setExporting(true);
+    try {
+      const contactPage = await vocallabsApi.listCampaignContacts(id, { all: true });
+      const all = contactPage.items;
+      const exportAnswerColumns = contactPage.answerColumns;
+      const exportColumns = contactColumns(all, exportAnswerColumns);
+      const exportCaptured = new Set(
+        exportColumns.filter(
+          (column) =>
+            exportAnswerColumns.includes(column) ||
+            all.some((contact) => contact.call?.answers.some((answer) => answer.key === column))
+        )
+      );
+      const csv = buildContactsCsv(all, exportColumns, Boolean(campaign.active), exportCaptured);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeFilename(campaign.name)}-contacts.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setToast({
+        message: getApiErrorMessage(err, "Could not export this campaign."),
+        variant: "error",
+      });
+    } finally {
+      setExporting(false);
+    }
   }
 
   const columns = contactColumns(contacts, answerColumns);
   const capturedColumns = new Set(columns.filter((column) => answerColumns.includes(column) || contacts.some((contact) => contact.call?.answers.some((answer) => answer.key === column))));
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
+  const showTable = Boolean(campaign) && total > 0;
 
-  const addButton = (
-    <Button type="button" onClick={openImport}>
-      Add candidates
-    </Button>
-  );
+  const showInitialSkeleton = loading || (Boolean(campaign) && pageLoading && total === 0);
+
+  if (showInitialSkeleton) {
+    return <CampaignContactsSkeleton />;
+  }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex items-center gap-3">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+      <div className="flex shrink-0 items-center gap-3">
         <Button
           size="sm"
           variant="ghost"
@@ -358,23 +539,15 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
         {campaign ? (
           <h1 className="min-w-0 truncate text-sm font-semibold text-foreground">{campaign.name}</h1>
         ) : null}
-        {!loading && campaign && contacts.length > 0 ? <div className="ml-auto">{addButton}</div> : null}
+        {showTable ? (
+          <div className="ml-auto">
+            <Button type="button" variant="secondary" disabled={exporting} onClick={() => void exportTable()}>
+              <Download aria-hidden />
+              {exporting ? "Exporting…" : "Export"}
+            </Button>
+          </div>
+        ) : null}
       </div>
-
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="gap-0 p-0 sm:max-w-lg">
-          <DialogHeader className="border-b border-border px-4 py-4 pr-12">
-            <DialogTitle>Import Contacts to Campaign</DialogTitle>
-          </DialogHeader>
-          <ImportContactsBody
-            uploading={uploading}
-            downloadingSample={downloadingSample}
-            uploadError={uploadError}
-            onChooseFile={() => fileRef.current?.click()}
-            onDownloadSample={() => void downloadSample()}
-          />
-        </DialogContent>
-      </Dialog>
 
       <input
         ref={fileRef}
@@ -388,8 +561,6 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
           if (file) void uploadFile(file);
         }}
       />
-
-      {loading ? <Skeleton className="min-h-64 flex-1 rounded-xl" /> : null}
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -405,7 +576,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
         />
       ) : null}
 
-      {!loading && campaign && contacts.length === 0 ? (
+      {!loading && campaign && !pageLoading && total === 0 ? (
         <div className="flex min-h-64 flex-1 items-center justify-center">
           <section className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card">
             <div className="border-b border-border px-4 py-4">
@@ -422,73 +593,132 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
         </div>
       ) : null}
 
-      {!loading && campaign && contacts.length > 0 ? (
-        <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
-          <div className="scrollbar-none overflow-x-auto">
+      {!loading && showTable ? (
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+          <div className="scrollbar-hairline min-h-0 flex-1 overflow-auto overscroll-contain">
             <table className="w-full min-w-max border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40 text-left">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-border bg-muted text-left">
                   {columns.map((column) => (
-                    <th key={column} className="px-4 py-2.5 font-medium text-muted-foreground">
+                    <th
+                      key={column}
+                      className="bg-muted px-4 py-2.5 font-medium text-muted-foreground"
+                    >
                       {columnLabel(column)}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {contacts.map((contact) => (
-                  <tr
-                    key={contact.id}
-                    className="border-b border-border last:border-b-0 transition-colors duration-150 ease-out hover:bg-muted/30"
-                  >
-                    {columns.map((column) => (
-                      <td
-                        key={column}
-                        className={
-                          column === "phone"
-                            ? "whitespace-nowrap px-4 py-3 font-mono text-foreground"
-                            : "whitespace-nowrap px-4 py-3 text-foreground"
-                        }
-                      >
-                        {column === "status" ? (
-                          <span
-                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusTone(displayCallStatus(contact.callStatus ?? "", Boolean(campaign?.active)))}`}
-                          >
-                            {displayCallStatus(contact.callStatus ?? "", Boolean(campaign?.active))}
-                          </span>
-                        ) : column === "call" ? (
-                          contact.call ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1 rounded-md text-sm text-muted-foreground transition-[color,transform] duration-150 ease-out hover:text-foreground active:scale-[0.97]"
-                              onClick={() => setOpenCall(contact)}
-                            >
-                              <span className="tabular-nums">
-                                {formatDuration(contact.call.durationSeconds) || "Open"}
-                              </span>
-                              <ChevronRight aria-hidden className="size-3.5" />
-                              <span className="sr-only">Open call for {contact.name || contact.phone}</span>
-                            </button>
-                          ) : (
-                            "—"
-                          )
-                        ) : capturedColumns.has(column) ? (
-                          answerValue(contact, column) || "—"
-                        ) : (
-                          contactValue(contact, column) || "—"
-                        )}
-                      </td>
-                    ))}
+                {pageLoading ? (
+                  <tr>
+                    <td colSpan={Math.max(columns.length, 1)} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      Loading…
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  contacts.map((contact) => (
+                    <tr
+                      key={contact.id}
+                      className="border-b border-border last:border-b-0 transition-colors duration-150 ease-out hover:bg-muted/30"
+                    >
+                      {columns.map((column) => (
+                        <td
+                          key={column}
+                          className={
+                            column === "phone"
+                              ? "whitespace-nowrap px-4 py-3 font-mono text-foreground"
+                              : "whitespace-nowrap px-4 py-3 text-foreground"
+                          }
+                        >
+                          {column === "status" ? (
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusTone(displayCallStatus(contact.callStatus ?? "", Boolean(campaign?.active)))}`}
+                            >
+                              {displayCallStatus(contact.callStatus ?? "", Boolean(campaign?.active))}
+                            </span>
+                          ) : column === "call" ? (
+                            contact.call ? (
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 rounded-md text-sm text-muted-foreground transition-[color,transform] duration-150 ease-out hover:text-foreground active:scale-[0.97]"
+                                onClick={() => setOpenCall(contact)}
+                              >
+                                <span className="tabular-nums">
+                                  {formatDuration(contact.call.durationSeconds) || "Open"}
+                                </span>
+                                <ChevronRight aria-hidden className="size-3.5" />
+                                <span className="sr-only">Open call for {contact.name || contact.phone}</span>
+                              </button>
+                            ) : (
+                              "—"
+                            )
+                          ) : capturedColumns.has(column) ? (
+                            answerValue(contact, column) || "—"
+                          ) : (
+                            contactValue(contact, column) || "—"
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              {pageLoading
+                ? "Loading…"
+                : `Showing ${rangeStart}–${rangeEnd} of ${total.toLocaleString("en-IN")}`}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                Rows
+                <select
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                  className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="Previous page"
+                  disabled={pageLoading || page <= 1}
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                >
+                  <ChevronLeft aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="Next page"
+                  disabled={pageLoading || page >= totalPages}
+                  onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                >
+                  <ChevronRight aria-hidden />
+                </Button>
+              </div>
+            </div>
           </div>
         </section>
       ) : null}
 
-      {!loading && campaign && contacts.length > 0 && (!campaign.active || launchPhase) ? (
-        <div className="mt-auto flex justify-end">
+      {!loading && campaign && showTable && (!campaign.active || launchPhase) ? (
+        <div className="flex shrink-0 justify-end">
           <Button
             type="button"
             disabled={Boolean(launchPhase)}
