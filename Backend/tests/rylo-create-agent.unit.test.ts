@@ -137,6 +137,29 @@ describe('createRyloAiAgent', () => {
     expect(fetchMock.mock.calls.some((call) => call[0] === ryloListAiAgentsUrl(20, 0))).toBe(true);
   });
 
+  it('signs in again when the token service returns 502 once', async () => {
+    process.env.VOCALLABS_AUTH_TOKEN = 'env-token';
+    process.env.RYLO_CLIENT_ID = 'client-1';
+    process.env.RYLO_CLIENT_SECRET = 'secret-1';
+    let tokenCalls = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === RYLO_CREATE_AUTH_TOKEN_URL) {
+        tokenCalls += 1;
+        if (tokenCalls === 1) return jsonResponse(502, { message: 'bad gateway' });
+        return jsonResponse(200, { auth_token: 'fresh-token', id: 'account-1', status: 'success' });
+      }
+      const headers = new Headers(init?.headers);
+      if (headers.get('Authorization') === 'Bearer env-token') {
+        return jsonResponse(401, { message: 'unauthorized' });
+      }
+      return jsonResponse(200, { id: 'agent-2', name: 'Ava' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createRyloAiAgent('Ava')).resolves.toEqual({ id: 'agent-2', name: 'Ava' });
+    expect(tokenCalls).toBe(2);
+  });
+
   it('reuses the minted token on the next request', async () => {
     process.env.VOCALLABS_AUTH_TOKEN = 'env-token';
     process.env.RYLO_CLIENT_ID = 'client-1';

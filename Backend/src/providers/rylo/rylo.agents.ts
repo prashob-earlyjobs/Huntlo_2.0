@@ -55,11 +55,14 @@ async function postCreateAgent(name: string, token: string): Promise<Response> {
 let storedAuthToken = '';
 let storedAuthUserId = '';
 let refreshInFlight: Promise<string> | null = null;
+/** The env bearer was rejected, so later calls mint instead of sending it again. */
+let envTokenRejected = false;
 
 export function clearStoredVocallabsAuthToken(): void {
   storedAuthToken = '';
   storedAuthUserId = '';
   refreshInFlight = null;
+  envTokenRejected = false;
 }
 
 async function mintAuthToken(): Promise<string> {
@@ -107,33 +110,50 @@ export async function getVocallabsClientId(): Promise<string> {
  * Uses a previously minted token when one is stored, otherwise VOCALLABS_AUTH_TOKEN.
  * A 401 mints a replacement, stores it for later requests, and does not update env.
  */
+function authFailure(error: unknown): RyloRequestError {
+  if (error instanceof RyloRequestError) return error;
+  const message = error instanceof Error ? error.message : 'Could not create a Vocallabs token';
+  return new RyloRequestError(message, 502, 'RYLO_AUTH_FAILED');
+}
+
 export async function withVocallabsAuth(run: (token: string) => Promise<Response>): Promise<Response> {
   const envToken = getVocallabsAuthToken();
-  const starting = storedAuthToken || envToken;
+  const starting = storedAuthToken || (envTokenRejected ? '' : envToken);
   if (!starting) {
-    throw new RyloRequestError(
-      'VOCALLABS_AUTH_TOKEN is not configured',
-      503,
-      'RYLO_NOT_CONFIGURED'
-    );
+    if (!envToken && !envTokenRejected) {
+      throw new RyloRequestError(
+        'VOCALLABS_AUTH_TOKEN is not configured',
+        503,
+        'RYLO_NOT_CONFIGURED'
+      );
+    }
+    let minted = '';
+    try {
+      minted = await mintAuthToken();
+    } catch (error) {
+      throw authFailure(error);
+    }
+    return run(minted);
   }
 
   const first = await run(starting);
   if (first.status !== 401) return first;
+  if (starting === envToken) envTokenRejected = true;
+  if (starting === storedAuthToken) storedAuthToken = '';
 
   if (storedAuthToken && storedAuthToken !== starting) {
     const retryStored = await run(storedAuthToken);
     if (retryStored.status !== 401) return retryStored;
+    storedAuthToken = '';
   }
 
+  let freshToken = '';
   try {
-    const freshToken = await mintAuthToken();
-    return run(freshToken);
+    freshToken = await mintAuthToken();
   } catch (error) {
-    if (error instanceof RyloRequestError) throw error;
-    const message = error instanceof Error ? error.message : 'Could not create a Vocallabs token';
-    throw new RyloRequestError(message, 502, 'RYLO_AUTH_FAILED');
+    throw authFailure(error);
   }
+  return run(freshToken);
 }
 
 function readAgentRows(body: unknown): unknown[] {
