@@ -290,47 +290,92 @@ async function requireCampaign(organizationId: string, campaignId: string): Prom
   if (!campaign) throw AppError.notFound('Campaign not found');
 }
 
+export type CampaignContactPage = {
+  items: CampaignContact[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+function mapCampaignContact(doc: {
+  _id: unknown;
+  name?: string | null;
+  phone: string;
+  email?: string | null;
+  data?: unknown;
+  callStatus?: string | null;
+  callId?: string | null;
+  callSummary?: string | null;
+  callDurationSeconds?: number | null;
+  callRecordingUrl?: string | null;
+  callAnswers?: Array<{ key?: string | null; value?: string | null }> | null;
+  callMessages?: Array<{
+    role?: string | null;
+    content?: string | null;
+    createdAt?: string | null;
+  }> | null;
+}): CampaignContact {
+  const answers = (doc.callAnswers ?? []).map((answer) => ({
+    key: answer.key || '',
+    value: answer.value || '',
+  }));
+  const messages = (doc.callMessages ?? []).map((message) => ({
+    role: message.role || '',
+    content: message.content || '',
+    createdAt: message.createdAt || '',
+  }));
+  const hasCall = Boolean(doc.callId || doc.callStatus || doc.callSummary || messages.length);
+  return {
+    id: hexId(doc._id),
+    name: doc.name || '',
+    phone: doc.phone,
+    email: doc.email || '',
+    data: readStoredData(doc.data),
+    callStatus: doc.callStatus || '',
+    call: hasCall
+      ? {
+          status: doc.callStatus || '',
+          summary: doc.callSummary || '',
+          durationSeconds: typeof doc.callDurationSeconds === 'number' ? doc.callDurationSeconds : null,
+          recordingUrl: doc.callRecordingUrl || '',
+          answers,
+          messages,
+        }
+      : null,
+  };
+}
+
 export async function listCampaignContacts(
   organizationId: string,
-  campaignId: string
-): Promise<CampaignContact[]> {
+  campaignId: string,
+  options?: { page?: number; limit?: number }
+): Promise<CampaignContactPage> {
   await requireCampaign(organizationId, campaignId);
-  const docs = await VocallabsCampaignContactModel.find({
+  const filter = {
     organizationId: organizationId.trim(),
     campaignId: campaignId.trim(),
-  })
-    .sort({ createdAt: -1 })
-    .lean();
-  return docs.map((doc) => {
-    const answers = (doc.callAnswers ?? []).map((answer) => ({
-      key: answer.key || '',
-      value: answer.value || '',
-    }));
-    const messages = (doc.callMessages ?? []).map((message) => ({
-      role: message.role || '',
-      content: message.content || '',
-      createdAt: message.createdAt || '',
-    }));
-    const hasCall = Boolean(doc.callId || doc.callStatus || doc.callSummary || messages.length);
-    return {
-      id: hexId(doc._id),
-      name: doc.name || '',
-      phone: doc.phone,
-      email: doc.email || '',
-      data: readStoredData(doc.data),
-      callStatus: doc.callStatus || '',
-      call: hasCall
-        ? {
-            status: doc.callStatus || '',
-            summary: doc.callSummary || '',
-            durationSeconds: typeof doc.callDurationSeconds === 'number' ? doc.callDurationSeconds : null,
-            recordingUrl: doc.callRecordingUrl || '',
-            answers,
-            messages,
-          }
-        : null,
-    };
-  });
+  };
+  const total = await VocallabsCampaignContactModel.countDocuments(filter);
+  const paginate = options?.page != null || options?.limit != null;
+  const limit = paginate
+    ? Math.min(100, Math.max(1, Math.trunc(options?.limit ?? 25)))
+    : Math.max(total, 1);
+  const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+  const page = paginate
+    ? Math.min(totalPages, Math.max(1, Math.trunc(options?.page ?? 1)))
+    : 1;
+  const skip = paginate ? (page - 1) * limit : 0;
+  const query = VocallabsCampaignContactModel.find(filter).sort({ createdAt: -1 });
+  if (paginate) query.skip(skip).limit(limit);
+  const docs = await query.lean();
+  return {
+    items: docs.map(mapCampaignContact),
+    total,
+    page,
+    limit: paginate ? limit : total,
+    totalPages: paginate ? totalPages : 1,
+  };
 }
 
 export async function markCampaignContactsCallInitiated(
@@ -435,7 +480,8 @@ async function saveCampaignContacts(
       },
     }))
   );
-  return listCampaignContacts(organizationId, campaignId);
+  const page = await listCampaignContacts(organizationId, campaignId);
+  return page.items;
 }
 
 export async function addCampaignContactsFromCsv(input: {

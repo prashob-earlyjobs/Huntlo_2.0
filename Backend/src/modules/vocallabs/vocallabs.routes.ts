@@ -241,10 +241,25 @@ vocallabsRouter.get(
 async function requireLaunchCampaign(organizationId: string, campaignId: string) {
   const campaign = await getStoredVocallabsCampaign(organizationId, campaignId);
   if (!campaign) throw AppError.notFound('Campaign not found');
-  const contacts = await listCampaignContacts(organizationId, campaignId);
+  const { items: contacts } = await listCampaignContacts(organizationId, campaignId);
   if (!contacts.length) throw AppError.validation('Add candidates before launching.');
   return { campaign, contacts };
 }
+
+const contactsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+    all: z
+      .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false'), z.boolean()])
+      .optional()
+      .transform((value) => value === true || value === '1' || value === 'true'),
+  })
+  .transform((query) => ({
+    page: query.page,
+    limit: query.limit,
+    all: Boolean(query.all),
+  }));
 
 vocallabsRouter.post(
   '/campaigns/:id/launch/group',
@@ -325,12 +340,30 @@ vocallabsRouter.get(
   readPerm,
   asyncHandler(async (req, res) => {
     const campaignId = String(req.params.id || '');
-    const items = await listCampaignContacts(req.organizationId!, campaignId);
+    const query = contactsQuerySchema.parse(req.query ?? {});
+    const page = await listCampaignContacts(
+      req.organizationId!,
+      campaignId,
+      query.all ? undefined : { page: query.page, limit: query.limit }
+    );
     const campaign = await getStoredVocallabsCampaign(req.organizationId!, campaignId);
     const answerColumns = campaign
       ? await listRyloPostCallDataKeys(campaign.agentId).catch(() => [])
       : [];
-    successResponse(res, { items, answerColumns }, { meta: { requestId: getRequestId(req) } });
+    successResponse(
+      res,
+      {
+        items: page.items,
+        answerColumns,
+        pagination: {
+          page: page.page,
+          limit: page.limit,
+          total: page.total,
+          totalPages: page.totalPages,
+        },
+      },
+      { meta: { requestId: getRequestId(req) } }
+    );
   })
 );
 
