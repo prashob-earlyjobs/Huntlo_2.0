@@ -9,17 +9,26 @@ import {
 
 const columns = ['name', 'phone', 'brand_name'];
 
-function issuesFor(csv: string, required = columns): string[] {
+function messageFor(csv: string, required = columns): string {
   try {
     parseCampaignContactsCsv(csv, required);
   } catch (error) {
     expect(error).toBeInstanceOf(AppError);
-    return ((error as AppError).details ?? []).map((detail) => detail.message);
+    return (error as AppError).message;
   }
-  return [];
+  return '';
 }
 
 describe('parseCampaignContactsCsv', () => {
+  it('adds +91 when the phone is a local number and keeps an existing +', () => {
+    expect(
+      parseCampaignContactsCsv(
+        ['name,phone,brand_name', 'Ada,9876543210,Huntlo', 'Neha,+91 98765 43211,Huntlo', 'Gokul,919876543212,Huntlo'].join('\n'),
+        columns
+      ).map((contact) => contact.phone)
+    ).toEqual(['+919876543210', '+919876543211', '+919876543212']);
+  });
+
   it('reads required columns and keeps the variable values', () => {
     expect(
       parseCampaignContactsCsv(
@@ -36,33 +45,27 @@ describe('parseCampaignContactsCsv', () => {
     ]);
   });
 
-  it('reports missing columns, extra columns, empty cells, and bad phones together', () => {
+  it('reports one message when a file has several problems', () => {
     expect(
-      issuesFor(
+      messageFor(
         ['name,phone,city', 'Ada,+919876543210,Mumbai', ',98765,'].join('\n'),
         ['name', 'phone', 'brand_name']
       )
-    ).toEqual([
-      'Missing columns: brand_name.',
-      'Remove extra columns: city.',
-      'Row 3 is missing name.',
-      'Row 3 phone must start with + and include the country code.',
-    ]);
+    ).toBe('This file has 4 problems and cannot be imported.');
   });
 
   it('reports a repeated phone number', () => {
     expect(
-      issuesFor(
+      messageFor(
         ['name,phone,brand_name', 'Ada,+919876543210,Huntlo', 'Neha,+919876543210,Huntlo'].join('\n')
       )
-    ).toEqual(['Row 3 repeats the phone number from row 2.']);
+    ).toBe('Row 3 repeats the phone number from row 2.');
   });
 
   it('reports a repeated column name', () => {
-    expect(issuesFor('name,phone,phone\nAda,+919876543210,+919876543210')).toEqual([
-      'Column "phone" is listed more than once.',
-      'Missing columns: brand_name.',
-    ]);
+    expect(messageFor('name,phone,phone\nAda,+919876543210,+919876543210')).toBe(
+      'This file has 2 problems and cannot be imported.'
+    );
   });
 
   it('puts every required variable in the sample header', () => {

@@ -70,14 +70,13 @@ function phoneDigits(value: string): string {
 }
 
 function normalizePhone(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed.startsWith('+')) return null;
-  const digits = phoneDigits(trimmed);
-  if (digits.length < 8 || digits.length > 15) return null;
+  let digits = phoneDigits(value);
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  if (digits.length === 10) digits = `91${digits}`;
+  if (!digits.startsWith('91') || digits.length !== 12) return null;
   return `+${digits}`;
 }
-
-const ISSUE_LIMIT = 12;
 
 function columnKey(value: string): string {
   return value.trim().toLowerCase();
@@ -87,16 +86,16 @@ export function parseCampaignContactsCsv(
   csv: string,
   requiredColumns: string[] = ['name', 'phone']
 ): ParsedCampaignContact[] {
-  const issues: string[] = [];
+  let issueCount = 0;
+  let firstIssue = '';
   const addIssue = (message: string) => {
-    if (issues.length < ISSUE_LIMIT) issues.push(message);
+    issueCount += 1;
+    if (!firstIssue) firstIssue = message;
   };
   const finish = (): ParsedCampaignContact[] => {
-    if (!issues.length) return [];
-    const summary = issues[0] ?? 'This CSV needs changes before it can be imported.';
+    if (!issueCount) return [];
     throw AppError.validation(
-      issues.length === 1 ? summary : 'This CSV needs changes before it can be imported.',
-      issues.map((message) => ({ message }))
+      issueCount === 1 ? firstIssue : `This file has ${issueCount} problems and cannot be imported.`
     );
   };
 
@@ -167,14 +166,14 @@ export function parseCampaignContactsCsv(
     const phoneRaw = phoneColumn >= 0 ? String(cells[phoneColumn] ?? '').trim() : '';
     const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
     if (phoneRaw && !phone) {
-      addIssue(`Row ${rowNumber} phone must start with + and include the country code.`);
+      addIssue(`Row ${rowNumber} phone must include country code 91.`);
     } else if (phone && seenPhones.has(phone)) {
       addIssue(`Row ${rowNumber} repeats the phone number from row ${seenPhones.get(phone)}.`);
     } else if (phone) {
       seenPhones.set(phone, rowNumber);
     }
 
-    if (issues.length || !phone) return;
+    if (issueCount || !phone) return;
     const nameIndex = normalized.indexOf('name');
     const emailIndex = normalized.indexOf('email');
     const data: Record<string, string> = {};
@@ -332,6 +331,23 @@ export async function listCampaignContacts(
         : null,
     };
   });
+}
+
+export async function markCampaignContactsCallInitiated(
+  organizationId: string,
+  campaignId: string
+): Promise<void> {
+  const orgId = organizationId.trim();
+  const id = campaignId.trim();
+  if (!orgId || !id) return;
+  await VocallabsCampaignContactModel.updateMany(
+    {
+      organizationId: orgId,
+      campaignId: id,
+      $or: [{ callStatus: '' }, { callStatus: null }, { callStatus: { $exists: false } }],
+    },
+    { $set: { callStatus: 'call initiated' } }
+  );
 }
 
 export type CampaignContactCallUpdate = {
