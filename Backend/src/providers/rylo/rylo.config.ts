@@ -54,6 +54,11 @@ export function ryloGetCallSummaryUrl(callId: string): string {
   return `${RYLO_API_BASE_URL}/b2b/v1/getCallSummary?call_id=${encodeURIComponent(callId)}`;
 }
 
+export function ryloGetPostCallDataUrl(agentId: string): string {
+  const params = new URLSearchParams({ agent_id: agentId });
+  return `${RYLO_API_BASE_URL}/b2b/v1/getPostCallData?${params.toString()}`;
+}
+
 export function ryloCallTimelineUrl(phone: string, limit = 5, offset = 0): string {
   const params = new URLSearchParams({
     phone_to: phone.replace(/\D/g, ''),

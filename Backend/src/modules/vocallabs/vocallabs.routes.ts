@@ -10,6 +10,7 @@ import {
   scopeToOrganizationMiddleware,
 } from '../../middleware/auth.js';
 import { getRequestId } from '../../middleware/request-id.js';
+import { emitAiCallUpdated } from '../../realtime/events.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { successResponse } from '../../shared/http/response.js';
@@ -24,6 +25,7 @@ import {
   addCampaignContactsFromFile,
   buildSampleContactsCsv,
   listCampaignContacts,
+  markCampaignContactsCallInitiated,
   requiredSampleColumns,
 } from './campaign-contacts.js';
 import {
@@ -46,6 +48,7 @@ import {
   createRyloTestContact,
   type RyloCampaign,
 } from '../../providers/rylo/index.js';
+import { listRyloPostCallDataKeys } from '../../providers/rylo/rylo.post-call-data.js';
 
 const updateAssignedAgentSchema = z.object({
   welcomeMessage: z.string().max(8_000),
@@ -290,6 +293,13 @@ vocallabsRouter.post(
     try {
       await activateRyloCampaign(campaign.campaignId);
       await markCampaignActive(req.organizationId!, campaign.campaignId);
+      await markCampaignContactsCallInitiated(req.organizationId!, campaignId);
+      emitAiCallUpdated({
+        organizationId: req.organizationId!,
+        campaignId,
+        contactId: '',
+        callStatus: 'call initiated',
+      });
       successResponse(res, { active: true }, { meta: { requestId: getRequestId(req) } });
     } catch (error) {
       if (error instanceof RyloRequestError) throw customerError(error);
@@ -303,8 +313,13 @@ vocallabsRouter.get(
   ...orgAuth,
   readPerm,
   asyncHandler(async (req, res) => {
-    const items = await listCampaignContacts(req.organizationId!, String(req.params.id || ''));
-    successResponse(res, { items }, { meta: { requestId: getRequestId(req) } });
+    const campaignId = String(req.params.id || '');
+    const items = await listCampaignContacts(req.organizationId!, campaignId);
+    const campaign = await getStoredVocallabsCampaign(req.organizationId!, campaignId);
+    const answerColumns = campaign
+      ? await listRyloPostCallDataKeys(campaign.agentId).catch(() => [])
+      : [];
+    successResponse(res, { items, answerColumns }, { meta: { requestId: getRequestId(req) } });
   })
 );
 

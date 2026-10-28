@@ -33,9 +33,9 @@ import {
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { ROUTES } from "@/lib/routes";
 
-function contactColumns(contacts: CampaignContact[]): string[] {
+function contactColumns(contacts: CampaignContact[], answerColumns: string[]): string[] {
   const extras: string[] = [];
-  const seen = new Set<string>();
+  const seen = new Set<string>(["name", "phone", "status", "call", "email"]);
   let hasEmail = false;
   for (const contact of contacts) {
     if (contact.email) hasEmail = true;
@@ -45,7 +45,18 @@ function contactColumns(contacts: CampaignContact[]): string[] {
       extras.push(key);
     }
   }
-  return ["name", "phone", "status", "call", ...(hasEmail ? ["email"] : []), ...extras];
+  const answers: string[] = [];
+  const answerKeys = [
+    ...answerColumns,
+    ...contacts.flatMap((contact) => contact.call?.answers.map((answer) => answer.key) ?? []),
+  ];
+  for (const key of answerKeys) {
+    const trimmed = key.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    answers.push(trimmed);
+  }
+  return ["name", "phone", "status", "call", ...answers, ...(hasEmail ? ["email"] : []), ...extras];
 }
 
 function formatAnswerKey(value: string): string {
@@ -74,13 +85,22 @@ function formatCallStatus(value: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function displayCallStatus(value: string, launched: boolean): string {
+  const stored = value.trim().toLowerCase().replace(/_/g, " ");
+  if (!stored || stored === "call initiated") return launched ? "Call initiated" : "Pending";
+  return formatCallStatus(value);
+}
+
 function statusTone(value: string): string {
-  const status = value.trim().toLowerCase();
+  const status = value.trim().toLowerCase().replace(/_/g, "-");
   if (status === "completed") return "bg-success/10 text-success";
-  if (status === "failed" || status === "busy" || status === "no_answer" || status === "no-answer") {
+  if (status === "failed" || status === "busy" || status === "no-answer") {
     return "bg-destructive/10 text-destructive";
   }
-  if (!status) return "bg-muted text-muted-foreground";
+  if (status === "pending") return "bg-muted text-muted-foreground";
+  if (status === "call initiated" || status === "initiated" || status === "queued" || status === "ringing") {
+    return "bg-primary/10 text-primary";
+  }
   return "bg-muted text-foreground";
 }
 
@@ -94,6 +114,10 @@ function contactInitial(name: string): string {
   return letter ? letter.toUpperCase() : "?";
 }
 
+function answerValue(contact: CampaignContact, column: string): string {
+  return contact.call?.answers.find((answer) => answer.key === column)?.value ?? "";
+}
+
 function contactValue(contact: CampaignContact, column: string): string {
   if (column === "name") return contact.name;
   if (column === "phone") return contact.phone;
@@ -104,11 +128,63 @@ function contactValue(contact: CampaignContact, column: string): string {
 
 const LAUNCHED_TOAST_KEY = "huntlo-campaign-launched";
 
+function ImportContactsBody({
+  uploading,
+  downloadingSample,
+  uploadError,
+  onChooseFile,
+  onDownloadSample,
+}: {
+  uploading: boolean;
+  downloadingSample: boolean;
+  uploadError: string | null;
+  onChooseFile: () => void;
+  onDownloadSample: () => void;
+}) {
+  return (
+    <div className="grid gap-4 p-4">
+      <div className="flex flex-col items-center rounded-lg border border-dashed border-border px-4 py-8 text-center">
+        <FileText aria-hidden className="size-8 text-muted-foreground" />
+        <p className="mt-3 text-sm text-foreground">Upload a CSV file containing your contacts</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          File should have a column for every required variable
+        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <Button type="button" disabled={uploading} onClick={onChooseFile}>
+            <Upload aria-hidden />
+            {uploading ? "Uploading…" : "Choose File"}
+          </Button>
+          <Button type="button" variant="secondary" disabled={downloadingSample} onClick={onDownloadSample}>
+            <Download aria-hidden />
+            {downloadingSample ? "Downloading…" : "Download Sample File"}
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-lg bg-primary/10 px-4 py-3 text-sm text-foreground">
+        <p className="flex items-center gap-2 font-medium">
+          <Info aria-hidden className="size-4 text-primary" />
+          File Format Requirements
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+          <li>CSV file (.csv)</li>
+          <li>One contact per row</li>
+        </ul>
+      </div>
+      {uploadError ? (
+        <p className="text-sm text-destructive" role="alert">
+          {uploadError}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function CampaignDetailPageClient({ id }: { id: string }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [campaign, setCampaign] = useState<VocallabsCampaign | null>(null);
   const [contacts, setContacts] = useState<CampaignContact[]>([]);
+  const [answerColumns, setAnswerColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -129,7 +205,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     window.history.replaceState(null, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
   }, [id]);
   const [error, setError] = useState<string | null>(null);
-  const [uploadIssues, setUploadIssues] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,11 +216,13 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
         if (cancelled) return;
         setCampaign(page.items.find((item) => item.id === id) ?? null);
         setContacts(contactPage.items);
+        setAnswerColumns(contactPage.answerColumns);
       })
       .catch((err) => {
         if (!cancelled) {
           setCampaign(null);
           setContacts([]);
+          setAnswerColumns([]);
           setError(getApiErrorMessage(err, "Could not load this campaign."));
         }
       })
@@ -159,6 +237,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
   const refreshContacts = useCallback(async () => {
     const contactPage = await vocallabsApi.listCampaignContacts(id);
     setContacts(contactPage.items);
+    setAnswerColumns(contactPage.answerColumns);
     setOpenCall((current) => {
       if (!current) return null;
       return contactPage.items.find((item) => item.id === current.id) ?? current;
@@ -174,27 +253,26 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
     void refreshContacts().catch(() => undefined);
   });
 
-  function issuesFromUploadError(err: unknown): string[] {
-    if (err instanceof ApiError && err.details?.length) {
-      const messages = err.details.map((detail) => detail.message.trim()).filter(Boolean);
-      if (messages.length) return messages;
+  function uploadErrorMessage(err: unknown): string {
+    if (err instanceof ApiError && (err.details?.length ?? 0) > 1) {
+      return `This file has ${err.details?.length} problems and cannot be imported.`;
     }
-    return [getApiErrorMessage(err, "Could not import this file.")];
+    return getApiErrorMessage(err, "Could not import this file.");
   }
 
   async function uploadFile(file: File) {
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      setUploadIssues(["Upload a CSV file."]);
+      setUploadError("Upload a CSV file.");
       return;
     }
     setUploading(true);
-    setUploadIssues([]);
+    setUploadError(null);
     try {
       const page = await vocallabsApi.uploadCampaignContacts(id, file);
       setContacts(page.items);
       setImportOpen(false);
     } catch (err) {
-      setUploadIssues(issuesFromUploadError(err));
+      setUploadError(uploadErrorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -202,7 +280,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
 
   async function downloadSample() {
     setDownloadingSample(true);
-    setUploadIssues([]);
+    setUploadError(null);
     try {
       const file = await vocallabsApi.downloadCampaignContactSample(id);
       const url = URL.createObjectURL(file.blob);
@@ -214,7 +292,7 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setUploadIssues([getApiErrorMessage(err, "Could not download the sample file.")]);
+      setUploadError(getApiErrorMessage(err, "Could not download the sample file."));
     } finally {
       setDownloadingSample(false);
     }
@@ -251,11 +329,12 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
   }
 
   function openImport() {
-    setUploadIssues([]);
+    setUploadError(null);
     setImportOpen(true);
   }
 
-  const columns = contactColumns(contacts);
+  const columns = contactColumns(contacts, answerColumns);
+  const capturedColumns = new Set(columns.filter((column) => answerColumns.includes(column) || contacts.some((contact) => contact.call?.answers.some((answer) => answer.key === column))));
 
   const addButton = (
     <Button type="button" onClick={openImport}>
@@ -287,47 +366,13 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
           <DialogHeader className="border-b border-border px-4 py-4 pr-12">
             <DialogTitle>Import Contacts to Campaign</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 p-4">
-            <div className="flex flex-col items-center rounded-lg border border-dashed border-border px-4 py-8 text-center">
-              <FileText aria-hidden className="size-8 text-muted-foreground" />
-              <p className="mt-3 text-sm text-foreground">Upload a CSV file containing your contacts</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                File should have a column for every required variable
-              </p>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <Button type="button" disabled={uploading} onClick={() => fileRef.current?.click()}>
-                  <Upload aria-hidden />
-                  {uploading ? "Uploading…" : "Choose File"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={downloadingSample}
-                  onClick={() => void downloadSample()}
-                >
-                  <Download aria-hidden />
-                  {downloadingSample ? "Downloading…" : "Download Sample File"}
-                </Button>
-              </div>
-            </div>
-            <div className="rounded-lg bg-primary/10 px-4 py-3 text-sm text-foreground">
-              <p className="flex items-center gap-2 font-medium">
-                <Info aria-hidden className="size-4 text-primary" />
-                File Format Requirements
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                <li>CSV file (.csv)</li>
-                <li>One contact per row</li>
-              </ul>
-            </div>
-            {uploadIssues.length ? (
-              <ul className="list-disc space-y-1 pl-5 text-sm text-destructive" role="alert">
-                {uploadIssues.map((issue) => (
-                  <li key={issue}>{issue}</li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+          <ImportContactsBody
+            uploading={uploading}
+            downloadingSample={downloadingSample}
+            uploadError={uploadError}
+            onChooseFile={() => fileRef.current?.click()}
+            onDownloadSample={() => void downloadSample()}
+          />
         </DialogContent>
       </Dialog>
 
@@ -362,14 +407,18 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
 
       {!loading && campaign && contacts.length === 0 ? (
         <div className="flex min-h-64 flex-1 items-center justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={openImport}
-            className="h-16 min-w-64 border-2 border-dotted px-10 text-base"
-          >
-            Add candidates
-          </Button>
+          <section className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card">
+            <div className="border-b border-border px-4 py-4">
+              <h2 className="text-base font-medium text-foreground">Import Contacts to Campaign</h2>
+            </div>
+            <ImportContactsBody
+              uploading={uploading}
+              downloadingSample={downloadingSample}
+              uploadError={uploadError}
+              onChooseFile={() => fileRef.current?.click()}
+              onDownloadSample={() => void downloadSample()}
+            />
+          </section>
         </div>
       ) : null}
 
@@ -402,15 +451,11 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
                         }
                       >
                         {column === "status" ? (
-                          contact.callStatus ? (
-                            <span
-                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusTone(contact.callStatus)}`}
-                            >
-                              {formatCallStatus(contact.callStatus)}
-                            </span>
-                          ) : (
-                            "—"
-                          )
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusTone(displayCallStatus(contact.callStatus ?? "", Boolean(campaign?.active)))}`}
+                          >
+                            {displayCallStatus(contact.callStatus ?? "", Boolean(campaign?.active))}
+                          </span>
                         ) : column === "call" ? (
                           contact.call ? (
                             <button
@@ -427,6 +472,8 @@ export function CampaignDetailPageClient({ id }: { id: string }) {
                           ) : (
                             "—"
                           )
+                        ) : capturedColumns.has(column) ? (
+                          answerValue(contact, column) || "—"
                         ) : (
                           contactValue(contact, column) || "—"
                         )}

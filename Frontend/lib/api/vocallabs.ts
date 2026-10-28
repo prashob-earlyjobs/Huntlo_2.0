@@ -64,7 +64,7 @@ export type VocallabsApi = {
     name: string;
     agentId: string;
   }>;
-  listCampaignContacts(campaignId: string): Promise<{ items: CampaignContact[] }>;
+  listCampaignContacts(campaignId: string): Promise<{ items: CampaignContact[]; answerColumns: string[] }>;
   uploadCampaignContacts(campaignId: string, file: File): Promise<{ items: CampaignContact[] }>;
   downloadCampaignContactSample(campaignId: string): Promise<{ blob: Blob; filename: string | null }>;
   createCampaignGroup(campaignId: string): Promise<{
@@ -102,10 +102,10 @@ const liveVocallabsApi: VocallabsApi = {
     return result.data;
   },
   async listCampaignContacts(campaignId) {
-    const result = await apiClient.get<{ items: CampaignContact[] }>(
+    const result = await apiClient.get<{ items: CampaignContact[]; answerColumns?: string[] }>(
       `/vocallabs/campaigns/${encodeURIComponent(campaignId)}/contacts`
     );
-    return result.data;
+    return { items: result.data.items, answerColumns: result.data.answerColumns ?? [] };
   },
   async uploadCampaignContacts(campaignId, file) {
     const body = new FormData();
@@ -182,7 +182,7 @@ const mockVocallabsApi: VocallabsApi = {
   },
   async listCampaignContacts() {
     await simulateMockLatency();
-    return { items: [] };
+    return { items: [], answerColumns: [] };
   },
   async uploadCampaignContacts() {
     await simulateMockLatency();
