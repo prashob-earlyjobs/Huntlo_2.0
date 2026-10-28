@@ -223,6 +223,20 @@
     border-radius: 9999px;
     background: color-mix(in srgb, var(--muted-foreground) 28%, transparent);
   }
+  /* Hairline only — shows the area can scroll; not meant for dragging */
+  .scrollbar-hairline {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 22%, transparent)
+      transparent;
+  }
+  .scrollbar-hairline::-webkit-scrollbar {
+    width: 1px;
+    height: 1px;
+  }
+  .scrollbar-hairline::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--muted-foreground) 22%, transparent);
+  }
   .ai-beam-border {
     position: relative;
     border-radius: var(--radius-md);
