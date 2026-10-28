@@ -519,6 +519,26 @@ export const MODULE_PAGES: Record<RouteKey, ModulePageData> = {
       actionLabel: "New Template",
     },
   },
+  aiCalls: {
+    href: ROUTES.aiCalls,
+    title: "AI Agents",
+    description: "Voice agents assigned to your workspace.",
+    metrics: [],
+    empty: {
+      title: "No voice agents yet",
+      description: "Assigned voice agents will appear here.",
+    },
+  },
+  aiCallCampaigns: {
+    href: ROUTES.aiCallCampaigns,
+    title: "Campaigns",
+    description: "Calling campaigns for your voice agents.",
+    metrics: [],
+    empty: {
+      title: "No campaigns yet",
+      description: "Campaigns you launch from an agent are saved here.",
+    },
+  },
   screening: {
     href: ROUTES.screening,
     title: "AI Screening",

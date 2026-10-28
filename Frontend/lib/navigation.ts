@@ -13,7 +13,8 @@ import {
   LayoutTemplate,
   MessageSquare,
   Orbit,
-  // PhoneCall,
+  Megaphone,
+  PhoneCall,
   // PhoneIncoming,
   Plug,
   Search,
@@ -134,6 +135,23 @@ export const NAV_SECTIONS: NavSection[] = [
         href: ROUTES.templates,
         icon: LayoutTemplate,
         description: "Reusable hiring playbooks after qualification",
+      },
+    ],
+  },
+  {
+    label: "AI Voice Call",
+    items: [
+      {
+        title: "AI Agents",
+        href: ROUTES.aiCalls,
+        icon: PhoneCall,
+        description: "Voice agents assigned for outbound AI calls",
+      },
+      {
+        title: "Campaigns",
+        href: ROUTES.aiCallCampaigns,
+        icon: Megaphone,
+        description: "AI voice call campaigns",
       },
     ],
   },

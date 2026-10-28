@@ -17,6 +17,8 @@ export const ROUTES = {
   huntlo360New: "/dashboard/huntlo-360/new",
   conversations: "/dashboard/conversations",
   templates: "/dashboard/templates",
+  aiCalls: "/dashboard/ai-calls",
+  aiCallCampaigns: "/dashboard/ai-calls/campaigns",
   screening: "/dashboard/screening",
   screeningNew: "/dashboard/screening/new",
   screeningResults: "/dashboard/screening/results",
@@ -39,7 +41,20 @@ export const ROUTES = {
 export type RouteKey = keyof typeof ROUTES;
 export type AppRoute = (typeof ROUTES)[RouteKey];
 
+/** Open the campaign builder as a single-channel AI voice campaign. */
+export function newAiVoiceCampaignPath(): string {
+  return `${ROUTES.outreachNew}?channel=ai_voice`;
+}
+
 /** Build the detail path for a job requirement. */
+export function aiCallDetailPath(id: string): string {
+  return `${ROUTES.aiCalls}/${encodeURIComponent(id)}`;
+}
+
+export function aiCallCampaignPath(id: string): string {
+  return `${ROUTES.aiCallCampaigns}/${encodeURIComponent(id)}`;
+}
+
 export function jobDetailPath(id: string): string {
   return `${ROUTES.jobs}/${id}`;
 }
@@ -128,6 +143,8 @@ export const ROUTE_LABELS: Record<AppRoute, string> = {
   [ROUTES.huntlo360New]: "Create Workflow",
   [ROUTES.conversations]: "Conversations",
   [ROUTES.templates]: "Templates",
+  [ROUTES.aiCalls]: "AI Agents",
+  [ROUTES.aiCallCampaigns]: "Campaigns",
   [ROUTES.screening]: "AI Screening",
   [ROUTES.screeningNew]: "Create Screening",
   [ROUTES.screeningResults]: "Screening Results",

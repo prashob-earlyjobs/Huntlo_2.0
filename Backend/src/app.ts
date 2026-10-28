@@ -87,6 +87,12 @@ import {
 } from './modules/public/index.js';
 import { publicUtmRouter } from './modules/utm/index.js';
 import { aiVoiceDemoRouter } from './modules/ai-voice-demo/index.js';
+import { vocallabsRouter } from './modules/vocallabs/vocallabs.routes.js';
+import {
+  vocallabsPostWebhookRouter,
+  vocallabsPreWebhookRouter,
+  vocallabsWebhookRouter,
+} from './modules/vocallabs/vocallabs-webhook.routes.js';
 
 export function createApp(): Express {
   const app = express();
@@ -107,6 +113,13 @@ export function createApp(): Express {
   app.use(cookieParser());
 
   // Webhook routes require raw body capture before JSON parsing.
+  // Mount before the shared webhook routers so those parsers do not consume this body first.
+  app.use('/api/v1/webhooks/vocallabs-pre', vocallabsPreWebhookRouter);
+  app.use('/api/v1/webhooks/vocallabs-post', vocallabsPostWebhookRouter);
+  app.use('/api/v1/public/webhooks/vocallabs-pre', vocallabsPreWebhookRouter);
+  app.use('/api/v1/public/webhooks/vocallabs-post', vocallabsPostWebhookRouter);
+  app.use('/api/v1/webhooks/vocallabs', vocallabsWebhookRouter);
+  app.use('/api/v1/public/webhooks/vocallabs', vocallabsWebhookRouter);
   app.use('/api/v1/webhooks', webhooksRouter);
   app.use('/api/v1/public/webhooks', webhookRouter);
   // Spec-primary Hunar voice callbacks + legacy aliases.
@@ -167,6 +180,7 @@ export function createApp(): Express {
   app.use('/api/v1/huntlo-360', huntlo360Router);
   app.use('/api/v1/screenings', screeningRouter);
   app.use('/api/v1/voice', voiceDefaultsRouter);
+  app.use('/api/v1/vocallabs', vocallabsRouter);
   app.use('/api/v1/assessments', assessmentsRouter);
   app.use('/api/v1/interviews', interviewsRouter);
   app.use('/api/v1/availability', availabilityRouter);

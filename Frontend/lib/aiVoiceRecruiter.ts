@@ -40,6 +40,7 @@ export const DEMO_JOBS = [
   "Real Estate Property Requirement Call",
   "Real Estate Alice Greens Call",
   "Real Estate DMX Urban Greens Call",
+  "KYC Incomplete Follow-up",
 ] as const;
 
 export const TRUST_METRICS = [

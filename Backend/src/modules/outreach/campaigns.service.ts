@@ -635,6 +635,12 @@ export const campaignsService = {
     if (query.sourceModule) filter.sourceModule = query.sourceModule;
     if (query.jobId) filter.jobId = query.jobId;
     if (query.q) filter.name = { $regex: query.q, $options: 'i' };
+    if (query.channel) {
+      filter.$or = [
+        { [`channelConfig.${query.channel}.enabled`]: true },
+        { 'sequenceSteps.type': query.channel },
+      ];
+    }
 
     const skip = (query.page - 1) * query.limit;
     const [docs, total] = await Promise.all([

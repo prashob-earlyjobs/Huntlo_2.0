@@ -458,6 +458,20 @@ export type AdminVoiceDemoLead = {
   createdAt: string | null;
 };
 
+export type VocallabsAgentAssignment = {
+  id: string;
+  userId: string;
+  agentId: string;
+  agentName: string;
+  name: string;
+  email: string;
+  phone: string;
+  organisation: string;
+  organizationId: string;
+  role: string;
+  status: string;
+};
+
 export type Paginated<T> = {
   items: T[];
   total: number;
@@ -610,6 +624,53 @@ export interface AdminApi {
     id: string,
     organizationIds: string[]
   ): Promise<ApiHiringFlow>;
+  createVocallabsAgent(input: { name: string }): Promise<{ id: string | null; name: string }>;
+  getVocallabsAgent(id: string): Promise<{
+    id: string;
+    name: string;
+    contactId: string;
+    welcomeMessage: string;
+    agentPrompt: string;
+    analyticsPrompt: string;
+    language: string;
+    callTokenId: string;
+    voiceId: string;
+    record: Record<string, unknown>;
+  }>;
+  updateVocallabsAgent(
+    id: string,
+    input: {
+      name: string;
+      contactId?: string;
+      welcomeMessage?: string;
+      agentPrompt?: string;
+      analyticsPrompt?: string;
+      language?: string;
+      callTokenId?: string;
+      voiceId?: string;
+      inputsNeeded?: Record<string, unknown>;
+    }
+  ): Promise<{ id: string | null; name: string }>;
+  listVocallabsAgents(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    items: Array<{ id: string; name: string; createdAt: string | null }>;
+    total: number;
+    limit: number;
+    offset: number;
+  }>;
+  listVocallabsVoices(): Promise<{ items: Array<{ id: string; alias: string }> }>;
+  listVocallabsCallTokens(): Promise<{ items: Array<{ id: string; label: string }> }>;
+  listVocallabsAgentAssignments(agentId: string): Promise<{ items: VocallabsAgentAssignment[] }>;
+  assignVocallabsAgentUsers(
+    agentId: string,
+    input: { agentName: string; userIds: string[] }
+  ): Promise<{ items: VocallabsAgentAssignment[] }>;
+  testVocallabsAgent(
+    agentId: string,
+    input: { phone: string }
+  ): Promise<{ agentId: string; prospectId: string; call: unknown }>;
 }
 
 const liveAdminApi: AdminApi = {
@@ -981,6 +1042,76 @@ const liveAdminApi: AdminApi = {
     const result = await apiClient.post<ApiHiringFlow>(
       `/admin/hiring-flows/${id}/assign`,
       { organizationIds }
+    );
+    return result.data;
+  },
+  async createVocallabsAgent(input) {
+    const result = await apiClient.post<{ id: string | null; name: string }>(
+      "/admin/vocallabs/agents",
+      input
+    );
+    return result.data;
+  },
+  async getVocallabsAgent(id) {
+    const result = await apiClient.get<{
+      id: string;
+      name: string;
+      contactId: string;
+      welcomeMessage: string;
+      agentPrompt: string;
+      analyticsPrompt: string;
+      language: string;
+      callTokenId: string;
+      voiceId: string;
+      record: Record<string, unknown>;
+    }>(`/admin/vocallabs/agents/${encodeURIComponent(id)}`);
+    return result.data;
+  },
+  async updateVocallabsAgent(id, input) {
+    const result = await apiClient.patch<{ id: string | null; name: string }>(
+      `/admin/vocallabs/agents/${encodeURIComponent(id)}`,
+      input
+    );
+    return result.data;
+  },
+  async listVocallabsAgents(params) {
+    const result = await apiClient.get<{
+      items: Array<{ id: string; name: string; createdAt: string | null }>;
+      total: number;
+      limit: number;
+      offset: number;
+    }>(`/admin/vocallabs/agents${buildQueryString(params)}`);
+    return result.data;
+  },
+  async listVocallabsVoices() {
+    const result = await apiClient.get<{ items: Array<{ id: string; alias: string }> }>(
+      "/admin/vocallabs/voices"
+    );
+    return result.data;
+  },
+  async listVocallabsCallTokens() {
+    const result = await apiClient.get<{ items: Array<{ id: string; label: string }> }>(
+      "/admin/vocallabs/call-tokens"
+    );
+    return result.data;
+  },
+  async listVocallabsAgentAssignments(agentId) {
+    const result = await apiClient.get<{ items: VocallabsAgentAssignment[] }>(
+      `/admin/vocallabs/agents/${encodeURIComponent(agentId)}/assignments`
+    );
+    return result.data;
+  },
+  async assignVocallabsAgentUsers(agentId, input) {
+    const result = await apiClient.put<{ items: VocallabsAgentAssignment[] }>(
+      `/admin/vocallabs/agents/${encodeURIComponent(agentId)}/assignments`,
+      input
+    );
+    return result.data;
+  },
+  async testVocallabsAgent(agentId, input) {
+    const result = await apiClient.post<{ agentId: string; prospectId: string; call: unknown }>(
+      `/admin/vocallabs/agents/${encodeURIComponent(agentId)}/test`,
+      input
     );
     return result.data;
   },
@@ -2043,6 +2174,74 @@ const mockAdminApi: AdminApi = {
   async assignHiringFlow(id) {
     await simulateMockLatency();
     return this.getHiringFlow(id);
+  },
+  async createVocallabsAgent(input) {
+    await simulateMockLatency();
+    return { id: `agent-mock-${Date.now()}`, name: input.name };
+  },
+  async getVocallabsAgent(id) {
+    await simulateMockLatency();
+    return {
+      id,
+      name: "",
+      contactId: "",
+      welcomeMessage: "",
+      agentPrompt: "",
+      analyticsPrompt: "",
+      language: "",
+      callTokenId: "",
+      voiceId: "",
+      record: {},
+    };
+  },
+  async updateVocallabsAgent(id, input) {
+    await simulateMockLatency();
+    return { id, name: input.name };
+  },
+  async listVocallabsAgents(params) {
+    await simulateMockLatency();
+    return { items: [], total: 0, limit: params?.limit ?? 50, offset: params?.offset ?? 0 };
+  },
+  async listVocallabsVoices() {
+    await simulateMockLatency();
+    return {
+      items: [
+        { id: "voice-aliya", alias: "Aliya" },
+        { id: "voice-lakshmi", alias: "Lakshmi" },
+      ],
+    };
+  },
+  async listVocallabsCallTokens() {
+    await simulateMockLatency();
+    return {
+      items: [{ id: "call-token-main", label: "Main line" }],
+    };
+  },
+  async listVocallabsAgentAssignments() {
+    await simulateMockLatency();
+    return { items: [] };
+  },
+  async testVocallabsAgent(agentId) {
+    await simulateMockLatency();
+    return { agentId, prospectId: "prospect-test", call: { status: "success" } };
+  },
+  async assignVocallabsAgentUsers(agentId, input) {
+    await simulateMockLatency();
+    return {
+      items: input.userIds.map((userId) => ({
+        id: userId,
+        userId,
+        agentId,
+        agentName: input.agentName,
+        name: "",
+        email: "",
+        phone: "",
+        organisation: "",
+        organizationId: "",
+        role: "",
+        status: "",
+      })),
+    };
   },
 };
 

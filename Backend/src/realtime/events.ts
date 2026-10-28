@@ -262,6 +262,17 @@ export function emitScreeningResultUpdated(payload: ScreeningResultUpdatedPayloa
   );
 }
 
+export type AiCallUpdatedPayload = {
+  organizationId: string;
+  campaignId: string;
+  contactId: string;
+  callStatus: string;
+};
+
+export function emitAiCallUpdated(payload: AiCallUpdatedPayload): void {
+  emitRealtime('ai-call.updated', payload, orgTarget(payload.organizationId));
+}
+
 export type CampaignUpdatedPayload = {
   organizationId: string;
   campaignId: string;

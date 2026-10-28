@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { requireAuth } from '../../middleware/auth.js';
 import { getRequestId } from '../../middleware/request-id.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { successResponse } from '../../shared/http/response.js';
 import { adminJobsService } from './admin-jobs.service.js';
@@ -26,6 +27,11 @@ import {
   updateBlogSchema,
   updateEmailTemplateSchema,
   updateWhatsAppTemplateSchema,
+  assignVocallabsAgentUsersSchema,
+  testVocallabsAgentSchema,
+  createVocallabsAgentSchema,
+  listVocallabsAgentsQuerySchema,
+  updateVocallabsAgentSchema,
 } from './admin.validation.js';
 import { emailTemplatesService } from './email-templates.service.js';
 import { whatsappTemplatesService } from './whatsapp-templates.service.js';
@@ -46,8 +52,21 @@ import {
 } from '../outreach/outreach.validation.js';
 import { adminHiringFlowsService } from '../outreach/hiring-flows.service.js';
 import { listApprovedMetaWhatsAppTemplates } from '../../providers/meta-whatsapp/meta.templates.js';
+import {
+  listVocallabsAgentAssignments,
+  replaceVocallabsAgentAssignments,
+} from './vocallabs-agent-assignments.service.js';
 import { listAiVoiceDemoLeads } from '../ai-voice-demo/ai-voice-demo.service.js';
-
+import {
+  createRyloAiAgent,
+  getRyloAiAgent,
+  listRyloAiAgents,
+  listRyloCallTokens,
+  listRyloVoices,
+  RyloRequestError,
+  updateRyloAiAgent,
+} from '../../providers/rylo/rylo.agents.js';
+import { testRyloAiAgent } from '../../providers/rylo/rylo.calls.js';
 const adminAuth = [requireAuth, requireAdmin];
 
 export const adminConsoleRouter = Router();
@@ -876,5 +895,164 @@ adminConsoleRouter.post(
       metadata: { organizationIds: body.organizationIds },
     });
     successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+  })
+);
+
+function rethrowRylo(error: unknown): never {
+  if (error instanceof RyloRequestError) {
+    throw new AppError(error.statusCode, error.code, error.message);
+  }
+  throw error;
+}
+
+adminConsoleRouter.get(
+  '/vocallabs/call-tokens',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    try {
+      const items = await listRyloCallTokens();
+      successResponse(res, { items }, { meta: { requestId: getRequestId(req) } });
+    } catch (error) {
+      rethrowRylo(error);
+    }
+  })
+);
+adminConsoleRouter.get(
+  '/vocallabs/voices',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    try {
+      const items = await listRyloVoices();
+      successResponse(res, { items }, { meta: { requestId: getRequestId(req) } });
+    } catch (error) {
+      rethrowRylo(error);
+    }
+  })
+);
+adminConsoleRouter.get(
+  '/vocallabs/agents',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    const query = listVocallabsAgentsQuerySchema.parse(req.query);
+    try {
+      const data = await listRyloAiAgents(query);
+      successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+    } catch (error) {
+      rethrowRylo(error);
+    }
+  })
+);
+adminConsoleRouter.get(
+  '/vocallabs/agents/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    try {
+      const data = await getRyloAiAgent(id);
+      successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+    } catch (error) {
+      rethrowRylo(error);
+    }
+  })
+);
+adminConsoleRouter.post(
+  '/vocallabs/agents',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    const body = createVocallabsAgentSchema.parse(req.body ?? {});
+    try {
+      const data = await createRyloAiAgent(body.name);
+      await recordAdminMutation(req, {
+        action: 'admin.vocallabs_agent.created',
+        metadata: { name: data.name, id: data.id },
+      });
+      successResponse(res, data, { statusCode: 201, meta: { requestId: getRequestId(req) } });
+    } catch (error) {
+      rethrowRylo(error);
+    }
+  })
+);
+adminConsoleRouter.get(
+  '/vocallabs/agents/:id/assignments',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    const items = await listVocallabsAgentAssignments(id);
+    successResponse(res, { items }, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.post(
+  '/vocallabs/agents/:id/test',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    const body = testVocallabsAgentSchema.parse(req.body ?? {});
+    try {
+      const data = await testRyloAiAgent({ agentId: id, phone: body.phone });
+      await recordAdminMutation(req, {
+        action: 'admin.vocallabs_agent.tested',
+        metadata: { id },
+      });
+      successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+    } catch (error) {
+      rethrowRylo(error);
+    }
+  })
+);
+adminConsoleRouter.put(
+  '/vocallabs/agents/:id/assignments',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    const body = assignVocallabsAgentUsersSchema.parse(req.body ?? {});
+    const items = await replaceVocallabsAgentAssignments({
+      agentId: id,
+      agentName: body.agentName,
+      userIds: body.userIds,
+      assignedBy: req.auth?.sub ?? null,
+    });
+    await recordAdminMutation(req, {
+      action: 'admin.vocallabs_agent.assigned',
+      metadata: { id, count: items.length },
+    });
+    successResponse(res, { items }, { meta: { requestId: getRequestId(req) } });
+  })
+);
+adminConsoleRouter.patch(
+  '/vocallabs/agents/:id',
+  ...adminAuth,
+  requireAdminPermission('admin:settings:write'),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id || '').trim();
+    const body = updateVocallabsAgentSchema.parse(req.body ?? {});
+    try {
+      const data = await updateRyloAiAgent({
+        agentId: id,
+        name: body.name,
+        contactId: body.contactId,
+        welcomeMessage: body.welcomeMessage,
+        agentPrompt: body.agentPrompt,
+        analyticsPrompt: body.analyticsPrompt,
+        language: body.language,
+        callTokenId: body.callTokenId,
+        voiceId: body.voiceId,
+        inputsNeeded: body.inputsNeeded,
+      });
+      await recordAdminMutation(req, {
+        action: 'admin.vocallabs_agent.updated',
+        metadata: { name: data.name, id: data.id },
+      });
+      successResponse(res, data, { meta: { requestId: getRequestId(req) } });
+    } catch (error) {
+      rethrowRylo(error);
+    }
   })
 );

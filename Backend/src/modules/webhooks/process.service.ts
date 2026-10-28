@@ -71,6 +71,24 @@ async function processHunar(event: WebhookEventDocument) {
   };
 
   if (campaignId && !screeningId) {
+    const { tryProcessAiVoiceDemoWebhook } = await import(
+      '../ai-voice-demo/ai-voice-demo.webhook.js'
+    );
+    const demo = await tryProcessAiVoiceDemoWebhook({
+      campaignId,
+      kind: ['call-status', 'call-recording', 'call-result', 'call-summary'].includes(kind)
+        ? kind
+        : 'call-status',
+      body,
+    });
+    if (demo?.handled) {
+      return {
+        result: demo,
+        relatedEntityType: 'campaign',
+        relatedEntityId: campaignId,
+      };
+    }
+
     const { processCampaignVoiceWebhook } = await import('../voice/voice-webhook.service.js');
     const result = await processCampaignVoiceWebhook({
       kind: ['call-status', 'call-recording', 'call-result', 'call-summary'].includes(kind)

@@ -91,11 +91,16 @@ function builderStateFromQuery(
   searchParams: Pick<URLSearchParams, "get">
 ): BuilderState {
   const base = initialBuilderState();
+  const channel = searchParams.get("channel")?.trim().toLowerCase().replace(/-/g, "_");
+  const seeded =
+    channel === "ai_voice"
+      ? applyEnabledChannels(base, ["AI Voice"])
+      : base;
   const candidateIds = parseCandidateIdsParam(searchParams.get("candidateIds"));
-  if (!candidateIds.length) return base;
+  if (!candidateIds.length) return seeded;
   const jobId = searchParams.get("jobId")?.trim() || null;
   return {
-    ...base,
+    ...seeded,
     ...(jobId ? { jobId } : {}),
     source: "Candidate Pool",
     sourceDetail: "",
