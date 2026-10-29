@@ -396,6 +396,12 @@ export function stepErrors(step: number, state: BuilderState): string[] {
       disconnected.forEach((channel) =>
         errors.push(`${channel} is enabled but the provider is disconnected.`)
       );
+      if (
+        state.enabledChannels.includes("Email") &&
+        !state.emailIntegrationId
+      ) {
+        errors.push("Select the email mailbox this campaign should send from.");
+      }
       break;
     }
     case 3: {

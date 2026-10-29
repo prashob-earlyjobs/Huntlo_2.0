@@ -618,7 +618,7 @@ export function ChannelsStep({
                                       (entry) => entry.id === value
                                     ) ?? selectedEmailAccount;
                                   if (!account) {
-                                    return display.sender || "Select mailbox";
+                                    return "Select mailbox";
                                   }
                                   return (
                                     <span className="inline-flex max-w-full items-center justify-end gap-1.5">
