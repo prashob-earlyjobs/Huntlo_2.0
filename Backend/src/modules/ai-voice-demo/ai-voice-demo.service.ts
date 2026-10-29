@@ -10,6 +10,7 @@ import {
   aiVoiceDemoLimit,
   buildDemoAgentInput,
   demoQuestionsFor,
+  resolveDemoContactName,
   type AiVoiceDemoJob,
 } from './ai-voice-demo.jobs.js';
 import type { StartAiVoiceDemoInput } from './ai-voice-demo.validation.js';
@@ -104,7 +105,9 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
 
   const company = input.company.trim();
   const job = input.job as AiVoiceDemoJob;
-  const agentInput = buildDemoAgentInput(job, company);
+  const email = input.email.trim().toLowerCase();
+  const contactName = resolveDemoContactName(input.name, email);
+  const agentInput = buildDemoAgentInput(job, company, contactName, email);
   let agentId = '';
   if (indian) {
     try {
@@ -119,7 +122,8 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
   const record = await AiVoiceDemoCallModel.create({
     company,
     companyKey: companyKey(company),
-    email: input.email.trim().toLowerCase(),
+    contactName: contactName === 'you' ? null : contactName,
+    email,
     phone,
     phoneDigits,
     job,
@@ -129,30 +133,41 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
   });
 
   try {
-    const callee = {
-      callee_name: company,
+    // Hunar bulk (remove_invalid_rows) expects the same custom_data shape as
+    // screening/outreach — key_0 / key_1. Extra keys have caused
+    // "No valid data found in the request" on the gateway.
+    const questions = demoQuestionsFor(job, company);
+    const hunarCallee = {
+      callee_name: contactName === 'you' ? company : contactName,
       mobile_number: phone,
       custom_data: {
-        company_name: company,
-        company,
-        job_title: job,
-        job,
-        email: input.email.trim().toLowerCase(),
+        key_0: company,
+        key_1: job,
+      },
+    };
+    const zyastraCallee = {
+      callee_name: hunarCallee.callee_name,
+      mobile_number: phone,
+      custom_data: {
         firstMessage: agentInput.introduction || '',
+        preferredLanguage: 'en-US',
+        company_name: company,
+        job_title: job,
+        email,
       },
     };
     const dial = indian
       ? await sendHunarCallViaGateway({
           agentId,
           campaignId: String(record._id),
-          questions: demoQuestionsFor(job, company),
-          data: [callee],
+          questions,
+          data: [hunarCallee],
         })
       : await sendZyastraCallViaGateway({
           campaignId: String(record._id),
           prompt: agentInput.agentPrompt,
-          questions: demoQuestionsFor(job, company),
-          data: [callee],
+          questions,
+          data: [zyastraCallee],
         });
 
     if (!dial.dialedCount) {

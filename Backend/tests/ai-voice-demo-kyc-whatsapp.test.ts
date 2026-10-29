@@ -152,8 +152,9 @@ describe('KYC incomplete demo webhook send', () => {
     expect(sendMetaWhatsAppTemplate).toHaveBeenCalledWith(
       expect.objectContaining({
         to: '+919876543210',
-        templateName: 'opening_message_01',
-        bodyParameters: ['rahul', 'Paymint completion'],
+        templateName: 'hello_world',
+        languageCode: 'en_US',
+        bodyParameters: [],
       })
     );
 
