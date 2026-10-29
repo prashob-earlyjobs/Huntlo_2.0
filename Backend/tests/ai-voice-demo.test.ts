@@ -21,6 +21,10 @@ describe('AI voice demo jobs', () => {
       expect(agent.introduction).toContain('Innostax');
       expect(agent.agentPrompt).toContain('company is Innostax');
       expect(agent.agentPrompt).toContain(job);
+      // Hunar treats `{token}` as required custom_data — must be baked in.
+      expect(agent.agentPrompt).not.toContain('{company}');
+      expect(agent.introduction).not.toContain('{company}');
+      expect(agent.objective).not.toContain('{company}');
       expect(Array.isArray(agent.questions)).toBe(true);
       expect((agent.questions as unknown[]).length).toBeGreaterThan(0);
       const asked = (agent.questions as { question: string }[]).map((row) => row.question).join(' ');

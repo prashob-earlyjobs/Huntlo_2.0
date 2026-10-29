@@ -1,7 +1,6 @@
 import { getLogger } from '../../config/logger.js';
 import { isHunarConfigured } from '../../providers/hunar/hunar.config.js';
-import { createHunarVoiceAgent } from '../../providers/hunar/hunar.client.js';
-import { sendHunarCallViaGateway } from '../../providers/hunar/hunar.gateway.js';
+import { createHunarBulkCalls, createHunarVoiceAgent } from '../../providers/hunar/hunar.client.js';
 import { sendZyastraCallViaGateway } from '../../providers/zyastra/zyastra.gateway.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { normalizePhone } from '../../shared/validation/phone.js';
@@ -10,7 +9,6 @@ import {
   aiVoiceDemoLimit,
   buildDemoAgentInput,
   demoQuestionsFor,
-  resolveDemoContactName,
   type AiVoiceDemoJob,
 } from './ai-voice-demo.jobs.js';
 import type { StartAiVoiceDemoInput } from './ai-voice-demo.validation.js';
@@ -19,6 +17,26 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 function log() {
   return getLogger().child({ component: 'ai-voice-demo' });
+}
+
+/** Spoken callee name for demo dials: form name first, else email local-part, else "you". */
+export function resolveDemoContactName(
+  name?: string | null,
+  email?: string | null
+): string {
+  const fromName = String(name || '').trim();
+  if (fromName) {
+    const first = fromName.split(/\s+/).find(Boolean);
+    return first || fromName;
+  }
+  const local = String(email || '').split('@')[0]?.trim() || '';
+  const fromEmail =
+    local
+      .replace(/[._-]+/g, ' ')
+      .split(/\s+/)
+      .find(Boolean)
+      ?.trim() || '';
+  return fromEmail || 'you';
 }
 
 export function companyKey(company: string): string {
@@ -133,20 +151,21 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
   });
 
   try {
-    // Hunar bulk (remove_invalid_rows) expects the same custom_data shape as
-    // screening/outreach — key_0 / key_1. Extra keys have caused
-    // "No valid data found in the request" on the gateway.
+    // Same dial path + custom_data shape as screening/outreach (key_0 / key_1).
+    // Do not put company/job as braced tokens in the agent prompt — Hunar treats
+    // `{company}` as required custom_data and rejects the bulk row.
     const questions = demoQuestionsFor(job, company);
+    const calleeName = contactName === 'you' ? company : contactName;
     const hunarCallee = {
-      callee_name: contactName === 'you' ? company : contactName,
+      callee_name: calleeName,
       mobile_number: phone,
       custom_data: {
-        key_0: company,
-        key_1: job,
+        key_0: agentInput.objective || company,
+        key_1: `${job} | Huntlo`,
       },
     };
     const zyastraCallee = {
-      callee_name: hunarCallee.callee_name,
+      callee_name: calleeName,
       mobile_number: phone,
       custom_data: {
         firstMessage: agentInput.introduction || '',
@@ -157,11 +176,11 @@ export async function startAiVoiceDemo(input: StartAiVoiceDemoInput) {
       },
     };
     const dial = indian
-      ? await sendHunarCallViaGateway({
+      ? await createHunarBulkCalls({
           agentId,
           campaignId: String(record._id),
+          callees: [hunarCallee],
           questions,
-          data: [hunarCallee],
         })
       : await sendZyastraCallViaGateway({
           campaignId: String(record._id),

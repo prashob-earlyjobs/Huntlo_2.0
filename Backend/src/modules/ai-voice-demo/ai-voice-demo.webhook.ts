@@ -206,6 +206,77 @@ async function maybeSendKycWhatsApp(demo: AiVoiceDemoCallDocument, input: {
   }
 }
 
+function hunarRecordSignal(
+  callStatus: unknown,
+  callResult: unknown
+): { rawStatus: string; answeredBy: string; hasResult: boolean } | null {
+  const statusBody =
+    callStatus && typeof callStatus === 'object'
+      ? (callStatus as Record<string, unknown>)
+      : null;
+  const resultBody =
+    callResult && typeof callResult === 'object' ? (callResult as Record<string, unknown>) : null;
+  const rawStatus = String(statusBody?.status || '').trim();
+  const answeredBy = String(statusBody?.answered_by || '').trim();
+  const hasResult = Boolean(resultBody && Object.keys(resultBody).length > 0);
+  if (!rawStatus && !hasResult) return null;
+  return { rawStatus, answeredBy, hasResult };
+}
+
+/**
+ * Completion signal written by the communication server into `hcg_hunar_communications`.
+ * Hunar posts callbacks there, not to Huntlo, so the KYC WhatsApp send listens to that row.
+ */
+export async function tryProcessAiVoiceDemoFromHunarRecord(input: {
+  campaignId: string;
+  callStatus?: unknown;
+  callResult?: unknown;
+}): Promise<{ handled: boolean; whatsappSent: boolean } | null> {
+  const campaignId = String(input.campaignId || '').trim();
+  if (!campaignId || !mongoose.Types.ObjectId.isValid(campaignId)) return null;
+
+  const signal = hunarRecordSignal(input.callStatus, input.callResult);
+  if (!signal) return null;
+
+  const demo = await AiVoiceDemoCallModel.findById(campaignId);
+  if (!demo) return null;
+
+  const mappedStatus = signal.rawStatus
+    ? mapHunarCallStatus(signal.rawStatus, signal.answeredBy)
+    : '';
+  const kind: HunarWebhookKind =
+    mappedStatus === 'completed' ? 'call-status' : signal.hasResult ? 'call-result' : 'call-status';
+
+  if (mappedStatus) demo.callStatus = mappedStatus;
+
+  let whatsappSent = false;
+  if (demo.job === AI_VOICE_DEMO_KYC_JOB) {
+    await demo.save();
+    const result = await maybeSendKycWhatsApp(demo, {
+      mappedStatus,
+      kind,
+    });
+    whatsappSent = result.sent;
+  } else {
+    if (demo.whatsappStatus === 'none') demo.whatsappStatus = 'skipped';
+    await demo.save();
+  }
+
+  log().info(
+    {
+      demoId: String(demo._id),
+      job: demo.job,
+      kind,
+      callStatus: demo.callStatus,
+      whatsappSent,
+      source: 'hcg-hunar',
+    },
+    'AI voice demo Hunar record applied'
+  );
+
+  return { handled: true, whatsappSent };
+}
+
 /**
  * If campaignId is an AI voice demo call, handle it here and skip outreach/screening.
  * KYC Incomplete Follow-up sends an approved outbound WhatsApp template when the call ends.
