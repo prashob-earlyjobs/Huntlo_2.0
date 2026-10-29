@@ -99,6 +99,26 @@ async function flushPending(docId: string): Promise<void> {
 
   const campaignId = campaignIdFromDoc(pending.doc);
   if (!campaignId) return;
+
+  // Demo dials callback on the communication server. That server writes this
+  // collection; a KYC demo row is not an outreach campaign, so handle it first.
+  try {
+    const { tryProcessAiVoiceDemoFromHunarRecord } = await import(
+      '../modules/ai-voice-demo/ai-voice-demo.webhook.js'
+    );
+    const demo = await tryProcessAiVoiceDemoFromHunarRecord({
+      campaignId,
+      callStatus: pending.doc.call_status,
+      callResult: pending.doc.call_result,
+    });
+    if (demo?.handled) return;
+  } catch (error) {
+    logger().warn(
+      { err: error, campaignId },
+      'KYC demo WhatsApp from Hunar HCG update failed'
+    );
+  }
+
   const organizationId = await organizationIdForCampaign(campaignId);
   if (!organizationId) return;
 

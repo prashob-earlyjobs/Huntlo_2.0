@@ -16,7 +16,6 @@ import { sendMetaWhatsAppTemplate } from '../../providers/meta-whatsapp/meta.sen
 import {
   buildMetaBodyParameters,
   getApprovedTemplate,
-  getDefaultTemplateForSlot,
   getMetaTemplateLanguage,
   getMetaTemplateName,
   resolveGupshupTemplateId,
@@ -27,7 +26,9 @@ import {
 } from './ai-voice-demo.jobs.js';
 import { AiVoiceDemoCallModel, type AiVoiceDemoCallDocument } from './ai-voice-demo.model.js';
 
-const DEFAULT_KYC_WHATSAPP_TEMPLATE = 'opening_message_01';
+/** Meta's built-in sample template — always present on a WABA, zero body params. */
+const DEFAULT_KYC_WHATSAPP_TEMPLATE = 'hello_world';
+const HELLO_WORLD_LANGUAGE = 'en_US';
 
 function log() {
   return getLogger().child({ component: 'ai-voice-demo-webhook' });
@@ -35,9 +36,10 @@ function log() {
 
 export function kycDemoWhatsAppTemplateId(): string {
   const fromEnv = String(process.env.AI_VOICE_DEMO_KYC_WA_TEMPLATE || '').trim();
+  if (fromEnv === 'hello_world') return 'hello_world';
   if (fromEnv && getApprovedTemplate(fromEnv)) return fromEnv;
-  const opening = getDefaultTemplateForSlot('opening');
-  return opening?.id || DEFAULT_KYC_WHATSAPP_TEMPLATE;
+  // Temporary default until a KYC-specific template is approved on the WABA.
+  return DEFAULT_KYC_WHATSAPP_TEMPLATE;
 }
 
 export function kycDemoWhatsAppMergeContext(demo: {
@@ -85,13 +87,20 @@ async function sendKycWhatsAppTemplate(input: {
   templateId: string;
   mergeContext: Record<string, string>;
 }): Promise<{ messageId?: string; provider: string }> {
-  const catalogue = getApprovedTemplate(input.templateId);
-  if (!catalogue) {
+  const useHelloWorld = input.templateId === 'hello_world';
+  const catalogue = useHelloWorld ? null : getApprovedTemplate(input.templateId);
+  if (!useHelloWorld && !catalogue) {
     throw Object.assign(new Error(`Unknown WhatsApp template "${input.templateId}".`), {
       statusCode: 400,
     });
   }
-  const bodyParameters = buildMetaBodyParameters(catalogue.id, input.mergeContext);
+  const bodyParameters = useHelloWorld
+    ? []
+    : buildMetaBodyParameters(catalogue!.id, input.mergeContext);
+  const templateName = useHelloWorld ? 'hello_world' : getMetaTemplateName(catalogue!);
+  const languageCode = useHelloWorld
+    ? HELLO_WORLD_LANGUAGE
+    : getMetaTemplateLanguage(catalogue);
 
   if (isHuntloWhatsAppConfigured()) {
     const creds = getHuntloWhatsAppCredentials();
@@ -104,15 +113,23 @@ async function sendKycWhatsAppTemplate(input: {
       phoneNumberId: creds.phoneNumberId,
       accessToken: creds.accessToken,
       to: input.to,
-      templateName: getMetaTemplateName(catalogue),
-      languageCode: getMetaTemplateLanguage(catalogue),
+      templateName,
+      languageCode,
       bodyParameters,
     });
     return { messageId: result.messageId, provider: 'huntlo-whatsapp' };
   }
 
   if (isGupshupWhatsAppConfigured()) {
-    const gupshupTemplateId = resolveGupshupTemplateId(catalogue.id);
+    if (useHelloWorld) {
+      throw Object.assign(
+        new Error(
+          'KYC hello_world is Meta-only. Set AI_VOICE_DEMO_KYC_WA_TEMPLATE to an approved catalogue id for Gupshup.'
+        ),
+        { statusCode: 400 }
+      );
+    }
+    const gupshupTemplateId = resolveGupshupTemplateId(catalogue!.id);
     if (!gupshupTemplateId) {
       throw Object.assign(new Error('Gupshup template id could not be resolved.'), {
         statusCode: 400,
@@ -187,6 +204,77 @@ async function maybeSendKycWhatsApp(demo: AiVoiceDemoCallDocument, input: {
     log().error({ err: error, demoId: String(claimed._id), templateId }, 'KYC demo WhatsApp send failed');
     return { sent: false };
   }
+}
+
+function hunarRecordSignal(
+  callStatus: unknown,
+  callResult: unknown
+): { rawStatus: string; answeredBy: string; hasResult: boolean } | null {
+  const statusBody =
+    callStatus && typeof callStatus === 'object'
+      ? (callStatus as Record<string, unknown>)
+      : null;
+  const resultBody =
+    callResult && typeof callResult === 'object' ? (callResult as Record<string, unknown>) : null;
+  const rawStatus = String(statusBody?.status || '').trim();
+  const answeredBy = String(statusBody?.answered_by || '').trim();
+  const hasResult = Boolean(resultBody && Object.keys(resultBody).length > 0);
+  if (!rawStatus && !hasResult) return null;
+  return { rawStatus, answeredBy, hasResult };
+}
+
+/**
+ * Completion signal written by the communication server into `hcg_hunar_communications`.
+ * Hunar posts callbacks there, not to Huntlo, so the KYC WhatsApp send listens to that row.
+ */
+export async function tryProcessAiVoiceDemoFromHunarRecord(input: {
+  campaignId: string;
+  callStatus?: unknown;
+  callResult?: unknown;
+}): Promise<{ handled: boolean; whatsappSent: boolean } | null> {
+  const campaignId = String(input.campaignId || '').trim();
+  if (!campaignId || !mongoose.Types.ObjectId.isValid(campaignId)) return null;
+
+  const signal = hunarRecordSignal(input.callStatus, input.callResult);
+  if (!signal) return null;
+
+  const demo = await AiVoiceDemoCallModel.findById(campaignId);
+  if (!demo) return null;
+
+  const mappedStatus = signal.rawStatus
+    ? mapHunarCallStatus(signal.rawStatus, signal.answeredBy)
+    : '';
+  const kind: HunarWebhookKind =
+    mappedStatus === 'completed' ? 'call-status' : signal.hasResult ? 'call-result' : 'call-status';
+
+  if (mappedStatus) demo.callStatus = mappedStatus;
+
+  let whatsappSent = false;
+  if (demo.job === AI_VOICE_DEMO_KYC_JOB) {
+    await demo.save();
+    const result = await maybeSendKycWhatsApp(demo, {
+      mappedStatus,
+      kind,
+    });
+    whatsappSent = result.sent;
+  } else {
+    if (demo.whatsappStatus === 'none') demo.whatsappStatus = 'skipped';
+    await demo.save();
+  }
+
+  log().info(
+    {
+      demoId: String(demo._id),
+      job: demo.job,
+      kind,
+      callStatus: demo.callStatus,
+      whatsappSent,
+      source: 'hcg-hunar',
+    },
+    'AI voice demo Hunar record applied'
+  );
+
+  return { handled: true, whatsappSent };
 }
 
 /**
