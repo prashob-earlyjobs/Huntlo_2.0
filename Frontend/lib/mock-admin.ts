@@ -375,6 +375,7 @@ export interface AdminPlan {
 export const ADMIN_MODULES = [
   "Sourcing",
   "People Scout",
+  "Easy Scout",
   "Outreach",
   "Huntlo 360",
   "Screening",

@@ -216,37 +216,87 @@ async function syncGmailIntegration(input: {
   return synced;
 }
 
-/** Start/renew Gmail Pub/Sub watch and save historyId on the integration. */
+/**
+ * Start/renew Gmail Pub/Sub watch and save historyId on the integration.
+ * On failure, clears any stale historyId so the minute cron can poll again
+ * (otherwise a dead watch + leftover historyId silently blocks reply sync).
+ */
 export async function ensureGmailWatch(
   organizationId: string,
   integrationId: string
 ): Promise<boolean> {
-  if (!isGmailPushConfigured()) return false;
+  if (!isGmailPushConfigured()) {
+    logger().warn(
+      { organizationId, integrationId },
+      'Gmail watch skipped — GMAIL_PUBSUB_TOPIC is not set'
+    );
+    return false;
+  }
 
   const secrets = await integrationsService.getDecryptedSecrets(organizationId, integrationId);
   if (!secrets || secrets.provider !== 'gmail') return false;
 
   const accessToken = await withFreshEmailToken(secrets, organizationId);
-  if (!accessToken) return false;
-
-  const watch = await startGmailWatch(accessToken);
-  if (!watch?.historyId) return false;
+  if (!accessToken) {
+    logger().warn(
+      { organizationId, integrationId, email: secrets.email },
+      'Gmail watch skipped — no access token'
+    );
+    return false;
+  }
 
   const prev = (secrets.config || {}) as Record<string, unknown>;
-  await UserIntegrationModel.updateOne(
-    { _id: integrationId },
-    {
-      $set: {
-        config: {
-          ...prev,
-          gmailHistoryId: watch.historyId,
-          gmailWatchExpiration: watch.expiration,
-        },
-      },
+
+  try {
+    const watch = await startGmailWatch(accessToken);
+    if (!watch?.historyId) {
+      throw new Error('Gmail users.watch returned no historyId');
     }
-  );
-  logger().info({ integrationId, historyId: watch.historyId }, 'Gmail watch started');
-  return true;
+
+    await UserIntegrationModel.updateOne(
+      { _id: integrationId },
+      {
+        $set: {
+          config: {
+            ...prev,
+            gmailHistoryId: watch.historyId,
+            gmailWatchExpiration: watch.expiration,
+            gmailWatchError: null,
+          },
+          errorCode: null,
+          errorMessage: null,
+        },
+      }
+    );
+    logger().info(
+      { integrationId, email: secrets.email, historyId: watch.historyId },
+      'Gmail watch started'
+    );
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const rest = { ...prev };
+    delete rest.gmailHistoryId;
+    delete rest.gmailWatchExpiration;
+    await UserIntegrationModel.updateOne(
+      { _id: integrationId },
+      {
+        $set: {
+          config: {
+            ...rest,
+            gmailWatchError: message,
+          },
+          errorCode: 'GMAIL_WATCH_FAILED',
+          errorMessage: `Gmail inbox watch failed: ${message}`,
+        },
+      }
+    ).catch(() => undefined);
+    logger().error(
+      { err: error, organizationId, integrationId, email: secrets.email },
+      'Gmail watch start failed — cleared historyId so polling can resume'
+    );
+    return false;
+  }
 }
 
 /** Called from Gmail Pub/Sub webhook — sync every connected mailbox for this email. */

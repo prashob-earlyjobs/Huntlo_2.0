@@ -2,6 +2,7 @@
 
 import {
   BookmarkCheck,
+  Building2,
   Check,
   Copy,
   Eye,
@@ -44,6 +45,7 @@ import {
 import {
   getApiErrorMessage,
   peopleScoutApi,
+  type PeopleScoutApi,
   type ScoutLookupResponse,
 } from "@/lib/api";
 import type {
@@ -66,6 +68,7 @@ const TYPE_ICONS: Record<LookupType, typeof LinkIcon> = {
   "LinkedIn URL": LinkIcon,
   "LinkedIn Username": User,
   "Email Address": Mail,
+  DIN: Building2,
 };
 
 function ResultBadge({ result }: { result: LookupResult }) {
@@ -103,12 +106,14 @@ function RevealCell({ lookup }: { lookup: RecentLookup }) {
 }
 
 function LookupDrawer({
+  api = peopleScoutApi,
   lookup,
   open,
   onOpenChange,
   onRerun,
   onProfileSaved,
 }: {
+  api?: PeopleScoutApi;
   lookup: RecentLookup | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -134,7 +139,7 @@ function LookupDrawer({
     setError(null);
     setDetail(null);
 
-    void peopleScoutApi
+    void api
       .getLookup(lookup.id)
       .then((row) => {
         if (cancelled) return;
@@ -151,7 +156,7 @@ function LookupDrawer({
     return () => {
       cancelled = true;
     };
-  }, [open, lookup?.id]);
+  }, [api, open, lookup?.id]);
 
   if (!lookup) return null;
   const TypeIcon = TYPE_ICONS[lookup.type];
@@ -219,6 +224,7 @@ function LookupDrawer({
 
             {!loading && profile ? (
               <ScoutProfileCard
+                api={api}
                 embedded
                 profile={profile}
                 lookupId={lookup.id}
@@ -294,10 +300,14 @@ function LookupDrawer({
 }
 
 export function ScoutLookupsTable({
+  api = peopleScoutApi,
+  title = "Recent lookups",
   lookups,
   onRerun,
   onLookupUpdated,
 }: {
+  api?: PeopleScoutApi;
+  title?: string;
   lookups: RecentLookup[];
   onRerun: (lookup: RecentLookup) => void;
   onLookupUpdated?: () => void;
@@ -316,7 +326,7 @@ export function ScoutLookupsTable({
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
-            Recent lookups
+            {title}
           </h2>
           <p className="text-xs text-muted-foreground">
             Lookups performed by your team in the last 30 days.
@@ -446,6 +456,7 @@ export function ScoutLookupsTable({
       </div>
 
       <LookupDrawer
+        api={api}
         lookup={active}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}

@@ -62,6 +62,7 @@ const STATUS_TITLE_CASE: Record<PoolStatus, string> = {
 const SOURCE_LABEL: Record<PoolSourceType, string> = {
   sourcing: 'AI Search',
   people_scout: 'People Scout',
+  easy_scout: 'Easy Scout',
   import: 'Import',
   referral: 'Referral',
   manual: 'Manual',

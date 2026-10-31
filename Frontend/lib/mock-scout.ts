@@ -6,14 +6,30 @@ export const LOOKUP_TYPES = [
   "LinkedIn URL",
   "LinkedIn Username",
   "Email Address",
+  "DIN",
 ] as const;
 
 export type LookupType = (typeof LOOKUP_TYPES)[number];
+
+/** People Scout: LinkedIn + email via Future Jobs. */
+export const PEOPLE_SCOUT_LOOKUP_TYPES = [
+  "LinkedIn URL",
+  "LinkedIn Username",
+  "Email Address",
+] as const satisfies readonly LookupType[];
+
+/** Easy Scout: LinkedIn + DIN via EazyReach. */
+export const EASY_SCOUT_LOOKUP_TYPES = [
+  "LinkedIn URL",
+  "LinkedIn Username",
+  "DIN",
+] as const satisfies readonly LookupType[];
 
 export const LOOKUP_PLACEHOLDERS: Record<LookupType, string> = {
   "LinkedIn URL": "https://linkedin.com/in/candidate-name",
   "LinkedIn Username": "candidate-name",
   "Email Address": "candidate@company.com",
+  DIN: "12345678",
 };
 
 export const LOOKUP_QUOTA = {

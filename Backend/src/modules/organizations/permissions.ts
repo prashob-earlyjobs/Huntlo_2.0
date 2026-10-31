@@ -8,6 +8,7 @@ export const PERMISSION_MODULES = [
   'sourcing',
   'candidates',
   'peopleScout',
+  'easyScout',
   'outreach',
   'huntlo360',
   'screening',
@@ -83,6 +84,11 @@ export const MODULE_IMPLIED_PERMISSIONS: Partial<
   },
   /** Save to pool / lists after lookup; credit meters. */
   peopleScout: {
+    candidates: ['view', 'create', 'edit'],
+    plans: ['view'],
+  },
+  /** Simplified scout flows that still save into the candidate pool. */
+  easyScout: {
     candidates: ['view', 'create', 'edit'],
     plans: ['view'],
   },
@@ -211,6 +217,13 @@ export const MODULE_WORKFLOW_CONTRACT: Record<
     'plans:view',
     'analytics:view',
   ],
+  easyScout: [
+    'candidates:view',
+    'candidates:create',
+    'candidates:edit',
+    'plans:view',
+    'analytics:view',
+  ],
   outreach: [
     'candidates:view',
     'candidates:create',
@@ -273,6 +286,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<OrganizationRole, PermissionKey[]>
     ...moduleActions('sourcing', ['view', 'create', 'edit', 'export']),
     ...moduleActions('candidates', ['view', 'create', 'edit', 'export']),
     ...moduleActions('peopleScout', ['view', 'create', 'edit']),
+    ...moduleActions('easyScout', ['view', 'create', 'edit']),
     ...moduleActions('outreach', ['view', 'create', 'edit', 'launch']),
     ...moduleActions('huntlo360', ['view', 'create', 'edit', 'launch']),
     ...moduleActions('screening', ['view', 'create', 'edit', 'launch']),
@@ -289,6 +303,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<OrganizationRole, PermissionKey[]>
     ...moduleActions('sourcing', ['view']),
     ...moduleActions('candidates', ['view', 'edit', 'export']),
     ...moduleActions('peopleScout', ['view']),
+    ...moduleActions('easyScout', ['view']),
     ...moduleActions('outreach', ['view']),
     ...moduleActions('huntlo360', ['view']),
     ...moduleActions('screening', ['view', 'approve']),

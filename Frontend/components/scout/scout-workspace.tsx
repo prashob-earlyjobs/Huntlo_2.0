@@ -33,12 +33,13 @@ import {
   getApiErrorMessage,
   peopleScoutApi,
   uiLookupTypeToApi,
+  type PeopleScoutApi,
   type ScoutLookupResponse,
   type ScoutQuota,
 } from "@/lib/api";
 import {
   LOOKUP_PLACEHOLDERS,
-  LOOKUP_TYPES,
+  PEOPLE_SCOUT_LOOKUP_TYPES,
   type LookupType,
   type RecentLookup,
   type ScoutMatchOption,
@@ -86,6 +87,10 @@ function validate(type: LookupType, value: string): string | null {
       return /^\S+@\S+\.\S+$/.test(trimmed)
         ? null
         : "That doesn't look like a valid email address.";
+    case "DIN":
+      return /^\d{6,12}$/.test(trimmed.replace(/\s+/g, ""))
+        ? null
+        : "DIN should be a 6–12 digit Indian Director Identification Number.";
   }
 }
 
@@ -183,8 +188,16 @@ function MultipleMatchesPanel({
   );
 }
 
-export function ScoutWorkspace() {
-  const [type, setType] = useState<LookupType>("LinkedIn URL");
+export function ScoutWorkspace({
+  api = peopleScoutApi,
+  lookupTypes = PEOPLE_SCOUT_LOOKUP_TYPES,
+  historyTitle = "Recent lookups",
+}: {
+  api?: PeopleScoutApi;
+  lookupTypes?: readonly LookupType[];
+  historyTitle?: string;
+} = {}) {
+  const [type, setType] = useState<LookupType>(lookupTypes[0] ?? "LinkedIn URL");
   const [value, setValue] = useState("");
   const [state, setState] = useState<ScoutState>({ kind: "idle" });
   const [recent, setRecent] = useState<RecentLookup[]>([]);
@@ -198,8 +211,8 @@ export function ScoutWorkspace() {
   async function refreshSideData() {
     try {
       const [nextRecent, nextQuota] = await Promise.all([
-        peopleScoutApi.getRecentLookups(),
-        peopleScoutApi.getQuota(),
+        api.getRecentLookups(),
+        api.getQuota(),
       ]);
       setRecent(nextRecent);
       setQuota(nextQuota);
@@ -210,7 +223,7 @@ export function ScoutWorkspace() {
 
   useEffect(() => {
     void refreshSideData();
-  }, []);
+  }, [api]);
 
   async function runLookup(lookupType: LookupType, lookupValue: string) {
     const error = validate(lookupType, lookupValue);
@@ -221,7 +234,7 @@ export function ScoutWorkspace() {
 
     setState({ kind: "searching" });
     try {
-      const result = await peopleScoutApi.lookup({
+      const result = await api.lookup({
         type: uiLookupTypeToApi(lookupType),
         input: lookupValue.trim(),
       });
@@ -313,7 +326,7 @@ export function ScoutWorkspace() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {LOOKUP_TYPES.map((option) => (
+              {lookupTypes.map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>
@@ -401,30 +414,36 @@ export function ScoutWorkspace() {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Try:</span>
-          {DEMO_INPUTS.map((demo) => (
-            <button
-              key={demo.label}
-              type="button"
-              onClick={() => {
-                setType(demo.type);
-                setValue(demo.value);
-                void runLookup(demo.type, demo.value);
-              }}
-              className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              {demo.label}
-            </button>
-          ))}
-        </div>
+        {lookupTypes.includes("Email Address") ? (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Try:</span>
+            {DEMO_INPUTS.map((demo) => (
+              <button
+                key={demo.label}
+                type="button"
+                onClick={() => {
+                  setType(demo.type);
+                  setValue(demo.value);
+                  void runLookup(demo.type, demo.value);
+                }}
+                className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {demo.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       {state.kind === "idle" ? (
         <StatePanel
           icon={Radar}
           title="Look up a specific person"
-          description="Paste a LinkedIn URL, enter a username, or search by email address. We'll find the profile, enrich it from multiple providers, and let you reveal verified contact details."
+          description={
+            lookupTypes.includes("DIN")
+              ? "Paste a LinkedIn URL, enter a username, or look up an Indian DIN. Easy Scout uses EazyReach to reveal verified work emails and phone numbers."
+              : "Paste a LinkedIn URL, enter a username, or search by email address. We'll find the profile, enrich it from multiple providers, and let you reveal verified contact details."
+          }
         />
       ) : null}
 
@@ -432,6 +451,7 @@ export function ScoutWorkspace() {
 
       {state.kind === "found" ? (
         <ScoutProfileCard
+          api={api}
           profile={state.profile}
           lookupId={state.lookup.id}
           initiallySaved={state.lookup.saved}
@@ -510,6 +530,8 @@ export function ScoutWorkspace() {
       ) : null}
 
       <ScoutLookupsTable
+        api={api}
+        title={historyTitle}
         lookups={recent}
         onRerun={rerunFromHistory}
         onLookupUpdated={() => void refreshSideData()}

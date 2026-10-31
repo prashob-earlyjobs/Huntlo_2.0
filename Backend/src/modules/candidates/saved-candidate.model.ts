@@ -19,6 +19,7 @@ export type PoolStatus = (typeof POOL_STATUSES)[number];
 export const POOL_SOURCE_TYPES = [
   'sourcing',
   'people_scout',
+  'easy_scout',
   'import',
   'referral',
   'manual',

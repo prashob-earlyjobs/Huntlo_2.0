@@ -6,6 +6,7 @@ export type PermissionModule =
   | "sourcing"
   | "candidates"
   | "peopleScout"
+  | "easyScout"
   | "outreach"
   | "huntlo360"
   | "screening"
@@ -23,6 +24,7 @@ export const MODULE_LABEL_TO_KEY: Record<string, PermissionModule> = {
   "Candidate Search": "sourcing",
   "Candidate Pool": "candidates",
   "People Scout": "peopleScout",
+  "Easy Scout": "easyScout",
   Outreach: "outreach",
   "Huntlo 360": "huntlo360",
   Screening: "screening",
@@ -40,6 +42,7 @@ export const MODULE_KEY_TO_LABEL: Record<PermissionModule, string> = {
   sourcing: "Candidate Search",
   candidates: "Candidate Pool",
   peopleScout: "People Scout",
+  easyScout: "Easy Scout",
   outreach: "Outreach",
   huntlo360: "Huntlo 360",
   screening: "Screening",
@@ -61,6 +64,7 @@ export const ROLE_AVAILABLE_MODULES: Record<string, PermissionModule[]> = {
     "sourcing",
     "candidates",
     "peopleScout",
+    "easyScout",
     "outreach",
     "huntlo360",
     "screening",
@@ -77,6 +81,7 @@ export const ROLE_AVAILABLE_MODULES: Record<string, PermissionModule[]> = {
     "sourcing",
     "candidates",
     "peopleScout",
+    "easyScout",
     "outreach",
     "huntlo360",
     "screening",
@@ -123,6 +128,7 @@ export const REVEAL_CONTACT_PERMISSIONS = [
   "candidates:edit",
   "sourcing:edit",
   "peopleScout:edit",
+  "easyScout:edit",
 ] as const;
 
 export function canRevealContact(permissions: string[]): boolean {
@@ -142,6 +148,10 @@ export const MODULE_IMPLIED_PERMISSIONS: Partial<
     plans: ["view"],
   },
   peopleScout: {
+    candidates: ["view", "create", "edit"],
+    plans: ["view"],
+  },
+  easyScout: {
     candidates: ["view", "create", "edit"],
     plans: ["view"],
   },
@@ -202,6 +212,7 @@ const ROUTE_PERMISSION_RULES: RouteRule[] = [
   { prefix: ROUTES.candidates, permissions: ["candidates:view"] },
   { prefix: ROUTES.saved, permissions: ["candidates:view"] },
   { prefix: ROUTES.peopleScout, permissions: ["peopleScout:view"] },
+  { prefix: ROUTES.easyScout, permissions: ["easyScout:view"] },
   { prefix: ROUTES.outreachNew, permissions: ["outreach:create"] },
   { prefix: ROUTES.outreach, permissions: ["outreach:view"] },
   { prefix: ROUTES.conversations, permissions: ["outreach:view"] },

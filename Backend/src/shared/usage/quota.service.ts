@@ -27,6 +27,7 @@ const RESERVATION_TTL_MS = 30 * 60 * 1000;
 export type FeatureKey =
   | 'sourcing'
   | 'peopleScout'
+  | 'easyScout'
   | 'outreach'
   | 'screening'
   | 'assessments'
@@ -161,6 +162,7 @@ function defaultLimitsForOrgPlan(plan: string): Record<UsageMetric, number> {
       email_reveal: 50,
       mobile_reveal: 25,
       people_scout: 10,
+      easy_scout: 10,
       email_outreach: 200,
       whatsapp_outreach: 50,
       ai_voice_minutes: 30,
@@ -172,6 +174,7 @@ function defaultLimitsForOrgPlan(plan: string): Record<UsageMetric, number> {
       email_reveal: 500,
       mobile_reveal: 200,
       people_scout: 50,
+      easy_scout: 50,
       email_outreach: 2000,
       whatsapp_outreach: 500,
       ai_voice_minutes: 100,
@@ -183,6 +186,7 @@ function defaultLimitsForOrgPlan(plan: string): Record<UsageMetric, number> {
       email_reveal: 2500,
       mobile_reveal: 1200,
       people_scout: 200,
+      easy_scout: 200,
       email_outreach: 20_000,
       whatsapp_outreach: 5000,
       ai_voice_minutes: 600,
@@ -194,6 +198,7 @@ function defaultLimitsForOrgPlan(plan: string): Record<UsageMetric, number> {
       email_reveal: 10_000,
       mobile_reveal: 5000,
       people_scout: 1000,
+      easy_scout: 1000,
       email_outreach: 100_000,
       whatsapp_outreach: 25_000,
       ai_voice_minutes: 3000,
@@ -205,6 +210,7 @@ function defaultLimitsForOrgPlan(plan: string): Record<UsageMetric, number> {
       email_reveal: 999_999_999,
       mobile_reveal: 999_999_999,
       people_scout: 999_999_999,
+      easy_scout: 999_999_999,
       email_outreach: 999_999_999,
       whatsapp_outreach: 999_999_999,
       ai_voice_minutes: 999_999_999,

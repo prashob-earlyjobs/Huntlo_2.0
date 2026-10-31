@@ -20,6 +20,7 @@ import {
   candidatesRouter,
 } from './modules/candidates/index.js';
 import { peopleScoutRouter } from './modules/people-scout/index.js';
+import { easyScoutRouter } from './modules/easy-scout/index.js';
 import {
   adminPlansRouter,
   publicPricingRouter,
@@ -165,6 +166,7 @@ export function createApp(): Express {
   app.use('/api/v1/candidate-lists', candidateListsRouter);
   app.use('/api/v1/candidate-imports', candidateImportsRouter);
   app.use('/api/v1/people-scout', peopleScoutRouter);
+  app.use('/api/v1/easy-scout', easyScoutRouter);
   app.use('/api/v1/plans', plansRouter);
   app.use('/api/v1/usage', usageRouter);
   app.use('/api/v1/admin/plans', adminPlansRouter);
