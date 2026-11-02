@@ -511,10 +511,26 @@ export const adminConsoleService = {
       user.adminPermissions = input.adminPermissions as string[];
     }
     if (input.easyScoutEnabled !== undefined) {
-      await OrganizationMemberModel.updateOne(
-        { userId: user._id, organizationId: user.organizationId },
-        { $set: { easyScoutEnabled: Boolean(input.easyScoutEnabled) } }
-      );
+      const enabled = Boolean(input.easyScoutEnabled);
+      const memberFilter = { userId: user._id, organizationId: user.organizationId };
+      if (enabled) {
+        await OrganizationMemberModel.updateOne(
+          { ...memberFilter, allowedModules: { $type: 'array' } },
+          { $set: { easyScoutEnabled: true }, $addToSet: { allowedModules: 'easyScout' } }
+        );
+        await OrganizationMemberModel.updateOne(
+          {
+            ...memberFilter,
+            $or: [{ allowedModules: null }, { allowedModules: { $exists: false } }],
+          },
+          { $set: { easyScoutEnabled: true } }
+        );
+      } else {
+        await OrganizationMemberModel.updateOne(memberFilter, {
+          $set: { easyScoutEnabled: false },
+          $pull: { allowedModules: 'easyScout' },
+        });
+      }
     }
     await user.save();
     return this.getUser(id);

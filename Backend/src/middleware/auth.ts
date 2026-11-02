@@ -8,6 +8,7 @@ import { UserModel } from '../modules/auth/user.model.js';
 import { OrganizationMemberModel } from '../modules/organizations/member.model.js';
 import { OrganizationModel } from '../modules/organizations/organization.model.js';
 import {
+  applyEasyScoutGrant,
   hasAnyPermission,
   hasPermission,
   isMemberManager,
@@ -163,11 +164,16 @@ export const requireOrganization = asyncHandler(
       throw AppError.forbidden('Your membership is not active');
     }
 
-    const permissions = resolvePermissions(
-      member.role,
-      member.permissions ?? [],
-      normalizeAllowedModules(member.allowedModules as string[] | null | undefined)
+    const storedModules = normalizeAllowedModules(
+      member.allowedModules as string[] | null | undefined
     );
+    const easyScoutEnabled = Boolean(member.easyScoutEnabled);
+    const access = applyEasyScoutGrant(
+      easyScoutEnabled,
+      resolvePermissions(member.role, member.permissions ?? [], storedModules),
+      storedModules
+    );
+    const permissions = access.permissions;
 
     req.organization = {
       id: organization._id.toHexString(),
@@ -180,7 +186,7 @@ export const requireOrganization = asyncHandler(
       role: member.role,
       permissions,
       status: member.status,
-      easyScoutEnabled: Boolean(member.easyScoutEnabled),
+      easyScoutEnabled,
     };
     req.organizationId = organization._id.toHexString();
 

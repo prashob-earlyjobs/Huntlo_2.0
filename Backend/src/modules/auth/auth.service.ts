@@ -25,6 +25,7 @@ import { normalizeEmail, emailDomain } from '../../shared/validation/email.js';
 import { OrganizationMemberModel } from '../organizations/member.model.js';
 import { OrganizationModel } from '../organizations/organization.model.js';
 import {
+  applyEasyScoutGrant,
   normalizeAllowedModules,
   resolvePermissions,
   type PermissionModule,
@@ -73,18 +74,20 @@ async function resolveMemberAccess(
     };
   }
 
-  const allowedModules = normalizeAllowedModules(
+  const storedModules = normalizeAllowedModules(
     member.allowedModules as string[] | null | undefined
   ) as PermissionModule[] | null;
+  const easyScoutEnabled = Boolean(member.easyScoutEnabled);
+  const access = applyEasyScoutGrant(
+    easyScoutEnabled,
+    resolvePermissions(member.role || user.role, member.permissions ?? [], storedModules),
+    storedModules
+  );
 
   return {
-    permissions: resolvePermissions(
-      member.role || user.role,
-      member.permissions ?? [],
-      allowedModules
-    ),
-    allowedModules,
-    easyScoutEnabled: Boolean(member.easyScoutEnabled),
+    permissions: access.permissions,
+    allowedModules: access.allowedModules,
+    easyScoutEnabled,
   };
 }
 

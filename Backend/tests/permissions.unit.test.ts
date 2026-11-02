@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyEasyScoutGrant,
   buildPermissionMatrix,
   hasPermission,
   MODULE_WORKFLOW_CONTRACT,
@@ -34,6 +35,16 @@ describe('Permissions catalog', () => {
     expect(permissions).toContain('jobs:view');
     expect(permissions).toContain('screening:view');
     expect(permissions).toContain('analytics:view');
+  });
+
+  it('grants Easy Scout even when the team module list omits it', () => {
+    const restricted = resolvePermissions('recruiter', [], ['sourcing', 'candidates']);
+    expect(restricted).not.toContain('easyScout:view');
+    const granted = applyEasyScoutGrant(true, restricted, ['sourcing', 'candidates']);
+    expect(granted.permissions).toContain('easyScout:view');
+    expect(granted.permissions).toContain('easyScout:create');
+    expect(granted.permissions).toContain('easyScout:edit');
+    expect(granted.allowedModules).toContain('easyScout');
   });
 
   it('restricts recruiters to selected modules plus workflow implications', () => {
