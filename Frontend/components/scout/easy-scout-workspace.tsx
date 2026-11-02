@@ -10,6 +10,7 @@ export function EasyScoutWorkspace() {
       api={easyScoutApi}
       lookupTypes={EASY_SCOUT_LOOKUP_TYPES}
       historyTitle="Recent Easy Scout lookups"
+      phoneRevealPoll={false}
     />
   );
 }

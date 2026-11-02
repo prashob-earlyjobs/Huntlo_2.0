@@ -26,11 +26,6 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { UserModel } from '../auth/user.model.js';
 import { poolService } from '../candidates/pool.service.js';
-import {
-  EMAIL_REVEAL_COST,
-  MOBILE_REVEAL_COST,
-  revealQuotaService,
-} from '../candidates/reveal-quota.service.js';
 import type { RevealResult } from '../candidates/reveal.service.js';
 import {
   EasyScoutContactRevealModel,
@@ -39,6 +34,7 @@ import {
 import {
   EASY_SCOUT_LOOKUP_COST,
   easyScoutQuotaService,
+  easyScoutRevealCost,
 } from './lookup-quota.service.js';
 import {
   EasyScoutLookupModel,
@@ -541,9 +537,11 @@ class EasyScoutLookupService {
 
     const reservationId = `${lookup._id.toHexString()}:${contactType}`;
     try {
-      await revealQuotaService.reserve(actor.organizationId, reservationId, contactType, {
-        userId: actor.userId,
-      });
+      await easyScoutQuotaService.reserveReveal(
+        actor.organizationId,
+        reservationId,
+        contactType
+      );
     } catch (error) {
       if (error instanceof AppError && error.code === 'QUOTA_EXCEEDED') throw error;
       throw error;
@@ -577,7 +575,11 @@ class EasyScoutLookupService {
       }
 
       if (!result.found || result.values.length === 0) {
-        await revealQuotaService.refund(actor.organizationId, reservationId);
+        await easyScoutQuotaService.refundReveal(
+          actor.organizationId,
+          reservationId,
+          contactType
+        );
         return {
           found: false,
           charged: false,
@@ -591,7 +593,11 @@ class EasyScoutLookupService {
         };
       }
 
-      await revealQuotaService.commit(actor.organizationId, reservationId, actor.userId);
+      await easyScoutQuotaService.commitReveal(
+        actor.organizationId,
+        reservationId,
+        contactType
+      );
 
       if (contactType === 'email') {
         lookup.revealedEmails = result.values;
@@ -611,7 +617,7 @@ class EasyScoutLookupService {
         });
       }
 
-      const cost = contactType === 'email' ? EMAIL_REVEAL_COST : MOBILE_REVEAL_COST;
+      const cost = await easyScoutRevealCost(contactType);
       return {
         found: true,
         charged: true,
@@ -624,7 +630,9 @@ class EasyScoutLookupService {
         lookupId: lookup._id.toHexString(),
       };
     } catch (error) {
-      await revealQuotaService.refund(actor.organizationId, reservationId).catch(() => undefined);
+      await easyScoutQuotaService
+        .refundReveal(actor.organizationId, reservationId, contactType)
+        .catch(() => undefined);
       if (error instanceof EazyreachUpstreamError) {
         throw new AppError(
           503,
