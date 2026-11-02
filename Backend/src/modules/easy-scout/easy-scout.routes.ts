@@ -23,6 +23,16 @@ import {
 
 const orgAuth = [requireAuth, requireOrganization, scopeToOrganizationMiddleware];
 
+const easyScoutAuth = [
+  ...orgAuth,
+  asyncHandler(async (req, _res, next) => {
+    if (!req.member?.easyScoutEnabled) {
+      throw AppError.forbidden('Easy Scout is not enabled for this user');
+    }
+    next();
+  }),
+];
+
 function actorFrom(req: import('express').Request) {
   return {
     userId: req.userId!,
@@ -59,7 +69,7 @@ export const easyScoutRouter = Router();
 
 easyScoutRouter.get(
   '/quota',
-  ...orgAuth,
+  ...easyScoutAuth,
   requirePermission('easyScout:view', 'candidates:view'),
   asyncHandler(async (req, res) => {
     const data = await easyScoutLookupService.getQuota(actorFrom(req));
@@ -69,7 +79,7 @@ easyScoutRouter.get(
 
 easyScoutRouter.post(
   '/lookups',
-  ...orgAuth,
+  ...easyScoutAuth,
   requirePermission('easyScout:create', 'easyScout:edit', 'candidates:create'),
   asyncHandler(async (req, res) => {
     enforceLookupRateLimit(req);
@@ -81,7 +91,7 @@ easyScoutRouter.post(
 
 easyScoutRouter.get(
   '/lookups',
-  ...orgAuth,
+  ...easyScoutAuth,
   requirePermission('easyScout:view', 'candidates:view'),
   asyncHandler(async (req, res) => {
     const query = listEasyScoutLookupsQuerySchema.parse(req.query);
@@ -94,7 +104,7 @@ easyScoutRouter.get(
 
 easyScoutRouter.get(
   '/lookups/:id',
-  ...orgAuth,
+  ...easyScoutAuth,
   requirePermission('easyScout:view', 'candidates:view'),
   asyncHandler(async (req, res) => {
     const data = await easyScoutLookupService.getLookup(
@@ -107,7 +117,7 @@ easyScoutRouter.get(
 
 easyScoutRouter.post(
   '/lookups/:id/reveal/email',
-  ...orgAuth,
+  ...easyScoutAuth,
   requirePermission('easyScout:edit', 'candidates:edit'),
   asyncHandler(async (req, res) => {
     const idempotencyKey = readIdempotencyKey(req);
@@ -123,7 +133,7 @@ easyScoutRouter.post(
 
 easyScoutRouter.post(
   '/lookups/:id/reveal/mobile',
-  ...orgAuth,
+  ...easyScoutAuth,
   requirePermission('easyScout:edit', 'candidates:edit'),
   asyncHandler(async (req, res) => {
     const idempotencyKey = readIdempotencyKey(req);
@@ -139,7 +149,7 @@ easyScoutRouter.post(
 
 easyScoutRouter.post(
   '/lookups/:id/save',
-  ...orgAuth,
+  ...easyScoutAuth,
   requirePermission('easyScout:edit', 'candidates:create', 'candidates:edit'),
   asyncHandler(async (req, res) => {
     const body = saveEasyScoutLookupSchema.parse(req.body ?? {});

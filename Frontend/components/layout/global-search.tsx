@@ -22,7 +22,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { candidatePoolApi, jobsApi, sourcingApi } from "@/lib/api";
-import { filterNavItems, hasPermission } from "@/lib/access-control";
+import { filterNavItems, gateEasyScoutItems, hasPermission } from "@/lib/access-control";
 import { NAV_ITEMS } from "@/lib/navigation";
 import { ROUTES, type AppRoute } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -48,12 +48,15 @@ const NAV_RESULTS: SearchResult[] = NAV_ITEMS.map((item) => ({
 
 export function GlobalSearch() {
   const router = useRouter();
-  const { permissions, allowedModules } = useAuth();
+  const { permissions, allowedModules, easyScoutEnabled } = useAuth();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const allowedNavResults = useMemo(
     () =>
-      filterNavItems(permissions, NAV_ITEMS, allowedModules).map((item) => ({
+      gateEasyScoutItems(
+        filterNavItems(permissions, NAV_ITEMS, allowedModules),
+        easyScoutEnabled
+      ).map((item) => ({
         id: `nav-${item.href}`,
         group: "Go to",
         title: item.title,
@@ -61,7 +64,7 @@ export function GlobalSearch() {
         href: item.href as AppRoute,
         icon: item.icon,
       })),
-    [permissions, allowedModules]
+    [permissions, allowedModules, easyScoutEnabled]
   );
   const [results, setResults] = useState<SearchResult[]>(allowedNavResults);
   const [loading, setLoading] = useState(false);

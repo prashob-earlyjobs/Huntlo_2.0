@@ -305,6 +305,28 @@ export function filterNavSections(
     .filter((section) => section.items.length > 0);
 }
 
+/** Easy Scout is granted per user, not by the workspace plan. */
+export function gateEasyScoutSections(
+  sections: NavSection[],
+  easyScoutEnabled: boolean
+): NavSection[] {
+  if (easyScoutEnabled) return sections;
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.href.startsWith(ROUTES.easyScout)),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+export function gateEasyScoutItems<T extends { href: string }>(
+  items: T[],
+  easyScoutEnabled: boolean
+): T[] {
+  if (easyScoutEnabled) return items;
+  return items.filter((item) => !item.href.startsWith(ROUTES.easyScout));
+}
+
 export function firstAccessibleRoute(
   permissions: string[],
   allowedModules: PermissionModule[] | string[] | null = null

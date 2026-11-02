@@ -55,7 +55,11 @@ type SessionMeta = {
 async function resolveMemberAccess(
   user: UserDocument,
   organizationId: mongoose.Types.ObjectId
-): Promise<{ permissions: string[]; allowedModules: PermissionModule[] | null }> {
+): Promise<{
+  permissions: string[];
+  allowedModules: PermissionModule[] | null;
+  easyScoutEnabled: boolean;
+}> {
   const member = await OrganizationMemberModel.findOne({
     organizationId,
     userId: user._id,
@@ -65,6 +69,7 @@ async function resolveMemberAccess(
     return {
       permissions: resolvePermissions(user.role),
       allowedModules: null,
+      easyScoutEnabled: false,
     };
   }
 
@@ -79,6 +84,7 @@ async function resolveMemberAccess(
       allowedModules
     ),
     allowedModules,
+    easyScoutEnabled: Boolean(member.easyScoutEnabled),
   };
 }
 
@@ -251,6 +257,7 @@ async function buildAuthResponse(userId: string, sessionId: string) {
       organization: await organizationAuthPayload(organization),
       permissions: access.permissions,
       allowedModules: access.allowedModules,
+      easyScoutEnabled: access.easyScoutEnabled,
     },
   };
 }
@@ -830,6 +837,7 @@ export class AuthService {
       organization: await organizationAuthPayload(organization),
       permissions: access.permissions,
       allowedModules: access.allowedModules,
+      easyScoutEnabled: access.easyScoutEnabled,
     };
   }
 

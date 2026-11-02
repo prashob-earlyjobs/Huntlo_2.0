@@ -36,6 +36,8 @@ const organizationMemberSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
+    /** Platform-admin grant. Easy Scout stays hidden until this is turned on. */
+    easyScoutEnabled: { type: Boolean, default: false },
     assignedJobIds: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Job' }],
       default: [],

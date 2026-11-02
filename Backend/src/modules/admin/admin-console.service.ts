@@ -332,6 +332,20 @@ export const adminConsoleService = {
       usageByOrg.set(key, row);
     }
 
+    const members = result.items.length
+      ? await OrganizationMemberModel.find({
+          userId: { $in: result.items.map((user) => user._id) },
+        })
+          .select('userId organizationId easyScoutEnabled')
+          .lean()
+      : [];
+    const memberEasyScout = new Map(
+      members.map((member) => [
+        `${String(member.userId)}:${String(member.organizationId)}`,
+        Boolean(member.easyScoutEnabled),
+      ])
+    );
+
     const items = result.items.map((user) => {
       const org = orgMap.get(String(user.organizationId));
       const usage = usageByOrg.get(String(user.organizationId)) ?? {
@@ -339,6 +353,7 @@ export const adminConsoleService = {
         revealsUsed: 0,
         outreachUsed: 0,
       };
+      const memberKey = `${String(user._id)}:${String(user.organizationId)}`;
       return {
         id: user._id.toHexString(),
         name: `${user.firstName} ${user.lastName}`.trim(),
@@ -350,6 +365,7 @@ export const adminConsoleService = {
         country: org?.country?.trim() || '—',
         plan: org?.plan || 'Starter',
         role: user.role,
+        easyScoutEnabled: memberEasyScout.get(memberKey) ?? false,
         status:
           user.memberStatus === 'active'
             ? 'Active'
@@ -380,12 +396,19 @@ export const adminConsoleService = {
     const usage = org
       ? await quotaService.getUsage(org._id.toHexString())
       : [];
+    const member = await OrganizationMemberModel.findOne({
+      userId: user._id,
+      organizationId: user.organizationId,
+    })
+      .select('easyScoutEnabled')
+      .lean();
     return {
       ...toPublicUser(user, org?.plan),
       email: user.email || '',
       phone: user.phone || '',
       platformAdmin: Boolean(user.platformAdmin),
       adminPermissions: user.adminPermissions || [],
+      easyScoutEnabled: Boolean(member?.easyScoutEnabled),
       status:
         user.memberStatus === 'active'
           ? 'Active'
@@ -486,6 +509,12 @@ export const adminConsoleService = {
     }
     if (input.adminPermissions !== undefined) {
       user.adminPermissions = input.adminPermissions as string[];
+    }
+    if (input.easyScoutEnabled !== undefined) {
+      await OrganizationMemberModel.updateOne(
+        { userId: user._id, organizationId: user.organizationId },
+        { $set: { easyScoutEnabled: Boolean(input.easyScoutEnabled) } }
+      );
     }
     await user.save();
     return this.getUser(id);
