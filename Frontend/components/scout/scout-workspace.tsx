@@ -192,10 +192,13 @@ export function ScoutWorkspace({
   api = peopleScoutApi,
   lookupTypes = PEOPLE_SCOUT_LOOKUP_TYPES,
   historyTitle = "Recent lookups",
+  phoneRevealPoll = true,
 }: {
   api?: PeopleScoutApi;
   lookupTypes?: readonly LookupType[];
   historyTitle?: string;
+  /** False for Easy Scout. People Scout keeps the delayed phone poll. */
+  phoneRevealPoll?: boolean;
 } = {}) {
   const [type, setType] = useState<LookupType>(lookupTypes[0] ?? "LinkedIn URL");
   const [value, setValue] = useState("");
@@ -456,6 +459,7 @@ export function ScoutWorkspace({
           lookupId={state.lookup.id}
           initiallySaved={state.lookup.saved}
           onSaved={() => void refreshSideData()}
+          phoneRevealPoll={phoneRevealPoll}
         />
       ) : null}
 
@@ -535,6 +539,7 @@ export function ScoutWorkspace({
         lookups={recent}
         onRerun={rerunFromHistory}
         onLookupUpdated={() => void refreshSideData()}
+        phoneRevealPoll={phoneRevealPoll}
       />
     </div>
   );

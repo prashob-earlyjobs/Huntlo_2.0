@@ -112,6 +112,7 @@ function LookupDrawer({
   onOpenChange,
   onRerun,
   onProfileSaved,
+  phoneRevealPoll = true,
 }: {
   api?: PeopleScoutApi;
   lookup: RecentLookup | null;
@@ -119,6 +120,7 @@ function LookupDrawer({
   onOpenChange: (open: boolean) => void;
   onRerun: (lookup: RecentLookup) => void;
   onProfileSaved?: () => void;
+  phoneRevealPoll?: boolean;
 }) {
   const [detail, setDetail] = useState<ScoutLookupResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -230,6 +232,7 @@ function LookupDrawer({
                 lookupId={lookup.id}
                 initiallySaved={lookup.saved || Boolean(detail?.saved)}
                 onSaved={onProfileSaved}
+                phoneRevealPoll={phoneRevealPoll}
               />
             ) : null}
 
@@ -305,12 +308,14 @@ export function ScoutLookupsTable({
   lookups,
   onRerun,
   onLookupUpdated,
+  phoneRevealPoll = true,
 }: {
   api?: PeopleScoutApi;
   title?: string;
   lookups: RecentLookup[];
   onRerun: (lookup: RecentLookup) => void;
   onLookupUpdated?: () => void;
+  phoneRevealPoll?: boolean;
 }) {
   const [active, setActive] = useState<RecentLookup | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -462,6 +467,7 @@ export function ScoutLookupsTable({
         onOpenChange={setDrawerOpen}
         onRerun={onRerun}
         onProfileSaved={onLookupUpdated}
+        phoneRevealPoll={phoneRevealPoll}
       />
 
       <Snackbar

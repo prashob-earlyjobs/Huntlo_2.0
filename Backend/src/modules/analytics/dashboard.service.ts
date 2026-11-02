@@ -404,6 +404,11 @@ export class DashboardService {
     const groups = [
       buildGroup('sourcing', 'Sourcing', ['candidate_search', 'people_scout']),
       buildGroup('reveals', 'Contact reveals', ['email_reveal', 'mobile_reveal']),
+      buildGroup('easy_scout', 'Easy Scout', [
+        'easy_scout',
+        'easy_scout_email_reveal',
+        'easy_scout_phone_reveal',
+      ]),
       buildGroup('outreach', 'Outreach', [
         'email_outreach',
         'whatsapp_outreach',

@@ -68,6 +68,15 @@ function limitValue(limits: Record<string, unknown> | undefined, key: string) {
   return String(value);
 }
 
+/** Caps already enforced when a stored plan has no Easy Scout reveal keys yet. */
+const EASY_SCOUT_REVEAL_DEFAULTS: Record<string, { email: string; phone: string }> = {
+  trial: { email: "50", phone: "25" },
+  starter: { email: "500", phone: "200" },
+  growth: { email: "2500", phone: "1200" },
+  scale: { email: "10000", phone: "5000" },
+  enterprise: { email: "Unlimited", phone: "Unlimited" },
+};
+
 function parseLimit(value: string): number {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return 0;
@@ -158,6 +167,15 @@ function mapApiPlan(plan: ApiAdminPlan): AdminPlan {
     emailRevealLimit: limitValue(limits, "email_reveal"),
     mobileRevealLimit: limitValue(limits, "mobile_reveal"),
     peopleScoutLimit: limitValue(limits, "people_scout"),
+    easyScoutLimit: limitValue(limits, "easy_scout"),
+    easyScoutEmailLimit:
+      limitValue(limits, "easy_scout_email_reveal") ||
+      EASY_SCOUT_REVEAL_DEFAULTS[plan.code]?.email ||
+      "",
+    easyScoutPhoneLimit:
+      limitValue(limits, "easy_scout_phone_reveal") ||
+      EASY_SCOUT_REVEAL_DEFAULTS[plan.code]?.phone ||
+      "",
     emailOutreachLimit: limitValue(limits, "email_outreach"),
     whatsappLimit: limitValue(limits, "whatsapp_outreach"),
     aiVoiceLimit: limitValue(limits, "ai_voice_minutes"),
@@ -210,6 +228,9 @@ function toPlanPayload(draft: AdminPlan, { includeCode }: { includeCode: boolean
       email_reveal: parseLimit(draft.emailRevealLimit),
       mobile_reveal: parseLimit(draft.mobileRevealLimit),
       people_scout: parseLimit(draft.peopleScoutLimit),
+      easy_scout: parseLimit(draft.easyScoutLimit),
+      easy_scout_email_reveal: parseLimit(draft.easyScoutEmailLimit),
+      easy_scout_phone_reveal: parseLimit(draft.easyScoutPhoneLimit),
       email_outreach: parseLimit(draft.emailOutreachLimit),
       whatsapp_outreach: parseLimit(draft.whatsappLimit),
       ai_voice_minutes: parseLimit(draft.aiVoiceLimit),
@@ -771,6 +792,42 @@ export function AdminPlansWorkspace() {
                   setDraft((previous) => ({
                     ...previous,
                     peopleScoutLimit: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Easy Scout lookup limit" htmlFor="pl-easy-scout">
+              <Input
+                id="pl-easy-scout"
+                value={draft.easyScoutLimit}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    easyScoutLimit: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Easy Scout email reveal limit" htmlFor="pl-easy-email">
+              <Input
+                id="pl-easy-email"
+                value={draft.easyScoutEmailLimit}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    easyScoutEmailLimit: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Easy Scout phone reveal limit" htmlFor="pl-easy-phone">
+              <Input
+                id="pl-easy-phone"
+                value={draft.easyScoutPhoneLimit}
+                onChange={(event) =>
+                  setDraft((previous) => ({
+                    ...previous,
+                    easyScoutPhoneLimit: event.target.value,
                   }))
                 }
               />

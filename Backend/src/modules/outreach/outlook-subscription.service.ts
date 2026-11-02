@@ -11,18 +11,25 @@ import { integrationsService } from '../integrations/integration.service.js';
 import {
   createOutlookMailSubscription,
   deleteOutlookMailSubscription,
+  getOutlookMailSubscription,
+  getOutlookNotificationUrl,
   isOutlookPushConfigured,
+  outlookNotificationUrlsMatch,
   renewOutlookMailSubscription,
 } from '../../providers/outlook/outlook.subscription.js';
 import { withFreshEmailToken } from './campaign-delivery.js';
 
 const logger = () => getLogger().child({ component: 'outlook-subscription' });
 const RENEW_WITHIN_MS = 24 * 60 * 60 * 1000;
+/** Avoid hammering Graph when the notification URL is still unreachable. */
+const RETRY_AFTER_MS = 15 * 60 * 1000;
 
 type OutlookPushConfig = {
   outlookSubscriptionId?: string;
   outlookSubscriptionExpiration?: string;
   outlookWebhookSecret?: string;
+  outlookNotificationUrl?: string;
+  outlookSubscriptionAttemptAt?: string;
 };
 
 function readPushConfig(config: unknown): OutlookPushConfig {
@@ -31,6 +38,8 @@ function readPushConfig(config: unknown): OutlookPushConfig {
     outlookSubscriptionId: String(row.outlookSubscriptionId || '').trim(),
     outlookSubscriptionExpiration: String(row.outlookSubscriptionExpiration || '').trim(),
     outlookWebhookSecret: String(row.outlookWebhookSecret || '').trim(),
+    outlookNotificationUrl: String(row.outlookNotificationUrl || '').trim(),
+    outlookSubscriptionAttemptAt: String(row.outlookSubscriptionAttemptAt || '').trim(),
   };
 }
 
@@ -57,14 +66,36 @@ export async function ensureOutlookSubscription(
   organizationId: string,
   integrationId: string
 ): Promise<boolean> {
-  if (!isOutlookPushConfigured()) return false;
+  const notificationUrl = getOutlookNotificationUrl();
+  if (!isOutlookPushConfigured()) {
+    console.log('[outlook] subscription skipped — notification URL is not public HTTPS', {
+      organizationId,
+      integrationId,
+      notificationUrl: notificationUrl || '(empty)',
+    });
+    return false;
+  }
+
+  console.log('[outlook] ensuring inbox subscription', {
+    organizationId,
+    integrationId,
+    notificationUrl,
+  });
 
   try {
     const secrets = await integrationsService.getDecryptedSecrets(organizationId, integrationId);
-    if (!secrets || secrets.provider !== 'outlook') return false;
+    if (!secrets || secrets.provider !== 'outlook') {
+      console.log('[outlook] subscription skipped — integration is not Outlook', {
+        organizationId,
+        integrationId,
+        provider: secrets?.provider || '(missing)',
+      });
+      return false;
+    }
 
     const accessToken = await withFreshEmailToken(secrets, organizationId);
     if (!accessToken) {
+      console.log('[outlook] subscription skipped — no access token', { integrationId });
       logger().warn({ integrationId }, 'Outlook subscription skipped — no access token');
       return false;
     }
@@ -77,55 +108,145 @@ export async function ensureOutlookSubscription(
     let expiration = '';
 
     if (subscriptionId) {
-      const renewed = await renewOutlookMailSubscription({ accessToken, subscriptionId });
-      if (renewed === 'missing') {
+      const existing = await getOutlookMailSubscription({ accessToken, subscriptionId });
+      const urlDrifted =
+        existing !== 'missing' &&
+        Boolean(existing.notificationUrl) &&
+        !outlookNotificationUrlsMatch(existing.notificationUrl, notificationUrl);
+
+      // Graph PATCH cannot change notificationUrl. Create the replacement
+      // first so a failed handshake leaves the previous subscription in place.
+      if (urlDrifted && existing !== 'missing') {
+        console.log('[outlook] notification URL changed — replacing subscription', {
+          integrationId,
+          subscriptionId,
+          previousUrl: existing.notificationUrl,
+          notificationUrl,
+        });
+        const created = await createOutlookMailSubscription({ accessToken, clientState });
+        await deleteOutlookMailSubscription({
+          accessToken,
+          subscriptionId,
+        }).catch((error) => {
+          logger().warn(
+            { err: error, integrationId, subscriptionId },
+            'Outlook subscription replace delete failed'
+          );
+        });
+        subscriptionId = created.id;
+        expiration = created.expirationDateTime;
+      } else if (existing === 'missing') {
+        console.log('[outlook] stored subscription is gone — will create a new one', {
+          integrationId,
+          subscriptionId,
+        });
         subscriptionId = '';
       } else {
-        subscriptionId = renewed.id;
-        expiration = renewed.expirationDateTime;
+        const renewed = await renewOutlookMailSubscription({ accessToken, subscriptionId });
+        if (renewed === 'missing') {
+          subscriptionId = '';
+        } else {
+          subscriptionId = renewed.id;
+          expiration = renewed.expirationDateTime;
+        }
       }
     }
 
     if (!subscriptionId) {
+      console.log('[outlook] no live subscription — creating one', {
+        integrationId,
+        notificationUrl,
+      });
       const created = await createOutlookMailSubscription({ accessToken, clientState });
       subscriptionId = created.id;
       expiration = created.expirationDateTime;
     }
 
-    await savePushConfig(integrationId, prev, {
+    const prevClean = { ...prev };
+    delete prevClean.outlookSubscriptionAttemptAt;
+    await savePushConfig(integrationId, prevClean, {
       outlookSubscriptionId: subscriptionId,
       outlookSubscriptionExpiration: expiration,
       outlookWebhookSecret: clientState,
+      outlookNotificationUrl: notificationUrl,
+    });
+    console.log('[outlook] inbox subscription saved', {
+      integrationId,
+      subscriptionId,
+      expiration,
+      notificationUrl,
     });
     logger().info({ integrationId, subscriptionId, expiration }, 'Outlook inbox subscription saved');
     return true;
   } catch (error) {
+    console.log('[outlook] subscription ensure failed', {
+      integrationId,
+      notificationUrl,
+      message: error instanceof Error ? error.message : String(error),
+    });
     logger().warn({ err: error, integrationId }, 'Outlook subscription ensure failed');
+    await UserIntegrationModel.updateOne(
+      { _id: integrationId },
+      { $set: { 'config.outlookSubscriptionAttemptAt': new Date().toISOString() } }
+    ).catch(() => undefined);
     return false;
   }
 }
 
 /** Renew subscriptions that expire within 24 hours. Recreate when Graph returns 404. */
 export async function renewExpiringOutlookSubscriptions(): Promise<number> {
-  if (!isOutlookPushConfigured()) return 0;
+  if (!isOutlookPushConfigured()) {
+    console.log('[outlook] renew sweep skipped — notification URL is not public HTTPS', {
+      notificationUrl: getOutlookNotificationUrl() || '(empty)',
+    });
+    return 0;
+  }
 
-  const soon = Date.now() + RENEW_WITHIN_MS;
+  const soon = new Date(Date.now() + RENEW_WITHIN_MS).toISOString();
+  const notificationUrl = getOutlookNotificationUrl();
+  const retryBefore = new Date(Date.now() - RETRY_AFTER_MS).toISOString();
+  // Select mailboxes that actually need work. A plain limit(50) kept renewing
+  // the same healthy rows and never reached the accounts Graph had dropped.
   const integrations = await UserIntegrationModel.find({
     provider: 'outlook',
     status: { $in: ['connected', 'needs_attention'] },
+    $and: [
+      {
+        $or: [
+          { 'config.outlookSubscriptionAttemptAt': { $exists: false } },
+          { 'config.outlookSubscriptionAttemptAt': { $in: [null, ''] } },
+          { 'config.outlookSubscriptionAttemptAt': { $lte: retryBefore } },
+        ],
+      },
+      {
+        $or: [
+          { 'config.outlookSubscriptionId': { $exists: false } },
+          { 'config.outlookSubscriptionId': { $in: [null, ''] } },
+          { 'config.outlookSubscriptionExpiration': { $exists: false } },
+          { 'config.outlookSubscriptionExpiration': { $in: [null, ''] } },
+          { 'config.outlookSubscriptionExpiration': { $lte: soon } },
+          {
+            'config.outlookNotificationUrl': {
+              $exists: true,
+              $nin: ['', notificationUrl],
+            },
+          },
+        ],
+      },
+    ],
   })
-    .select('_id organizationId config')
+    .select('_id organizationId')
+    .sort({ 'config.outlookSubscriptionExpiration': 1 })
     .limit(50)
     .lean();
 
+  console.log('[outlook] renew sweep', {
+    candidates: integrations.length,
+    notificationUrl,
+  });
+
   let renewed = 0;
   for (const row of integrations) {
-    const current = readPushConfig(row.config);
-    const expMs = current.outlookSubscriptionExpiration
-      ? Date.parse(current.outlookSubscriptionExpiration)
-      : 0;
-    const needsRenew = !current.outlookSubscriptionId || !expMs || expMs <= soon;
-    if (!needsRenew) continue;
     const ok = await ensureOutlookSubscription(String(row.organizationId), String(row._id));
     if (ok) renewed += 1;
   }
