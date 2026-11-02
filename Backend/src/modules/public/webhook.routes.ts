@@ -4,6 +4,7 @@ import { asyncHandler } from '../../shared/http/async-handler.js';
 import { webhookBodyMiddleware } from '../../middleware/raw-body.js';
 import { getMetaWebhookVerifyToken } from '../../providers/meta-whatsapp/meta.config.js';
 import { handleProviderWebhook } from '../conversations/provider-sync.js';
+import { handleOutlookWebhook } from '../outreach/outlook-webhook.js';
 
 /**
  * Webhook ingress — raw body preserved for signature verification.
@@ -133,33 +134,7 @@ webhookRouter.post(
 webhookRouter.post(
   '/outlook',
   asyncHandler(async (req, res) => {
-    const validationToken = String(req.query.validationToken || '').trim();
-    if (validationToken) {
-      res.status(200).type('text/plain').send(validationToken);
-      return;
-    }
-
-    const notes = (req.body as { value?: unknown } | null)?.value;
-    if (Array.isArray(notes)) {
-      res.status(202).json({ success: true });
-      const { acceptOutlookGraphNotifications } = await import(
-        '../outreach/outlook-subscription.service.js'
-      );
-      void acceptOutlookGraphNotifications(notes).catch(() => undefined);
-      return;
-    }
-
-    const organizationId =
-      (req.headers['x-organization-id'] as string | undefined) ||
-      (req.query.organizationId as string | undefined) ||
-      null;
-    const result = await handleProviderWebhook({
-      provider: 'outlook',
-      organizationId,
-      payload: req.body,
-      req,
-    });
-    res.status(200).json({ success: true, data: result });
+    await handleOutlookWebhook(req, res);
   })
 );
 
