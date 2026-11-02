@@ -116,7 +116,7 @@ export async function ensureOutlookSubscription(
 
       // Graph PATCH cannot change notificationUrl. Create the replacement
       // first so a failed handshake leaves the previous subscription in place.
-      if (urlDrifted && existing !== 'missing') {
+      if (urlDrifted) {
         console.log('[outlook] notification URL changed — replacing subscription', {
           integrationId,
           subscriptionId,
