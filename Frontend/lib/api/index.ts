@@ -8,6 +8,7 @@ export * from "./candidate-search";
 export * from "./candidate-details";
 export * from "./candidate-pool";
 export * from "./people-scout";
+export * from "./easy-scout";
 export * from "./outreach";
 export * from "./conversations";
 export * from "./huntlo-360";

@@ -50,6 +50,7 @@ const UNLIMITED_QUOTA = 999_999_999;
 const FEATURE_KEY_BY_LABEL: Record<string, string> = {
   Sourcing: "sourcing",
   "People Scout": "peopleScout",
+  "Easy Scout": "easyScout",
   Outreach: "outreach",
   "Huntlo 360": "huntlo360",
   Screening: "screening",

@@ -27,7 +27,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ScoutProfile } from "@/lib/mock-scout";
-import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api";
+import {
+  candidatePoolApi,
+  getApiErrorMessage,
+  peopleScoutApi,
+  type PeopleScoutApi,
+} from "@/lib/api";
 import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { notifyUsageRefresh } from "@/lib/usage-refresh";
@@ -82,6 +87,7 @@ function RevealedRow({
 }
 
 export function ScoutProfileCard({
+  api = peopleScoutApi,
   profile,
   lookupId,
   initiallySaved = false,
@@ -89,6 +95,7 @@ export function ScoutProfileCard({
   className,
   embedded = false,
 }: {
+  api?: PeopleScoutApi;
   profile: ScoutProfile;
   lookupId?: string;
   initiallySaved?: boolean;
@@ -186,7 +193,7 @@ export function ScoutProfileCard({
   }
 
   function phoneValueFromLookup(
-    lookup: Awaited<ReturnType<typeof peopleScoutApi.getLookup>>
+    lookup: Awaited<ReturnType<PeopleScoutApi["getLookup"]>>
   ): string {
     if (!lookup) return "";
     return (
@@ -204,7 +211,7 @@ export function ScoutProfileCard({
     const generation = ++revealGenerationRef.current;
 
     try {
-      const result = await peopleScoutApi.revealContact({
+      const result = await api.revealContact({
         lookupId: lookupId ?? "",
         profileId: profile.id,
         linkedinUrl: profile.linkedinUrl,
@@ -255,7 +262,7 @@ export function ScoutProfileCard({
 
     let gotPhone = false;
     try {
-      const result = await peopleScoutApi.revealContact({
+      const result = await api.revealContact({
         lookupId: lookupId ?? "",
         profileId: profile.id,
         linkedinUrl: profile.linkedinUrl,
@@ -305,7 +312,7 @@ export function ScoutProfileCard({
       const pollDeadline = Date.now() + LOOKUP_POLL_WINDOW_MS;
       while (isActive() && Date.now() < pollDeadline) {
         try {
-          const lookup = await peopleScoutApi.getLookup(lookupId);
+          const lookup = await api.getLookup(lookupId);
           const value = phoneValueFromLookup(lookup);
           if (value) {
             finish(() => {
@@ -351,7 +358,7 @@ export function ScoutProfileCard({
       return;
     }
     try {
-      const result = await peopleScoutApi.saveToPool(lookupId);
+      const result = await api.saveToPool(lookupId);
       setSaved(true);
       flash(
         result.created

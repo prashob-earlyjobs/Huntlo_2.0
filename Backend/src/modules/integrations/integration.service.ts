@@ -632,8 +632,15 @@ export const integrationsService = {
       });
       await persistTokens(doc, result.tokens);
       if (provider === 'gmail') {
+        // Drop stale watch cursor before renewing — leftover historyId disables polling.
+        const cfg = { ...((doc.config || {}) as Record<string, unknown>) };
+        delete cfg.gmailHistoryId;
+        delete cfg.gmailWatchExpiration;
+        delete cfg.gmailWatchError;
+        doc.config = cfg;
+        await doc.save();
         const { ensureGmailWatch } = await import('../outreach/email-reply-sync.service.js');
-        await ensureGmailWatch(organizationId, String(doc._id)).catch(() => undefined);
+        await ensureGmailWatch(organizationId, String(doc._id));
       }
       if (provider === 'outlook') {
         const { ensureOutlookSubscription } = await import(
@@ -646,10 +653,11 @@ export const integrationsService = {
         integrationId: String(doc._id),
         status: doc.status,
       });
+      const fresh = await UserIntegrationModel.findById(doc._id);
       return {
         mode: 'connected' as const,
         message: result.message || 'Connected',
-        integration: toSafeIntegration(doc),
+        integration: toSafeIntegration(fresh || doc),
       };
     } catch (error) {
       wrapProviderError(error);
@@ -809,8 +817,15 @@ export const integrationsService = {
       });
       await persistTokens(doc, tokens);
       if (provider === 'gmail') {
+        // Drop stale watch cursor before renewing — leftover historyId disables polling.
+        const cfg = { ...((doc.config || {}) as Record<string, unknown>) };
+        delete cfg.gmailHistoryId;
+        delete cfg.gmailWatchExpiration;
+        delete cfg.gmailWatchError;
+        doc.config = cfg;
+        await doc.save();
         const { ensureGmailWatch } = await import('../outreach/email-reply-sync.service.js');
-        await ensureGmailWatch(ownerOrgId, String(doc._id)).catch(() => undefined);
+        await ensureGmailWatch(ownerOrgId, String(doc._id));
       }
       if (provider === 'outlook') {
         const { ensureOutlookSubscription } = await import(
@@ -823,10 +838,11 @@ export const integrationsService = {
         integrationId: String(doc._id),
       });
 
+      const fresh = await UserIntegrationModel.findById(doc._id);
       return {
         mode: 'connected' as const,
         message: `${provider} connected`,
-        integration: toSafeIntegration(doc),
+        integration: toSafeIntegration(fresh || doc),
       };
     } catch (err) {
       wrapProviderError(err);

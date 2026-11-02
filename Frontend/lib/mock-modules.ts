@@ -355,6 +355,43 @@ export const MODULE_PAGES: Record<RouteKey, ModulePageData> = {
       actionLabel: "Create Scout",
     },
   },
+  easyScout: {
+    href: ROUTES.easyScout,
+    title: "Easy Scout",
+    description:
+      "Look up a LinkedIn profile or Indian DIN and reveal verified email and phone.",
+    metrics: [
+      { label: "Lookups this month", value: "18" },
+      { label: "Profiles found", value: "14", change: "+6 this week", trend: "up" },
+      { label: "Contacts revealed", value: "9" },
+    ],
+    table: {
+      title: "Recent lookups",
+      columns: [
+        { key: "lookup", label: "Lookup" },
+        { key: "type", label: "Type" },
+        { key: "status", label: "Status" },
+      ],
+      rows: [
+        {
+          lookup: "linkedin.com/in/candidate",
+          type: "LinkedIn URL",
+          status: { kind: "status", value: "Completed" },
+        },
+        {
+          lookup: "director-din",
+          type: "DIN",
+          status: { kind: "status", value: "Completed" },
+        },
+      ],
+    },
+    empty: {
+      title: "Look up a profile",
+      description:
+        "Paste a LinkedIn URL or DIN to pull the profile and reveal contact details.",
+      actionLabel: "Find Profile",
+    },
+  },
   outreach: {
     href: ROUTES.outreach,
     title: "Outreach",
