@@ -8,7 +8,8 @@ import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import {
   canAccessPath,
-  firstAccessibleRoute,
+  filterNavSections,
+  gateEasyScoutSections,
 } from "@/lib/access-control";
 import { postAuthPath } from "@/lib/auth-redirect";
 import { ROUTES } from "@/lib/routes";
@@ -32,12 +33,15 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
     isMockMode,
     permissions,
     allowedModules,
+    easyScoutEnabled,
   } = useAuth();
 
   const trialExpired = Boolean(organization?.trialExpired);
+  const easyScoutBlocked =
+    !easyScoutEnabled && pathname.startsWith(ROUTES.easyScout);
   const accessDenied =
     sessionState === "authenticated" &&
-    !canAccessPath(permissions, pathname, allowedModules);
+    (!canAccessPath(permissions, pathname, allowedModules) || easyScoutBlocked);
 
   useEffect(() => {
     if (sessionState === "loading") return;
@@ -134,7 +138,13 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (accessDenied) {
-    const fallback = firstAccessibleRoute(permissions, allowedModules);
+    const sections = gateEasyScoutSections(
+      filterNavSections(permissions, undefined, allowedModules),
+      easyScoutEnabled
+    );
+    const fallback =
+      sections.flatMap((section) => section.items).find((item) => !item.disabled)?.href ??
+      ROUTES.home;
     return (
       <div className="flex min-h-svh items-center justify-center bg-background px-4">
         <div className="max-w-md space-y-4 text-center">

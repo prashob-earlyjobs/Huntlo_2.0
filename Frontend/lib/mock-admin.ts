@@ -211,6 +211,7 @@ export interface AdminUser {
   revealsUsed: number;
   outreachUsed: number;
   status: AdminAccountStatus;
+  easyScoutEnabled?: boolean;
   createdAt: string;
   lastActive: string;
 }
@@ -357,6 +358,9 @@ export interface AdminPlan {
   emailRevealLimit: string;
   mobileRevealLimit: string;
   peopleScoutLimit: string;
+  easyScoutLimit: string;
+  easyScoutEmailLimit: string;
+  easyScoutPhoneLimit: string;
   emailOutreachLimit: string;
   whatsappLimit: string;
   aiVoiceLimit: string;
@@ -400,6 +404,9 @@ export const ADMIN_PLANS: AdminPlan[] = [
     emailRevealLimit: "50",
     mobileRevealLimit: "25",
     peopleScoutLimit: "10",
+    easyScoutLimit: "10",
+    easyScoutEmailLimit: "50",
+    easyScoutPhoneLimit: "25",
     emailOutreachLimit: "200",
     whatsappLimit: "50",
     aiVoiceLimit: "30",
@@ -429,6 +436,9 @@ export const ADMIN_PLANS: AdminPlan[] = [
     emailRevealLimit: "250",
     mobileRevealLimit: "100",
     peopleScoutLimit: "50",
+    easyScoutLimit: "50",
+    easyScoutEmailLimit: "250",
+    easyScoutPhoneLimit: "100",
     emailOutreachLimit: "2,000",
     whatsappLimit: "500",
     aiVoiceLimit: "60",
@@ -458,6 +468,9 @@ export const ADMIN_PLANS: AdminPlan[] = [
     emailRevealLimit: "2,500",
     mobileRevealLimit: "1,200",
     peopleScoutLimit: "500",
+    easyScoutLimit: "200",
+    easyScoutEmailLimit: "2,500",
+    easyScoutPhoneLimit: "1,200",
     emailOutreachLimit: "16,000",
     whatsappLimit: "5,000",
     aiVoiceLimit: "600",
@@ -487,6 +500,9 @@ export const ADMIN_PLANS: AdminPlan[] = [
     emailRevealLimit: "10,000",
     mobileRevealLimit: "5,000",
     peopleScoutLimit: "2,000",
+    easyScoutLimit: "1,000",
+    easyScoutEmailLimit: "10,000",
+    easyScoutPhoneLimit: "5,000",
     emailOutreachLimit: "60,000",
     whatsappLimit: "20,000",
     aiVoiceLimit: "2,400",
@@ -516,6 +532,9 @@ export const ADMIN_PLANS: AdminPlan[] = [
     emailRevealLimit: "Unlimited",
     mobileRevealLimit: "Unlimited",
     peopleScoutLimit: "Unlimited",
+    easyScoutLimit: "Unlimited",
+    easyScoutEmailLimit: "Unlimited",
+    easyScoutPhoneLimit: "Unlimited",
     emailOutreachLimit: "Unlimited",
     whatsappLimit: "Unlimited",
     aiVoiceLimit: "Unlimited",
@@ -548,6 +567,9 @@ export function emptyPlanDraft(): AdminPlan {
     emailRevealLimit: "",
     mobileRevealLimit: "",
     peopleScoutLimit: "",
+    easyScoutLimit: "",
+    easyScoutEmailLimit: "",
+    easyScoutPhoneLimit: "",
     emailOutreachLimit: "",
     whatsappLimit: "",
     aiVoiceLimit: "",

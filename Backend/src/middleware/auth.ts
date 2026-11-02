@@ -25,6 +25,7 @@ declare module 'express-serve-static-core' {
       role: OrganizationRole | string;
       permissions: string[];
       status: string;
+      easyScoutEnabled?: boolean;
     };
     organization?: {
       id: string;
@@ -179,6 +180,7 @@ export const requireOrganization = asyncHandler(
       role: member.role,
       permissions,
       status: member.status,
+      easyScoutEnabled: Boolean(member.easyScoutEnabled),
     };
     req.organizationId = organization._id.toHexString();
 

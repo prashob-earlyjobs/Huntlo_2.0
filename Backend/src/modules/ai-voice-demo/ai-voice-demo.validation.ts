@@ -4,6 +4,7 @@ import { AI_VOICE_DEMO_JOBS } from './ai-voice-demo.jobs.js';
 
 export const startAiVoiceDemoSchema = z.object({
   company: z.string().trim().min(1).max(160),
+  name: z.string().trim().min(1).max(120).optional(),
   email: z.string().trim().email().max(200),
   phone: z.string().trim().min(8).max(20),
   job: z.enum(AI_VOICE_DEMO_JOBS),

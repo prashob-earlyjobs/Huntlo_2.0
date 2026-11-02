@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import { Field } from "@/components/outreach/builder-ui";
+import { Field, ToggleRow } from "@/components/outreach/builder-ui";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,9 @@ const QUOTA_METRICS = [
   { metric: "email_reveal", label: "Email reveals" },
   { metric: "mobile_reveal", label: "Mobile reveals" },
   { metric: "people_scout", label: "People Scout lookups" },
+  { metric: "easy_scout", label: "Easy Scout lookups" },
+  { metric: "easy_scout_email_reveal", label: "Easy Scout email reveals" },
+  { metric: "easy_scout_phone_reveal", label: "Easy Scout phone reveals" },
   { metric: "email_outreach", label: "Email outreach" },
   { metric: "whatsapp_outreach", label: "WhatsApp outreach" },
   { metric: "ai_voice_minutes", label: "AI voice minutes" },
@@ -91,6 +94,9 @@ const EMPTY_QUOTA_FORM: QuotaFormState = {
   email_reveal: "0",
   mobile_reveal: "0",
   people_scout: "0",
+  easy_scout: "0",
+  easy_scout_email_reveal: "0",
+  easy_scout_phone_reveal: "0",
   email_outreach: "0",
   whatsapp_outreach: "0",
   ai_voice_minutes: "0",
@@ -103,6 +109,9 @@ const EMPTY_QUOTA_NUMBERS: QuotaNumberState = {
   email_reveal: 0,
   mobile_reveal: 0,
   people_scout: 0,
+  easy_scout: 0,
+  easy_scout_email_reveal: 0,
+  easy_scout_phone_reveal: 0,
   email_outreach: 0,
   whatsapp_outreach: 0,
   ai_voice_minutes: 0,
@@ -182,7 +191,12 @@ export function AdminUsersWorkspace() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", email: "", role: "" });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    role: "",
+    easyScoutEnabled: false,
+  });
   const [planForm, setPlanForm] = useState("Growth");
   const [planOptions, setPlanOptions] = useState<string[]>([...FALLBACK_PLANS]);
   const [saving, setSaving] = useState(false);
@@ -353,7 +367,12 @@ export function AdminUsersWorkspace() {
     setSelected(user);
     setDialog(kind);
     setSaving(false);
-    setEditForm({ name: user.name, email: user.email, role: user.role });
+    setEditForm({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      easyScoutEnabled: Boolean(user.easyScoutEnabled),
+    });
     setPlanForm(user.plan);
     setQuotaForm(EMPTY_QUOTA_FORM);
     setQuotaUsed(EMPTY_QUOTA_NUMBERS);
@@ -379,8 +398,14 @@ export function AdminUsersWorkspace() {
           firstName: firstName || "User",
           lastName,
           role: editForm.role.toLowerCase().replace(/\s+/g, "_"),
+          easyScoutEnabled: editForm.easyScoutEnabled,
         });
-        patchUser(user.id, editForm);
+        patchUser(user.id, {
+          name: editForm.name,
+          email: editForm.email,
+          role: editForm.role,
+          easyScoutEnabled: editForm.easyScoutEnabled,
+        });
         setToast("User updated.");
       } else if (dialog === "plan") {
         await adminApi.assignPlan(user.id, planForm);
@@ -888,6 +913,18 @@ export function AdminUsersWorkspace() {
                   }
                 />
               </Field>
+              <ToggleRow
+                id="au-easy-scout"
+                label="Easy Scout"
+                description="This user can open Easy Scout and run lookups."
+                checked={editForm.easyScoutEnabled}
+                onChange={(checked) =>
+                  setEditForm((previous) => ({
+                    ...previous,
+                    easyScoutEnabled: checked,
+                  }))
+                }
+              />
             </div>
           ) : null}
 

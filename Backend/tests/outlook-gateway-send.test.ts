@@ -19,6 +19,7 @@ describe('sendOutlookViaGateway', () => {
     const result = await sendOutlookViaGateway({
       to: 'candidate@example.com',
       from: 'recruiter@huntlo.online',
+      accessToken: 'eyJoutlook.token',
       subject: 'Backend Engineer role',
       html: '<p>Hi Ada</p>',
       campaignId: 'camp-1',
@@ -33,6 +34,7 @@ describe('sendOutlookViaGateway', () => {
       vendor: 'outlook',
       to: 'candidate@example.com',
       from: 'recruiter@huntlo.online',
+      accessToken: 'eyJoutlook.token',
       subject: 'Backend Engineer role',
       html: '<p>Hi Ada</p>',
       campaignId: 'camp-1',

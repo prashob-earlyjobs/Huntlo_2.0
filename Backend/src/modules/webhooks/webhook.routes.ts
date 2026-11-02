@@ -5,6 +5,7 @@ import { webhookBodyMiddleware } from '../../middleware/raw-body.js';
 import { getMetaWebhookVerifyToken } from '../../providers/meta-whatsapp/meta.config.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ingestWebhook } from './ingest.service.js';
+import { handleOutlookWebhook } from '../outreach/outlook-webhook.js';
 import type { WebhookProvider } from './webhook-event.model.js';
 
 export const webhooksRouter = Router();
@@ -158,4 +159,12 @@ webhooksRouter.post(
 webhooksRouter.post(
   '/gmail',
   asyncHandler(async (req, res) => handlePost('gmail', req, res))
+);
+
+/** Microsoft Graph inbox change notifications. */
+webhooksRouter.post(
+  '/outlook',
+  asyncHandler(async (req, res) => {
+    await handleOutlookWebhook(req, res);
+  })
 );

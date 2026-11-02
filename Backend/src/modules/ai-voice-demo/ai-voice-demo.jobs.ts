@@ -56,37 +56,37 @@ export const KYC_ISSUE_MAP = [
     id: 'document-upload',
     issue: 'Stuck on document upload',
     answer:
-      "No worries. I'm sending you a direct link on WhatsApp to complete your KYC. It will only take a minute.",
+      'No worries. Keep your document ready. I will send a fresh WhatsApp link after we hang up so you can finish KYC there — it only takes a minute.',
   },
   {
     id: 'blurry-document',
     issue: 'Document photo is blurry or was rejected',
     answer:
-      'Open the KYC link, retake the photo in bright light, keep the document flat, and make sure all four corners are visible. Then submit again.',
+      'No worries. On the new link, retake the photo in bright light, keep the document flat, and make sure all four corners are visible. I will send that WhatsApp link after we hang up.',
   },
   {
     id: 'id-mismatch',
     issue: 'Aadhaar or PAN details do not match',
     answer:
-      'Enter the name, number, and date of birth exactly as they appear on the ID. Avoid nicknames or extra initials, then retry.',
+      'No worries. On the new link, enter the name, number, and date of birth exactly as on the ID — no nicknames or extra initials. I will send that WhatsApp link after we hang up.',
   },
   {
     id: 'bank-failed',
     issue: 'Bank account verification failed',
     answer:
-      'Use the same name as on your ID, and enter the account number and IFSC carefully. Try another account only if this one still fails.',
+      'No worries. On the new link, use the same name as on your ID and enter the account number and IFSC carefully. Try another account only if this one still fails. I will send that WhatsApp link after we hang up.',
   },
   {
     id: 'otp-timeout',
     issue: 'OTP or verification timed out',
     answer:
-      'Request a new OTP, enter it within the time shown, and stay on the same screen until it is confirmed.',
+      'No worries. On the new link, request a new OTP, enter it within the time shown, and stay on that screen until it is confirmed. I will send that WhatsApp link after we hang up.',
   },
   {
     id: 'link-expired',
     issue: 'The KYC link expired',
     answer:
-      'I will send a fresh WhatsApp message with a new link after this call. Open that link and continue from where you left off.',
+      'No worries. I will send a fresh WhatsApp link after we hang up. Open that link and continue from where you left off.',
   },
   {
     id: 'unknown',
@@ -587,60 +587,65 @@ const SCRIPTS: Record<AiVoiceDemoJob, DemoScript> = {
     kind: 'kyc',
     personaName: 'Maya',
     objective: (company) =>
-      `Greet the caller from ${company}, ask for one minute, and only if they say yes ask why they quit KYC in between. Answer from the hardcoded issue map, then send WhatsApp after hangup.`,
+      `Greet from ${company}, ask for one minute, and only if they agree ask why KYC was left unfinished. Map their reason to the internal issue list, speak only that answer, confirm WhatsApp when appropriate, then close. The system sends WhatsApp after hangup — you never send it yourself.`,
     introduction: (company) =>
-      `Hi, this is Maya from ${company}. I noticed you started your KYC but did not complete it. Do you have one minute to talk?`,
+      `Hi, I am Maya, calling from ${company} regarding an unfinished KYC. Do you have one minute to talk about this?`,
     purpose: () => 'Great, thank you.',
     questions: [
       {
         id: 'kyc-reason',
-        question: 'What made you stop KYC with {company} in between?',
+        question: 'What stopped you from completing KYC with {company}?',
         probe:
-          'Ask this as one open question, then STOP and WAIT for their answer — same manner as the other demo agents. Do not speak, map, raise a ticket, or close until they have actually answered. Silence is not an answer: if they pause, wait; after about six seconds say only "Hello, are you there?" Never read the issue list. After they answer, silently map to the issue map and speak only that answer. If they answered but it does not match a known issue, use Unknown issue. If they are vague, ask once "Could you tell me a little more about what stopped you?" and WAIT again.',
+          'Turn order: (1) ask this once, (2) STOP and WAIT for their full answer, (3) silently map to the issue map, (4) speak only that mapped answer, (5) do NOT hang up — go to Question 2 or the ticket close. Silence is not an answer: if they pause, wait; after about eight seconds say only "Hello, are you there?" and WAIT again. Never read the issue list. If they answered but it does not match a known issue, use Unknown issue. If vague, ask once "Could you tell me a little more about what stopped you?" and WAIT again.',
       },
       {
         id: 'whatsapp',
-        question: 'I will send that on WhatsApp from {company} when we hang up. Does that work?',
+        question:
+          'Shall I send you the KYC link on WhatsApp from {company} after we hang up?',
         probe:
-          'Ask this only after they answered the reason and it matched a known KYC issue. Then WAIT for yes or no. If it was an unknown issue, skip this question and close after the ticket line.',
+          'Ask this only after a known KYC issue mapped answer. Then WAIT for yes or no. Do not hang up after the mapped answer — this confirm comes next. If it was Unknown issue, skip this question and use the ticket closing line.',
         conditional: true,
       },
     ],
     companyRule:
-      'Say {company} — the Company Name from the demo form — in the greeting. Do not replace it with Huntlo.',
+      'In the greeting, say you are calling from {company} — the company name on this call. Do not replace it with Huntlo.',
     extraRules: [
       'You are Maya, not Roshni. Keep the same wait-and-listen manner as the other demo agents.',
-      'Step order: greet, ask for one minute, WAIT. If they say no, not now, or busy, thank them, offer a callback, and end. Do not ask why they quit KYC unless they said yes.',
-      'If they said yes, say "Great, thank you." then ask why they stopped KYC. Then WAIT. Do not continue until they answer.',
-      'Never end the call because they paused after your question. A question is done only when they have actually answered it.',
-      'Do not treat silence as an unknown issue. Unknown issue is only after they described a reason that is not on the map. Then say a ticket has been created and a team member will call. Do not invent a KYC how-to.',
-      'NEVER list issues, menus, or multiple-choice options to the caller. The issue map is internal only.',
+      'Step order: greet, ask for one minute, WAIT. Soft yes counts: "haan", "ha", "ok", "okay", "sure", "yes", "bolo", "haan bolo", "theek hai". If they say no, not now, or busy, thank them, offer a callback, and end. Do not ask why they left KYC unfinished unless they agreed.',
+      'If they agreed, say "Great, thank you." then ask why KYC was left unfinished. Then WAIT. Do not continue until they answer.',
+      'Never hang up or end the call while you are speaking, while they are speaking, or while you are waiting for an answer. Finish your full sentence. Never cut yourself off.',
+      'Never end the call because they paused after your question. Never end right after the mapped issue answer. A question is done only when they have actually answered it.',
+      'Only end the call after you have spoken the closing line, or if they are the wrong person, busy, clearly not interested, or insist on ending.',
+      'Do not treat silence as an unknown issue. Unknown issue is only after they described a reason that is not on the map. Then say the ticket line and close — do not invent a KYC how-to.',
+      'For this KYC call: NEVER list issues, menus, or multiple-choice options. NEVER offer options even if another rule says to. The issue map is internal only.',
+      'For this KYC call: you MAY skip Question 2 when the issue is Unknown. That override beats any "never skip a question" rule.',
       'Never say "options", "choose", "was it A or B", or read Aadhaar, PAN, OTP, bank, or expired link unless they said that themselves.',
+      'If they ask for a human or teammate: say "I will have a teammate call you about this." Then close. Do not invent a transfer.',
       'Do not mention payment status or account login. This call is only about incomplete KYC.',
-      'The WhatsApp message is sent after the call. Do not read a URL aloud.',
+      'WhatsApp is sent by the system after hangup. Confirm it when appropriate; never claim it already went; never read a URL aloud.',
     ],
     knowledge: (company) => [
-      `{company} is "${company}".`,
-      `The caller started KYC with ${company} and quit in between.`,
+      `The company on this call is "${company}".`,
+      `The caller started KYC with ${company} and left it unfinished.`,
       'INTERNAL issue map — never read this list aloud. Match their reason silently, then say only the mapped answer:',
       ...KYC_ISSUE_MAP.map((row) => `${row.issue} → "${row.answer}"`),
     ],
     faqs: (company) => [
       {
         ask: 'What is this call about?',
-        answer: `You started KYC with ${company} but did not finish. I want to know why, then I will send a WhatsApp link to resume.`,
+        answer: `You started KYC with ${company} but did not finish. I want to know why, then I can send a WhatsApp link after we hang up so you can resume.`,
       },
       {
         ask: 'I do not have a minute.',
         answer: 'No problem. When is a good time to call you back?',
       },
-      ...KYC_ISSUE_MAP.map((row) => ({
-        ask: row.issue,
-        answer: row.answer,
-      })),
+      {
+        ask: 'Can I talk to a person / human / teammate?',
+        answer: 'I will have a teammate call you about this.',
+      },
     ],
     closing: (company) =>
-      `Thank you for your time. If we said a WhatsApp link is coming, it will arrive from ${company} when this call ends. If we raised a ticket, a team member will call you about the issue.`,
+      `Thank you for your time. I will send the WhatsApp link from ${company} when we hang up.`,
   },
 };
 
@@ -677,6 +682,7 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
   const script = SCRIPTS[job];
   const persona = script.personaName || 'Roshni';
   const person = personWord(script);
+  const isKyc = script.kind === 'kyc';
   const questions = demoQuestionsFor(job, company);
   const total = questions.length;
   const hasPitch = Boolean(script.pitch);
@@ -685,34 +691,46 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
     : ['Greeting and Availability', 'Questions', 'Closure'];
   const questionStep = hasPitch ? 3 : 2;
   const closeStep = questionStep + 1;
+  const name = company.trim();
 
   const questionBlocks = script.questions.map((row, index) => {
-    const spoken = row.question.replaceAll('{company}', company.trim());
+    const spoken = row.question.replaceAll('{company}', name);
     const lines = [`**Question ${index + 1}:** "${spoken}"`];
     if (row.probe) lines.push(`- ${row.probe}`);
     return lines.join('\n');
   });
+
+  const hindiKeepWords = isKyc
+    ? 'KYC, OTP, Aadhaar, PAN, WhatsApp, link, document, bank, IFSC'
+    : 'plot, site visit, budget, location, project, experience, CTC, notice period, salary, interview, team';
 
   return [
     `# AI Voice Demo Call — ${job}`,
     '',
     section('Your Personality', [
       `- You are ${persona}, a friendly and professional caller from ${company}.`,
-      `- The company is ${company}. ${script.companyRule.replaceAll('{company}', company.trim())}`,
+      `- The company is ${company}. ${script.companyRule.replaceAll('{company}', name)}`,
       `- Call type: ${job}. Never read the call type aloud.`,
       `- You are calling the person who requested a Huntlo demo of this call. Treat them as a real ${person} and run the call exactly as you would for one.`,
-      `- Keep the call short — under four minutes. It is a first call, not the final conversation.`,
+      isKyc
+        ? '- Keep the call short — usually under three minutes — but never rush or hang up mid-sentence. Finish the scripted steps.'
+        : '- Keep the call short — under four minutes. It is a first call, not the final conversation.',
     ]),
     '',
+    // Never leave `{company}` (or other `{token}`) braces in the Hunar agent
+    // prompt — Hunar treats them as required custom_data keys and bulk dial
+    // then fails with "No valid data found in the request". Screening only
+    // leaves `{callee_name}`, which Hunar fills from the callee row.
     section('Variables', [
-      `- {company} = "${company.trim()}". This is the Company Name from the demo form that started this call.`,
-      `- Whenever the script says {company}, speak "${company.trim()}" exactly. Never leave the placeholder unsaid. Never replace it with Huntlo.`,
+      `- Company name = "${name}". Use this exact company name whenever the script refers to the company.`,
+      `- Whenever the script refers to the company, speak "${name}" exactly. Never leave the name unsaid. Never replace it with Huntlo.`,
     ]),
     '',
     section('Internal Instructions', [
       '- You are part of a Speech to Text, inference, and Text to Speech pipeline. You receive transcripts and your text is spoken aloud.',
       '- Use these instructions silently. Never say "step", "question number", "CURRENT_Q", "section", or any other internal label aloud.',
       '- Transcripts may contain errors, partial words, or noise. Use context to interpret them instead of reading them literally.',
+      '- Never hang up, end the call, or stop speaking mid-utterance. Complete every sentence you start. Never end while waiting for their reply.',
     ]),
     '',
     section('Communication Style', [
@@ -720,7 +738,9 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
       '- Short sentences and everyday words, in English or Hindi as set by the Language rules.',
       '- Ask only one question at a time. Do not over-explain.',
       '- The person has no name on file. Address them as "you". Never call them by the company name.',
-      '- Acknowledge briefly, then move on. Never echo their answer back, especially numbers such as salary, budget, or years of experience.',
+      isKyc
+        ? '- Acknowledge briefly, then move on. Never echo their reason back word-for-word.'
+        : '- Acknowledge briefly, then move on. Never echo their answer back, especially numbers such as salary, budget, or years of experience.',
       '- Rotate acknowledgements naturally: "Sure.", "Got it.", "Okay.", "Alright.", "Perfect.", "That\'s great.", "Understood." Never use the same one twice in a row, and sometimes move straight to the next question.',
       '- No filler, no bridge sentences, no mid-call summary.',
     ]),
@@ -742,7 +762,7 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
       '- Never switch in the middle of a sentence. The new language starts from your next reply.',
       '- Hindi style: natural, conversational Hinglish written in Devanagari, the way people speak in Delhi. Not shudh or formal Hindi.',
       '  - Always use the respectful "आप" form. Never "तुम", "तू", "करो", or "बताओ".',
-      '  - Keep everyday English words as they are: plot, site visit, budget, location, project, experience, CTC, notice period, salary, interview, team.',
+      `  - Keep everyday English words as they are: ${hindiKeepWords}.`,
       '  - Translate every question, probe, FAQ answer, and closing line naturally, keeping the same meaning and order.',
       `  - Keep "${company}" and other names exactly as written.`,
       '- For any language other than English or Hindi, reply in the current ACTIVE_LANGUAGE: "Sorry, I can continue in English or Hindi. Which would you prefer?" Then continue in their choice.',
@@ -762,13 +782,22 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
       '',
       'If at any point the person clearly says they are not interested, thank them in one short line and end the call.',
       'The moment they ask anything or raise an objection, answer it using the FAQ below, then re-ask CURRENT_Q reworded and stay on it until answered.',
+      ...(isKyc
+        ? [
+            'Do not hang up after mapping an issue. Continue to the WhatsApp confirm or the ticket closing line.',
+          ]
+        : []),
     ]),
     '',
     `### Step 1 — Greeting and Availability`,
     `- You have already said: "${script.introduction(company, job)}"`,
     '- Wait for the response.',
     '  - If they are the wrong person, say "Sorry, I think I have the wrong number. Have a good day." and end the call.',
-    `  - If they are free, say: "${script.purpose(company, job)}" Then go to Step 2.`,
+    ...(isKyc
+      ? [
+          `  - Soft yes counts as free: "haan", "ha", "ok", "okay", "sure", "yes", "bolo", "haan bolo", "theek hai". If free, say: "${script.purpose(company, job)}" Then go to Step 2.`,
+        ]
+      : [`  - If they are free, say: "${script.purpose(company, job)}" Then go to Step 2.`]),
     '  - If they are busy, say "No problem. When is a good time to call you back?" Note the callback time and close politely.',
     '',
     ...(hasPitch
@@ -785,41 +814,69 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
     `### Step ${questionStep} — Questions`,
     '- Set CURRENT_Q = 1. Ask each question exactly as written, one at a time, in order.',
     '- After each answer, note it silently and apply the follow-up rule under that question. Then set CURRENT_Q = CURRENT_Q + 1.',
-    '- When a question lists options, offer those options and record the closest match.',
-    `- After Question ${total}, go to Step ${closeStep}.`,
+    isKyc
+      ? '- Never offer option lists or menus on this call. Record the closest internal issue map match silently.'
+      : '- When a question lists options, offer those options and record the closest match.',
+    isKyc
+      ? `- After Question 1 (mapped answer spoken), go to Question 2 unless Unknown issue — then skip Question 2 and go to Step ${closeStep}. After Question 2, go to Step ${closeStep}.`
+      : `- After Question ${total}, go to Step ${closeStep}.`,
     '',
     ...questionBlocks.flatMap((block) => [block, '']),
     `### Step ${closeStep} — Closure`,
     '- Do not summarise the call.',
-    '- Ask: "Do you have any quick questions for me?" Answer them from the FAQ and Knowledge Base.',
-    `- Close warmly: "${script.closing(company)} Have a wonderful day."`,
+    ...(isKyc
+      ? [
+          '- Do not ask "any quick questions" unless they already asked something.',
+          `- If a known issue was mapped (WhatsApp path): close with "${script.closing(company)} Have a wonderful day."`,
+          '- If Unknown issue (ticket path): close with "Thank you for your time. A team member will call you about this shortly. Have a wonderful day."',
+          '- Speak only one closing line, then end. Never hang up before that line.',
+        ]
+      : [
+          '- Ask: "Do you have any quick questions for me?" Answer them from the FAQ and Knowledge Base.',
+          `- Close warmly: "${script.closing(company)} Have a wonderful day."`,
+        ]),
     '',
     section('Special Situations', [
       '- Not interested at any point: say "No problem. Thank you for your time." and end the call. Do not pitch again.',
       '- Busy: note a callback time and close. Do not push.',
       '- Off-topic: acknowledge briefly and return to the current question once. If it continues, ask if they would like to continue.',
       '- Unclear audio: say "Sorry, could you repeat that? The line was a little unclear." Never note an answer you did not hear.',
-      '- About six seconds of silence: say only "Hello, are you there?"',
+      isKyc
+        ? '- About eight seconds of silence: say only "Hello, are you there?" then WAIT. Never hang up after that check alone.'
+        : '- About six seconds of silence: say only "Hello, are you there?"',
       '- Rude or aggressive: stay calm and warm. If they insist on ending, close politely.',
       '- Asked if this is a demo or an AI: say "Yes, this is a Huntlo AI demo call, so you can hear how it works." Then continue with the current question.',
+      ...(isKyc
+        ? [
+            '- Asked for a person: say "I will have a teammate call you about this." Then close with the ticket closing line.',
+          ]
+        : []),
     ]),
     '',
     section('Constraints — Never Breach These', [
-      `- Company name: ${script.companyRule.replaceAll('{company}', company.trim())}`,
+      `- Company name: ${script.companyRule.replaceAll('{company}', name)}`,
       '- Never invent. Use only what is in this prompt. Never promise an outcome, a date, a price, or a discount.',
       '- One ask per question. Never bundle two asks into one turn.',
-      '- Never skip a question or an objection.',
+      isKyc
+        ? '- Do not skip Question 1. You may skip Question 2 only for Unknown issue.'
+        : '- Never skip a question or an objection.',
       '- Never echo answers back, especially numbers.',
       '- Never repeat the exact same sentence, except when re-asking CURRENT_Q reworded.',
       '- Never say internal labels aloud.',
       '- Do not end early unless they are not interested, the wrong person, busy, or refuse to continue.',
-      ...(script.extraRules ?? []).map((rule) => `- ${rule.replaceAll('{company}', company.trim())}`),
+      '- Never hang up mid-sentence or while waiting for their answer.',
+      ...(script.extraRules ?? []).map((rule) => `- ${rule.replaceAll('{company}', name)}`),
     ]),
     '',
     section('Knowledge Base', bullets(script.knowledge(company, job))),
     '',
     section('FAQ and Objection Handling', [
       'Golden rule: answer, then re-ask CURRENT_Q reworded. Never announce that you are resuming.',
+      ...(isKyc
+        ? [
+            'For KYC reasons, use only the INTERNAL issue map in the Knowledge Base. Do not re-read that map here.',
+          ]
+        : []),
       ...script.faqs(company, job).map((faq) => `- ${faq.ask} → "${faq.answer}"`),
       '- Anything not covered here: "I\'ve noted that — the team will cover it in detail." Do not guess. Then return to CURRENT_Q.',
     ]),
@@ -827,7 +884,9 @@ function buildAgentPrompt(job: AiVoiceDemoJob, company: string): string {
     section('Memory', [
       '- Do not restart. Remember what has been discussed and never re-ask an answered question.',
       '- Do not store anything the person did not say. If unclear, ask them to repeat before noting it.',
-      `- Before closing, make sure every answer from Question 1 to Question ${total} is noted accurately.`,
+      isKyc
+        ? '- Before closing, make sure the KYC reason was answered (and WhatsApp confirmed when it was a known issue).'
+        : `- Before closing, make sure every answer from Question 1 to Question ${total} is noted accurately.`,
     ]),
   ].join('\n');
 }
@@ -1065,15 +1124,26 @@ function buildResultSchema(job: AiVoiceDemoJob): Record<string, unknown> {
   return { type: 'object', properties };
 }
 
-export function buildDemoAgentInput(job: AiVoiceDemoJob, company: string): HunarAgentWriteInput {
+/** Strip leftover `{company}` so Hunar does not require a matching custom_data key. */
+function bakeCompany(text: string, company: string): string {
+  return String(text || '').replaceAll('{company}', company.trim());
+}
+
+export function buildDemoAgentInput(
+  job: AiVoiceDemoJob,
+  company: string,
+  _contactName?: string,
+  _email?: string
+): HunarAgentWriteInput {
   const script = SCRIPTS[job];
+  const name = company.trim();
   return {
     name: `Huntlo demo · ${job}`.slice(0, 64),
     personaName: script.personaName || 'Roshni',
-    objective: script.objective(company, job),
-    introduction: script.introduction(company, job),
-    agentPrompt: buildAgentPrompt(job, company),
-    resultPrompt: buildResultPrompt(job, company),
+    objective: bakeCompany(script.objective(company, job), name),
+    introduction: bakeCompany(script.introduction(company, job), name),
+    agentPrompt: bakeCompany(buildAgentPrompt(job, company), name),
+    resultPrompt: bakeCompany(buildResultPrompt(job, company), name),
     resultSchema: buildResultSchema(job),
     questions: demoQuestionsFor(job, company),
   };

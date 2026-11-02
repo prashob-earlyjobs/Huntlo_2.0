@@ -119,6 +119,8 @@ export async function sendGmailViaGateway(input: {
   subject: string;
   html: string;
   campaignId: string;
+  /** Connected mailbox — helps the gateway scope token lookup if needed. */
+  from?: string | null;
   prompt?: string | null;
   autoReply?: boolean;
   /** Gmail thread id from the first sequence send — keeps follow-ups in the same conversation. */
@@ -130,6 +132,7 @@ export async function sendGmailViaGateway(input: {
     .trim()
     .replace(/\/$/, '');
   const url = `${base}/messages/send${input.autoReply === false ? '' : '?autoReply=true'}`;
+  const from = String(input.from || '').trim();
 
   const res = await fetch(url, {
     method: 'POST',
@@ -142,6 +145,7 @@ export async function sendGmailViaGateway(input: {
       html: input.html,
       accessToken: input.accessToken,
       campaignId: input.campaignId,
+      ...(from ? { from } : {}),
       ...(input.prompt ? { prompt: input.prompt } : {}),
       ...(input.threadId ? { threadId: input.threadId } : {}),
       ...(input.inReplyTo ? { inReplyTo: input.inReplyTo } : {}),

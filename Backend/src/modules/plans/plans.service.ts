@@ -460,7 +460,11 @@ export class PlansService {
         yearly: input.usdPrices?.yearly ?? null,
       },
       currency: input.currency ?? 'INR',
-      featureAccess: input.featureAccess ?? {},
+      featureAccess: (() => {
+        const featureAccess = { ...(input.featureAccess ?? {}) };
+        delete featureAccess.easyScout;
+        return featureAccess;
+      })(),
       limits: input.limits ?? {},
       public: input.public ?? true,
       sortOrder: input.sortOrder ?? 100,
@@ -497,10 +501,12 @@ export class PlansService {
     }
     if (typeof input.currency === 'string') plan.currency = input.currency.toUpperCase();
     if (input.featureAccess && typeof input.featureAccess === 'object') {
-      plan.featureAccess = {
+      const featureAccess = {
         ...(plan.featureAccess ?? {}),
         ...(input.featureAccess as Record<string, boolean>),
       };
+      delete featureAccess.easyScout;
+      plan.featureAccess = featureAccess;
     }
     if (input.limits && typeof input.limits === 'object') {
       plan.limits = {

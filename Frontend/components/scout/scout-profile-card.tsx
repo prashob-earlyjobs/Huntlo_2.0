@@ -27,7 +27,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ScoutProfile } from "@/lib/mock-scout";
-import { candidatePoolApi, getApiErrorMessage, peopleScoutApi } from "@/lib/api";
+import {
+  candidatePoolApi,
+  getApiErrorMessage,
+  peopleScoutApi,
+  type PeopleScoutApi,
+} from "@/lib/api";
 import { REVEAL_COSTS } from "@/hooks/use-reveal-quota";
 import { ROUTES } from "@/lib/routes";
 import { notifyUsageRefresh } from "@/lib/usage-refresh";
@@ -82,13 +87,16 @@ function RevealedRow({
 }
 
 export function ScoutProfileCard({
+  api = peopleScoutApi,
   profile,
   lookupId,
   initiallySaved = false,
   onSaved,
   className,
   embedded = false,
+  phoneRevealPoll = true,
 }: {
+  api?: PeopleScoutApi;
   profile: ScoutProfile;
   lookupId?: string;
   initiallySaved?: boolean;
@@ -96,6 +104,11 @@ export function ScoutProfileCard({
   className?: string;
   /** Flatten chrome when nested inside a sheet/drawer. */
   embedded?: boolean;
+  /**
+   * People Scout phone reveals can land after the first response, so the card
+   * polls the lookup. Easy Scout's provider answers in that first response.
+   */
+  phoneRevealPoll?: boolean;
 }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState({
@@ -186,7 +199,7 @@ export function ScoutProfileCard({
   }
 
   function phoneValueFromLookup(
-    lookup: Awaited<ReturnType<typeof peopleScoutApi.getLookup>>
+    lookup: Awaited<ReturnType<PeopleScoutApi["getLookup"]>>
   ): string {
     if (!lookup) return "";
     return (
@@ -204,7 +217,7 @@ export function ScoutProfileCard({
     const generation = ++revealGenerationRef.current;
 
     try {
-      const result = await peopleScoutApi.revealContact({
+      const result = await api.revealContact({
         lookupId: lookupId ?? "",
         profileId: profile.id,
         linkedinUrl: profile.linkedinUrl,
@@ -233,9 +246,8 @@ export function ScoutProfileCard({
   }
 
   /**
-   * Mobile: desire a phone number. Only skip polling when reveal returns a
-   * phone. Any other outcome (2xx empty, 4xx/5xx, timeout) → poll getLookup
-   * every 10s for 60s. Email reveal is unchanged (no poll).
+   * Phone reveal. People Scout polls the lookup every 10s for 60s when the
+   * first response has no number. Easy Scout waits for that one response only.
    */
   async function handleMobileReveal() {
     setRevealError(null);
@@ -255,7 +267,7 @@ export function ScoutProfileCard({
 
     let gotPhone = false;
     try {
-      const result = await peopleScoutApi.revealContact({
+      const result = await api.revealContact({
         lookupId: lookupId ?? "",
         profileId: profile.id,
         linkedinUrl: profile.linkedinUrl,
@@ -282,13 +294,19 @@ export function ScoutProfileCard({
         finish(() => {
           setRevealError(message);
         });
+      } else if (!phoneRevealPoll) {
+        if (!isRevealTimeoutError(err)) {
+          finish(() => {
+            setRevealError(message);
+          });
+        }
       } else if (!isRevealTimeoutError(err) && !lookupId) {
         // 4xx/5xx without a lookup to poll — surface the error.
         finish(() => {
           setRevealError(message);
         });
       }
-      // Timeout / empty / other errors with lookupId → fall through to soft-poll.
+      // People Scout: timeout / empty / other errors with lookupId → soft-poll.
     }
 
     if (gotPhone || !isActive()) {
@@ -299,13 +317,13 @@ export function ScoutProfileCard({
       return;
     }
 
-    if (lookupId) {
+    if (phoneRevealPoll && lookupId) {
       setTakingLonger(true);
       flash("Still checking for phone…");
       const pollDeadline = Date.now() + LOOKUP_POLL_WINDOW_MS;
       while (isActive() && Date.now() < pollDeadline) {
         try {
-          const lookup = await peopleScoutApi.getLookup(lookupId);
+          const lookup = await api.getLookup(lookupId);
           const value = phoneValueFromLookup(lookup);
           if (value) {
             finish(() => {
@@ -351,7 +369,7 @@ export function ScoutProfileCard({
       return;
     }
     try {
-      const result = await peopleScoutApi.saveToPool(lookupId);
+      const result = await api.saveToPool(lookupId);
       setSaved(true);
       flash(
         result.created

@@ -1,10 +1,11 @@
-/** Outlook outreach sends through the communication gateway. The gateway loads the mailbox token from `from`. */
+/** Outlook outreach sends through the communication gateway. Prefer `accessToken`; gateway may also load by `from`. */
 
 export async function sendOutlookViaGateway(input: {
   to: string;
   from: string;
   subject: string;
   html: string;
+  accessToken?: string | null;
   campaignId?: string | null;
   prompt?: string | null;
   autoReply?: boolean;
@@ -14,6 +15,7 @@ export async function sendOutlookViaGateway(input: {
     .trim()
     .replace(/\/$/, '');
   const url = `${base}/messages/send${input.autoReply === false ? '' : '?autoReply=true'}`;
+  const accessToken = String(input.accessToken || '').trim();
 
   const res = await fetch(url, {
     method: 'POST',
@@ -25,6 +27,7 @@ export async function sendOutlookViaGateway(input: {
       from: input.from,
       subject: input.subject,
       html: input.html,
+      ...(accessToken ? { accessToken } : {}),
       ...(input.campaignId ? { campaignId: input.campaignId } : {}),
       ...(input.prompt ? { prompt: input.prompt } : {}),
       ...(input.threadId ? { threadId: input.threadId } : {}),

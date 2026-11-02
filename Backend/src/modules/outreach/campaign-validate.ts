@@ -297,6 +297,18 @@ export async function validateCampaignLaunch(
         organizationId: campaign.organizationId,
         status: { $in: ['connected', 'needs_attention'] },
       }).lean();
+    } else if (category === 'email') {
+      // Email campaigns must pin an explicit mailbox (Gmail / Outlook / Zoho / SMTP).
+      // Falling back to the owner's default caused Outlook campaigns to send via Gmail.
+      issues.push(
+        issue(
+          'provider_email',
+          'error',
+          'EMAIL_MAILBOX_REQUIRED',
+          'Select the email mailbox this campaign should send from.'
+        )
+      );
+      return;
     } else {
       const def = await integrationsService.getDefaultForCategory(
         organizationId,

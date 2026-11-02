@@ -12,7 +12,7 @@ import { LOOKUP_QUOTA, RECENT_LOOKUPS, SCOUT_MATCH_OPTIONS, SCOUT_PROFILE } from
 
 export type ScoutLookupInput = {
   input: string;
-  type: "linkedin-url" | "linkedin-username" | "email";
+  type: "linkedin-url" | "linkedin-username" | "email" | "din";
 };
 
 export type ScoutRevealInput = {
@@ -77,12 +77,14 @@ const TYPE_TO_API: Record<LookupType, ScoutLookupInput["type"]> = {
   "LinkedIn URL": "linkedin-url",
   "LinkedIn Username": "linkedin-username",
   "Email Address": "email",
+  DIN: "din",
 };
 
 const API_TO_TYPE: Record<string, LookupType> = {
   linkedin_url: "LinkedIn URL",
   linkedin_username: "LinkedIn Username",
   email: "Email Address",
+  din: "DIN",
 };
 
 const RESULT_MAP: Record<string, LookupResult> = {
@@ -280,7 +282,7 @@ function emptyRevealStatus(): ScoutLookupResponse["revealStatus"] {
 
 const EMPTY_REVEAL_STATUS = emptyRevealStatus();
 
-function normalizeLookupPayload(raw: Record<string, unknown>): ScoutLookupResponse {
+export function normalizeLookupPayload(raw: Record<string, unknown>): ScoutLookupResponse {
   const matchesRaw = Array.isArray(raw.matches) ? raw.matches : [];
   const maskedInput = String(raw.maskedInput ?? "");
   const displayInput = String(raw.displayInput ?? "").trim() || maskedInput;

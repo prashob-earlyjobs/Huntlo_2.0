@@ -2,6 +2,7 @@
 
 import {
   BookmarkCheck,
+  Building2,
   Check,
   Copy,
   Eye,
@@ -44,6 +45,7 @@ import {
 import {
   getApiErrorMessage,
   peopleScoutApi,
+  type PeopleScoutApi,
   type ScoutLookupResponse,
 } from "@/lib/api";
 import type {
@@ -66,6 +68,7 @@ const TYPE_ICONS: Record<LookupType, typeof LinkIcon> = {
   "LinkedIn URL": LinkIcon,
   "LinkedIn Username": User,
   "Email Address": Mail,
+  DIN: Building2,
 };
 
 function ResultBadge({ result }: { result: LookupResult }) {
@@ -103,17 +106,21 @@ function RevealCell({ lookup }: { lookup: RecentLookup }) {
 }
 
 function LookupDrawer({
+  api = peopleScoutApi,
   lookup,
   open,
   onOpenChange,
   onRerun,
   onProfileSaved,
+  phoneRevealPoll = true,
 }: {
+  api?: PeopleScoutApi;
   lookup: RecentLookup | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRerun: (lookup: RecentLookup) => void;
   onProfileSaved?: () => void;
+  phoneRevealPoll?: boolean;
 }) {
   const [detail, setDetail] = useState<ScoutLookupResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -134,7 +141,7 @@ function LookupDrawer({
     setError(null);
     setDetail(null);
 
-    void peopleScoutApi
+    void api
       .getLookup(lookup.id)
       .then((row) => {
         if (cancelled) return;
@@ -151,7 +158,7 @@ function LookupDrawer({
     return () => {
       cancelled = true;
     };
-  }, [open, lookup?.id]);
+  }, [api, open, lookup?.id]);
 
   if (!lookup) return null;
   const TypeIcon = TYPE_ICONS[lookup.type];
@@ -219,11 +226,13 @@ function LookupDrawer({
 
             {!loading && profile ? (
               <ScoutProfileCard
+                api={api}
                 embedded
                 profile={profile}
                 lookupId={lookup.id}
                 initiallySaved={lookup.saved || Boolean(detail?.saved)}
                 onSaved={onProfileSaved}
+                phoneRevealPoll={phoneRevealPoll}
               />
             ) : null}
 
@@ -294,13 +303,19 @@ function LookupDrawer({
 }
 
 export function ScoutLookupsTable({
+  api = peopleScoutApi,
+  title = "Recent lookups",
   lookups,
   onRerun,
   onLookupUpdated,
+  phoneRevealPoll = true,
 }: {
+  api?: PeopleScoutApi;
+  title?: string;
   lookups: RecentLookup[];
   onRerun: (lookup: RecentLookup) => void;
   onLookupUpdated?: () => void;
+  phoneRevealPoll?: boolean;
 }) {
   const [active, setActive] = useState<RecentLookup | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -316,7 +331,7 @@ export function ScoutLookupsTable({
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
-            Recent lookups
+            {title}
           </h2>
           <p className="text-xs text-muted-foreground">
             Lookups performed by your team in the last 30 days.
@@ -446,11 +461,13 @@ export function ScoutLookupsTable({
       </div>
 
       <LookupDrawer
+        api={api}
         lookup={active}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onRerun={onRerun}
         onProfileSaved={onLookupUpdated}
+        phoneRevealPoll={phoneRevealPoll}
       />
 
       <Snackbar

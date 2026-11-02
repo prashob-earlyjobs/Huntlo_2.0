@@ -449,7 +449,9 @@ async function resolveIntegration(
     );
     if (secrets) resolvedId = integrationId;
   }
-  if (!resolvedId) {
+  // Email must use the campaign-selected mailbox — never silently fall back to
+  // the owner's default (often Gmail), which mis-sends Outlook campaigns.
+  if (!resolvedId && category !== 'email') {
     const fallback = await integrationsService.getDefaultForCategory(
       organizationId,
       userId,
@@ -458,6 +460,7 @@ async function resolveIntegration(
     if (!fallback) return null;
     resolvedId = fallback.id;
   }
+  if (!resolvedId) return null;
 
   const secrets = await integrationsService.getDecryptedSecrets(
     organizationId,
@@ -687,6 +690,7 @@ async function sendEmailViaIntegration(input: {
       from,
       subject,
       html,
+      accessToken,
       autoReply: false,
       threadId: input.providerThreadId,
     });
@@ -1499,9 +1503,13 @@ export async function executeCampaignMessageStep(input: {
           }
         }
 
+        const fromAddress = String(
+          campaign.channelConfig.email?.senderEmail || integration.secrets.email || ''
+        ).trim();
         const result = await sendGmailViaGateway({
           accessToken,
           to: email,
+          from: fromAddress || null,
           subject: subjectOut,
           html,
           campaignId: String(campaign._id),
@@ -1522,6 +1530,12 @@ export async function executeCampaignMessageStep(input: {
         ).trim();
         if (!from) {
           throw Object.assign(new Error('Outlook from address is missing.'), { statusCode: 400 });
+        }
+        const accessToken = await withFreshEmailToken(integration.secrets);
+        if (!accessToken) {
+          throw Object.assign(new Error('No access token for Outlook email send.'), {
+            statusCode: 401,
+          });
         }
 
         const html = /<[a-z][\s\S]*>/i.test(renderedBody)
@@ -1564,6 +1578,7 @@ export async function executeCampaignMessageStep(input: {
           from,
           subject: subjectOut,
           html,
+          accessToken,
           campaignId: String(campaign._id),
           prompt: followUp ? null : prompt,
           autoReply: followUp ? false : Boolean(prompt),
