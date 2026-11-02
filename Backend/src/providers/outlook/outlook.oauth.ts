@@ -42,7 +42,9 @@ export function getOutlookOAuthRedirectUri(frontendUrl: string): string {
   return `${frontend}/integrations/outlook/callback`;
 }
 
-export function getOutlookOAuthEndpoints(tenantId?: string) {
+export function getOutlookOAuthEndpoints(_tenantId?: string) {
+  // Personal Outlook accounts are not members of OUTLOOK_TENANT_ID, so a
+  // tenant-specific host returns AADSTS50020. common accepts work and personal.
   const tenant = 'common';
   const base = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0`;
   return {

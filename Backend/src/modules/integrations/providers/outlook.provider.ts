@@ -5,7 +5,6 @@ import {
   fetchMicrosoftProfile,
   getOutlookOAuthConfig,
   getOutlookOAuthRedirectUri,
-  getOutlookTenantId,
   OUTLOOK_MAIL_SCOPES,
   refreshOutlookAccessToken,
 } from '../../../providers/outlook/outlook.oauth.js';
@@ -75,7 +74,7 @@ export const outlookProvider: EmailProvider = {
       providerAccountId: profile.id || profile.email,
       scopes: [...OUTLOOK_MAIL_SCOPES],
       config: {
-        outlookTenantId: getOutlookTenantId(),
+        outlookTenantId: 'common',
         outlookUserId: profile.id,
       },
     };
