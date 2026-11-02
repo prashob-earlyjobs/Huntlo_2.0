@@ -129,6 +129,8 @@ export type AuthMeResponse = {
    * surface modules the admin did not grant.
    */
   allowedModules?: string[] | null;
+  /** Platform-admin grant. False hides Easy Scout even when the role includes it. */
+  easyScoutEnabled?: boolean;
 };
 
 export type AuthSessionState =

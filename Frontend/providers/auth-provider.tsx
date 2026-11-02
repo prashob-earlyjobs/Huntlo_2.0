@@ -43,6 +43,7 @@ type AuthContextValue = {
   permissions: string[];
   /** Explicit Team module allow-list; null = unrestricted role defaults. */
   allowedModules: string[] | null;
+  easyScoutEnabled: boolean;
   sessionState: AuthSessionState;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -124,6 +125,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             session.allowedModules !== undefined
               ? session.allowedModules
               : (previous?.allowedModules ?? null),
+          easyScoutEnabled:
+            session.easyScoutEnabled !== undefined
+              ? session.easyScoutEnabled
+              : (previous?.easyScoutEnabled ?? false),
         };
         if (next.organization.id) {
           tokenStorage.setWorkspaceId(next.organization.id);
@@ -264,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       organization: me?.organization ?? null,
       permissions: me?.permissions ?? [],
       allowedModules: me?.allowedModules ?? null,
+      easyScoutEnabled: Boolean(me?.easyScoutEnabled),
       sessionState,
       isAuthenticated: sessionState === "authenticated",
       isLoading: sessionState === "loading",

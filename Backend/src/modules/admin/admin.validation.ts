@@ -63,6 +63,7 @@ export const updateAdminUserSchema = z.object({
   role: z.enum(['owner', 'admin', 'recruiter', 'hiring_manager', 'interviewer', 'analyst', 'viewer']).optional(),
   platformAdmin: z.boolean().optional(),
   adminPermissions: z.array(z.string()).optional(),
+  easyScoutEnabled: z.boolean().optional(),
 });
 
 export const assignPlanSchema = z.object({

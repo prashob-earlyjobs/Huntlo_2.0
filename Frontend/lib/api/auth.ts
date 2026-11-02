@@ -93,6 +93,7 @@ function mapAuthPayload(data: AuthPayload): AuthSession & { me: AuthMeResponse }
       organization: data.organization,
       permissions: data.permissions,
       allowedModules: data.allowedModules ?? null,
+      easyScoutEnabled: Boolean(data.easyScoutEnabled),
     },
   };
 }
@@ -208,6 +209,7 @@ const mockAuthApi: AuthApi = {
         organization: workspace,
         permissions: ["*"],
         allowedModules: null,
+        easyScoutEnabled: true,
       },
     };
   },
@@ -259,6 +261,7 @@ const mockAuthApi: AuthApi = {
       organization: WORKSPACES[0]!,
       permissions: ["*"],
       allowedModules: null,
+      easyScoutEnabled: true,
     };
   },
   async updateMe(input) {

@@ -30,7 +30,6 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     featureAccess: {
       sourcing: true,
       peopleScout: true,
-      easyScout: false,
       outreach: true,
       screening: true,
       assessments: false,
@@ -66,7 +65,6 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     featureAccess: {
       sourcing: true,
       peopleScout: true,
-      easyScout: false,
       outreach: true,
       screening: true,
       assessments: false,
@@ -102,7 +100,6 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     featureAccess: {
       sourcing: true,
       peopleScout: true,
-      easyScout: false,
       outreach: true,
       screening: true,
       assessments: true,
@@ -138,7 +135,6 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     featureAccess: {
       sourcing: true,
       peopleScout: true,
-      easyScout: false,
       outreach: true,
       screening: true,
       assessments: true,
@@ -174,7 +170,6 @@ export const DEFAULT_PRICING_PLANS: SeedPlan[] = [
     featureAccess: {
       sourcing: true,
       peopleScout: true,
-      easyScout: false,
       outreach: true,
       screening: true,
       assessments: true,

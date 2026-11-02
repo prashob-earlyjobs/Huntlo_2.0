@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { schedulingApi } from "@/lib/api";
-import { filterNavSections } from "@/lib/access-control";
+import { filterNavSections, gateEasyScoutSections } from "@/lib/access-control";
 import { NAV_ITEMS, type NavItem, type NavSection } from "@/lib/navigation";
 import type { TourTargetId } from "@/lib/config/dashboard-tour";
 import { ROUTES, type AppRoute } from "@/lib/routes";
@@ -178,12 +178,16 @@ export function NavList({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
-  const { permissions, allowedModules } = useAuth();
+  const { permissions, allowedModules, easyScoutEnabled } = useAuth();
   const activeHref = useActiveHref();
   const [interviewCount, setInterviewCount] = useState<number | undefined>();
   const sections = useMemo(
-    () => filterNavSections(permissions, undefined, allowedModules),
-    [permissions, allowedModules]
+    () =>
+      gateEasyScoutSections(
+        filterNavSections(permissions, undefined, allowedModules),
+        easyScoutEnabled
+      ),
+    [permissions, allowedModules, easyScoutEnabled]
   );
   const sectionLabels = useMemo(
     () => sections.map((section) => section.label),

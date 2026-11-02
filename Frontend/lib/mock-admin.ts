@@ -211,6 +211,7 @@ export interface AdminUser {
   revealsUsed: number;
   outreachUsed: number;
   status: AdminAccountStatus;
+  easyScoutEnabled?: boolean;
   createdAt: string;
   lastActive: string;
 }
@@ -378,7 +379,6 @@ export interface AdminPlan {
 export const ADMIN_MODULES = [
   "Sourcing",
   "People Scout",
-  "Easy Scout",
   "Outreach",
   "Huntlo 360",
   "Screening",
