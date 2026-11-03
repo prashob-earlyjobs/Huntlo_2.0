@@ -304,6 +304,13 @@ export function ScoutWorkspace({
   }
 
   async function selectMatch(match: ScoutMatchOption) {
+    if (lookupTypes.length === 1 && lookupTypes[0] === "LinkedIn URL") {
+      const url = `https://www.linkedin.com/in/${match.linkedinUsername}`;
+      setType("LinkedIn URL");
+      setValue(url);
+      await runLookup("LinkedIn URL", url);
+      return;
+    }
     setType("LinkedIn Username");
     setValue(match.linkedinUsername);
     await runLookup("LinkedIn Username", match.linkedinUsername);
@@ -321,21 +328,23 @@ export function ScoutWorkspace({
           }}
           className="flex flex-col gap-2 sm:flex-row"
         >
-          <Select
-            value={type}
-            onValueChange={(next) => next && setType(next as LookupType)}
-          >
-            <SelectTrigger aria-label="Lookup type" className="sm:w-44 sm:shrink-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {lookupTypes.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {lookupTypes.length > 1 ? (
+            <Select
+              value={type}
+              onValueChange={(next) => next && setType(next as LookupType)}
+            >
+              <SelectTrigger aria-label="Lookup type" className="sm:w-44 sm:shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {lookupTypes.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
           <div className="relative min-w-0 flex-1">
             <Search
               aria-hidden
@@ -443,8 +452,8 @@ export function ScoutWorkspace({
           icon={Radar}
           title="Look up a specific person"
           description={
-            lookupTypes.includes("DIN")
-              ? "Paste a LinkedIn URL, enter a username, or look up an Indian DIN. Easy Scout uses EazyReach to reveal verified work emails and phone numbers."
+            lookupTypes.length === 1 && lookupTypes[0] === "LinkedIn URL"
+              ? "Paste a LinkedIn profile link. Easy Scout finds that person and reveals verified work emails and phone numbers."
               : "Paste a LinkedIn URL, enter a username, or search by email address. We'll find the profile, enrich it from multiple providers, and let you reveal verified contact details."
           }
         />

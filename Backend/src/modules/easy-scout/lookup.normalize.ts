@@ -159,19 +159,17 @@ function mapType(
     'linkedin username': 'linkedin_username',
   };
 
-  if (rawType && aliases[rawType]) {
-    return { lookupType: aliases[rawType]!, value: rawInput };
+  const requested = rawType ? aliases[rawType] : undefined;
+  if (requested && requested !== 'linkedin_url') {
+    return { error: 'Easy Scout looks up a LinkedIn profile URL' };
   }
 
   const lower = rawInput.toLowerCase();
-  if (lower.includes('linkedin.com') || lower.includes('lnkd.in')) {
+  if (
+    (requested === 'linkedin_url' || !requested) &&
+    (lower.includes('linkedin.com') || lower.includes('lnkd.in'))
+  ) {
     return { lookupType: 'linkedin_url', value: rawInput };
   }
-  if (/^\d{6,12}$/.test(rawInput.replace(/\s+/g, ''))) {
-    return { lookupType: 'din', value: rawInput };
-  }
-  if (/^[\w.-]+$/.test(rawInput)) {
-    return { lookupType: 'linkedin_username', value: rawInput };
-  }
-  return { error: 'Enter a LinkedIn URL, LinkedIn username, or DIN' };
+  return { error: 'Paste a LinkedIn profile link like linkedin.com/in/candidate-name' };
 }
