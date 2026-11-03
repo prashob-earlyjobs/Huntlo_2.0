@@ -348,16 +348,16 @@ export function gateEasyScoutSections(
   );
 }
 
-export function gateEasyScoutItems<T extends { href: string }>(
-  items: T[],
+export function gateEasyScoutItems(
+  items: NavItem[],
   easyScoutEnabled: boolean
-): T[] {
+): NavItem[] {
   if (!easyScoutEnabled) {
     return items.filter((item) => !item.href.startsWith(ROUTES.easyScout));
   }
   if (items.some((item) => item.href.startsWith(ROUTES.easyScout))) return items;
   const extra = NAV_ITEMS.find((item) => item.href === ROUTES.easyScout);
-  return extra ? [...items, extra as T] : items;
+  return extra ? [...items, extra] : items;
 }
 
 export function firstAccessibleRoute(
