@@ -396,7 +396,7 @@ export function AdminUsersWorkspace() {
       if (dialog === "edit") {
         const [firstName, ...rest] = editForm.name.trim().split(/\s+/);
         const lastName = rest.join(" ") || firstName || "User";
-        await adminApi.updateUser(user.id, {
+        const updated = await adminApi.updateUser(user.id, {
           firstName: firstName || "User",
           lastName,
           role: editForm.role.toLowerCase().replace(/\s+/g, "_"),
@@ -406,7 +406,7 @@ export function AdminUsersWorkspace() {
           name: editForm.name,
           email: editForm.email,
           role: editForm.role,
-          easyScoutEnabled: editForm.easyScoutEnabled,
+          easyScoutEnabled: Boolean(updated.easyScoutEnabled),
         });
         setToast("User updated.");
       } else if (dialog === "plan") {
