@@ -422,6 +422,35 @@ export function normalizeAllowedModules(
   return Array.from(allowed);
 }
 
+const EASY_SCOUT_GRANT: PermissionKey[] = ['easyScout:view', 'easyScout:create', 'easyScout:edit'];
+
+/**
+ * A platform-admin Easy Scout grant overrides Team module access and role
+ * defaults. The sidebar and Easy Scout API both read this effective access.
+ */
+export function applyEasyScoutGrant(
+  enabled: boolean,
+  permissions: string[],
+  allowedModules: PermissionModule[] | null
+): { permissions: string[]; allowedModules: PermissionModule[] | null } {
+  if (!enabled) {
+    return { permissions, allowedModules };
+  }
+
+  const modules =
+    allowedModules === null || allowedModules.includes('easyScout')
+      ? allowedModules
+      : [...allowedModules, 'easyScout' as PermissionModule];
+
+  if (permissions.includes('*')) {
+    return { permissions, allowedModules: modules };
+  }
+
+  const granted = new Set(permissions);
+  for (const permission of EASY_SCOUT_GRANT) granted.add(permission);
+  return { permissions: Array.from(granted).sort(), allowedModules: modules };
+}
+
 export function hasPermission(
   granted: string[] | Set<string>,
   required: string
