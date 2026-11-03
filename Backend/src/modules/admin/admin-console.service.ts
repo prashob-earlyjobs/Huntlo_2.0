@@ -512,25 +512,19 @@ export const adminConsoleService = {
     }
     if (input.easyScoutEnabled !== undefined) {
       const enabled = Boolean(input.easyScoutEnabled);
-      const memberFilter = { userId: user._id, organizationId: user.organizationId };
-      if (enabled) {
-        await OrganizationMemberModel.updateOne(
-          { ...memberFilter, allowedModules: { $type: 'array' } },
-          { $set: { easyScoutEnabled: true }, $addToSet: { allowedModules: 'easyScout' } }
-        );
-        await OrganizationMemberModel.updateOne(
-          {
-            ...memberFilter,
-            $or: [{ allowedModules: null }, { allowedModules: { $exists: false } }],
-          },
-          { $set: { easyScoutEnabled: true } }
-        );
-      } else {
-        await OrganizationMemberModel.updateOne(memberFilter, {
-          $set: { easyScoutEnabled: false },
-          $pull: { allowedModules: 'easyScout' },
-        });
+      const member = await OrganizationMemberModel.findOne({
+        userId: user._id,
+        organizationId: user.organizationId,
+      });
+      if (!member) throw AppError.notFound('Organization membership not found');
+      member.easyScoutEnabled = enabled;
+      if (Array.isArray(member.allowedModules)) {
+        const modules = new Set(member.allowedModules);
+        if (enabled) modules.add('easyScout');
+        else modules.delete('easyScout');
+        member.allowedModules = [...modules];
       }
+      await member.save();
     }
     await user.save();
     return this.getUser(id);
