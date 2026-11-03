@@ -150,6 +150,7 @@ function mapAdminUser(user: {
   country?: string | null;
   plan: string;
   role: string;
+  easyScoutEnabled?: boolean;
   searchesUsed?: number;
   revealsUsed?: number;
   outreachUsed?: number;
@@ -166,6 +167,7 @@ function mapAdminUser(user: {
     country: formatCountry(user.country),
     plan: user.plan,
     role: user.role,
+    easyScoutEnabled: Boolean(user.easyScoutEnabled),
     searchesUsed: user.searchesUsed ?? 0,
     revealsUsed: user.revealsUsed ?? 0,
     outreachUsed: user.outreachUsed ?? 0,

@@ -37,11 +37,12 @@ export function DashboardAuthGuard({ children }: { children: ReactNode }) {
   } = useAuth();
 
   const trialExpired = Boolean(organization?.trialExpired);
-  const easyScoutBlocked =
-    !easyScoutEnabled && pathname.startsWith(ROUTES.easyScout);
+  const onEasyScout = pathname.startsWith(ROUTES.easyScout);
   const accessDenied =
     sessionState === "authenticated" &&
-    (!canAccessPath(permissions, pathname, allowedModules) || easyScoutBlocked);
+    (onEasyScout
+      ? !easyScoutEnabled
+      : !canAccessPath(permissions, pathname, allowedModules));
 
   useEffect(() => {
     if (sessionState === "loading") return;
