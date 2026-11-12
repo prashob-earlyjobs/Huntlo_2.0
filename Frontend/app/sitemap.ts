@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { fetchBlogSitemapEntries } from "@/lib/blog";
+import { CAPABILITY_PAGES, capabilityPath } from "@/lib/capabilityPages";
 import { COMPARISON_HUB_ENTRIES } from "@/lib/comparisons";
 import { listSolutionPages } from "@/lib/solutionPages";
 
@@ -11,6 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: SITE_URL, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
+    { url: `${SITE_URL}/capabilities`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/sourcing`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/screening`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/assessments`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.9 },
@@ -266,5 +268,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85,
   }));
 
-  return [...staticRoutes, ...solutionRoutes, ...blogRoutes, ...compareRoutes];
+  const capabilityRoutes: MetadataRoute.Sitemap = CAPABILITY_PAGES.map((page) => ({
+    url: `${SITE_URL}${capabilityPath(page.slug)}`,
+    lastModified: new Date(),
+    changeFrequency: "monthly",
+    priority: 0.85,
+  }));
+
+  return [...staticRoutes, ...capabilityRoutes, ...solutionRoutes, ...blogRoutes, ...compareRoutes];
 }
