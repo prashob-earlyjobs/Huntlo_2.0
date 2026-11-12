@@ -14,23 +14,23 @@ import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses"
 
 export function AgenticHiringEnterprise() {
   return (
-    <section className="bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
+    <section className="bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
       <div className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
             Built for the future of global hiring
           </p>
-          <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+          <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
             Enterprise-ready Agentic Hiring™.
           </h2>
         </div>
 
-        <div className="mt-10 grid gap-10 lg:grid-cols-2">
+        <div className="mt-8 grid gap-10 lg:grid-cols-2">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
               Built for
             </h3>
-            <ul className="mt-4 space-y-2">
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
               {ENTERPRISE_BUILT_FOR.map((item) => (
                 <li key={item.label}>
                   <Link
@@ -86,16 +86,16 @@ export function AgenticHiringEnterprise() {
 
 export function AgenticHiringFuture() {
   return (
-    <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+    <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
       <div className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
             The future starts here
           </p>
-          <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+          <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
             Recruitment became software. Hiring is becoming intelligence.
           </h2>
-          <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+          <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
             The next generation of organizations won&apos;t build recruiting operations, hiring
             workflows, or talent pipelines alone.
           </p>
@@ -123,7 +123,7 @@ export function AgenticHiringFuture() {
           ))}
         </ul>
 
-        <p className="mt-10 text-xl font-semibold text-[#141b2b] md:text-2xl">
+        <p className="mt-8 text-xl font-semibold text-[#141b2b] md:text-2xl">
           Welcome to the future of hiring.
           <span className="mt-2 block text-[#0050cb]">Welcome to Agentic Hiring™.</span>
         </p>
@@ -134,10 +134,10 @@ export function AgenticHiringFuture() {
 
 export function AgenticHiringFaq() {
   return (
-    <section className="bg-[#f7f8fc] px-4 py-20 md:px-8 md:py-28 lg:px-12" id="faqs">
+    <section className="bg-[#f7f8fc] px-4 py-12 md:px-8 md:py-16 lg:px-12" id="faqs">
       <div className="mx-auto max-w-3xl">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">FAQ</p>
-        <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+        <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
           Questions about Agentic Hiring™
         </h2>
         <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
@@ -145,7 +145,7 @@ export function AgenticHiringFaq() {
           recruiter product.
         </p>
 
-        <div className="mt-10 space-y-3">
+        <div className="mt-8 space-y-3">
           {AGENTIC_HIRING_FAQS.map((item) => (
             <details
               key={item.question}
@@ -171,13 +171,13 @@ export function AgenticHiringFaq() {
 
 export function AgenticHiringFinalCta() {
   return (
-    <section className="relative overflow-hidden bg-[#02050c] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
+    <section className="relative overflow-hidden bg-[#02050c] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.32),_transparent_58%)]"
         aria-hidden
       />
       <div className="relative mx-auto max-w-3xl text-center">
-        <h2 className="text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.6rem]">
+        <h2 className="text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2.1rem]">
           Hiring isn&apos;t becoming automated.
           <span className="mt-2 block text-[#8eb0ff]">It&apos;s becoming Agentic.</span>
         </h2>

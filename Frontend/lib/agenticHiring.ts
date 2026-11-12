@@ -216,11 +216,6 @@ export const AGENTIC_HIRING_FAQS = [
       "Agentic Hiring™ is a new approach where intelligent systems continuously work alongside hiring teams to discover talent, understand context, maintain momentum, coordinate workflows, improve confidence, and accelerate outcomes — before recruiters ever need to intervene.",
   },
   {
-    question: "Is hiring becoming automated or Agentic?",
-    answer:
-      "Agentic. The next generation of hiring won't be defined by better recruiting software, larger databases, or faster automation — but by systems that continuously understand talent and move hiring forward.",
-  },
-  {
     question: "How is Agentic Hiring different from AI recruiters?",
     answer:
       "AI recruiters imply replacement. Agentic Hiring™ is Human + AI Hiring — Human Intelligence and Artificial Intelligence working together continuously.",
@@ -231,103 +226,8 @@ export const AGENTIC_HIRING_FAQS = [
       "No. Future organizations won't choose humans or AI alone. They'll choose Human + AI Hiring — AI amplifies hiring teams.",
   },
   {
-    question: "What are AI Recruiting Agents?",
-    answer:
-      "Discovery, Conversation, Workflow, Hiring, and Intelligence Agents that continuously learn and help hiring outcomes move forward within Agentic Hiring™.",
-  },
-  {
-    question: "Why did recruiting change but hiring didn't?",
-    answer:
-      "We built ATS, CRMs, automation, assessments, scheduling, and analytics — yet organizations still struggle with velocity, experiences, productivity, confidence, and fragmented workflows. The problem is hiring infrastructure.",
-  },
-  {
-    question: "How does Agentic Hiring never stop learning?",
-    answer:
-      "From discovery through context, intent, conversations, momentum, self-coordinating workflows, confidence, and accelerated outcomes — everything intelligently connected.",
-  },
-  {
-    question: "Is Hiring Intelligence becoming infrastructure?",
-    answer:
-      "Yes. Future enterprises will ask how intelligently hiring can continuously improve itself — not only which recruiting software to buy.",
-  },
-  {
-    question: "What does tomorrow's hiring stack look like?",
-    answer:
-      "Agentic Hiring™ → Human + AI Hiring → AI Recruiting Agents → Hiring Intelligence → AI Hiring Infrastructure → better hiring outcomes.",
-  },
-  {
-    question: "Who is Agentic Hiring built for?",
-    answer:
-      "Enterprises, GCCs, staffing firms, recruitment agencies, global hiring teams, executive hiring, and technical hiring.",
-  },
-  {
-    question: "Why does Agentic Hiring matter?",
-    answer:
-      "Organizations that define the next decade won't win by hiring more people or automating more workflows — they'll win by understanding talent better and hiring more intelligently.",
-  },
-  {
-    question: "How does this relate to Huntlo?",
-    answer:
-      "Huntlo is building AI Hiring Intelligence Infrastructure for Agentic Hiring™ — the thought leadership and category home for the future of hiring.",
-  },
-  {
-    question: "Is this a product feature page?",
-    answer:
-      "No. /agentic-hiring is Huntlo's thought leadership manifesto and category creation page for Agentic Hiring™.",
-  },
-  {
     question: "Can enterprises run Agentic Hiring with governance?",
     answer:
       "Yes. Supporting governance, compliance, AI-native hiring, enterprise intelligence, integrations, and scalability.",
-  },
-  {
-    question: "What will the next generation of organizations build?",
-    answer:
-      "Not recruiting operations, hiring workflows, or talent pipelines alone — but Hiring Intelligence, Human + AI Hiring, Agentic Hiring™, and better hiring outcomes.",
-  },
-  {
-    question: "How do I explore Agentic Hiring™?",
-    answer:
-      "Explore Agentic Hiring™ on this page, book an enterprise demo, see Huntlo in action, or continue into Human + AI Hiring, recruiting agents, and AI Hiring Infrastructure.",
-  },
-  {
-    question: "Where does Workflow Intelligence fit?",
-    answer:
-      "Workflow Intelligence helps hiring coordinate itself continuously as part of Agentic Hiring™ — so recruiters aren't workflow managers.",
-  },
-  {
-    question: "Where does Hiring Confidence fit?",
-    answer:
-      "Hiring Confidence continuously improves as context, conversations, and workflows stay connected to outcomes.",
-  },
-  {
-    question: "Is talent the problem?",
-    answer:
-      "No. The problem isn't talent. The problem is hiring infrastructure.",
-  },
-  {
-    question: "How does Agentic Hiring accelerate business outcomes?",
-    answer:
-      "By continuously moving discovery, conversations, momentum, workflows, and confidence forward — hiring continuously moves itself forward intelligently.",
-  },
-  {
-    question: "What should visitors believe after this page?",
-    answer:
-      "That the future of hiring is Agentic Hiring™ — Human + AI Hiring powered by AI Hiring Intelligence Infrastructure — not more recruiting software.",
-  },
-  {
-    question: "How does this relate to Hiring OS?",
-    answer:
-      "Hiring OS is the operating system narrative. Agentic Hiring™ is the philosophy and category of how hiring continuously moves forward with Human + AI.",
-  },
-  {
-    question: "Will organizations choose humans or AI?",
-    answer:
-      "Neither alone. They'll choose Human + AI Hiring.",
-  },
-  {
-    question: "Welcome to the future of hiring — what does that mean?",
-    answer:
-      "Recruitment became software. Hiring is becoming intelligence. Welcome to Agentic Hiring™ — welcome to Huntlo.",
   },
 ] as const;

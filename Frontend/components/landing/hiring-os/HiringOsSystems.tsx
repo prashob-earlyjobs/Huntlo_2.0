@@ -20,18 +20,18 @@ type HiringOsSystemsProps = {
 export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
   return (
     <>
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               One operating system
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Infinite hiring possibilities.
             </h2>
           </div>
 
-          <div className="mt-10 grid gap-3 md:grid-cols-4">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {BENTO_CARDS.map((card, index) => (
               <motion.div
                 key={card.title}
@@ -39,11 +39,11 @@ export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.03 }}
-                className={card.span}
+                className="h-full"
               >
                 <Link
                   href={card.href}
-                  className="group flex h-full flex-col justify-between rounded-3xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-6 transition-colors hover:border-[#0050cb]/40 hover:bg-[#f1f3ff]"
+                  className="group flex h-full flex-col rounded-2xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-5 transition-colors hover:border-[#0050cb]/40 hover:bg-[#f1f3ff]"
                 >
                   <div>
                     <p className="text-base font-bold text-[#141b2b] group-hover:text-[#0050cb]">
@@ -53,7 +53,7 @@ export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
                       {card.description}
                     </p>
                   </div>
-                  <span className="mt-6 text-xs font-semibold uppercase tracking-[0.14em] text-[#0050cb]">
+                  <span className="mt-auto pt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[#0050cb]">
                     Explore
                   </span>
                 </Link>
@@ -63,18 +63,18 @@ export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
         </div>
       </section>
 
-      <section className="bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
+      <section className="bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Human + AI Hiring
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               AI doesn&apos;t replace hiring teams. It amplifies hiring intelligence.
             </h2>
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-2 md:gap-3">
             {HUMAN_AI_EQUATION.map((item, index) => (
               <motion.div
                 key={item}
@@ -104,21 +104,21 @@ export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
         </div>
       </section>
 
-      <section className="bg-[#f1f3ff] px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="bg-[#f1f3ff] px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               Continuous learning
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Hiring intelligence never stops learning.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
               Everything intelligently connected.
             </p>
           </div>
 
-          <ol className="mt-10 space-y-3">
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {LEARNING_LOOP.map((item, index) => (
               <motion.li
                 key={item}
@@ -126,28 +126,76 @@ export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.04 }}
-                className="flex items-center gap-4 rounded-2xl border border-[#c3c6d6]/35 bg-white px-5 py-4"
+                className="flex h-full items-center gap-3 rounded-xl border border-[#c3c6d6]/35 bg-white px-4 py-3"
               >
                 <span className="text-[0.65rem] font-semibold tabular-nums text-[#0050cb]">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-sm font-semibold text-[#141b2b] sm:text-base">{item}</span>
+                <span className="text-sm font-semibold text-[#141b2b]">{item}</span>
               </motion.li>
             ))}
           </ol>
         </div>
       </section>
 
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
+              Agentic Hiring
+            </p>
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
+              Everything continuously learning.
+            </h2>
+          </div>
+
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {AGENTIC_FLOW.map((item, index) => (
+              <motion.li
+                key={item}
+                initial={reduceMotion ? false : { opacity: 0, x: index % 2 === 0 ? -16 : 16 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: "-10%" }}
+                transition={{ duration: 0.35 }}
+                className="flex"
+              >
+                <div
+                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 ${
+                    item === "Human + AI Hiring"
+                      ? "border-[#0050cb]/50 bg-[#0050cb]/25"
+                      : "border-white/12 bg-white/[0.05]"
+                  }`}
+                >
+                  <span className="text-[0.65rem] font-semibold tabular-nums text-[#8eb0ff]">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="text-sm font-semibold text-white">{item}</span>
+                </div>
+              </motion.li>
+            ))}
+          </ol>
+
+          <div className="mt-8">
+            <Link
+              href="/agentic-hiring"
+              className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
+            >
+              Explore Agentic Hiring
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               Intelligence infrastructure
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Modern hiring requires intelligence infrastructure.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
               Future organizations won&apos;t ask which ATS to buy. They&apos;ll ask how
               intelligently hiring can continuously improve itself.
             </p>
@@ -175,55 +223,7 @@ export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
         </div>
       </section>
 
-      <section className="bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
-              Agentic Hiring
-            </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
-              Everything continuously learning.
-            </h2>
-          </div>
-
-          <ol className="mt-12 space-y-3">
-            {AGENTIC_FLOW.map((item, index) => (
-              <motion.li
-                key={item}
-                initial={reduceMotion ? false : { opacity: 0, x: index % 2 === 0 ? -16 : 16 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.35 }}
-                className={`flex ${index % 2 === 0 ? "justify-start" : "justify-end"}`}
-              >
-                <div
-                  className={`flex max-w-md items-center gap-4 rounded-full border px-5 py-3.5 ${
-                    item === "Human + AI Hiring"
-                      ? "border-[#0050cb]/50 bg-[#0050cb]/25"
-                      : "border-white/12 bg-white/[0.05]"
-                  }`}
-                >
-                  <span className="text-[0.65rem] font-semibold tabular-nums text-[#8eb0ff]">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="text-sm font-semibold text-white sm:text-base">{item}</span>
-                </div>
-              </motion.li>
-            ))}
-          </ol>
-
-          <div className="mt-8">
-            <Link
-              href="/agentic-hiring"
-              className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
-            >
-              Explore Agentic Hiring
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative overflow-hidden bg-[#03060f] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
+      <section className="relative overflow-hidden bg-[#03060f] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
         <div
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_15%,_rgba(0,80,203,0.3),_transparent_55%)]"
           aria-hidden
@@ -233,12 +233,12 @@ export function HiringOsSystems({ reduceMotion }: HiringOsSystemsProps) {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Future enterprise stack
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               The future enterprise hiring stack.
             </h2>
           </div>
 
-          <div className="mt-12 grid gap-8 lg:grid-cols-2" style={{ perspective: "1400px" }}>
+          <div className="mt-8 grid gap-8 lg:grid-cols-2" style={{ perspective: "1400px" }}>
             <motion.div
               className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 md:p-8"
               initial={reduceMotion ? false : { opacity: 0, rotateY: 6 }}

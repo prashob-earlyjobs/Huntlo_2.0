@@ -15,7 +15,7 @@ export function InfrastructureConstellation({ reduceMotion }: InfrastructureCons
   const core = HERO_FLOW[HERO_FLOW.length - 1];
 
   return (
-    <div className="relative mx-auto w-full max-w-[480px] [perspective:1600px]" aria-hidden>
+    <div className="relative mx-auto w-full max-w-[460px] lg:mr-0 [perspective:1600px]" aria-hidden>
       <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-white/[0.09] via-[#0a1426]/92 to-[#03060f] p-6 shadow-[0_50px_120px_-40px_rgba(0,80,203,0.75)] sm:p-8">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(0,80,203,0.45),_transparent_52%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,_rgba(26,58,138,0.35),_transparent_45%)]" />

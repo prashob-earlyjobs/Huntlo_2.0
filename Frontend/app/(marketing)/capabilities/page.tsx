@@ -121,71 +121,89 @@ export default function CapabilitiesPage() {
     <div className="landing-page selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <JsonLd data={jsonLdBlocks} />
       <LandingNav />
-      <main className="px-4 py-8 md:px-8 md:py-12 lg:px-12">
-        <div className="landing-compare-page">
-          <div className="landing-compare-hero">
-            <nav className="landing-compare-breadcrumb" aria-label="Breadcrumb">
-              <Link href="/">Home</Link>
-              <MaterialIcon name="chevron_right" className="landing-compare-breadcrumb-sep" />
-              <span>Capabilities</span>
-            </nav>
-
-            <h1 className="landing-compare-hero-title">
-              AI Hiring Capabilities: Smarter, Connected Hiring
-            </h1>
-
-            <div className="landing-compare-hero-intro">
-              <p>
-                Explore AI hiring capabilities from Huntlo, connecting candidate sourcing,
-                intelligence, screening, outreach, interviews, assessments, scheduling and
-                recruitment workflows through a connected human + AI hiring platform.
-              </p>
-            </div>
+      <main>
+        <section className="relative overflow-hidden bg-[#02050c] px-4 text-white md:px-8 lg:px-12">
+          <div className="pointer-events-none absolute inset-0" aria-hidden>
+            <div className="absolute -left-28 top-0 h-[36rem] w-[36rem] rounded-full bg-[#0050cb]/25 blur-[150px]" />
+            <div className="absolute bottom-0 right-0 h-[34rem] w-[34rem] rounded-full bg-[#1a3a8a]/38 blur-[140px]" />
           </div>
 
-          <section className="landing-compare-related landing-compare-hub-list">
-            <h2 className="landing-compare-related-title">
-              All AI hiring capabilities
-            </h2>
-            <div className="landing-compare-related-grid">
-              {CAPABILITY_LISTINGS.map((cap) => (
-                <Link
-                  key={cap.id}
-                  href={`/capabilities/${cap.id}`}
-                  className="landing-compare-related-card"
-                >
-                  <p className="landing-compare-related-name">{cap.name}</p>
-                  <p className="landing-compare-related-summary">
-                    {cap.description}
-                  </p>
-                  <span className="landing-compare-related-cta">
-                    View capability
-                    <MaterialIcon name="arrow_forward" className="text-sm" />
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
+          <div className="relative mx-auto max-w-[56rem] pt-10 pb-14 md:pt-12 md:pb-16">
+            <nav aria-label="Breadcrumb">
+              <ol className="flex flex-wrap items-center gap-1 text-[0.8125rem] text-white/60">
+                <li>
+                  <Link href="/" className="transition-colors hover:text-white">
+                    Home
+                  </Link>
+                </li>
+                <li aria-hidden className="flex items-center text-white/30">
+                  <MaterialIcon name="chevron_right" className="text-[16px]!" />
+                </li>
+                <li aria-current="page" className="font-medium text-white">
+                  Capabilities
+                </li>
+              </ol>
+            </nav>
 
-          <section className="landing-compare-cta mt-12 md:mt-16">
-            <div className="landing-compare-cta-glow" aria-hidden />
-            <h2>Try Huntlo for your team</h2>
-            <p>
-              Source talent, run multi-channel outreach, and manage hiring workflows in one
-              recruiting OS.
+            <h1 className="mt-6 text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-[1.15] text-white">
+              AI Hiring Capabilities:{" "}
+              <span className="text-[#8eb0ff]">Smarter, Connected Hiring</span>
+            </h1>
+
+            <p className="mt-4 max-w-3xl text-[1.0625rem] leading-[1.65] text-white/70">
+              Explore AI hiring capabilities from Huntlo, connecting candidate sourcing,
+              intelligence, screening, outreach, interviews, assessments, scheduling and
+              recruitment workflows through a connected human + AI hiring platform.
             </p>
-            <div className="landing-compare-cta-actions flex flex-col items-center gap-3">
-              <Link href="/" className="dashboard-btn-primary text-sm">
-                Try AI search
-              </Link>
-              <Link
-                href="/signup"
-                className="landing-compare-cta-secondary text-sm"
-              >
-                Create account
-              </Link>
-            </div>
-          </section>
+          </div>
+        </section>
+
+        <div className="px-4 py-10 md:px-8 md:py-14 lg:px-12">
+          <div className="landing-compare-page">
+            <section className="landing-compare-related landing-compare-hub-list">
+              <h2 className="landing-compare-related-title">
+                All AI hiring capabilities
+              </h2>
+              <div className="landing-compare-related-grid">
+                {CAPABILITY_LISTINGS.map((cap) => (
+                  <Link
+                    key={cap.id}
+                    href={`/capabilities/${cap.id}`}
+                    className="landing-compare-related-card"
+                  >
+                    <p className="landing-compare-related-name">{cap.name}</p>
+                    <p className="landing-compare-related-summary">
+                      {cap.description}
+                    </p>
+                    <span className="landing-compare-related-cta">
+                      View capability
+                      <MaterialIcon name="arrow_forward" className="text-sm" />
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+
+            <section className="landing-compare-cta mt-12 md:mt-16">
+              <div className="landing-compare-cta-glow" aria-hidden />
+              <h2>Try Huntlo for your team</h2>
+              <p>
+                Source talent, run multi-channel outreach, and manage hiring workflows in one
+                recruiting OS.
+              </p>
+              <div className="landing-compare-cta-actions flex flex-col items-center gap-3">
+                <Link href="/" className="dashboard-btn-primary text-sm">
+                  Try AI search
+                </Link>
+                <Link
+                  href="/signup"
+                  className="landing-compare-cta-secondary text-sm"
+                >
+                  Create account
+                </Link>
+              </div>
+            </section>
+          </div>
         </div>
       </main>
       <LandingFooter />

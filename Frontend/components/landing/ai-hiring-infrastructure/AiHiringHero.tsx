@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
+import { PlatformBreadcrumb } from "@/components/landing/platform-category/PlatformBreadcrumb";
 
 import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
 import { InfrastructureConstellation } from "./InfrastructureConstellation";
@@ -27,40 +28,26 @@ export function AiHiringHero({ reduceMotion }: AiHiringHeroProps) {
         ) : null}
       </div>
 
-      <div className="relative mx-auto grid max-w-6xl gap-14 px-4 py-20 md:px-8 md:py-28 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:px-12 lg:py-40">
+      <div className="relative mx-auto grid max-w-6xl gap-12 px-4 pt-10 pb-16 md:px-8 md:pt-12 md:pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:px-12 lg:pt-14 lg:pb-24">
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
+          <PlatformBreadcrumb current="AI Hiring Intelligence Infrastructure" />
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8eb0ff]">
             Category · AI Hiring Intelligence Infrastructure
           </p>
-          <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.2rem] lg:text-[3.45rem]">
+          <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.1rem] lg:text-[3.3rem]">
             Hiring is about to change forever.
+            <span className="mt-2 block text-[#8eb0ff]">Built on intelligence.</span>
           </h1>
-          <p className="mt-5 max-w-xl text-xl font-semibold leading-snug text-white md:text-2xl">
-            The next generation of hiring won&apos;t be built around software.
-            <span className="mt-1 block text-[#8eb0ff]">It will be built around intelligence.</span>
-          </p>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            The world&apos;s most successful organizations won&apos;t win because they have access to
-            more candidates. They&apos;ll win because they understand talent better, create
-            meaningful candidate experiences, intelligently orchestrate hiring workflows, and make
-            better hiring decisions at scale.
-          </p>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            The future isn&apos;t more tools, dashboards, or automation. The future is intelligence,
-            context, conversations, workflows, and outcomes.
-          </p>
-          <p className="mt-8 text-lg font-semibold tracking-tight md:text-xl">
-            Welcome to AI Hiring Intelligence Infrastructure.
-            <span className="mt-1 block text-base font-medium text-[#8eb0ff] md:text-lg">
-              Built for the future of Human + AI Hiring.
-            </span>
+            The organizations that win won&apos;t have more candidates. They&apos;ll understand talent
+            better and make better hiring decisions at scale, with Human + AI hiring.
           </p>
 
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
             <Link href="/huntlo360" className={secondaryCtaClass}>
               Explore Huntlo

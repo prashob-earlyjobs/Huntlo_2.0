@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
+import { PlatformBreadcrumb } from "@/components/landing/platform-category/PlatformBreadcrumb";
 
 import { CollaborationVisual } from "./CollaborationVisual";
 import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
@@ -27,43 +28,26 @@ export function AgenticHiringHero({ reduceMotion }: AgenticHiringHeroProps) {
         ) : null}
       </div>
 
-      <div className="relative mx-auto grid max-w-6xl gap-14 px-4 py-20 md:px-8 md:py-28 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:px-12 lg:py-40">
+      <div className="relative mx-auto grid max-w-6xl gap-12 px-4 pt-10 pb-16 md:px-8 md:pt-12 md:pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:px-12 lg:pt-14 lg:pb-24">
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
+          <PlatformBreadcrumb current="Agentic Hiring" />
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8eb0ff]">
             Manifesto · Agentic Hiring™
           </p>
-          <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.2rem] lg:text-[3.45rem]">
+          <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.1rem] lg:text-[3.3rem]">
             Hiring isn&apos;t becoming automated.
             <span className="mt-2 block text-[#8eb0ff]">It&apos;s becoming Agentic.</span>
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            The next generation of hiring won&apos;t be defined by better recruiting software. It
-            won&apos;t be defined by larger candidate databases or faster automation.
-          </p>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            It will be defined by systems that continuously understand talent, intelligently
-            coordinate hiring workflows, improve candidate experiences, and accelerate hiring
-            outcomes.
-          </p>
-          <p className="mt-8 text-lg font-semibold tracking-tight md:text-xl">
-            We call this: Agentic Hiring™.
-            <span className="mt-2 block text-base font-medium text-white/70 md:text-lg">
-              Where Human Intelligence and Artificial Intelligence work together to continuously
-              move hiring forward.
-            </span>
-          </p>
-          <p className="mt-6 text-lg font-semibold text-white md:text-xl">
-            Welcome to the future of hiring.
-            <span className="mt-1 block text-base font-medium text-[#8eb0ff] md:text-lg">
-              Built for Human + AI Hiring.
-            </span>
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
+            Agentic Hiring™ is where intelligent systems understand talent, coordinate workflows
+            and keep hiring moving, working alongside your recruiters.
           </p>
 
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link href="#agentic-hiring" className={primaryCtaClass}>
               Explore Agentic Hiring™
             </Link>
