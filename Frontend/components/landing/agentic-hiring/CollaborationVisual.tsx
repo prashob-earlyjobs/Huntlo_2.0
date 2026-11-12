@@ -15,7 +15,7 @@ export function CollaborationVisual({ reduceMotion }: CollaborationVisualProps) 
   const core = HERO_FLOW[HERO_FLOW.length - 1];
 
   return (
-    <div className="relative mx-auto w-full max-w-[480px] [perspective:1700px]" aria-hidden>
+    <div className="relative mx-auto w-full max-w-[460px] lg:mr-0 [perspective:1700px]" aria-hidden>
       <div className="relative overflow-hidden rounded-[2.6rem] border border-white/10 bg-gradient-to-b from-white/[0.1] via-[#0a1426]/92 to-[#02050c] p-6 shadow-[0_55px_130px_-42px_rgba(0,80,203,0.8)] sm:p-8">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-5%,_rgba(0,80,203,0.5),_transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_90%,_rgba(26,58,138,0.4),_transparent_42%)]" />

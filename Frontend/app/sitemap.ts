@@ -3,6 +3,7 @@ import type { MetadataRoute } from "next";
 import { fetchBlogSitemapEntries } from "@/lib/blog";
 import { CAPABILITY_PAGES, capabilityPath } from "@/lib/capabilityPages";
 import { COMPARISON_HUB_ENTRIES } from "@/lib/comparisons";
+import { PLATFORM_CATEGORY_PAGES } from "@/lib/platformCategoryPages";
 import { listSolutionPages } from "@/lib/solutionPages";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.huntlo.ai";
@@ -276,5 +277,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85,
   }));
 
-  return [...staticRoutes, ...capabilityRoutes, ...solutionRoutes, ...blogRoutes, ...compareRoutes];
+  const platformCategoryRoutes: MetadataRoute.Sitemap = PLATFORM_CATEGORY_PAGES.map((page) => ({
+    url: `${SITE_URL}${page.path}`,
+    lastModified: new Date(),
+    changeFrequency: "monthly",
+    priority: 0.9,
+  }));
+
+  return [
+    ...staticRoutes,
+    ...platformCategoryRoutes,
+    ...capabilityRoutes,
+    ...solutionRoutes,
+    ...blogRoutes,
+    ...compareRoutes,
+  ];
 }

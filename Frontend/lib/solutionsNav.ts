@@ -10,22 +10,19 @@ export const SOLUTIONS_NAV_COLUMNS: SolutionsNavItem[][] = [
     {
       id: "staffing-agencies",
       title: "For Staffing Agencies",
-      description:
-        "Manage multiple client mandates, source candidates faster, and automate recruiter workflows.",
+      description: "Fill roles for multiple clients faster.",
       href: "/solutions/staffing-agencies",
     },
     {
       id: "recruitment-firms",
       title: "For Recruitment Firms",
-      description:
-        "Scale candidate sourcing, outreach, and placements without growing your recruiting team.",
+      description: "Make more placements without growing your team.",
       href: "/solutions/recruitment-firms",
     },
     {
       id: "executive-search",
       title: "For Executive Search",
-      description:
-        "Identify niche talent, build targeted pipelines, and engage passive candidates effectively.",
+      description: "Find and engage hard-to-reach senior talent.",
       href: "/solutions/executive-search",
     },
   ],
@@ -33,22 +30,19 @@ export const SOLUTIONS_NAV_COLUMNS: SolutionsNavItem[][] = [
     {
       id: "startups",
       title: "For Startups",
-      description:
-        "Build your first hiring engine and attract top talent without a large recruiting team.",
+      description: "Hire great people without a big recruiting team.",
       href: "/solutions/startups",
     },
     {
       id: "enterprise-hiring",
       title: "For Enterprise Hiring",
-      description:
-        "Streamline sourcing, screening, and hiring operations across growing teams.",
+      description: "Run sourcing and screening across large teams.",
       href: "/solutions/enterprise-hiring",
     },
     {
       id: "gccs",
       title: "For GCCs",
-      description:
-        "Accelerate high-volume hiring with AI-powered sourcing, outreach, and talent intelligence.",
+      description: "Speed up high-volume hiring for global centers.",
       href: "/solutions/gccs",
     },
   ],

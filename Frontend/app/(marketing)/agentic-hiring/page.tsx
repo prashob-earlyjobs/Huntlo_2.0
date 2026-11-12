@@ -34,7 +34,8 @@ export default function AgenticHiringRoutePage() {
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Agentic Hiring™", href: AGENTIC_HIRING_PATH },
+            { name: "Platform", href: "/platform" },
+            { name: "Agentic Hiring", href: AGENTIC_HIRING_PATH },
           ]),
           faqPageJsonLd([...AGENTIC_HIRING_FAQS]),
         ]}

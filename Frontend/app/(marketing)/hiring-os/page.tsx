@@ -34,7 +34,8 @@ export default function HiringOsRoutePage() {
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Hiring OS", href: HIRING_OS_PATH },
+            { name: "Platform", href: "/platform" },
+            { name: "Huntlo360", href: HIRING_OS_PATH },
           ]),
           faqPageJsonLd([...HIRING_OS_FAQS]),
         ]}
