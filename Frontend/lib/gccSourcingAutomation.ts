@@ -148,14 +148,14 @@ export const ENTERPRISE_READY = [
 ] as const;
 
 export const GCC_SEGMENTS = [
-  { label: "Technology GCCs", href: "/solutions/gccs" },
-  { label: "Engineering Centers", href: "/solutions/gccs" },
-  { label: "Finance GCCs", href: "/solutions/gccs" },
-  { label: "Healthcare GCCs", href: "/solutions/gccs" },
-  { label: "Retail", href: "/solutions/gccs" },
-  { label: "Manufacturing", href: "/solutions/gccs" },
-  { label: "BFSI", href: "/solutions/gccs" },
-  { label: "Shared Services", href: "/solutions/gccs" },
+  { label: "Technology GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Engineering Centers", href: "/solutions/global-capability-centers" },
+  { label: "Finance GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Healthcare GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Retail", href: "/solutions/global-capability-centers" },
+  { label: "Manufacturing", href: "/solutions/global-capability-centers" },
+  { label: "BFSI", href: "/solutions/global-capability-centers" },
+  { label: "Shared Services", href: "/solutions/global-capability-centers" },
 ] as const;
 
 export const GCC_SOURCING_AUTOMATION_FAQS = [

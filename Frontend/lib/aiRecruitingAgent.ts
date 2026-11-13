@@ -182,13 +182,13 @@ export const INTELLIGENCE_LAYER = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Fortune 500", href: "/solutions/enterprise-hiring" },
-  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
+  { label: "Fortune 500", href: "/solutions" },
+  { label: "Enterprises", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Global Hiring Teams", href: "/solutions" },
-  { label: "Staffing Firms", href: "/solutions/staffing-agencies" },
+  { label: "Staffing Firms", href: "/solutions/it-staffing" },
   { label: "Executive Hiring", href: "/solutions/executive-search" },
-  { label: "Technical Hiring", href: "/solutions/startups" },
+  { label: "Technical Hiring", href: "/solutions" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [

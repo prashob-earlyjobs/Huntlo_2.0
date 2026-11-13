@@ -182,13 +182,13 @@ export const INFRA_CHANGES = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
-  { label: "Staffing firms", href: "/solutions/staffing-agencies" },
+  { label: "Enterprises", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Staffing firms", href: "/solutions/it-staffing" },
   { label: "Global hiring teams", href: "/solutions" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Technical hiring", href: "/solutions/startups" },
-  { label: "High volume hiring", href: "/solutions/enterprise-hiring" },
+  { label: "Technical hiring", href: "/solutions" },
+  { label: "High volume hiring", href: "/solutions" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [

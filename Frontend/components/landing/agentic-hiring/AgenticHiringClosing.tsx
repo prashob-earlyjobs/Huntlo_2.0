@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
+import { PlatformClosingCta } from "@/components/landing/platform-category/PlatformClosingCta";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
 import {
   AGENTIC_HIRING_FAQS,
@@ -171,30 +172,18 @@ export function AgenticHiringFaq() {
 
 export function AgenticHiringFinalCta() {
   return (
-    <section className="relative overflow-hidden bg-[#02050c] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.32),_transparent_58%)]"
-        aria-hidden
-      />
-      <div className="relative mx-auto max-w-3xl text-center">
-        <h2 className="text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2.1rem]">
-          Hiring isn&apos;t becoming automated.
-          <span className="mt-2 block text-[#8eb0ff]">It&apos;s becoming Agentic.</span>
-        </h2>
-        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/65 md:text-lg">
-          Discover how Huntlo is building the world&apos;s first AI Hiring Intelligence
-          Infrastructure for Agentic Hiring™.
-        </p>
-        <div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <Link href="#agentic-hiring" className={primaryCtaClass}>
-            Explore Agentic Hiring™
-          </Link>
-          <BookDemoLink className={secondaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-          <Link href="/recruiting-agents" className={ghostCtaClass}>
-            Meet Human + AI Hiring
-          </Link>
-        </div>
-      </div>
-    </section>
+    <PlatformClosingCta
+      titleLead="Hiring isn't becoming automated."
+      titleAccent="It's becoming Agentic."
+      body="Discover how Huntlo is building the world's first AI Hiring Intelligence Infrastructure for Agentic Hiring™."
+    >
+      <Link href="#agentic-hiring" className={primaryCtaClass}>
+        Explore Agentic Hiring™
+      </Link>
+      <BookDemoLink className={secondaryCtaClass}>Book Enterprise Demo</BookDemoLink>
+      <Link href="/recruiting-agents" className={ghostCtaClass}>
+        Meet Human + AI Hiring
+      </Link>
+    </PlatformClosingCta>
   );
 }

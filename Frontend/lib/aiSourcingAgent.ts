@@ -143,12 +143,12 @@ export const HUNTLO_PROVIDES = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Fortune 500 Organizations", href: "/solutions/enterprise-hiring" },
-  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
-  { label: "Staffing Firms", href: "/solutions/staffing-agencies" },
+  { label: "Fortune 500 Organizations", href: "/solutions" },
+  { label: "Enterprises", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Staffing Firms", href: "/solutions/it-staffing" },
   { label: "Global Hiring Teams", href: "/solutions" },
-  { label: "Technical Hiring", href: "/solutions/startups" },
+  { label: "Technical Hiring", href: "/solutions" },
   { label: "Executive Hiring", href: "/solutions/executive-search" },
 ] as const;
 

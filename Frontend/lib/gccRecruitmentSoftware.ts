@@ -186,13 +186,13 @@ export const ENTERPRISE_CARDS = [
 ] as const;
 
 export const INDUSTRY_CARDS = [
-  { label: "Technology GCC", href: "/solutions/gccs" },
-  { label: "Financial Services GCC", href: "/solutions/gccs" },
-  { label: "Healthcare GCC", href: "/solutions/gccs" },
-  { label: "Engineering Centers", href: "/solutions/gccs" },
-  { label: "Retail Capability Centers", href: "/solutions/gccs" },
-  { label: "Manufacturing GCC", href: "/solutions/gccs" },
-  { label: "Shared Services", href: "/solutions/gccs" },
+  { label: "Technology GCC", href: "/solutions/global-capability-centers" },
+  { label: "Financial Services GCC", href: "/solutions/global-capability-centers" },
+  { label: "Healthcare GCC", href: "/solutions/global-capability-centers" },
+  { label: "Engineering Centers", href: "/solutions/global-capability-centers" },
+  { label: "Retail Capability Centers", href: "/solutions/global-capability-centers" },
+  { label: "Manufacturing GCC", href: "/solutions/global-capability-centers" },
+  { label: "Shared Services", href: "/solutions/global-capability-centers" },
 ] as const;
 
 export const GCC_RECRUITMENT_SOFTWARE_FAQS = [
@@ -259,7 +259,7 @@ export const GCC_RECRUITMENT_SOFTWARE_FAQS = [
   {
     question: "Is there a dedicated GCC solutions page?",
     answer:
-      "Yes. Explore /solutions/gccs for GCC audience positioning, and /gcc-recruitment-software for the full recruitment software category narrative.",
+      "Yes. Explore /solutions/global-capability-centers for GCC audience positioning, and /gcc-recruitment-software for the full recruitment software category narrative.",
   },
   {
     question: "Can Huntlo support software engineering and shared services hiring?",

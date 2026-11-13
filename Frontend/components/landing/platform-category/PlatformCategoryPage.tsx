@@ -14,6 +14,7 @@ import {
 } from "@/lib/platformCategoryPages";
 
 import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
+import { PlatformClosingCta } from "./PlatformClosingCta";
 import { PlatformBreadcrumb } from "./PlatformBreadcrumb";
 
 type SectionProps = {
@@ -596,30 +597,19 @@ function Related({ page }: SectionProps) {
 function FinalCta({ page }: SectionProps) {
   const { finalCta } = page;
   return (
-    <section className={`relative overflow-hidden bg-[#02050c] text-white ${sectionPad}`}>
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,80,203,0.32),_transparent_58%)]"
-        aria-hidden
-      />
-      <div className="relative mx-auto max-w-3xl text-center">
-        <h2 className="text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2.1rem]">
-          {finalCta.titleLead}
-          <span className="mt-2 block text-[#8eb0ff]">{finalCta.titleAccent}</span>
-        </h2>
-        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/65 md:text-lg">
-          {finalCta.body}
-        </p>
-        <div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-          <Link href="#definition" className={secondaryCtaClass}>
-            {page.hero.primaryCta}
-          </Link>
-          <Link href={finalCta.ghost.href} className={ghostCtaClass}>
-            {finalCta.ghost.label}
-          </Link>
-        </div>
-      </div>
-    </section>
+    <PlatformClosingCta
+      titleLead={finalCta.titleLead}
+      titleAccent={finalCta.titleAccent}
+      body={finalCta.body}
+    >
+      <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
+      <Link href="#definition" className={secondaryCtaClass}>
+        {page.hero.primaryCta}
+      </Link>
+      <Link href={finalCta.ghost.href} className={ghostCtaClass}>
+        {finalCta.ghost.label}
+      </Link>
+    </PlatformClosingCta>
   );
 }
 

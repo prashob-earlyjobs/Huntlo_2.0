@@ -136,12 +136,12 @@ export const ENTERPRISES_DONT_NEED = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
-  { label: "Technical hiring", href: "/solutions/startups" },
+  { label: "Enterprise hiring", href: "/solutions" },
+  { label: "GCC hiring", href: "/solutions/global-capability-centers" },
+  { label: "Technical hiring", href: "/solutions" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Global hiring", href: "/solutions" },
-  { label: "High volume hiring", href: "/solutions/enterprise-hiring" },
+  { label: "High volume hiring", href: "/solutions" },
 ] as const;
 
 export const STACK_TODAY = [
@@ -211,12 +211,12 @@ export const BENTO_CARDS = [
 ] as const;
 
 export const BUILT_FOR_TEAMS = [
-  { label: "CHROs", href: "/solutions/enterprise-hiring" },
-  { label: "Talent Acquisition teams", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
-  { label: "Founders", href: "/solutions/startups" },
-  { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
-  { label: "Staffing firms", href: "/solutions/staffing-agencies" },
+  { label: "CHROs", href: "/solutions" },
+  { label: "Talent Acquisition teams", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Founders", href: "/solutions" },
+  { label: "Recruitment agencies", href: "/solutions/rpo" },
+  { label: "Staffing firms", href: "/solutions/it-staffing" },
   { label: "Global hiring teams", href: "/solutions" },
 ] as const;
 
