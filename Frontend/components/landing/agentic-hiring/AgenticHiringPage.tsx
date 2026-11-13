@@ -4,7 +4,8 @@ import { useReducedMotion } from "motion/react";
 
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
-import { AGENTIC_HIRING_GEO } from "@/lib/agenticHiring";
+import { ProductEvidenceSection } from "@/components/landing/product-ui/ProductEvidenceSection";
+import { AGENTIC_HIRING_EVIDENCE, AGENTIC_HIRING_GEO } from "@/lib/agenticHiring";
 
 import {
   AgenticHiringEnterprise,
@@ -24,6 +25,7 @@ export function AgenticHiringPage() {
       <LandingNav />
       <main>
         <AgenticHiringHero reduceMotion={reduceMotion} />
+        <ProductEvidenceSection evidence={AGENTIC_HIRING_EVIDENCE} id="agent-activity" />
         <AgenticHiringStory reduceMotion={reduceMotion} />
         <AgenticHiringSystems reduceMotion={reduceMotion} />
         <AgenticHiringFuture />

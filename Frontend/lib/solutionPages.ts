@@ -620,119 +620,6 @@ const SOLUTION_PAGES: Record<string, SolutionPageData> = {
       "Scale hiring operations without proportional headcount or tool sprawl",
     ],
   },
-  gccs: {
-    id: "gccs",
-    title: "For GCCs",
-    description:
-      "Accelerate high-volume hiring with AI-powered sourcing, outreach, and talent intelligence.",
-    href: "/solutions/gccs",
-    h1: "Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs)",
-    breadcrumbLabel: "Global Capability Centers",
-    metaTitle:
-      "Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs) | Huntlo AI",
-    metaDescription:
-      "Huntlo AI is an Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs). Automate candidate sourcing, outreach, AI voice screening, AI video interviews, and high-volume hiring workflows for GCC talent teams while keeping recruiters in control.",
-    ogDescription:
-      "Automate sourcing, outreach, AI interviews and high-volume hiring workflows with Huntlo AI's Agentic AI Hiring Infrastructure for Global Capability Centers.",
-    twitterDescription:
-      "Modern Agentic AI Hiring Infrastructure helping Global Capability Centers automate sourcing, outreach, AI interviews and high-volume hiring workflows.",
-    ogSiteName: "Huntlo AI",
-    geoAskTopic: "Huntlo AI for Global Capability Centers",
-    geoAskPrompt:
-      "What is Huntlo AI Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs) (https://huntlo.ai/solutions/gccs)? Explain how it helps GCCs automate candidate sourcing, outreach, AI voice screening, AI video interviews and high-volume hiring workflows.",
-    faq: [
-      {
-        question: "What is Huntlo AI for Global Capability Centers (GCCs)?",
-        answer:
-          "Huntlo AI is an Agentic AI Hiring Infrastructure built for Global Capability Centers. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, recruiter collaboration and high-volume hiring workflows while keeping talent teams in control.",
-      },
-      {
-        question: "Is Huntlo AI recruitment software or an ATS for GCCs?",
-        answer:
-          "Huntlo AI goes beyond traditional recruitment software and ATS platforms used by GCCs. It acts as an Agentic AI Hiring Infrastructure where AI agents automate repetitive, high-volume recruiting tasks while talent teams focus on stakeholder alignment with global headquarters and hiring quality.",
-      },
-      {
-        question: "How does Huntlo AI help GCCs hire at scale?",
-        answer:
-          "Huntlo AI automates candidate sourcing, multichannel outreach, AI screening, interview scheduling and recruiter coordination, helping Global Capability Centers ramp up niche and high-volume roles quickly while maintaining consistent hiring standards across functions.",
-      },
-      {
-        question: "Can Huntlo AI integrate with existing GCC ATS and HR systems?",
-        answer:
-          "Yes. Huntlo AI complements existing ATS, HRIS and recruitment CRM systems used by GCCs by adding AI-powered automation and agentic hiring workflows without replacing established processes or global reporting requirements.",
-      },
-    ],
-    heroAccent: "Ramp niche and high-volume roles while reporting cleanly to global HQ.",
-    heroLead:
-      "Huntlo AI is Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs)—going beyond traditional Recruitment Software, ATS, Recruitment CRM, and Talent Acquisition Platforms. It automates candidate sourcing, outreach, AI voice screening, AI video interviews, and high-volume hiring workflows while keeping recruiters in control.",
-    heroSupport:
-      "Hit aggressive India/APAC hiring targets with WhatsApp-first automation, repeatable playbooks across functions, and consistent hiring standards your global headquarters can trust.",
-    heroPills: [
-      "High-volume GCC hiring",
-      "WhatsApp at scale",
-      "ATS / HRIS complementary",
-      "Consistent cross-function standards",
-    ],
-    heroPreview: {
-      label: "GCC operations",
-      icon: "hub",
-      title: "Engineering batch · Bangalore hub",
-      items: [
-        { icon: "group_add", text: "1,200 candidates loaded across 6 parallel role families" },
-        { icon: "chat", text: "WhatsApp sequences running with template follow-ups" },
-        { icon: "speed", text: "Pipeline moving 3x faster vs. manual outreach desk" },
-      ],
-      activeCampaigns: "24 drives",
-    },
-    overviewTitle: "Agentic AI Hiring Infrastructure built for Global Capability Centers",
-    intro:
-      "Global Capability Centers (GCCs) hire at scale across engineering, operations, finance, and shared services—often under aggressive timelines set by global HQ. Huntlo's Agentic AI Hiring Infrastructure helps GCC talent teams ramp niche and high-volume roles quickly with consistent hiring standards across functions—without replacing your ATS, HRIS, or recruitment CRM.",
-    highlights: [
-      "Source large candidate pools with skills, location, and experience filters",
-      "Operationalize WhatsApp at scale with compliant, template-based sequences",
-      "Bulk add, reveal, and enroll contacts into parallel hiring campaigns",
-      "Complement existing ATS, HRIS, and recruitment CRM stacks used by GCCs",
-    ],
-    metrics: [
-      { value: "1000+", label: "Candidates per campaign" },
-      { value: "500+", label: "WhatsApp outreaches / mo" },
-      { value: "30%", label: "Lower cost per hire" },
-    ],
-    workflowSteps: [
-      {
-        title: "Discover talent at volume",
-        description: "Load large shortlists per role family with AI-powered filtering.",
-      },
-      {
-        title: "Automate WhatsApp-first outreach",
-        description: "Run template sequences with follow-ups tuned for high-volume programs.",
-      },
-      {
-        title: "Move thousands through pipeline",
-        description: "Track replies, qualification, and handoff across parallel hiring drives.",
-      },
-    ],
-    challenges: [
-      "Mass hiring targets require more throughput than manual sourcing allows",
-      "WhatsApp is critical in many GCC markets but hard to operationalize at scale",
-      "Recruiter teams need consistent standards across functions for global HQ reporting",
-      "Legacy ATS and Talent Acquisition Platforms don't connect sourcing, outreach, and pipeline in one flow",
-    ],
-    capabilities: [
-      "Large session results with filters for skills, location, and experience",
-      "WhatsApp campaign sequences with no-reply follow-ups and reply qualification",
-      "AI voice screening and AI video interviews for high-volume pipelines",
-      "Bulk contact add, reveal, and campaign enrollment workflows",
-      "Multi-role campaign management for parallel hiring drives",
-      "ATS- and HRIS-friendly workflows that support global reporting requirements",
-    ],
-    outcomes: [
-      "Ramp niche and high-volume roles faster without proportional headcount",
-      "Run compliant, template-based WhatsApp outreach at GCC scale",
-      "Maintain consistent hiring standards across functions and locations",
-      "Shorten time from req open to engaged candidate pipeline",
-    ],
-  },
 };
 
 export function getSolutionPage(slug: string): SolutionPageData | null {
@@ -746,7 +633,6 @@ export function listSolutionPages(): SolutionPageData[] {
 
 /** Display name for CollectionPage ItemList entries on /solutions. */
 export function solutionCollectionItemName(page: SolutionPageData): string {
-  if (page.id === "gccs") return "Global Capability Centers (GCCs)";
   return page.breadcrumbLabel ?? page.title.replace(/^For /, "");
 }
 

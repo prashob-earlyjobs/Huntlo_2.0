@@ -90,7 +90,7 @@ const HUB_LINK: CapabilityLink = {
   name: "AI Hiring Capabilities",
   href: CAPABILITIES_PATH,
   icon: "apps",
-  description: "Overview of all 13 connected AI hiring capabilities.",
+  description: "All 13 connected capabilities, organised by recruiting stage.",
 };
 
 const LINKS = {
@@ -185,7 +185,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-candidate-sourcing",
     name: "AI Candidate Sourcing",
     seo: {
-      title: "AI Candidate Sourcing | Huntlo AI Hiring Capabilities",
+      title: "AI Candidate Sourcing Software | Huntlo",
       description:
         "AI candidate sourcing turns natural-language role criteria into multi-dimensional talent signals, surfacing verified active and passive candidates across professional networks and technical communities as part of Huntlo's connected hiring execution platform.",
       ogTitle: "AI Candidate Sourcing for Connected Hiring Execution",
@@ -194,7 +194,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Intent-driven talent discovery that helps recruiters find relevant active and passive candidates beyond traditional keyword searches.",
+        "Find active and passive candidates from a plain-language role brief using career, skill, seniority and domain signals, not static Boolean keywords.",
       chips: [
         "Intent-driven discovery",
         "Natural-language criteria",
@@ -399,7 +399,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "vibe-sourcing",
     name: "Vibe Sourcing",
     seo: {
-      title: "Vibe Sourcing | Huntlo AI Hiring Capabilities",
+      title: "Vibe Sourcing for Candidate Discovery | Huntlo",
       description:
         "Vibe Sourcing lets recruiters describe who would succeed in a role in plain language, so Huntlo can discover candidates by working style, trajectory and team fit instead of rigid keyword filters.",
       ogTitle: "Vibe Sourcing: Intent-Driven Discovery Beyond Keywords",
@@ -408,7 +408,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Intent-driven discovery that finds candidates by how they work, what they have built and where they are heading — not just the keywords on their profile.",
+        "Describe who succeeds in the role, not just the keywords on their CV. Huntlo uses working style, trajectory and role context to surface overlooked candidates.",
       chips: [
         "Plain-language intent",
         "Working style & culture",
@@ -613,7 +613,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-candidate-screening",
     name: "AI Candidate Screening",
     seo: {
-      title: "AI Candidate Screening | Huntlo AI Hiring Capabilities",
+      title: "AI Candidate Screening Software | Huntlo",
       description:
         "AI candidate screening evaluates inbound applicants and sourced profiles against role criteria with context-aware rubrics, voice screening and recruiter review, so qualified talent reaches interviews with clear evidence.",
       ogTitle: "AI Candidate Screening for Consistent, Context-Aware Qualification",
@@ -622,7 +622,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Context-aware evaluation of applicants and sourced profiles against your role criteria, so every candidate gets a consistent first review before recruiters decide who advances.",
+        "Evaluate applicants consistently against role criteria, screening responses and qualification rubrics before recruiters decide who advances.",
       chips: ["Rubric-based evaluation", "Role criteria matching", "Voice screening", "Recruiter review"],
     },
     visual: {
@@ -827,7 +827,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-candidate-matching",
     name: "AI Candidate Matching",
     seo: {
-      title: "AI Candidate Matching | Huntlo AI Hiring Capabilities",
+      title: "AI Candidate Matching Software | Huntlo",
       description:
         "AI candidate matching compares candidate career trajectories with requisition requirements across skill depth, seniority and domain relevance, helping recruiters prioritize the most aligned candidates for review.",
       ogTitle: "AI Candidate Matching: Prioritize the Most Aligned Candidates",
@@ -836,7 +836,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Compatibility scoring between candidate career trajectories and open requisitions, so recruiters spend their attention on the candidates most aligned with the role.",
+        "Prioritise candidates by skill depth, seniority, domain relevance and career trajectory so recruiters review the strongest role matches first.",
       chips: ["Bi-directional compatibility", "Skill depth & seniority", "Domain relevance", "Prioritized review"],
     },
     visual: {
@@ -1040,7 +1040,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-candidate-outreach",
     name: "AI Candidate Outreach",
     seo: {
-      title: "AI Candidate Outreach | Huntlo AI Hiring Capabilities",
+      title: "AI Candidate Outreach Automation | Huntlo",
       description:
         "AI candidate outreach runs personalized, multi-touch engagement across Email and WhatsApp, using sourced profile context to start relevant conversations and automate follow-up timing.",
       ogTitle: "AI Candidate Outreach Across Email and WhatsApp",
@@ -1049,7 +1049,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Personalized, multi-touch engagement across Email and WhatsApp that starts conversations from real candidate context — not generic blast templates.",
+        "Run personalised Email and WhatsApp outreach from real candidate context, with automated follow-ups and reply-triggered next steps.",
       chips: ["Email & WhatsApp", "Profile-based personalization", "Automated follow-up timing", "Reply-triggered next steps"],
     },
     visual: {
@@ -1253,7 +1253,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-candidate-engagement",
     name: "AI Candidate Engagement",
     seo: {
-      title: "AI Candidate Engagement | Huntlo AI Hiring Capabilities",
+      title: "AI Candidate Engagement Software | Huntlo",
       description:
         "AI candidate engagement keeps candidates informed between first interest and interviews with smart follow-ups, role-inquiry responses and continuous touchpoints across Email, WhatsApp and voice.",
       ogTitle: "AI Candidate Engagement That Keeps Hiring Momentum",
@@ -1262,7 +1262,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Continuous, well-timed candidate touchpoints between first interest and the interview, so promising candidates stay informed and engaged instead of going quiet.",
+        "Keep candidates informed between first response and interview with timely follow-ups, scheduling nudges and connected multi-channel conversations.",
       chips: ["Smart follow-ups", "Role inquiry responses", "Multi-channel touchpoints", "Fewer drop-offs"],
     },
     visual: {
@@ -1466,7 +1466,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-interview-scheduling",
     name: "AI Interview Scheduling",
     seo: {
-      title: "AI Interview Scheduling | Huntlo AI Hiring Capabilities",
+      title: "AI Interview Scheduling Software | Huntlo",
       description:
         "AI interview scheduling coordinates panel availability, candidate time zones and calendar holds into self-scheduling workflows, with automated confirmations and reminders connected to the rest of hiring.",
       ogTitle: "AI Interview Scheduling With Candidate Self-Booking",
@@ -1475,7 +1475,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Self-scheduling that coordinates panel availability, candidate time zones and calendar holds, so qualified candidates book interviews without rounds of back-and-forth.",
+        "Let qualified candidates self-book against panel availability and time zones while Huntlo handles confirmations, reminders and scheduling updates.",
       chips: ["Candidate self-booking", "Panel calendar sync", "Time zone handling", "Automated reminders"],
     },
     visual: {
@@ -1681,7 +1681,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     name: "AI Voice Interviews",
     plural: true,
     seo: {
-      title: "AI Voice Interviews | Huntlo AI Hiring Capabilities",
+      title: "AI Voice Interview Screening | Huntlo",
       description:
         "AI voice interviews run structured preliminary phone screens that verify availability, notice period, salary expectations and role interest, producing transcripts and qualification summaries for recruiter review.",
       ogTitle: "AI Voice Interviews for Structured Preliminary Screening",
@@ -1690,7 +1690,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Structured, conversational preliminary phone screens that confirm the basics and capture role-relevant answers, so recruiters start deeper interviews with verified context.",
+        "Run structured preliminary voice screens for availability, compensation, role interest and other configured criteria, with transcripts and recruiter review.",
       chips: ["Structured phone screens", "Role-specific questions", "Transcripts & summaries", "Recruiter override"],
     },
     visual: {
@@ -1896,7 +1896,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     name: "AI Recruitment Assessments",
     plural: true,
     seo: {
-      title: "AI Recruitment Assessments | Huntlo AI Hiring Capabilities",
+      title: "AI Recruitment Assessments | Huntlo",
       description:
         "AI recruitment assessments deliver role-based skill evaluations between screening and interviews, with automated scoring and candidate reports that give hiring teams clear skill signals.",
       ogTitle: "AI Recruitment Assessments for Role-Based Skill Signals",
@@ -1905,7 +1905,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Role-based skill evaluations calibrated to day-to-day job expectations, so hiring teams see objective competency signals before committing panel time.",
+        "Evaluate role-relevant technical and situational skills before panel interviews using structured assessments, automated scoring and candidate reports.",
       chips: ["Role-based tests", "Technical & situational", "Automated scoring", "Candidate reports"],
     },
     visual: {
@@ -2109,7 +2109,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-recruitment-crm",
     name: "AI Recruitment CRM",
     seo: {
-      title: "AI Recruitment CRM | Huntlo AI Hiring Capabilities",
+      title: "AI Recruitment CRM | Huntlo",
       description:
         "Huntlo's AI recruitment CRM centralizes candidate conversations, outreach history, screening transcripts and timelines into one searchable record that complements your existing ATS.",
       ogTitle: "AI Recruitment CRM: One Living Record for Every Candidate",
@@ -2118,7 +2118,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "One living record for every candidate — conversations, outreach history, screening transcripts and timelines — so context is never lost between stages or requisitions.",
+        "Keep conversations, outreach, screening transcripts and candidate history in one searchable record that stays connected across requisitions.",
       chips: ["Unified candidate records", "Conversation history", "Campaign workspaces", "Works alongside your ATS"],
     },
     visual: {
@@ -2322,7 +2322,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-talent-pool-management",
     name: "AI Talent Pool Management",
     seo: {
-      title: "AI Talent Pool Management | Huntlo AI Hiring Capabilities",
+      title: "AI Talent Pool Management | Huntlo",
       description:
         "AI talent pool management organizes saved candidates into reusable pools by role, skills and status, so teams can revisit past sourcing work and launch outreach when new roles open.",
       ogTitle: "AI Talent Pool Management: Start Every Search Warm",
@@ -2331,7 +2331,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Organized, reusable talent pools built from your sourcing work, so every new requisition can start with candidates your team already knows.",
+        "Turn previous sourcing work into reusable talent pools with shared candidate records, filters and campaign-ready shortlists.",
       chips: ["Saved candidates", "Tags & smart filters", "Shared team pools", "Campaign-ready"],
     },
     visual: {
@@ -2535,7 +2535,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "ai-recruitment-analytics",
     name: "AI Recruitment Analytics",
     seo: {
-      title: "AI Recruitment Analytics | Huntlo AI Hiring Capabilities",
+      title: "AI Recruitment Analytics Software | Huntlo",
       description:
         "AI recruitment analytics gives talent leaders visibility into outreach volume, replies, pipeline progression and recruiter activity across Huntlo workflows, supporting data-informed hiring decisions.",
       ogTitle: "AI Recruitment Analytics for Pipeline Visibility",
@@ -2544,7 +2544,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Visibility into outreach, replies and pipeline progression across connected hiring workflows, so talent leaders can manage pipelines with data instead of retrospective spreadsheets.",
+        "Track outreach, replies, recruiter activity and pipeline progression as work happens, so leaders can identify bottlenecks before monthly reporting.",
       chips: ["Pipeline visibility", "Outreach & reply tracking", "Recruiter activity", "Leadership oversight"],
     },
     visual: {
@@ -2738,7 +2738,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     slug: "recruitment-workflow-automation",
     name: "Recruitment Workflow Automation",
     seo: {
-      title: "Recruitment Workflow Automation | Huntlo AI Hiring Capabilities",
+      title: "Recruitment Workflow Automation | Huntlo",
       description:
         "Recruitment workflow automation connects sourcing, outreach, screening and scheduling with engagement-based triggers, automated follow-ups and status updates, so recruiters spend less time on manual coordination.",
       ogTitle: "Recruitment Workflow Automation Across the Hiring Pipeline",
@@ -2747,7 +2747,7 @@ export const CAPABILITY_PAGES: CapabilityPageContent[] = [
     },
     hero: {
       summary:
-        "Cross-stage triggers, automated follow-ups and status progression that connect your hiring pipeline, so candidates move forward without manual data entry.",
+        "Connect candidate events to approved follow-ups, screening, scheduling and status changes while recruiters keep oversight of every automated step.",
       chips: ["Cross-stage triggers", "Automated follow-ups", "Status progression", "Reusable playbooks"],
     },
     visual: {
@@ -2957,6 +2957,13 @@ export function capabilityPath(slug: string) {
 export function getCapabilityPage(slug: string) {
   return CAPABILITY_PAGES.find((page) => page.slug === slug);
 }
+
+export function getCapabilityLink(slug: string): CapabilityLink | undefined {
+  const href = capabilityPath(slug);
+  return Object.values(LINKS).find((link) => link.href === href);
+}
+
+export const CAPABILITY_PLATFORM_LINK = LINKS.platform;
 
 export function getAdjacentCapabilities(slug: string) {
   const index = CAPABILITY_PAGES.findIndex((page) => page.slug === slug);

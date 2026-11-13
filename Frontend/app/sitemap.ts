@@ -3,9 +3,12 @@ import type { MetadataRoute } from "next";
 import { fetchBlogSitemapEntries } from "@/lib/blog";
 import { CAPABILITY_PAGES, capabilityPath } from "@/lib/capabilityPages";
 import { COMPARISON_HUB_ENTRIES } from "@/lib/comparisons";
+import { LEARN_PAGES, LEARN_PATH, learnPath } from "@/lib/learnPages";
 import { PLATFORM_CATEGORY_PAGES } from "@/lib/platformCategoryPages";
 import { SOLUTION_PAGES as INDUSTRY_SOLUTION_PAGES, solutionPath } from "@/lib/industrySolutionPages";
+import { isResearchPublished, RESEARCH_PATH, RESEARCH_REPORTS, researchPath } from "@/lib/researchPages";
 import { listSolutionPages } from "@/lib/solutionPages";
+import { TOOL_PAGES, TOOLS_PATH, toolPath } from "@/lib/toolsPages";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.huntlo.ai";
 
@@ -289,10 +292,61 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.9,
   }));
 
+  const learnLastModified = LEARN_PAGES.map((page) => page.lastUpdated).sort().at(-1);
+  const learnRoutes: MetadataRoute.Sitemap = [
+    {
+      url: `${SITE_URL}${LEARN_PATH}`,
+      lastModified: learnLastModified ? new Date(learnLastModified) : new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...LEARN_PAGES.map((page) => ({
+      url: `${SITE_URL}${learnPath(page.slug)}`,
+      lastModified: new Date(page.lastUpdated),
+      changeFrequency: "monthly" as const,
+      priority: 0.75,
+    })),
+  ];
+
+  const researchLastModified = RESEARCH_REPORTS.map((report) => report.lastUpdated).sort().at(-1);
+  const researchRoutes: MetadataRoute.Sitemap = [
+    {
+      url: `${SITE_URL}${RESEARCH_PATH}`,
+      lastModified: researchLastModified ? new Date(researchLastModified) : new Date(),
+      changeFrequency: "monthly",
+      priority: 0.75,
+    },
+    ...RESEARCH_REPORTS.filter(isResearchPublished).map((report) => ({
+      url: `${SITE_URL}${researchPath(report.slug)}`,
+      lastModified: new Date(report.lastUpdated),
+      changeFrequency: "monthly" as const,
+      priority: 0.75,
+    })),
+  ];
+
+  const toolsLastModified = TOOL_PAGES.map((tool) => tool.lastUpdated).sort().at(-1);
+  const toolRoutes: MetadataRoute.Sitemap = [
+    {
+      url: `${SITE_URL}${TOOLS_PATH}`,
+      lastModified: toolsLastModified ? new Date(toolsLastModified) : new Date(),
+      changeFrequency: "monthly",
+      priority: 0.75,
+    },
+    ...TOOL_PAGES.map((tool) => ({
+      url: `${SITE_URL}${toolPath(tool.slug)}`,
+      lastModified: new Date(tool.lastUpdated),
+      changeFrequency: "monthly" as const,
+      priority: 0.8,
+    })),
+  ];
+
   return [
     ...staticRoutes,
     ...platformCategoryRoutes,
     ...capabilityRoutes,
+    ...learnRoutes,
+    ...researchRoutes,
+    ...toolRoutes,
     ...solutionRoutes,
     ...blogRoutes,
     ...compareRoutes,

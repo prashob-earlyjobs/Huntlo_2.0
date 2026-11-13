@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
+import { CTA } from "@/lib/ctaLabels";
 import {
   BUILT_FOR_TEAMS,
   ENTERPRISE_SUPPORTS,
@@ -206,18 +207,19 @@ export function Huntlo360FinalCta() {
       <div className="relative mx-auto max-w-3xl text-center">
         <h2 className="text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.6rem]">
           One operating system.
-          <span className="mt-2 block text-[#8eb0ff]">Infinite hiring possibilities.</span>
+          <span className="mt-2 block text-[#8eb0ff]">One shared hiring context.</span>
         </h2>
         <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/65 md:text-lg">
-          Discover how Huntlo360 is building the future of Human + AI Hiring.
+          See Huntlo360 run discovery, engagement, screening and scheduling on your roles, with
+          recruiters in control of every decision.
         </p>
         <div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-          <Link href="#huntlo360" className={secondaryCtaClass}>
-            Explore Huntlo360
+          <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+          <Link href={CTA.product.href} className={secondaryCtaClass}>
+            {CTA.product.label}
           </Link>
-          <Link href="/agentic-hiring" className={ghostCtaClass}>
-            Meet Agentic Hiring
+          <Link href={CTA.trial.href} className={ghostCtaClass}>
+            {CTA.trial.label}
           </Link>
         </div>
       </div>

@@ -45,11 +45,11 @@ export const SOLUTIONS_NAV_COLUMNS: SolutionsNavItem[][] = [
       href: "/solutions/enterprise-hiring",
     },
     {
-      id: "gccs",
+      id: "global-capability-centers",
       title: "For GCCs",
       description:
         "Accelerate high-volume hiring with AI-powered sourcing, outreach, and talent intelligence.",
-      href: "/solutions/gccs",
+      href: "/solutions/global-capability-centers",
     },
   ],
 ];

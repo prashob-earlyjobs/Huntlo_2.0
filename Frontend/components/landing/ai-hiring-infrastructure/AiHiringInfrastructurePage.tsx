@@ -4,7 +4,8 @@ import { useReducedMotion } from "motion/react";
 
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
-import { AI_HIRING_GEO } from "@/lib/aiHiringInfrastructure";
+import { ProductEvidenceSection } from "@/components/landing/product-ui/ProductEvidenceSection";
+import { AI_HIRING_EVIDENCE, AI_HIRING_GEO } from "@/lib/aiHiringInfrastructure";
 
 import {
   AiHiringEnterprise,
@@ -23,6 +24,7 @@ export function AiHiringInfrastructurePage() {
       <LandingNav />
       <main>
         <AiHiringHero reduceMotion={reduceMotion} />
+        <ProductEvidenceSection evidence={AI_HIRING_EVIDENCE} id="definition" />
         <AiHiringStory reduceMotion={reduceMotion} />
         <AiHiringSystems reduceMotion={reduceMotion} />
         <AiHiringEnterprise />

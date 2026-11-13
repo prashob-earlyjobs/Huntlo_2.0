@@ -4,7 +4,8 @@ import { useReducedMotion } from "motion/react";
 
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
-import { HIRING_OS_GEO } from "@/lib/hiringOs";
+import { ProductEvidenceSection } from "@/components/landing/product-ui/ProductEvidenceSection";
+import { HIRING_OS_EVIDENCE, HIRING_OS_GEO } from "@/lib/hiringOs";
 
 import {
   HiringOsEnterprise,
@@ -24,6 +25,7 @@ export function HiringOsPage() {
       <LandingNav />
       <main>
         <HiringOsHero reduceMotion={reduceMotion} />
+        <ProductEvidenceSection evidence={HIRING_OS_EVIDENCE} id="shared-context" />
         <HiringOsStory reduceMotion={reduceMotion} />
         <HiringOsSystems reduceMotion={reduceMotion} />
         <HiringOsFuture />

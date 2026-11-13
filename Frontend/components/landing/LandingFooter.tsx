@@ -39,6 +39,9 @@ const FOOTER_LINK_HREFS: Record<string, string> = {
   "Candidate Discovery": "/candidate-sourcing",
   "AI Native Candidate Discovery™": "/candidate-sourcing",
   Documentation: "/docs",
+  "Knowledge Centre": "/learn",
+  Research: "/research",
+  "Tools & Calculators": "/tools",
   Blog: "/blog",
   FAQs: "/faqs",
   About: "/about",
@@ -119,7 +122,7 @@ const FOOTER_COLUMNS: {
   },
   {
     title: "For GCC",
-    titleHref: "/solutions/gccs",
+    titleHref: "/solutions/global-capability-centers",
     links: [
       "GCC Recruitment Software",
       "GCC Hiring Platform",
@@ -136,6 +139,9 @@ const FOOTER_COLUMNS: {
       "Agentic Hiring",
       "Hiring OS",
       "Hiring Workflows",
+      "Knowledge Centre",
+      "Research",
+      "Tools & Calculators",
       "Blog",
       "FAQs",
     ],

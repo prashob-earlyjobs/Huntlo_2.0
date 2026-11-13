@@ -49,7 +49,8 @@ export type SolutionPage = {
   /** Row in the hub's "which solution fits" table. */
   fit: { motion: string; startWith: string };
   seo: { title: string; description: string };
-  hero: { accent: string; summary: string; chips: string[] };
+  /** `title` overrides the H1 when it should differ from `name`. */
+  hero: { title?: string; accent: string; summary: string; chips: string[] };
   answer: { question: string; text: string };
   visual: SolutionVisual;
   problem: { title: string; intro: string; items: SolutionIconItem[] };
@@ -102,9 +103,10 @@ const RPO: SolutionPage = {
       "Run sourcing, outreach, screening and scheduling for every client program from one workspace. See how Huntlo supports RPO delivery teams with AI agents and recruiter control.",
   },
   hero: {
+    title: "AI Recruiting Platform for RPO Delivery Teams",
     accent: "Deliver every client program from one connected layer.",
     summary:
-      "Huntlo gives RPO delivery teams a workspace for each client requisition. AI agents handle sourcing, outreach, voice screening and scheduling, while recruiters own client relationships and hiring recommendations.",
+      "Run sourcing, outreach, preliminary screening and interview scheduling across client requisitions while recruiters keep ownership of submissions, relationships and hiring recommendations.",
     chips: [
       "Workspace per requisition",
       "Email + WhatsApp outreach",
@@ -343,9 +345,10 @@ const EXECUTIVE_SEARCH: SolutionPage = {
       "Map senior talent, prioritize candidates and coordinate outreach for every search. See how Huntlo supports executive search consultants while partners own every relationship.",
   },
   hero: {
+    title: "AI Platform for Executive Search Firms",
     accent: "Map senior talent faster. Keep every relationship personal.",
     summary:
-      "Huntlo helps executive search teams build market maps, prioritize senior candidates and coordinate outreach and scheduling, while partners and consultants lead every conversation and recommendation.",
+      "Build senior-talent market maps, prioritise relevant leaders and coordinate discreet outreach while consultants own every relationship, assessment and shortlist recommendation.",
     chips: [
       "Intent-based talent mapping",
       "Trajectory and domain signals",
@@ -586,9 +589,10 @@ const IT_STAFFING: SolutionPage = {
       "Source developers and engineers by skill depth, screen availability and rates by voice, and submit reviewed shortlists. See how Huntlo helps IT staffing teams move on technical requisitions.",
   },
   hero: {
+    title: "AI Recruiting Platform for IT Staffing Agencies",
     accent: "Fill technical requisitions faster with skill-aware sourcing.",
     summary:
-      "Huntlo helps IT staffing recruiters find engineers by skill depth rather than keywords, confirm availability and rates with voice screens, and submit reviewed shortlists while client requisitions are still open.",
+      "Find engineers by skill depth rather than keywords, confirm availability and rates with preliminary voice screens, and submit recruiter-reviewed shortlists while client requisitions are still open.",
     chips: [
       "Skill-depth matching",
       "Availability and rate screens",
@@ -826,9 +830,10 @@ const HEALTHCARE: SolutionPage = {
       "Reach nurses, allied health and support staff with Email and WhatsApp outreach, voice screens and self-scheduling. Recruiters keep control of credential checks and hiring decisions.",
   },
   hero: {
+    title: "AI Recruitment Software for Healthcare Hiring",
     accent: "Reach clinical talent faster, with recruiters on every decision.",
     summary:
-      "Huntlo helps healthcare recruiters engage nurses, allied health professionals and support staff over Email and WhatsApp, confirm shift preferences and availability by voice, and schedule interviews around busy rosters.",
+      "Engage nurses, allied health professionals and support staff over Email and WhatsApp, confirm shift preferences by voice and schedule around rosters, while recruiters verify credentials and make every hiring decision.",
     chips: [
       "Shift and availability screens",
       "WhatsApp outreach",
@@ -1066,9 +1071,10 @@ const MANUFACTURING: SolutionPage = {
       "Hire plant, production and engineering talent across sites. Huntlo runs WhatsApp outreach, shift and location screens and interview scheduling so recruiters can focus on skills and fit.",
   },
   hero: {
+    title: "AI Recruitment Software for Manufacturing Hiring",
     accent: "Staff every shift and site with less manual coordination.",
     summary:
-      "Huntlo helps manufacturing recruiters reach operators, technicians and engineers on WhatsApp and Email, confirm shift, location and availability by voice, and schedule site interviews, with recruiters and plant leaders deciding who joins.",
+      "Reach operators, technicians and engineers across sites, screen availability and shift fit, and coordinate interviews while plant teams retain skills, safety and hiring decisions.",
     chips: [
       "Multi-site hiring",
       "WhatsApp-first outreach",
@@ -1307,9 +1313,10 @@ const BPO: SolutionPage = {
       "Screen and schedule large applicant volumes for customer support and operations roles. Huntlo runs voice screens, WhatsApp follow-ups and self-scheduling while recruiters make the final call.",
   },
   hero: {
+    title: "AI Recruitment Software for High-Volume BPO Hiring",
     accent: "Run high-volume hiring without high-volume busywork.",
     summary:
-      "Huntlo helps BPO and customer-experience recruiters engage large applicant pools, run voice screens that capture spoken responses, and schedule interviews automatically, so recruiters can focus on final assessments and ramp plans.",
+      "Engage large applicant pools, run preliminary voice screens that capture spoken responses, and book interviews automatically, while recruiters own final assessments and ramp plans.",
     chips: [
       "High-volume screening",
       "Voice screens with transcripts",
@@ -1547,9 +1554,10 @@ const GCC: SolutionPage = {
       "Build engineering, data and operations teams for your global capability center. Huntlo connects sourcing, screening and scheduling with the governance a parent organization expects.",
   },
   hero: {
+    title: "AI Hiring Platform for Global Capability Centers",
     accent: "Build global capability centers on connected hiring.",
     summary:
-      "Huntlo helps Global Capability Centers (GCCs) hire engineering, data, finance and operations talent at scale, with skill-aware sourcing, governed automation and one view of hiring activity across teams.",
+      "Hire engineering, data, finance and operations talent for Global Capability Centers (GCCs) with skill-aware sourcing, governed automation and one view of hiring activity across teams.",
     chips: [
       "Technology and specialist roles",
       "Governed automation",
@@ -1787,9 +1795,10 @@ const CAMPUS: SolutionPage = {
       "Manage campus drives and graduate hiring at scale. Huntlo runs student outreach, assessments, voice screens and interview scheduling so campus teams can focus on employer brand and selection.",
   },
   hero: {
+    title: "AI Campus Recruitment Software for Graduate Hiring",
     accent: "Run campus drives at scale, without the spreadsheets.",
     summary:
-      "Huntlo helps campus recruiting teams engage students across institutions, run role-based assessments and preliminary voice screens, and schedule interview rounds, while recruiters and hiring managers select every hire.",
+      "Engage students across institutions, run role-based assessments and preliminary voice screens, and schedule interview rounds, while recruiters and hiring managers select every hire.",
     chips: [
       "Multi-campus drives",
       "Role-based assessments",
@@ -2028,14 +2037,15 @@ export function getSolutionPage(slug: string) {
 export const SOLUTIONS_HUB = {
   name: "AI Hiring Solutions",
   seo: {
-    title: "AI Hiring Solutions by Industry and Hiring Model | Huntlo",
+    title: "AI Hiring Solutions by Industry & Hiring Model | Huntlo",
     description:
-      "Explore Huntlo AI hiring solutions for RPO, executive search, IT staffing, healthcare, manufacturing, BPO, GCCs and campus recruitment — one connected platform, configured for each hiring model.",
+      "Use the same Huntlo platform across RPO, executive search, staffing, healthcare, manufacturing, BPO, GCC and campus hiring, with workflows configured for each hiring model.",
   },
   hero: {
+    title: "AI hiring built around how your team actually hires",
     accent: "One hiring platform, configured for how your team hires.",
     summary:
-      "Huntlo is AI Hiring Intelligence Infrastructure. The same connected layer for sourcing, outreach, screening and scheduling adapts to the volumes, channels and decision points of each industry and hiring model.",
+      "Use the same Huntlo platform across RPO, executive search, staffing, healthcare, manufacturing, BPO, GCC and campus hiring, with workflows configured for each hiring model.",
     chips: ["8 hiring models", "Supported capabilities only", "Recruiters in control"],
   },
   answer: {

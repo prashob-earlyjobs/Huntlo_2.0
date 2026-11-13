@@ -5,8 +5,9 @@ import { motion } from "motion/react";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { PlatformBreadcrumb } from "@/components/landing/platform-category/PlatformBreadcrumb";
+import { CTA } from "@/lib/ctaLabels";
 
-import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
+import { primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
 import { InfrastructureConstellation } from "./InfrastructureConstellation";
 
 type AiHiringHeroProps = {
@@ -39,21 +40,19 @@ export function AiHiringHero({ reduceMotion }: AiHiringHeroProps) {
             Category · AI Hiring Intelligence Infrastructure
           </p>
           <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.1rem] lg:text-[3.3rem]">
-            Hiring is about to change forever.
-            <span className="mt-2 block text-[#8eb0ff]">Built on intelligence.</span>
+            Hiring is becoming
+            <span className="mt-2 block text-[#8eb0ff]">intelligence infrastructure.</span>
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            The organizations that win won&apos;t have more candidates. They&apos;ll understand talent
-            better and make better hiring decisions at scale, with Human + AI hiring.
+            Connect talent discovery, candidate context, conversations and recruiting workflows in
+            one Human + AI layer that keeps hiring moving while recruiters retain judgment and
+            control.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-            <Link href="/huntlo360" className={secondaryCtaClass}>
-              Explore Huntlo
-            </Link>
-            <Link href="/agentic-hiring" className={ghostCtaClass}>
-              Meet Agentic Hiring
+            <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+            <Link href={CTA.product.href} className={secondaryCtaClass}>
+              {CTA.product.label}
             </Link>
           </div>
         </motion.div>

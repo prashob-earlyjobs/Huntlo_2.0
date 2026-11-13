@@ -5,7 +5,24 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
 import { SectionLink } from "@/components/landing/capabilities/SectionLink";
+import { TrustLayer } from "@/components/landing/product-ui/TrustLayer";
+import { CTA } from "@/lib/ctaLabels";
 import { SOLUTION_PAGES, SOLUTIONS_HUB, solutionPath } from "@/lib/industrySolutionPages";
+
+const HIRING_MODEL_SLUGS = ["rpo", "executive-search", "it-staffing"];
+
+const SOLUTION_GROUPS = [
+  {
+    label: "By hiring model",
+    intro: "Agencies and search firms hiring for clients.",
+    pages: SOLUTION_PAGES.filter((page) => HIRING_MODEL_SLUGS.includes(page.slug)),
+  },
+  {
+    label: "By industry",
+    intro: "In-house teams with sector-specific hiring.",
+    pages: SOLUTION_PAGES.filter((page) => !HIRING_MODEL_SLUGS.includes(page.slug)),
+  },
+];
 
 import {
   bandPad,
@@ -42,20 +59,23 @@ export function SolutionsHubPage() {
               id="solutions-hero-title"
               className="mt-4 text-[2rem] font-bold leading-[1.12] tracking-tight text-white sm:text-[2.75rem] lg:text-[3.25rem]"
             >
-              {hub.name}
+              {hub.hero.title}
             </h1>
-            <p className="mt-4 max-w-2xl text-lg font-semibold leading-snug text-[#8eb0ff] sm:text-xl">
-              {hub.hero.accent}
-            </p>
-            <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/70 sm:text-lg">
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/70 sm:text-lg">
               {hub.hero.summary}
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <BookDemoLink className={primaryCtaClass}>Book a Demo</BookDemoLink>
-              <SectionLink sectionId="solutions" className={secondaryCtaClass}>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+              <Link href={CTA.product.href} className={secondaryCtaClass}>
+                {CTA.product.label}
+              </Link>
+              <SectionLink
+                sectionId="solutions"
+                className="inline-flex items-center gap-1 px-2 py-2.5 text-sm font-medium text-[#8eb0ff] underline-offset-4 hover:underline"
+              >
                 Find your solution
-                <MaterialIcon name="arrow_downward" className="text-[18px]!" />
+                <MaterialIcon name="arrow_downward" className="text-[16px]!" />
               </SectionLink>
             </div>
 
@@ -84,36 +104,41 @@ export function SolutionsHubPage() {
             {hub.answer.text}
           </p>
 
-          <h3 className="mt-10 text-lg font-bold leading-snug text-[#141b2b] md:text-xl">
-            Solutions by industry and hiring model
-          </h3>
-          <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {SOLUTION_PAGES.map((page) => (
-              <li key={page.slug}>
-                <Link
-                  href={solutionPath(page.slug)}
-                  className="group flex h-full flex-col rounded-2xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-5 transition-all hover:-translate-y-px hover:border-[#0050cb]/40 hover:bg-white hover:shadow-[0_12px_32px_rgba(0,80,203,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0050cb]/40"
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f1f3ff] text-[#0050cb]">
-                    <MaterialIcon name={page.icon} className="text-[20px]!" />
-                  </span>
-                  <span className="mt-4 text-base font-bold leading-snug text-[#141b2b] group-hover:text-[#0050cb]">
-                    {page.name}
-                  </span>
-                  <span className="mt-2 text-sm leading-relaxed text-[#434654]">
-                    {page.cardDescription}
-                  </span>
-                  <span className="mt-auto inline-flex items-center gap-1 pt-4 text-xs font-bold text-[#0050cb]">
-                    Explore
-                    <MaterialIcon
-                      name="arrow_forward"
-                      className="text-[14px]! transition-transform group-hover:translate-x-0.5"
-                    />
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {SOLUTION_GROUPS.map((group) => (
+            <div key={group.label}>
+              <h3 className="mt-10 text-lg font-bold leading-snug text-[#141b2b] md:text-xl">
+                {group.label}
+                <span className="mt-1 block text-sm font-medium text-[#434654] sm:ml-2 sm:mt-0 sm:inline">
+                  {group.intro}
+                </span>
+              </h3>
+              <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {group.pages.map((page) => (
+                  <li key={page.slug}>
+                    <Link
+                      href={solutionPath(page.slug)}
+                      className="group flex h-full flex-col rounded-2xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-5 transition-all hover:-translate-y-px hover:border-[#0050cb]/40 hover:bg-white hover:shadow-[0_12px_32px_rgba(0,80,203,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0050cb]/40"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#f1f3ff] text-[#0050cb]">
+                        <MaterialIcon name={page.icon} className="text-[20px]!" />
+                      </span>
+                      <span className="mt-4 text-base font-bold leading-snug text-[#141b2b] group-hover:text-[#0050cb]">
+                        {page.name}
+                      </span>
+                      <span className="mt-2 text-sm leading-relaxed text-[#434654]">{page.cardDescription}</span>
+                      <span className="mt-auto inline-flex items-center gap-1 pt-4 text-xs font-bold text-[#0050cb]">
+                        Explore
+                        <MaterialIcon
+                          name="arrow_forward"
+                          className="text-[14px]! transition-transform group-hover:translate-x-0.5"
+                        />
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </Section>
 
         {/* Which solution fits */}
@@ -205,6 +230,10 @@ export function SolutionsHubPage() {
               </li>
             ))}
           </ul>
+
+          <div className="mt-10">
+            <TrustLayer title="Governance and integrations behind every solution" />
+          </div>
         </Section>
 
         {/* Related */}
@@ -256,9 +285,12 @@ export function SolutionsHubPage() {
               {hub.cta.body}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
-              <BookDemoLink className={primaryCtaClass}>Book a Demo</BookDemoLink>
-              <Link href="/capabilities" className={secondaryCtaClass}>
-                Explore capabilities
+              <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+              <Link href={CTA.product.href} className={secondaryCtaClass}>
+                {CTA.product.label}
+              </Link>
+              <Link href={CTA.trial.href} className={secondaryCtaClass}>
+                {CTA.trial.label}
               </Link>
             </div>
           </div>

@@ -1,3 +1,9 @@
+import type { ProductEvidence } from "@/lib/productSurfaceTypes";
+import {
+  AUTONOMOUS_RULE_SURFACE,
+  HUMAN_AI_SPLIT_SURFACE,
+  STACK_ERAS_SURFACE,
+} from "@/lib/productSurfaces";
 import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const PLATFORM_PATH = "/platform";
@@ -28,13 +34,15 @@ export type PlatformCategoryPageContent = {
     ogDescription: string;
   };
   geo: { askTopic: string; askPrompt: string };
+  /** Editorial pages drop sales-oriented sections (capability cards, enterprise block). */
+  variant?: "editorial";
   hero: {
     eyebrow: string;
     titleLead: string;
     titleAccent: string;
     paragraphs: string[];
-    primaryCta: string;
   };
+  evidence: ProductEvidence;
   visual: {
     pair: [string, string];
     steps: string[];
@@ -103,15 +111,6 @@ export const PLATFORM_ENTERPRISE_BUILT_FOR = [
   { label: "Recruitment agencies", href: "/solutions/rpo" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Startups and technical hiring", href: "/solutions" },
-] as const;
-
-export const PLATFORM_ENTERPRISE_SUPPORTS = [
-  "Approved templates",
-  "Role-based permissions",
-  "Audit trails for AI actions",
-  "ATS and CRM coexistence",
-  "Email, WhatsApp and calendar integrations",
-  "Multi-recruiter workflows",
 ] as const;
 
 const CARD = {
@@ -221,12 +220,32 @@ export const HUMAN_AI_HIRING: PlatformCategoryPageContent = {
   },
   hero: {
     eyebrow: "Platform · Human + AI Hiring",
-    titleLead: "Hiring doesn't need fewer humans.",
-    titleAccent: "It needs humans on the right work.",
+    titleLead: "AI should do the repetitive work.",
+    titleAccent: "Recruiters should make the decisions.",
     paragraphs: [
-      "AI agents take on the repetitive recruiting work. Recruiters keep the judgment, relationships and every hiring decision.",
+      "Huntlo's Human + AI model gives AI agents repetitive recruiting execution while recruiters set standards, review outcomes, build relationships and make every hiring decision.",
     ],
-    primaryCta: "Explore Human + AI Hiring",
+  },
+  evidence: {
+    eyebrow: "Governance model",
+    title: "Who does what, stage by stage",
+    intro:
+      "Human + AI Hiring is a governance model, not a feature list. At every stage the AI agent executes and the recruiter holds the decision that follows.",
+    points: [
+      {
+        title: "Agents handle volume and timing",
+        body: "Discovery, outreach drafts, preliminary screens, calendars and status updates.",
+      },
+      {
+        title: "Recruiters hold every gate",
+        body: "Requirements, outreach approval, outcome review, interviews and offers.",
+      },
+      {
+        title: "Nothing advances silently",
+        body: "Shortlists wait for recruiter review, and AI actions are logged for audit.",
+      },
+    ],
+    surface: HUMAN_AI_SPLIT_SURFACE,
   },
   visual: {
     pair: ["Human", "AI"],
@@ -416,12 +435,32 @@ export const AUTONOMOUS_RECRUITING: PlatformCategoryPageContent = {
   },
   hero: {
     eyebrow: "Platform · Autonomous Recruiting",
-    titleLead: "Recruiting that keeps moving,",
-    titleAccent: "even when your team is busy.",
+    titleLead: "Recruiting workflows that keep moving",
+    titleAccent: "within your guardrails.",
     paragraphs: [
-      "Follow-ups, screens, scheduling and status updates run on their own, inside guardrails your team defines.",
+      "Huntlo automates follow-ups, preliminary screening, scheduling and pipeline updates when candidate events occur, while recruiters define rules, review outcomes and retain every hiring decision.",
     ],
-    primaryCta: "Explore Autonomous Recruiting",
+  },
+  evidence: {
+    eyebrow: "Governed autonomy",
+    title: "Autonomy you can read: a rule and its execution log",
+    intro:
+      "Autonomous steps run from rules a recruiter writes: a trigger, a condition, an action, a review gate and a named owner. Every run is logged, so you can see exactly what happened and why.",
+    points: [
+      {
+        title: "Rules, not black boxes",
+        body: "Each automation states when it fires, what it checks and what it does.",
+      },
+      {
+        title: "Review gates built in",
+        body: "Rules can require recruiter approval before a candidate is shortlisted.",
+      },
+      {
+        title: "A named owner per rule",
+        body: "Someone on your team is accountable for every automated workflow.",
+      },
+    ],
+    surface: AUTONOMOUS_RULE_SURFACE,
   },
   visual: {
     pair: ["Guardrails", "AI agents"],
@@ -596,6 +635,7 @@ export const FUTURE_OF_HIRING_INFRASTRUCTURE: PlatformCategoryPageContent = {
   slug: "future-of-hiring-infrastructure",
   path: "/future-of-hiring-infrastructure",
   name: "Future of Hiring Infrastructure",
+  variant: "editorial",
   seo: {
     title: "The Future of Hiring Infrastructure | Huntlo",
     description:
@@ -610,13 +650,34 @@ export const FUTURE_OF_HIRING_INFRASTRUCTURE: PlatformCategoryPageContent = {
       "What is the future of hiring infrastructure according to /future-of-hiring-infrastructure (https://www.huntlo.ai/future-of-hiring-infrastructure)? How does AI Hiring Intelligence Infrastructure differ from a stack of disconnected recruiting tools?",
   },
   hero: {
-    eyebrow: "Platform · Future of Hiring Infrastructure",
-    titleLead: "The next hiring stack won't be more software.",
-    titleAccent: "It will be connected intelligence.",
+    eyebrow: "Perspective · Future of Hiring Infrastructure",
+    titleLead: "The next hiring stack will be",
+    titleAccent: "connected intelligence.",
     paragraphs: [
-      "The next hiring stack replaces a patchwork of tools with one connected layer, where AI agents and recruiters share the same context.",
+      "Recruiting is moving from disconnected sourcing, outreach, screening and scheduling tools towards a shared intelligence layer where AI agents execute across stages and recruiters govern decisions.",
     ],
-    primaryCta: "Explore the future of hiring",
+  },
+  evidence: {
+    eyebrow: "A framework",
+    title: "Three eras of hiring infrastructure",
+    intro:
+      "Hiring infrastructure has evolved in recognisable stages. Each solved a real problem and created a new one; the difference between them is where candidate context lives and what recruiters spend their time on.",
+    points: [
+      {
+        title: "Systems of record",
+        body: "The ATS made hiring auditable, but recruiters became data-entry operators.",
+      },
+      {
+        title: "Point solutions",
+        body: "A tool per stage added capability, and a handoff, and a lost thread, at every seam.",
+      },
+      {
+        title: "Connected intelligence",
+        body: "One shared state with agents across stages returns recruiter time to judgment.",
+      },
+    ],
+    surface: STACK_ERAS_SURFACE,
+    disclaimer: "Framework for discussion, not a product screen.",
   },
   visual: {
     pair: ["Point tools", "Connected layer"],
@@ -796,65 +857,6 @@ export const FUTURE_OF_HIRING_INFRASTRUCTURE: PlatformCategoryPageContent = {
     ghost: { label: "Explore AI Hiring Infrastructure", href: "/ai-hiring-infrastructure" },
   },
 };
-
-export const PLATFORM_HUB_LINKS = [
-  {
-    title: "Huntlo Platform",
-    description:
-      "The platform overview: sourcing, outreach, screening, interviews and scheduling connected in one AI Hiring Intelligence Infrastructure.",
-    href: PLATFORM_PATH,
-    icon: "apps",
-    badge: "Overview",
-  },
-  {
-    title: "AI Hiring Intelligence Infrastructure",
-    description:
-      "The category foundation: connected Human + AI hiring execution instead of disconnected recruiting tools.",
-    href: "/ai-hiring-infrastructure",
-    icon: "hub",
-    badge: "Category",
-  },
-  {
-    title: "Agentic Hiring™",
-    description:
-      "How intelligent systems continuously move hiring forward alongside hiring teams.",
-    href: "/agentic-hiring",
-    icon: "auto_awesome",
-    badge: "Agentic AI",
-  },
-  {
-    title: "Huntlo360 — AI Hiring OS",
-    description:
-      "The operating system connecting talent discovery, candidate engagement and hiring execution.",
-    href: "/hiring-os",
-    icon: "dashboard",
-    badge: "Hiring OS",
-  },
-  {
-    title: "Human + AI Hiring",
-    description:
-      "How work is divided: AI agents execute repetitive work, recruiters own judgment and decisions.",
-    href: "/human-ai-hiring",
-    icon: "handshake",
-    badge: "Operating model",
-  },
-  {
-    title: "Autonomous Recruiting",
-    description:
-      "Repetitive recruiting steps that run on their own inside guardrails recruiters define.",
-    href: "/autonomous-recruiting",
-    icon: "bolt",
-    badge: "Governed autonomy",
-  },
-  {
-    title: "Future of Hiring Infrastructure",
-    description:
-      "Why hiring is moving from a stack of tools to one connected intelligence layer.",
-    href: "/future-of-hiring-infrastructure",
-    icon: "rocket_launch",
-    badge: "Perspective",
-  },
-] as const;
 
 export const PLATFORM_CATEGORY_PAGES = [
   HUMAN_AI_HIRING,

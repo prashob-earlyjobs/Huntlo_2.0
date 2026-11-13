@@ -3,13 +3,14 @@ import Link from "next/link";
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { PlatformClosingCta } from "@/components/landing/platform-category/PlatformClosingCta";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
+import { TrustLayer } from "@/components/landing/product-ui/TrustLayer";
 import {
   AGENTIC_HIRING_FAQS,
   ENTERPRISE_BUILT_FOR,
-  ENTERPRISE_SUPPORTS,
   FUTURE_NOT,
   FUTURE_YES,
 } from "@/lib/agenticHiring";
+import { CTA } from "@/lib/ctaLabels";
 
 import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
 
@@ -19,67 +20,30 @@ export function AgenticHiringEnterprise() {
       <div className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
-            Built for the future of global hiring
+            Governed agents
           </p>
           <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
             Enterprise-ready Agentic Hiring™.
           </h2>
         </div>
 
-        <div className="mt-8 grid gap-10 lg:grid-cols-2">
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
-              Built for
-            </h3>
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-              {ENTERPRISE_BUILT_FOR.map((item) => (
-                <li key={item.label}>
-                  <Link
-                    href={item.href}
-                    className="flex min-h-11 items-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/85 transition-colors hover:border-[#0050cb]/40"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
-              Supporting
-            </h3>
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-              {ENTERPRISE_SUPPORTS.map((item) => (
-                <li
-                  key={item}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/75"
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 flex flex-wrap gap-4">
-              <Link
-                href="/security"
-                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
-              >
-                Security practices
-              </Link>
-              <Link
-                href="/integrations"
-                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
-              >
-                Integrations
-              </Link>
-              <Link
-                href="/hiring-os"
-                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
-              >
-                Hiring OS
-              </Link>
-            </div>
-          </div>
+        <div className="mt-8">
+          <TrustLayer tone="dark" />
         </div>
+
+        <h3 className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">Built for</h3>
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {ENTERPRISE_BUILT_FOR.map((item) => (
+            <li key={item.label}>
+              <Link
+                href={item.href}
+                className="inline-flex min-h-11 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm text-white/85 transition-colors hover:border-[#0050cb]/40"
+              >
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
@@ -142,17 +106,17 @@ export function AgenticHiringFaq() {
           Questions about Agentic Hiring™
         </h2>
         <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
-          Clear answers for leaders evaluating the future of Human + AI Hiring — not another AI
-          recruiter product.
+          Direct answers on what AI agents do, what recruiters keep and how the work is governed.
         </p>
 
         <div className="mt-8 space-y-3">
-          {AGENTIC_HIRING_FAQS.map((item) => (
+          {AGENTIC_HIRING_FAQS.map((item, index) => (
             <details
               key={item.question}
+              open={index === 0}
               className="group rounded-2xl border border-[#c3c6d6]/30 bg-white p-5 open:shadow-md"
             >
-              <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-base font-semibold text-[#141b2b] marker:content-none [&::-webkit-details-marker]:hidden">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-4 rounded-lg text-base font-semibold text-[#141b2b] marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0050cb]/40 [&::-webkit-details-marker]:hidden">
                 <span>{item.question}</span>
                 <MaterialIcon
                   name="expand_more"
@@ -174,15 +138,15 @@ export function AgenticHiringFinalCta() {
   return (
     <PlatformClosingCta
       titleLead="Hiring isn't becoming automated."
-      titleAccent="It's becoming Agentic."
-      body="Discover how Huntlo is building the world's first AI Hiring Intelligence Infrastructure for Agentic Hiring™."
+      titleAccent="It's becoming agentic."
+      body="See AI agents discover, engage, screen and schedule on a live role, with recruiters approving every campaign and making every decision."
     >
-      <Link href="#agentic-hiring" className={primaryCtaClass}>
-        Explore Agentic Hiring™
+      <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+      <Link href={CTA.product.href} className={secondaryCtaClass}>
+        {CTA.product.label}
       </Link>
-      <BookDemoLink className={secondaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-      <Link href="/recruiting-agents" className={ghostCtaClass}>
-        Meet Human + AI Hiring
+      <Link href={CTA.trial.href} className={ghostCtaClass}>
+        {CTA.trial.label}
       </Link>
     </PlatformClosingCta>
   );

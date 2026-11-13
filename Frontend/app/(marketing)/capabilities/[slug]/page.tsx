@@ -75,7 +75,7 @@ export default async function CapabilityPage({ params }: PageProps) {
       url: absoluteUrl(path),
       primaryImageOfPage: OG_IMAGES.platform,
       aboutName: page.name,
-      mainEntityName: `Huntlo ${page.name}`,
+      aboutSoftware: true,
     }),
     breadcrumbJsonLd([
       { name: "Home", href: "/" },

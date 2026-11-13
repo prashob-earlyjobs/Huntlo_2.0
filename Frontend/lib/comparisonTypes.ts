@@ -1,6 +1,62 @@
 export type ComparisonFeatureValue = "yes" | "partial" | "limited" | "no" | string;
 
-export type DetailedComparisonPage = {
+export type ComparisonSource = {
+  /** Referenced by `VerifiedComparisonRow` source fields; the visible marker number is the list position. */
+  id: string;
+  title: string;
+  publisher: string;
+  /** Absolute URL for external sources, or a site path for Huntlo's own pages. */
+  url: string;
+  /** ISO date the source was last checked. */
+  accessed: string;
+};
+
+export type VerifiedComparisonRow = {
+  capability: string;
+  huntlo: string;
+  competitor: string;
+  huntloSource?: string;
+  competitorSource?: string;
+};
+
+/** Comparison pages whose every claim cites a dated source, rendered in the shorter evidence-led layout. */
+export type VerifiedComparisonPage = {
+  layout: "verified";
+  slug: string;
+  name: string;
+  shortName: string;
+  metaTitle: string;
+  metaDescription: string;
+  ogDescription?: string;
+  twitterDescription?: string;
+  breadcrumbLabel?: string;
+  webPageName: string;
+  webPageDescription: string;
+  geoAskPrompt?: string;
+  geoAskTopic?: string;
+  geoAskLabelTemplate?: string;
+  headline: string;
+  intro: string[];
+  /** Concise, answer-first verdict shown in the hero. */
+  verdict: string;
+  /** ISO date competitor claims were last checked against first-party sources. */
+  lastReviewed: string;
+  bestFor: { huntlo: string; competitor: string };
+  featureComparison: VerifiedComparisonRow[];
+  workflowHuntlo: string[];
+  workflowCompetitor: string[];
+  workflowNote: string;
+  chooseHuntlo: string[];
+  chooseCompetitor: string[];
+  useCases: { useCase: string; recommended: string }[];
+  sources: ComparisonSource[];
+  faq: { question: string; answer: string }[];
+};
+
+export type DetailedComparisonPage = LegacyComparisonPage | VerifiedComparisonPage;
+
+export type LegacyComparisonPage = {
+  layout?: "legacy";
   slug: string;
   name: string;
   shortName: string;
@@ -70,11 +126,11 @@ export type DetailedComparisonPage = {
 };
 
 export function comparisonPage(
-  partial: Omit<DetailedComparisonPage, "slug" | "shortName"> & {
+  partial: Omit<LegacyComparisonPage, "slug" | "shortName"> & {
     slug: string;
     shortName?: string;
   }
-): DetailedComparisonPage {
+): LegacyComparisonPage {
   return {
     ...partial,
     shortName: partial.shortName ?? partial.name,
@@ -142,28 +198,28 @@ export type InfrastructureComparisonInput = {
   geoAskLabelTemplate?: string;
   headline: string;
   intro: string[];
-  quickComparisonRows: DetailedComparisonPage["quickComparisonRows"];
-  bestFor: DetailedComparisonPage["bestFor"];
+  quickComparisonRows: LegacyComparisonPage["quickComparisonRows"];
+  bestFor: LegacyComparisonPage["bestFor"];
   chooseHuntlo?: string[];
   chooseCompetitor: string[];
-  whatIsCompetitor: DetailedComparisonPage["whatIsCompetitor"];
-  featureComparison: DetailedComparisonPage["featureComparison"];
+  whatIsCompetitor: LegacyComparisonPage["whatIsCompetitor"];
+  featureComparison: LegacyComparisonPage["featureComparison"];
   biggestDifference: string;
   workflowCompetitor: string[];
   workflowNote: string;
-  useCases: DetailedComparisonPage["useCases"];
+  useCases: LegacyComparisonPage["useCases"];
   prosCompetitor: string[];
   considerationCompetitor: string;
-  faq: DetailedComparisonPage["faq"];
+  faq: LegacyComparisonPage["faq"];
   finalVerdict: string[];
-  whatIsHuntlo?: Partial<DetailedComparisonPage["whatIsHuntlo"]>;
+  whatIsHuntlo?: Partial<LegacyComparisonPage["whatIsHuntlo"]>;
   prosHuntlo?: string[];
   considerationHuntlo?: string;
 };
 
 export function buildInfrastructureComparison(
   input: InfrastructureComparisonInput
-): DetailedComparisonPage {
+): LegacyComparisonPage {
   return comparisonPage({
     slug: input.slug,
     name: input.name,

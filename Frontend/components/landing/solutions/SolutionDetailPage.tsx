@@ -5,11 +5,15 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
 import { SectionLink } from "@/components/landing/capabilities/SectionLink";
+import { CenteredFaq } from "@/components/landing/product-ui/CenteredFaq";
+import { ProductSurface } from "@/components/landing/product-ui/ProductSurface";
+import { TrustLayer } from "@/components/landing/product-ui/TrustLayer";
+import { CTA } from "@/lib/ctaLabels";
 import { SOLUTIONS_PATH, type SolutionPage, type SolutionVisual } from "@/lib/industrySolutionPages";
+import { SOLUTION_SURFACES } from "@/lib/productSurfaces";
 
 import {
   bandPad,
-  FaqList,
   HeroGlow,
   primaryCtaClass,
   RelatedGrid,
@@ -93,6 +97,8 @@ function SolutionHeroVisual({ visual }: { visual: SolutionVisual }) {
 }
 
 export function SolutionDetailPage({ page }: { page: SolutionPage }) {
+  const surface = SOLUTION_SURFACES[page.slug];
+
   return (
     <div className="landing-page min-h-screen overflow-x-hidden bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <LandingNav />
@@ -114,26 +120,29 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
               />
 
               <p className="mt-8 text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
-                Solution · AI Hiring Intelligence Infrastructure
+                Solutions · {page.breadcrumb}
               </p>
               <h1
                 id="solution-hero-title"
-                className="mt-4 text-[2rem] font-bold leading-[1.12] tracking-tight text-white sm:text-[2.75rem] lg:text-[3.25rem]"
+                className="mt-4 text-[2rem] font-bold leading-[1.12] tracking-tight text-white sm:text-[2.6rem] lg:text-[3rem]"
               >
-                {page.name}
+                {page.hero.title ?? page.name}
               </h1>
-              <p className="mt-4 max-w-xl text-lg font-semibold leading-snug text-[#8eb0ff] sm:text-xl">
-                {page.hero.accent}
-              </p>
-              <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">
                 {page.hero.summary}
               </p>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <BookDemoLink className={primaryCtaClass}>Book a Demo</BookDemoLink>
-                <SectionLink sectionId="how-it-works" className={secondaryCtaClass}>
-                  See how it works
-                  <MaterialIcon name="arrow_downward" className="text-[18px]!" />
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+                <Link href={CTA.product.href} className={secondaryCtaClass}>
+                  {CTA.product.label}
+                </Link>
+                <SectionLink
+                  sectionId="how-it-works"
+                  className="inline-flex items-center gap-1 px-2 py-2.5 text-sm font-medium text-[#8eb0ff] underline-offset-4 hover:underline"
+                >
+                  How it works
+                  <MaterialIcon name="arrow_downward" className="text-[16px]!" />
                 </SectionLink>
               </div>
 
@@ -149,7 +158,15 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
               </ul>
             </div>
 
-            <SolutionHeroVisual visual={page.visual} />
+            {surface ? (
+              <ProductSurface
+                surface={{ ...surface, flow: surface.flow ?? page.visual.flow }}
+                caption={page.hero.accent}
+                className="mx-auto max-w-[520px] lg:mr-0"
+              />
+            ) : (
+              <SolutionHeroVisual visual={page.visual} />
+            )}
           </div>
         </section>
 
@@ -355,6 +372,8 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
               </p>
             </div>
           </div>
+
+          <TrustLayer compact />
         </Section>
 
         {/* Comparison */}
@@ -411,15 +430,7 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
         </Section>
 
         {/* FAQ */}
-        <Section id="faq" labelledBy="solution-faq" tone="muted">
-          <SectionHeader
-            id="solution-faq"
-            icon="help"
-            eyebrow="Frequently asked questions"
-            title={`Questions about ${page.name}`}
-          />
-          <FaqList items={page.faqs} />
-        </Section>
+        <CenteredFaq id="faq" title={`Questions about ${page.name}`} items={page.faqs} />
 
         {/* Related */}
         <Section id="related" labelledBy="solution-related" tone="dark">
@@ -461,13 +472,13 @@ export function SolutionDetailPage({ page }: { page: SolutionPage }) {
               </p>
               <div className="landing-compare-cta-actions flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
                 <BookDemoLink className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-[#0050cb] shadow-md shadow-[#0050cb]/30 transition-all hover:bg-[#f3f4ff]">
-                  Book a Demo
+                  {CTA.demo}
                 </BookDemoLink>
                 <Link
-                  href={SOLUTIONS_PATH}
+                  href={CTA.product.href}
                   className="rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:border-white/40 hover:bg-white/20"
                 >
-                  Explore all solutions
+                  {CTA.product.label}
                 </Link>
               </div>
             </div>

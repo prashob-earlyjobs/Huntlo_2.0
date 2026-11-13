@@ -94,15 +94,6 @@ export function LegacySolutionPage({ slug }: { slug: string }) {
       webPageDescription:
         "Huntlo AI provides Agentic AI Hiring Infrastructure for startups by automating sourcing, outreach, AI interviews and founder-led hiring workflows.",
     },
-    gccs: {
-      serviceName: "Agentic AI Hiring Infrastructure for Global Capability Centers",
-      webPageName:
-        "Agentic AI Hiring Infrastructure for Global Capability Centers (GCCs)",
-      serviceDescription:
-        "Huntlo AI helps Global Capability Centers (GCCs) automate sourcing, outreach, AI voice interviews, AI video interviews, recruiter collaboration and high-volume hiring workflows while keeping talent teams in control.",
-      webPageDescription:
-        "Huntlo AI provides Agentic AI Hiring Infrastructure for Global Capability Centers by automating sourcing, outreach, AI interviews and high-volume hiring workflows.",
-    },
   };
 
   const schema = solutionSchemas[slug];

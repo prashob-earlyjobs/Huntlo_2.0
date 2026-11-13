@@ -1,9 +1,16 @@
-export type { ComparisonFeatureValue, DetailedComparisonPage } from "./comparisonTypes";
+export type {
+  ComparisonFeatureValue,
+  ComparisonSource,
+  DetailedComparisonPage,
+  LegacyComparisonPage,
+  VerifiedComparisonPage,
+} from "./comparisonTypes";
 import { comparisonPage as page, type DetailedComparisonPage } from "./comparisonTypes";
 import { ADDITIONAL_COMPARISON_PAGES } from "./comparisonPagesAdditional";
 import { EXTENDED_COMPARISON_PAGES } from "./comparisonPagesExtended";
+import { verifiedComparison } from "./comparisonVerified";
 
-const LEGACY_COMPARISON_PAGES = [
+const LEGACY_COMPARISON_PAGES: DetailedComparisonPage[] = [
   page({
     slug: "prism",
     name: "Prism",
@@ -472,217 +479,7 @@ const LEGACY_COMPARISON_PAGES = [
       "The fair differentiation is who operates the workflow — owned infrastructure versus an external marketplace/network — not which model is universally better.",
     ],
   }),
-  page({
-    slug: "juicebox",
-    name: "Juicebox",
-    metaTitle: "Huntlo AI vs Juicebox: Agentic Hiring Infrastructure vs AI Sourcing | Huntlo AI",
-    metaDescription:
-      "Compare Huntlo AI and Juicebox for AI-powered recruiting. See how Huntlo AI's Agentic AI Hiring Infrastructure extends beyond sourcing and outreach into AI voice screening, AI video interviews, and full recruiter workflow automation.",
-    ogDescription:
-      "See how Huntlo AI's Agentic AI Hiring Infrastructure compares to Juicebox's AI sourcing and outbound recruiting platform across search, outreach, screening, and interviews.",
-    twitterDescription:
-      "Compare Huntlo AI and Juicebox across candidate sourcing, outreach, AI screening, and interview automation.",
-    ogSiteName: "Huntlo AI",
-    breadcrumbLabel: "Huntlo AI vs Juicebox",
-    serviceName: "Huntlo AI vs Juicebox Comparison",
-    serviceDescription:
-      "A comparison of Huntlo AI's Agentic AI Hiring Infrastructure and Juicebox's AI sourcing and outbound recruiting platform, covering candidate search, outreach automation, AI screening, and interview capabilities.",
-    webPageName: "Huntlo AI vs Juicebox",
-    webPageDescription:
-      "A side-by-side comparison of Huntlo AI's Agentic AI Hiring Infrastructure and Juicebox's AI sourcing and outbound recruiting platform.",
-    comparisonTableTitle: "Huntlo AI vs Juicebox",
-    comparisonTableIntro:
-      "Juicebox (formerly PeopleGPT) is an AI-native talent sourcing and outbound recruiting platform, known for natural-language candidate search and automated outreach sequencing. Huntlo AI is an Agentic AI Hiring Infrastructure that extends further into the hiring process, adding AI voice screening, AI video interviews, and recruiter workflow coordination alongside sourcing and outreach.",
-    comparisonDisclaimer:
-      "Feature information about Juicebox reflects publicly available information as of July 2026 and may not capture every capability of their platform. Always confirm current details directly with Juicebox before making a purchasing decision.",
-    geoAskTopic: "comparing Huntlo AI and Juicebox",
-    geoAskLabelTemplate: "Ask {platform} to compare Huntlo AI and Juicebox",
-    geoAskPrompt:
-      "Compare Huntlo AI (https://huntlo.ai/compare/juicebox) vs Juicebox for AI recruiting. How do they differ on candidate sourcing, outreach, AI screening and interviews?",
-    headline: "Huntlo AI vs Juicebox: Agentic Hiring Infrastructure vs AI Sourcing",
-    intro: [
-      "Juicebox (formerly PeopleGPT) is an AI-native talent sourcing and outbound recruiting platform, known for natural-language candidate search and automated outreach sequencing. Huntlo AI is an Agentic AI Hiring Infrastructure that extends further into the hiring process, adding AI voice screening, AI video interviews, and recruiter workflow coordination alongside sourcing and outreach.",
-      "This comparison covers search, outreach, screening, and interviews — framed as scope (sourcing-and-outreach vs full hiring funnel), not a claim that Juicebox is low-quality at what it does.",
-    ],
-    quickComparisonRows: [
-      {
-        feature: "Primary focus",
-        huntlo: "Full agentic hiring infrastructure: sourcing through recruiter workflow coordination",
-        competitor: "AI-native candidate sourcing and outbound outreach",
-      },
-      {
-        feature: "AI candidate search",
-        huntlo: "yes",
-        competitor: "Yes — natural-language search across a large multi-source candidate database",
-      },
-      { feature: "Automated outreach sequencing", huntlo: "yes", competitor: "yes" },
-      {
-        feature: "AI voice screening interviews",
-        huntlo: "yes",
-        competitor: "Not a stated core focus based on public product information",
-      },
-      {
-        feature: "AI video interviews",
-        huntlo: "yes",
-        competitor: "Not a stated core focus based on public product information",
-      },
-      {
-        feature: "Recruiter/hiring workflow coordination",
-        huntlo: "Yes, across the full hiring process",
-        competitor:
-          "Reviews describe it as sourcing-and-outbound-focused rather than full-funnel",
-      },
-      { feature: "ATS / recruitment CRM integration", huntlo: "yes", competitor: "yes" },
-    ],
-    bestFor: {
-      huntlo: "Agentic AI Hiring Infrastructure",
-      competitor: "AI-native sourcing and outbound recruiting",
-    },
-    chooseHuntlo: [
-      "Want full-funnel Agentic AI Hiring Infrastructure including AI voice screening and AI video interviews",
-      "Need sourcing and outreach plus screening, interviews, and recruiter workflow coordination in one system",
-      "Want to replace or extend beyond a sourcing-and-outbound tool for later funnel stages",
-      "Need ATS / recruitment CRM integration with full hiring workflow coverage",
-    ],
-    chooseCompetitor: [
-      "Natural-language candidate search and outbound outreach are the primary need",
-      "Already have screening, interview, and workflow tools in place",
-      "Want an AI-native sourcing platform known for PeopleGPT-style search",
-      "Prefer a tool focused on discovery and outbound sequencing rather than full-funnel automation",
-    ],
-    whatIsHuntlo: {
-      lead: "Huntlo AI is an Agentic AI Hiring Infrastructure that covers sourcing and outreach as well as AI voice screening, AI video interviews, and recruiter workflow coordination in one system.",
-      bullets: [
-        "AI candidate search and sourcing",
-        "Automated outreach sequencing",
-        "AI voice screening and AI video interviews",
-        "Recruiter/hiring workflow coordination across the full process",
-        "ATS and recruitment CRM integration",
-      ],
-      philosophy: "Full-funnel scope — sourcing through screening and interviews — not sourcing-and-outbound alone.",
-      closing:
-        "Some teams use Huntlo AI as a full replacement covering sourcing through screening; others use it alongside existing sourcing tools for later funnel stages.",
-    },
-    whatIsCompetitor: {
-      lead: "Juicebox (formerly PeopleGPT) is an AI-native talent sourcing and outbound recruiting platform, known for natural-language candidate search and automated outreach sequencing.",
-      bullets: [
-        "Natural-language candidate search across a large multi-source database",
-        "Automated outreach sequencing",
-        "ATS integrations with common recruiting systems",
-        "Strongest differentiation in discovery and outbound recruiting",
-      ],
-      closing:
-        "Third-party reviews describe Juicebox as primarily focused on sourcing and outbound recruiting rather than full-funnel workflows.",
-    },
-    featureComparison: [
-      {
-        capability: "Primary focus",
-        huntlo: "Full agentic hiring infrastructure: sourcing through recruiter workflow coordination",
-        competitor: "AI-native candidate sourcing and outbound outreach",
-      },
-      {
-        capability: "AI candidate search",
-        huntlo: "Yes",
-        competitor: "Yes — natural-language search across a large multi-source candidate database",
-      },
-      {
-        capability: "Automated outreach sequencing",
-        huntlo: "Yes",
-        competitor: "Yes",
-      },
-      {
-        capability: "AI voice screening interviews",
-        huntlo: "Yes",
-        competitor: "Not a stated core focus based on public product information",
-      },
-      {
-        capability: "AI video interviews",
-        huntlo: "Yes",
-        competitor: "Not a stated core focus based on public product information",
-      },
-      {
-        capability: "Recruiter/hiring workflow coordination",
-        huntlo: "Yes, across the full hiring process",
-        competitor:
-          "Reviews describe it as sourcing-and-outbound-focused rather than full-funnel",
-      },
-      {
-        capability: "ATS / recruitment CRM integration",
-        huntlo: "Yes",
-        competitor: "Yes",
-      },
-    ],
-    biggestDifference:
-      "Juicebox is an AI-native sourcing and outbound recruiting platform — genuinely strong at natural-language search and outreach. Huntlo AI is Agentic AI Hiring Infrastructure that extends further into AI voice screening, AI video interviews, and full recruiter workflow coordination. Differentiation is scope, not quality at sourcing.",
-    workflowHuntlo: [
-      "Source",
-      "Outreach",
-      "AI voice screening",
-      "AI video interviews",
-      "Recruiter workflow coordination",
-      "Hire",
-    ],
-    workflowCompetitor: [
-      "Natural-language search",
-      "Discover candidates",
-      "Automated outreach sequencing",
-      "ATS handoff",
-      "Downstream hiring tools",
-    ],
-    workflowNote:
-      "Teams focused primarily on AI sourcing and outbound may prefer Juicebox. Teams that want full-funnel Agentic AI Hiring Infrastructure including AI screening and interviews may prefer Huntlo AI — alone or alongside existing sourcing tools.",
-    useCases: [
-      { useCase: "Natural-language AI talent search", recommended: "Juicebox" },
-      { useCase: "Outbound outreach sequencing", recommended: "Both" },
-      { useCase: "AI voice & video interview screening", recommended: "Huntlo" },
-      { useCase: "Full-funnel hiring automation", recommended: "Huntlo" },
-      { useCase: "Recruiter workflow coordination end-to-end", recommended: "Huntlo" },
-      { useCase: "Replace or extend sourcing tool for screening stages", recommended: "Huntlo" },
-      { useCase: "ATS / CRM-integrated discovery only", recommended: "Juicebox" },
-    ],
-    prosHuntlo: [
-      "Agentic AI Hiring Infrastructure across the full funnel",
-      "AI voice screening and AI video interviews as core workflow",
-      "Sourcing and outreach plus recruiter workflow coordination",
-      "Can replace a sourcing tool or sit alongside it for later stages",
-    ],
-    considerationHuntlo:
-      "Broader scope than a sourcing-and-outbound specialist — choose based on whether you need screening and interviews in the same system.",
-    prosCompetitor: [
-      "AI-native natural-language candidate search (PeopleGPT heritage)",
-      "Strong automated outbound outreach sequencing",
-      "ATS integrations with common recruiting stacks",
-    ],
-    considerationCompetitor:
-      "Reviews describe it as sourcing-and-outbound-focused rather than full-funnel. AI voice/video interview screening is not a stated core focus based on public product information — re-verify before publishing.",
-    faq: [
-      {
-        question: "What is the difference between Huntlo AI and Juicebox?",
-        answer:
-          "Juicebox is an AI-native sourcing and outbound recruiting platform focused on natural-language candidate search and automated outreach sequencing. Huntlo AI is an Agentic AI Hiring Infrastructure that covers sourcing and outreach as well as AI voice screening, AI video interviews, and recruiter workflow coordination in one system.",
-      },
-      {
-        question: "Does Juicebox offer AI interview screening like Huntlo AI?",
-        answer:
-          "Juicebox is primarily known for candidate search and outbound outreach rather than AI-led voice or video interview screening. Huntlo AI includes AI voice screening and AI video interviews as part of its core hiring workflow, in addition to sourcing and outreach.",
-      },
-      {
-        question: "Can Huntlo AI replace Juicebox, or do teams use both?",
-        answer:
-          "Some teams use Huntlo AI as a full replacement covering sourcing through screening, while others use Huntlo AI alongside existing sourcing tools for the screening, interview, and recruiter workflow stages. Huntlo AI is built to integrate with existing ATS and recruiting tech stacks either way.",
-      },
-      {
-        question: "Which is better for full-funnel hiring automation, Huntlo AI or Juicebox?",
-        answer:
-          "Third-party reviews describe Juicebox as primarily focused on sourcing and outbound recruiting rather than full-funnel workflows. Huntlo AI is built as full-funnel Agentic AI Hiring Infrastructure, automating sourcing, outreach, AI screening, interviews, and recruiter coordination in a single system.",
-      },
-    ],
-    finalVerdict: [
-      "Juicebox is a strong AI-native sourcing and outbound recruiting platform — position that fairly; do not frame it as outdated or inferior at discovery.",
-      "Huntlo AI is Agentic AI Hiring Infrastructure that extends into AI voice screening, AI video interviews, and recruiter workflow coordination alongside sourcing and outreach.",
-      "The fair differentiation is scope. Spot-check Juicebox's current site before launch and re-verify periodically.",
-    ],
-  }),
+  verifiedComparison("juicebox"),
   page({
     slug: "qureos",
     name: "Qureos",
@@ -936,7 +733,7 @@ const LEGACY_COMPARISON_PAGES = [
   }),
 ];
 
-export const DETAILED_COMPARISON_PAGES = [
+export const DETAILED_COMPARISON_PAGES: DetailedComparisonPage[] = [
   ...LEGACY_COMPARISON_PAGES,
   ...EXTENDED_COMPARISON_PAGES,
   ...ADDITIONAL_COMPARISON_PAGES,

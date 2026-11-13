@@ -4,9 +4,11 @@ import Link from "next/link";
 import { motion } from "motion/react";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
+import { MaterialIcon } from "@/components/landing/MaterialIcon";
 import { PlatformBreadcrumb } from "@/components/landing/platform-category/PlatformBreadcrumb";
+import { CTA } from "@/lib/ctaLabels";
 
-import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
+import { primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
 import { HiringOsFlowVisual } from "./HiringOsFlowVisual";
 
 type HiringOsHeroProps = {
@@ -29,26 +31,43 @@ export function HiringOsHero({ reduceMotion }: HiringOsHeroProps) {
         >
           <PlatformBreadcrumb current="Huntlo360" />
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8eb0ff]">
-            Hiring OS · AI Native Operating System
+            Hiring OS · Category guide
           </p>
           <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.1rem] lg:text-[3.3rem]">
-            Hiring doesn&apos;t need another platform.
-            <span className="mt-2 block text-[#8eb0ff]">It needs an operating system.</span>
+            What is an AI hiring
+            <span className="mt-2 block text-[#8eb0ff]">operating system?</span>
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            Hiring lives across fragmented tools and disconnected workflows. Huntlo360 brings
-            intelligence, conversations, workflows and outcomes into one operating system.
+            An AI hiring operating system connects talent discovery, candidate engagement,
+            screening and workflow execution in one shared layer, so recruiters and AI agents work
+            from the same hiring context.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-            <Link href="#hiring-os" className={secondaryCtaClass}>
-              Explore Hiring OS
-            </Link>
-            <Link href="/demo" className={ghostCtaClass}>
-              See Huntlo In Action
+            <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+            <Link href={CTA.product.href} className={secondaryCtaClass}>
+              {CTA.product.label}
             </Link>
           </div>
+
+          <Link
+            href="/huntlo360"
+            className="group mt-8 flex max-w-xl items-center gap-4 rounded-2xl border border-[#0050cb]/45 bg-[#0050cb]/15 p-4 transition-colors hover:border-[#8eb0ff]/70 hover:bg-[#0050cb]/25"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0050cb] text-sm font-bold text-white">
+              360
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-white">Huntlo360 is Huntlo&apos;s AI hiring OS</span>
+              <span className="block text-sm text-white/65">
+                See how the product implements this category.
+              </span>
+            </span>
+            <MaterialIcon
+              name="arrow_forward"
+              className="shrink-0 text-[18px]! text-[#8eb0ff] transition-transform group-hover:translate-x-0.5"
+            />
+          </Link>
         </motion.div>
 
         <motion.div

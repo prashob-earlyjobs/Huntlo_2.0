@@ -1,39 +1,44 @@
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
-import { PlatformPageHero } from "@/components/landing/platform-category/PlatformSection";
+import { PlatformHubContent } from "@/components/landing/platform-category/PlatformSection";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { breadcrumbJsonLd, webPageJsonLd } from "@/lib/jsonLd";
-import { MARKETING_PAGES, marketingPageMetadata } from "@/lib/marketingPages";
+import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { PLATFORM_PATH } from "@/lib/platformCategoryPages";
+import {
+  PLATFORM_HUB_FAQS,
+  PLATFORM_HUB_GEO,
+  PLATFORM_HUB_SEO,
+  platformHubMetadata,
+} from "@/lib/platformHub";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
-export const metadata = marketingPageMetadata("platform");
+export const metadata = platformHubMetadata();
 
 export default function PlatformPage() {
-  const page = MARKETING_PAGES.platform;
-
   return (
     <div className="landing-page selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <JsonLd
         data={[
           webPageJsonLd({
-            name: page.title,
-            description: page.description,
-            url: absoluteUrl(page.path),
+            name: PLATFORM_HUB_SEO.title,
+            description: PLATFORM_HUB_SEO.description,
+            url: absoluteUrl(PLATFORM_PATH),
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "Huntlo Platform",
-            mainEntityName: "Huntlo AI Hiring Intelligence Infrastructure",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Platform", href: page.path },
+            { name: "Platform", href: PLATFORM_PATH },
           ]),
+          faqPageJsonLd([...PLATFORM_HUB_FAQS]),
         ]}
       />
       <LandingNav />
       <main>
-        <PlatformPageHero />
+        <PlatformHubContent />
       </main>
-      <LandingFooter />
+      <LandingFooter aiAskPrompt={PLATFORM_HUB_GEO.askPrompt} aiAskTopic={PLATFORM_HUB_GEO.askTopic} />
     </div>
   );
 }

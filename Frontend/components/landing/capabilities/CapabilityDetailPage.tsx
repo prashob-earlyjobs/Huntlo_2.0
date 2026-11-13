@@ -5,13 +5,21 @@ import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
+import { CenteredFaq } from "@/components/landing/product-ui/CenteredFaq";
+import { ProductSurface } from "@/components/landing/product-ui/ProductSurface";
+import { TrustLayer } from "@/components/landing/product-ui/TrustLayer";
 import { CAPABILITIES_PATH } from "@/lib/capabilities";
+import { CAPABILITY_EVIDENCE, CAPABILITY_STAGES } from "@/lib/capabilityEvidence";
+import { CTA } from "@/lib/ctaLabels";
+import { CAPABILITY_SURFACES } from "@/lib/productSurfaces";
 
 import { SectionLink } from "./SectionLink";
 import {
   CAPABILITY_HUB_LINK,
+  CAPABILITY_PLATFORM_LINK,
   capabilityPath,
   getAdjacentCapabilities,
+  type CapabilityLink,
   type CapabilityPageContent,
   type CapabilityTag,
 } from "@/lib/capabilityPages";
@@ -221,6 +229,19 @@ type CapabilityDetailPageProps = {
 export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
   const { previous, next } = getAdjacentCapabilities(page.slug);
   const [secondaryA, secondaryB] = page.useCases.secondary;
+  const evidence = CAPABILITY_EVIDENCE[page.slug];
+  const stage = CAPABILITY_STAGES.find((item) => item.slugs.includes(page.slug));
+  const surface = CAPABILITY_SURFACES[page.slug];
+  const relatedLinks: CapabilityLink[] = [
+    ...page.related.filter((link) => link.href !== CAPABILITY_PLATFORM_LINK.href).slice(0, 3),
+    CAPABILITY_PLATFORM_LINK,
+    ...(evidence?.solutions ?? []).map((solution) => ({
+      name: solution.title,
+      href: solution.href,
+      icon: "domain",
+      description: solution.description,
+    })),
+  ];
   const overviewTitle = `What ${page.plural ? "are" : "is"} ${page.name}?`;
   const workflowTitle = `How Huntlo ${page.name} ${page.plural ? "Work" : "Works"}`;
   const comparisonTitle =
@@ -270,7 +291,7 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
               </nav>
 
               <p className="mt-8 text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
-                Product Capability · AI Hiring Intelligence Infrastructure
+                Capability{stage ? ` · ${stage.label}` : ""}
               </p>
               <h1
                 id="capability-hero-title"
@@ -282,11 +303,17 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
                 {page.hero.summary}
               </p>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <BookDemoLink className={primaryCtaClass}>Book a Demo</BookDemoLink>
-                <SectionLink sectionId="how-it-works" className={secondaryCtaClass}>
-                  See how it works
-                  <MaterialIcon name="arrow_downward" className="text-[18px]!" />
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+                <Link href={CTA.product.href} className={secondaryCtaClass}>
+                  {CTA.product.label}
+                </Link>
+                <SectionLink
+                  sectionId="how-it-works"
+                  className="inline-flex items-center gap-1 px-2 py-2.5 text-sm font-medium text-[#8eb0ff] underline-offset-4 hover:underline"
+                >
+                  How it works
+                  <MaterialIcon name="arrow_downward" className="text-[16px]!" />
                 </SectionLink>
               </div>
 
@@ -302,9 +329,31 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
               </ul>
             </div>
 
-            <CapabilityVisual visual={page.visual} />
+            {surface ? (
+              <ProductSurface
+                surface={{ ...surface, flow: surface.flow ?? page.visual.flow }}
+                className="mx-auto max-w-[520px] lg:mr-0"
+              />
+            ) : (
+              <CapabilityVisual visual={page.visual} />
+            )}
           </div>
         </section>
+
+        {evidence ? (
+          <section aria-label={`${page.name} outcomes`} className="border-b border-[#c3c6d6]/30 bg-[#f7f8fc] px-4 py-8 md:px-8 lg:px-12">
+            <ul className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3">
+              {evidence.outcomes.map((outcome, index) => (
+                <li key={outcome} className="flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0050cb] text-xs font-bold tabular-nums text-white">
+                    {index + 1}
+                  </span>
+                  <p className="pt-0.5 text-sm font-semibold leading-snug text-[#141b2b] md:text-base">{outcome}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {/* Overview */}
         <Section id="overview" labelledBy="capability-overview" tone="light">
@@ -492,8 +541,8 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
           <SectionHeader
             id="capability-verified"
             icon="fact_check"
-            eyebrow="Verified product details"
-            title="Verified Product Details"
+            eyebrow="Control & limitations"
+            title="What Huntlo does, and what stays with recruiters"
             intro={page.verified.intro}
           />
 
@@ -525,6 +574,8 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
               </p>
             </div>
           </div>
+
+          <TrustLayer compact />
         </Section>
 
         {/* How it differs */}
@@ -595,42 +646,15 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
         </Section>
 
         {/* FAQ */}
-        <Section id="faq" labelledBy="capability-faq" tone="muted">
-          <SectionHeader
-            id="capability-faq"
-            icon="help"
-            eyebrow="Frequently asked questions"
-            title="Frequently Asked Questions"
-          />
-
-          <div className="mt-6 space-y-3">
-            {page.faqs.map((item, index) => (
-              <details
-                key={item.question}
-                open={index === 0}
-                className="group rounded-xl border border-[#c3c6d6]/30 bg-white shadow-sm transition-colors open:border-[#0050cb]/30 hover:border-[#0050cb]/40"
-              >
-                <summary className="flex cursor-pointer list-none items-start justify-between gap-4 rounded-xl p-4 text-[0.95rem] font-semibold text-[#141b2b] transition-colors marker:content-none hover:text-[#0050cb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0050cb]/40 md:p-5 [&::-webkit-details-marker]:hidden">
-                  <span className="leading-snug">{item.question}</span>
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f1f3ff] text-[#0050cb] transition-transform group-open:rotate-180">
-                    <MaterialIcon name="expand_more" className="text-[20px]!" />
-                  </span>
-                </summary>
-                <p className="mx-4 border-t border-[#c3c6d6]/20 pt-3 pb-4 text-sm leading-relaxed text-[#434654] md:mx-5 md:pb-5 md:text-[0.95rem]">
-                  {item.answer}
-                </p>
-              </details>
-            ))}
-          </div>
-        </Section>
+        <CenteredFaq id="faq" title={`Questions about ${page.name}`} items={page.faqs} />
 
         {/* Related capabilities */}
         <Section id="related" labelledBy="capability-related" tone="dark">
           <SectionHeader
             id="capability-related"
             icon="account_tree"
-            eyebrow="Related capabilities"
-            title="Related Capabilities"
+            eyebrow="Related workflow"
+            title="Related Capabilities and Solutions"
             dark
           />
 
@@ -657,7 +681,7 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
               </span>
             </Link>
 
-            {page.related.map((link) => (
+            {relatedLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -742,13 +766,13 @@ export function CapabilityDetailPage({ page }: CapabilityDetailPageProps) {
               </p>
               <div className="landing-compare-cta-actions flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
                 <BookDemoLink className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-[#0050cb] shadow-md shadow-[#0050cb]/30 transition-all hover:bg-[#f3f4ff]">
-                  Book a Demo
+                  {CTA.demo}
                 </BookDemoLink>
                 <Link
-                  href={CAPABILITIES_PATH}
+                  href={CTA.product.href}
                   className="rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:border-white/40 hover:bg-white/20"
                 >
-                  Explore all capabilities
+                  {CTA.product.label}
                 </Link>
               </div>
             </div>

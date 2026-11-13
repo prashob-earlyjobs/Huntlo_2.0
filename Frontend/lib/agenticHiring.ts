@@ -1,15 +1,43 @@
+import type { ProductEvidence } from "@/lib/productSurfaceTypes";
+import { AGENT_ACTIVITY_SURFACE } from "@/lib/productSurfaces";
 import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const AGENTIC_HIRING_PATH = "/agentic-hiring";
 
 export const AGENTIC_HIRING_SEO = {
-  title: "Agentic Hiring™ — The Future of Human + AI Hiring | Huntlo",
+  title: "Agentic Hiring™: AI Agents + Recruiter Judgment | Huntlo",
   description:
-    "Hiring isn't becoming automated — it's becoming Agentic. Agentic Hiring™ is where Human Intelligence and AI continuously move hiring forward through intelligence, workflows, and outcomes.",
+    "Agentic Hiring combines AI agents with recruiter judgment so talent discovery, candidate conversations and workflow coordination keep moving, without removing people from hiring decisions.",
   ogTitle: "Hiring Isn't Becoming Automated. It's Becoming Agentic.",
   ogDescription:
-    "Welcome to Agentic Hiring™ — the future of Human + AI Hiring. Built by Huntlo.",
+    "See how Huntlo's AI agents keep hiring moving between stages while recruiters approve campaigns and make every decision.",
 } as const;
+
+export const AGENTIC_HIRING_EVIDENCE: ProductEvidence = {
+  eyebrow: "Agents at work",
+  title: "What agentic hiring looks like on one candidate",
+  intro:
+    "Agentic hiring means AI agents act on candidate events as they happen, inside the campaign and rules a recruiter approved. This is one candidate's first half hour, from match to booked interview.",
+  points: [
+    {
+      title: "Agents act on events, not reminders",
+      body: "A reply opens screening immediately; nobody has to notice it in an inbox first.",
+    },
+    {
+      title: "Recruiters approve the campaign once",
+      body: "Outreach runs from a template and sequence a recruiter signed off.",
+    },
+    {
+      title: "Review gates before decisions",
+      body: "Agents request review; only a recruiter advances or declines a candidate.",
+    },
+    {
+      title: "Every step is logged",
+      body: "The activity trail shows which agent or person acted, and when.",
+    },
+  ],
+  surface: AGENT_ACTIVITY_SURFACE,
+};
 
 export function agenticHiringMetadata() {
   return buildPageMetadata({
@@ -173,15 +201,6 @@ export const ENTERPRISE_BUILT_FOR = [
   { label: "Technical hiring", href: "/solutions" },
 ] as const;
 
-export const ENTERPRISE_SUPPORTS = [
-  "Governance",
-  "Compliance",
-  "AI native hiring",
-  "Enterprise intelligence",
-  "Integrations",
-  "Scalability",
-] as const;
-
 export const WHY_NOT = [
   "Hire more people",
   "Send more outreach",
@@ -213,21 +232,21 @@ export const AGENTIC_HIRING_FAQS = [
   {
     question: "What is Agentic Hiring™?",
     answer:
-      "Agentic Hiring™ is a new approach where intelligent systems continuously work alongside hiring teams to discover talent, understand context, maintain momentum, coordinate workflows, improve confidence, and accelerate outcomes — before recruiters ever need to intervene.",
+      "Agentic Hiring™ is an approach where AI agents continuously work alongside hiring teams to discover talent, understand candidate context, maintain momentum and coordinate workflows, while recruiters approve campaigns, review outcomes and make every hiring decision.",
   },
   {
-    question: "How is Agentic Hiring different from AI recruiters?",
+    question: "How is Agentic Hiring different from an AI recruiter?",
     answer:
-      "AI recruiters imply replacement. Agentic Hiring™ is Human + AI Hiring — Human Intelligence and Artificial Intelligence working together continuously.",
+      "An “AI recruiter” implies replacing people. Agentic Hiring splits the work: AI agents run repetitive execution such as outreach, follow-ups, preliminary screens and scheduling, and recruiters keep judgment, relationships and decisions.",
   },
   {
     question: "Does Agentic Hiring replace recruiters?",
     answer:
-      "No. Future organizations won't choose humans or AI alone. They'll choose Human + AI Hiring — AI amplifies hiring teams.",
+      "No. Agents remove waiting and coordination work between stages. Recruiters still define requirements, review shortlists, run interviews and decide who is hired.",
   },
   {
-    question: "Can enterprises run Agentic Hiring with governance?",
+    question: "Can enterprises govern AI agents in hiring?",
     answer:
-      "Yes. Supporting governance, compliance, AI-native hiring, enterprise intelligence, integrations, and scalability.",
+      "Yes. Agents work from approved templates and recruiter-defined rules, request review before shortlist decisions, operate under role-based permissions and log their actions in an audit trail.",
   },
 ] as const;

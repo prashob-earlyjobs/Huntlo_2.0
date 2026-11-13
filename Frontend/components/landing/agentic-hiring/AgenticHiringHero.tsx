@@ -5,9 +5,10 @@ import { motion } from "motion/react";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { PlatformBreadcrumb } from "@/components/landing/platform-category/PlatformBreadcrumb";
+import { CTA } from "@/lib/ctaLabels";
 
 import { CollaborationVisual } from "./CollaborationVisual";
-import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
+import { primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
 
 type AgenticHiringHeroProps = {
   reduceMotion: boolean;
@@ -40,21 +41,19 @@ export function AgenticHiringHero({ reduceMotion }: AgenticHiringHeroProps) {
           </p>
           <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.1rem] lg:text-[3.3rem]">
             Hiring isn&apos;t becoming automated.
-            <span className="mt-2 block text-[#8eb0ff]">It&apos;s becoming Agentic.</span>
+            <span className="mt-2 block text-[#8eb0ff]">It&apos;s becoming agentic.</span>
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            Agentic Hiring™ is where intelligent systems understand talent, coordinate workflows
-            and keep hiring moving, working alongside your recruiters.
+            Agentic Hiring combines AI agents with recruiter judgment so talent discovery,
+            candidate conversations and workflow coordination keep moving without removing people
+            from hiring decisions.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link href="#agentic-hiring" className={primaryCtaClass}>
-              Explore Agentic Hiring™
+            <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+            <Link href={CTA.product.href} className={secondaryCtaClass}>
+              {CTA.product.label}
             </Link>
-            <Link href="/demo" className={secondaryCtaClass}>
-              See Huntlo In Action
-            </Link>
-            <BookDemoLink className={ghostCtaClass}>Book Enterprise Demo</BookDemoLink>
           </div>
         </motion.div>
 

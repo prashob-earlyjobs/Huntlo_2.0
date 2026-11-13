@@ -3,13 +3,41 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const CAPABILITIES_PATH = "/capabilities";
 
 export const CAPABILITIES_SEO = {
-  title: "AI Hiring Capabilities | Huntlo",
+  title: "AI Hiring Capabilities Across the Recruiting Workflow | Huntlo",
   description:
-    "Explore Huntlo's AI hiring capabilities for candidate sourcing, screening, matching, outreach, interviews, assessments, scheduling and connected recruitment workflows.",
-  ogTitle: "AI Hiring Capabilities Built for Connected Hiring Execution",
+    "Explore thirteen connected Huntlo capabilities for sourcing, matching, outreach, engagement, screening, assessments, scheduling, candidate management, analytics and workflow automation.",
+  ogTitle: "AI Hiring Capabilities Across the Entire Recruiting Workflow",
   ogDescription:
-    "Explore how Huntlo connects AI-powered sourcing, candidate intelligence, screening, outreach, interviews, assessments, scheduling, and recruitment workflows through one connected hiring platform.",
+    "Thirteen connected capabilities organised by stage: discover, engage, evaluate, coordinate, and remember and improve.",
 } as const;
+
+export const CAPABILITIES_HUB_HERO = {
+  title: "AI hiring capabilities across the entire recruiting workflow",
+  body: "Explore thirteen connected Huntlo capabilities for sourcing, matching, outreach, engagement, screening, assessments, scheduling, candidate management, analytics and workflow automation.",
+} as const;
+
+export const CAPABILITIES_HUB_FAQS = [
+  {
+    question: "What AI hiring capabilities does Huntlo offer?",
+    answer:
+      "Thirteen capabilities across five stages. Discover: AI Candidate Sourcing, Vibe Sourcing and AI Candidate Matching. Engage: AI Candidate Outreach and AI Candidate Engagement. Evaluate: AI Candidate Screening, AI Voice Interviews and AI Recruitment Assessments. Coordinate: AI Interview Scheduling and Recruitment Workflow Automation. Remember and improve: AI Recruitment CRM, AI Talent Pool Management and AI Recruitment Analytics.",
+  },
+  {
+    question: "Do the capabilities work together or separately?",
+    answer:
+      "Together. They share one candidate record, so a profile found in sourcing carries its context into outreach, screening, scheduling, the CRM and analytics without being re-entered.",
+  },
+  {
+    question: "Where should a team start?",
+    answer:
+      "Each capability page explains where it fits. Most teams begin at the stage where they lose the most time, such as sourcing and outreach for hard-to-fill roles, or screening and scheduling for high-volume hiring, and connect the rest of the workflow from there.",
+  },
+  {
+    question: "Which decisions stay with recruiters?",
+    answer:
+      "Recruiters set role criteria, approve outreach, review screening outcomes and shortlists, run interviews and make every hiring decision. The capabilities run the repetitive execution in between.",
+  },
+] as const;
 
 export function capabilitiesMetadata() {
   return buildPageMetadata({

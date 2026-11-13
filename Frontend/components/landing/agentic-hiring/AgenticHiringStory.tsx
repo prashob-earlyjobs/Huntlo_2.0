@@ -77,8 +77,8 @@ export function AgenticHiringStory({ reduceMotion }: AgenticHiringStoryProps) {
               What is Agentic Hiring™?
             </h2>
             <p className="mt-4 text-base leading-relaxed text-white/65 md:text-lg">
-              Agentic Hiring™ is a new approach to hiring where intelligent systems continuously
-              work alongside hiring teams — before recruiters ever need to intervene.
+              Agentic Hiring™ is an approach to hiring where AI agents continuously work alongside
+              hiring teams, so recruiters spend their time on judgment rather than logistics.
             </p>
           </div>
 

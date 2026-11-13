@@ -7,9 +7,12 @@ import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
+import { ProductEvidenceSection } from "@/components/landing/product-ui/ProductEvidenceSection";
+import { ProductSurface } from "@/components/landing/product-ui/ProductSurface";
+import { TrustLayer } from "@/components/landing/product-ui/TrustLayer";
+import { CTA } from "@/lib/ctaLabels";
 import {
   PLATFORM_ENTERPRISE_BUILT_FOR,
-  PLATFORM_ENTERPRISE_SUPPORTS,
   type PlatformCategoryPageContent,
 } from "@/lib/platformCategoryPages";
 
@@ -140,7 +143,7 @@ function Hero({ page, reduceMotion }: SectionProps) {
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8eb0ff]">
             {page.hero.eyebrow}
           </p>
-          <h1 className="mt-5 max-w-xl text-[2.05rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem] md:text-[3.1rem] lg:text-[3.3rem]">
+          <h1 className="mt-5 max-w-xl text-[2rem] font-bold leading-[1.1] tracking-tight sm:text-[2.4rem] md:text-[2.6rem] lg:text-[2.75rem]">
             {page.hero.titleLead}
             <span className="mt-2 block text-[#8eb0ff]">{page.hero.titleAccent}</span>
           </h1>
@@ -154,13 +157,10 @@ function Hero({ page, reduceMotion }: SectionProps) {
           ))}
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link href="#definition" className={primaryCtaClass}>
-              {page.hero.primaryCta}
+            <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+            <Link href={CTA.product.href} className={secondaryCtaClass}>
+              {CTA.product.label}
             </Link>
-            <Link href="/capabilities" className={secondaryCtaClass}>
-              Explore Capabilities
-            </Link>
-            <BookDemoLink className={ghostCtaClass}>Book Enterprise Demo</BookDemoLink>
           </div>
         </motion.div>
 
@@ -169,7 +169,11 @@ function Hero({ page, reduceMotion }: SectionProps) {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.65, delay: reduceMotion ? 0 : 0.12 }}
         >
-          <FlowVisual page={page} reduceMotion={reduceMotion} />
+          {page.variant === "editorial" ? (
+            <FlowVisual page={page} reduceMotion={reduceMotion} />
+          ) : (
+            <ProductSurface surface={page.evidence.surface} className="mx-auto max-w-[520px] lg:mr-0" />
+          )}
         </motion.div>
       </div>
     </section>
@@ -465,60 +469,23 @@ function Enterprise({ page }: SectionProps) {
           <h2 className={h2Dark}>Enterprise-ready {page.name}.</h2>
         </div>
 
-        <div className="mt-8 grid gap-10 lg:grid-cols-2">
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
-              Built for
-            </h3>
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-              {PLATFORM_ENTERPRISE_BUILT_FOR.map((item) => (
-                <li key={item.label}>
-                  <Link
-                    href={item.href}
-                    className="flex min-h-11 items-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/85 transition-colors hover:border-[#0050cb]/40"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">
-              Supporting
-            </h3>
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-              {PLATFORM_ENTERPRISE_SUPPORTS.map((item) => (
-                <li
-                  key={item}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/75"
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 flex flex-wrap gap-4">
-              <Link
-                href="/security"
-                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
-              >
-                Security practices
-              </Link>
-              <Link
-                href="/integrations"
-                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
-              >
-                Integrations
-              </Link>
-              <Link
-                href="/hiring-os"
-                className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
-              >
-                Hiring OS
-              </Link>
-            </div>
-          </div>
+        <div className="mt-8">
+          <TrustLayer tone="dark" />
         </div>
+
+        <h3 className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-[#8eb0ff]">Built for</h3>
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {PLATFORM_ENTERPRISE_BUILT_FOR.map((item) => (
+            <li key={item.label}>
+              <Link
+                href={item.href}
+                className="inline-flex min-h-11 items-center rounded-full border border-white/10 bg-white/5 px-4 text-sm text-white/85 transition-colors hover:border-[#0050cb]/40"
+              >
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
@@ -602,9 +569,9 @@ function FinalCta({ page }: SectionProps) {
       titleAccent={finalCta.titleAccent}
       body={finalCta.body}
     >
-      <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-      <Link href="#definition" className={secondaryCtaClass}>
-        {page.hero.primaryCta}
+      <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+      <Link href={CTA.product.href} className={secondaryCtaClass}>
+        {CTA.product.label}
       </Link>
       <Link href={finalCta.ghost.href} className={ghostCtaClass}>
         {finalCta.ghost.label}
@@ -620,18 +587,20 @@ type PlatformCategoryPageProps = {
 export function PlatformCategoryPage({ page }: PlatformCategoryPageProps) {
   const reduceMotion = !!useReducedMotion();
   const props = { page, reduceMotion };
+  const editorial = page.variant === "editorial";
 
   return (
     <div className="landing-page min-h-screen overflow-x-hidden bg-[#f7f8fc] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <LandingNav />
       <main>
         <Hero {...props} />
-        <Problem {...props} />
+        <ProductEvidenceSection evidence={page.evidence} id="in-practice" showSurface={editorial} />
         <Definition {...props} />
+        <Problem {...props} />
         <Split {...props} />
         <Stack {...props} />
-        <Bento {...props} />
-        <Enterprise {...props} />
+        {editorial ? null : <Bento {...props} />}
+        {editorial ? null : <Enterprise {...props} />}
         <Principles {...props} />
         <Related {...props} />
         <Faq {...props} />
