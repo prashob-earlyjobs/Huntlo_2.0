@@ -97,12 +97,12 @@ export type PlatformCategoryPageContent = {
 };
 
 export const PLATFORM_ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
-  { label: "Staffing firms", href: "/solutions/staffing-agencies" },
-  { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
+  { label: "Enterprises", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Staffing firms", href: "/solutions/it-staffing" },
+  { label: "Recruitment agencies", href: "/solutions/rpo" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Startups and technical hiring", href: "/solutions/startups" },
+  { label: "Startups and technical hiring", href: "/solutions" },
 ] as const;
 
 export const PLATFORM_ENTERPRISE_SUPPORTS = [

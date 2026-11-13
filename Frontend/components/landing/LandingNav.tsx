@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BookDemoLink } from "./BookDemoLink";
 import { HomeSectionLink } from "./HomeSectionLink";
 import { LandingLogo } from "./LandingLogo";
 import { MaterialIcon } from "./MaterialIcon";
+import { useRouteScrollReset } from "./useRouteScrollReset";
 import { HOME_NAV_LINKS } from "@/lib/landingNavSections";
 import { PLATFORM_NAV_COLUMNS, PLATFORM_NAV_ITEMS, PLATFORM_NAV_PATH } from "@/lib/platformNav";
 import { SOLUTIONS_NAV_COLUMNS, SOLUTIONS_NAV_ITEMS } from "@/lib/solutionsNav";
@@ -148,9 +149,46 @@ export function LandingNav() {
   const [mobilePlatformOpen, setMobilePlatformOpen] = useState(false);
   const [mobileSolutionsOpen, setMobileSolutionsOpen] = useState(false);
   const closeMobile = () => setMobileOpen(false);
+  const navRef = useRef<HTMLElement>(null);
+
+  useRouteScrollReset();
+
+  // Lock the page behind the open mobile menu so only the menu scrolls. The lock goes on
+  // <body>, not <html>: body overflow propagates to the viewport, which keeps the sticky nav
+  // pinned, whereas overflow on <html> turns <body> into the sticky nav's scroll container.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
+
+  // The page stays visible below the menu; tapping it closes the menu.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!navRef.current?.contains(event.target as Node)) setMobileOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [mobileOpen]);
+
+  // The mobile menu doesn't exist at desktop widths; close it so the scroll lock is released.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileOpen(false);
+    };
+    desktop.addEventListener("change", handleChange);
+    return () => desktop.removeEventListener("change", handleChange);
+  }, [mobileOpen]);
 
   return (
-    <nav className="landing-nav sticky top-0 z-[100] border-b border-[#c3c6d6]/25 bg-white/90 backdrop-blur-md">
+    <nav ref={navRef} className="landing-nav sticky top-0 z-[100] border-b border-[#c3c6d6]/25 bg-white/90 backdrop-blur-md">
       <div className="landing-nav-inner">
         <Link href="/" className="flex min-w-0 shrink items-center">
           <LandingLogo priority className="h-9 w-auto sm:h-10 md:h-11" />
@@ -191,7 +229,7 @@ export function LandingNav() {
       </div>
 
       {mobileOpen ? (
-        <div className="border-t border-[#c3c6d6]/25 px-4 py-4 md:hidden">
+        <div className="absolute inset-x-0 top-full max-h-[calc(100dvh-100%)] overflow-y-auto overscroll-contain rounded-b-2xl border-t border-[#c3c6d6]/25 bg-white px-4 pt-4 pb-6 shadow-[0_16px_32px_rgba(20,27,43,0.14)] md:hidden">
           <div className="flex flex-col gap-3">
             <MobileNavGroup
               label="Platform"
@@ -221,7 +259,7 @@ export function LandingNav() {
               </HomeSectionLink>
             ))}
 
-            <Link href="/login" className="text-sm font-medium text-[#141b2b]">
+            <Link href="/login" className="text-sm font-medium text-[#141b2b]" onClick={closeMobile}>
               Login
             </Link>
             <BookDemoLink className={NAV_BOOK_DEMO_MOBILE_CLASS} onClick={closeMobile}>

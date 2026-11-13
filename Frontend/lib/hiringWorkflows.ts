@@ -161,14 +161,14 @@ export const MODERN_METRICS = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
-  { label: "Technical hiring", href: "/solutions/startups" },
+  { label: "Enterprises", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Technical hiring", href: "/solutions" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Global hiring", href: "/solutions" },
-  { label: "Staffing firms", href: "/solutions/staffing-agencies" },
-  { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
-  { label: "High volume hiring", href: "/solutions/enterprise-hiring" },
+  { label: "Staffing firms", href: "/solutions/it-staffing" },
+  { label: "Recruitment agencies", href: "/solutions/rpo" },
+  { label: "High volume hiring", href: "/solutions" },
 ] as const;
 
 export const ENTERPRISE_SUPPORTS = [

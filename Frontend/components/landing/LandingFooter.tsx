@@ -119,7 +119,7 @@ const FOOTER_COLUMNS: {
   },
   {
     title: "For GCC",
-    titleHref: "/solutions/gccs",
+    titleHref: "/solutions/global-capability-centers",
     links: [
       "GCC Recruitment Software",
       "GCC Hiring Platform",

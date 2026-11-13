@@ -136,12 +136,12 @@ export const FUTURE_EQUATION = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
-  { label: "Technical hiring", href: "/solutions/startups" },
+  { label: "Enterprise hiring", href: "/solutions" },
+  { label: "GCC hiring", href: "/solutions/global-capability-centers" },
+  { label: "Technical hiring", href: "/solutions" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
-  { label: "Staffing firms", href: "/solutions/staffing-agencies" },
+  { label: "Recruitment agencies", href: "/solutions/rpo" },
+  { label: "Staffing firms", href: "/solutions/it-staffing" },
   { label: "Global hiring", href: "/solutions" },
 ] as const;
 
