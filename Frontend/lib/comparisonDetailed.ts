@@ -1,5 +1,6 @@
 export type { ComparisonFeatureValue, DetailedComparisonPage } from "./comparisonTypes";
 import { comparisonPage as page, type DetailedComparisonPage } from "./comparisonTypes";
+import { ADDITIONAL_COMPARISON_PAGES } from "./comparisonPagesAdditional";
 import { EXTENDED_COMPARISON_PAGES } from "./comparisonPagesExtended";
 
 const LEGACY_COMPARISON_PAGES = [
@@ -938,6 +939,7 @@ const LEGACY_COMPARISON_PAGES = [
 export const DETAILED_COMPARISON_PAGES = [
   ...LEGACY_COMPARISON_PAGES,
   ...EXTENDED_COMPARISON_PAGES,
+  ...ADDITIONAL_COMPARISON_PAGES,
 ];
 
 export function detailedComparisonBySlug(slug: string): DetailedComparisonPage | undefined {
