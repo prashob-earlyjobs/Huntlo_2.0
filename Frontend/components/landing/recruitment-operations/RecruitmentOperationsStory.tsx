@@ -79,7 +79,7 @@ export function RecruitmentOperationsStory({
             </p>
           </div>
 
-          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ol className="mt-10 space-y-3">
             {EXCELLENCE_FLOW.map((item, index) => (
               <motion.li
                 key={item}
@@ -87,12 +87,12 @@ export function RecruitmentOperationsStory({
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.04 }}
-                className="flex h-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
+                className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 px-5 py-4"
               >
                 <span className="text-[0.65rem] font-semibold tabular-nums text-[#8eb0ff]">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-sm font-semibold text-white">{item}</span>
+                <span className="text-sm font-semibold text-white sm:text-base">{item}</span>
               </motion.li>
             ))}
           </ol>

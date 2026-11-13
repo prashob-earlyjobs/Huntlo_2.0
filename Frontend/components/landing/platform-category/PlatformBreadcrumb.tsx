@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
-import { PLATFORM_NAV_PATH } from "@/lib/platformNav";
+import { PLATFORM_PATH } from "@/lib/platformCategoryPages";
 
 /**
  * Visible "Home > Platform > {current}" trail for dark platform-page heroes.
@@ -22,7 +22,7 @@ export function PlatformBreadcrumb({ current }: { current?: string }) {
         {current ? (
           <>
             <li>
-              <Link href={PLATFORM_NAV_PATH} className="transition-colors hover:text-white">
+              <Link href={PLATFORM_PATH} className="transition-colors hover:text-white">
                 Platform
               </Link>
             </li>

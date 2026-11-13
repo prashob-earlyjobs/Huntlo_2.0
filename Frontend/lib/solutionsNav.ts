@@ -8,54 +8,48 @@ export type SolutionsNavItem = {
 export const SOLUTIONS_NAV_COLUMNS: SolutionsNavItem[][] = [
   [
     {
-      id: "rpo",
-      title: "RPO Companies",
-      description: "Deliver client programs from one workspace.",
-      href: "/solutions/rpo",
+      id: "staffing-agencies",
+      title: "For Staffing Agencies",
+      description:
+        "Manage multiple client mandates, source candidates faster, and automate recruiter workflows.",
+      href: "/solutions/staffing-agencies",
+    },
+    {
+      id: "recruitment-firms",
+      title: "For Recruitment Firms",
+      description:
+        "Scale candidate sourcing, outreach, and placements without growing your recruiting team.",
+      href: "/solutions/recruitment-firms",
     },
     {
       id: "executive-search",
-      title: "Executive Search",
-      description: "Map senior talent, keep outreach personal.",
+      title: "For Executive Search",
+      description:
+        "Identify niche talent, build targeted pipelines, and engage passive candidates effectively.",
       href: "/solutions/executive-search",
-    },
-    {
-      id: "it-staffing",
-      title: "IT Staffing",
-      description: "Match engineers by skill depth.",
-      href: "/solutions/it-staffing",
-    },
-    {
-      id: "global-capability-centers",
-      title: "GCCs",
-      description: "Build specialist teams with governance.",
-      href: "/solutions/global-capability-centers",
     },
   ],
   [
     {
-      id: "healthcare-recruitment",
-      title: "Healthcare",
-      description: "Reach clinical staff between shifts.",
-      href: "/solutions/healthcare-recruitment",
+      id: "startups",
+      title: "For Startups",
+      description:
+        "Build your first hiring engine and attract top talent without a large recruiting team.",
+      href: "/solutions/startups",
     },
     {
-      id: "manufacturing-recruitment",
-      title: "Manufacturing",
-      description: "Staff every plant and shift.",
-      href: "/solutions/manufacturing-recruitment",
+      id: "enterprise-hiring",
+      title: "For Enterprise Hiring",
+      description:
+        "Streamline sourcing, screening, and hiring operations across growing teams.",
+      href: "/solutions/enterprise-hiring",
     },
     {
-      id: "bpo-recruitment",
-      title: "BPO",
-      description: "Screen high-volume ramps faster.",
-      href: "/solutions/bpo-recruitment",
-    },
-    {
-      id: "campus-recruitment",
-      title: "Campus Recruitment",
-      description: "Run multi-campus drives at scale.",
-      href: "/solutions/campus-recruitment",
+      id: "gccs",
+      title: "For GCCs",
+      description:
+        "Accelerate high-volume hiring with AI-powered sourcing, outreach, and talent intelligence.",
+      href: "/solutions/gccs",
     },
   ],
 ];

@@ -5,7 +5,7 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
 import { SectionLink } from "@/components/landing/capabilities/SectionLink";
-import { SOLUTION_PAGES, SOLUTIONS_HUB, solutionPath } from "@/lib/solutionPages";
+import { SOLUTION_PAGES, SOLUTIONS_HUB, solutionPath } from "@/lib/industrySolutionPages";
 
 import {
   bandPad,

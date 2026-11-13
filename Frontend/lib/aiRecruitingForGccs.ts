@@ -145,14 +145,14 @@ export const COMPARISON_ROWS = [
 ] as const;
 
 export const INDUSTRY_CARDS = [
-  { label: "Technology GCC", href: "/solutions/global-capability-centers" },
-  { label: "Healthcare GCC", href: "/solutions/global-capability-centers" },
-  { label: "Engineering Centers", href: "/solutions/global-capability-centers" },
-  { label: "Shared Services", href: "/solutions/global-capability-centers" },
-  { label: "BFSI", href: "/solutions/global-capability-centers" },
-  { label: "Retail", href: "/solutions/global-capability-centers" },
-  { label: "Manufacturing", href: "/solutions/global-capability-centers" },
-  { label: "Telecom", href: "/solutions/global-capability-centers" },
+  { label: "Technology GCC", href: "/solutions/gccs" },
+  { label: "Healthcare GCC", href: "/solutions/gccs" },
+  { label: "Engineering Centers", href: "/solutions/gccs" },
+  { label: "Shared Services", href: "/solutions/gccs" },
+  { label: "BFSI", href: "/solutions/gccs" },
+  { label: "Retail", href: "/solutions/gccs" },
+  { label: "Manufacturing", href: "/solutions/gccs" },
+  { label: "Telecom", href: "/solutions/gccs" },
 ] as const;
 
 export const AI_RECRUITING_FOR_GCCS_FAQS = [

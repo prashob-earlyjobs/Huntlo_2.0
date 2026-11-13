@@ -53,7 +53,7 @@ export function RecruitingAgentsStory({ reduceMotion }: RecruitingAgentsStoryPro
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
               Modern hiring teams manage
             </p>
-            <ol className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <ol className="mt-5 space-y-3">
               {OPERATIONAL_STACK.map((item, index) => (
                 <motion.li
                   key={item}
@@ -61,12 +61,12 @@ export function RecruitingAgentsStory({ reduceMotion }: RecruitingAgentsStoryPro
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true, margin: "-10%" }}
                   transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.04 }}
-                  className="flex h-full items-center gap-3 rounded-xl border border-[#c3c6d6]/30 bg-white px-4 py-3 shadow-sm"
+                  className="flex items-center gap-4 rounded-2xl border border-[#c3c6d6]/30 bg-white px-5 py-4 shadow-sm"
                 >
                   <span className="text-[0.65rem] font-semibold tabular-nums text-[#0050cb]">
                     {String(index + 1).padStart(2, "0")}
                   </span>
-                  <span className="text-sm font-semibold text-[#141b2b]">{item}</span>
+                  <span className="text-sm font-semibold text-[#141b2b] sm:text-base">{item}</span>
                 </motion.li>
               ))}
             </ol>

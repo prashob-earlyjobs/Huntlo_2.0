@@ -4,6 +4,7 @@ import { fetchBlogSitemapEntries } from "@/lib/blog";
 import { CAPABILITY_PAGES, capabilityPath } from "@/lib/capabilityPages";
 import { COMPARISON_HUB_ENTRIES } from "@/lib/comparisons";
 import { PLATFORM_CATEGORY_PAGES } from "@/lib/platformCategoryPages";
+import { SOLUTION_PAGES as INDUSTRY_SOLUTION_PAGES, solutionPath } from "@/lib/industrySolutionPages";
 import { listSolutionPages } from "@/lib/solutionPages";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.huntlo.ai";
@@ -263,8 +264,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.82,
   }));
 
-  const solutionRoutes: MetadataRoute.Sitemap = listSolutionPages().map((page) => ({
-    url: `${SITE_URL}${page.href}`,
+  const solutionHrefs = new Set([
+    ...INDUSTRY_SOLUTION_PAGES.map((page) => solutionPath(page.slug)),
+    ...listSolutionPages().map((page) => page.href),
+  ]);
+  const solutionRoutes: MetadataRoute.Sitemap = [...solutionHrefs].map((href) => ({
+    url: `${SITE_URL}${href}`,
     lastModified: new Date(),
     changeFrequency: "monthly",
     priority: 0.85,

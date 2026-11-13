@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { MaterialIcon } from "@/components/landing/MaterialIcon";
-import type { SolutionFaq, SolutionLink } from "@/lib/solutionPages";
+import type { SolutionFaq, SolutionLink } from "@/lib/industrySolutionPages";
 
 export const bandPad = "px-4 py-12 md:px-8 md:py-16 lg:px-12";
 

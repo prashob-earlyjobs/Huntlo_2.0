@@ -3,6 +3,7 @@ import type { PricingPlansPayload } from "@/lib/pricingPlans";
 
 import { BookDemoLink } from "./BookDemoLink";
 import { LandingHashScroll } from "./LandingHashScroll";
+import { LandingProductSourcingSection } from "./LandingProductSourcingSection";
 import { LandingWorkflowSteps } from "./LandingWorkflowSteps";
 import { HeroSearchTyping } from "./HeroSearchTyping";
 import { LandingFooter } from "./LandingFooter";
@@ -206,6 +207,8 @@ export function LandingPage({ pricingPlans = null }: LandingPageProps) {
           </div>
         </div>
       </section>
+
+      <LandingProductSourcingSection />
 
       {/* Workflow */}
       <section className="bg-[#faf9ff] px-4 py-20 md:px-8 lg:px-12">

@@ -20,15 +20,6 @@ const nextConfig: NextConfig = {
         destination: "https://cal.id/team/huntlo/huntlo-discovery-call",
         permanent: false,
       },
-      { source: "/solutions/staffing-agencies", destination: "/solutions/it-staffing", statusCode: 301 },
-      { source: "/solutions/recruitment-firms", destination: "/solutions/rpo", statusCode: 301 },
-      {
-        source: "/solutions/gccs",
-        destination: "/solutions/global-capability-centers",
-        statusCode: 301,
-      },
-      { source: "/solutions/startups", destination: "/solutions", statusCode: 301 },
-      { source: "/solutions/enterprise-hiring", destination: "/solutions", statusCode: 301 },
     ];
   },
 };

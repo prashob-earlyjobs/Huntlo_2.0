@@ -140,7 +140,7 @@ export function GccRecruitmentSoftwareFinalCta() {
           <Link href="/signup" className={secondaryCtaClass}>
             Start Free Trial
           </Link>
-          <Link href="/solutions/global-capability-centers" className={ghostCtaClass}>
+          <Link href="/solutions/gccs" className={ghostCtaClass}>
             GCC Solutions
           </Link>
         </div>

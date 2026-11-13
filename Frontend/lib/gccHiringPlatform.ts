@@ -136,14 +136,14 @@ export const ENTERPRISE_CARDS = [
 ] as const;
 
 export const GCC_SEGMENTS = [
-  { label: "Technology GCC", href: "/solutions/global-capability-centers" },
-  { label: "Banking GCC", href: "/solutions/global-capability-centers" },
-  { label: "Healthcare GCC", href: "/solutions/global-capability-centers" },
-  { label: "Engineering GCC", href: "/solutions/global-capability-centers" },
-  { label: "Retail GCC", href: "/solutions/global-capability-centers" },
-  { label: "Manufacturing GCC", href: "/solutions/global-capability-centers" },
-  { label: "BFSI", href: "/solutions/global-capability-centers" },
-  { label: "Shared Services", href: "/solutions/global-capability-centers" },
+  { label: "Technology GCC", href: "/solutions/gccs" },
+  { label: "Banking GCC", href: "/solutions/gccs" },
+  { label: "Healthcare GCC", href: "/solutions/gccs" },
+  { label: "Engineering GCC", href: "/solutions/gccs" },
+  { label: "Retail GCC", href: "/solutions/gccs" },
+  { label: "Manufacturing GCC", href: "/solutions/gccs" },
+  { label: "BFSI", href: "/solutions/gccs" },
+  { label: "Shared Services", href: "/solutions/gccs" },
 ] as const;
 
 export const OUTCOME_METRICS = [

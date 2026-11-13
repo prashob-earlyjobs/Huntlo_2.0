@@ -12,7 +12,7 @@ import {
   SOLUTIONS_HUB,
   solutionPath,
   SOLUTIONS_PATH,
-} from "@/lib/solutionPages";
+} from "@/lib/industrySolutionPages";
 
 export const metadata = buildPageMetadata({
   title: SOLUTIONS_HUB.seo.title,

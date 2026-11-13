@@ -60,7 +60,7 @@ export function AiSchedulingAgentSystems({ reduceMotion }: AiSchedulingAgentSyst
             </p>
           </div>
 
-          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ol className="mt-12 space-y-3">
             {AGENT_FLOW.map((item, index) => (
               <motion.li
                 key={item}
@@ -68,10 +68,10 @@ export function AiSchedulingAgentSystems({ reduceMotion }: AiSchedulingAgentSyst
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
                 transition={{ duration: 0.35 }}
-                className="flex"
+                className={`flex ${index % 2 === 0 ? "justify-start" : "justify-end"}`}
               >
                 <div
-                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 ${
+                  className={`flex max-w-md items-center gap-4 rounded-full border px-5 py-3.5 ${
                     item === "AI Scheduling Agent"
                       ? "border-[#0050cb]/50 bg-[#0050cb]/20"
                       : "border-white/12 bg-white/[0.05]"
@@ -80,7 +80,7 @@ export function AiSchedulingAgentSystems({ reduceMotion }: AiSchedulingAgentSyst
                   <span className="text-[0.65rem] font-semibold tabular-nums text-[#8eb0ff]">
                     {String(index + 1).padStart(2, "0")}
                   </span>
-                  <span className="text-sm font-semibold text-white">{item}</span>
+                  <span className="text-sm font-semibold text-white sm:text-base">{item}</span>
                 </div>
               </motion.li>
             ))}
