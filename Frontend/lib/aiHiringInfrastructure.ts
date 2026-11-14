@@ -1,3 +1,5 @@
+import type { ProductEvidence } from "@/lib/productSurfaceTypes";
+import { INFRASTRUCTURE_ARCHITECTURE_SURFACE } from "@/lib/productSurfaces";
 import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const AI_HIRING_INFRASTRUCTURE_PATH = "/ai-hiring-infrastructure";
@@ -5,11 +7,37 @@ export const AI_HIRING_INFRASTRUCTURE_PATH = "/ai-hiring-infrastructure";
 export const AI_HIRING_INFRASTRUCTURE_SEO = {
   title: "AI Hiring Intelligence Infrastructure | Huntlo",
   description:
-    "Hiring isn't becoming more automated — it's becoming more intelligent. Huntlo is AI Hiring Intelligence Infrastructure for Human + AI Hiring, Agentic Hiring, and better hiring outcomes.",
-  ogTitle: "Hiring Isn't Becoming More Automated. It's Becoming More Intelligent.",
+    "AI Hiring Intelligence Infrastructure connects talent discovery, candidate context, conversations and recruiting workflows in one Human + AI layer, with AI agents executing and recruiters in control.",
+  ogTitle: "Hiring Is Becoming Intelligence Infrastructure",
   ogDescription:
-    "Welcome to AI Hiring Intelligence Infrastructure — built for the future of Human + AI Hiring.",
+    "How one connected Human + AI layer replaces a stack of disconnected recruiting tools, with recruiters keeping judgment and control.",
 } as const;
+
+export const AI_HIRING_EVIDENCE: ProductEvidence = {
+  eyebrow: "Definition",
+  title: "What is AI Hiring Intelligence Infrastructure?",
+  intro:
+    "AI Hiring Intelligence Infrastructure is a connected layer where talent discovery, candidate context, conversations and recruiting workflows share one state. AI agents execute repetitive work across stages, and recruiters govern the system and make every hiring decision.",
+  points: [
+    {
+      title: "Channels in, context shared",
+      body: "Email, WhatsApp, calendar and voice activity lands in one candidate record instead of separate tools.",
+    },
+    {
+      title: "Agents act across stages",
+      body: "Sourcing, outreach, screening and scheduling agents read and update the same hiring context.",
+    },
+    {
+      title: "Recruiters govern",
+      body: "Approved templates, review gates, permissions and audit trails decide what agents may do.",
+    },
+    {
+      title: "Your ATS stays in place",
+      body: "The infrastructure works alongside your system of record rather than replacing it.",
+    },
+  ],
+  surface: INFRASTRUCTURE_ARCHITECTURE_SURFACE,
+};
 
 export function aiHiringInfrastructureMetadata() {
   return buildPageMetadata({
@@ -176,22 +204,13 @@ export const BENTO_CARDS = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
-  { label: "Technical hiring", href: "/solutions/startups" },
+  { label: "Enterprises", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Technical hiring", href: "/solutions" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Global hiring", href: "/solutions" },
-  { label: "Staffing firms", href: "/solutions/staffing-agencies" },
-  { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
-] as const;
-
-export const ENTERPRISE_SUPPORTS = [
-  "Governance",
-  "Compliance",
-  "Integrations",
-  "Scalability",
-  "Enterprise intelligence",
-  "AI native hiring",
+  { label: "Staffing firms", href: "/solutions/it-staffing" },
+  { label: "Recruitment agencies", href: "/solutions/rpo" },
 ] as const;
 
 export const STACK_TODAY = [
@@ -226,121 +245,26 @@ export const AI_HIRING_FAQS = [
   {
     question: "What is AI Hiring Intelligence Infrastructure?",
     answer:
-      "It is the connected intelligence layer for modern hiring — combining discovery, context, conversations, confidence, workflows, momentum, agents, and outcomes so hiring becomes intelligence-driven rather than tool-driven.",
+      "AI Hiring Intelligence Infrastructure is a connected layer where talent discovery, candidate context, conversations and recruiting workflows share one state. AI agents execute repetitive work across stages; recruiters govern the system and make every hiring decision.",
   },
   {
-    question: "Is hiring becoming more automated or more intelligent?",
+    question: "How is it different from recruiting software?",
     answer:
-      "More intelligent. The future isn't more tools, dashboards, or automation alone — it's intelligence, context, conversations, workflows, and outcomes.",
+      "Most recruiting software solves one stage, so context is re-entered at every handoff. Hiring intelligence infrastructure keeps one shared record across sourcing, outreach, screening and scheduling, and lets AI agents act on it within recruiter-defined rules.",
   },
   {
-    question: "How is this different from recruiting software?",
+    question: "Does Huntlo replace our ATS or CRM?",
     answer:
-      "Recruiting software adds systems and workflows. AI Hiring Intelligence Infrastructure connects Human + AI Hiring so organizations understand talent better, orchestrate intelligently, and improve outcomes at scale.",
+      "No. Your ATS remains the system of record for requisitions, applications and offers. Huntlo is the execution layer that runs discovery, engagement, screening and scheduling alongside it.",
   },
   {
-    question: "What is Human + AI Hiring?",
+    question: "How do recruiters keep control?",
     answer:
-      "Human Intelligence + AI Intelligence + Hiring Intelligence + Business Alignment + Workflow Intelligence creating hiring outcomes. AI amplifies hiring teams — it doesn't replace recruiters.",
+      "Recruiters set role criteria, approve outreach templates and campaigns, review shortlists before they advance and make every hiring decision. AI actions are logged so they can be reviewed.",
   },
   {
-    question: "What is Agentic Hiring?",
+    question: "Will recruiters be replaced?",
     answer:
-      "Agentic Hiring continuously moves discovery, conversations, momentum, workflows, and confidence forward — without recruiters becoming workflow managers.",
-  },
-  {
-    question: "What are AI Recruiting Agents?",
-    answer:
-      "AI Discovery, Conversation, Workflow, Hiring, and Intelligence Agents that continuously learn and help hiring outcomes move forward within Human + AI Hiring.",
-  },
-  {
-    question: "Will organizations win by accessing more candidates?",
-    answer:
-      "No. The most successful organizations will win by understanding talent better, creating meaningful experiences, orchestrating workflows intelligently, and making better decisions at scale.",
-  },
-  {
-    question: "Is this a product or feature page?",
-    answer:
-      "No. /ai-hiring-infrastructure is Huntlo's category-defining page — thought leadership and category creation for AI Hiring Intelligence Infrastructure.",
-  },
-  {
-    question: "How does Candidate Discovery Intelligence fit?",
-    answer:
-      "Future teams won't optimize candidate searches — they'll optimize talent discovery, continuously improving velocity, quality, productivity, confidence, and outcomes.",
-  },
-  {
-    question: "Does hiring intelligence stop learning?",
-    answer:
-      "No. It continuously understands candidate context, business priorities, confidence, workflow intelligence, experiences, business outcomes, and hiring outcomes.",
-  },
-  {
-    question: "What is one intelligence layer?",
-    answer:
-      "One connected layer across discovery, talent intelligence, conversations, workflows, confidence, agents, Agentic Hiring, and outcomes — infinite hiring possibilities.",
-  },
-  {
-    question: "Who is this built for?",
-    answer:
-      "Enterprises, GCCs, technical hiring, executive hiring, global hiring, staffing firms, and recruitment agencies.",
-  },
-  {
-    question: "What does tomorrow's enterprise hiring stack look like?",
-    answer:
-      "AI Hiring Intelligence Infrastructure → Human + AI Hiring → Agentic Hiring → AI Recruiting Agents → Hiring Outcomes.",
-  },
-  {
-    question: "Who will define the next decade of hiring?",
-    answer:
-      "Organizations that hire more intelligently — with Hiring Intelligence, Human + AI Hiring, Agentic Hiring, and better outcomes — not merely better tools or larger databases.",
-  },
-  {
-    question: "Does Huntlo replace ATS and CRM stacks?",
-    answer:
-      "Huntlo is the intelligence and orchestration layer. Modern hiring shouldn't feel like ATS + CRM + scheduling + outreach + more software — it should feel intelligently connected.",
-  },
-  {
-    question: "How does this relate to Huntlo360?",
-    answer:
-      "Huntlo360 is the Hiring Operating System commercial narrative. AI Hiring Intelligence Infrastructure is the category definition everything ladders into.",
-  },
-  {
-    question: "How does this relate to Agentic Hiring?",
-    answer:
-      "Agentic Hiring is how intelligence continuously moves hiring forward. Infrastructure is the layer that makes Agentic Hiring possible at enterprise scale.",
-  },
-  {
-    question: "Can enterprises run AI-native hiring with governance?",
-    answer:
-      "Yes. Supporting governance, compliance, integrations, scalability, enterprise intelligence, and AI-native hiring.",
-  },
-  {
-    question: "Why did hiring become operational?",
-    answer:
-      "Teams manage 15+ tools, hundreds of workflows, thousands of conversations, multiple stakeholders, and millions of decisions for one hiring outcome.",
-  },
-  {
-    question: "How do I explore Huntlo's infrastructure?",
-    answer:
-      "Book an enterprise demo, explore Huntlo, meet Agentic Hiring, or continue through recruiting agents, Huntlo360, and related intelligence pages.",
-  },
-  {
-    question: "What should visitors believe after this page?",
-    answer:
-      "That Huntlo is category-defining AI Hiring Intelligence Infrastructure for the future of Human + AI Hiring — not another recruiting automation product.",
-  },
-  {
-    question: "Is the future more dashboards?",
-    answer:
-      "No. The future isn't more tools, dashboards, or automation. The future is intelligence, context, conversations, workflows, and outcomes.",
-  },
-  {
-    question: "Will recruiters disappear?",
-    answer:
-      "No. AI doesn't replace recruiters. AI amplifies hiring teams — humans remain central to relationships, judgment, and decisions.",
-  },
-  {
-    question: "Where does Huntlo sit in this future?",
-    answer:
-      "Welcome to the future of hiring. Welcome to Huntlo — building AI Hiring Intelligence Infrastructure for Human + AI Hiring.",
+      "No. AI agents take on repetitive execution such as follow-ups, preliminary screens and scheduling. Relationships, judgment and hiring decisions stay with people.",
   },
 ] as const;

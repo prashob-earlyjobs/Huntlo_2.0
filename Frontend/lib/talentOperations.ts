@@ -164,7 +164,7 @@ export const STACK_TOMORROW = [
 export const ENTERPRISE_BUILT_FOR = [
   { label: "Fortune 500 companies", href: "/solutions/enterprise-hiring" },
   { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Global hiring teams", href: "/solutions" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Technical hiring", href: "/solutions/startups" },

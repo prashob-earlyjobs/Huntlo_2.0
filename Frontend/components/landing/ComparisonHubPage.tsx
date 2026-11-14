@@ -57,7 +57,10 @@ export function ComparisonHubPage() {
           OS.
         </p>
         <div className="landing-compare-cta-actions">
-          <Link href="/" className="dashboard-btn-primary text-sm">
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center rounded-full bg-[#0050cb] px-[1.15rem] py-[0.55rem] text-sm font-semibold text-white transition-colors hover:bg-[#003fa4]"
+          >
             Try AI search
           </Link>
           <Link href="/signup" className="landing-compare-cta-secondary text-sm">

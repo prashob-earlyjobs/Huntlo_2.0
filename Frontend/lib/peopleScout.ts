@@ -155,7 +155,7 @@ export const HUMAN_AI_EQUATION = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "GCC hiring", href: "/solutions/gccs" },
+  { label: "GCC hiring", href: "/solutions/global-capability-centers" },
   { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },

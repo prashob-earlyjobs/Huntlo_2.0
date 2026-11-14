@@ -4,7 +4,8 @@ import { useReducedMotion } from "motion/react";
 
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
-import { HIRING_OS_GEO } from "@/lib/hiringOs";
+import { ProductEvidenceSection } from "@/components/landing/product-ui/ProductEvidenceSection";
+import { HIRING_OS_EVIDENCE, HIRING_OS_GEO } from "@/lib/hiringOs";
 
 import {
   HiringOsEnterprise,
@@ -22,12 +23,13 @@ export function HiringOsPage() {
   return (
     <div className="landing-page min-h-screen overflow-x-hidden bg-[#f7f8fc] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <LandingNav />
-      <main className="pt-16">
+      <main>
         <HiringOsHero reduceMotion={reduceMotion} />
+        <ProductEvidenceSection evidence={HIRING_OS_EVIDENCE} id="shared-context" />
         <HiringOsStory reduceMotion={reduceMotion} />
         <HiringOsSystems reduceMotion={reduceMotion} />
-        <HiringOsEnterprise />
         <HiringOsFuture />
+        <HiringOsEnterprise />
         <HiringOsFaq />
         <HiringOsFinalCta />
       </main>

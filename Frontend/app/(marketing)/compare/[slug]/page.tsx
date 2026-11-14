@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description: page.metaDescription,
     ogDescription: page.ogDescription,
     twitterDescription: page.twitterDescription,
-    siteName: page.ogSiteName,
+    siteName: page.layout === "verified" ? undefined : page.ogSiteName,
     ogImage: OG_IMAGES.solutions,
     path: `/compare/${slug}`,
   });
@@ -68,28 +68,41 @@ export default async function CompareSlugPage({ params }: PageProps) {
     faqPageJsonLd(page.faq),
   ];
 
-  if (page.serviceName && page.serviceDescription) {
-    jsonLdBlocks.push(
-      serviceJsonLd({
-        name: page.serviceName,
-        serviceType: category,
-        description: page.serviceDescription,
-        url: pageUrl,
-        mainEntityName: category,
-      })
-    );
-  }
-
-  if (page.webPageName && page.webPageDescription) {
+  if (page.layout === "verified") {
     jsonLdBlocks.push(
       webPageJsonLd({
         name: page.webPageName,
         url: pageUrl,
         description: page.webPageDescription,
         primaryImageOfPage: absoluteOgImage(OG_IMAGES.solutions),
-        aboutName: category,
+        aboutName: `Huntlo and ${page.name}`,
+        dateModified: page.lastReviewed,
       })
     );
+  } else {
+    if (page.serviceName && page.serviceDescription) {
+      jsonLdBlocks.push(
+        serviceJsonLd({
+          name: page.serviceName,
+          serviceType: category,
+          description: page.serviceDescription,
+          url: pageUrl,
+          mainEntityName: category,
+        })
+      );
+    }
+
+    if (page.webPageName && page.webPageDescription) {
+      jsonLdBlocks.push(
+        webPageJsonLd({
+          name: page.webPageName,
+          url: pageUrl,
+          description: page.webPageDescription,
+          primaryImageOfPage: absoluteOgImage(OG_IMAGES.solutions),
+          aboutName: category,
+        })
+      );
+    }
   }
 
   return (

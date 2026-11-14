@@ -162,7 +162,7 @@ export const MODERN_METRICS = [
 
 export const ENTERPRISE_BUILT_FOR = [
   { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Global hiring", href: "/solutions" },

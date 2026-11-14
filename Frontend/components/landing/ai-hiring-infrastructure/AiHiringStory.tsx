@@ -19,21 +19,21 @@ type AiHiringStoryProps = {
 export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
   return (
     <>
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               Modern work, outdated design
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Hiring was never designed for modern work.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
               Hiring became increasingly operational. It&apos;s becoming increasingly intelligent.
             </p>
           </div>
 
-          <ol className="mt-10 space-y-3">
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {OPERATIONAL_STACK.map((item, index) => (
               <motion.li
                 key={item}
@@ -41,12 +41,12 @@ export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.04 }}
-                className="flex items-center gap-4 rounded-2xl border border-[#c3c6d6]/30 bg-[#f7f8fc] px-5 py-4"
+                className="flex h-full items-center gap-3 rounded-xl border border-[#c3c6d6]/30 bg-[#f7f8fc] px-4 py-3"
               >
                 <span className="text-[0.65rem] font-semibold tabular-nums text-[#0050cb]">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-sm font-semibold text-[#141b2b] sm:text-base">{item}</span>
+                <span className="text-sm font-semibold text-[#141b2b]">{item}</span>
               </motion.li>
             ))}
           </ol>
@@ -55,23 +55,23 @@ export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
 
       <section
         id="intelligence-infrastructure"
-        className="scroll-mt-24 bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12"
+        className="scroll-mt-24 bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12"
       >
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Category creation
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               Introducing AI Hiring Intelligence Infrastructure.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-white/65 md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-white/65 md:text-lg">
               We believe hiring shouldn&apos;t feel like more software. Modern hiring should feel
               intelligently connected.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
               <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-white/40">
                 Shouldn&apos;t feel like
@@ -111,18 +111,18 @@ export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
         </div>
       </section>
 
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               Human + AI Hiring
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               AI doesn&apos;t replace recruiters. AI amplifies hiring teams.
             </h2>
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-2 md:gap-3">
             {HUMAN_AI_EQUATION.map((item, index) => (
               <motion.div
                 key={item}
@@ -152,16 +152,16 @@ export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
         </div>
       </section>
 
-      <section className="bg-[#f1f3ff] px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Agentic Hiring
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               Without recruiters becoming workflow managers.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-white/65 md:text-lg">
               Modern hiring shouldn&apos;t require recruiters to continuously manage workflows,
               follow-ups, interviews, candidate experiences, and hiring coordination.
             </p>
@@ -171,14 +171,14 @@ export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
             {AGENTIC_MANAGES.map((item) => (
               <span
                 key={item}
-                className="rounded-full border border-[#c3c6d6]/40 bg-white px-4 py-2 text-sm text-[#434654]"
+                className="rounded-full border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/75"
               >
                 {item}
               </span>
             ))}
           </div>
 
-          <ol className="mt-10 space-y-3">
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {AGENTIC_FLOW.map((item, index) => (
               <motion.li
                 key={item}
@@ -186,12 +186,12 @@ export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.04 }}
-                className="flex items-center gap-4 rounded-2xl border border-[#c3c6d6]/35 bg-white px-5 py-4"
+                className="flex h-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
               >
-                <span className="text-[0.65rem] font-semibold tabular-nums text-[#0050cb]">
+                <span className="text-[0.65rem] font-semibold tabular-nums text-[#8eb0ff]">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-sm font-semibold text-[#141b2b] sm:text-base">{item}</span>
+                <span className="text-sm font-semibold text-white">{item}</span>
               </motion.li>
             ))}
           </ol>
@@ -199,7 +199,7 @@ export function AiHiringStory({ reduceMotion }: AiHiringStoryProps) {
           <div className="mt-8">
             <Link
               href="/agentic-hiring"
-              className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
+              className="text-sm font-semibold text-[#8eb0ff] underline-offset-4 hover:underline"
             >
               Explore Agentic Hiring
             </Link>

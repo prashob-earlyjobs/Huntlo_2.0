@@ -16,21 +16,21 @@ type AgenticHiringStoryProps = {
 export function AgenticHiringStory({ reduceMotion }: AgenticHiringStoryProps) {
   return (
     <>
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               The unfinished shift
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Recruiting changed. Hiring didn&apos;t.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
               The problem isn&apos;t talent. The problem is hiring infrastructure.
             </p>
           </div>
 
-          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
+          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
             Over the last twenty years we built
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-2 md:gap-3">
@@ -48,7 +48,7 @@ export function AgenticHiringStory({ reduceMotion }: AgenticHiringStoryProps) {
             ))}
           </div>
 
-          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
+          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
             Yet organizations still struggle with
           </p>
           <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -66,23 +66,23 @@ export function AgenticHiringStory({ reduceMotion }: AgenticHiringStoryProps) {
 
       <section
         id="agentic-hiring"
-        className="scroll-mt-24 bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12"
+        className="scroll-mt-24 bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12"
       >
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Category definition
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               What is Agentic Hiring™?
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-white/65 md:text-lg">
-              Agentic Hiring™ is a new approach to hiring where intelligent systems continuously
-              work alongside hiring teams — before recruiters ever need to intervene.
+            <p className="mt-4 text-base leading-relaxed text-white/65 md:text-lg">
+              Agentic Hiring™ is an approach to hiring where AI agents continuously work alongside
+              hiring teams, so recruiters spend their time on judgment rather than logistics.
             </p>
           </div>
 
-          <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {AGENTIC_DOES.map((item) => (
               <li
                 key={item}
@@ -98,13 +98,13 @@ export function AgenticHiringStory({ reduceMotion }: AgenticHiringStoryProps) {
         </div>
       </section>
 
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               Human + AI Hiring
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Future organizations won&apos;t choose humans or AI alone.
             </h2>
             <p className="mt-5 text-lg font-semibold text-[#141b2b] md:text-xl">
@@ -112,7 +112,7 @@ export function AgenticHiringStory({ reduceMotion }: AgenticHiringStoryProps) {
             </p>
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-2 md:gap-3">
             {HUMAN_AI_EQUATION.map((item, index) => (
               <motion.div
                 key={item}

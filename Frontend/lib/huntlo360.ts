@@ -3,12 +3,12 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const HUNTLO360_PATH = "/huntlo360";
 
 export const HUNTLO360_SEO = {
-  title: "Huntlo360 — Hiring Operating System | Huntlo",
+  title: "Huntlo360 Hiring Operating System | Huntlo",
   description:
-    "Huntlo360 is the Hiring Operating System for Human + AI hiring — AI Hiring Intelligence Infrastructure that connects discovery, conversations, workflows, agents, and outcomes in one intelligent layer.",
-  ogTitle: "Hiring Doesn't Need Another Tool. It Needs An Operating System.",
+    "Huntlo360 connects candidate discovery, conversations, screening, workflow intelligence and recruiting agents in one hiring operating system built around recruiter control and shared hiring context.",
+  ogTitle: "Huntlo360: The Operating System for Human + AI Hiring",
   ogDescription:
-    "Welcome to Huntlo360 — the Hiring Operating System built for the future of Human + AI Hiring.",
+    "See how Huntlo360 runs discovery, engagement, screening and scheduling from one shared hiring context, with recruiters in control.",
 } as const;
 
 export function huntlo360Metadata() {
@@ -137,7 +137,7 @@ export const ENTERPRISES_DONT_NEED = [
 
 export const ENTERPRISE_BUILT_FOR = [
   { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
+  { label: "GCC hiring", href: "/solutions/global-capability-centers" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Global hiring", href: "/solutions" },
@@ -213,7 +213,7 @@ export const BENTO_CARDS = [
 export const BUILT_FOR_TEAMS = [
   { label: "CHROs", href: "/solutions/enterprise-hiring" },
   { label: "Talent Acquisition teams", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Founders", href: "/solutions/startups" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },

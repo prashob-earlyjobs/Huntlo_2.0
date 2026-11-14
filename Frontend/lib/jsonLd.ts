@@ -246,6 +246,17 @@ export type WebPageJsonLdInput = {
   primaryImageOfPage?: string;
   aboutName?: string;
   mainEntityName?: string;
+  /** Mark the page as describing a feature of the Huntlo SoftwareApplication. */
+  aboutSoftware?: boolean;
+  dateModified?: string;
+};
+
+const HUNTLO_SOFTWARE = {
+  "@type": "SoftwareApplication" as const,
+  name: "Huntlo",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  url: SITE_URL,
 };
 
 export function webPageJsonLd({
@@ -255,8 +266,29 @@ export function webPageJsonLd({
   primaryImageOfPage,
   aboutName,
   mainEntityName,
+  aboutSoftware = false,
+  dateModified,
 }: WebPageJsonLdInput) {
   const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  if (aboutSoftware) {
+    return {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name,
+      url: pageUrl,
+      description,
+      ...(primaryImageOfPage
+        ? {
+            primaryImageOfPage: primaryImageOfPage.startsWith("http")
+              ? primaryImageOfPage
+              : absoluteOgImageFromPath(primaryImageOfPage),
+          }
+        : {}),
+      about: [...(aboutName ? [{ "@type": "Thing", name: aboutName }] : []), HUNTLO_SOFTWARE],
+      publisher: HUNTLO_ORG,
+      ...(dateModified ? { dateModified } : {}),
+    };
+  }
   return {
     "@context": "https://schema.org",
     "@type": "WebPage",
@@ -287,6 +319,31 @@ export function webPageJsonLd({
           },
         }
       : {}),
+    ...(dateModified ? { dateModified } : {}),
+  };
+}
+
+export type WebApplicationJsonLdInput = {
+  name: string;
+  url: string;
+  description: string;
+};
+
+/** A free in-browser tool; named after the tool itself, never the Huntlo platform. */
+export function webApplicationJsonLd({ name, url, description }: WebApplicationJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name,
+    url: pageUrl,
+    description,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Any",
+    browserRequirements: "Requires JavaScript",
+    isAccessibleForFree: true,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    publisher: HUNTLO_ORG,
   };
 }
 
@@ -320,6 +377,49 @@ export function collectionPageJsonLd({
         url: item.href.startsWith("http") ? item.href : `${SITE_URL}${item.href}`,
       })),
     },
+  };
+}
+
+export type ArticleJsonLdInput = {
+  headline: string;
+  description: string;
+  url: string;
+  image: string;
+  datePublished: string;
+  dateModified: string;
+  aboutName?: string;
+};
+
+export function articleJsonLd({
+  headline,
+  description,
+  url,
+  image,
+  datePublished,
+  dateModified,
+  aboutName,
+}: ArticleJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  const publisher = {
+    "@type": "Organization",
+    name: "Huntlo",
+    url: SITE_URL,
+    logo: { "@type": "ImageObject", url: `${SITE_URL}/huntlologo.png` },
+  };
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline,
+    description,
+    url: pageUrl,
+    mainEntityOfPage: { "@type": "WebPage", "@id": pageUrl },
+    image: [absoluteOgImageFromPath(image)],
+    datePublished,
+    dateModified,
+    inLanguage: "en",
+    author: publisher,
+    publisher,
+    ...(aboutName ? { about: { "@type": "Thing", name: aboutName } } : {}),
   };
 }
 
