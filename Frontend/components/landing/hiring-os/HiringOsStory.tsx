@@ -11,21 +11,21 @@ type HiringOsStoryProps = {
 export function HiringOsStory({ reduceMotion }: HiringOsStoryProps) {
   return (
     <>
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               Fragmented by design
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Hiring was never designed for modern work.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
               Hiring became software heavy. It&apos;s becoming intelligence native.
             </p>
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-2 md:gap-3">
             {TOOL_STACK.map((item, index) => (
               <div key={item} className="flex items-center gap-2 md:gap-3">
                 <span className="rounded-2xl border border-[#c3c6d6]/40 bg-[#f7f8fc] px-4 py-3 text-sm font-medium text-[#141b2b]">
@@ -40,7 +40,7 @@ export function HiringOsStory({ reduceMotion }: HiringOsStoryProps) {
             ))}
           </div>
 
-          <p className="mt-10 text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
+          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[#0050cb]">
             Resulting in
           </p>
           <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -58,23 +58,23 @@ export function HiringOsStory({ reduceMotion }: HiringOsStoryProps) {
 
       <section
         id="hiring-os"
-        className="scroll-mt-24 bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12"
+        className="scroll-mt-24 bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12"
       >
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Introducing Hiring OS
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               Introducing the AI Native Hiring Operating System.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-white/65 md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-white/65 md:text-lg">
               Imagine hiring where everything continuously improves — no switching tools, no
               managing fragmented workflows, no disconnected experiences.
             </p>
           </div>
 
-          <ol className="mt-10 space-y-3">
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {OS_FLOW.map((item, index) => (
               <motion.li
                 key={item}
@@ -82,17 +82,17 @@ export function HiringOsStory({ reduceMotion }: HiringOsStoryProps) {
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.04 }}
-                className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 px-5 py-4"
+                className="flex h-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
               >
                 <span className="text-[0.65rem] font-semibold tabular-nums text-[#8eb0ff]">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-sm font-semibold text-white sm:text-base">{item}</span>
+                <span className="text-sm font-semibold text-white">{item}</span>
               </motion.li>
             ))}
           </ol>
 
-          <ul className="mt-10 grid gap-3 sm:grid-cols-3">
+          <ul className="mt-8 grid gap-3 sm:grid-cols-3">
             {[
               "No switching tools.",
               "No managing workflows.",

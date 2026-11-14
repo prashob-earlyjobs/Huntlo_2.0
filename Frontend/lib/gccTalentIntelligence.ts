@@ -185,14 +185,14 @@ export const ATS_LAYER_TIMELINE = [
 ] as const;
 
 export const GCC_SEGMENTS = [
-  { label: "Technology GCC", href: "/solutions/gccs" },
-  { label: "Engineering Centers", href: "/solutions/gccs" },
-  { label: "Financial Services", href: "/solutions/gccs" },
-  { label: "Healthcare", href: "/solutions/gccs" },
-  { label: "Retail", href: "/solutions/gccs" },
-  { label: "Manufacturing", href: "/solutions/gccs" },
-  { label: "Shared Services", href: "/solutions/gccs" },
-  { label: "Capability Centers", href: "/solutions/gccs" },
+  { label: "Technology GCC", href: "/solutions/global-capability-centers" },
+  { label: "Engineering Centers", href: "/solutions/global-capability-centers" },
+  { label: "Financial Services", href: "/solutions/global-capability-centers" },
+  { label: "Healthcare", href: "/solutions/global-capability-centers" },
+  { label: "Retail", href: "/solutions/global-capability-centers" },
+  { label: "Manufacturing", href: "/solutions/global-capability-centers" },
+  { label: "Shared Services", href: "/solutions/global-capability-centers" },
+  { label: "Capability Centers", href: "/solutions/global-capability-centers" },
 ] as const;
 
 export const ENTERPRISE_READY = [

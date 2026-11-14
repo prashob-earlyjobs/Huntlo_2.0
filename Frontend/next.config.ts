@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
         destination: "https://cal.id/team/huntlo/huntlo-discovery-call",
         permanent: false,
       },
+      { source: "/compare/eightfold", destination: "/compare/eightfold-ai", statusCode: 301 },
+      {
+        source: "/solutions/gccs",
+        destination: "/solutions/global-capability-centers",
+        statusCode: 301,
+      },
     ];
   },
 };

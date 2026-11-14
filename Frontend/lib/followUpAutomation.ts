@@ -154,7 +154,7 @@ export const STRATEGIC_STACK = [
 
 export const ENTERPRISE_BUILT_FOR = [
   { label: "Enterprise hiring", href: "/solutions/enterprise-hiring" },
-  { label: "GCC hiring", href: "/solutions/gccs" },
+  { label: "GCC hiring", href: "/solutions/global-capability-centers" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },

@@ -20,21 +20,21 @@ type AgenticHiringSystemsProps = {
 export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps) {
   return (
     <>
-      <section className="bg-[#f1f3ff] px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Continuous motion
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               Agentic Hiring never stops learning.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-white/65 md:text-lg">
               Everything intelligently connected.
             </p>
           </div>
 
-          <ol className="mt-10 space-y-3">
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {LEARNING_FLOW.map((item, index) => (
               <motion.li
                 key={item}
@@ -42,30 +42,30 @@ export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.04 }}
-                className="flex items-center gap-4 rounded-2xl border border-[#c3c6d6]/35 bg-white px-5 py-4"
+                className="flex h-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
               >
-                <span className="text-[0.65rem] font-semibold tabular-nums text-[#0050cb]">
+                <span className="text-[0.65rem] font-semibold tabular-nums text-[#8eb0ff]">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-sm font-semibold text-[#141b2b] sm:text-base">{item}</span>
+                <span className="text-sm font-semibold text-white">{item}</span>
               </motion.li>
             ))}
           </ol>
         </div>
       </section>
 
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
               Meet AI Recruiting Agents
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
               Intelligence that continuously moves hiring forward.
             </h2>
           </div>
 
-          <div className="mt-10 grid gap-3 md:grid-cols-4">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {BENTO_CARDS.map((card, index) => (
               <motion.div
                 key={card.title}
@@ -73,11 +73,11 @@ export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.3, delay: reduceMotion ? 0 : index * 0.03 }}
-                className={card.span}
+                className="h-full"
               >
                 <Link
                   href={card.href}
-                  className="group flex h-full flex-col justify-between rounded-3xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-6 transition-colors hover:border-[#0050cb]/40 hover:bg-[#f1f3ff]"
+                  className="group flex h-full flex-col rounded-2xl border border-[#c3c6d6]/35 bg-[#f7f8fc] p-5 transition-colors hover:border-[#0050cb]/40 hover:bg-[#f1f3ff]"
                 >
                   <div>
                     <p className="text-base font-bold text-[#141b2b] group-hover:text-[#0050cb]">
@@ -87,7 +87,7 @@ export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps
                       {card.description}
                     </p>
                   </div>
-                  <span className="mt-6 text-xs font-semibold uppercase tracking-[0.14em] text-[#0050cb]">
+                  <span className="mt-auto pt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[#0050cb]">
                     Explore
                   </span>
                 </Link>
@@ -97,16 +97,16 @@ export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps
         </div>
       </section>
 
-      <section className="bg-[#070d1a] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
+      <section className="bg-[#070d1a] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Infrastructure shift
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               Hiring intelligence is becoming infrastructure.
             </h2>
-            <p className="mt-5 text-base leading-relaxed text-white/65 md:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-white/65 md:text-lg">
               Future enterprises won&apos;t ask which recruiting software to buy. They&apos;ll ask
               how intelligently hiring can continuously improve itself.
             </p>
@@ -134,7 +134,46 @@ export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-[#02050c] px-4 py-20 text-white md:px-8 md:py-28 lg:px-12">
+      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-12 md:px-8 md:py-16 lg:px-12">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
+              Why Agentic Hiring matters
+            </p>
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2rem]">
+              Everything begins with Hiring Intelligence.
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
+              Organizations that define the next decade won&apos;t win because they hire more people,
+              send more outreach, or automate more workflows.
+            </p>
+          </div>
+
+          <div className="mt-8 flex flex-wrap gap-2">
+            {WHY_NOT.map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-[#c3c6d6]/40 bg-[#f7f8fc] px-4 py-2 text-sm text-[#434654] line-through decoration-[#c3c6d6]"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+
+          <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {WHY_YES.map((item) => (
+              <li
+                key={item}
+                className="rounded-2xl border border-[#0050cb]/25 bg-[#0050cb]/8 px-5 py-4 text-sm font-semibold text-[#141b2b]"
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden bg-[#02050c] px-4 py-12 text-white md:px-8 md:py-16 lg:px-12">
         <div
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_25%_15%,_rgba(0,80,203,0.35),_transparent_55%)]"
           aria-hidden
@@ -144,12 +183,12 @@ export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8eb0ff]">
               Future hiring stack
             </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight md:text-[2.5rem]">
+            <h2 className="mt-4 text-[1.5rem] font-bold leading-tight tracking-tight md:text-[2rem]">
               From recruiting software to Agentic Hiring™.
             </h2>
           </div>
 
-          <div className="mt-12 grid gap-8 lg:grid-cols-2" style={{ perspective: "1400px" }}>
+          <div className="mt-8 grid gap-8 lg:grid-cols-2" style={{ perspective: "1400px" }}>
             <motion.div
               className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 md:p-8"
               initial={reduceMotion ? false : { opacity: 0, rotateY: 6 }}
@@ -206,45 +245,6 @@ export function AgenticHiringSystems({ reduceMotion }: AgenticHiringSystemsProps
               </ol>
             </motion.div>
           </div>
-        </div>
-      </section>
-
-      <section className="border-b border-[#c3c6d6]/30 bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
-              Why Agentic Hiring matters
-            </p>
-            <h2 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.5rem]">
-              Everything begins with Hiring Intelligence.
-            </h2>
-            <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
-              Organizations that define the next decade won&apos;t win because they hire more people,
-              send more outreach, or automate more workflows.
-            </p>
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-2">
-            {WHY_NOT.map((item) => (
-              <span
-                key={item}
-                className="rounded-full border border-[#c3c6d6]/40 bg-[#f7f8fc] px-4 py-2 text-sm text-[#434654] line-through decoration-[#c3c6d6]"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-
-          <ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {WHY_YES.map((item) => (
-              <li
-                key={item}
-                className="rounded-2xl border border-[#0050cb]/25 bg-[#0050cb]/8 px-5 py-4 text-sm font-semibold text-[#141b2b]"
-              >
-                {item}
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
     </>

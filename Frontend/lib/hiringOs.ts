@@ -1,15 +1,39 @@
+import type { ProductEvidence } from "@/lib/productSurfaceTypes";
+import { SHARED_CONTEXT_SURFACE } from "@/lib/productSurfaces";
 import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const HIRING_OS_PATH = "/hiring-os";
 
 export const HIRING_OS_SEO = {
-  title: "AI Native Hiring Operating System | Huntlo",
+  title: "What Is an AI Hiring Operating System? | Huntlo",
   description:
-    "Hiring doesn't need another platform — it needs an operating system. Huntlo is the AI Native Hiring OS connecting AI Hiring Intelligence Infrastructure, Agentic Hiring, and Human + AI Hiring to better outcomes.",
-  ogTitle: "Hiring Doesn't Need Another Platform. It Needs An Operating System.",
+    "An AI hiring operating system connects talent discovery, candidate engagement, screening and workflow execution in one shared layer, so recruiters and AI agents work from the same hiring context.",
+  ogTitle: "What Is an AI Hiring Operating System?",
   ogDescription:
-    "Welcome to the AI Native Hiring Operating System — built for the future of Human + AI Hiring.",
+    "How an AI hiring OS differs from an ATS or point tools, and how Huntlo360 implements it.",
 } as const;
+
+export const HIRING_OS_EVIDENCE: ProductEvidence = {
+  eyebrow: "Shared context",
+  title: "The defining feature: one record every agent and recruiter uses",
+  intro:
+    "In a stack of point tools, each stage keeps its own copy of the candidate. In an AI hiring operating system, discovery, engagement, screening, scheduling and analytics all read and update one shared record, so nothing is re-keyed and every action is attributable.",
+  points: [
+    {
+      title: "One candidate record",
+      body: "Profile, conversations, transcripts and notes live together across roles.",
+    },
+    {
+      title: "Agents and recruiters on the same timeline",
+      body: "You can see whether an agent or a person acted, and when.",
+    },
+    {
+      title: "Modules share state",
+      body: "Screening sees what outreach learned; analytics sees both, without exports.",
+    },
+  ],
+  surface: SHARED_CONTEXT_SURFACE,
+};
 
 export function hiringOsMetadata() {
   return buildPageMetadata({
@@ -158,23 +182,14 @@ export const AGENTIC_FLOW = [
 ] as const;
 
 export const ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
-  { label: "Technical hiring", href: "/solutions/startups" },
+  { label: "Enterprises", href: "/solutions" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
+  { label: "Technical hiring", href: "/solutions" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Global hiring", href: "/solutions" },
-  { label: "Staffing firms", href: "/solutions/staffing-agencies" },
-  { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
-  { label: "High volume hiring", href: "/solutions/enterprise-hiring" },
-] as const;
-
-export const ENTERPRISE_SUPPORTS = [
-  "Enterprise governance",
-  "AI native hiring",
-  "Compliance",
-  "Scalability",
-  "Integrations",
-  "Workflow intelligence",
+  { label: "Staffing firms", href: "/solutions/it-staffing" },
+  { label: "Recruitment agencies", href: "/solutions/rpo" },
+  { label: "High volume hiring", href: "/solutions" },
 ] as const;
 
 export const STACK_TODAY = [
@@ -215,123 +230,23 @@ export const FUTURE_YES = [
 
 export const HIRING_OS_FAQS = [
   {
-    question: "What is an AI Native Hiring Operating System?",
+    question: "What is an AI hiring operating system?",
     answer:
-      "It is the operating layer for modern hiring — connecting AI Hiring Intelligence Infrastructure, Human + AI Hiring, Agentic Hiring, AI Recruiting Agents, workflow intelligence, and hiring outcomes in one system.",
+      "An AI hiring operating system connects talent discovery, candidate engagement, screening and workflow execution in one shared layer, so recruiters and AI agents work from the same hiring context instead of separate tools.",
   },
   {
-    question: "How is Hiring OS different from a recruitment platform?",
+    question: "How is a hiring OS different from an ATS?",
     answer:
-      "A recruitment platform is another tool. A Hiring Operating System unifies intelligence, conversations, workflows, and outcomes so hiring isn't fragmented across software.",
-  },
-  {
-    question: "Does hiring need another platform?",
-    answer:
-      "No. Modern teams don't struggle because they lack recruiting software — they struggle because hiring lives across fragmented tools and disconnected workflows. They need an operating system.",
-  },
-  {
-    question: "How does Hiring OS relate to AI Hiring Intelligence Infrastructure?",
-    answer:
-      "Infrastructure is the category layer. Hiring OS is how that intelligence operates day to day — discovery, conversations, workflows, confidence, and outcomes continuously connected.",
-  },
-  {
-    question: "What is Human + AI Hiring inside Hiring OS?",
-    answer:
-      "Recruiters + AI Recruiting Agents + Workflow Intelligence + Hiring Intelligence + Business Alignment creating hiring outcomes. AI amplifies hiring intelligence — it doesn't replace hiring teams.",
-  },
-  {
-    question: "What is Agentic Hiring?",
-    answer:
-      "Agentic Hiring continuously moves agents, discovery, conversations, workflows, confidence, and outcomes forward — everything continuously learning within Human + AI Hiring.",
-  },
-  {
-    question: "Will future organizations ask which ATS to buy?",
-    answer:
-      "They'll ask how intelligently hiring can continuously improve itself — changing velocity, productivity, experiences, and business outcomes.",
+      "An ATS is a system of record for requisitions, applications and offers. A hiring operating system is the execution layer around it: it finds candidates, runs conversations, screens and schedules, and keeps the shared context those steps depend on. The two usually run side by side.",
   },
   {
     question: "Is Hiring OS the same as Huntlo360?",
     answer:
-      "Hiring OS is the category narrative for the AI Native operating system. Huntlo360 is the commercial product expression of that operating system.",
+      "No. “AI hiring operating system” is the category this page explains. Huntlo360 is Huntlo's product implementation of that category; see the Huntlo360 page for product details.",
   },
   {
-    question: "Can enterprises run Hiring OS at scale?",
+    question: "Does an AI hiring OS replace recruiters?",
     answer:
-      "Yes. Built for enterprises, GCCs, technical, executive, global, staffing, agency, and high-volume hiring with governance, compliance, integrations, and scalability.",
-  },
-  {
-    question: "What does tomorrow's enterprise hiring stack look like?",
-    answer:
-      "One operating system → AI Hiring Intelligence → Human + AI Hiring → Hiring Outcomes → Huntlo.",
-  },
-  {
-    question: "Is modern hiring automation driven or intelligence native?",
-    answer:
-      "Intelligence native. Future hiring requires people, relationships, context, intelligence, and business outcomes — through a Hiring Operating System and AI Hiring Infrastructure.",
-  },
-  {
-    question: "Who is Hiring OS built for?",
-    answer:
-      "Enterprise leaders, CHROs, VP Talent Acquisition, GCC leaders, technical hiring teams, staffing firms, recruitment agencies, and global hiring teams.",
-  },
-  {
-    question: "Does Hiring OS include Candidate Discovery?",
-    answer:
-      "Yes. Discover talent, understand context, create conversations, move hiring forward, improve decisions, and connect agents to outcomes — all inside one OS.",
-  },
-  {
-    question: "Does Hiring OS stop learning?",
-    answer:
-      "No. It continuously understands candidate context, hiring intent, conversation intelligence, workflow intelligence, confidence, outcomes, and business priorities.",
-  },
-  {
-    question: "How do I get started with Hiring OS?",
-    answer:
-      "Book an enterprise demo, explore Hiring OS on this page, see Huntlo in action, or continue into Agentic Hiring and AI Hiring Intelligence Infrastructure.",
-  },
-  {
-    question: "What should visitors believe after this page?",
-    answer:
-      "That Huntlo is the AI Native Hiring Operating System for Human + AI Hiring — not another recruitment platform.",
-  },
-  {
-    question: "Will organizations win with more recruiting software?",
-    answer:
-      "No. The next decade belongs to organizations with Hiring Intelligence, Human + AI Hiring, Agentic Hiring, and better hiring outcomes.",
-  },
-  {
-    question: "Can Hiring OS reduce operational complexity?",
-    answer:
-      "Yes. No switching tools, no managing fragmented workflows, no disconnected experiences — everything intelligently connected.",
-  },
-  {
-    question: "How does Workflow Intelligence fit?",
-    answer:
-      "Workflow Intelligence helps hiring move forward continuously inside the OS — so teams optimize outcomes rather than operational complexity.",
-  },
-  {
-    question: "How does this relate to AI Recruiting Agents?",
-    answer:
-      "AI Recruiting Agents operate within Hiring OS to support discovery, conversations, workflows, confidence, and outcomes as part of Human + AI Hiring.",
-  },
-  {
-    question: "Is this page for enterprise conversion?",
-    answer:
-      "Yes. /hiring-os is designed for highest enterprise conversion, Hiring OS ownership, commercial intent, and demo bookings.",
-  },
-  {
-    question: "Where does Huntlo sit in this future?",
-    answer:
-      "Welcome to the AI Native Hiring Operating System. Welcome to Huntlo.",
-  },
-  {
-    question: "Does AI replace hiring teams in Hiring OS?",
-    answer:
-      "No. AI amplifies hiring intelligence. Humans remain central to relationships, judgment, and decisions.",
-  },
-  {
-    question: "What powers the future of hiring?",
-    answer:
-      "Not more platforms, automation, or dashboards — but intelligence, conversations, workflows, and outcomes.",
+      "No. AI agents run repetitive execution inside recruiter-defined rules. Recruiters keep relationships, judgment and every hiring decision.",
   },
 ] as const;

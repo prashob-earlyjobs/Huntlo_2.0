@@ -63,7 +63,7 @@ export function GccRecruitmentSoftwareStory({
                 Huntlo replaces the handoffs — one connected recruiting workspace.
               </p>
               <Link
-                href="/solutions/gccs"
+                href="/solutions/global-capability-centers"
                 className="mt-2 inline-flex text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
               >
                 Explore GCC solutions

@@ -225,6 +225,21 @@ export const RESOURCES_DIRECTORY: ResourcesDirectoryGroup[] = [
     title: "Guides & support",
     items: [
       {
+        label: "AI Hiring Knowledge Centre",
+        href: "/learn",
+        description: "Plain-language definitions of core AI hiring concepts.",
+      },
+      {
+        label: "Hiring Intelligence Research",
+        href: "/research",
+        description: "Huntlo studies and benchmarks, with open methodology.",
+      },
+      {
+        label: "Recruitment Tools & Calculators",
+        href: "/tools",
+        description: "Cost per hire and automation ROI calculators.",
+      },
+      {
         label: "Documentation",
         href: "/docs",
         description: "Product guides and reference.",

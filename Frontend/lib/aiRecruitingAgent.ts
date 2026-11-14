@@ -184,7 +184,7 @@ export const INTELLIGENCE_LAYER = [
 export const ENTERPRISE_BUILT_FOR = [
   { label: "Fortune 500", href: "/solutions/enterprise-hiring" },
   { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Global Hiring Teams", href: "/solutions" },
   { label: "Staffing Firms", href: "/solutions/staffing-agencies" },
   { label: "Executive Hiring", href: "/solutions/executive-search" },

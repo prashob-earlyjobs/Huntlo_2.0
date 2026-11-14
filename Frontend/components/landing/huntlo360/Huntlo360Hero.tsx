@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
+import { CTA } from "@/lib/ctaLabels";
 
 import { ghostCtaClass, primaryCtaClass, secondaryCtaClass } from "./ctaClasses";
 import { Huntlo360OrbitVisual } from "./Huntlo360OrbitVisual";
@@ -30,31 +31,28 @@ export function Huntlo360Hero({ reduceMotion }: Huntlo360HeroProps) {
             Huntlo360 · Hiring Operating System
           </p>
           <h1 className="mt-5 max-w-xl text-[2rem] font-bold leading-[1.1] tracking-tight sm:text-[2.5rem] md:text-[3.15rem] lg:text-[3.35rem]">
-            Hiring doesn&apos;t need another tool.
-            <span className="mt-2 block text-white/75">It needs an operating system.</span>
+            Huntlo360: the operating system
+            <span className="mt-2 block text-white/75">for Human + AI hiring.</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            Modern hiring teams don&apos;t suffer from a talent shortage. They suffer from
-            fragmented hiring workflows spread across multiple platforms, disconnected
-            conversations, and operational complexity.
+            Connect candidate discovery, conversations, screening, workflow intelligence and
+            recruiting agents in one operating system built around recruiter control and shared
+            hiring context.
           </p>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70 md:text-lg">
-            Hiring isn&apos;t becoming more operational. It&apos;s becoming more intelligent.
-          </p>
-          <p className="mt-8 text-lg font-semibold tracking-tight md:text-xl">
-            Welcome to Huntlo360.
-            <span className="mt-1 block text-base font-medium text-[#8eb0ff] md:text-lg">
-              Built for the future of Human + AI Hiring.
-            </span>
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/55">
+            New to the category?{" "}
+            <Link href="/hiring-os" className="font-semibold text-[#8eb0ff] underline-offset-4 hover:underline">
+              What is an AI hiring operating system?
+            </Link>
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <BookDemoLink className={primaryCtaClass}>Book Enterprise Demo</BookDemoLink>
-            <Link href="#huntlo360" className={secondaryCtaClass}>
-              Explore Huntlo360
+            <BookDemoLink className={primaryCtaClass}>{CTA.demo}</BookDemoLink>
+            <Link href={CTA.product.href} className={secondaryCtaClass}>
+              {CTA.product.label}
             </Link>
-            <Link href="/demo" className={ghostCtaClass}>
-              See Huntlo In Action
+            <Link href="#huntlo360" className={ghostCtaClass}>
+              Explore Huntlo360
             </Link>
           </div>
         </motion.div>

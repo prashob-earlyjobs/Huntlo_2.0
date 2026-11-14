@@ -13,7 +13,6 @@ const SOLUTION_ICONS: Record<string, string> = {
   "executive-search": "person_search",
   startups: "rocket_launch",
   "enterprise-hiring": "apartment",
-  gccs: "public",
 };
 
 const VALUE_PILLARS = [

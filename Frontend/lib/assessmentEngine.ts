@@ -162,7 +162,7 @@ export const HUMAN_AI_EQUATION = [
 
 export const ENTERPRISE_BUILT_FOR = [
   { label: "Enterprises", href: "/solutions/enterprise-hiring" },
-  { label: "GCCs", href: "/solutions/gccs" },
+  { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Global hiring teams", href: "/solutions" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },

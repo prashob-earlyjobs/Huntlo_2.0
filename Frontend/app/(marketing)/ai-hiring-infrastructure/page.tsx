@@ -34,6 +34,7 @@ export default function AiHiringInfrastructureRoutePage() {
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
+            { name: "Platform", href: "/platform" },
             { name: "AI Hiring Intelligence Infrastructure", href: AI_HIRING_INFRASTRUCTURE_PATH },
           ]),
           faqPageJsonLd([...AI_HIRING_FAQS]),
