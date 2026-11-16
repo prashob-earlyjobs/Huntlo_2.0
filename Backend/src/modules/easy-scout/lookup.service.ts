@@ -9,19 +9,6 @@ import {
   extractDirectorName,
   isEazyreachConfigured,
 } from '../../providers/eazyreach/index.js';
-import {
-  FutureJobsUpstreamError,
-  getFutureJobsProvider,
-  isFjInvalidLinkedinUrlError,
-  isFjProfileNotFoundError,
-  normalizeLinkedinProfileUrl,
-} from '../../providers/future-jobs/index.js';
-import {
-  extractMatchOptionsFromFjData,
-  extractSafeSnapshotFromFjProfile,
-  snapshotHasValidProfile,
-} from '../people-scout/lookup.mapper.js';
-import type { PeopleScoutCandidateSnapshot } from '../people-scout/lookup.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { isValidObjectId } from '../../shared/validation/object-id.js';
 import { UserModel } from '../auth/user.model.js';
@@ -217,29 +204,6 @@ async function toPublicLookup(
   };
 }
 
-function easySnapshotFromFj(
-  snapshot: PeopleScoutCandidateSnapshot
-): EasyScoutCandidateSnapshot {
-  return {
-    name: snapshot.name,
-    title: snapshot.title,
-    headline: snapshot.headline,
-    location: snapshot.location,
-    company: snapshot.company,
-    role: snapshot.role,
-    linkedinFlagshipUrl: snapshot.linkedinFlagshipUrl,
-    linkedinProfileUrl: snapshot.linkedinProfileUrl,
-    linkedinUsername: snapshot.linkedinUsername,
-    profilePictureUrl: snapshot.profilePictureUrl,
-    skills: snapshot.skills,
-    languages: snapshot.languages,
-    summary: snapshot.summary,
-    experience: snapshot.experience,
-    education: snapshot.education,
-    numConnections: snapshot.numConnections,
-  };
-}
-
 function snapshotFromParsed(parsed: NormalizedEasyScoutInput): EasyScoutCandidateSnapshot {
   if (parsed.lookupType === 'din') {
     return {
@@ -289,11 +253,11 @@ class EasyScoutLookupService {
       return toPublicLookup(invalid);
     }
 
-    if (parsed.lookupType === 'din' && !isEazyreachConfigured()) {
+    if (!isEazyreachConfigured()) {
       throw new AppError(
         503,
         'PROVIDER_UNAVAILABLE',
-        'Easy Scout DIN lookup is not configured. Set EAZYREACH_AUTH_TOKEN or EAZYREACH_API_KEY in the backend environment.'
+        'Easy Scout is not configured. Set EAZYREACH_AUTH_TOKEN or EAZYREACH_API_KEY in the backend environment.'
       );
     }
 
@@ -304,8 +268,7 @@ class EasyScoutLookupService {
       normalizedInputHash: parsed.normalizedInputHash,
       deletedAt: null,
       resultStatus: 'found',
-      // LinkedIn stubs were stored before Future Jobs search. Only reuse a real FJ profile.
-      ...(parsed.lookupType === 'din' ? {} : { cacheSource: 'futurejobs' }),
+      cacheSource: 'eazyreach',
     }).sort({ createdAt: -1 });
 
     if (cached) {
@@ -346,61 +309,21 @@ class EasyScoutLookupService {
     }
 
     try {
-      if (parsed.lookupType === 'din') {
-        const snapshot = snapshotFromParsed(parsed);
-        if (parsed.din) {
-          try {
-            const phones = await eazyreachDinPhones({ din: parsed.din });
-            const name = extractDirectorName(phones.raw);
-            if (name) snapshot.name = name;
-          } catch {
-            // name enrichment is best-effort
-          }
+      // Easy Scout is EazyReach-only. LinkedIn lookups store a stub profile;
+      // email / phone reveals call EazyReach. DIN lookups may enrich the name.
+      const snapshot = snapshotFromParsed(parsed);
+      if (parsed.lookupType === 'din' && parsed.din) {
+        try {
+          const phones = await eazyreachDinPhones({ din: parsed.din });
+          const name = extractDirectorName(phones.raw);
+          if (name) snapshot.name = name;
+        } catch {
+          // name enrichment is best-effort
         }
-        doc.resultStatus = 'found';
-        doc.candidateSnapshot = snapshot;
-        doc.cacheSource = 'eazyreach';
-      } else {
-        const linkedinUrl = parsed.linkedinUrl || '';
-        const provider = getFutureJobsProvider();
-        const fj = await provider.scoutPeopleLookup({ linkedin_url: linkedinUrl });
-        const data =
-          fj?.data && typeof fj.data === 'object'
-            ? (fj.data as Record<string, unknown>)
-            : null;
-        const scoutId = data?.scoutId != null ? String(data.scoutId) : '';
-        const matches = extractMatchOptionsFromFjData(data);
-        doc.cacheSource = 'futurejobs';
-
-        if (matches.length > 1) {
-          doc.resultStatus = 'multiple_matches';
-          doc.candidateSnapshot = { matches };
-          doc.externalCandidateId = scoutId || null;
-          await easyScoutQuotaService.refund(actor.organizationId, doc._id.toHexString());
-          doc.charged = false;
-          await doc.save();
-          return toPublicLookup(doc);
-        }
-
-        const fjSnapshot = extractSafeSnapshotFromFjProfile(data?.profile, scoutId);
-        if (!snapshotHasValidProfile(fjSnapshot) || !fjSnapshot) {
-          doc.resultStatus = 'not_found';
-          doc.candidateSnapshot = null;
-          await easyScoutQuotaService.refund(actor.organizationId, doc._id.toHexString());
-          doc.charged = false;
-          await doc.save();
-          return toPublicLookup(doc);
-        }
-
-        const snapshot = easySnapshotFromFj(fjSnapshot);
-        doc.resultStatus = 'found';
-        doc.candidateSnapshot = snapshot;
-        const canonical =
-          normalizeLinkedinProfileUrl(snapshot.linkedinProfileUrl) ||
-          normalizeLinkedinProfileUrl(snapshot.linkedinFlagshipUrl) ||
-          linkedinUrl;
-        doc.externalCandidateId = fjSnapshot.fjProfileId || (canonical ? `linkedin:${canonical}` : scoutId || null);
       }
+      doc.resultStatus = 'found';
+      doc.candidateSnapshot = snapshot;
+      doc.cacheSource = 'eazyreach';
 
       await easyScoutQuotaService.commit(actor.organizationId, doc._id.toHexString());
       doc.charged = true;
@@ -411,21 +334,11 @@ class EasyScoutLookupService {
       await easyScoutQuotaService.refund(actor.organizationId, doc._id.toHexString()).catch(
         () => undefined
       );
-      if (error instanceof FutureJobsUpstreamError) {
-        doc.resultStatus = isFjProfileNotFoundError(error)
-          ? 'not_found'
-          : isFjInvalidLinkedinUrlError(error)
-            ? 'invalid_input'
-            : 'provider_unavailable';
-        doc.charged = false;
-        doc.cacheSource = 'futurejobs';
-        await doc.save();
-        return toPublicLookup(doc);
-      }
       if (error instanceof EazyreachUpstreamError) {
         doc.resultStatus =
           error.httpStatus === 404 ? 'not_found' : 'provider_unavailable';
         doc.charged = false;
+        doc.cacheSource = 'eazyreach';
         await doc.save();
         return toPublicLookup(doc);
       }

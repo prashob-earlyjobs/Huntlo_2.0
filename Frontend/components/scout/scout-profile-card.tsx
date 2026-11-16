@@ -95,6 +95,8 @@ export function ScoutProfileCard({
   className,
   embedded = false,
   phoneRevealPoll = true,
+  showEnrichmentSections = true,
+  showPoolActions = true,
 }: {
   api?: PeopleScoutApi;
   profile: ScoutProfile;
@@ -109,6 +111,10 @@ export function ScoutProfileCard({
    * polls the lookup. Easy Scout's provider answers in that first response.
    */
   phoneRevealPoll?: boolean;
+  /** Easy Scout has no FJ enrichment — hide About / Experience / Education / Skills. */
+  showEnrichmentSections?: boolean;
+  /** Easy Scout — hide Save / List / Outreach / Screening. */
+  showPoolActions?: boolean;
 }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState({
@@ -566,65 +572,69 @@ export function ScoutProfileCard({
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant={saved ? "secondary" : "default"}
-                onClick={() => void handleSave()}
-              >
-                {saved ? <Check aria-hidden /> : <UserRoundPlus aria-hidden />}
-                {saved ? "Saved to Pool" : "Save to Candidate Pool"}
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={<Button size="sm" variant="outline" />}
-                >
-                  <ListPlus aria-hidden />
-                  Add to List
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuLabel>Add to list</DropdownMenuLabel>
-                  {listNames.length === 0 ? (
-                    <DropdownMenuItem disabled>No lists yet</DropdownMenuItem>
-                  ) : (
-                    listNames.map((list) => (
-                      <DropdownMenuItem
-                        key={list}
-                        onClick={() =>
-                          flash(`Added ${profile.name} to “${list}”.`)
-                        }
-                      >
-                        {list}
-                      </DropdownMenuItem>
-                    ))
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const params = new URLSearchParams();
-                  if (lookupId) params.set("lookupId", lookupId);
-                  params.set("name", profile.name);
-                  router.push(`${ROUTES.outreachNew}?${params.toString()}`);
-                }}
-              >
-                <Send aria-hidden />
-                Start Outreach
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const params = new URLSearchParams();
-                  if (lookupId) params.set("lookupId", lookupId);
-                  params.set("name", profile.name);
-                  router.push(`${ROUTES.screeningNew}?${params.toString()}`);
-                }}
-              >
-                <AudioLines aria-hidden />
-                Start Screening
-              </Button>
+              {showPoolActions ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant={saved ? "secondary" : "default"}
+                    onClick={() => void handleSave()}
+                  >
+                    {saved ? <Check aria-hidden /> : <UserRoundPlus aria-hidden />}
+                    {saved ? "Saved to Pool" : "Save to Candidate Pool"}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={<Button size="sm" variant="outline" />}
+                    >
+                      <ListPlus aria-hidden />
+                      Add to List
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-60">
+                      <DropdownMenuLabel>Add to list</DropdownMenuLabel>
+                      {listNames.length === 0 ? (
+                        <DropdownMenuItem disabled>No lists yet</DropdownMenuItem>
+                      ) : (
+                        listNames.map((list) => (
+                          <DropdownMenuItem
+                            key={list}
+                            onClick={() =>
+                              flash(`Added ${profile.name} to “${list}”.`)
+                            }
+                          >
+                            {list}
+                          </DropdownMenuItem>
+                        ))
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (lookupId) params.set("lookupId", lookupId);
+                      params.set("name", profile.name);
+                      router.push(`${ROUTES.outreachNew}?${params.toString()}`);
+                    }}
+                  >
+                    <Send aria-hidden />
+                    Start Outreach
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (lookupId) params.set("lookupId", lookupId);
+                      params.set("name", profile.name);
+                      router.push(`${ROUTES.screeningNew}?${params.toString()}`);
+                    }}
+                  >
+                    <AudioLines aria-hidden />
+                    Start Screening
+                  </Button>
+                </>
+              ) : null}
               <Button
                 size="sm"
                 variant="outline"
@@ -656,92 +666,100 @@ export function ScoutProfileCard({
       </div>
 
       {/* Body */}
-      <div className={cn("grid gap-6 lg:grid-cols-3", embedded ? "p-4" : "p-5")}>
-        <div className="space-y-6 lg:col-span-2">
-          <section className="space-y-2">
-            <SectionTitle>About</SectionTitle>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {profile.about?.trim()
-                ? profile.about
-                : "No summary available for this profile."}
-            </p>
-          </section>
+      <div
+        className={cn(
+          "grid gap-6",
+          showEnrichmentSections ? "lg:grid-cols-3" : "lg:grid-cols-1",
+          embedded ? "p-4" : "p-5"
+        )}
+      >
+        {showEnrichmentSections ? (
+          <div className="space-y-6 lg:col-span-2">
+            <section className="space-y-2">
+              <SectionTitle>About</SectionTitle>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {profile.about?.trim()
+                  ? profile.about
+                  : "No summary available for this profile."}
+              </p>
+            </section>
 
-          <section className="space-y-3">
-            <SectionTitle>Experience</SectionTitle>
-            {profile.experience.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No experience listed.</p>
-            ) : (
-              <ol className="space-y-0">
-                {profile.experience.map((entry, index) => (
-                  <li
-                    key={`${entry.company}-${entry.role}-${entry.duration}-${index}`}
-                    className="relative flex gap-3 pb-5 last:pb-0"
-                  >
-                    {index < profile.experience.length - 1 ? (
+            <section className="space-y-3">
+              <SectionTitle>Experience</SectionTitle>
+              {profile.experience.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No experience listed.</p>
+              ) : (
+                <ol className="space-y-0">
+                  {profile.experience.map((entry, index) => (
+                    <li
+                      key={`${entry.company}-${entry.role}-${entry.duration}-${index}`}
+                      className="relative flex gap-3 pb-5 last:pb-0"
+                    >
+                      {index < profile.experience.length - 1 ? (
+                        <span
+                          aria-hidden
+                          className="absolute top-4 left-[5px] h-full w-px bg-border"
+                        />
+                      ) : null}
                       <span
                         aria-hidden
-                        className="absolute top-4 left-[5px] h-full w-px bg-border"
+                        className={cn(
+                          "relative mt-1.5 size-[11px] shrink-0 rounded-full border-2",
+                          entry.current
+                            ? "border-primary bg-primary"
+                            : "border-primary bg-card"
+                        )}
                       />
-                    ) : null}
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "relative mt-1.5 size-[11px] shrink-0 rounded-full border-2",
-                        entry.current
-                          ? "border-primary bg-primary"
-                          : "border-primary bg-card"
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-foreground">
-                          {entry.role}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">
+                            {entry.role}
+                          </p>
+                          {entry.current ? (
+                            <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                              Current
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {entry.company} · {entry.duration}
+                          {entry.location ? ` · ${entry.location}` : ""}
                         </p>
-                        {entry.current ? (
-                          <span className="rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
-                            Current
-                          </span>
+                        {entry.description ? (
+                          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                            {entry.description}
+                          </p>
                         ) : null}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {entry.company} · {entry.duration}
-                        {entry.location ? ` · ${entry.location}` : ""}
-                      </p>
-                      {entry.description ? (
-                        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                          {entry.description}
-                        </p>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
 
-          <section className="space-y-2">
-            <SectionTitle>Education</SectionTitle>
-            {profile.education.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No education listed.</p>
-            ) : (
-              profile.education.map((entry, index) => (
-                <div
-                  key={`${entry.school}-${entry.degree}-${index}`}
-                  className="rounded-lg border border-border px-3 py-2.5"
-                >
-                  <p className="text-sm font-medium text-foreground">
-                    {entry.school}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {[entry.degree, entry.field].filter(Boolean).join(", ")}
-                    {entry.years ? ` · ${entry.years}` : ""}
-                  </p>
-                </div>
-              ))
-            )}
-          </section>
-        </div>
+            <section className="space-y-2">
+              <SectionTitle>Education</SectionTitle>
+              {profile.education.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No education listed.</p>
+              ) : (
+                profile.education.map((entry, index) => (
+                  <div
+                    key={`${entry.school}-${entry.degree}-${index}`}
+                    className="rounded-lg border border-border px-3 py-2.5"
+                  >
+                    <p className="text-sm font-medium text-foreground">
+                      {entry.school}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {[entry.degree, entry.field].filter(Boolean).join(", ")}
+                      {entry.years ? ` · ${entry.years}` : ""}
+                    </p>
+                  </div>
+                ))
+              )}
+            </section>
+          </div>
+        ) : null}
 
         <div className="space-y-6">
           {embedded ? null : (
@@ -751,38 +769,42 @@ export function ScoutProfileCard({
             </section>
           )}
 
-          <section className="space-y-2">
-            <SectionTitle>Skills</SectionTitle>
-            {profile.skills.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No skills listed.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {profile.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-md bg-brand-subtle px-2 py-0.5 text-xs font-medium text-primary"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
+          {showEnrichmentSections ? (
+            <>
+              <section className="space-y-2">
+                <SectionTitle>Skills</SectionTitle>
+                {profile.skills.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No skills listed.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.skills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-md bg-brand-subtle px-2 py-0.5 text-xs font-medium text-primary"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </section>
 
-          {(profile.languages?.length ?? 0) > 0 ? (
-            <section className="space-y-2">
-              <SectionTitle>Languages</SectionTitle>
-              <div className="flex flex-wrap gap-1.5">
-                {profile.languages!.map((language) => (
-                  <span
-                    key={language}
-                    className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                  >
-                    {language}
-                  </span>
-                ))}
-              </div>
-            </section>
+              {(profile.languages?.length ?? 0) > 0 ? (
+                <section className="space-y-2">
+                  <SectionTitle>Languages</SectionTitle>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.languages!.map((language) => (
+                      <span
+                        key={language}
+                        className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                      >
+                        {language}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </>
           ) : null}
         </div>
       </div>
