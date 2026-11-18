@@ -27,25 +27,30 @@ export function WorkflowSection({ reduceMotion = false }: WorkflowSectionProps) 
         </div>
 
         <div className="relative mt-14">
-          <div className="absolute left-[8%] right-[8%] top-[28px] hidden h-px bg-[#e1e4ef] lg:block" />
+          <div className="absolute left-[10%] right-[10%] top-7 hidden h-px bg-[#e1e4ef] lg:block" />
 
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5 lg:gap-3">
             {AI_VOICE_WORKFLOW.map((step, i) => (
               <motion.div
-                key={step.title}
+                key={step.number}
                 initial={reduceMotion ? false : { opacity: 0, y: 14 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.45, delay: reduceMotion ? 0 : i * 0.08 }}
                 className="relative flex flex-col items-center text-center"
               >
-                <div className="relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#0050cb]/20 bg-white text-sm font-bold text-[#0050cb] shadow-sm">
-                  {String(i + 1).padStart(2, "0")}
+                <div className="relative z-10 mb-4 flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#0050cb]/20 bg-white text-sm font-bold text-[#0050cb] shadow-sm">
+                  {step.number}
                 </div>
-                <h3 className="font-[family-name:var(--font-epilogue)] text-lg font-bold text-[#141b2b] md:text-xl">
-                  {step.title}
-                </h3>
-                <p className="mt-2 max-w-xs text-sm leading-relaxed text-[#434654] md:text-[0.95rem]">
+                <div className="flex flex-col items-center">
+                  <h3 className="font-[family-name:var(--font-epilogue)] text-base font-bold leading-tight text-[#141b2b] md:text-lg">
+                    {step.title}
+                  </h3>
+                  <p className="mt-1 text-xs font-medium leading-tight text-[#0050cb] md:text-sm">
+                    {step.subtitle}
+                  </p>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-[#434654] md:text-sm">
                   {step.description}
                 </p>
 

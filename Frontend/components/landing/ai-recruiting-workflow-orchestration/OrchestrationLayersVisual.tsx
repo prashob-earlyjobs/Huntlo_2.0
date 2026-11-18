@@ -36,7 +36,7 @@ export function OrchestrationLayersVisual({ reduceMotion }: OrchestrationLayersV
                   ? "border-[#0050cb]/30 bg-[#f0f5ff]"
                   : "border-[#e8eef7] bg-[#fafbfd]"
               }`}
-              style={{ marginLeft: `${index * 8}px`, marginRight: `${(HERO_LAYERS.length - 1 - index) * 8}px` }}
+              style={{ marginLeft: `${8}px`, marginRight: `${(HERO_LAYERS.length - 1 - index) * 8}px` }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div>
