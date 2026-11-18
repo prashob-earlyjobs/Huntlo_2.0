@@ -22,7 +22,7 @@ export function AssessmentEnginePage() {
   return (
     <div className="landing-page min-h-screen overflow-x-hidden bg-[#f7f8fc] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <LandingNav />
-      <main className="pt-16">
+      <main>
         <AssessmentEngineHero reduceMotion={reduceMotion} />
         <AssessmentEngineStory reduceMotion={reduceMotion} />
         <AssessmentEngineSystems reduceMotion={reduceMotion} />

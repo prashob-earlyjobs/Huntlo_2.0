@@ -38,9 +38,9 @@ Set `NEXT_PUBLIC_API_URL` when using live mode.
 
 ## Contract strategy
 
-1. **Envelopes** — `lib/api/contracts/envelopes.ts` mirrors Backend response shapes.
-2. **Domain DTOs** — `lib/api/contracts/index.ts` re-exports existing frontend mock types as interim DTOs (no duplication).
-3. **Future** — generate types from Backend OpenAPI into `lib/api/generated/` and replace re-exports module-by-module.
+1. **Envelopes** - `lib/api/contracts/envelopes.ts` mirrors Backend response shapes.
+2. **Domain DTOs** - `lib/api/contracts/index.ts` re-exports existing frontend mock types as interim DTOs (no duplication).
+3. **Future** - generate types from Backend OpenAPI into `lib/api/generated/` and replace re-exports module-by-module.
 
 Mongoose document types never cross the frontend boundary.
 

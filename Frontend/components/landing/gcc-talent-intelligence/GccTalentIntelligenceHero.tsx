@@ -34,7 +34,7 @@ export function GccTalentIntelligenceHero({ reduceMotion }: GccTalentIntelligenc
           </h1>
           <p className="mt-6 max-w-lg text-base leading-relaxed text-white/65 md:text-lg">
             See talent availability, engagement, recruiter productivity, and pipeline health in one
-            AI-powered view — before competitors do.
+            AI-powered view - before competitors do.
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">

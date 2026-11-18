@@ -48,8 +48,8 @@ export function GccSourcingAutomationStory({
         <GccEyebrow>Discovery</GccEyebrow>
         <GccHeading>AI-powered candidate discovery</GccHeading>
         <GccLead>
-          Turn hiring intent into qualified recommendations — based on skills, experience, and
-          recruiter preferences — instead of endless Boolean searches.
+          Turn hiring intent into qualified recommendations - based on skills, experience, and
+          recruiter preferences - instead of endless Boolean searches.
         </GccLead>
 
         <ol className="mt-12 divide-y divide-[#c3c6d6]/30 border-y border-[#c3c6d6]/30">

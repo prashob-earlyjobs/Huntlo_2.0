@@ -39,7 +39,7 @@ export function SourcingSplitVisual({ reduceMotion: _reduceMotion }: SourcingSpl
         </div>
         <div className="border-t border-white/10 px-4 py-3">
           <p className="text-[0.7rem] text-white/50">
-            Candidates arrive ranked and ready — not buried in tabs.
+            Candidates arrive ranked and ready - not buried in tabs.
           </p>
         </div>
       </div>

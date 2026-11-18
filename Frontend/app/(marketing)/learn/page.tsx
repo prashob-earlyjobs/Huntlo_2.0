@@ -45,7 +45,7 @@ const HUNTLO_APPLICATION: Record<string, { label: string; href: string }> = {
   "what-are-ai-recruiting-agents": { label: "AI Recruiting Agents", href: "/recruiting-agents" },
   "what-is-agentic-hiring": { label: "Agentic Hiring™", href: "/agentic-hiring" },
   "ai-hiring-orchestration": { label: "Hiring Intelligence Orchestration™", href: "/workflow-orchestration" },
-  "ai-hiring-vs-ats": { label: "Huntlo360 — AI Hiring OS", href: "/hiring-os" },
+  "ai-hiring-vs-ats": { label: "Huntlo360 - AI Hiring OS", href: "/hiring-os" },
 };
 
 const PRACTICE_LINKS = [

@@ -3,54 +3,54 @@
 import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 
-const steps = [
-  { number: "01", title: "Describe", description: "Explain your ideal candidate." },
-  { number: "02", title: "Discover", description: "AI identifies matching talent." },
-  { number: "03", title: "Enrich", description: "Profiles gain deeper signals." },
-  { number: "04", title: "Engage", description: "Move directly into outreach." }
-];
+import { SOURCING_WORKFLOW } from "@/lib/sourcing";
 
-export function WorkflowSection() {
+type WorkflowSectionProps = {
+  reduceMotion?: boolean;
+};
+
+export function WorkflowSection({ reduceMotion = false }: WorkflowSectionProps) {
   return (
-    <section className="py-24 lg:py-32 bg-white">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-20">
-          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">
-            From Intent to Talent in Minutes
+    <section className="border-t border-[#c3c6d6]/25 bg-white px-4 py-20 sm:px-6 md:py-28 lg:px-12">
+      <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
+            How it works
+          </p>
+          <h2 className="mt-4 font-[family-name:var(--font-epilogue)] text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.35rem]">
+            Enter Role → Filter Results → Save &amp; Engage
           </h2>
+          <p className="mt-4 text-base leading-relaxed text-[#434654] md:text-lg">
+            A simple path from hiring intent to a ready outreach pipeline.
+          </p>
         </div>
 
-        <div className="relative">
-          {/* Connector Line */}
-          <div className="hidden lg:block absolute top-[45px] left-[10%] right-[10%] h-[2px] bg-slate-100">
-            <motion.div 
-              className="h-full bg-blue-600"
-              initial={{ width: "0%" }}
-              whileInView={{ width: "100%" }}
-              viewport={{ once: true }}
-              transition={{ duration: 1.5, ease: "easeInOut" }}
-            />
-          </div>
+        <div className="relative mt-14">
+          <div className="hidden lg:block absolute left-[12%] right-[12%] top-[28px] h-px bg-[#e1e4ef]" />
 
-          <div className="grid lg:grid-cols-4 gap-12 lg:gap-6">
-            {steps.map((step, i) => (
+          <div className="grid gap-10 lg:grid-cols-3 lg:gap-8">
+            {SOURCING_WORKFLOW.map((step, i) => (
               <motion.div
-                key={step.number}
-                initial={{ opacity: 0, y: 20 }}
+                key={step.title}
+                initial={reduceMotion ? false : { opacity: 0, y: 14 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.2 }}
-                className="relative flex flex-col items-center text-center group"
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.45, delay: reduceMotion ? 0 : i * 0.1 }}
+                className="relative flex flex-col items-center text-center"
               >
-                <div className="w-24 h-24 bg-white border-[6px] border-slate-50 rounded-full flex items-center justify-center text-2xl font-black text-slate-300 group-hover:text-blue-600 group-hover:border-blue-50 transition-colors z-10 mb-6 shadow-sm">
-                  {step.number}
+                <div className="relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#0050cb]/20 bg-white text-sm font-bold text-[#0050cb] shadow-sm">
+                  {String(i + 1).padStart(2, "0")}
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">{step.title}</h3>
-                <p className="text-slate-600">{step.description}</p>
-                
-                {i < steps.length - 1 && (
-                  <div className="lg:hidden mt-8 text-slate-300">
-                    <ArrowRight className="w-6 h-6 rotate-90" />
+                <h3 className="font-[family-name:var(--font-epilogue)] text-xl font-bold text-[#141b2b]">
+                  {step.title}
+                </h3>
+                <p className="mt-2 max-w-xs text-sm leading-relaxed text-[#434654] md:text-[0.95rem]">
+                  {step.description}
+                </p>
+
+                {i < SOURCING_WORKFLOW.length - 1 && (
+                  <div className="mt-6 text-[#c3c6d6] lg:hidden" aria-hidden>
+                    <ArrowRight className="h-5 w-5 rotate-90" />
                   </div>
                 )}
               </motion.div>
