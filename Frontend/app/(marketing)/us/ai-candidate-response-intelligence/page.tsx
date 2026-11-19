@@ -8,7 +8,7 @@ import {
   AI_CANDIDATE_RESPONSE_INTELLIGENCE_SEO,
   aiCandidateResponseIntelligenceMetadata,
 } from "@/lib/aiCandidateResponseIntelligence";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiCandidateResponseIntelligenceMetadata();
@@ -28,6 +28,7 @@ export default function AiCandidateResponseIntelligenceRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI candidate response intelligence",
             mainEntityName: "Huntlo AI Candidate Response Intelligence",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -36,6 +37,11 @@ export default function AiCandidateResponseIntelligenceRoutePage() {
               href: AI_CANDIDATE_RESPONSE_INTELLIGENCE_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Candidate Response Intelligence",
+            description: AI_CANDIDATE_RESPONSE_INTELLIGENCE_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_CANDIDATE_RESPONSE_INTELLIGENCE_FAQS]),
         ]}
       />

@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const RECRUITING_WORKFLOW_AUTOMATION_PATH = "/recruiting-workflow-automation";
 
 export const RECRUITING_WORKFLOW_AUTOMATION_SEO = {
-  title: "Recruiting Workflow Automation for Hiring Teams | Huntlo",
+  title: "Recruiting Workflow Automation Software | Huntlo",
   description:
-    "Explore a more connected recruiting workflow, from candidate discovery to outreach and recruiter review. See how Huntlo can support your team.",
+    "Connect candidate discovery, outreach, response handling, and recruiter review in one recruiting workflow automation stack—with human oversight at every handoff.",
   ogTitle: "Your recruiting workflow should move with your team-not against it.",
   ogDescription:
     "Connect discovery, outreach, response handling, and recruiter review - with oversight preserved at every handoff.",
@@ -170,6 +170,11 @@ export const RECRUITING_WORKFLOW_AUTOMATION_FAQS = [
     question: "Does automation replace a recruiter?",
     answer:
       "No. Recruiters still own candidate relationships, evaluation, and hiring decisions.",
+  },
+  {
+    question: "How does candidate handoff to an ATS work?",
+    answer:
+      "Approved next steps—such as shortlist status, screening notes, or interview readiness—can sync into your ATS so the ATS stays the system of record while Huntlo runs the execution workflow.",
   },
   {
     question: "Where should a team start?",

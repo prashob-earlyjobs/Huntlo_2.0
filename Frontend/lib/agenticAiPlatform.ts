@@ -5,7 +5,7 @@ export const AGENTIC_AI_PLATFORM_PATH = "/agentic-ai-platform";
 export const AGENTIC_AI_PLATFORM_SEO = {
   title: "Agentic AI Recruiting Platform | Huntlo",
   description:
-    "Huntlo Agentic AI Platform continuously orchestrates candidate discovery, intelligence, engagement, and hiring workflows — so hiring teams amplify intelligence, not just automate tasks.",
+    "Huntlo’s Agentic AI Recruiting Platform orchestrates candidate discovery, engagement, screening, and hiring workflows—so teams amplify intelligence, not just automate tasks.",
   ogTitle: "Agentic AI That Doesn't Just Automate Hiring. It Orchestrates Intelligence.",
   ogDescription:
     "Welcome to the Agentic AI Recruiting Platform — built for Human + AI Hiring.",
@@ -219,6 +219,11 @@ export const AGENTIC_AI_PLATFORM_FAQS = [
       "It is an AI platform that continuously orchestrates candidate discovery, intelligence, engagement, and hiring workflows — so hiring teams amplify intelligence, not just automate tasks.",
   },
   {
+    question: "How is Agentic Hiring different from standard AI recruiting?",
+    answer:
+      "Standard AI recruiting often assists a single step (search, scoring, or chat). Agentic Hiring coordinates connected actions across discovery, outreach, screening, and scheduling—within recruiter-approved boundaries—so work progresses between tools, not only inside them.",
+  },
+  {
     question: "How is this different from traditional recruiting automation?",
     answer:
       "Traditional automation executes processes. The Agentic AI Platform continuously improves outcomes through context, conversations, momentum, confidence, and alignment — with AI agents that reason and act.",
@@ -232,6 +237,11 @@ export const AGENTIC_AI_PLATFORM_FAQS = [
     question: "How do AI agents fit into hiring workflows?",
     answer:
       "AI agents continuously understand candidate signals, business priorities, and conversation intelligence so hiring moves forward intelligently — without managing disconnected systems.",
+  },
+  {
+    question: "Does Huntlo replace our ATS?",
+    answer:
+      "No. Huntlo sits beside your ATS as hiring execution infrastructure. Qualified candidates, conversation summaries, and status updates can hand off into the ATS that remains your system of record.",
   },
 ] as const;
 

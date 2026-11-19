@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const SOURCING_PATH = "/sourcing";
 
 export const SOURCING_SEO = {
-  title: "AI Candidate Sourcing Software – Huntlo",
+  title: "AI Candidate Sourcing & Matching Software | Huntlo",
   description:
-    "Find and rank candidates instantly with Huntlo's AI sourcing. Describe your ideal hire and get enriched candidate profiles from 50+ sources.",
+    "Find and rank candidates instantly with Huntlo AI sourcing software. Describe your ideal hire and get enriched, scored profiles from 50+ sources for faster shortlists.",
 } as const;
 
 export function sourcingMetadata() {

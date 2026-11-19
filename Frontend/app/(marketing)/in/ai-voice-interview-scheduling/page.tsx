@@ -8,7 +8,7 @@ import {
   AI_VOICE_INTERVIEW_SCHEDULING_SEO,
   aiVoiceInterviewSchedulingMetadata,
 } from "@/lib/aiVoiceInterviewScheduling";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceInterviewSchedulingMetadata();
@@ -27,6 +27,7 @@ export default function AiVoiceInterviewSchedulingRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI voice interview scheduling for recruitment",
             mainEntityName: "Huntlo AI Voice Interview Scheduling",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiVoiceInterviewSchedulingRoutePage() {
               href: AI_VOICE_INTERVIEW_SCHEDULING_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Interview Scheduling",
+            description: AI_VOICE_INTERVIEW_SCHEDULING_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_INTERVIEW_SCHEDULING_FAQS]),
         ]}
       />

@@ -6,7 +6,7 @@ export const AI_VOICE_CANDIDATE_DATABASE_REACTIVATION_PATH =
 export const AI_VOICE_CANDIDATE_DATABASE_REACTIVATION_SEO = {
   title: "AI Voice Candidate Database Reactivation | Huntlo",
   description:
-    "Explore AI voice workflows for reconnecting with previous candidates, checking current availability, and organizing recruitment database follow-ups.",
+    "Reactivate your talent database with AI voice calls: confirm interest and availability, capture replies, and route warm candidates back to recruiters for review.",
   ogTitle: "Your Recruitment Database Is Full of Candidates. How Many Are Still Available?",
   ogDescription:
     "AI voice candidate database reactivation workflows that use structured automated conversations to reconnect with previous candidates, confirm current interest, and organize relevant responses for recruiter review.",

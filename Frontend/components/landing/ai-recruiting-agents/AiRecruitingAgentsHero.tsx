@@ -34,13 +34,13 @@ export function AiRecruitingAgentsHero({
             US Market
           </p>
           <h1 className="mt-5 max-w-xl text-[2rem] font-bold leading-[1.1] tracking-tight text-[#141b2b] sm:text-[2.45rem] md:text-[3.1rem] lg:text-[3.3rem]">
-            What If Your Recruiting Tools Could Coordinate the Work Between Them?
+            AI Recruiting Agents for Talent Acquisition Teams
           </h1>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-[#434654] md:text-lg">
-            A talent acquisition team can have excellent recruiters and still
-            struggle with fragmented operations. Candidate information lives in
-            one system. Outreach happens in another. Interview coordination
-            depends on calendars and email.
+            What if your recruiting tools could coordinate the work between
+            them? Talent teams can have excellent recruiters and still struggle
+            with fragmented operations—candidate data in one system, outreach in
+            another, and interview coordination across calendars and email.
           </p>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-[#434654] md:text-lg">
             Every tool may perform its individual job. The difficulty appears

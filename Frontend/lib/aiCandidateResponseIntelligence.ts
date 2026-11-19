@@ -4,9 +4,9 @@ export const AI_CANDIDATE_RESPONSE_INTELLIGENCE_PATH =
   "/us/ai-candidate-response-intelligence";
 
 export const AI_CANDIDATE_RESPONSE_INTELLIGENCE_SEO = {
-  title: "AI Candidate Response Intelligence | Huntlo",
+  title: "AI Candidate Response Intelligence Software | Huntlo",
   description:
-    "Explore AI candidate response intelligence for understanding recruiting conversations, organizing candidate intent, and improving follow-up workflows.",
+    "Turn candidate replies into clear next steps: AI response intelligence organizes intent, flags urgency, and guides follow-ups—with recruiters in control of every handoff.",
   ogTitle: "A Candidate Reply Is More Than a Message. It Is a Signal.",
   ogDescription:
     "AI candidate response intelligence helps recruiting teams interpret candidate replies, organize intent, and identify appropriate next steps — with human oversight throughout.",

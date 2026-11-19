@@ -8,7 +8,7 @@ import {
   AI_RECRUITING_AGENTS_SEO,
   aiRecruitingAgentsMetadata,
 } from "@/lib/aiRecruitingAgents";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiRecruitingAgentsMetadata();
@@ -27,6 +27,7 @@ export default function AiRecruitingAgentsRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI recruiting agents for talent acquisition",
             mainEntityName: "Huntlo AI Recruiting Agents",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiRecruitingAgentsRoutePage() {
               href: AI_RECRUITING_AGENTS_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Recruiting Agents",
+            description: AI_RECRUITING_AGENTS_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_RECRUITING_AGENTS_FAQS]),
         ]}
       />

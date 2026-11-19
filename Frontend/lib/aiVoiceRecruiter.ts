@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AI_VOICE_RECRUITER_PATH = "/ai-voice-recruiter";
 
 export const AI_VOICE_RECRUITER_SEO = {
-  title: "AI Voice Recruiter — Screen Every Candidate Before You Call | Huntlo",
+  title: "AI Voice Interview Screening Software | Huntlo",
   description:
-    "Huntlo AI Voice Recruiter calls candidates, asks role-specific questions, qualifies intent, and delivers interview-ready shortlists — before recruiters spend a minute on the phone.",
+    "Automate first-round screens: Huntlo’s AI Voice Recruiter runs structured phone screens, qualifies intent, and delivers transcripts so recruiters focus on hiring decisions.",
   ogTitle: "The AI Recruiter that screens every candidate before your team picks up the phone.",
   ogDescription:
     "Stop screening candidates manually. Huntlo calls, qualifies, and shortlists — then your recruiters interview.",

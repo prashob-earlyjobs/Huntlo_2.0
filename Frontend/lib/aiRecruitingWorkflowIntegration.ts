@@ -4,9 +4,9 @@ export const AI_RECRUITING_WORKFLOW_INTEGRATION_PATH =
   "/us/ai-recruiting-workflow-integration";
 
 export const AI_RECRUITING_WORKFLOW_INTEGRATION_SEO = {
-  title: "AI Recruiting Workflow Integration | Huntlo",
+  title: "AI Recruiting Workflow Integration Software | Huntlo",
   description:
-    "Explore AI recruiting workflow integration for connecting candidate engagement, recruiting systems, interview coordination, and operational handoffs.",
+    "Connect ATS, engagement, and interview systems with AI recruiting workflow integration—so events, context, and approved actions move without manual copy-paste.",
   ogTitle:
     "Your Recruiting Tools Should Work Together. Your Recruiters Shouldn't Have to Connect Everything Manually.",
   ogDescription:

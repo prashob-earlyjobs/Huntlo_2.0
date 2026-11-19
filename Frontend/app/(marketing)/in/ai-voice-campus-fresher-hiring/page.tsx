@@ -8,7 +8,7 @@ import {
   AI_VOICE_CAMPUS_FRESHER_HIRING_SEO,
   aiVoiceCampusFresherHiringMetadata,
 } from "@/lib/aiVoiceCampusFresherHiring";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceCampusFresherHiringMetadata();
@@ -27,6 +27,7 @@ export default function AiVoiceCampusFresherHiringRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI voice campus recruitment",
             mainEntityName: "Huntlo AI Voice Campus Recruitment",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiVoiceCampusFresherHiringRoutePage() {
               href: AI_VOICE_CAMPUS_FRESHER_HIRING_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Campus Recruitment",
+            description: AI_VOICE_CAMPUS_FRESHER_HIRING_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_CAMPUS_FRESHER_HIRING_FAQS]),
         ]}
       />

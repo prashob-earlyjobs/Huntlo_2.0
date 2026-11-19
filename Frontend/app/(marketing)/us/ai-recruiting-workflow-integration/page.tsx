@@ -8,7 +8,7 @@ import {
   AI_RECRUITING_WORKFLOW_INTEGRATION_SEO,
   aiRecruitingWorkflowIntegrationMetadata,
 } from "@/lib/aiRecruitingWorkflowIntegration";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiRecruitingWorkflowIntegrationMetadata();
@@ -27,6 +27,7 @@ export default function AiRecruitingWorkflowIntegrationRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI recruiting workflow integration",
             mainEntityName: "Huntlo AI Recruiting Workflow Integration",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiRecruitingWorkflowIntegrationRoutePage() {
               href: AI_RECRUITING_WORKFLOW_INTEGRATION_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Recruiting Workflow Integration",
+            description: AI_RECRUITING_WORKFLOW_INTEGRATION_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_RECRUITING_WORKFLOW_INTEGRATION_FAQS]),
         ]}
       />

@@ -8,7 +8,7 @@ import {
   AI_RECRUITER_HANDOFF_AUTOMATION_SEO,
   aiRecruiterHandoffAutomationMetadata,
 } from "@/lib/aiRecruiterHandoffAutomation";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiRecruiterHandoffAutomationMetadata();
@@ -27,6 +27,7 @@ export default function AiRecruiterHandoffAutomationRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI recruiter handoff automation",
             mainEntityName: "Huntlo AI Recruiter Handoff Automation",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiRecruiterHandoffAutomationRoutePage() {
               href: AI_RECRUITER_HANDOFF_AUTOMATION_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Recruiter Handoff Automation",
+            description: AI_RECRUITER_HANDOFF_AUTOMATION_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_RECRUITER_HANDOFF_AUTOMATION_FAQS]),
         ]}
       />

@@ -8,7 +8,7 @@ import {
   AGENTIC_AI_RECRUITING_SOFTWARE_SEO,
   agenticAiRecruitingSoftwareMetadata,
 } from "@/lib/agenticAiRecruitingSoftware";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = agenticAiRecruitingSoftwareMetadata();
@@ -27,6 +27,7 @@ export default function AgenticAiRecruitingSoftwareRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "Agentic AI recruiting software",
             mainEntityName: "Huntlo Agentic AI Recruiting",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,12 @@ export default function AgenticAiRecruitingSoftwareRoutePage() {
               href: AGENTIC_AI_RECRUITING_SOFTWARE_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo Agentic AI Recruiting",
+            description: AGENTIC_AI_RECRUITING_SOFTWARE_SEO.description,
+            url: pageUrl,
+          }),
+
           faqPageJsonLd([...AGENTIC_AI_RECRUITING_SOFTWARE_FAQS]),
         ]}
       />

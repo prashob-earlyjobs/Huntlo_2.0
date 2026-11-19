@@ -8,7 +8,7 @@ import {
   AI_INTERVIEW_WORKFLOW_AUTOMATION_SEO,
   aiInterviewWorkflowAutomationMetadata,
 } from "@/lib/aiInterviewWorkflowAutomation";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiInterviewWorkflowAutomationMetadata();
@@ -27,6 +27,7 @@ export default function AiInterviewWorkflowAutomationRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI interview workflow automation",
             mainEntityName: "Huntlo AI Interview Workflow Automation",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiInterviewWorkflowAutomationRoutePage() {
               href: AI_INTERVIEW_WORKFLOW_AUTOMATION_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Interview Workflow Automation",
+            description: AI_INTERVIEW_WORKFLOW_AUTOMATION_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_INTERVIEW_WORKFLOW_AUTOMATION_FAQS]),
         ]}
       />

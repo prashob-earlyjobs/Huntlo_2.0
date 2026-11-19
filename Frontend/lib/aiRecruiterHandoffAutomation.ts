@@ -4,9 +4,9 @@ export const AI_RECRUITER_HANDOFF_AUTOMATION_PATH =
   "/us/ai-recruiter-handoff-automation";
 
 export const AI_RECRUITER_HANDOFF_AUTOMATION_SEO = {
-  title: "AI Recruiter Handoff Automation | Huntlo",
+  title: "AI Recruiter Handoff Automation Software | Huntlo",
   description:
-    "Explore AI recruiter handoff automation for coordinating candidate transitions, preserving conversation context, and managing recruiting team workflows.",
+    "Pass candidates between recruiters without losing context: AI handoff automation packages conversation history, next actions, and ownership for clean ATS-ready transitions.",
   ogTitle:
     "Candidate Conversations Shouldn't Lose Context When They Move Between Recruiters.",
   ogDescription:

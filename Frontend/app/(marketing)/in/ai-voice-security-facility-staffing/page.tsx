@@ -8,7 +8,7 @@ import {
   AI_VOICE_SECURITY_FACILITY_STAFFING_SEO,
   aiVoiceSecurityFacilityStaffingMetadata,
 } from "@/lib/aiVoiceSecurityFacilityStaffing";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceSecurityFacilityStaffingMetadata();
@@ -28,6 +28,7 @@ export default function AiVoiceSecurityFacilityStaffingRoutePage() {
             aboutName: "AI voice recruitment for security and facility staffing",
             mainEntityName:
               "Huntlo AI Voice Recruitment for Security and Facility Staffing",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -36,6 +37,11 @@ export default function AiVoiceSecurityFacilityStaffingRoutePage() {
               href: AI_VOICE_SECURITY_FACILITY_STAFFING_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Recruitment for Security and Facility Staffing",
+            description: AI_VOICE_SECURITY_FACILITY_STAFFING_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_SECURITY_FACILITY_STAFFING_FAQS]),
         ]}
       />

@@ -8,7 +8,7 @@ import {
   AI_EXECUTIVE_SEARCH_AUTOMATION_SEO,
   aiExecutiveSearchAutomationMetadata,
 } from "@/lib/aiExecutiveSearchAutomation";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiExecutiveSearchAutomationMetadata();
@@ -27,6 +27,7 @@ export default function AiExecutiveSearchAutomationRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI executive search automation",
             mainEntityName: "Huntlo AI Executive Search Automation",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiExecutiveSearchAutomationRoutePage() {
               href: AI_EXECUTIVE_SEARCH_AUTOMATION_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Executive Search Automation",
+            description: AI_EXECUTIVE_SEARCH_AUTOMATION_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_EXECUTIVE_SEARCH_AUTOMATION_FAQS]),
         ]}
       />

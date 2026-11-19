@@ -4,9 +4,9 @@ export const AI_RECRUITING_WORKFLOW_ORCHESTRATION_PATH =
   "/us/ai-recruiting-workflow-orchestration";
 
 export const AI_RECRUITING_WORKFLOW_ORCHESTRATION_SEO = {
-  title: "AI Recruiting Workflow Orchestration | Huntlo",
+  title: "AI Recruiting Workflow Orchestration Software | Huntlo",
   description:
-    "Connect recruiting tasks, candidate responses and human approvals through coordinated AI recruitment workflows.",
+    "Orchestrate recruiting workflows so each stage triggers the next: connect tasks, candidate responses, and human approvals without relying on manual reminders.",
   ogTitle: "Your Recruiting Workflow Should Not Depend on Someone Remembering the Next Step.",
   ogDescription:
     "AI recruiting workflow orchestration coordinates information and actions across recruiting activities so each stage can trigger an appropriate next step.",

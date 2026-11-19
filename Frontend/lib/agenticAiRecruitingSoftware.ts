@@ -5,7 +5,7 @@ export const AGENTIC_AI_RECRUITING_SOFTWARE_PATH = "/us/agentic-ai-recruiting-so
 export const AGENTIC_AI_RECRUITING_SOFTWARE_SEO = {
   title: "Agentic AI Recruiting Software | Huntlo",
   description:
-    "Explore agentic AI recruiting workflows that connect sourcing, outreach, screening and follow-ups while keeping recruiters in control.",
+    "Agentic AI recruiting software that connects sourcing, outreach, screening, and follow-ups—so workflows move between tools while recruiters keep control.",
   ogTitle: "Recruiting Needs More Than Another AI Tool. It Needs a Workflow That Moves.",
   ogDescription:
     "Agentic AI recruiting workflows that respond to events, carry out permitted actions, and involve a recruiter when judgment is required.",
@@ -151,6 +151,11 @@ export const AGENTIC_AI_RECRUITING_SOFTWARE_FAQS = [
     question: "What is agentic AI recruiting software?",
     answer:
       "Agentic AI recruiting software uses AI-driven agents to coordinate connected recruitment tasks, such as engagement, response handling and workflow progression, within defined operational boundaries.",
+  },
+  {
+    question: "How is Agentic Hiring different from standard AI recruiting?",
+    answer:
+      "Standard AI recruiting usually assists one step—search, scoring, or chat. Agentic Hiring coordinates permitted actions across connected stages so work progresses between systems, with recruiters reviewing exceptions and decisions.",
   },
   {
     question: "How is agentic recruiting different from an ATS?",

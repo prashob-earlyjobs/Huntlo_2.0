@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const BULK_AI_CALLING_RECRUITMENT_PATH = "/bulk-ai-calling-recruitment";
 
 export const BULK_AI_CALLING_RECRUITMENT_SEO = {
-  title: "Bulk AI Calling for Recruitment in India | Huntlo",
+  title: "Bulk AI Calling Recruitment Software | Huntlo",
   description:
-    "Explore how AI voice calling can support high-volume candidate outreach and first-round screening in India, with recruiter review and responsible calling.",
+    "Run bulk AI calling for high-volume recruitment in India: structured first-round outreach, availability capture, and recruiter review with consent and retry controls.",
   ogTitle: "Bulk AI Calling for Recruitment in India",
   ogDescription:
     "When you have hundreds of candidates to call, the first conversation matters - with recruiter review and responsible calling controls.",
@@ -133,6 +133,11 @@ export const BULK_AI_CALLING_RECRUITMENT_FAQS = [
     question: "Can AI calls replace recruiter interviews?",
     answer:
       "They can support initial information gathering, but recruiter review and human decision-making remain important.",
+  },
+  {
+    question: "Is bulk AI calling compliant with consent and calling rules?",
+    answer:
+      "Deployments should use approved lists, clear identity and purpose, quiet hours, retry limits, and easy opt-outs. Confirm local telemarketing and data rules for your region before go-live.",
   },
   {
     question: "Does Huntlo support every Indian language?",

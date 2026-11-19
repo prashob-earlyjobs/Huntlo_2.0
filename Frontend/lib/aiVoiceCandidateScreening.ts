@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AI_VOICE_CANDIDATE_SCREENING_PATH = "/in/ai-voice-candidate-screening";
 
 export const AI_VOICE_CANDIDATE_SCREENING_SEO = {
-  title: "AI Voice Candidate Screening for Recruiters | Huntlo",
+  title: "AI Voice Candidate Screening Software | Huntlo",
   description:
-    "Explore AI voice calling workflows for candidate screening, availability checks and recruiter follow-ups in India's high-volume hiring market.",
+    "AI voice candidate screening software for India: structured calls for fit and availability, transcripts for recruiters, and human review before shortlist decisions.",
   ogTitle: "Thousands of Applications. Hundreds of Calls. Too Little Time to Speak to Everyone.",
   ogDescription:
     "AI voice candidate screening helps structure initial conversations, collect relevant information, and focus recruiter attention where it is needed most.",

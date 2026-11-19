@@ -8,7 +8,7 @@ import {
   AI_TALENT_POOL_ENGAGEMENT_SEO,
   aiTalentPoolEngagementMetadata,
 } from "@/lib/aiTalentPoolEngagement";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiTalentPoolEngagementMetadata();
@@ -27,6 +27,7 @@ export default function AiTalentPoolEngagementRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI talent pool engagement",
             mainEntityName: "Huntlo AI Talent Pool Engagement Automation",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiTalentPoolEngagementRoutePage() {
               href: AI_TALENT_POOL_ENGAGEMENT_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Talent Pool Engagement Automation",
+            description: AI_TALENT_POOL_ENGAGEMENT_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_TALENT_POOL_ENGAGEMENT_FAQS]),
         ]}
       />

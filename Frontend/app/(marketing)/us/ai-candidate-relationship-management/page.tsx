@@ -8,7 +8,7 @@ import {
   AI_CANDIDATE_RELATIONSHIP_MANAGEMENT_SEO,
   aiCandidateRelationshipManagementMetadata,
 } from "@/lib/aiCandidateRelationshipManagement";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiCandidateRelationshipManagementMetadata();
@@ -27,6 +27,7 @@ export default function AiCandidateRelationshipManagementRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI candidate relationship management",
             mainEntityName: "Huntlo AI Candidate Relationship Management Software",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiCandidateRelationshipManagementRoutePage() {
               href: AI_CANDIDATE_RELATIONSHIP_MANAGEMENT_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Candidate Relationship Management Software",
+            description: AI_CANDIDATE_RELATIONSHIP_MANAGEMENT_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_CANDIDATE_RELATIONSHIP_MANAGEMENT_FAQS]),
         ]}
       />

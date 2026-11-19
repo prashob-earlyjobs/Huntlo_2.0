@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const MULTILINGUAL_RECRUITMENT_PATH = "/multilingual-recruitment";
 
 export const MULTILINGUAL_RECRUITMENT_SEO = {
-  title: "AI Recruiting in India – Voice Calls & WhatsApp | Huntlo",
+  title: "Localized AI Candidate Engagement | Huntlo",
   description:
-    "Automate candidate outreach in Hindi, English & local languages via AI voice calls and WhatsApp. Huntlo helps you engage rural and urban job seekers at scale.",
+    "Engage candidates across India in Hindi, English, and local languages with AI voice calls and WhatsApp—so rural and urban hiring stays timely, personal, and scalable.",
   ogTitle: "Hire Across India – Voice & Chat AI",
   ogDescription:
     "Use AI voice calls and WhatsApp to engage candidates in their native language - Hindi, English, and more.",

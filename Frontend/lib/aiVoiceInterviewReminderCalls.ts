@@ -4,9 +4,9 @@ export const AI_VOICE_INTERVIEW_REMINDER_CALLS_PATH =
   "/in/ai-voice-interview-reminder-calls";
 
 export const AI_VOICE_INTERVIEW_REMINDER_CALLS_SEO = {
-  title: "AI Voice Interview Reminder Calls | Huntlo",
+  title: "AI Voice Interview Reminder Call Software | Huntlo",
   description:
-    "Explore AI voice interview reminder workflows for confirming attendance, managing candidate questions, and coordinating interview communication.",
+    "Cut no-shows with AI voice interview reminder calls: confirm attendance, answer scheduling questions, and escalate exceptions to recruiters before interview day.",
   ogTitle: "An Interview Is Scheduled. The Coordination Work Isn't Finished.",
   ogDescription:
     "AI voice interview reminder calls use structured automated conversations to support attendance confirmations, scheduling-related communication, and recruiter review.",

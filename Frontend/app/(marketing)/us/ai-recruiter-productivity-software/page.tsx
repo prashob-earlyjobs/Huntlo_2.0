@@ -8,7 +8,7 @@ import {
   AI_RECRUITER_PRODUCTIVITY_SEO,
   aiRecruiterProductivityMetadata,
 } from "@/lib/aiRecruiterProductivity";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiRecruiterProductivityMetadata();
@@ -27,6 +27,7 @@ export default function AiRecruiterProductivityRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI recruiter productivity software",
             mainEntityName: "Huntlo AI Recruiter Productivity Software",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiRecruiterProductivityRoutePage() {
               href: AI_RECRUITER_PRODUCTIVITY_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Recruiter Productivity Software",
+            description: AI_RECRUITER_PRODUCTIVITY_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_RECRUITER_PRODUCTIVITY_FAQS]),
         ]}
       />
