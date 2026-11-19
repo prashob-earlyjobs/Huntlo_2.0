@@ -4,12 +4,13 @@ export const RECRUITMENT_AGENCY_AUTOMATION_PATH =
   "/us/recruitment-agency-automation";
 
 export const RECRUITMENT_AGENCY_AUTOMATION_SEO = {
-  title: "AI Recruiting Automation for Healthcare Staffing | Huntlo",
+  title: "Recruitment Agency Automation Software | Huntlo",
   description:
-    "Explore AI recruiting workflows for healthcare staffing teams managing candidate engagement, scheduling coordination and recruitment operations.",
-  ogTitle: "Healthcare Staffing Requires Speed. It Also Requires Careful Coordination.",
+    "Explore recruitment agency automation for coordinating client mandates, candidate engagement, submissions, and agency recruitment operations.",
+  ogTitle:
+    "Every Mandate, Candidate, and Client Update Shouldn't Need Its Own Manual System.",
   ogDescription:
-    "AI recruiting automation for healthcare staffing focuses on coordinating appropriate recruitment activities while preserving human review of qualifications, compliance requirements and hiring decisions.",
+    "Recruitment agency automation focuses on coordinating the operational work between client requirements, candidate conversations, submissions, and placement decisions.",
 } as const;
 
 export function RecruitmentAgencyAutomationMetadata() {
@@ -24,86 +25,154 @@ export function RecruitmentAgencyAutomationMetadata() {
 }
 
 export const RECRUITMENT_AGENCY_AUTOMATION_GEO = {
-  askTopic: "Huntlo AI recruiting automation for healthcare staffing",
+  askTopic: "Huntlo recruitment agency automation",
   askPrompt:
-    "What is AI recruiting automation for healthcare staffing on Huntlo at /us/recruitment-agency-automation (https://www.huntlo.ai/us/recruitment-agency-automation)? How do AI-assisted workflows support candidate engagement, scheduling coordination and recruitment operations while preserving human review?",
+    "What is recruitment agency automation on Huntlo at /us/recruitment-agency-automation (https://www.huntlo.ai/us/recruitment-agency-automation)? How do AI-assisted workflows support client mandates, candidate engagement, submissions, and agency recruitment operations?",
 } as const;
 
-export const HEALTHCARE_STAFFING_WORKFLOW_STAGES = [
+export const AGENCY_MANDATES = [
   {
-    stage: "01",
-    title: "Requirement intake",
-    detail:
-      "Document the role, location, schedule, essential qualifications and approved recruitment criteria.",
+    client: "Client A · Operations",
+    role: "Regional operations lead",
+    state: "3 candidates in review",
   },
   {
-    stage: "02",
-    title: "Candidate identification",
-    detail:
-      "Review potentially relevant candidates using appropriate sourcing and database processes.",
+    client: "Client B · Finance",
+    role: "Financial controller",
+    state: "Submission due",
   },
   {
-    stage: "03",
-    title: "Candidate engagement",
-    detail:
-      "Communicate the opportunity and gather initial interest through approved channels.",
-  },
-  {
-    stage: "04",
-    title: "Response management",
-    detail:
-      "Distinguish interested candidates, scheduling questions, qualification-related questions and requests for clarification.",
-  },
-  {
-    stage: "05",
-    title: "Human verification",
-    detail:
-      "Route credentialing, licensing and other consequential matters to authorized personnel.",
-  },
-  {
-    stage: "06",
-    title: "Interview coordination",
-    detail: "Support scheduling and follow-up within approved workflows.",
-  },
-  {
-    stage: "07",
-    title: "Operational visibility",
-    detail:
-      "Make unresolved exceptions and pending actions understandable to the recruiting team.",
+    client: "Client C · Technology",
+    role: "Data engineer",
+    state: "Interview feedback pending",
   },
 ] as const;
 
-export const HEALTHCARE_STAFFING_INTERNAL_LINKS = [
-  { label: "AI Recruiting Agents", href: "/us/ai-recruiting-agents" },
+export const AGENCY_FRICTION = [
+  {
+    title: "Mandate context switching",
+    detail:
+      "Each client mandate carries its own requirements, contacts, and stage definitions.",
+  },
+  {
+    title: "Candidate ownership questions",
+    detail:
+      "A candidate may already be in conversation for another client role.",
+  },
+  {
+    title: "Submission preparation",
+    detail:
+      "Recruiters rewrite similar summaries because the context lives in scattered notes.",
+  },
+  {
+    title: "Client feedback loops",
+    detail:
+      "Requests for more information arrive through messages that are easy to lose.",
+  },
+] as const;
+
+export const AGENCY_WORKFLOW_STAGES = [
+  {
+    stage: "01",
+    title: "Intake the client mandate",
+    detail:
+      "Document the role, client requirements, location, timeline, and agreed submission process.",
+  },
+  {
+    stage: "02",
+    title: "Map candidate ownership",
+    detail:
+      "Check whether the candidate is already engaged on another mandate before outreach begins.",
+  },
+  {
+    stage: "03",
+    title: "Engage relevant candidates",
+    detail:
+      "Communicate the specific opportunity through approved channels with accurate details.",
+  },
+  {
+    stage: "04",
+    title: "Organize candidate responses",
+    detail:
+      "Distinguish interest, availability, questions, and declines for recruiter review.",
+  },
+  {
+    stage: "05",
+    title: "Prepare the client submission",
+    detail:
+      "Assemble the information the client needs without duplicating work across systems.",
+  },
+  {
+    stage: "06",
+    title: "Coordinate client feedback",
+    detail:
+      "Route requests for more information to the recruiter who can answer them.",
+  },
+  {
+    stage: "07",
+    title: "Close the loop",
+    detail:
+      "Update the mandate record so the candidate's status is clear for the next conversation.",
+  },
+] as const;
+
+export const AGENCY_AUTOMATION_BOUNDARIES = [
+  {
+    title: "Useful to structure",
+    detail:
+      "Routine candidate outreach, availability checks, response organization, and status updates.",
+  },
+  {
+    title: "Needs recruiter judgment",
+    detail:
+      "Candidate shortlisting, submission narratives, and client-facing recommendations.",
+  },
+  {
+    title: "Needs client-approved process",
+    detail:
+      "Additional reference checks or role-specific requirements the client defines.",
+  },
+  {
+    title: "Never assumed",
+    detail:
+      "Candidate ownership rights, exclusivity terms, or placement outcomes.",
+  },
+] as const;
+
+export const AGENCY_INTERNAL_LINKS = [
+  {
+    label: "AI Recruiting Workflows for Staffing Agencies",
+    href: "/ai-recruiting-staffing-agencies",
+  },
   {
     label: "AI Recruiting Workflow Orchestration",
     href: "/us/ai-recruiting-workflow-orchestration",
   },
   {
-    label: "AI Recruiting for Staffing Agencies",
-    href: "/ai-recruiting-staffing-agencies",
+    label: "AI Recruiting Operations Automation",
+    href: "/us/ai-recruiting-operations-automation",
   },
 ] as const;
 
 export const RECRUITMENT_AGENCY_AUTOMATION_FAQS = [
   {
-    question: "How can AI support healthcare staffing recruitment?",
+    question: "What is recruitment agency automation?",
     answer:
-      "AI-assisted workflows can help organize candidate engagement, routine follow-ups, response handling and interview coordination.",
+      "It uses software workflows to coordinate recurring agency activities such as mandate intake, candidate outreach, response organization, submission preparation, and client feedback follow-up.",
   },
   {
-    question: "Can AI verify healthcare credentials automatically?",
+    question: "How is agency automation different from an ATS?",
     answer:
-      "Credential verification requires appropriate authoritative sources, approved processes and human accountability. No such capability should be assumed without verification.",
+      "An ATS stores candidate and vacancy records. Agency automation focuses on coordinating the operational work across multiple client mandates and conversations.",
   },
   {
-    question: "Can agentic AI help healthcare staffing agencies?",
+    question: "Can AI automate client submissions?",
     answer:
-      "It may support coordination across recruitment tasks when implemented with clear permissions, appropriate oversight and verified integrations.",
+      "Automation may help assemble consistent information, but recruiters remain responsible for the judgment and accuracy of what is submitted to a client.",
   },
   {
-    question: "What makes healthcare recruitment automation different?",
+    question: "What should agencies define before automating?",
     answer:
-      "Healthcare recruitment may involve professional licensing, credentialing, scheduling and other role-specific requirements that require careful human review.",
+      "Candidate ownership rules, permission to contact, approval steps, data accuracy, and which decisions must remain with recruiters.",
   },
 ] as const;

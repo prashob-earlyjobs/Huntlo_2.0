@@ -26,13 +26,13 @@ export default function RecruitmentAgencyAutomationRoutePage() {
               RECRUITMENT_AGENCY_AUTOMATION_SEO.description,
             url: pageUrl,
             primaryImageOfPage: OG_IMAGES.platform,
-            aboutName: "AI recruiting automation for healthcare staffing",
-            mainEntityName: "Huntlo AI Recruiting Automation for Healthcare Staffing",
+            aboutName: "Recruitment agency automation",
+            mainEntityName: "Huntlo Recruitment Agency Automation",
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
             {
-              name: "AI Recruiting Automation for Healthcare Staffing",
+              name: "Recruitment Agency Automation",
               href: RECRUITMENT_AGENCY_AUTOMATION_PATH,
             },
           ]),

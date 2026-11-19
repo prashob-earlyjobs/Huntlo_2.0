@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 
-import { HEALTHCARE_STAFFING_WORKFLOW_STAGES } from "@/lib/recruitmentAgencyAutomation";
+import { AGENCY_WORKFLOW_STAGES } from "@/lib/recruitmentAgencyAutomation";
 
 type RecruitmentAgencyAutomationWorkflowProps = {
   reduceMotion: boolean;
@@ -12,36 +12,52 @@ export function RecruitmentAgencyAutomationWorkflow({
   reduceMotion,
 }: RecruitmentAgencyAutomationWorkflowProps) {
   return (
-    <section className="bg-white px-4 py-20 md:px-8 md:py-28 lg:px-12 lg:py-36" id="healthcare-staffing-workflow">
+    <section
+      id="agency-workflow"
+      className="bg-[#f7f8fc] px-4 py-20 md:px-8 md:py-28 lg:px-12"
+    >
       <div className="mx-auto max-w-6xl">
-        <div className="mx-auto max-w-2xl text-center lg:max-w-3xl">
-          <h2 className="text-[1.75rem] font-bold tracking-tight text-[#141b2b] sm:text-[2.25rem]">
-            A Healthcare Staffing Workflow Model
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.5 }}
+          className="max-w-3xl"
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
+            Agency workflow model
+          </p>
+          <h2 className="mt-4 text-[1.75rem] font-bold leading-[1.2] tracking-tight text-[#141b2b] md:text-[2.25rem] lg:text-[2.5rem]">
+            From Client Mandate to Placement Decision
           </h2>
-          <p className="mt-6 max-w-xl mx-auto text-base leading-relaxed text-[#434654] md:text-lg">
+          <p className="mt-5 text-base leading-relaxed text-[#434654] md:text-lg">
             The specific automation capabilities must be confirmed before
             representing this workflow as a Huntlo product feature.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="mt-16">
-          {HEALTHCARE_STAFFING_WORKFLOW_STAGES.map((stage, index) => (
+        <div className="mt-12 grid gap-3">
+          {AGENCY_WORKFLOW_STAGES.map((stage, index) => (
             <motion.div
               key={stage.stage}
-              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.06 }}
-              className="grid items-start gap-4 md:grid-cols-[60px_1fr] border-b border-[#e8eef7] py-6 last:border-0"
+              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{
+                duration: 0.4,
+                delay: reduceMotion ? 0 : index * 0.05,
+              }}
+              className="grid gap-3 rounded-2xl border border-[#d7e3f4] bg-white p-5 md:grid-cols-[48px_220px_1fr] md:items-start md:gap-5"
             >
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0050cb] text-white text-[0.75rem] font-bold">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f0f5ff] text-[0.68rem] font-bold text-[#0050cb]">
                 {stage.stage}
               </span>
-              <div>
-                <h3 className="text-lg font-semibold text-[#141b2b]">{stage.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-[#434654]">
-                  {stage.detail}
-                </p>
-              </div>
+              <h3 className="text-sm font-semibold text-[#141b2b] md:pt-2">
+                {stage.title}
+              </h3>
+              <p className="text-sm leading-relaxed text-[#5b6478] md:pt-2">
+                {stage.detail}
+              </p>
             </motion.div>
           ))}
         </div>
