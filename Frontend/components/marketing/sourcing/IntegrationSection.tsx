@@ -1,70 +1,78 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "motion/react";
-import { ArrowRight, Search, Target, Sparkles, FolderPlus, Send } from "lucide-react";
+import { ArrowUpRight, Mail, MessageCircle } from "lucide-react";
 
-const flow = [
-  { icon: Search, label: "Search" },
-  { icon: Target, label: "Discover" },
-  { icon: Sparkles, label: "Enrich" },
-  { icon: FolderPlus, label: "Save" },
-  { icon: Send, label: "Engage", highlight: true }
-];
+import { SOURCING_INTERNAL_LINKS } from "@/lib/sourcing";
 
-export function IntegrationSection() {
+type IntegrationSectionProps = {
+  reduceMotion?: boolean;
+};
+
+export function IntegrationSection({ reduceMotion = false }: IntegrationSectionProps) {
   return (
-    <section className="py-24 lg:py-32 bg-slate-50 border-y border-slate-100 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-3xl mx-auto mb-20">
-          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight mb-6">
-            Source Today. Engage Tomorrow.
-          </h2>
-          <p className="text-xl text-slate-600">
-            Every candidate discovered can move directly into Huntlo Engage workflows.
-          </p>
-        </div>
+    <section className="border-t border-[#c3c6d6]/25 bg-white px-4 py-20 sm:px-6 md:py-28 lg:px-12">
+      <div className="mx-auto max-w-6xl">
+        <div className="grid gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.5 }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
+              Seamless Integration
+            </p>
+            <h2 className="mt-4 font-[family-name:var(--font-epilogue)] text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.35rem]">
+              From discovery to outreach in one click
+            </h2>
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-[#434654] md:text-lg">
+              Any candidate you discover can move directly into Huntlo&apos;s outreach and screening
+              workflows. Select candidates and start an automated email or WhatsApp campaign. All
+              interactions are tracked so you see who replies or requests an interview.
+            </p>
 
-        <div className="relative max-w-5xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0">
-            {flow.map((item, i) => (
-              <div key={item.label} className="relative flex items-center w-full md:w-auto">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.15 }}
-                  className={`flex flex-col items-center justify-center w-32 h-32 rounded-2xl border-2 z-10 bg-white relative ${
-                    item.highlight 
-                      ? "border-blue-600 shadow-xl shadow-blue-600/20" 
-                      : "border-slate-200 shadow-sm"
-                  }`}
-                >
-                  <item.icon className={`w-8 h-8 mb-3 ${item.highlight ? "text-blue-600" : "text-slate-500"}`} />
-                  <span className={`text-sm font-bold ${item.highlight ? "text-blue-600" : "text-slate-700"}`}>
-                    {item.label}
-                  </span>
-                </motion.div>
-                
-                {i < flow.length - 1 && (
-                  <div className="hidden md:flex flex-1 items-center justify-center min-w-[40px] px-2">
-                    <motion.div 
-                      initial={{ opacity: 0, x: -10 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.5, delay: i * 0.15 + 0.2 }}
-                    >
-                      <ArrowRight className="w-6 h-6 text-slate-300" />
-                    </motion.div>
-                  </div>
-                )}
-                {i < flow.length - 1 && (
-                  <div className="md:hidden flex justify-center py-4 w-full text-slate-300">
-                    <ArrowRight className="w-6 h-6 rotate-90" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#e1e4ef] bg-[#f7f8fc] px-4 py-2 text-sm font-medium text-[#141b2b]">
+                <Mail className="h-4 w-4 text-[#0050cb]" />
+                Email campaigns
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#e1e4ef] bg-[#f7f8fc] px-4 py-2 text-sm font-medium text-[#141b2b]">
+                <MessageCircle className="h-4 w-4 text-[#0050cb]" />
+                WhatsApp outreach
+              </span>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.5, delay: reduceMotion ? 0 : 0.08 }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5c6070]">
+              Explore next
+            </p>
+            <ul className="mt-4 divide-y divide-[#eef0f6] border-y border-[#eef0f6]">
+              {SOURCING_INTERNAL_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="group flex items-center justify-between gap-4 py-4 transition hover:bg-[#f7f8fc]"
+                  >
+                    <div>
+                      <div className="font-semibold text-[#141b2b] group-hover:text-[#0050cb]">
+                        {link.label}
+                      </div>
+                      <div className="mt-0.5 text-sm text-[#5c6070]">{link.note}</div>
+                    </div>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-[#8a8fa3] transition group-hover:text-[#0050cb]" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
         </div>
       </div>
     </section>

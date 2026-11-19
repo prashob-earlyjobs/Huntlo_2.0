@@ -73,6 +73,12 @@ export const PLATFORM_MAP = {
     intro: "The operating model behind the platform.",
     links: [
       {
+        title: "Agentic AI Recruiting Platform",
+        description: "Product overview: AI sourcing, multi-channel outreach, and screening in one hiring workflow.",
+        href: "/agentic-ai-platform",
+        badge: "Platform",
+      },
+      {
         title: "Agentic Hiring™",
         description: "AI agents keep discovery, conversations and coordination moving alongside recruiters.",
         href: "/agentic-hiring",
@@ -103,7 +109,7 @@ export const PLATFORM_MAP = {
         badge: "Category",
       },
       {
-        title: "Huntlo360 — AI Hiring OS",
+        title: "Huntlo360 - AI Hiring OS",
         description: "What an AI hiring operating system is, and how Huntlo360 implements it.",
         href: "/hiring-os",
         badge: "Hiring OS",

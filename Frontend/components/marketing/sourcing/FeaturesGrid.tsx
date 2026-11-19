@@ -1,72 +1,68 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Search, Sparkles, UserCircle, Users, Database, History } from "lucide-react";
+import {
+  FolderKanban,
+  Gauge,
+  IdCard,
+  MessageSquareText,
+  UserRoundSearch,
+  type LucideIcon,
+} from "lucide-react";
 
-const features = [
-  {
-    icon: Search,
-    title: "Natural Language Search",
-    description: "Describe candidates in plain English."
-  },
-  {
-    icon: Sparkles,
-    title: "AI Match Scoring",
-    description: "Prioritize the most relevant candidates instantly."
-  },
-  {
-    icon: UserCircle,
-    title: "Candidate Enrichment",
-    description: "Access experience, skills, and contact details."
-  },
-  {
-    icon: Users,
-    title: "People Scout",
-    description: "Find specific candidates quickly."
-  },
-  {
-    icon: Database,
-    title: "Candidate Pools",
-    description: "Organize talent across hiring campaigns."
-  },
-  {
-    icon: History,
-    title: "Search History",
-    description: "Never lose sourcing sessions."
-  }
-];
+import { SOURCING_FEATURES } from "@/lib/sourcing";
 
-export function FeaturesGrid() {
+type FeaturesGridProps = {
+  reduceMotion?: boolean;
+};
+
+const ICON_MAP: Record<(typeof SOURCING_FEATURES)[number]["icon"], LucideIcon> = {
+  chat: MessageSquareText,
+  speed: Gauge,
+  badge: IdCard,
+  folder_shared: FolderKanban,
+  person_search: UserRoundSearch,
+};
+
+export function FeaturesGrid({ reduceMotion = false }: FeaturesGridProps) {
   return (
-    <section className="py-24 lg:py-32 bg-slate-50 border-t border-slate-100">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
-            Everything you need to source talent faster
+    <section className="border-t border-[#c3c6d6]/25 bg-[#f7f8fc] px-4 py-20 sm:px-6 md:py-28 lg:px-12">
+      <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0050cb]">
+            Key Features
+          </p>
+          <h2 className="mt-4 font-[family-name:var(--font-epilogue)] text-[1.75rem] font-bold leading-tight tracking-tight text-[#141b2b] md:text-[2.35rem]">
+            Everything you need to source without the busywork
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, i) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-            >
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
-                <feature.icon className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-slate-600 leading-relaxed">
-                {feature.description}
-              </p>
-            </motion.div>
-          ))}
+        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {SOURCING_FEATURES.map((feature, i) => {
+            const Icon = ICON_MAP[feature.icon];
+            return (
+              <motion.div
+                key={feature.title}
+                initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.45, delay: reduceMotion ? 0 : i * 0.06 }}
+                className={`rounded-2xl border border-[#c3c6d6]/35 bg-white p-7 ${
+                  i === SOURCING_FEATURES.length - 1 ? "sm:col-span-2 lg:col-span-1" : ""
+                }`}
+              >
+                <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[#eef3ff] text-[#0050cb]">
+                  <Icon className="h-5 w-5" strokeWidth={1.75} />
+                </div>
+                <h3 className="font-[family-name:var(--font-epilogue)] text-lg font-bold text-[#141b2b]">
+                  {feature.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#434654] md:text-[0.95rem]">
+                  {feature.description}
+                </p>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>

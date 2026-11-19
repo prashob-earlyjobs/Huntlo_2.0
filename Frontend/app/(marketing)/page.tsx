@@ -14,7 +14,7 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
 const title = "Agentic AI Recruiting Infrastructure for Hiring Teams | Huntlo";
 const description =
-  "Huntlo's agentic AI recruiting infrastructure sources, engages & screens candidates autonomously — email, WhatsApp, AI voice. Start free.";
+  "Huntlo's agentic AI recruiting infrastructure sources, engages & screens candidates autonomously - email, WhatsApp, AI voice. Start free.";
 
 export const metadata: Metadata = buildPageMetadata({
   title,

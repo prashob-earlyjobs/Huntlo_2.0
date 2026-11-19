@@ -29,7 +29,7 @@ export function GccSourcingAutomationSystems({
         <GccEyebrow tone="dark">Workflow</GccEyebrow>
         <GccHeading tone="dark">Source candidates without starting from scratch</GccHeading>
         <GccLead tone="dark">
-          From hiring requirement to outreach — discovery, ranking, and pools stay connected.
+          From hiring requirement to outreach - discovery, ranking, and pools stay connected.
         </GccLead>
 
         <ol className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -85,11 +85,11 @@ export function GccSourcingAutomationSystems({
         </ul>
 
         <div className="mt-12 flex flex-col gap-2 border-t border-[#c3c6d6]/30 pt-8 sm:flex-row sm:items-center sm:gap-6">
-          <p className="text-sm text-[#434654]">Before Huntlo — searching</p>
+          <p className="text-sm text-[#434654]">Before Huntlo - searching</p>
           <span className="hidden text-[#0050cb]/40 sm:inline" aria-hidden>
             →
           </span>
-          <p className="text-sm font-semibold text-[#0050cb]">After Huntlo — conversations</p>
+          <p className="text-sm font-semibold text-[#0050cb]">After Huntlo - conversations</p>
         </div>
       </GccSection>
     </>

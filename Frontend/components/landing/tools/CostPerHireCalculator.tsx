@@ -146,7 +146,7 @@ export function CostPerHireCalculator() {
         </h3>
         <p className="mt-4 text-sm text-white/60">Cost per hire</p>
         <p className="mt-1 text-[2.25rem] font-bold leading-none tracking-tight tabular-nums md:text-[2.75rem]">
-          {result.costPerHire !== null ? money(result.costPerHire) : "—"}
+          {result.costPerHire !== null ? money(result.costPerHire) : "-"}
         </p>
         <p aria-live="polite" className="mt-4 text-sm leading-relaxed text-white/75">
           {summary}
@@ -223,7 +223,7 @@ export function CostPerHireCalculator() {
                     <td className="px-5 py-3.5 capitalize text-[#434654] md:px-6">{line.group}</td>
                     <td className="px-5 py-3.5 text-right tabular-nums text-[#141b2b] md:px-6">{money(line.amount)}</td>
                     <td className="px-5 py-3.5 text-right tabular-nums text-[#141b2b] md:px-6">
-                      {line.perHire !== null ? money(line.perHire) : "—"}
+                      {line.perHire !== null ? money(line.perHire) : "-"}
                     </td>
                     <td className="px-5 py-3.5 md:px-6">
                       <span className="flex items-center gap-3">
