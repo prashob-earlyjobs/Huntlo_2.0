@@ -8,11 +8,7 @@ import {
   AI_VOICE_SCREENING_HIGH_VOLUME_HIRING_SEO,
   aiVoiceScreeningHighVolumeHiringMetadata,
 } from "@/lib/aiVoiceScreeningHighVolumeHiring";
-import {
-  breadcrumbJsonLd,
-  faqPageJsonLd,
-  webPageJsonLd,
-} from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceScreeningHighVolumeHiringMetadata();
@@ -31,6 +27,7 @@ export default function AiVoiceScreeningHighVolumeHiringRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI Voice Screening for High-Volume Hiring",
             mainEntityName: "Huntlo AI Voice Screening for High-Volume Hiring",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -39,6 +36,12 @@ export default function AiVoiceScreeningHighVolumeHiringRoutePage() {
               href: AI_VOICE_SCREENING_HIGH_VOLUME_HIRING_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Screening for High-Volume Hiring",
+            description: AI_VOICE_SCREENING_HIGH_VOLUME_HIRING_SEO.description,
+            url: pageUrl,
+          }),
+
           faqPageJsonLd([...AI_VOICE_SCREENING_HIGH_VOLUME_HIRING_FAQS]),
         ]}
       />

@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AI_CANDIDATE_PIPELINE_AUTOMATION_PATH = "/us/ai-candidate-pipeline-automation";
 
 export const AI_CANDIDATE_PIPELINE_AUTOMATION_SEO = {
-  title: "AI Candidate Pipeline Automation | Huntlo",
+  title: "AI Candidate Pipeline Automation Software | Huntlo",
   description:
-    "Explore AI candidate pipeline automation for coordinating recruiting stages, candidate communication, follow-ups, and recruiter handoffs.",
+    "Keep pipelines moving with AI candidate pipeline automation: stage triggers, follow-ups, and recruiter handoffs so candidates advance without manual chasing.",
   ogTitle: "A Recruiting Pipeline Is Only Useful When Candidates Keep Moving Through It.",
   ogDescription:
     "AI-assisted candidate pipeline automation that coordinates recurring recruiting activities across pipeline stages so candidates, recruiters, and hiring managers have a clearer path to the next action.",

@@ -4,9 +4,9 @@ export const AI_RECRUITMENT_WORKFLOW_INTELLIGENCE_PATH =
   "/us/ai-recruitment-workflow-intelligence";
 
 export const AI_RECRUITMENT_WORKFLOW_INTELLIGENCE_SEO = {
-  title: "AI Recruitment Workflow Intelligence | Huntlo",
+  title: "AI Recruitment Workflow Intelligence Software | Huntlo",
   description:
-    "Explore AI recruitment workflow intelligence for understanding process delays, candidate engagement signals, and recruiting operational bottlenecks.",
+    "See where hiring work stalls: AI recruitment workflow intelligence surfaces delays, engagement signals, and bottlenecks so teams fix the process—not just the pipeline view.",
   ogTitle: "Recruiting Teams Have Data. What They Need Is Clarity About Where Work Gets Stuck.",
   ogDescription:
     "AI recruitment workflow intelligence refers to using AI-assisted analysis to understand how recruiting processes operate, identify recurring friction, and support better workflow decisions.",

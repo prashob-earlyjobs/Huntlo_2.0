@@ -135,6 +135,50 @@ export function softwareApplicationJsonLd() {
   };
 }
 
+const HUNTLO_ORG = {
+  "@type": "Organization" as const,
+  name: "Huntlo AI",
+  url: "https://huntlo.ai",
+};
+
+export type FeatureSoftwareApplicationJsonLdInput = {
+  name: string;
+  description: string;
+  url: string;
+  featureList?: string[];
+};
+
+/** Per-feature SoftwareApplication markup for product/landing pages. */
+export function featureSoftwareApplicationJsonLd({
+  name,
+  description,
+  url,
+  featureList,
+}: FeatureSoftwareApplicationJsonLdInput) {
+  const pageUrl = url.startsWith("http") ? url : `${SITE_URL}${url}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name,
+    operatingSystem: "Web",
+    applicationCategory: "BusinessApplication",
+    applicationSubCategory: "Recruitment Software",
+    description,
+    url: pageUrl,
+    author: HUNTLO_ORG,
+    publisher: HUNTLO_ORG,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+      description: "Custom pricing — free trial available",
+      url: pageUrl,
+    },
+    ...(featureList?.length ? { featureList } : {}),
+  };
+}
+
 export function webSiteJsonLd() {
   return {
     "@context": "https://schema.org",
@@ -151,12 +195,6 @@ export function webSiteJsonLd() {
     },
   };
 }
-
-const HUNTLO_ORG = {
-  "@type": "Organization" as const,
-  name: "Huntlo AI",
-  url: "https://huntlo.ai",
-};
 
 export function faqPageJsonLd(items: FaqSchemaItem[]) {
   return {

@@ -8,7 +8,7 @@ import {
   AI_RECRUITING_AUTOMATION_RETAIL_SEO,
   aiRecruitingAutomationRetailMetadata,
 } from "@/lib/aiRecruitingAutomationRetail";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiRecruitingAutomationRetailMetadata();
@@ -27,6 +27,7 @@ export default function AiRecruitingAutomationRetailRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI recruiting automation for retail hiring",
             mainEntityName: "Huntlo AI Recruiting Automation for Retail Hiring",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiRecruitingAutomationRetailRoutePage() {
               href: AI_RECRUITING_AUTOMATION_RETAIL_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Recruiting Automation for Retail Hiring",
+            description: AI_RECRUITING_AUTOMATION_RETAIL_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_RECRUITING_AUTOMATION_RETAIL_FAQS]),
         ]}
       />

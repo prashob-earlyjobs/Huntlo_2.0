@@ -8,7 +8,7 @@ import {
   AI_RECRUITMENT_AUTOMATION_RPO_SEO,
   aiRecruitmentAutomationRpoMetadata,
 } from "@/lib/aiRecruitmentAutomationRpo";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiRecruitmentAutomationRpoMetadata();
@@ -27,6 +27,7 @@ export default function AiRecruitmentAutomationRpoRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI recruitment automation for RPO providers",
             mainEntityName: "Huntlo AI Recruitment Automation for RPO",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiRecruitmentAutomationRpoRoutePage() {
               href: AI_RECRUITMENT_AUTOMATION_RPO_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Recruitment Automation for RPO",
+            description: AI_RECRUITMENT_AUTOMATION_RPO_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_RECRUITMENT_AUTOMATION_RPO_FAQS]),
         ]}
       />

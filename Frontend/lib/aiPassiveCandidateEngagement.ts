@@ -5,7 +5,7 @@ export const AI_PASSIVE_CANDIDATE_ENGAGEMENT_PATH = "/us/ai-passive-candidate-en
 export const AI_PASSIVE_CANDIDATE_ENGAGEMENT_SEO = {
   title: "AI Passive Candidate Engagement Software | Huntlo",
   description:
-    "Explore AI-assisted passive candidate engagement workflows for personalized outreach, response management, and recruiter follow-up coordination.",
+    "Engage passive talent with personalized AI outreach, reply handling, and recruiter-led follow-up—so warm prospects don’t go cold between touches.",
   ogTitle: "The Best Candidate for Your Next Role May Not Be Looking for a Job.",
   ogDescription:
     "AI-assisted passive candidate engagement workflows that help recruiters identify relevant professionals, prepare contextual outreach, and coordinate thoughtful follow-up.",

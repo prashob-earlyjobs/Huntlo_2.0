@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const CANDIDATE_OUTREACH_PATH = "/candidate-outreach";
 
 export const CANDIDATE_OUTREACH_SEO = {
-  title: "Automated Candidate Outreach & Engagement – Huntlo",
+  title: "AI Candidate Outreach & Engagement Platform | Huntlo",
   description:
-    "Automate your recruiting outreach with AI. Send personalized email and WhatsApp sequences and follow-ups, and track replies all in one place with Huntlo.",
+    "Automate recruiting outreach with Huntlo: personalized email and WhatsApp sequences, timed follow-ups, and reply tracking in one recruiter-led engagement workflow.",
 } as const;
 
 export function candidateOutreachMetadata() {

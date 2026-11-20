@@ -8,7 +8,7 @@ import {
   AI_CONTRACT_STAFFING_AUTOMATION_SEO,
   aiContractStaffingAutomationMetadata,
 } from "@/lib/aiContractStaffingAutomation";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiContractStaffingAutomationMetadata();
@@ -27,6 +27,7 @@ export default function AiContractStaffingAutomationRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI recruiting automation for contract staffing",
             mainEntityName: "Huntlo AI Contract Staffing Automation",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiContractStaffingAutomationRoutePage() {
               href: AI_CONTRACT_STAFFING_AUTOMATION_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Contract Staffing Automation",
+            description: AI_CONTRACT_STAFFING_AUTOMATION_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_CONTRACT_STAFFING_AUTOMATION_FAQS]),
         ]}
       />

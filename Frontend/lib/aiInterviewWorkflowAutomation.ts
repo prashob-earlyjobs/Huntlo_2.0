@@ -4,9 +4,9 @@ export const AI_INTERVIEW_WORKFLOW_AUTOMATION_PATH =
   "/us/ai-interview-workflow-automation";
 
 export const AI_INTERVIEW_WORKFLOW_AUTOMATION_SEO = {
-  title: "AI Interview Workflow Automation | Huntlo",
+  title: "AI Interview Workflow Automation Software | Huntlo",
   description:
-    "Explore AI interview workflow automation for coordinating interview stages, candidate communication, recruiter handoffs, and follow-ups.",
+    "Automate interview workflows beyond scheduling: confirmations, reminders, feedback routing, and candidate updates—while humans keep evaluation and hiring decisions.",
   ogTitle: "Scheduling the Interview Is Only One Part of the Interview Workflow.",
   ogDescription:
     "AI interview workflow automation coordinates the operational activities surrounding interviews — from preparation and communication to feedback, next-stage routing, and candidate updates — while preserving human responsibility for evaluation and decisions.",

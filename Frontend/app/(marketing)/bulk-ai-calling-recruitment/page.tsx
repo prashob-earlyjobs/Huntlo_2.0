@@ -8,7 +8,7 @@ import {
   BULK_AI_CALLING_RECRUITMENT_SEO,
   bulkAiCallingRecruitmentMetadata,
 } from "@/lib/bulkAiCallingRecruitment";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = bulkAiCallingRecruitmentMetadata();
@@ -27,11 +27,18 @@ export default function BulkAiCallingRecruitmentRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "Bulk AI Calling for Recruitment in India",
             mainEntityName: "Huntlo Bulk AI Calling Recruitment",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
             { name: "Bulk AI Calling Recruitment", href: BULK_AI_CALLING_RECRUITMENT_PATH },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo Bulk AI Calling Recruitment",
+            description: BULK_AI_CALLING_RECRUITMENT_SEO.description,
+            url: pageUrl,
+          }),
+
           faqPageJsonLd([...BULK_AI_CALLING_RECRUITMENT_FAQS]),
         ]}
       />

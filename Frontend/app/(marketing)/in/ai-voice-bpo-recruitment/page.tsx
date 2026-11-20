@@ -8,7 +8,7 @@ import {
   AI_VOICE_BPO_RECRUITMENT_SEO,
   aiVoiceBpoRecruitmentMetadata,
 } from "@/lib/aiVoiceBpoRecruitment";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceBpoRecruitmentMetadata();
@@ -27,6 +27,7 @@ export default function AiVoiceBpoRecruitmentRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI voice recruitment for BPO hiring",
             mainEntityName: "Huntlo AI Voice Recruitment for BPO",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiVoiceBpoRecruitmentRoutePage() {
               href: AI_VOICE_BPO_RECRUITMENT_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Recruitment for BPO",
+            description: AI_VOICE_BPO_RECRUITMENT_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_BPO_RECRUITMENT_FAQS]),
         ]}
       />

@@ -8,7 +8,7 @@ import {
   AI_PASSIVE_CANDIDATE_ENGAGEMENT_SEO,
   aiPassiveCandidateEngagementMetadata,
 } from "@/lib/aiPassiveCandidateEngagement";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiPassiveCandidateEngagementMetadata();
@@ -27,6 +27,7 @@ export default function AiPassiveCandidateEngagementRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI passive candidate engagement software",
             mainEntityName: "Huntlo AI Passive Candidate Engagement",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiPassiveCandidateEngagementRoutePage() {
               href: AI_PASSIVE_CANDIDATE_ENGAGEMENT_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Passive Candidate Engagement",
+            description: AI_PASSIVE_CANDIDATE_ENGAGEMENT_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_PASSIVE_CANDIDATE_ENGAGEMENT_FAQS]),
         ]}
       />

@@ -8,7 +8,7 @@ import {
   MULTILINGUAL_RECRUITMENT_SEO,
   multilingualRecruitmentMetadata,
 } from "@/lib/multilingualRecruitment";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = multilingualRecruitmentMetadata();
@@ -33,6 +33,12 @@ export default function MultilingualRecruitmentRoutePage() {
             { name: "Home", href: "/" },
             { name: "Multilingual Recruitment", href: MULTILINGUAL_RECRUITMENT_PATH },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo Multilingual Recruitment",
+            description: MULTILINGUAL_RECRUITMENT_SEO.description,
+            url: pageUrl,
+          }),
+
           faqPageJsonLd([...MULTILINGUAL_RECRUITMENT_FAQS]),
         ]}
       />

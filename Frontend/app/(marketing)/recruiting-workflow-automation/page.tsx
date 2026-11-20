@@ -8,7 +8,7 @@ import {
   RECRUITING_WORKFLOW_AUTOMATION_SEO,
   recruitingWorkflowAutomationMetadata,
 } from "@/lib/recruitingWorkflowAutomation";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = recruitingWorkflowAutomationMetadata();
@@ -27,6 +27,7 @@ export default function RecruitingWorkflowAutomationRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "Recruiting workflow automation",
             mainEntityName: "Huntlo Recruiting Workflow Automation",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,12 @@ export default function RecruitingWorkflowAutomationRoutePage() {
               href: RECRUITING_WORKFLOW_AUTOMATION_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo Recruiting Workflow Automation",
+            description: RECRUITING_WORKFLOW_AUTOMATION_SEO.description,
+            url: pageUrl,
+          }),
+
           faqPageJsonLd([...RECRUITING_WORKFLOW_AUTOMATION_FAQS]),
         ]}
       />

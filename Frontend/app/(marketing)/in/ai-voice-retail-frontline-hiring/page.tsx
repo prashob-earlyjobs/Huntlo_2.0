@@ -8,7 +8,7 @@ import {
   AI_VOICE_RETAIL_FRONTLINE_HIRING_SEO,
   aiVoiceRetailFrontlineHiringMetadata,
 } from "@/lib/aiVoiceRetailFrontlineHiring";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceRetailFrontlineHiringMetadata();
@@ -27,6 +27,7 @@ export default function AiVoiceRetailFrontlineHiringRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI voice recruitment for retail frontline hiring",
             mainEntityName: "Huntlo AI Voice Retail Frontline Hiring",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiVoiceRetailFrontlineHiringRoutePage() {
               href: AI_VOICE_RETAIL_FRONTLINE_HIRING_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Retail Frontline Hiring",
+            description: AI_VOICE_RETAIL_FRONTLINE_HIRING_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_RETAIL_FRONTLINE_HIRING_FAQS]),
         ]}
       />

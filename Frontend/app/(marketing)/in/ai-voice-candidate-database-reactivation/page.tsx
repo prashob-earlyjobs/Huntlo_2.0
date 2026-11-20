@@ -8,7 +8,7 @@ import {
   AI_VOICE_CANDIDATE_DATABASE_REACTIVATION_SEO,
   aiVoiceCandidateDatabaseReactivationMetadata,
 } from "@/lib/aiVoiceCandidateDatabaseReactivation";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceCandidateDatabaseReactivationMetadata();
@@ -27,6 +27,7 @@ export default function AiVoiceCandidateDatabaseReactivationRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI voice candidate database reactivation",
             mainEntityName: "Huntlo AI Voice Candidate Database Reactivation",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiVoiceCandidateDatabaseReactivationRoutePage() {
               href: AI_VOICE_CANDIDATE_DATABASE_REACTIVATION_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Candidate Database Reactivation",
+            description: AI_VOICE_CANDIDATE_DATABASE_REACTIVATION_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_CANDIDATE_DATABASE_REACTIVATION_FAQS]),
         ]}
       />

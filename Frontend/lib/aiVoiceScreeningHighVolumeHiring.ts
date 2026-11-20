@@ -4,9 +4,9 @@ export const AI_VOICE_SCREENING_HIGH_VOLUME_HIRING_PATH =
   "/ai-voice-screening-high-volume-hiring";
 
 export const AI_VOICE_SCREENING_HIGH_VOLUME_HIRING_SEO = {
-  title: "AI Voice Screening for High-Volume Hiring | Huntlo India",
+  title: "AI Voice Screening for High-Volume Hiring | Huntlo",
   description:
-    "Explore structured AI voice screening for high-volume recruitment in India, with candidate-first conversations and human review.",
+    "Structure high-volume hiring with AI voice screening: consistent first-round questions, transcripts for recruiters, and human review before shortlist decisions.",
   ogTitle: "A long applicant list is not the same as a ready hiring pipeline.",
   ogDescription:
     "Structured AI voice screening for high-volume hiring in India - with candidate-first conversations and human review.",
@@ -190,6 +190,11 @@ export const AI_VOICE_SCREENING_HIGH_VOLUME_HIRING_FAQS = [
     question: "Is AI voice screening suitable for volume hiring?",
     answer:
       "It may help with repetitive first-contact questions when candidates have a clear human escalation path.",
+  },
+  {
+    question: "Is AI voice screening secure and fair?",
+    answer:
+      "Use consistent job-relevant questions, disclose the screening experience, keep transcripts reviewable, and leave shortlist decisions with recruiters so bias and accuracy can be checked.",
   },
   {
     question: "Should AI decide who gets hired?",

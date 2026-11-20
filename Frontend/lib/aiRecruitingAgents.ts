@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AI_RECRUITING_AGENTS_PATH = "/us/ai-recruiting-agents";
 
 export const AI_RECRUITING_AGENTS_SEO = {
-  title: "AI Recruiting Agents for Talent Acquisition | Huntlo",
+  title: "AI Recruiting Agents Software | Huntlo",
   description:
-    "Understand how AI recruiting agents can coordinate candidate engagement, recruiting tasks and workflow handoffs with human oversight.",
+    "AI recruiting agents coordinate candidate engagement, follow-ups, and workflow handoffs inside approved boundaries—so talent teams reduce tool-to-tool friction with human oversight.",
   ogTitle: "What If Your Recruiting Tools Could Coordinate the Work Between Them?",
   ogDescription:
     "AI recruiting agents interpret relevant information and perform permitted recruitment tasks within defined workflows — keeping recruiters in control.",
@@ -97,6 +97,11 @@ export const AI_RECRUITING_AGENTS_FAQS = [
     question: "How are AI recruiting agents different from recruiting chatbots?",
     answer:
       "Chatbots generally focus on conversational interaction. Agents may also coordinate actions and workflow steps using connected tools and approved permissions.",
+  },
+  {
+    question: "How do agents hand candidates off to an ATS?",
+    answer:
+      "When a candidate is ready for the next stage, agents can update status and package conversation context for recruiter review, then sync approved outcomes into the ATS that remains the system of record.",
   },
   {
     question: "Can AI recruiting agents replace recruiters?",

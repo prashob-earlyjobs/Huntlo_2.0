@@ -8,7 +8,7 @@ import {
   AI_VOICE_CANDIDATE_AVAILABILITY_SCREENING_SEO,
   aiVoiceCandidateAvailabilityScreeningMetadata,
 } from "@/lib/aiVoiceCandidateAvailabilityScreening";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceCandidateAvailabilityScreeningMetadata();
@@ -27,6 +27,7 @@ export default function AiVoiceCandidateAvailabilityScreeningRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI voice candidate availability screening",
             mainEntityName: "Huntlo AI Voice Candidate Availability Screening",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiVoiceCandidateAvailabilityScreeningRoutePage() {
               href: AI_VOICE_CANDIDATE_AVAILABILITY_SCREENING_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Candidate Availability Screening",
+            description: AI_VOICE_CANDIDATE_AVAILABILITY_SCREENING_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_CANDIDATE_AVAILABILITY_SCREENING_FAQS]),
         ]}
       />

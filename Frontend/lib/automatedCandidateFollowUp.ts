@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AUTOMATED_CANDIDATE_FOLLOW_UP_PATH = "/automated-candidate-follow-up";
 
 export const AUTOMATED_CANDIDATE_FOLLOW_UP_SEO = {
-  title: "Automated Candidate Follow-Up for Recruiters | Huntlo",
+  title: "Automated Candidate Follow-Up Software | Huntlo",
   description:
-    "Reduce missed candidate conversations with a thoughtful follow-up process. Explore recruiter-led outreach and automation with Huntlo.",
+    "Cut missed conversations with recruiter-led automated candidate follow-up: clear cadence, stop conditions, and human takeover when a reply or opt-out arrives.",
   ogTitle: "The candidate who did not reply may still be the right candidate.",
   ogDescription:
     "Rules-based follow-up with clear cadence, stop conditions, and human takeover - so silence does not end the conversation by accident.",
@@ -172,5 +172,10 @@ export const AUTOMATED_CANDIDATE_FOLLOW_UP_FAQS = [
     question: "Should follow-ups stop after a reply?",
     answer:
       "Yes. Replies and opt-outs should interrupt automation so the next action reflects the candidate's intent.",
+  },
+  {
+    question: "How does follow-up connect to ATS handoff?",
+    answer:
+      "When a candidate replies or is marked ready, recruiters can advance the record and sync status into the ATS—so engagement history stays connected to the hiring pipeline.",
   },
 ] as const;

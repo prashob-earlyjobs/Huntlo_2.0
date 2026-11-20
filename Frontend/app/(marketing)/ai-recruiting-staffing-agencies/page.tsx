@@ -8,11 +8,7 @@ import {
   AI_RECRUITING_STAFFING_AGENCIES_SEO,
   aiRecruitingStaffingAgenciesMetadata,
 } from "@/lib/aiRecruitingStaffingAgencies";
-import {
-  breadcrumbJsonLd,
-  faqPageJsonLd,
-  webPageJsonLd,
-} from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiRecruitingStaffingAgenciesMetadata();
@@ -31,6 +27,7 @@ export default function AiRecruitingStaffingAgenciesRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI Recruiting Workflows for Staffing Agencies",
             mainEntityName: "Huntlo AI Recruiting for Staffing Agencies",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -39,6 +36,12 @@ export default function AiRecruitingStaffingAgenciesRoutePage() {
               href: AI_RECRUITING_STAFFING_AGENCIES_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Recruiting for Staffing Agencies",
+            description: AI_RECRUITING_STAFFING_AGENCIES_SEO.description,
+            url: pageUrl,
+          }),
+
           faqPageJsonLd([...AI_RECRUITING_STAFFING_AGENCIES_FAQS]),
         ]}
       />

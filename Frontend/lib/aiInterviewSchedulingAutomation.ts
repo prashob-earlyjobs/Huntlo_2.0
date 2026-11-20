@@ -4,9 +4,9 @@ export const AI_INTERVIEW_SCHEDULING_AUTOMATION_PATH =
   "/us/ai-interview-scheduling-automation";
 
 export const AI_INTERVIEW_SCHEDULING_AUTOMATION_SEO = {
-  title: "AI Interview Scheduling Automation | Huntlo",
+  title: "AI Interview Scheduling Automation Software | Huntlo",
   description:
-    "Explore AI-assisted interview scheduling workflows for recruiters, including candidate coordination, reminders and rescheduling.",
+    "Automate interview scheduling: candidate self-booking, panel coordination, reminders, and rescheduling—with recruiter control when exceptions need a human.",
   ogTitle: "The Interview Is Important. The Scheduling Work Shouldn't Take Over the Day.",
   ogDescription:
     "AI-assisted interview scheduling automation helps teams organize repetitive coordination while preserving human control over exceptions.",

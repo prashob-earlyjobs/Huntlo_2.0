@@ -3,9 +3,9 @@ import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 export const AI_RECRUITING_STAFFING_AGENCIES_PATH = "/ai-recruiting-staffing-agencies";
 
 export const AI_RECRUITING_STAFFING_AGENCIES_SEO = {
-  title: "AI Recruiting Workflows for Staffing Agencies | Huntlo",
+  title: "AI Recruiting Software for Staffing Agencies | Huntlo",
   description:
-    "Explore sourcing and engagement workflows designed around the pace of staffing agencies, with recruiter oversight and clearer candidate handoffs.",
+    "AI recruiting software for staffing agencies: connected sourcing, engagement, and recruiter review with clearer client handoffs beside your existing ATS.",
   ogTitle: "More open requisitions should not mean more disconnected work.",
   ogDescription:
     "Sourcing and engagement workflows designed for staffing desks - with recruiter oversight and clearer candidate handoffs.",

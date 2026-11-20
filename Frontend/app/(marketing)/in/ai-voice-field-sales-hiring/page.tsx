@@ -8,7 +8,7 @@ import {
   AI_VOICE_FIELD_SALES_HIRING_SEO,
   aiVoiceFieldSalesHiringMetadata,
 } from "@/lib/aiVoiceFieldSalesHiring";
-import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
+import { breadcrumbJsonLd, faqPageJsonLd, featureSoftwareApplicationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { absoluteUrl, OG_IMAGES } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = aiVoiceFieldSalesHiringMetadata();
@@ -27,6 +27,7 @@ export default function AiVoiceFieldSalesHiringRoutePage() {
             primaryImageOfPage: OG_IMAGES.platform,
             aboutName: "AI voice recruitment for field sales hiring",
             mainEntityName: "Huntlo AI Voice Field Sales Recruitment",
+            aboutSoftware: true,
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
@@ -35,6 +36,11 @@ export default function AiVoiceFieldSalesHiringRoutePage() {
               href: AI_VOICE_FIELD_SALES_HIRING_PATH,
             },
           ]),
+          featureSoftwareApplicationJsonLd({
+            name: "Huntlo AI Voice Field Sales Recruitment",
+            description: AI_VOICE_FIELD_SALES_HIRING_SEO.description,
+            url: pageUrl,
+          }),
           faqPageJsonLd([...AI_VOICE_FIELD_SALES_HIRING_FAQS]),
         ]}
       />
