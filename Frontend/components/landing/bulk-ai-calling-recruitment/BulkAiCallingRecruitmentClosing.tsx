@@ -105,7 +105,7 @@ export function BulkAiCallingRecruitmentFinalCta() {
             Discuss your calling workflow
           </Link>
           <Link
-            href="/platform"
+            href="/agentic-ai-platform"
             className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5"
           >
             Platform overview

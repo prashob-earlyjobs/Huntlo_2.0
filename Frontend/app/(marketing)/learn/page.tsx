@@ -69,7 +69,7 @@ const PRACTICE_LINKS = [
   },
   {
     name: "AI Hiring Solutions",
-    href: "/solutions",
+    href: "/industries",
     icon: "domain",
     description: "How the workflows apply to staffing, RPO, GCCs and other teams.",
   },
@@ -123,7 +123,7 @@ export default function LearnHubPage() {
           faqPageJsonLd([...LEARN_HUB_FAQS]),
         ]}
       />
-      <div className="landing-page min-h-screen overflow-x-hidden bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
+      <div className="landing-page min-h-screen bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
         <LandingNav />
         <main>
           <section className="relative overflow-hidden bg-[#02050c] px-4 text-white md:px-8 lg:px-12">

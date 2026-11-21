@@ -185,7 +185,7 @@ export const ENTERPRISE_BUILT_FOR = [
   { label: "Enterprises", href: "/solutions/enterprise-hiring" },
   { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
-  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Global hiring teams", href: "/industries" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "High volume hiring", href: "/solutions/enterprise-hiring" },

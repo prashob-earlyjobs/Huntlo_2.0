@@ -1,0 +1,215 @@
+/* Scoped design tokens for asa-page-frame agent workflow pages
+   (/agents/ai-screening-agent, high-volume, bpo-voice).
+   Classes are scoped under .asa-design so they do not restyle other routes. */
+
+.asa-design {
+  --asa-navy: #0f172a;
+  --asa-navy-foreground: #f1f5f9;
+  --asa-navy-muted: #94a3b8;
+  --asa-navy-border: rgb(255 255 255 / 10%);
+  --asa-primary-deep: #075be0;
+  --asa-glow: radial-gradient(60% 80% at 50% 0%, rgb(8 102 252 / 0.18), transparent 70%);
+  --asa-blue-grad: linear-gradient(135deg, #0866fc 0%, #075be0 100%);
+  --asa-shadow-soft: 0 1px 2px rgb(16 24 40 / 0.04), 0 12px 32px -12px rgb(16 24 40 / 0.12);
+  --asa-shadow-lift: 0 1px 2px rgb(16 24 40 / 0.05), 0 30px 60px -24px rgb(8 102 252 / 0.28);
+  --asa-flow-1: rgb(8 102 252 / 0.55);
+  --asa-flow-2: rgb(147 197 253 / 0.6);
+  --asa-flow-3: rgb(191 219 254 / 0.7);
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--foreground);
+  background: #ffffff;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.asa-design .asa-font-display-tight {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.asa-design .asa-fs-h1 {
+  font-size: clamp(2.125rem, 1.4rem + 3.2vw, 3.75rem);
+}
+
+.asa-design .asa-fs-h2 {
+  font-size: clamp(1.85rem, 1.35rem + 2vw, 2.75rem);
+}
+
+.asa-design .asa-eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.asa-design .asa-bg-glow {
+  background-image: var(--asa-glow);
+}
+
+.asa-design .asa-bg-blue-grad {
+  background-image: var(--asa-blue-grad);
+}
+
+.asa-design .asa-bg-grid {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 20%, transparent 70%);
+}
+
+.asa-design .asa-container-x {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .asa-design .asa-container-x {
+    padding-inline: 2rem;
+  }
+}
+
+.asa-design .asa-section-y {
+  padding-block: 4.5rem;
+}
+
+@media (min-width: 1024px) {
+  .asa-design .asa-section-y {
+    padding-block: 7.5rem;
+  }
+}
+
+.asa-design .asa-bg-navy {
+  background-color: var(--asa-navy);
+}
+
+.asa-design .asa-text-navy-foreground {
+  color: var(--asa-navy-foreground);
+}
+
+.asa-design .asa-text-navy-muted {
+  color: var(--asa-navy-muted);
+}
+
+.asa-design .asa-border-navy-border {
+  border-color: var(--asa-navy-border);
+}
+
+.asa-design .asa-shadow-soft {
+  box-shadow: var(--asa-shadow-soft);
+}
+
+.asa-design .asa-shadow-lift {
+  box-shadow: var(--asa-shadow-lift);
+}
+
+.asa-design .asa-page-frame {
+  position: relative;
+  max-width: 1280px;
+  margin-inline: auto;
+  border-inline: 1px solid var(--border);
+}
+
+.asa-design .asa-page-frame > section {
+  position: relative;
+  border-top: 1px solid var(--border);
+}
+
+.asa-design .asa-page-frame > section:first-child {
+  border-top: 0;
+}
+
+.asa-design .asa-page-frame > section:not(:first-child)::before,
+.asa-design .asa-page-frame > section:not(:first-child)::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  z-index: 2;
+  background: #ffffff;
+  border: 1px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+  border-radius: 1px;
+}
+
+.asa-design .asa-page-frame > section:not(:first-child)::before {
+  left: -4px;
+}
+
+.asa-design .asa-page-frame > section:not(:first-child)::after {
+  right: -4px;
+}
+
+.asa-design .asa-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+
+.asa-design .asa-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes asa-wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes asa-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes asa-drift {
+  0%,
+  100% {
+    transform: translateX(0) scaleY(1);
+  }
+  50% {
+    transform: translateX(-3%) scaleY(1.06);
+  }
+}
+
+.asa-design .asa-animate-wave {
+  animation: asa-wave 1.1s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.asa-design .asa-animate-rise {
+  animation: asa-rise 0.45s ease-out both;
+}
+
+.asa-design .asa-animate-drift {
+  animation: asa-drift 14s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asa-design .asa-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .asa-design .asa-animate-wave,
+  .asa-design .asa-animate-rise,
+  .asa-design .asa-animate-drift {
+    animation: none;
+  }
+}

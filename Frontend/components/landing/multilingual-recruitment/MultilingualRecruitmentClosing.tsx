@@ -53,7 +53,7 @@ export function MultilingualRecruitmentGettingStarted() {
           <Link href="/contact" className={secondaryCtaClass}>
             Contact Sales
           </Link>
-          <Link href="/platform" className={ghostCtaClass}>
+          <Link href="/agentic-ai-platform" className={ghostCtaClass}>
             Explore the platform
           </Link>
         </div>

@@ -1,4 +1,4 @@
-import { LandingFooter } from "@/components/landing/LandingFooter";
+﻿import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { PlatformHubContent } from "@/components/landing/platform-category/PlatformSection";
 import { JsonLd } from "@/components/seo/JsonLd";

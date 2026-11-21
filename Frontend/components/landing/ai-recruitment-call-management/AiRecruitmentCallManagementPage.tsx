@@ -14,7 +14,7 @@ export function AiRecruitmentCallManagementPage() {
   const reduceMotion = !!useReducedMotion();
 
   return (
-    <div className="landing-page min-h-screen overflow-x-hidden bg-white text-[#0b1220] selection:bg-[#2563eb] selection:text-[#c1cfff]">
+    <div className="landing-page min-h-screen bg-white text-[#0b1220] selection:bg-[#2563eb] selection:text-[#c1cfff]">
       <LandingNav />
       <main>
         <AiRecruitmentCallManagementHero reduceMotion={reduceMotion} />

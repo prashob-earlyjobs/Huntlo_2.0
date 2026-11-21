@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import { BookDemoLink } from "@/components/landing/BookDemoLink";
 import { LandingFooter } from "@/components/landing/LandingFooter";
@@ -40,7 +40,7 @@ export function SolutionsHubPage() {
   const hub = SOLUTIONS_HUB;
 
   return (
-    <div className="landing-page min-h-screen overflow-x-hidden bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
+    <div className="landing-page min-h-screen bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <LandingNav />
       <main className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
         {/* Hero */}

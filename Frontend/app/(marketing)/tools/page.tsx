@@ -48,7 +48,7 @@ export default function ToolsHubPage() {
           faqPageJsonLd(TOOLS_HUB_FAQS.map((faq) => ({ question: faq.question, answer: plainText(faq.answer) }))),
         ]}
       />
-      <div className="landing-page min-h-screen overflow-x-hidden bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
+      <div className="landing-page min-h-screen bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
         <LandingNav />
         <main>
           <EditorialHero

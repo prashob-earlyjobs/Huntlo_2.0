@@ -116,7 +116,7 @@ export const CANDIDATE_OUTREACH_INTERNAL_LINKS = [
   { label: "Integrations", href: "/integrations", note: "Connect email, WhatsApp & calendar" },
   { label: "Hiring Workflows", href: "/hiring-workflows", note: "Engage workflows & orchestration" },
   { label: "Huntlo 360", href: "/huntlo360", note: "End-to-end hiring operations" },
-  { label: "Book a Demo", href: "/book-a-demo", note: "See outreach in your workflow" },
+  { label: "Book a Demo", href: "https://calendly.com/huntlo-info/15min", note: "See outreach in your workflow" },
 ] as const;
 
 export const CANDIDATE_OUTREACH_RELATED = [

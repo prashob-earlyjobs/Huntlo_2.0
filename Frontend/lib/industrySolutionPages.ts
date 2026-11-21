@@ -2097,7 +2097,7 @@ export const SOLUTIONS_HUB = {
   },
   related: [
     {
-      href: "/platform",
+      href: "/agentic-ai-platform",
       title: "Huntlo Platform",
       description: "Platform overview of connected hiring execution.",
     },

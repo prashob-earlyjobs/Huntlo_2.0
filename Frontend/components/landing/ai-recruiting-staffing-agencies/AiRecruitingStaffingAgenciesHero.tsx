@@ -44,7 +44,7 @@ export function AiRecruitingStaffingAgenciesHero({
               Explore Huntlo for staffing teams
             </Link>
             <BookDemoLink className={secondaryCtaClass}>Schedule a workflow demo</BookDemoLink>
-            <Link href="/platform" className={ghostCtaClass}>
+            <Link href="/agentic-ai-platform" className={ghostCtaClass}>
               View platform
             </Link>
           </div>

@@ -67,7 +67,7 @@ export default function CapabilitiesPage() {
   ];
 
   return (
-    <div className="landing-page min-h-screen overflow-x-hidden bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
+    <div className="landing-page min-h-screen bg-[#faf9ff] text-[#141b2b] selection:bg-[#0050cb] selection:text-[#c1cfff]">
       <JsonLd data={jsonLdBlocks} />
       <LandingNav />
       <main>
@@ -187,8 +187,8 @@ export default function CapabilitiesPage() {
             </div>
             <ul className="mt-8 grid gap-3 sm:grid-cols-3">
               {[
-                { href: "/platform", title: "Huntlo Platform", body: "How the capabilities connect into one system." },
-                { href: "/solutions", title: "AI Hiring Solutions", body: "Capabilities configured by industry and hiring model." },
+                { href: "/agentic-ai-platform", title: "Huntlo Platform", body: "How the capabilities connect into one system." },
+                { href: "/industries", title: "AI Hiring Solutions", body: "Capabilities configured by industry and hiring model." },
                 { href: "/human-ai-hiring", title: "Human + AI Hiring", body: "Which work AI runs and which decisions stay human." },
               ].map((link) => (
                 <li key={link.href}>

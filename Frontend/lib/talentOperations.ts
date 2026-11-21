@@ -165,7 +165,7 @@ export const ENTERPRISE_BUILT_FOR = [
   { label: "Fortune 500 companies", href: "/solutions/enterprise-hiring" },
   { label: "Enterprises", href: "/solutions/enterprise-hiring" },
   { label: "GCCs", href: "/solutions/global-capability-centers" },
-  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Global hiring teams", href: "/industries" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
