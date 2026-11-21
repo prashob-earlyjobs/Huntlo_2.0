@@ -213,7 +213,7 @@ export function BulkAiCallingRecruitmentSystems({
               AI Voice Recruiter
             </Link>
             <Link
-              href="/platform"
+              href="/agentic-ai-platform"
               className="text-sm font-semibold text-[#0050cb] underline-offset-4 hover:underline"
             >
               Platform overview

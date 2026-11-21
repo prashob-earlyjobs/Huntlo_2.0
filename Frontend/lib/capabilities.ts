@@ -542,7 +542,7 @@ export const CAPABILITIES_FAQS = [
 export const RELATED_PAGES = [
   {
     name: "Huntlo Platform",
-    href: "/platform",
+    href: "/agentic-ai-platform",
     description: "Explore the comprehensive architectural overview of Huntlo's AI recruiting platform.",
     badge: "Platform",
   },
@@ -566,7 +566,7 @@ export const RELATED_PAGES = [
   },
   {
     name: "AI Hiring Solutions",
-    href: "/solutions",
+    href: "/industries",
     description: "Tailored AI hiring infrastructure for staffing agencies, executive search, startups, and enterprises.",
     badge: "Solutions",
   },

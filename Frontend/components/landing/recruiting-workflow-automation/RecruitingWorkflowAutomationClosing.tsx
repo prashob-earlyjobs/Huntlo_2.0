@@ -35,7 +35,7 @@ export function RecruitingWorkflowAutomationEvaluation() {
 
         <div className="mt-8 flex flex-wrap gap-4 text-sm">
           <Link
-            href="/platform"
+            href="/agentic-ai-platform"
             className="font-semibold text-[#0050cb] underline-offset-4 hover:underline"
           >
             Platform overview

@@ -11,7 +11,6 @@ import {
   getSolutionPage,
   SOLUTION_PAGES,
   solutionPath,
-  SOLUTIONS_PATH,
 } from "@/lib/industrySolutionPages";
 import { breadcrumbJsonLd, faqPageJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import { buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
@@ -69,7 +68,7 @@ export default async function SolutionPage({ params }: PageProps) {
           }),
           breadcrumbJsonLd([
             { name: "Home", href: "/" },
-            { name: "Solutions", href: SOLUTIONS_PATH },
+            { name: "Solutions", href: "/solutions" },
             { name: page.breadcrumb, href: path },
           ]),
           faqPageJsonLd(page.faqs),

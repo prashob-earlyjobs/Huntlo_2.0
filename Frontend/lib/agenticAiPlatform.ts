@@ -197,7 +197,7 @@ export const AGENTIC_ENTERPRISE_BUILT_FOR = [
   { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Staffing firms", href: "/solutions/staffing-agencies" },
   { label: "Recruitment agencies", href: "/solutions/recruitment-firms" },
-  { label: "Global hiring teams", href: "/solutions" },
+  { label: "Global hiring teams", href: "/industries" },
   { label: "Technical hiring", href: "/solutions/startups" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
 ] as const;

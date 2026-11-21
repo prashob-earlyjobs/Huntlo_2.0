@@ -52,7 +52,7 @@ export function CandidateSourcingHero({ reduceMotion }: CandidateSourcingHeroPro
             <Link href="#candidate-discovery" className={secondaryCtaClass}>
               See Candidate Discovery
             </Link>
-            <Link href="/platform" className={ghostCtaClass}>
+            <Link href="/agentic-ai-platform" className={ghostCtaClass}>
               Explore Huntlo
             </Link>
           </div>

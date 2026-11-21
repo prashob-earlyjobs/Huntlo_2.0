@@ -6,12 +6,17 @@ import {
   readUtmFromSearch,
 } from "@/lib/utm";
 
+/** Default Huntlo demo booking link — used when NEXT_PUBLIC_CALENDLY_URL is unset. */
+export const CALENDLY_BOOK_DEMO_URL = "https://calendly.com/huntlo-info/15min";
+
 export function getCalendlyBookDemoUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_CALENDLY_URL?.trim() ?? "";
-  if (!raw) return "";
+  const raw =
+    process.env.NEXT_PUBLIC_CALENDLY_URL?.trim() || CALENDLY_BOOK_DEMO_URL;
   try {
     const url = new URL(raw);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return CALENDLY_BOOK_DEMO_URL;
+    }
 
     if (typeof window !== "undefined") {
       const fromUrl = readUtmFromSearch(window.location.search);
@@ -21,7 +26,7 @@ export function getCalendlyBookDemoUrl(): string {
 
     return url.toString();
   } catch {
-    return "";
+    return CALENDLY_BOOK_DEMO_URL;
   }
 }
 

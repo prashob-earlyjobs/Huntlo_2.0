@@ -105,12 +105,12 @@ export type PlatformCategoryPageContent = {
 };
 
 export const PLATFORM_ENTERPRISE_BUILT_FOR = [
-  { label: "Enterprises", href: "/solutions" },
+  { label: "Enterprises", href: "/industries" },
   { label: "GCCs", href: "/solutions/global-capability-centers" },
   { label: "Staffing firms", href: "/solutions/it-staffing" },
   { label: "Recruitment agencies", href: "/solutions/rpo" },
   { label: "Executive hiring", href: "/solutions/executive-search" },
-  { label: "Startups and technical hiring", href: "/solutions" },
+  { label: "Startups and technical hiring", href: "/industries" },
 ] as const;
 
 const CARD = {
