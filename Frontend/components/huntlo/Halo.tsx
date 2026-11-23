@@ -45,7 +45,7 @@ export function HaloHero() {
               ))}
             </div>
             <div className="mt-auto flex items-center gap-3 rounded-full border border-border bg-secondary py-1.5 pl-4 pr-1.5 pt-1.5 sm:mt-10">
-              <VoiceClipPlay src={onboardingAudio} label="Onboarding agent sample">
+              <VoiceClipPlay src={onboardingAudio} label="Onboarding agent">
                 {(playing) => (
                   <>
                     <AudioLines

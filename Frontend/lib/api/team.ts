@@ -259,7 +259,7 @@ const mockOrganizationApi: OrganizationApi = {
     return {
       id: "org-1",
       name: ORGANISATION.name,
-      slug: "earlyjobs",
+      slug: "huntlo",
       website: ORGANISATION.website,
       industry: ORGANISATION.industry,
       companySize: ORGANISATION.companySize,

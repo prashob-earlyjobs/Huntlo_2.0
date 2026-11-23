@@ -21,7 +21,7 @@ const FOOTER_SOLUTIONS_LINKS = [
 
 const FOOTER_LINK_HREFS: Record<string, string> = {
   About: "/about",
-  Careers: "https://www.earlyjobs.ai/jobs",
+  Careers: "https://www.linkedin.com/company/huntlo-ai",
   Contact: "/contact",
   Sitemap: "/sitemap.xml",
   ...Object.fromEntries(COMPARISON_FOOTER_LINKS.map((item) => [item.label, item.href])),

@@ -125,7 +125,6 @@ function VoiceWorkspace({
       }))}
       fields={scenario.outcomes.map(([label, value]) => ({ label, value }))}
       nextAction={scenario.next}
-      footer="Visual conversation · no audio media"
     />
   );
 }
@@ -150,7 +149,6 @@ function VoiceProductExperience({ compact = false }: { compact?: boolean }) {
         }))}
         fields={scenario.outcomes.map(([label, value]) => ({ label, value }))}
         nextAction={scenario.next}
-        footer="Visual conversation · no audio media"
       />
     );
   }
@@ -236,10 +234,10 @@ const ENGAGEMENT_CHANNELS = [
   },
   {
     id: "voice",
-    label: "Voice-labelled",
+    label: "Voice",
     icon: Phone,
-    status: "Label only",
-    detail: "No playable call · visual status",
+    status: "Logged",
+    detail: "Voice outreach completed",
   },
 ] as const;
 
@@ -289,7 +287,6 @@ function SourcingSearchMockup() {
         })),
       ]}
       nextAction="Recruiter starts outreach"
-      footer="Evidence only · no match percentages"
     />
   );
 }
@@ -309,7 +306,7 @@ function EngagementWorkflowMockup() {
   return (
     <InteractiveConversationPanel
       title="Candidate engagement"
-      subtitle="Connected channels · email, WhatsApp, voice-labelled"
+      subtitle="Connected channels · email, WhatsApp, voice"
       tabs={ENGAGEMENT_CHANNELS.map((item) => ({ id: item.id, label: item.label }))}
       activeTabId={activeId}
       onTabChange={setActiveId}
@@ -332,7 +329,6 @@ function EngagementWorkflowMockup() {
         { label: "Owner", value: "Recruiter follow-up" },
       ]}
       nextAction="Recruiter confirms interview slot"
-      footer="No playable calls · status labels only"
     />
   );
 }
@@ -366,7 +362,6 @@ function ConversationIntelligenceMockup() {
         value: field.value,
       }))}
       nextAction="Recruiter confirms fields"
-      footer="Source text · no audio media"
     />
   );
 }
@@ -419,7 +414,6 @@ function HiringAgentsMockup() {
         value: item.a,
       }))}
       nextAction="Recruiter coordinates interview"
-      footer="Screening fields"
     />
   );
 }
@@ -465,7 +459,6 @@ function OnboardingAgentsMockup() {
         value: item.status,
       }))}
       nextAction="HR follows up before Day 1"
-      footer="Employee question · needs HR attention"
     />
   );
 }
@@ -496,7 +489,7 @@ function RetentionAgentsMockup() {
   return (
     <InteractiveConversationPanel
       title="Employee check-in"
-      subtitle="Protected feedback · human review · no prediction labels"
+      subtitle="Protected feedback · human review"
       tabs={RETENTION_FEEDBACK.map((item) => ({ id: item.theme, label: item.theme }))}
       activeTabId={activeTheme}
       onTabChange={setActiveTheme}
@@ -519,7 +512,6 @@ function RetentionAgentsMockup() {
         { label: "Decision", value: "Human follow-up" },
       ]}
       nextAction="HR reviewer schedules follow-up"
-      footer="No mood score or resignation prediction is shown"
     />
   );
 }
@@ -606,7 +598,6 @@ function IndustriesOverviewMockup() {
       onNextAction={() => {
         window.location.href = card.href;
       }}
-      footer="Product workflow"
     />
   );
 }
@@ -701,7 +692,6 @@ function ResourcesHubMockup() {
       onNextAction={() => {
         window.location.href = featured.href;
       }}
-      footer="Search omitted until a working search experience ships"
     />
   );
 }

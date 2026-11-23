@@ -35,8 +35,8 @@ export const HOMEPAGE_FAQS: HomepageFaqItem[] = [
       "Huntlo offers a 7-day free trial with 3 active roles and 30 candidate searches. Paid plans start at $99 per seat per month (₹8,999/month in India). Enterprise pricing is available for high-volume teams. See full plan details on our pricing page or book a demo for a tailored quote.",
   },
   {
-    question: "What is the EarlyJobs recruiter network?",
+    question: "Does Huntlo include human recruiter support?",
     answer:
-      "Huntlo is built by the EarlyJobs team — operators of one of India's largest recruiter networks. The EarlyJobs network gives Huntlo customers access to human recruiter expertise as an extension of their AI-powered hiring workflow, combining autonomous AI agents with experienced recruiters across India, the US, the UK, and the Middle East.",
+      "Yes. Huntlo combines autonomous AI agents with access to experienced recruiters across India, the US, the UK, and the Middle East — so teams can extend AI-powered hiring workflows with human expertise when they need it.",
   },
 ];

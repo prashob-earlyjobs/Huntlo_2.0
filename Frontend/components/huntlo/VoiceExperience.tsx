@@ -72,7 +72,6 @@ export function VoiceExperience() {
                   </li>
                 ))}
               </ul>
-              <Mono className="mt-6 block text-[0.6rem]">Simulated conversation · no audio</Mono>
             </div>
             <div className="border-t border-border bg-navy p-5 text-navy-foreground sm:p-7 md:border-l md:border-t-0">
               <span className="eyebrow text-navy-muted">Outcome</span>

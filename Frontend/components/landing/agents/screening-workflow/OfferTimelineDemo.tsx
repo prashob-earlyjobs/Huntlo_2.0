@@ -28,7 +28,7 @@ export function OfferTimelineDemo({
   actionQueue,
   title = "Joining confirmation",
   subtitle = "Conversation",
-  footer = "Workflow · no live call",
+  footer,
 }: OfferTimelineDemoProps) {
   const stages = timelineStages.slice(0, 4);
   const lines = transcript.slice(0, 3);

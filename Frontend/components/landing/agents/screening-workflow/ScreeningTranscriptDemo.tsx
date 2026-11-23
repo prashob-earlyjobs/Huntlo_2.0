@@ -62,7 +62,6 @@ export function ScreeningTranscriptDemo({
       messages={messages}
       fields={fields}
       nextAction="Recruiter reviews before any next step"
-      footer="Workflow · no live call"
     />
   );
 }
