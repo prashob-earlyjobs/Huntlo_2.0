@@ -6,23 +6,27 @@ import {
   FOOTER_PLATFORM_PARTNERS,
   type FooterPlatformPartner,
 } from "@/lib/footerPlatformPartners";
+import { INDUSTRY_FOOTER_LINKS } from "@/lib/industries/industryPages";
 import { FOOTER_LEGAL_LINKS, legalPageHref } from "@/lib/legalPages";
 import { V2_PLATFORM_ITEMS, V2_SOLUTIONS_ITEMS } from "@/lib/v2Nav";
 
 import { HuntloMark } from "./LandingLogo";
 
+/** Footer Solutions column — existing three pillars plus verified additional routes. */
+const FOOTER_SOLUTIONS_LINKS = [
+  ...V2_SOLUTIONS_ITEMS.map((item) => ({ label: item.label, href: item.href })),
+  { label: "Candidate Sourcing", href: "/solutions/candidate-sourcing" },
+  { label: "People Scout", href: "/people-scout" },
+] as const;
+
 const FOOTER_LINK_HREFS: Record<string, string> = {
-  "GCC Recruitment Software": "/gcc-recruitment-software",
-  "GCC Hiring Platform": "/gcc-hiring-platform",
-  "AI Recruiting for GCCs": "/ai-recruiting-for-gccs",
-  "GCC Talent Intelligence": "/gcc-talent-intelligence",
-  "GCC Sourcing Automation": "/gcc-sourcing-automation",
   About: "/about",
   Careers: "https://www.earlyjobs.ai/jobs",
   Contact: "/contact",
   ...Object.fromEntries(COMPARISON_FOOTER_LINKS.map((item) => [item.label, item.href])),
   ...Object.fromEntries(V2_PLATFORM_ITEMS.map((item) => [item.label, item.href])),
-  ...Object.fromEntries(V2_SOLUTIONS_ITEMS.map((item) => [item.label, item.href])),
+  ...Object.fromEntries(FOOTER_SOLUTIONS_LINKS.map((item) => [item.label, item.href])),
+  ...Object.fromEntries(INDUSTRY_FOOTER_LINKS.map((item) => [item.label, item.href])),
 };
 
 const FOOTER_SOCIAL_LINKS = [
@@ -81,18 +85,12 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Solutions",
     titleHref: "/solutions/ai-hiring-agents",
-    links: V2_SOLUTIONS_ITEMS.map((item) => item.label),
+    links: FOOTER_SOLUTIONS_LINKS.map((item) => item.label),
   },
   {
-    title: "For GCC",
-    titleHref: "/solutions/global-capability-centers",
-    links: [
-      "GCC Recruitment Software",
-      "GCC Hiring Platform",
-      "AI Recruiting for GCCs",
-      "GCC Talent Intelligence",
-      "GCC Sourcing Automation",
-    ],
+    title: "Industries",
+    titleHref: "/industries",
+    links: INDUSTRY_FOOTER_LINKS.map((item) => item.label),
   },
   {
     title: "Company",
@@ -194,7 +192,7 @@ export function LandingFooter({
       ) : null}
       <div className="mx-auto max-w-7xl px-4 py-12 md:px-8 md:py-14 lg:px-12">
         <nav
-          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-6 lg:gap-x-6 lg:gap-y-0"
+          className="grid w-full grid-cols-2 gap-x-8 gap-y-10 sm:gap-x-10 md:grid-cols-3 md:gap-x-8 md:gap-y-10 lg:grid-cols-6 lg:gap-x-5 lg:gap-y-0"
           aria-label="Footer"
         >
           <div className="min-w-0 col-span-2 sm:col-span-1 lg:col-span-1">

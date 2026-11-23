@@ -22,6 +22,7 @@ import {
 } from "@/lib/v2Nav";
 
 const platformIcons = [AudioLines, Search, MessagesSquare, BarChart3] as const;
+const MENU_CLOSE_MS = 180;
 
 const platformItems = V2_PLATFORM_ITEMS.map((item, i) => ({
   ...item,
@@ -40,25 +41,55 @@ export function LegacyNavbar() {
   const [drawer, setDrawer] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const openMenu = (name: string) => {
+    clearCloseTimer();
+    setOpen(name);
+  };
+
+  const scheduleCloseMenu = () => {
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => setOpen(null), MENU_CLOSE_MS);
+  };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && (setOpen(null), setDrawer(false));
-    const onClick = (e: MouseEvent) => !navRef.current?.contains(e.target as Node) && setOpen(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        clearCloseTimer();
+        setOpen(null);
+        setDrawer(false);
+      }
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (!navRef.current?.contains(e.target as Node)) {
+        clearCloseTimer();
+        setOpen(null);
+      }
+    };
     window.addEventListener("scroll", onScroll);
     window.addEventListener("keydown", onKey);
-    document.addEventListener("click", onClick);
+    document.addEventListener("pointerdown", onPointerDown);
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("keydown", onKey);
-      document.removeEventListener("click", onClick);
+      document.removeEventListener("pointerdown", onPointerDown);
+      clearCloseTimer();
     };
   }, []);
 
   return (
     <header
       className={cn(
-        "sticky top-0 z-[110] border-b transition-colors",
+        "sticky top-0 z-[110] overflow-visible border-b transition-colors",
         scrolled
           ? "border-border bg-background/85 backdrop-blur-md"
           : "border-transparent bg-background",
@@ -66,25 +97,27 @@ export function LegacyNavbar() {
     >
       <nav
         ref={navRef}
-        className="container-x relative flex h-16 items-center justify-between gap-4"
+        className="container-x relative flex h-16 items-center justify-between gap-4 overflow-visible"
         aria-label="Main"
       >
         <a href="#top" className="shrink-0" aria-label="Huntlo home">
           <LegacyLogo />
         </a>
 
-        <ul className="hidden items-center gap-1 lg:flex">
+        <ul className="hidden items-center gap-1 overflow-visible lg:flex">
           <li
-            className="relative"
-            onMouseEnter={() => setOpen("Platform")}
-            onMouseLeave={() => setOpen(null)}
+            className="relative overflow-visible"
+            onMouseEnter={() => openMenu("Platform")}
+            onMouseLeave={scheduleCloseMenu}
           >
             <button
               type="button"
               className="flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
               aria-expanded={open === "Platform"}
               aria-haspopup="true"
-              onClick={() => setOpen(open === "Platform" ? null : "Platform")}
+              onClick={() =>
+                open === "Platform" ? scheduleCloseMenu() : openMenu("Platform")
+              }
             >
               Platform
               <ChevronDown
@@ -92,13 +125,12 @@ export function LegacyNavbar() {
               />
             </button>
             {open === "Platform" && (
-              <div className="absolute left-1/2 top-full w-[22rem] -translate-x-1/2 pt-2">
+              <div className="absolute left-0 top-full z-[120] w-[22rem] pt-2">
                 <div className="animate-rise rounded-2xl border border-border bg-popover p-2 shadow-lift">
                   {platformItems.map((it) => (
                     <a
                       key={it.label}
                       href={it.href}
-                      onClick={() => setOpen(null)}
                       className="flex min-h-11 gap-3 rounded-xl p-3 hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                     >
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-accent text-primary">
@@ -116,17 +148,19 @@ export function LegacyNavbar() {
           </li>
 
           <li
-            className="relative"
-            onMouseEnter={() => setOpen("Solutions")}
-            onMouseLeave={() => setOpen(null)}
+            className="relative overflow-visible"
+            onMouseEnter={() => openMenu("Solutions")}
+            onMouseLeave={scheduleCloseMenu}
           >
             <button
               type="button"
               className="flex min-h-11 items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
               aria-expanded={open === "Solutions"}
               aria-haspopup="true"
-              onClick={() => setOpen(open === "Solutions" ? null : "Solutions")}
-              onFocus={() => setOpen("Solutions")}
+              onClick={() =>
+                open === "Solutions" ? scheduleCloseMenu() : openMenu("Solutions")
+              }
+              onFocus={() => openMenu("Solutions")}
             >
               Solutions
               <ChevronDown
@@ -134,9 +168,10 @@ export function LegacyNavbar() {
               />
             </button>
             {open === "Solutions" && (
-              <div className="absolute left-1/2 top-full w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 pt-2">
+              <div className="absolute left-1/2 top-full z-[120] w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 pt-2">
                 <div className="animate-rise">
-                  <SolutionsMegaMenu onNavigate={() => setOpen(null)} />
+                  {/* Don't unmount on click — closing before navigation cancels the <a> default. */}
+                  <SolutionsMegaMenu />
                 </div>
               </div>
             )}
@@ -185,7 +220,6 @@ export function LegacyNavbar() {
                 <a
                   key={it.label}
                   href={it.href}
-                  onClick={() => setDrawer(false)}
                   className="flex min-h-11 items-center gap-3 rounded-xl px-2 py-3 hover:bg-muted"
                 >
                   <it.icon className="h-4 w-4 text-primary" />
@@ -196,14 +230,12 @@ export function LegacyNavbar() {
             <div>
               <a
                 href={V2_SOLUTIONS_HUB_PATH}
-                onClick={() => setDrawer(false)}
                 className="eyebrow mb-3 inline-flex text-muted-foreground hover:text-foreground"
               >
                 Solutions
               </a>
               <SolutionsMegaMenu
                 stacked
-                onNavigate={() => setDrawer(false)}
                 className="border-0 bg-transparent p-0 shadow-none"
               />
             </div>
@@ -212,7 +244,6 @@ export function LegacyNavbar() {
                 <a
                   key={l.label}
                   href={l.href}
-                  onClick={() => setDrawer(false)}
                   className="flex min-h-11 items-center px-2 font-medium"
                 >
                   {l.label}

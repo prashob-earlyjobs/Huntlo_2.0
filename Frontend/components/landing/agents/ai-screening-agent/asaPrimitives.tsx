@@ -67,12 +67,14 @@ export function Eyebrow({
 export function SectionHead({
   eyebrow,
   title,
+  titleId,
   copy,
   align = "center",
   tone = "light",
 }: {
   eyebrow: string;
   title: ReactNode;
+  titleId?: string;
   copy?: ReactNode;
   align?: "center" | "left";
   tone?: "light" | "dark";
@@ -81,6 +83,7 @@ export function SectionHead({
     <Reveal className={cn("max-w-3xl", align === "center" ? "mx-auto text-center" : "")}>
       <Eyebrow tone={tone}>{eyebrow}</Eyebrow>
       <h2
+        id={titleId}
         className={cn(
           "asa-font-display-tight asa-fs-h2 mt-5",
           tone === "dark" ? "asa-text-navy-foreground" : "text-foreground"

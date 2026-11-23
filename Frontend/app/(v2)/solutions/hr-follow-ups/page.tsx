@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SolutionLandingPage } from "@/components/huntlo/solutions/SolutionLandingPage";
+import { PlatformModulePage } from "@/components/huntlo/platform/PlatformModulePage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { breadcrumbJsonLd, faqPageJsonLd, organizationJsonLd, webPageJsonLd } from "@/lib/jsonLd";
 import {
@@ -39,7 +39,7 @@ export default function HrFollowUpsPage() {
           faqPageJsonLd([...config.faqs]),
         ]}
       />
-      <SolutionLandingPage config={config} />
+      <PlatformModulePage config={config} />
     </>
   );
 }

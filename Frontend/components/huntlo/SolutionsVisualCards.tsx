@@ -46,42 +46,52 @@ const toneShell: Record<CardTone, string> = {
   retention: "bg-retention-grad",
 };
 
+function VisualBadge({ label }: { label: string }) {
+  return (
+    <div className="mb-auto flex shrink-0 justify-end">
+      <div className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium text-foreground/80 shadow-soft backdrop-blur">
+        {label}
+      </div>
+    </div>
+  );
+}
+
 function HiringVisual() {
   return (
-    <div className="relative flex h-full flex-col justify-end gap-3 p-4 sm:p-5" aria-hidden>
-      <div className="absolute right-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium text-foreground/80 backdrop-blur">
-        Recruiter handoff
-      </div>
-      <div className="rounded-2xl border border-white/40 bg-white/95 p-3 shadow-lift backdrop-blur">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-medium text-foreground">Role screening</p>
-            <p className="text-xs text-muted-foreground">Delivery executive · Bengaluru</p>
+    <div className="relative flex h-full min-h-[17.5rem] flex-col gap-3 p-4 sm:min-h-[19rem] sm:p-5" aria-hidden>
+      <VisualBadge label="Recruiter handoff" />
+      <div className="mt-auto flex flex-col gap-3">
+        <div className="rounded-2xl border border-white/40 bg-white/95 p-3 shadow-lift backdrop-blur">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-foreground">Role screening</p>
+              <p className="text-xs text-muted-foreground">Delivery executive · Bengaluru</p>
+            </div>
+            <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] text-success">Ready</span>
           </div>
-          <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] text-success">Ready</span>
+          <ul className="mt-3 space-y-1.5">
+            {[
+              ["Two-wheeler licence", "Yes"],
+              ["Shift preference", "Night"],
+              ["Notice period", "Immediate"],
+            ].map(([q, a]) => (
+              <li
+                key={q}
+                className="flex items-center justify-between gap-2 rounded-xl bg-secondary px-2.5 py-2 text-xs"
+              >
+                <span className="text-muted-foreground">{q}</span>
+                <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                  <Check className="h-3 w-3 text-success" />
+                  {a}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="mt-3 space-y-1.5">
-          {[
-            ["Two-wheeler licence", "Yes"],
-            ["Shift preference", "Night"],
-            ["Notice period", "Immediate"],
-          ].map(([q, a]) => (
-            <li
-              key={q}
-              className="flex items-center justify-between gap-2 rounded-xl bg-secondary px-2.5 py-2 text-xs"
-            >
-              <span className="text-muted-foreground">{q}</span>
-              <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                <Check className="h-3 w-3 text-success" />
-                {a}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="rounded-xl border border-white/30 bg-navy/90 px-3 py-2.5 text-navy-foreground backdrop-blur">
-        <p className="text-xs font-medium">Interview coordination</p>
-        <p className="mt-0.5 text-[11px] text-navy-muted">Summary queued for recruiter review</p>
+        <div className="rounded-xl border border-white/30 bg-navy/90 px-3 py-2.5 text-navy-foreground backdrop-blur">
+          <p className="text-xs font-medium">Interview coordination</p>
+          <p className="mt-0.5 text-[11px] text-navy-muted">Summary queued for recruiter review</p>
+        </div>
       </div>
     </div>
   );
@@ -89,34 +99,34 @@ function HiringVisual() {
 
 function OnboardingVisual() {
   return (
-    <div className="relative flex h-full flex-col justify-end gap-3 p-4 sm:p-5" aria-hidden>
-      <div className="absolute right-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium text-foreground/80 backdrop-blur">
-        Joining confirmed
-      </div>
-      <div className="rounded-2xl border border-white/40 bg-white/95 p-3 shadow-lift backdrop-blur">
-        <p className="text-sm font-medium text-foreground">Onboarding checklist</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Offer accepted · Monday start</p>
-        <ul className="mt-3 space-y-1.5">
-          {[
-            ["Joining confirmation", "Done"],
-            ["ID & bank docs", "Pending"],
-            ["Day 1 gate", "Open"],
-          ].map(([item, status]) => (
-            <li
-              key={item}
-              className="flex items-center justify-between gap-2 rounded-xl bg-secondary px-2.5 py-2 text-xs"
-            >
-              <span className="font-medium text-foreground">{item}</span>
-              <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] text-muted-foreground">
-                {status}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="rounded-xl border border-white/30 bg-navy/90 px-3 py-2.5 text-navy-foreground backdrop-blur">
-        <p className="text-xs font-medium">HR follow-up</p>
-        <p className="mt-0.5 text-[11px] text-navy-muted">Bank letter flagged before Day 1</p>
+    <div className="relative flex h-full min-h-[17.5rem] flex-col gap-3 p-4 sm:min-h-[19rem] sm:p-5" aria-hidden>
+      <VisualBadge label="Joining confirmed" />
+      <div className="mt-auto flex flex-col gap-3">
+        <div className="rounded-2xl border border-white/40 bg-white/95 p-3 shadow-lift backdrop-blur">
+          <p className="text-sm font-medium text-foreground">Onboarding checklist</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Offer accepted · Monday start</p>
+          <ul className="mt-3 space-y-1.5">
+            {[
+              ["Joining confirmation", "Done"],
+              ["ID & bank docs", "Pending"],
+              ["Day 1 gate", "Open"],
+            ].map(([item, status]) => (
+              <li
+                key={item}
+                className="flex items-center justify-between gap-2 rounded-xl bg-secondary px-2.5 py-2 text-xs"
+              >
+                <span className="font-medium text-foreground">{item}</span>
+                <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-white/30 bg-navy/90 px-3 py-2.5 text-navy-foreground backdrop-blur">
+          <p className="text-xs font-medium">HR follow-up</p>
+          <p className="mt-0.5 text-[11px] text-navy-muted">Bank letter flagged before Day 1</p>
+        </div>
       </div>
     </div>
   );
@@ -124,34 +134,34 @@ function OnboardingVisual() {
 
 function RetentionVisual() {
   return (
-    <div className="relative flex h-full flex-col justify-end gap-3 p-4 sm:p-5" aria-hidden>
-      <div className="absolute right-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium text-foreground/80 backdrop-blur">
-        Human review
-      </div>
-      <div className="rounded-2xl border border-white/40 bg-white/95 p-3 shadow-lift backdrop-blur">
-        <p className="text-sm font-medium text-foreground">Employee feedback</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Check-in · no prediction labels</p>
-        <ul className="mt-3 space-y-1.5">
-          {[
-            ["Commute", "Routed"],
-            ["Tools", "In queue"],
-            ["Schedule", "Noted"],
-          ].map(([theme, status]) => (
-            <li
-              key={theme}
-              className="flex items-center justify-between gap-2 rounded-xl bg-secondary px-2.5 py-2 text-xs"
-            >
-              <span className="font-medium text-foreground">{theme}</span>
-              <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] text-muted-foreground">
-                {status}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="rounded-xl border border-white/30 bg-navy/90 px-3 py-2.5 text-navy-foreground backdrop-blur">
-        <p className="text-xs font-medium">Concern identification</p>
-        <p className="mt-0.5 text-[11px] text-navy-muted">Assigned to authorised HR reviewer</p>
+    <div className="relative flex h-full min-h-[17.5rem] flex-col gap-3 p-4 sm:min-h-[19rem] sm:p-5" aria-hidden>
+      <VisualBadge label="Human review" />
+      <div className="mt-auto flex flex-col gap-3">
+        <div className="rounded-2xl border border-white/40 bg-white/95 p-3 shadow-lift backdrop-blur">
+          <p className="text-sm font-medium text-foreground">Employee feedback</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Check-in · no prediction labels</p>
+          <ul className="mt-3 space-y-1.5">
+            {[
+              ["Commute", "Routed"],
+              ["Tools", "In review"],
+              ["Schedule", "Noted"],
+            ].map(([theme, status]) => (
+              <li
+                key={theme}
+                className="flex items-center justify-between gap-2 rounded-xl bg-secondary px-2.5 py-2 text-xs"
+              >
+                <span className="font-medium text-foreground">{theme}</span>
+                <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-white/30 bg-navy/90 px-3 py-2.5 text-navy-foreground backdrop-blur">
+          <p className="text-xs font-medium">Concern identification</p>
+          <p className="mt-0.5 text-[11px] text-navy-muted">Assigned to authorised HR reviewer</p>
+        </div>
       </div>
     </div>
   );

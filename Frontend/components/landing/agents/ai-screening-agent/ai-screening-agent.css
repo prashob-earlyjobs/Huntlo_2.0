@@ -1,24 +1,23 @@
-/* Scoped design tokens for asa-page-frame agent workflow pages
-   (/agents/ai-screening-agent, high-volume, bpo-voice).
-   Classes are scoped under .asa-design so they do not restyle other routes. */
+/* Scoped layout utilities for agent workflow pages.
+   Color tokens inherit from parent .halo-home (same combination as solutions pages). */
 
 .asa-design {
-  --asa-navy: #0f172a;
-  --asa-navy-foreground: #f1f5f9;
-  --asa-navy-muted: #94a3b8;
-  --asa-navy-border: rgb(255 255 255 / 10%);
-  --asa-primary-deep: #075be0;
-  --asa-glow: radial-gradient(60% 80% at 50% 0%, rgb(8 102 252 / 0.18), transparent 70%);
-  --asa-blue-grad: linear-gradient(135deg, #0866fc 0%, #075be0 100%);
-  --asa-shadow-soft: 0 1px 2px rgb(16 24 40 / 0.04), 0 12px 32px -12px rgb(16 24 40 / 0.12);
-  --asa-shadow-lift: 0 1px 2px rgb(16 24 40 / 0.05), 0 30px 60px -24px rgb(8 102 252 / 0.28);
-  --asa-flow-1: rgb(8 102 252 / 0.55);
-  --asa-flow-2: rgb(147 197 253 / 0.6);
-  --asa-flow-3: rgb(191 219 254 / 0.7);
-  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --asa-navy: var(--navy);
+  --asa-navy-foreground: var(--navy-foreground);
+  --asa-navy-muted: var(--navy-muted);
+  --asa-navy-border: var(--navy-border);
+  --asa-primary-deep: var(--primary-deep);
+  --asa-glow: var(--gradient-glow);
+  --asa-blue-grad: var(--gradient-blue);
+  --asa-shadow-soft: var(--shadow-soft);
+  --asa-shadow-lift: var(--shadow-lift);
+  --asa-flow-1: var(--flow-1);
+  --asa-flow-2: var(--flow-2);
+  --asa-flow-3: var(--flow-3);
+  --primary-hover: var(--primary-deep);
   color: var(--foreground);
-  background: #ffffff;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  background: var(--background);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -38,7 +37,7 @@
 }
 
 .asa-design .asa-eyebrow {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -131,7 +130,7 @@
   width: 7px;
   height: 7px;
   z-index: 2;
-  background: #ffffff;
+  background: var(--background);
   border: 1px solid color-mix(in oklab, var(--foreground) 35%, transparent);
   border-radius: 1px;
 }

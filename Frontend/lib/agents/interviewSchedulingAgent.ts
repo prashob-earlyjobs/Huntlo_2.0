@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 
 import type { ScreeningWorkflowConfig } from "@/lib/agents/screeningWorkflowTypes";
 import { isIndexableCapability, type CapabilityStatus } from "@/lib/agents/types";
-import { AGENTS_HUB_PATH } from "@/lib/agents/pillarAgents";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
-export const INTERVIEW_SCHEDULING_AGENT_PATH = "/agents/interview-scheduling-agent";
+export const INTERVIEW_SCHEDULING_AGENT_PATH = "/solutions/interview-coordination";
 
 /** Product must approve Live/Pilot/Planned before indexation. */
 export const INTERVIEW_SCHEDULING_AGENT_CAPABILITY_STATUS: CapabilityStatus = "planned";
@@ -49,11 +48,9 @@ export const INTERVIEW_SCHEDULING_AGENT: ScreeningWorkflowConfig = {
   seo: INTERVIEW_SCHEDULING_AGENT_SEO,
   breadcrumbs: [
     { name: "Home", href: "/" },
-    { name: "AI Agents", href: AGENTS_HUB_PATH },
-    {
-      name: "Interview Scheduling Agent",
-      href: INTERVIEW_SCHEDULING_AGENT_PATH,
-    },
+    { name: "Solutions", href: "/solutions/ai-hiring-agents" },
+    { name: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
+    { name: "Interview Coordination", href: INTERVIEW_SCHEDULING_AGENT_PATH },
   ],
   hero: {
     h1: "Interview Scheduling Agent That Moves Work Forward",
@@ -215,11 +212,11 @@ export const INTERVIEW_SCHEDULING_AGENT: ScreeningWorkflowConfig = {
     subhead: "Book a Huntlo workflow discussion.",
   },
   relatedLinks: [
-    { label: "AI Agents", href: AGENTS_HUB_PATH },
-    { label: "AI Hiring Agent", href: "/agents/ai-hiring-agent" },
+    { label: "AI Hiring Agents", href: "/solutions/ai-hiring-agents" },
+    { label: "AI Screening", href: "/solutions/ai-screening" },
     {
-      label: "High-Volume Hiring Workflows",
-      href: "/agents/high-volume-hiring-workflows",
+      label: "Candidate Qualification",
+      href: "/solutions/candidate-qualification",
     },
   ],
   sampleTranscript: [

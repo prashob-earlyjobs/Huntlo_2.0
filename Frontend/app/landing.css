@@ -22,10 +22,15 @@
 
   width: 100%;
   max-width: 100%;
-  overflow-x: clip;
+  /* Overflow stays visible so sticky Platform/Solutions menus are not clipped. */
   background-color: var(--landing-background);
   color: var(--landing-on-surface);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+.landing-page > main {
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .landing-nav {

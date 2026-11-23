@@ -1,3 +1,5 @@
+import { EMPLOYEE_PULSE_SURVEYS_PATH } from "@/lib/agents/employeePulseSurveys";
+import { NEW_HIRE_CHECK_IN_SURVEYS_PATH } from "@/lib/agents/newHireCheckInSurveys";
 import type { PlatformModuleConfig } from "@/lib/platform/moduleTypes";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 import { V2_HOME_PATH } from "@/lib/v2Nav";
@@ -86,7 +88,7 @@ export const AI_RETENTION_AGENTS: PlatformModuleConfig = {
       icon: "clipboard",
       title: "HR operations",
       body: "Keep privacy notices, feedback cards and reviewer queues distinct so consequential follow-ups stay accountable.",
-      href: "/agents/employee-pulse-surveys",
+      href: EMPLOYEE_PULSE_SURVEYS_PATH,
       linkLabel: "Employee pulse surveys",
     },
   ],
@@ -122,8 +124,8 @@ export const AI_RETENTION_AGENTS: PlatformModuleConfig = {
     { label: "Identify employee concerns", href: "/solutions/concern-identification" },
     { label: "HR Follow-Ups", href: "/solutions/hr-follow-ups" },
     { label: "AI Survey Agent", href: "/agents/ai-survey-agent" },
-    { label: "Employee Pulse Surveys", href: "/agents/employee-pulse-surveys" },
-    { label: "New Hire Check-ins", href: "/agents/new-hire-check-in-surveys" },
+    { label: "Employee Pulse Surveys", href: EMPLOYEE_PULSE_SURVEYS_PATH },
+    { label: "New Hire Check-ins", href: NEW_HIRE_CHECK_IN_SURVEYS_PATH },
   ],
   aboutName: "Huntlo AI Retention Agents",
 };

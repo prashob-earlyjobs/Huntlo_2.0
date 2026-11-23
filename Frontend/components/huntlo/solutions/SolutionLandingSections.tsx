@@ -89,9 +89,9 @@ function CandidateQualificationMockup() {
   ] as const;
 
   return (
-    <div className="overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-4 py-3 sm:px-5">
-        <div>
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
+        <div className="min-w-0">
           <p className="text-sm font-medium">Candidate qualification workspace</p>
           <p className="text-xs text-muted-foreground">Illustrative product workflow</p>
         </div>
@@ -175,9 +175,9 @@ function HrCoordinationMockup() {
   const step = steps[active] ?? steps[0];
 
   return (
-    <div className="overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-4 py-3 sm:px-5">
-        <div>
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
+        <div className="min-w-0">
           <p className="text-sm font-medium">Employee onboarding overview</p>
           <p className="text-xs text-muted-foreground">Illustrative workflow — fictional employee</p>
         </div>
@@ -254,9 +254,9 @@ function HrCoordinationMockup() {
 
 function HrFollowUpsMockup() {
   return (
-    <div className="overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-4 py-3 sm:px-5">
-        <div>
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
+        <div className="min-w-0">
           <p className="text-sm font-medium">Employee check-in summary</p>
           <p className="text-xs text-muted-foreground">Fictional example — for UI illustration</p>
         </div>
@@ -302,9 +302,9 @@ function HrFollowUpsMockup() {
 
 function ConcernIdentificationMockup() {
   return (
-    <div className="overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-4 py-3 sm:px-5">
-        <div>
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-border bg-card shadow-soft">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-secondary/60 px-3.5 py-3 sm:px-5">
+        <div className="min-w-0">
           <p className="text-sm font-medium">Concern review workspace</p>
           <p className="text-xs text-muted-foreground">Illustrative product UI — fictional example</p>
         </div>
@@ -383,8 +383,8 @@ export function SolutionLandingHero({ config }: ConfigProps) {
         </ol>
       </nav>
 
-      <div className="grid items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
-        <div className="animate-rise">
+      <div className="grid min-w-0 items-start gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
+        <div className="animate-rise min-w-0">
           <Eyebrow>{config.eyebrow}</Eyebrow>
           <h1
             id="solution-landing-h1"
@@ -402,26 +402,32 @@ export function SolutionLandingHero({ config }: ConfigProps) {
             <CtaLink
               href={config.primaryCta.href}
               external={config.primaryCta.external}
-              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-foreground py-1.5 pl-6 pr-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-primary py-1.5 pl-6 pr-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-deep"
             >
               {config.primaryCta.label}
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-background text-foreground transition-transform group-hover:translate-x-0.5">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-primary-foreground text-primary transition-transform group-hover:translate-x-0.5">
                 <ArrowRight className="h-4 w-4" />
               </span>
             </CtaLink>
             <CtaLink
               href={config.secondaryCta.href}
               external={config.secondaryCta.external}
-              className="inline-flex min-h-11 w-fit items-center rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+              className="inline-flex min-h-11 w-fit items-center rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
               {config.secondaryCta.label}
             </CtaLink>
           </div>
         </div>
 
-        <div className="animate-rise" style={{ animationDelay: "80ms" }}>
-          <div className={cn("rounded-[24px] p-2 shadow-soft ring-1 ring-inset", accent.ring, accent.grad)}>
-            <div className="rounded-[18px] bg-background/95 p-1 backdrop-blur">
+        <div className="animate-rise min-w-0 w-full max-w-full" style={{ animationDelay: "80ms" }}>
+          <div
+            className={cn(
+              "min-w-0 w-full max-w-full rounded-[20px] p-1.5 shadow-soft ring-1 ring-inset sm:rounded-[24px] sm:p-2",
+              accent.ring,
+              accent.grad,
+            )}
+          >
+            <div className="min-w-0 rounded-[16px] bg-background/95 p-0.5 backdrop-blur sm:rounded-[18px] sm:p-1">
               <ProductMockup variant={config.productVariant} />
             </div>
           </div>
@@ -534,8 +540,8 @@ export function SolutionLandingProduct({ config }: ConfigProps) {
 
   return (
     <section className="section-y border-t border-border" aria-labelledby="product-h2">
-      <div className="container-x grid items-start gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
-        <Reveal>
+      <div className="container-x grid min-w-0 items-start gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
+        <Reveal className="min-w-0">
           <Eyebrow>Product experience</Eyebrow>
           <h2 id="product-h2" className="font-display-tight fs-h2 mt-5">
             {config.productH2}
@@ -552,16 +558,16 @@ export function SolutionLandingProduct({ config }: ConfigProps) {
             <CtaLink
               href={V2_BOOK_DEMO_PATH}
               external
-              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-foreground py-1.5 pl-6 pr-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+              className="group inline-flex min-h-11 w-fit items-center gap-3 rounded-full bg-primary py-1.5 pl-6 pr-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-deep"
             >
               Book a Demo
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-background text-foreground transition-transform group-hover:translate-x-0.5">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-primary-foreground text-primary transition-transform group-hover:translate-x-0.5">
                 <ArrowRight className="h-4 w-4" />
               </span>
             </CtaLink>
           </div>
         </Reveal>
-        <Reveal delay={80}>
+        <Reveal delay={80} className="min-w-0 w-full max-w-full">
           <ProductMockup variant={config.productVariant} />
         </Reveal>
       </div>

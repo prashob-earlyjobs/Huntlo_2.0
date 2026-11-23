@@ -23,8 +23,8 @@ export function ScreeningWorkflowPage({ config }: ScreeningWorkflowPageProps) {
   return (
     <AgentsShell aiAskTopic={config.aiAskTopic} aiAskPrompt={config.aiAskPrompt}>
       <div className="asa-design">
-        {/* AgentsShell already renders <main>; page-frame provides hairline rails. */}
-        <div className="asa-page-frame">
+        {/* Shared page-frame chrome with solutions/platform pages. */}
+        <div className="page-frame">
           <ScreeningWorkflowHero config={config} />
           <ScreeningWorkflowWhySection config={config} />
           <ScreeningWorkflowHowSection config={config} />

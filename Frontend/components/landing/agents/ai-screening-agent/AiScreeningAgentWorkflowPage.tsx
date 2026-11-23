@@ -22,8 +22,8 @@ export function AiScreeningAgentWorkflowPage() {
       aiAskPrompt={`What is the Huntlo AI Screening Agent on ${AI_SCREENING_AGENT_WORKFLOW_PATH} (https://www.huntlo.ai${AI_SCREENING_AGENT_WORKFLOW_PATH})? How does a general candidate qualification voice workflow collect answers and route a human-reviewed next action?`}
     >
       <div className="asa-design">
-        {/* AgentsShell already renders <main>; page-frame provides hairline rails. */}
-        <div className="asa-page-frame">
+        {/* Shared page-frame chrome with solutions/platform pages. */}
+        <div className="page-frame">
           <AiScreeningAgentWorkflowHero />
           <AiScreeningAgentWhySection />
           <AiScreeningAgentHowSection />

@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 
 import type { ScreeningWorkflowConfig } from "@/lib/agents/screeningWorkflowTypes";
 import { isIndexableCapability, type CapabilityStatus } from "@/lib/agents/types";
-import { AGENTS_HUB_PATH } from "@/lib/agents/pillarAgents";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 
-export const ONBOARDING_DOCUMENT_READINESS_PATH =
-  "/agents/onboarding-document-readiness";
+export const ONBOARDING_DOCUMENT_READINESS_PATH = "/solutions/day-1-readiness";
 
 /** Product must approve Live/Pilot/Planned before indexation. */
 export const ONBOARDING_DOCUMENT_READINESS_CAPABILITY_STATUS: CapabilityStatus =
@@ -51,11 +49,9 @@ export const ONBOARDING_DOCUMENT_READINESS: ScreeningWorkflowConfig = {
   seo: ONBOARDING_DOCUMENT_READINESS_SEO,
   breadcrumbs: [
     { name: "Home", href: "/" },
-    { name: "AI Agents", href: AGENTS_HUB_PATH },
-    {
-      name: "Onboarding Document Readiness",
-      href: ONBOARDING_DOCUMENT_READINESS_PATH,
-    },
+    { name: "Solutions", href: "/solutions/ai-onboarding-agents" },
+    { name: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
+    { name: "Day 1 Readiness", href: ONBOARDING_DOCUMENT_READINESS_PATH },
   ],
   hero: {
     h1: "Onboarding Document Readiness That Moves Work Forward",
@@ -217,14 +213,14 @@ export const ONBOARDING_DOCUMENT_READINESS: ScreeningWorkflowConfig = {
     subhead: "Book a Huntlo workflow discussion.",
   },
   relatedLinks: [
-    { label: "AI Agents", href: AGENTS_HUB_PATH },
+    { label: "AI Onboarding Agents", href: "/solutions/ai-onboarding-agents" },
     {
-      label: "AI Onboarding Agent",
-      href: "/agents/ai-onboarding-agent",
+      label: "Joining Confirmation",
+      href: "/solutions/joining-confirmation",
     },
     {
-      label: "Frontline Workforce Onboarding",
-      href: "/agents/frontline-workforce-onboarding",
+      label: "HR Coordination",
+      href: "/solutions/hr-coordination",
     },
   ],
   sampleTranscript: [

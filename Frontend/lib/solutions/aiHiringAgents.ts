@@ -1,3 +1,4 @@
+import { AI_SCREENING_AGENT_WORKFLOW_PATH } from "@/lib/agents/aiScreeningAgentWorkflow";
 import type { PlatformModuleConfig } from "@/lib/platform/moduleTypes";
 import { absoluteUrl, buildPageMetadata, OG_IMAGES } from "@/lib/siteMetadata";
 import { V2_HOME_PATH } from "@/lib/v2Nav";
@@ -85,14 +86,14 @@ export const AI_HIRING_AGENTS: PlatformModuleConfig = {
       icon: "headphones",
       title: "BPO hiring teams",
       body: "Coordinate high-volume applicant screening and interview follow-ups where next owners need to stay visible.",
-      href: "/in/ai-voice-bpo-recruitment",
-      linkLabel: "BPO recruitment page",
+      href: "/industries/bpo-customer-support",
+      linkLabel: "BPO & support page",
     },
     {
       icon: "truck",
       title: "Logistics & warehouse hiring",
       body: "Connect frontline applicant contact, role-relevant screening and interview coordination without inventing throughput metrics.",
-      href: "/in/ai-voice-logistics-warehouse-hiring",
+      href: "/industries/logistics-warehousing",
       linkLabel: "Logistics hiring page",
     },
   ],
@@ -127,7 +128,7 @@ export const AI_HIRING_AGENTS: PlatformModuleConfig = {
   related: [
     { label: "Candidate Qualification", href: "/solutions/candidate-qualification" },
     { label: "AI Hiring Agent", href: "/agents/ai-hiring-agent" },
-    { label: "AI Screening Agent", href: "/agents/ai-screening-agent" },
+    { label: "AI Screening Agent", href: AI_SCREENING_AGENT_WORKFLOW_PATH },
     { label: "Huntlo Voice", href: "/platform/voice" },
   ],
   aboutName: "Huntlo AI Hiring Agents",
